@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import numpy as np
+import random
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: Chaos Narrator HQ")
+st.title("🏈 Island Dynasty: Total Filth Edition")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -124,34 +125,51 @@ if data:
                 st.write(f"**{r['Matchup']}**: {r['Close Games']} Instant Classics")
 
     with tabs[2]:
-        st.header("📺 Dynamic Season Recap")
+        st.header("📺 Season Archives")
         sel_year = st.selectbox("Select Season", years)
         yr_scores = scores[scores[meta['yr']] == sel_year]
         natty_row = champs[champs[meta['cyr']].astype(str) == str(sel_year)]
         nat_win = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody"
         
-        # --- THE CHAOS ENGINE ---
-        # We use a mathematical remainder to pick a style so it's consistent for that year but different between years
-        style_seed = (int(sel_year) + len(nat_win)) % 4
+        # --- THE MODULAR CHAOS ENGINE ---
+        # Seeded by year to ensure consistency per year but uniqueness across years
+        random.seed(int(sel_year))
         
-        avg_m = round(yr_scores['Margin'].mean(), 1)
-        max_m = int(yr_scores['Margin'].max())
+        openers = [
+            f"Buckle up, because {sel_year} was a goddamn dumpster fire.",
+            f"If you're looking for quality football in {sel_year}, you're in the wrong place.",
+            f"The {sel_year} season archive is basically a crime scene report.",
+            f"Look at {sel_year}, a year defined by broken controllers and hurt feelings.",
+            f"In {sel_year}, the league reached new heights of total incompetence."
+        ]
+        
+        champ_parts = [
+            f"**{nat_win}** won the Natty, which is proof that even a blind squirrel finds a nut occasionally.",
+            f"Somehow, **{nat_win}** ended up with the trophy. The rest of you should be ashamed.",
+            f"**{nat_win}** sat on the throne this year, mostly because the rest of you played like garbage.",
+            f"The history books say **{nat_win}** won, but we all know the league just collectively choked.",
+            f"**{nat_win}** hoisted the hardware, leaving a trail of salty tears behind them."
+        ]
+        
+        stat_roasts = [
+            f"The average margin was {round(yr_scores['Margin'].mean(), 1)}. Half of you weren't even in the same zip code as your opponent.",
+            f"We saw a {int(yr_scores['Margin'].max())}-point blowout. That's not a game; that's a public execution.",
+            f"The scores were higher than your blood pressure, which is saying something for this group.",
+            f"With {len(yr_scores)} games played, you'd think one of you would've learned to play defense.",
+            f"A margin of {int(yr_scores['Margin'].max())} points? Go back to playing Minecraft, seriously."
+        ]
+        
+        closers = [
+            "What a pathetic display. Do better.",
+            "I've seen more competitive games in a retirement home. F***ing disgraceful.",
+            "Burn the tapes. Let's never speak of this again.",
+            "If this is the best you can do, just delete the app now.",
+            "Stay mad. See you in the next archive."
+        ]
 
-        if style_seed == 0:
-            header = "📰 LATEST BULLETIN"
-            body = f"The {sel_year} season was a masterclass in pain. **{nat_win}** climbed the mountain of skulls to claim the title, while the rest of the league looked like they were playing with one hand. Average margin was {avg_m}. If you weren't the one winning by {max_m}, you were probably the one crying in the group chat."
-        elif style_seed == 1:
-            header = "📜 THE HISTORY BOOKS"
-            body = f"Scholars will look back at {sel_year} as the year **{nat_win}** realized they were actually good at this. It was a season of brutal efficiency. With a maximum blowout of {max_m} points, some of you didn't just lose—you were erased. Don't check the stats, just check your pride."
-        elif style_seed == 2:
-            header = "🔥 THE TRASH TALK MANIFESTO"
-            body = f"Let's be real: {sel_year} was **{nat_win}**'s playground and the rest of you were just the equipment. You let a league with a {avg_m} average margin get away from you. Someone actually lost a game by {max_m} goddamn points. How do you even show your face in the chat after that?"
-        else:
-            header = "🚀 THE SEASON POST-MORTEM"
-            body = f"The {sel_year} campaign has been laid to rest, and **{nat_win}** is the only one who survived with their dignity. A season defined by a {max_m}-point shellacking proves that half of this league belongs in the kiddie pool. Enjoy the offseason, you're going to need the practice."
-
-        st.subheader(header)
-        st.error(body)
+        st.markdown(f"### 🤖 The Unfiltered Truth of {sel_year}")
+        full_story = f"{random.choice(openers)} {random.choice(champ_parts)} {random.choice(stat_roasts)} {random.choice(closers)}"
+        st.error(full_story)
         st.dataframe(yr_scores[[meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
 
     with tabs[3]:
