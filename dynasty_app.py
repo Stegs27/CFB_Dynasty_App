@@ -5,7 +5,7 @@ import numpy as np
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: The 'No Filter' HQ")
+st.title("🏈 Island Dynasty: Bulletproof HQ")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -57,7 +57,7 @@ def load_data():
         # 4. STATS & RIVALRY ENGINE
         stats_list = []
         h2h_rows = []
-        rivalry_data = []
+        rivalry_list = []
         nail_biters = scores[(scores['Margin'] <= 7) & (scores['V_User_Final'] != 'Cpu') & (scores['H_User_Final'] != 'Cpu')]
         
         for i, user in enumerate(all_users):
@@ -86,17 +86,24 @@ def load_data():
                                 ((vs['H_User_Final']==user) & (vs['H_Pts'] > vs['V_Pts']))])
                     h2h_row[opp] = f"{vw}-{len(vs)-vw}"
                     if i < all_users.index(opp):
-                        close = len(nail_biters[((nail_biters['V_User_Final']==user) & (nail_biters['H_User_Final']==opp)) | 
-                                               ((nail_biters['V_User_Final']==opp) & (nail_biters['H_User_Final']==user))])
-                        if close > 0: rivalry_data.append({'Matchup': f"{user} vs {opp}", 'Close Games': close})
+                        close_count = len(nail_biters[((nail_biters['V_User_Final']==user) & (nail_biters['H_User_Final']==opp)) | 
+                                                      ((nail_biters['V_User_Final']==opp) & (nail_biters['H_User_Final']==user))])
+                        if close_count > 0:
+                            rivalry_list.append({'Matchup': f"{user} vs {opp}", 'Close Games': close_count})
             h2h_rows.append(h2h_row)
 
         stats_df = pd.DataFrame(stats_list).sort_values(by='Power Score', ascending=False)
         adj = stats_df['Power Score'] - stats_df['Power Score'].min() + 10
         stats_df['Natty Prob %'] = round((adj / adj.sum()) * 100, 1)
 
-        col_meta = {'yr': yr_key, 'vt': v_team_key, 'vs': v_score_key, 'ht': h_team_key, 'hs': h_score_key, 'cyr': champ_yr_key, 'cu': champ_user_key}
-        return scores, rec_long, stats_df, pd.DataFrame(h2h_rows), pd.DataFrame(rivalry_data), all_users, years_available, col_meta, champs
+        # Meta bundle to prevent NameErrors
+        col_meta = {
+            'yr': yr_key, 'vt': v_team_key, 'vs': v_score_key, 
+            'ht': h_team_key, 'hs': h_score_key, 
+            'cyr': champ_yr_key, 'cu': champ_user_key
+        }
+        
+        return scores, rec_long, stats_df, pd.DataFrame(h2h_rows), pd.DataFrame(rivalry_list), all_users, years_available, col_meta, champs
 
     except Exception as e:
         st.error(f"⚠️ Error: {e}")
@@ -105,45 +112,46 @@ def load_data():
 # --- UI ---
 data = load_data()
 if data:
-    scores, rec, stats, h2h, rivalries, all_users, years, meta, champs = data
+    scores, rec, stats, h2h_df, rivalry_df, all_users, years, meta, champs_df = data
     tabs = st.tabs(["🏆 Rankings", "⚔️ H2H Matrix", "📺 Season Recap", "🎰 Vegas Odds", "📉 Recruiting", "📜 Record Books"])
 
     with tabs[0]:
-        st.subheader("Leaderboard")
+        st.subheader("Current Dynasty Standing")
         c1, c2 = st.columns([2,1])
         c1.dataframe(stats[['User', 'Power Score', 'Overall Record', 'Avg Recruiting', 'Natty Prob %', 'Nattys']], hide_index=True)
         c2.plotly_chart(px.pie(stats, values='Natty Prob %', names='User', hole=0.4))
 
     with tabs[1]:
         st.header("Head-to-Head & Rivalries")
-        st.table(h2h.set_index('User'))
-        if not rivalry_data.empty:
+        st.table(h2h_df.set_index('User'))
+        if not rivalry_df.empty:
             st.subheader("🔥 Most Intense Matchups")
-            top_riv = rivalries.sort_values('Close Games', ascending=False).head(3)
+            top_riv = rivalry_df.sort_values('Close Games', ascending=False).head(3)
             for _, r in top_riv.iterrows():
-                st.write(f"**{r['Matchup']}**: {r['Close Games']} Instant Classics")
+                st.write(f"**{r['Matchup']}**: {r['Close Games']} Nail-biters")
 
     with tabs[2]:
         st.header("📺 Season Archives")
         sel_year = st.selectbox("Select Season", years)
         yr_scores = scores[scores[meta['yr']] == sel_year]
         
-        # Identify Natty Winner for that year
-        natty_row = champs[champs[meta['cyr']].astype(str) == str(sel_year)]
-        natty_winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody (Pathetic)"
+        # Pull Natty Winner
+        natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(sel_year)]
+        nat_win = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody"
         
         avg_m = yr_scores['Margin'].mean()
+        max_m = yr_scores['Margin'].max()
         
-        # Dynamic Sassy Narratives
-        if "Nobody" in natty_winner:
-            story = f"The {sel_year} season was a total mess. Nobody even bothered to win a Natty? Do you guys even play this game? Average margin was {round(avg_m, 1)}, which basically means most of you were getting blown out while playing like garbage."
+        # The Roast Logic
+        if nat_win == "Nobody":
+            roast = f"Year {sel_year} was a waste of electricity. No National Champion recorded. Did you guys even finish the season or did the group chat just dissolve into crying?"
         elif avg_m < 12:
-            story = f"In {sel_year}, **{natty_winner}** clawed their way to a National Title while the rest of you were busy choking in the 4th quarter. With an average margin of {round(avg_m, 1)}, this season was full of sweats and bad beats. **{natty_winner}** didn't just win; they survived your collective incompetence."
+            roast = f"Year {sel_year} belonged to **{nat_win}**, who clearly had the luck of the gods while everyone else was choking on {round(avg_m, 1)}-point margins. A lot of 'almost' in this data, but 'almost' doesn't put a trophy in the cabinet, does it?"
         else:
-            story = f"The {sel_year} season was a goddamn bloodbath. **{natty_winner}** didn't just win the Natty; they treated the rest of the league like a FCS tune-up game. An average margin of {round(avg_m, 1)}? That's not football, that's a crime scene. Get better or get out."
+            roast = f"Good god, {sel_year} was a slaughterhouse. **{nat_win}** won the Natty, while some of you were out here losing by as much as {max_m} points. That's not a rivalry, that's a weekly execution. Fix your schemes or play CPU-only."
 
-        st.markdown(f"### 🤖 The Real {sel_year} Story")
-        st.warning(story)
+        st.markdown(f"### 🤖 The Bitter Review of {sel_year}")
+        st.error(roast)
         st.dataframe(yr_scores[[meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
 
     with tabs[3]:
@@ -152,8 +160,11 @@ if data:
         h_choice = c1.selectbox("Home", all_users, index=0)
         a_choice = c2.selectbox("Away", all_users, index=1)
         if h_choice != a_choice:
-            spread = (stats[stats['User']==h_choice]['Home Strength'].values[0] - stats[stats['User']==a_choice]['Away Strength'].values[0]) / 2
-            st.markdown(f"<h1 style='text-align: center;'>{h_choice if spread > 0 else a_choice} -{round(abs(spread), 1)}</h1>", unsafe_allow_html=True)
+            h_data = stats[stats['User']==h_choice].iloc[0]
+            a_data = stats[stats['User']==a_choice].iloc[0]
+            spread = (h_data['Home Strength'] - a_data['Away Strength']) / 2
+            fav = h_choice if spread > 0 else a_choice
+            st.markdown(f"<h1 style='text-align: center;'>{fav} -{round(abs(spread), 1)}</h1>", unsafe_allow_html=True)
 
     with tabs[4]:
         st.header("📉 Recruiting Trends")
