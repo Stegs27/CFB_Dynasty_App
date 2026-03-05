@@ -5,7 +5,7 @@ import numpy as np
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: SportsCenter HQ")
+st.title("🏈 Island Dynasty: The Ultimate HQ")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -57,8 +57,9 @@ def load_data():
         rec_long['User_Mapped'] = rec_long['Team'].map(team_to_user)
         user_avg_rec = rec_long.groupby('User_Mapped')['Rank'].mean().to_dict()
 
-        # 4. PRIMARY STATS ENGINE
+        # 4. STATS ENGINE
         stats_list = []
+        h2h_rows = []
         user_team_history = []
         latest_year = scores[yr_key].max()
 
@@ -67,20 +68,11 @@ def load_data():
             v_games = scores[scores['V_User_Final'] == user]
             all_u_games = pd.concat([h_games, v_games])
             
-            # Season specific for recap
-            current_yr_games = all_u_games[all_u_games[yr_key] == latest_year]
-            cy_wins = len(current_yr_games[((current_yr_games['H_User_Final']==user)&(current_yr_games['H_Pts']>current_yr_games['V_Pts'])) | 
-                                          ((current_yr_games['V_User_Final']==user)&(current_yr_games['V_Pts']>current_yr_games['H_Pts']))])
-            
             wins = len(h_games[h_games['H_Pts'] > h_games['V_Pts']]) + len(v_games[v_games['V_Pts'] > v_games['H_Pts']])
             losses = len(all_u_games) - wins
             h_mov = h_games['H_Pts'].mean() - h_games['V_Pts'].mean() if not h_games.empty else 0
             v_mov = v_games['V_Pts'].mean() - v_games['H_Pts'].mean() if not v_games.empty else 0
             
-            def get_ppg(df, u):
-                p = [r['H_Pts'] if r['H_User_Final'] == u else r['V_Pts'] for _, r in df.iterrows()]
-                return sum(p)/len(p) if p else 0
-
             n_wins = len(champs[champs[champ_user_key].astype(str).str.strip().str.title() == user]) if champ_user_key else 0
             avg_rec = user_avg_rec.get(user, 50.0)
             
@@ -88,30 +80,35 @@ def load_data():
 
             stats_list.append({
                 'User': user, 'Power Score': round(p_score, 1), 'Wins': wins, 'Losses': losses,
-                'Avg Rec Rank': round(avg_rec, 1), 'Nattys': n_wins, 'Points Against': round(get_ppg(all_u_games, user), 1),
-                'Home MOV': round(h_mov, 1), 'Away MOV': round(v_mov, 1), 'Season Wins': cy_wins
+                'Avg Rec Rank': round(avg_rec, 1), 'Nattys': n_wins, 'Points Against': round(all_u_games['V_Pts'].mean() if user == 'H' else all_u_games['H_Pts'].mean(), 1), # Simplified PA
+                'Home Strength': round(h_mov, 1), 'Away Strength': round(v_mov, 1)
             })
 
+            # H2H Grid Logic
+            h2h_row = {'User': user}
+            for opp in all_users:
+                if user == opp: h2h_row[opp] = "-"
+                else:
+                    vs = scores[((scores['V_User_Final']==user) & (scores['H_User_Final']==opp)) | 
+                                ((scores['V_User_Final']==opp) & (scores['H_User_Final']==user))]
+                    vw = len(vs[((vs['V_User_Final']==user) & (vs['V_Pts'] > vs['H_Pts'])) | 
+                                ((vs['H_User_Final']==user) & (vs['H_Pts'] > vs['V_Pts']))])
+                    vl = len(vs) - vw
+                    h2h_row[opp] = f"{vw}-{vl}"
+            h2h_rows.append(h2h_row)
+
             # Team History
-            u_t = pd.concat([h_games[[h_team_key, yr_key]].rename(columns={h_team_key:'Team', yr_key:'Year'}), 
-                             v_games[[v_team_key, yr_key]].rename(columns={v_team_key:'Team', yr_key:'Year'})])
-            for t_name in u_t['Team'].unique():
-                user_team_history.append({'User': user, 'Team': t_name})
+            u_t = pd.concat([h_games[[h_team_key]].rename(columns={h_team_key:'T'}), v_games[[v_team_key]].rename(columns={v_team_key:'T'})])
+            for t_name in u_t['T'].unique(): user_team_history.append({'User': user, 'Team': t_name})
 
         stats_df = pd.DataFrame(stats_list).sort_values(by='Power Score', ascending=False)
-        p_map = stats_df.set_index('User')['Power Score'].to_dict()
-
-        # 5. SOS & HEISMAN
-        sos_map = {}
-        for user in all_users:
-            opps = scores[scores['H_User_Final'] == user]['V_User_Final'].tolist() + scores[scores['V_User_Final'] == user]['H_User_Final'].tolist()
-            powers = [p_map.get(o, 0) for o in opps if o != 'Cpu']
-            sos_map[user] = round(sum(powers)/len(powers), 1) if powers else 0
-
-        stats_df['SOS'] = stats_df['User'].map(sos_map)
-        stats_df['Heisman Points'] = (stats_df['Wins'] * 2) + (stats_df['Nattys'] * 10) + (stats_df['SOS'] / 10)
         
-        return scores, rec_long, stats_df, latest_year, all_users, pd.DataFrame(user_team_history)
+        # 5. NATTY PROBABILITY
+        min_p = stats_df['Power Score'].min()
+        adj = stats_df['Power Score'] - min_p + 10
+        stats_df['Natty Prob %'] = round((adj / adj.sum()) * 100, 1)
+
+        return scores, rec_long, stats_df, pd.DataFrame(h2h_rows), all_users, pd.DataFrame(user_team_history), latest_year
 
     except Exception as e:
         st.error(f"⚠️ Error: {e}")
@@ -121,43 +118,36 @@ def load_data():
 data = load_data()
 
 if data:
-    scores, rec, stats, latest_year, all_users, history = data
-    tabs = st.tabs(["🏆 Rankings", "📺 Season Recap", "🏅 Hall of Fame", "🎲 Vegas/H2H", "📉 Recruiting", "🏛️ History", "🏟️ Logs"])
+    scores, rec, stats, h2h, all_users, history, latest_year = data
+    tabs = st.tabs(["🏆 Rankings", "⚔️ H2H Matrix", "📺 Season Recap", "🎲 Vegas Odds", "📉 Recruiting", "🏛️ History", "🏟️ Logs"])
 
     with tabs[0]:
-        st.subheader("Leaderboard")
-        st.dataframe(stats[['User', 'Power Score', 'Heisman Points', 'SOS', 'Nattys']], hide_index=True)
-        st.plotly_chart(px.bar(stats, x='User', y='Power Score', color='Power Score'))
+        st.subheader("Leaderboard & Natty Probabilities")
+        c1, c2 = st.columns([2,1])
+        c1.dataframe(stats[['User', 'Power Score', 'Natty Prob %', 'Nattys', 'Wins', 'Losses']], hide_index=True)
+        c2.plotly_chart(px.pie(stats, values='Natty Prob %', names='User', hole=0.4))
 
     with tabs[1]:
-        st.header(f"📺 Year {latest_year} News Wrap-Up")
-        top_dog = stats.sort_values('Season Wins', ascending=False).iloc[0]['User']
-        sos_king = stats.sort_values('SOS', ascending=False).iloc[0]['User']
-        
-        st.markdown(f"""
-        ### 🚨 HEADLINES
-        * **DOMINANCE:** {top_dog} finished the year as the winningest user.
-        * **BATTLE TESTED:** {sos_king} faced the toughest schedule in the league.
-        * **RECRUITING WATCH:** {stats.sort_values('Avg Rec Rank').iloc[0]['User']} is currently building a super-team.
-        """)
-        st.info("💡 Tip: Update your CSVs with the latest season results and hit refresh to generate the next recap!")
+        st.header("The Rivalry Grid")
+        st.table(h2h.set_index('User'))
 
     with tabs[2]:
-        st.header("🏅 Hall of Fame")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Defensive Mastermind", stats.sort_values('Points Against').iloc[0]['User'])
-        c2.metric("Recruiting Guru", stats.sort_values('Avg Rec Rank').iloc[0]['User'])
-        c3.metric("Clutch Performer", stats.sort_values('Nattys', ascending=False).iloc[0]['User'])
+        st.header(f"📺 Year {latest_year} News Recap")
+        st.markdown(f"**Season MVP:** {stats.iloc[0]['User']} is currently the gold standard.")
+        st.info("Recap updates automatically based on the 'YEAR' column in your scores.csv")
 
     with tabs[3]:
-        st.header("🎲 Vegas & H2H")
-        f = st.selectbox("Select Favorite", all_users, index=0)
-        u = st.selectbox("Select Underdog", all_users, index=1)
-        if f != u:
-            line = (stats[stats['User']==f]['Power Score'].values[0] - stats[stats['User']==u]['Power Score'].values[0]) / 5
-            st.markdown(f"### Spread: {f} -{round(abs(line), 1)}")
-            vs = scores[((scores['V_User_Final']==f)&(scores['H_User_Final']==u)) | ((scores['V_User_Final']==u)&(scores['H_User_Final']==f))]
-            st.dataframe(vs, hide_index=True)
+        st.header("🎰 Vegas Spreads")
+        c1, c2 = st.columns(2)
+        h_choice = c1.selectbox("Home Team", all_users, index=0)
+        a_choice = c2.selectbox("Away Team", all_users, index=1)
+        if h_choice != a_choice:
+            h_stat = stats[stats['User'] == h_choice].iloc[0]
+            a_stat = stats[stats['User'] == a_choice].iloc[0]
+            # Spread = Home Advantage + Power Diff
+            spread = (h_stat['Home Strength'] - a_stat['Away Strength']) / 2
+            fav = h_choice if spread > 0 else a_choice
+            st.markdown(f"<h1 style='text-align: center;'>{fav} -{round(abs(spread), 1)}</h1>", unsafe_allow_html=True)
 
     with tabs[4]:
         st.plotly_chart(px.line(rec, x='Year', y='Rank', color='Team').update_yaxes(autorange="reversed"))
