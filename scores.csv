@@ -1,0 +1,131 @@
+﻿YEAR,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Reg Season,Conf Title,Bowl,Natty Game
+2025,Rapid City,Hammond,51,29,No,Mike,Devin,Yes,No,No,NO
+2025,Panama city,Alabaster,36,31,No,Josh,Noah,Yes,No,No,NO
+2025,Death Valley,Gate City,31,49,No,Doug,Nick,Yes,No,No,NO
+2025,Hammond,Rapid City,7,41,No,Devin,Mike,No,Yes,No,NO
+2025,gate city,Hammond,35,56,No,Nick,Devin,No,No,Yes,NO
+2026,Hammond,Rapid City,42,41,No,Devin,Mike,Yes,No,no,NO
+2026,gate city,Death Valley,56,21,No,Nick,Doug,Yes,No,no,NO
+2026,Alabaster,Panama city,52,38,No,Noah,Josh,Yes,No,no,NO
+2026,Death Valley,Gate City,35,55,no,Doug,Nick,no,Yes,no,NO
+2027,Nebraska,Rapid City,13,31,No,Nick,Mike,Yes,No,no,NO
+2027,Panama city,Alabaster,26,20,No,Josh,Noah,Yes,No,No,NO
+2027,Death Valley,Hammond,21,42,No,Doug,Devin,Yes,No,No,NO
+2027,Panama city,Alabaster,35,56,No,Josh,Noah,no,yes,No,NO
+2028,Rapid City,Nebraska,28,26,No,Mike,Nick,Yes,No,no,NO
+2028,Alabaster,Panama city,52,27,No,Noah,Josh,Yes,No,no,NO
+2028,Hammond,Death Valley,56,14,No,Devin,Doug,Yes,No,no,NO
+2028,Alabaster,Rapid City,21,23,Yes,Noah,Mike,No,No,No,NO
+2028,Hammond,Rapid City,28,24,Yes,Devin,Mike,No,No,No,YES
+2029,Rapid City,Hammond,21,28,No,Mike,Devin,Yes,No,No,NO
+2029,Panama city,Alabaster,34,55,No,Josh,Noah,Yes,No,No,NO
+2029,Rapid City,Death Valley,48,0,No,Mike,Doug,Yes,No,No,NO
+2029,Hammond,Nebraska,35,15,No,Devin,Nick,Yes,No,No,NO
+2029,Rapid City,Hammond,55,27,No,Mike,Devin,No,Yes,No,NO
+2029,Panama city,Hammond,52,42,Yes,Josh,Devin,No,No,No,NO
+2029,Panama city,Alabaster,38,41,Yes,Josh,Noah,no,No,No,NO
+2029,Rapid City,Alabaster,56,20,Yes,Mike,Noah,no,no,no,YES
+2030,Nebraska,Panama city,42,28,No,Nick,Josh,Yes,No,No,NO
+2030,Hammond,Rapid City,35,38,No,Devin,Mike,Yes,No,No,NO
+2030,Alabaster,Death Valley,42,56,No,Noah,Doug,Yes,No,No,NO
+2030,Alabaster,Panama city,63,42,No,Noah,Josh,Yes,No,no,NO
+2030,Hammond,Rapid City,44,36,No,Devin,Mike,no,Yes,No,NO
+2030,Alabaster,Panama city,48,41,No,Noah,Josh,no,Yes,no,NO
+2030,Hammond,Alabaster,70,73,Yes,Devin,Noah,No,No,No,NO
+2030,Death Valley,Alabaster,35,48,Yes,Doug,Noah,No,No,No,NO
+2030,Rapid City,Nebraska,45,28,Yes,Mike,Nick,No,No,No,NO
+2030,Rapid City,Alabaster,27,31,Yes,Mike,Noah,No,No,No,YES
+2031,Nebraska,Death Valley,49,28,No,Nick,Doug,Yes,No,No,NO
+2031,Panama city,Nebraska,49,42,No,Josh,Nick,Yes,No,No,NO
+2031,Hammond,Rapid City,28,49,No,Devin,Mike,Yes,No,No,NO
+2031,Hammond,Alabaster,65,56,No,Devin,Noah,Yes,No,No,NO
+2031,Panama city,Death Valley,28,23,No,Josh,Doug,Yes,No,No,NO
+2031,Alabaster,Rapid City,42,48,No,Noah,Mike,Yes,No,No,NO
+2031,Hammond,Rapid City,52,73,No,Devin,Mike,No,Yes,No,NO
+2031,Nebraska,Panama city,42,21,No,Nick,Josh,No,Yes,No,NO
+2031,Alabaster,Rapid City,66,84,Yes,Noah,Mike,No,No,No,NO
+2031,Panama city,Rapid City,45,32,Yes,Josh,Mike,No,No,No,NO
+2031,Panama city,Nebraska,42,7,Yes,Josh,Nick,No,No,No,YES
+2032,Death Valley,Nebraska,28,35,No,Doug,Nick,Yes,No,No,NO
+2032,Nebraska,Hammond,35,38,No,Nick,Devin,Yes,No,No,NO
+2032,Death Valley,Hammond,24,35,No,Doug,Devin,Yes,No,No,NO
+2032,Rapid City,Alabaster,31,34,No,Mike,Noah,Yes,No,No,NO
+2032,Alabaster,Panama city,37,40,No,Noah,Josh,Yes,No,No,NO
+2032,Rapid City,Panama city,54,24,No,Mike,Josh,Yes,No,No,NO
+2032,Rapid City,Panama city,37,36,No,Mike,Josh,No,yes,No,NO
+2032,Rapid City,Panama city,42,30,yes,Mike,Josh,No,no,No,NO
+2032,Alabaster,Nebraska,38,35,yes,Noah,Nick,No,No,No,NO
+2032,Rapid City,Hammond,59,19,yes,Mike,Devin,No,no,No,NO
+2033,Hammond,Nebraska,35,42,no,Devin,Nick,Yes,no,no,NO
+2033,Panama city,Rapid City,35,46,no,Josh,Mike,Yes,no,no,NO
+2033,Nebraska,Death Valley,62,10,no,Nick,Doug,Yes,no,no,NO
+2033,Alabaster,Rapid City,14,42,no,Noah,Mike,Yes,no,no,NO
+2033,Panama city,Alabaster,42,52,no,Josh,Noah,Yes,no,no,NO
+2033,Alabaster,Nebraska,28,35,yes,Noah,Nick,no,no,no,NO
+2033,Panama city,Death Valley,42,23,no,Josh,Doug,no,no,yes,NO
+2033,Hammond,Rapid City,65,41,Yes,Devin,Mike,No,No,No,NO
+2033,Hammond,Nebraska,44,42,Yes,Devin,Nick,No,No,No,YES
+2034,Death Valley,Rapid City,7,48,No,Doug,Mike,Yes,No,No,NO
+2034,Death Valley,Nebraska,28,42,No,Doug,Nick,Yes,No,No,NO
+2034,Hammond,Alabaster,63,32,no,Devin,Noah,yes,No,No,NO
+2034,Alabaster,Georgia,42,14,no,Noah,Josh,yes,no,no,NO
+2034,Hammond,Georgia,28,35,no,Devin,Josh,yes,no,no,NO
+2034,Nebraska,Rapid City,28,31,no,Nick,Mike,Yes,No,No,NO
+2034,Georgia,Rapid City,19,27,Yes,Josh,Mike,no,No,No,NO
+2034,Alabaster,Rapid City,34,56,Yes,Noah,Mike,no,No,No,NO
+2034,Hammond,Nebraska,35,36,Yes,Devin,Nick,No,No,No,NO
+2034,Nebraska,Rapid City,35,42,Yes,Nick,Mike,no,No,No,YES
+2035,Alabaster,Nebraska,31,21,no,Noah,Nick,yes,no,no,NO
+2035,Georgia,Alabaster,35,38,no,Josh,Noah,yes,no,no,NO
+2035,Rapid City,Hammond,45,21,no,Mike,Devin,yes,no,No,NO
+2035,Rapid City,Death Valley,56,28,no,Mike,Doug,yes,no,no,NO
+2035,Hammond,Death Valley,42,28,no,Devin,Doug,yes,no,no,NO
+2035,Georgia,Nebraska,38,35,no,Josh,Nick,yes,no,no,NO
+2035,Rapid City,Hammond,30,31,no,Mike,Devin,no,yes,No,NO
+2035,Hammond,Nebraska,42,28,Yes,Devin,Nick,No,No,No,NO
+2035,Rapid City,Hammond,59,21,yes,Mike,Devin,no,no,No,NO
+2035,Georgia,Alabaster,35,42,yes,Josh,Noah,no,no,no,NO
+2035,Rapid City,Alabaster,35,7,yes,Mike,Noah,no,no,no,YES
+2036,Georgia,Alabaster,31,40,no,Josh,Noah,yes,no,no,NO
+2036,Maryland,Death Valley,26,21,no,Mike,Doug,yes,no,no,NO
+2036,Hammond,Nebraska,49,70,no,Devin,Nick,yes,No,No,NO
+2036,Georgia,Alabaster,56,52,no,Josh,Noah,no,yes,no,NO
+2036,Maryland,Death Valley,31,28,yes,Mike,Doug,no,no,no,NO
+2036,Maryland,Georgia,21,35,yes,Mike,Josh,no,no,no,NO
+2036,Alabaster,Nebraska,49,43,yes,Noah,Nick,no,no,no,NO
+2036,Georgia,Alabaster,22,30,yes,Josh,Noah,no,no,no,YES
+2037,Wyoming,Bowling Green,52,28,no,Mike,Devin,yes,no,no,NO
+2037,Alabaster,Nebraska,39,46,no,Noah,Nick,yes,no,no,NO
+2037,Georgia,Alabaster,60,45,no,Josh,Noah,yes,no,no,NO
+2037,Georgia,Nebraska,14,9,no,Josh,Nick,yes,no,no,NO
+2037,Nebraska,Georgia,36,33,no,Nick,Josh,no,yes,no,NO
+2037,Wyoming,Alabaster,27,28,yes,Mike,Noah,no,no,no,NO
+2037,Alabaster,Georgia,24,27,yes,Noah,Josh,no,no,no,NO
+2037,Georgia,Nebraska,40,52,yes,Josh,Nick,no,no,no,NO
+2037,Nebraska,Death Valley,34,65,yes,Nick,Doug,no,no,no,YES
+2038,Nebraska,Wyoming,27,31,no,Nick,Mike,yes,no,no,NO
+2038,Alabaster,Nebraska,38,14,no,Noah,Nick,yes,no,no,NO
+2038,Death Valley,Nebraska,28,34,yes,Doug,Nick,no,no,no,NO
+2038,Bowling Green,Death Valley,43,36,no,Devin,Doug,yes,no,no,NO
+2038,Nebraska,Alabaster,42,45,no,Nick,Noah,no,yes,no,NO
+2038,Nebraska,Alabaster,34,35,yes,Nick,Noah,no,no,no,NO
+2038,Wyoming,Alabaster,42,41,yes,Mike,Noah,no,no,no,NO
+2038,Death Valley,Georgia,20,38,no,Doug,Josh,yes,no,no,NO
+2038,Death Valley,Georgia,35,65,no,Doug,Josh,no,yes,no,NO
+2038,Wyoming,Georgia,27,59,yes,Mike,Josh,no,no,no,YES
+2039,Georgia,Wyoming,35,56,no,Josh,Mike,yes,no,no,NO
+2039,Georgia,Wyoming,39,41,no,Josh,Mike,no,yes,no,NO
+2039,Texas Tech,Nebraska,35,38,no,Noah,Nick,yes,no,no,NO
+2039,Bowling Green,Death Valley,35,14,no,Devin,Doug,yes,no,no,NO
+2039,Death Valley,Bowling Green,21,63,no,Doug,Devin,no,yes,no,NO
+2039,Death Valley,Nebraska,35,21,yes,Doug,Nick,no,no,no,NO
+2039,Death Valley,Georgia,28,55,yes,Doug,Josh,no,no,no,NO
+2039,Georgia,Wyoming,42,35,yes,Josh,Mike,no,no,no,YES
+2040,Texas Tech,Wyoming,44,69,no,Noah,Mike,yes,no,no,NO
+2040,Florida State,Bowling Green,28,49,no,Nick,Devin,yes,no,no,NO
+2040,UTSA,USF,21,34,no,Doug,Josh,yes,no,no,NO
+2040,USF,Bowling Green,35,38,yes,Josh,Devin,no,no,no,NO
+2040,Bowling Green,Wyoming,24,59,yes,Devin,Mike,no,no,no,YES
+2041,San Jose State,Texas Tech,62,27,no,Mike,Noah,yes,no,no,NO
+2041,Bowling Green,Florida,56,52,no,Devin,Doug,yes,no,no,NO
+2041,Florida State,Bowling Green,21,52,no,Nick,Devin,yes,no,no,NO
