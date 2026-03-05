@@ -2,11 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import numpy as np
-import random
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: Dynamic Storyteller")
+st.title("🏈 Island Dynasty: The 'No Filter' HQ")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -31,6 +30,7 @@ def load_data():
         h_team_key = smart_col(scores, ['Home', 'Home Team'])
         yr_key = smart_col(scores, ['YEAR', 'Year'])
         champ_user_key = smart_col(champs, ['user', 'User', 'User of team'])
+        champ_yr_key = smart_col(champs, ['Year', 'YEAR'])
 
         # 2. DATA CLEANING
         scores['V_User_Final'] = scores[v_user_key].astype(str).str.strip().str.title()
@@ -54,9 +54,12 @@ def load_data():
         rec_long['User_Mapped'] = rec_long[r_team_col].map(team_to_user)
         user_avg_rec = rec_long.groupby('User_Mapped')['Rank'].mean().to_dict()
 
-        # 4. STATS ENGINE
+        # 4. STATS & RIVALRY ENGINE
         stats_list = []
         h2h_rows = []
+        rivalry_data = []
+        nail_biters = scores[(scores['Margin'] <= 7) & (scores['V_User_Final'] != 'Cpu') & (scores['H_User_Final'] != 'Cpu')]
+        
         for i, user in enumerate(all_users):
             h_games = scores[scores['H_User_Final'] == user]
             v_games = scores[scores['V_User_Final'] == user]
@@ -82,14 +85,18 @@ def load_data():
                     vw = len(vs[((vs['V_User_Final']==user) & (vs['V_Pts'] > vs['H_Pts'])) | 
                                 ((vs['H_User_Final']==user) & (vs['H_Pts'] > vs['V_Pts']))])
                     h2h_row[opp] = f"{vw}-{len(vs)-vw}"
+                    if i < all_users.index(opp):
+                        close = len(nail_biters[((nail_biters['V_User_Final']==user) & (nail_biters['H_User_Final']==opp)) | 
+                                               ((nail_biters['V_User_Final']==opp) & (nail_biters['H_User_Final']==user))])
+                        if close > 0: rivalry_data.append({'Matchup': f"{user} vs {opp}", 'Close Games': close})
             h2h_rows.append(h2h_row)
 
         stats_df = pd.DataFrame(stats_list).sort_values(by='Power Score', ascending=False)
         adj = stats_df['Power Score'] - stats_df['Power Score'].min() + 10
         stats_df['Natty Prob %'] = round((adj / adj.sum()) * 100, 1)
 
-        col_meta = {'yr': yr_key, 'vt': v_team_key, 'vs': v_score_key, 'ht': h_team_key, 'hs': h_score_key}
-        return scores, rec_long, stats_df, pd.DataFrame(h2h_rows), all_users, years_available, col_meta
+        col_meta = {'yr': yr_key, 'vt': v_team_key, 'vs': v_score_key, 'ht': h_team_key, 'hs': h_score_key, 'cyr': champ_yr_key, 'cu': champ_user_key}
+        return scores, rec_long, stats_df, pd.DataFrame(h2h_rows), pd.DataFrame(rivalry_data), all_users, years_available, col_meta, champs
 
     except Exception as e:
         st.error(f"⚠️ Error: {e}")
@@ -98,7 +105,7 @@ def load_data():
 # --- UI ---
 data = load_data()
 if data:
-    scores, rec, stats, h2h, all_users, years, meta = data
+    scores, rec, stats, h2h, rivalries, all_users, years, meta, champs = data
     tabs = st.tabs(["🏆 Rankings", "⚔️ H2H Matrix", "📺 Season Recap", "🎰 Vegas Odds", "📉 Recruiting", "📜 Record Books"])
 
     with tabs[0]:
@@ -108,32 +115,35 @@ if data:
         c2.plotly_chart(px.pie(stats, values='Natty Prob %', names='User', hole=0.4))
 
     with tabs[1]:
-        st.header("Head-to-Head Matrix")
+        st.header("Head-to-Head & Rivalries")
         st.table(h2h.set_index('User'))
+        if not rivalry_data.empty:
+            st.subheader("🔥 Most Intense Matchups")
+            top_riv = rivalries.sort_values('Close Games', ascending=False).head(3)
+            for _, r in top_riv.iterrows():
+                st.write(f"**{r['Matchup']}**: {r['Close Games']} Instant Classics")
 
     with tabs[2]:
-        st.header("📺 Dynamic Season Archives")
+        st.header("📺 Season Archives")
         sel_year = st.selectbox("Select Season", years)
         yr_scores = scores[scores[meta['yr']] == sel_year]
         
-        # --- NEW DYNAMIC NARRATIVE ENGINE ---
-        v_wins = yr_scores[yr_scores['V_Pts'] > yr_scores['H_Pts']]['V_User_Final']
-        h_wins = yr_scores[yr_scores['H_Pts'] > yr_scores['V_Pts']]['H_User_Final']
-        yr_win_counts = pd.concat([v_wins, h_wins]).value_counts()
-        yr_king = yr_win_counts.idxmax() if not yr_win_counts.empty else "The CPUs"
-        avg_margin = yr_scores['Margin'].mean()
-        high_score = (yr_scores[meta['vs']] + yr_scores[meta['hs']]).max()
-
-        # Dynamic Content Blocks
-        if avg_margin < 10:
-            vibe = f"The {sel_year} campaign was a certified 'Year of the Nail-biter.' With an average margin of just {round(avg_margin, 1)} points, every week was a heart attack for the league."
-        elif high_score > 80:
-            vibe = f"Defense was optional in {sel_year}. We saw track meets every Saturday, highlighted by a massive {high_score}-point shootout that left the record books smoking."
+        # Identify Natty Winner for that year
+        natty_row = champs[champs[meta['cyr']].astype(str) == str(sel_year)]
+        natty_winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody (Pathetic)"
+        
+        avg_m = yr_scores['Margin'].mean()
+        
+        # Dynamic Sassy Narratives
+        if "Nobody" in natty_winner:
+            story = f"The {sel_year} season was a total mess. Nobody even bothered to win a Natty? Do you guys even play this game? Average margin was {round(avg_m, 1)}, which basically means most of you were getting blown out while playing like garbage."
+        elif avg_m < 12:
+            story = f"In {sel_year}, **{natty_winner}** clawed their way to a National Title while the rest of you were busy choking in the 4th quarter. With an average margin of {round(avg_m, 1)}, this season was full of sweats and bad beats. **{natty_winner}** didn't just win; they survived your collective incompetence."
         else:
-            vibe = f"The {sel_year} season was a tactical masterclass. It wasn't just about scoring; it was about who blinked first under the pressure of the bright lights."
+            story = f"The {sel_year} season was a goddamn bloodbath. **{natty_winner}** didn't just win the Natty; they treated the rest of the league like a FCS tune-up game. An average margin of {round(avg_m, 1)}? That's not football, that's a crime scene. Get better or get out."
 
-        st.markdown(f"### 🤖 AI Narrative: The Story of {sel_year}")
-        st.info(f"**{vibe}** {yr_king} emerged as the definitive force of the year, stacking up {yr_win_counts.max()} wins and forcing the rest of the league to go back to the drawing board. While the {sel_year} chapter is closed, the rivalries born here are clearly far from over.")
+        st.markdown(f"### 🤖 The Real {sel_year} Story")
+        st.warning(story)
         st.dataframe(yr_scores[[meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
 
     with tabs[3]:
