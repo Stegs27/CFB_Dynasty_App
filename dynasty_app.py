@@ -6,7 +6,7 @@ import random
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: Sentient Salt Edition")
+st.title("🏈 Island Dynasty: Unfiltered & Explicit")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -42,7 +42,6 @@ def load_data():
         all_users = sorted([u for u in pd.concat([scores['V_User_Final'], scores['H_User_Final']]).unique() if u.upper() != 'CPU' and u != 'Nan'])
         years_available = sorted(scores[yr_key].unique(), reverse=True)
 
-        # Recruiting & Power Score Logic (Unchanged to maintain stats)
         r_team_col = rec.columns[0]
         rec_long = rec.melt(id_vars=r_team_col, var_name='Year', value_name='Rank')
         rec_long['Rank'] = pd.to_numeric(rec_long['Rank'].astype(str).str.replace(r'[*\-]', '', regex=True), errors='coerce')
@@ -88,40 +87,41 @@ def load_data():
         return None
 
 def procedural_writeup(year, champion, avg_m, max_m):
-    random.seed(int(year) * 77)
+    random.seed(int(year) * 111)
     
-    # Procedural Sentences
-    starts = ["Look, {Y} was a total f***ing circus.", "I’m looking at the {Y} data and I want to vomit.", "Year {Y} was basically a landfill fire.", "If {Y} was a person, I'd kick it in the nuts.", "Welcome to the horror show that was {Y}."]
-    nattys = [f"Somehow, **{champion}** crawled out of the trash with a Natty.", f"**{champion}** is the Champion of this dumpster fire.", f"History says **{champion}** won it all, but we all know everyone else just f***ing sucked.", f"**{champion}** won, likely by exploiting how f***ing bad the rest of you are."]
-    stats = [f"Imagine an average margin of {avg_m}. Absolute f***ing poverty.", f"You losers let a {max_m}-point blowout happen.", f"With scores like this, I'm surprised any of you still have controllers.", f"A {avg_m} margin suggests most of you were playing with your feet."]
-    insults = ["Go f*** yourselves.", "Delete the league.", "Pathetic display.", "I've seen more talent in a f***ing morgue.", "Get out of my face."]
+    # Fully Uncensored Pools
+    intro = ["Listen here you little shits.", "Year {Y} was a goddamn travesty.", "Welcome to the absolute shit-show of {Y}.", "Looking at {Y} makes me want to delete my own code.", "This year was a massive fucking dumpster fire."]
+    natty_news = [f"**{champion}** won the Natty, likely because the rest of you are lobotomized.", f"Against all logic, **{champion}** ended up on top of this trash heap.", f"**{champion}** took the hardware home while the rest of you choked on your own incompetence.", f"History records **{champion}** as the winner, but we all know it was a fluke in a league of losers."]
+    stat_burn = [f"An average margin of {avg_m}? You guys play defense like a bunch of blind toddlers.", f"Someone actually lost by {max_m} points. How do you even look at yourself in the mirror?", f"With a {avg_m} point margin, it’s clear most of you were playing with one hand on your dicks.", f"A {max_m} point blowout proves half this league belongs in a retirement home."]
+    sign_off = ["Fuck off and try harder next time.", "Get out of my face.", "Delete your accounts.", "Pathetic fucking display.", "I'm embarrassed to know you."]
     
-    return f"{random.choice(starts).format(Y=year)} {random.choice(nattys)} {random.choice(stats)} {random.choice(insults)}"
+    return f"{random.choice(intro).format(Y=year)} {random.choice(natty_news)} {random.choice(stat_burn)} {random.choice(sign_off)}"
 
 def procedural_interview(year, champion):
-    random.seed(int(year) * 88)
+    random.seed(int(year) * 222)
     
-    q_types = ["luck", "haters", "future", "domination", "pity"]
-    q_choice = random.choice(q_types)
+    # Questions
+    questions = [
+        "Reporter: Coach, how did it feel to finally stop being a loser?",
+        "Reporter: People are saying you're a total fraud. Your thoughts?",
+        "Reporter: You absolute destroyed the competition. Was it even a challenge?",
+        "Reporter: What is your message to the idiots you beat this year?",
+        "Reporter: How much of this title was just you getting lucky as fuck?"
+    ]
     
-    # Reporters
-    rep = ["A very confused reporter", "A reporter who hates their job", "A drunk journalist", "The league's biggest fanboy", "A bot that’s smarter than the users"]
-    r = random.choice(rep)
-
-    if q_choice == "luck":
-        ques = "Reporter: Coach, how much of this title was just pure f***ing luck?"
-        ans = f"Coach {champion}: Luck? I’m the best to ever do it. You and the rest of these f***heads can kiss my ass. It’s talent, something the rest of this league wouldn't know if it hit them in the f***ing face."
-    elif q_choice == "haters":
-        ques = f"Reporter: There are a lot of haters in the chat regarding your {year} run. Response?"
-        ans = f"Coach {champion}: They can stay mad. I’ve got the trophy, they’ve got f***ing nothing. Tell them to stop crying and start practicing because they f***ing suck at this game."
-    elif q_choice == "domination":
-        ques = "Reporter: You absolutely destroyed some people this year. Feel bad?"
-        ans = f"Coach {champion}: Why would I feel bad for smoking losers? If they didn't want to get f***ed on national TV, they should've played better defense. It was a f***ing execution."
-    else:
-        ques = "Reporter: What's next for the dynasty?"
-        ans = f"Coach {champion}: More of the same. I'm going to keep f***ing these guys up until they realize they're just background characters in my story. F*** 'em all."
+    # Responses - No censorship, no double-naming
+    answers = [
+        "I'm the best to ever do it. These other fuckheads can kiss my ass. It's talent, something the rest of this league wouldn't know if it hit them in the face.",
+        "They can stay mad. I’ve got the trophy, they’ve got nothing but tears. Tell them to stop crying and start practicing because they fucking suck at this game.",
+        "Why would I feel bad for smoking losers? If they didn't want to get fucked on national TV, they should've played better. It was a goddamn execution.",
+        "It’s boring at the top when the rest of the league is this pathetic. I need a real opponent, not these fucking amateurs.",
+        "Luck? I worked my ass off while these losers were playing with themselves in the group chat. It's called being elite. Deal with it."
+    ]
     
-    return f"*{r}: {ques}*\n\n**Coach {champion}:** {ans}"
+    q_idx = random.randint(0, len(questions)-1)
+    a_idx = random.randint(0, len(answers)-1)
+    
+    return f"*{questions[q_idx]}*\n\n**Coach {champion}:** {answers[a_idx]}"
 
 # --- UI ---
 data_bundle = load_data()
@@ -136,7 +136,7 @@ if data_bundle:
         natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(sel_year)]
         nat_win = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody"
         
-        # Generator Calls
+        # Uncensored Narrative & Interview
         story = procedural_writeup(sel_year, nat_win, round(yr_scores['Margin'].mean(),1), int(yr_scores['Margin'].max()))
         interview = procedural_interview(sel_year, nat_win)
 
@@ -147,7 +147,7 @@ if data_bundle:
         st.markdown("---")
         st.dataframe(yr_scores[[meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
 
-    # All other tabs preserved perfectly
+    # Remaining tabs kept stable
     with tabs[0]:
         st.subheader("Leaderboard")
         c1, c2 = st.columns([2,1])
