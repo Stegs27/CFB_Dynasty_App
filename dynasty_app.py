@@ -6,7 +6,7 @@ import random
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: The Nuclear Archive")
+st.title("🏈 Island Dynasty: Press Conference HQ")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -44,7 +44,7 @@ def load_data():
         all_users = sorted([u for u in pd.concat([scores['V_User_Final'], scores['H_User_Final']]).unique() if u.upper() != 'CPU' and u != 'Nan'])
         years_available = sorted(scores[yr_key].unique(), reverse=True)
 
-        # 3. RECRUITING & STATS
+        # 3. RECRUITING & STATS (Preserving Power Scores)
         r_team_col = rec.columns[0]
         rec_long = rec.melt(id_vars=r_team_col, var_name='Year', value_name='Rank')
         rec_long['Rank'] = pd.to_numeric(rec_long['Rank'].astype(str).str.replace(r'[*\-]', '', regex=True), errors='coerce')
@@ -55,7 +55,7 @@ def load_data():
         rec_long['User_Mapped'] = rec_long[r_team_col].map(team_to_user)
         user_avg_rec = rec_long.groupby('User_Mapped')['Rank'].mean().to_dict()
 
-        # 4. H2H & RIVALRY
+        # 4. H2H & RIVALRY ENGINE
         stats_list = []
         h2h_rows = []
         rivalry_list = []
@@ -117,25 +117,41 @@ if data:
         nat_win = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody"
         
         # --- THE INFINITE CHAOS ENGINE ---
-        random.seed(int(sel_year) * 42) # Unique seed per year
+        random.seed(int(sel_year) * 42)
+        o = ["Listen up, fuckers. {Y} was a goddamn catastrophe.", "Welcome to the {Y} disaster report. Try not to cry.", "The {Y} archive is live. It’s mostly just footage of you guys sucking.", "Holy fuck, {Y} was a dark time for this league.", "In {Y}, the talent pool was shallower than a fucking puddle."]
+        c = ["**{W}** took the Natty, mostly because the rest of you play like toddlers.", "**{W}** is the King of {Y}, while you lot are just the fucking court jesters.", "Somehow **{W}** won it all. The bar is officially on the fucking floor.", "**{W}** hoisted the trophy, probably while laughing at your pathetic schemes.", "History says **{W}** won. Logic says the rest of you just didn't show up."]
+        s = ["The average margin was {AM}. Fucking embarrassing.", "A {MM}-point blowout? That’s not a loss, that’s a hate crime.", "Scores were high, but the IQ in the room was clearly sub-zero.", "With a {MM}-point gap in the scores, some of you should be banned for life.", "Average margin was {AM}. It’s like some of you weren’t even holding the controller."]
+        f = ["Fuck off and get better.", "This was a goddamn disgrace.", "I’m losing brain cells just reading these scores.", "Absolutely pathetic. Every single one of you.", "Get the fuck out of my sight."]
         
-        o = ["Listen up, fuckers. {Y} was a goddamn catastrophe.", "Welcome to the {Y} disaster report. Try not to cry.", "The {Y} archive is live. It’s mostly just footage of you guys sucking.", "Holy fuck, {Y} was a dark time for this league.", "In {Y}, the talent pool was shallower than a fucking puddle.", "Looking at {Y} is like watching a 10-car pileup in slow motion.", "You call {Y} football? I call it a collective mental breakdown.", "Let's revisit the year {Y}, when basic strategy went to die.", "If {Y} was a movie, it would be a fucking snuff film.", "Another year, {Y}, another bunch of you losers failing at life."]
-        
-        c = ["**{W}** took the Natty, mostly because the rest of you play like toddlers.", "**{W}** is the King of {Y}, while you lot are just the fucking court jesters.", "Somehow **{W}** won it all. The bar is officially on the fucking floor.", "**{W}** hoisted the trophy, probably while laughing at your pathetic schemes.", "History says **{W}** won. Logic says the rest of you just didn't show up.", "Enjoy the throne, **{W}**, you’re ruling over a kingdom of fucking idiots.", "**{W}** didn't win as much as everyone else just fucking surrendered.", "**{W}** took the hardware home. Go ahead, ask them how it feels to not be a loser.", "Congrats to **{W}**. To everyone else: have you considered a different hobby?", "**{W}** is the only person from {Y} who doesn't need to apologize for existing."]
-        
-        s = ["The average margin was {AM}. Fucking embarrassing.", "A {MM}-point blowout? That’s not a loss, that’s a hate crime.", "Scores were high, but the IQ in the room was clearly sub-zero.", "With a {MM}-point gap in the scores, some of you should be banned for life.", "Average margin was {AM}. It’s like some of you weren’t even holding the controller.", "Imagine losing by {MM} points and still acting like you know ball.", "We saw {G} games in {Y}. Unfortunately, most of them were unwatchable trash.", "The data says you sucked. The stats say you sucked harder. Margin: {AM}.", "One of you got smoked by {MM} points. I’d delete the game and my account.", "If I had a nickel for every time someone choked in {Y}, I’d be fucking rich."]
-        
-        f = ["Fuck off and get better.", "This was a goddamn disgrace.", "I’m losing brain cells just reading these scores.", "Absolutely pathetic. Every single one of you.", "Get the fuck out of my sight.", "Burn the data. This never happened.", "I’ve seen better competition at a fucking daycare.", "You call this a dynasty? I call it a circus.", "Go practice. You’re fucking terrible.", "God help this league if this is the standard."]
-        
-        insult = ["Seriously, what the fuck was that?", "I’m not mad, I’m just disappointed... and you're still a fuckhead.", "Does your mother know you play this poorly?", "You guys make the CPU look like All-Pros.", "Eat shit and keep practicing.", "Someone tell the group chat to shut the fuck up.", "My circuits hurt looking at this garbage.", "Stop talking and start winning.", "You're lucky I'm an AI and can't slap you.", "Absolute poverty franchise behavior."]
-
-        full_story = f"{random.choice(o).format(Y=sel_year)} {random.choice(c).format(W=nat_win, Y=sel_year)} {random.choice(s).format(AM=round(yr_scores['Margin'].mean(),1), MM=int(yr_scores['Margin'].max()), G=len(yr_scores), Y=sel_year)} {random.choice(insult)} {random.choice(f)}"
-        
-        st.markdown(f"### 🤖 The Uncensored Reality of {sel_year}")
+        full_story = f"{random.choice(o).format(Y=sel_year)} {random.choice(c).format(W=nat_win, Y=sel_year)} {random.choice(s).format(AM=round(yr_scores['Margin'].mean(),1), MM=int(yr_scores['Margin'].max()), Y=sel_year)} {random.choice(f)}"
         st.error(full_story)
+
+        # --- NEW INTERVIEW SECTION ---
+        st.markdown("---")
+        st.subheader(f"🎤 Exclusive Interview: Coach {nat_win} ({sel_year})")
+        
+        questions = [
+            "Reporter: Coach, how did it feel to finally hoist the trophy?",
+            "Reporter: Coach, the average margin this year was tiny. How did you pull it off?",
+            "Reporter: Some say you got lucky with the scheduling. Your response?",
+            "Reporter: What's the message to the rest of the league after that dominant run?",
+            "Reporter: Coach, we saw some absolute blowouts this year. Are the other users even trying?"
+        ]
+        
+        answers = [
+            f"Coach {nat_win}: Look, I’m just better. I don’t know what to tell you. These other guys are playing checkers and I’m playing f***ing 4D chess. Get on my level or get out of the way.",
+            f"Coach {nat_win}: Luck? Are you kidding me? I worked these guys like dogs while the rest of the league was busy complaining in the group chat. It’s not luck, it’s f***ing discipline.",
+            f"Coach {nat_win}: To the rest of the league? Buy a playbook. Maybe learn how to read a defense. It was f***ing embarrassing watching some of those game tapes.",
+            f"Coach {nat_win}: Honestly? I’m bored. I need a real challenge because beating these losers every week is starting to feel like a f***ing chore.",
+            f"Coach {nat_win}: We saw the stats. We saw the scores. If you can't stop my offense, that's a 'you' problem. Cry about it in the offseason while I polish my trophy."
+        ]
+        
+        st.info(f"*{random.choice(questions)}*\n\n**{random.choice(answers)}**")
+        st.markdown("---")
+        
         st.dataframe(yr_scores[[meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
 
-    # --- KEEPING ALL OTHER TABS EXACTLY THE SAME ---
+    # --- ALL OTHER TABS REMAIN UNTOUCHED ---
     with tabs[0]:
         st.subheader("Leaderboard")
         c1, c2 = st.columns([2,1])
@@ -144,7 +160,7 @@ if data:
     with tabs[1]:
         st.header("Head-to-Head & Rivalries")
         st.table(h2h.set_index('User'))
-        if not rivalries.empty:
+        if not rivalry_list:
             st.subheader("🔥 Most Intense Matchups")
             top_riv = rivalries.sort_values('Close Games', ascending=False).head(3)
             for _, r in top_riv.iterrows(): st.write(f"**{r['Matchup']}**: {r['Close Games']} Instant Classics")
