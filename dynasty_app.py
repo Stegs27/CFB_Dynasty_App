@@ -80,8 +80,7 @@ def load_data():
 
             stats_list.append({
                 'User': user, 'Power Score': round(p_score, 1), 'Wins': wins, 'Losses': losses,
-                'Avg Rec Rank': round(avg_rec, 1), 'Nattys': n_wins, 'Points For': round(all_u_games['H_Pts'].mean() if user == 'H' else all_u_games['V_Pts'].mean(), 1),
-                'Points Against': round(all_u_games['V_Pts'].mean() if user == 'H' else all_u_games['H_Pts'].mean(), 1),
+                'Avg Rec Rank': round(avg_rec, 1), 'Nattys': n_wins,
                 'Home Strength': round(h_mov, 1), 'Away Strength': round(v_mov, 1)
             })
 
@@ -103,7 +102,7 @@ def load_data():
         stats_df = pd.DataFrame(stats_list).sort_values(by='Power Score', ascending=False)
         p_map = stats_df.set_index('User')['Power Score'].to_dict()
         
-        # 5. NATTY PROB & UPSETS & BLOWOUTS
+        # 5. NATTY PROB & UPSETS
         adj = stats_df['Power Score'] - stats_df['Power Score'].min() + 10
         stats_df['Natty Prob %'] = round((adj / adj.sum()) * 100, 1)
 
@@ -114,7 +113,10 @@ def load_data():
                 if r['V_Pts'] > r['H_Pts'] and (p_map[h] - p_map[v]) > 15: upsets.append(r)
                 elif r['H_Pts'] > r['V_Pts'] and (p_map[v] - p_map[h]) > 15: upsets.append(r)
 
-        return scores, rec_long, stats_df, pd.DataFrame(h2h_rows), pd.DataFrame(upsets), all_users, pd.DataFrame(user_team_history), latest_year
+        # 6. PACKAGE FOR UI
+        col_meta = {'yr': yr_key, 'vt': v_team_key, 'vs': v_score_key, 'ht': h_team_key, 'hs': h_score_key}
+
+        return scores, rec_long, stats_df, pd.DataFrame(h2h_rows), pd.DataFrame(upsets), all_users, pd.DataFrame(user_team_history), latest_year, col_meta
 
     except Exception as e:
         st.error(f"⚠️ Error: {e}")
@@ -124,7 +126,7 @@ def load_data():
 data = load_data()
 
 if data:
-    scores, rec, stats, h2h, upsets, all_users, history, latest_year = data
+    scores, rec, stats, h2h, upsets, all_users, history, latest_year, meta = data
     tabs = st.tabs(["🏆 Rankings", "⚔️ H2H Matrix", "📺 Season Recap", "🎰 Vegas Odds", "📉 Recruiting", "🏛️ History", "📜 Record Books", "🏟️ Logs"])
 
     with tabs[0]:
@@ -166,10 +168,13 @@ if data:
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("🚨 All-Time Upsets")
-            st.dataframe(upsets[[yr_key, v_team_key, v_score_key, h_score_key, h_team_key]], hide_index=True)
+            if not upsets.empty:
+                st.dataframe(upsets[[meta['yr'], meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
+            else:
+                st.write("No major upsets recorded yet.")
         with c2:
             st.subheader("🏈 Biggest Blowouts")
-            st.dataframe(scores.sort_values(by='Margin', ascending=False).head(10)[[yr_key, v_team_key, v_score_key, h_score_key, h_team_key, 'Margin']], hide_index=True)
+            st.dataframe(scores.sort_values(by='Margin', ascending=False).head(10)[[meta['yr'], meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
 
     with tabs[7]:
         if st.button("🔄 Refresh Data"):
