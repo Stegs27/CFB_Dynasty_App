@@ -143,19 +143,27 @@ def get_ai_recap(year, scores_df, champs_df, meta):
     return random.choice(pool)
 
 def get_gen_freak_commentary(user, team, count):
-    # Undid the +100 variable request and expanded the pool of templates
-    pool = [
-        f"🚨 **{user}** at {team} is currently running a track meet. They have **{count}** generational freaks. Defensive coordinators are checking into therapy.",
-        f"💎 BIOLOGICAL ANOMALY: {team} roster contains **{count}** players who break the game's physics. {user} is building specimens.",
-        f"🏎️ The speed limit in {team} has been repealed. {user} has **{count}** players with 96+ Speed/Accel. You aren't catching them.",
-        f"☣️ WARNING: {team} has **{count}** generational burners. If you don't have a 99-speed corner, just stay on the bus.",
-        f"✈️ Air {user} is cleared for takeoff. With **{count}** generational specimens, {team} is moving at a speed the human eye can barely track.",
-        f"⚡ High Voltage: **{user}** has assembled **{count}** generational talents at {team}. Trying to tackle them is like trying to catch smoke.",
-        f"🧬 Evolution in real-time: **{user}** at {team} has **{count}** freaks on the roster. Physics simply do not apply to these players.",
-        f"🚀 Rocket Science: {team} is launching **{count}** generational burners onto the field. **{user}** has effectively broken the game's speed barrier.",
-        f"🎭 It's a highlight reel every play. **{user}** and {team} boast **{count}** generational athletes that make the rest of the league look like they're in slow motion.",
-        f"🌋 Total Eruption: The roster at {team} features **{count}** generational specimens. **{user}** isn't just winning; they're redefining the limits of the sport."
-    ]
+    if count == 0:
+        pool = [
+            f"🐢 ALERT: **{user}** at {team} is fielding a team of tortoises. Exactly **0** generational freaks. This roster is slow as fuck.",
+            f"🐌 WARNING: {team} has no burners. **{user}**'s depth chart looks like a collection of offensive linemen in a pool of molasses. Pure quicksand.",
+            f"🚜 Snail Mail: **{user}**'s squad at {team} is officially the league's slowest. No speed, no acceleration, just pure, unadulterated lack of athleticism.",
+            f"🛑 STOP: **{user}** has zero speed at {team}. Watching this team run is like watching paint dry on a cold day. Are they running or walking?",
+            f"🚫 Speed Not Found: {team} roster contains **0** generational specimens. **{user}** is recruiting athletes with the closing speed of a tectonic plate."
+        ]
+    else:
+        pool = [
+            f"🚨 **{user}** at {team} is currently running a track meet. They have **{count}** generational freaks. Defensive coordinators are checking into therapy.",
+            f"💎 BIOLOGICAL ANOMALY: {team} roster contains **{count}** players who break the game's physics. {user} is building specimens.",
+            f"🏎️ The speed limit in {team} has been repealed. {user} has **{count}** players with 96+ Speed/Accel. You aren't catching them.",
+            f"☣️ WARNING: {team} has **{count}** generational burners. If you don't have a 99-speed corner, just stay on the bus.",
+            f"✈️ Air {user} is cleared for takeoff. With **{count}** generational specimens, {team} is moving at a speed the human eye can barely track.",
+            f"⚡ High Voltage: **{user}** has assembled **{count}** generational talents at {team}. Trying to tackle them is like trying to catch smoke.",
+            f"🧬 Evolution in real-time: **{user}** at {team} has **{count}** freaks on the roster. Physics simply do not apply to these players.",
+            f"🚀 Rocket Science: {team} is launching **{count}** generational burners onto the field. **{user}** has effectively broken the game's speed barrier.",
+            f"🎭 It's a highlight reel every play. **{user}** and {team} boast **{count}** generational athletes that make the rest of the league look like they're in slow motion.",
+            f"🌋 Total Eruption: The roster at {team} features **{count}** generational specimens. **{user}** isn't just winning; they're redefining the limits of the sport."
+        ]
     return random.choice(pool)
 
 # --- UI EXECUTION ---
@@ -230,9 +238,15 @@ if data:
 
     with tabs[5]:
         st.header("🔍 Generational Talent Tracker")
-        gen_df = r_2041[r_2041['Generational (96+ speed or 96+ Acceleration)'] > 0].sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False)
+        # Include all teams and sort by generational freak count
+        gen_df = r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False)
         for _, r in gen_df.iterrows():
-            st.warning(get_gen_freak_commentary(r['USER'], r['TEAM'], int(r['Generational (96+ speed or 96+ Acceleration)'])))
+            cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
+            msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
+            if cnt > 0:
+                st.warning(msg)
+            else:
+                st.error(msg) # Red box for calling out the slow teams
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
