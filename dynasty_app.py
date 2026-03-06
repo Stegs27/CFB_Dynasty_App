@@ -69,8 +69,8 @@ def load_data():
         coty_counts = coty[coty['User'].str.upper() != 'CPU']['User'].str.strip().str.title().value_counts().to_dict()
         natty_counts = champs[champs[champ_user_key].str.upper() != 'CPU'][champ_user_key].str.strip().str.title().value_counts().to_dict()
 
-        # MASTER STATS ENGINE
-        stats_list, h2h_rows = [], []
+        # MASTER STATS ENGINE & HEATMAP PREP
+        stats_list, h2h_rows, h2h_numeric = [], [], []
         for user in all_users:
             h_games = scores[scores['H_User_Final'] == user]
             v_games = scores[scores['V_User_Final'] == user]
@@ -97,16 +97,23 @@ def load_data():
             })
 
             h2h_row = {'User': user}
+            h2h_num_row = []
             for opp in all_users:
-                if user == opp: h2h_row[opp] = "-"
+                if user == opp: 
+                    h2h_row[opp] = "-"
+                    h2h_num_row.append(0)
                 else:
                     vs = scores[((scores['V_User_Final']==user) & (scores['H_User_Final']==opp)) | ((scores['V_User_Final']==opp) & (scores['H_User_Final']==user))]
                     vw = len(vs[((vs['V_User_Final']==user) & (vs['V_Pts'] > vs['H_Pts'])) | ((vs['H_User_Final']==user) & (vs['H_Pts'] > vs['V_Pts']))])
-                    h2h_row[opp] = f"{vw}-{len(vs)-vw}"
+                    vl = len(vs) - vw
+                    h2h_row[opp] = f"{vw}-{vl}"
+                    h2h_num_row.append(vw - vl) # Differential for Heatmap
             h2h_rows.append(h2h_row)
+            h2h_numeric.append(h2h_num_row)
 
         stats_df = pd.DataFrame(stats_list).sort_values(by='HoF Points', ascending=False)
         h2h_df = pd.DataFrame(h2h_rows)
+        h2h_heat_df = pd.DataFrame(h2h_numeric, index=all_users, columns=all_users)
 
         # 2041 DATA & TENURE
         r_2041 = ratings[ratings['YEAR'] == 2041].copy()
@@ -126,7 +133,7 @@ def load_data():
             def_spd = row.get('Def Speed (90+ speed)', 0)
             gens = row.get('Generational (96+ speed or 96+ Acceleration)', 0)
             
-            # New Under-Speed Category
+            # Revised Category for Under-Speed
             if off_spd < 5 and def_spd < 5:
                 return "Under-Speed", "🐢", "Critically low speed metrics. Vulnerable to every vertical threat in the league."
             
@@ -146,7 +153,7 @@ def load_data():
         )
         
         col_meta = {'yr': yr_key, 'vt': smart_col(scores, ['Visitor']), 'vs': v_score_key, 'ht': smart_col(scores, ['Home']), 'hs': h_score_key, 'cyr': champ_yr_key, 'cu': champ_user_key}
-        return scores, stats_df, all_users, years_available, col_meta, champs, r_2041, h2h_df, rec_long
+        return scores, stats_df, all_users, years_available, col_meta, champs, r_2041, h2h_df, h2h_heat_df, rec_long
     except Exception as e:
         st.error(f"⚠️ Load Error: {e}")
         return None
@@ -187,7 +194,7 @@ def get_ai_recap(year, scores_df, champs_df, meta):
         f"Looking back at {year}, it's clear {winner} was playing chess while the rest of the league was playing hungry-hungry-hippos.",
         f"In {year}, the only thing faster than {winner}'s receivers was the rate at which opponents quit the game.",
         f"The {year} Coach of the Year award should have just been a signed apology from everyone else to {winner}.",
-        f"If you look closely at the {year} data, you can actually see the moment the rest of the league gave up hope.",
+        f"If you look closely at {year} data, you can actually see the moment the rest of the league gave up hope.",
         f"{year} was the year that {winner} turned 'The Island' into their private vacation home.",
         f"The {year} Heisman race was basically a 'Who wants to lose to {winner}'s star player' contest.",
         f"In {year}, {winner} made the CPU look like a formidable opponent compared to some of the users.",
@@ -220,7 +227,7 @@ def get_gen_freak_commentary(user, team, count):
             f"⚡ Yer a wizard, **{user}**. You've got **Harry Potter** at {team} as your **{count}** generational spark.",
             f"🔨 **Thor** has landed. **{user}** has **{count}** generational freak at {team}. Are you worthy?",
             f"🏀 **Michael Jordan** energy. **{user}** at {team} has **{count}** generational freak who takes everything personally.",
-            f"🍄 It’s-a-me! **{user}** has **Mario**. **{count}** generational star at {team} leaping over the competition.",
+            f"🍄 It’s-a-me! **{user}** has **Mario**. **{count}** generational star at {team leaping over the competition.",
             f"🛡️ It’s dangerous to go alone! **{user}** has **Link**. This **{count}** generational talent is the only hero {team} needs.",
             f"🪓 **Kratos** is on the warpath. **{user}** at {team} has **{count}** generational 'God of War' ready to dismantle defenses.",
             f"🔫 Finish the Fight. **{user}** has **Master Chief** at {team}. **{count}** generational Spartan on the field.",
@@ -262,10 +269,10 @@ def get_gen_freak_commentary(user, team, count):
 # --- UI EXECUTION ---
 data = load_data()
 if data:
-    scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, rec_long = data
+    scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, h2h_heat, rec_long = data
     tabs = st.tabs([
         "🏆 Prestige", 
-        "⚔️ H2H Records", 
+        "⚔️ H2H & Risk Map", 
         "📺 Season Recap", 
         "📊 Team Analysis", 
         "🚀 2041 Scout & Projections", 
@@ -278,7 +285,10 @@ if data:
         st.dataframe(stats[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders', 'Avg Recruiting Rank']], hide_index=True)
 
     with tabs[1]:
-        st.header("⚔️ Head-to-Head Records")
+        st.header("⚔️ Rivalry Risk & H2H Records")
+        st.subheader("Win-Loss Margin Heatmap (Positive = Rivalry Lead)")
+        fig_heat = px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r', aspect="auto")
+        st.plotly_chart(fig_heat, use_container_width=True)
         st.table(h2h_df.set_index('User'))
 
     with tabs[2]:
@@ -301,7 +311,7 @@ if data:
 
         st.markdown(f"### 📋 Scouting Report: {target}")
         
-        is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Guy is Generational Speed?']).lower() == 'yes' else "does not possess generational speed metrics"
+        is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else "does not possess generational speed metrics"
         off_speed_val = row['Off Speed (90+ speed)']
         def_speed_val = row['Def Speed (90+ speed)']
         
