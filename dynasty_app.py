@@ -85,18 +85,33 @@ def team_speed_to_mph(team_speed_score):
     return round((team_speed_score / 40.0) * 65.0, 1)
 
 
-def get_speeding_label(team_speed_score):
+def get_speeding_label(team_speed_score, gens=0):
     mph = team_speed_to_mph(team_speed_score)
     over = round(mph - 65.0, 1)
+    gens = int(max(0, gens))
+
+    freak_flair = {
+        0: "No generational freaks under the hood, so this is more tuned machine than nitrous dragster.",
+        1: "One generational freak is riding shotgun like the hero in the third act.",
+        2: "Two freaks means this is a buddy-cop chase scene with both leads outrunning helicopters.",
+        3: "Three freaks turns this into a full-on superteam convoy.",
+        4: "Four freaks means the whole crew just jumped into the van together.",
+        5: "Five freaks means the road is basically full of boss-fight energy.",
+        6: "Six freaks means this roster is running a Fast & Furious crossover under the hood.",
+    }
+    freak_note = freak_flair.get(gens, f"{gens} freaks means this is less a car and more a comic-book pursuit sequence.")
+
     if over <= 0:
-        return f"{mph} MPH in a 65 — technically legal, but the engine is humming."
-    if over <= 10:
-        return f"{mph} MPH in a 65 — light speeding, officer is taking a second look."
-    if over <= 20:
-        return f"{mph} MPH in a 65 — this team is getting pulled over on sight."
-    if over <= 35:
-        return f"{mph} MPH in a 65 — reckless acceleration with no regard for public safety."
-    return f"{mph} MPH in a 65 — felony-level speed. Defensive coordinators should call a lawyer."
+        base = f"{mph} MPH in a 65 — technically legal, but the engine is humming."
+    elif over <= 10:
+        base = f"{mph} MPH in a 65 — light speeding, officer is taking a second look."
+    elif over <= 20:
+        base = f"{mph} MPH in a 65 — this team is getting pulled over on sight."
+    elif over <= 35:
+        base = f"{mph} MPH in a 65 — reckless acceleration with no regard for public safety."
+    else:
+        base = f"{mph} MPH in a 65 — felony-level speed. Defensive coordinators should call a lawyer."
+    return f"{base} {freak_note}"
 
 def get_speed_tier(team_speed_score):
     if team_speed_score >= 92:
@@ -417,13 +432,19 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 1.4
         playoff_fail_penalty = u_s['CFP Losses'] * 1.3
 
+        team_speed_component = (
+            row['Team Speed (90+ Speed Guys)'] * 1.55
+            + row['Off Speed (90+ speed)'] * 1.1
+            + row['Def Speed (90+ speed)'] * 1.1
+        )
+
         raw = (
-            row['OVERALL'] * 2.2
+            row['OVERALL'] * 2.75
             + row['OFFENSE'] * 0.7
             + row['DEFENSE'] * 0.7
-            + (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 1.15
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.1
-            + row['Generational (96+ speed or 96+ Acceleration)'] * 5.5
+            + team_speed_component
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.25
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 5.8
             + row['BCR_Val'] * 0.55
             + row['Recruit Score'] * 0.35
             + row['Career Win %'] * 0.35
@@ -432,14 +453,16 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             - playoff_fail_penalty
         )
 
-        if row['OVERALL'] < 86:
-            raw -= 18
+        if row['OVERALL'] < 88:
+            raw -= 22
         if row['OFFENSE'] < 85:
             raw -= 6
         if row['DEFENSE'] < 85:
             raw -= 6
         if row['BCR_Val'] < 35:
             raw -= 6
+        if row['Team Speed (90+ Speed Guys)'] < 10:
+            raw -= 5
         return raw
 
     df['Contender Raw'] = df.apply(raw_contender_score, axis=1)
@@ -904,7 +927,7 @@ if data:
     # --- TALENT PROFILE ---
     with tabs[6]:
         st.header("🔍 The 2041 Freak List")
-        st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board.")
+        st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
         talent_board = model_2041.copy()
         talent_board = talent_board.sort_values(
@@ -916,7 +939,7 @@ if data:
         st.subheader("⚡ TEAM SPEED Rankings")
         st.dataframe(
             talent_board[[
-                'TEAM SPEED Rank', 'USER', 'TEAM', 'Team Speed Score',
+                'TEAM SPEED Rank', 'USER', 'TEAM', 'Team Speed Score', 'Speed Limit MPH',
                 'Team Speed (90+ Speed Guys)', 'Game Breakers (90+ Speed & 90+ Acceleration)',
                 'Generational (96+ speed or 96+ Acceleration)'
             ]],
@@ -940,10 +963,12 @@ if data:
             with st.expander(f"#{int(r['TEAM SPEED Rank'])} {r['USER']} | {r['TEAM']} - {tier}"):
                 st.write(gen_desc)
                 st.write(bonus_desc)
-                s1, s2, s3 = st.columns(3)
+                s1, s2, s3, s4 = st.columns(4)
                 s1.metric("TEAM SPEED Score", f"{team_speed}")
                 s2.metric("90+ Speed Players", int(r['Team Speed (90+ Speed Guys)']))
                 s3.metric("Generational Freaks", gens)
+                s4.metric("Speedometer", f"{float(r.get('Speed Limit MPH', 0))} MPH")
+                st.write(get_speeding_label(team_speed, gens))
                 st.write(f"**Game breakers:** {int(r['Game Breakers (90+ Speed & 90+ Acceleration)'])}")
                 st.write(f"**Offense 90+ speed:** {int(r['Off Speed (90+ speed)'])} | **Defense 90+ speed:** {int(r['Def Speed (90+ speed)'])}")
                 st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
