@@ -112,20 +112,15 @@ def load_data():
         h2h_df = pd.DataFrame(h2h_rows)
         h2h_heat_df = pd.DataFrame(h2h_numeric, index=all_users, columns=all_users)
 
-        # 2041 DATA & IMPROVEMENT LOGIC
+        # 2041 DATA & IMPROVEMENT
         r_2041 = ratings[ratings['YEAR'] == 2041].copy()
         r_2040 = ratings[ratings['YEAR'] == 2040].copy()
-        
         r_2041['USER'] = r_2041['USER'].str.strip().str.title()
         r_2041['Tenure'] = r_2041.apply(lambda x: calculate_tenure(x['USER'], x['TEAM']), axis=1)
         
-        # Improvement Calculation
         def get_improvement(row):
             prev = r_2040[r_2040['TEAM'] == row['TEAM']]
-            if not prev.empty:
-                return row['OVERALL'] - prev['OVERALL'].values[0]
-            return 0
-
+            return row['OVERALL'] - prev['OVERALL'].values[0] if not prev.empty else 0
         r_2041['Improvement'] = r_2041.apply(get_improvement, axis=1)
 
         def project_wins(row):
@@ -155,29 +150,45 @@ def load_data():
         st.error(f"⚠️ Load Error: {e}")
         return None
 
-# --- DYNAMIC AI FUNCTIONS ---
+# --- RESTORED DYNAMIC AI FUNCTIONS ---
 def get_ai_recap(year, scores_df, champs_df, meta):
     natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(year)]
     winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "The CPUs"
-    return f"In {year}, {winner} proved that dominance isn't a goal, it's a lifestyle."
+    user_games = scores_df[(scores_df[meta['yr']] == year) & (scores_df['V_User_Final'] != 'Cpu') & (scores_df['H_User_Final'] != 'Cpu')].sort_values('Margin', ascending=False)
+    
+    blowout_str = ""
+    if not user_games.empty:
+        bg = user_games.iloc[0]
+        w_user = bg['H_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['V_User_Final']
+        l_user = bg['V_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['H_User_Final']
+        blowout_str = f" Never forget the absolute war crime where **{w_user}** dismantled **{l_user}** by **{int(bg['Margin'])}** points."
+
+    pool = [
+        f"In {year}, {winner} played like they had a cheat code enabled.",
+        f"{year} was a total bloodbath. {winner} stood at the top while the rest of you were struggling to call a slant route.",
+        f"The record books for {year} are mostly just {winner} flex-tweeting.",
+        f"In {year}, {winner} didn't just win the Natty; they took everyone's lunch money.",
+        f"The only way to stop {winner} in {year} was to unplug the router.",
+        f"If the league had a 'Mercy Rule' in {year}, half the games would have ended in the second quarter."
+    ]
+    return random.choice(pool) + blowout_str
 
 def get_gen_freak_commentary(user, team, count):
-    if count == 0: return f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks."
-    return f"🚀 **{user}** at {team} is locked in with **{count}** generational talents."
+    if count == 0:
+        pool = [f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks. Praying for a miracle.", f"🔮 The Vision: **{user}** is simply waiting on a miracle recruit for {team}."]
+    elif count == 1:
+        pool = [f"⚔️ **Cloud Strife** has arrived. **{user}** at {team} has **{count}** generational talent.", f"🧪 **Deadpool** mode! **{user}** has **{count}** freak at {team}."]
+    elif count == 2:
+        pool = [f"🍄 **Mario & Luigi**! **{user}** at {team} has **{count}** generational freaks.", f"🪵 **Dudley Boyz**! **{user}** has **{count}** generational specimens."]
+    else:
+        pool = [f"🦸 **The Avengers**! **{user}** leading **{count}** generational freaks at {team}.", f"🐢 **Ninja Turtles**! **{user}** has **{count}** freaks at {team}."]
+    return random.choice(pool)
 
 # --- UI EXECUTION ---
 data = load_data()
 if data:
     scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, h2h_heat = data
-    tabs = st.tabs([
-        "🚀 2041 Scout & Projections", 
-        "🏆 Prestige", 
-        "⚔️ H2H & Risk Map", 
-        "📺 Season Recap", 
-        "📊 Team Analysis", 
-        "🔍 Talent Profile",
-        "🌐 2041 Executive Outlook"
-    ])
+    tabs = st.tabs(["🚀 2041 Scout & Projections", "🏆 Prestige", "⚔️ H2H & Risk Map", "📺 Season Recap", "📊 Team Analysis", "🔍 Talent Profile", "🌐 2041 Executive Outlook"])
 
     with tabs[0]:
         st.header("🚀 2041 Scout & Full Ratings")
@@ -192,46 +203,48 @@ if data:
         st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
         st.table(h2h_df.set_index('User'))
 
-    with tabs[3]:
+    with tabs[3]: # RESTORED RECAP
         st.header("📺 Season Recap")
         sel_year = st.selectbox("Select Season", years)
         st.info(get_ai_recap(sel_year, scores, champs_df, meta))
+        st.dataframe(scores[scores[meta['yr']] == sel_year][[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
 
-    with tabs[4]:
+    with tabs[4]: # RESTORED TEAM ANALYSIS
         st.header("📊 2041 Team Deep-Dive")
         target = st.selectbox("Select Team", r_2041['USER'].tolist())
         row = r_2041[r_2041['USER'] == target].iloc[0]
-        st.metric("Projected Record", row['2041 Projection'])
-        st.write(f"Coach {target} has built a {row['OVERALL']} OVR squad at {row['TEAM']}.")
+        u_stats = stats[stats['User'] == target].iloc[0]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Tenure", f"{int(row['Tenure'])} Yrs", row['TEAM'])
+        c2.metric("Overall", row['OVERALL'])
+        c3.metric("Projection", row['2041 Projection'])
+        c4.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
+        
+        is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else "is not a speed freak"
+        st.markdown(f"### Scouting Report: {target}")
+        st.write(f"Coach {target} has a {row['OVERALL']} OVR roster. Star {row['⭐ STAR SKILL GUY (Top OVR)']} {is_star_gen}. Historically, this coach averages a recruiting rank of {u_stats['Avg Recruiting Rank']}.")
 
-    with tabs[5]:
+    with tabs[5]: # RESTORED TALENT PROFILE
         st.header("🔍 Generational Talent Tracker")
         for _, r in r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
-            st.info(get_gen_freak_commentary(r['USER'], r['TEAM'], int(r['Generational (96+ speed or 96+ Acceleration)'])))
+            cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
+            msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
+            if cnt >= 3: st.error(msg)
+            elif cnt == 2: st.warning(msg)
+            elif cnt == 1: st.success(msg)
+            else: st.info(msg)
 
     with tabs[6]:
         st.header("🌐 2041 Executive League Outlook")
-        
-        # New "Most Improved" logic
-        best_imp_row = r_2041.sort_values(by='Improvement', ascending=False).iloc[0]
-        
+        best_imp = r_2041.sort_values(by='Improvement', ascending=False).iloc[0]
         sm1, sm2, sm3, sm4, sm5 = st.columns(5)
         sm1.metric("Sonic Booms 🚀", len(r_2041[r_2041['Archetype'] == "Sonic Boom"]))
         sm2.metric("Under-Speed 🐢", len(r_2041[r_2041['Archetype'] == "Under-Speed"]))
-        
-        # Improvement Metric Card
-        if best_imp_row['Improvement'] > 0:
-            sm3.metric("Most Improved", best_imp_row['USER'], f"+{int(best_imp_row['Improvement'])} OVR")
-        else:
-            sm3.metric("Most Improved", "N/A", "Stable")
-            
+        sm3.metric("Most Improved", best_imp['USER'], f"+{int(best_imp['Improvement'])} OVR" if best_imp['Improvement'] > 0 else "Stable")
         sm4.metric("Avg OVR", int(r_2041['OVERALL'].mean()))
         sm5.metric("Total Freaks", int(r_2041['Generational (96+ speed or 96+ Acceleration)'].sum()))
         
-        st.markdown("---")
-        fig = px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", color="Archetype", size="OVERALL", hover_name="TEAM", text="USER")
-        st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(r_2041[['USER', 'TEAM', 'Archetype', 'Improvement']], hide_index=True)
+        st.plotly_chart(px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", color="Archetype", size="OVERALL", text="USER"), use_container_width=True)
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
