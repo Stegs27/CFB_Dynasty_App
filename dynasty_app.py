@@ -6,7 +6,7 @@ import random
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: Unfiltered & Explicit")
+st.title("🏈 Island Dynasty: Prestige & Scouting")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -78,8 +78,10 @@ def load_data():
             all_u_games = pd.concat([h_games, v_games])
             wins = len(h_games[h_games['H_Pts'] > h_games['V_Pts']]) + len(v_games[v_games['V_Pts'] > v_games['H_Pts']])
             
+            # FIXED LOGIC: Compare columns within the same dataframe subset
             conf_titles = len(v_games[(v_games['Conf Title'].str.lower() == 'yes') & (v_games['V_Pts'] > v_games['H_Pts'])]) + \
-                          len(h_games[(h_games['Conf Title'].str.lower() == 'yes') & (h_games['H_Pts'] > v_games['H_Pts'])])
+                          len(h_games[(h_games['Conf Title'].str.lower() == 'yes') & (h_games['H_Pts'] > h_games['V_Pts'])])
+            
             cfp_apps = pd.concat([v_games[v_games['CFP'].str.lower() == 'yes'], h_games[h_games['CFP'].str.lower() == 'yes']])['YEAR'].nunique()
 
             # Draft stats
@@ -144,31 +146,16 @@ def load_data():
         st.error(f"⚠️ Load Error: {e}")
         return None
 
-def procedural_writeup(year, champion, avg_m, max_m):
-    random.seed(int(year) * 111)
-    intro = ["Listen here you little shits.", "Year {Y} was a goddamn travesty.", "Welcome to the absolute shit-show of {Y}."]
-    natty_news = [f"**{champion}** won the Natty, likely because the rest of you are lobotomized.", f"Against all logic, **{champion}** ended up on top."]
-    stat_burn = [f"An average margin of {avg_m}? You guys play defense like a bunch of blind toddlers.", f"A {max_m} point blowout proves half this league belongs in a retirement home."]
-    sign_off = ["Fuck off and try harder next time.", "Get out of my face.", "Pathetic fucking display."]
-    return f"{random.choice(intro).format(Y=year)} {random.choice(natty_news)} {random.choice(stat_burn)} {random.choice(sign_off)}"
-
-def procedural_interview(year, champion):
-    random.seed(int(year) * 222)
-    questions = ["Reporter: Coach, how did it feel to finally stop being a loser?", "Reporter: People are saying you're a total fraud. Your thoughts?", "Reporter: You absolute destroyed the competition. Was it even a challenge?"]
-    answers = ["I'm the best to ever do it. These other fuckheads can kiss my ass.", "They can stay mad. I’ve got the trophy, they’ve got nothing but tears.", "It was a goddamn execution."]
-    q_idx = random.randint(0, len(questions)-1); a_idx = random.randint(0, len(answers)-1)
-    return f"*{questions[q_idx]}*\n\n**Coach {champion}:** {answers[a_idx]}"
-
-# --- UI ---
+# --- UI EXECUTION ---
 data_bundle = load_data()
 if data_bundle:
     scores, rec_long, stats, h2h_df, rivalry_df, all_users, years, meta, champs_df, ratings_2041 = data_bundle
-    tabs = st.tabs(["🏆 Prestige", "⚔️ H2H Matrix", "📺 Season Recap", "🎰 Vegas Odds", "🚀 2041 Projections", "📈 Recruiting", "📜 Records"])
+    tabs = st.tabs(["🏆 Prestige", "⚔️ H2H Matrix", "📺 Season Recap", "🎰 Vegas Odds", "🚀 2041 Scout & Projections", "📈 Recruiting", "📜 Records"])
 
     with tabs[0]:
         st.subheader("The Dynasty Hall of Fame")
         c1, c2 = st.columns([2.5,1])
-        # ADDED 'NFL Guys' and '1st Rounders' here
+        # Visible NFL Data
         c1.dataframe(stats[['User', 'HoF Points', 'Record', 'NFL Guys', '1st Rounders', 'Natties', 'CFP Apps', 'Avg Recruiting']], hide_index=True)
         c2.plotly_chart(px.pie(stats, values='Prestige %', names='User', hole=0.4, title="Legacy Share"))
 
@@ -180,15 +167,34 @@ if data_bundle:
             top_riv = rivalry_df.sort_values('Close Games', ascending=False).head(3)
             for _, r in top_riv.iterrows(): st.write(f"**{r['Matchup']}**: {r['Close Games']} Instant Classics")
 
+    with tabs[4]:
+        st.header("🚀 2041 Talent Profile")
+        # Visible Generational Status and Team Speed metrics
+        scout_cols = [
+            'USER', 'TEAM', 'OVERALL', '2041 Projection', 
+            '⭐ STAR SKILL GUY (Top OVR)', 'Star Skill Guy is Generational Speed?', 
+            'Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Game Breakers (90+ Speed & 90+ Acceleration)'
+        ]
+        st.dataframe(ratings_2041[scout_cols], hide_index=True)
+        st.plotly_chart(px.scatter(ratings_2041, x='OVERALL', y='Game Breakers (90+ Speed & 90+ Acceleration)', text='USER', size='OFFENSE', title="Explosiveness Profile"))
+
+    with tabs[5]:
+        st.header("📈 Recruiting Trends")
+        # IMPROVED: User selection to make the graph readable
+        sel_users = st.multiselect("Filter Users to Compare", all_users, default=all_users[:3])
+        filtered_rec = rec_long[rec_long['USER'].isin(sel_users)].dropna()
+        if not filtered_rec.empty:
+            fig = px.line(filtered_rec, x='Year', y='Rank', color='USER', markers=True, 
+                          title="Class Rank History (Lower is Better)")
+            fig.update_yaxes(autorange="reversed") # Standard for ranks
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Select users to compare recruiting performance.")
+
     with tabs[2]:
         st.header("📺 Season Archives")
         sel_year = st.selectbox("Select Season", years)
         yr_scores = scores[scores[meta['yr']] == sel_year]
-        natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(sel_year)]
-        nat_win = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody"
-        story = procedural_writeup(sel_year, nat_win, round(yr_scores['Margin'].mean(),1), int(yr_scores['Margin'].max()))
-        interview = procedural_interview(sel_year, nat_win)
-        st.error(story); st.markdown("---"); st.subheader("🎤 Post-Game Presser"); st.info(interview); st.markdown("---")
         st.dataframe(yr_scores[[meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
 
     with tabs[3]:
@@ -200,25 +206,6 @@ if data_bundle:
             h_data, a_data = stats[stats['User']==h_choice].iloc[0], stats[stats['User']==a_choice].iloc[0]
             spread = (h_data['Home Strength'] - a_data['Away Strength']) / 2
             st.markdown(f"<h1 style='text-align: center;'>{h_choice if spread > 0 else a_choice} -{round(abs(spread), 1)}</h1>", unsafe_allow_html=True)
-
-    with tabs[4]:
-        st.header("🚀 2041 Scout & Win Projections")
-        # ADDED Star Skill Guy, Generational Status, and Off/Def Speed here
-        scout_cols = ['USER', 'TEAM', 'OVERALL', '2041 Projection', '⭐ STAR SKILL GUY (Top OVR)', 'Star Skill Guy is Generational Speed?', 'Off Speed (90+ speed)', 'Def Speed (90+ speed)']
-        st.dataframe(ratings_2041[scout_cols], hide_index=True)
-        st.plotly_chart(px.scatter(ratings_2041, x='OVERALL', y='Game Breakers (90+ Speed & 90+ Acceleration)', text='USER', size='OFFENSE', title="Explosiveness Profile"))
-
-    with tabs[5]:
-        st.header("📈 Recruiting Trends")
-        # IMPROVED: Added filter and marker-based line chart
-        sel_users = st.multiselect("Filter Users", all_users, default=all_users)
-        filtered_rec = rec_long[rec_long['USER'].isin(sel_users)].dropna()
-        if not filtered_rec.empty:
-            fig = px.line(filtered_rec, x='Year', y='Rank', color='USER', markers=True, title="Class Ranks Over Time")
-            fig.update_yaxes(autorange="reversed")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Select at least one user to see trends.")
 
     with tabs[6]:
         st.header("📜 Record Books")
