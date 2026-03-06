@@ -17,6 +17,82 @@ def smart_col(df, target_names):
     return None
 
 
+def get_pop_culture_speed_comp(gens):
+    gens = int(max(0, gens))
+    one_refs = [
+        "Neo bending the code of the Matrix",
+        "Sonic hitting turbo with zero respect for physics",
+        "The Flash turning the corner before the defense blinks",
+        "Mario grabbing a Starman and refusing to be tackled",
+        "John Wick with a clean lane and a personal grudge"
+    ]
+    multi_refs = {
+        2: [
+            "Batman and Robin",
+            "Mario and Luigi",
+            "Han Solo and Chewbacca",
+            "Abbott and Costello in shoulder pads",
+            "Shawn Michaels and Triple H, a.k.a. D-Generation X"
+        ],
+        3: [
+            "the Three Hunters from Halo 3 co-op",
+            "the Powerpuff Girls on a sugar rush",
+            "Destiny's Child harmonizing in open space",
+            "the Three Amigos riding into your secondary"
+        ],
+        4: [
+            "the Teenage Mutant Ninja Turtles",
+            "the Ghostbusters pulling up with proton packs",
+            "the A-Team if every member ran a 4.2",
+            "the Fantastic Four with track spikes"
+        ],
+        5: [
+            "the Avengers core lineup assembling in the slot",
+            "the Fellowship's fastest five skipping the walking montage",
+            "the Jackson 5 but all of them are vertical threats"
+        ],
+        6: [
+            "the Sinister Six if they majored in yards after catch",
+            "the original Mighty Morphin Power Rangers plus the Green Ranger",
+            "a six-man ladder match where everyone somehow runs sub-4.4"
+        ],
+        7: [
+            "the Seven from The Boys if every one of them played skill positions",
+            "the Seven Dwarfs after a suspicious offseason speed program",
+            "Seven Samurai in spread formation"
+        ],
+        8: [
+            "the Ocean's Eleven scouting department trimmed down to its fastest eight",
+            "the eight gym leaders before your badge case is full",
+            "a Mario Kart lobby where nobody lifts off the gas"
+        ]
+    }
+    if gens == 0:
+        return "No crossover event here. This roster is light on comic-book speed and has to win the old-fashioned way."
+    if gens == 1:
+        return f"This team has one true superweapon: think {one_refs[gens % len(one_refs)]}. Everything dangerous starts with that one mutant."
+    if gens in multi_refs:
+        ref = multi_refs[gens][gens % len(multi_refs[gens])]
+        return f"This is no longer one problem. It's {ref} showing up on the same depth chart."
+    return f"{gens} generational freaks is basically an Avengers-level crossover event. The scouting report just says 'good luck.'"
+
+
+def get_speed_tier(team_speed_score):
+    if team_speed_score >= 92:
+        return "☣️ MULTIVERSE THREAT"
+    if team_speed_score >= 82:
+        return "⚡ GOD-TIER VELOCITY"
+    if team_speed_score >= 72:
+        return "🧨 DYNAMITE DEPTH"
+    if team_speed_score >= 62:
+        return "🚀 SONIC BOOM"
+    if team_speed_score >= 52:
+        return "🏎️ ROADRUNNER"
+    if team_speed_score >= 42:
+        return "🔥 TRACK TEAM ENERGY"
+    return "🐢 GROUND & POUND"
+
+
 def clean_rank_value(val):
     if pd.isna(val):
         return np.nan
@@ -307,42 +383,60 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     def raw_contender_score(row):
         u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
-        raw = (
-            row['OVERALL'] * 1.9
-            + row['OFFENSE'] * 0.5
-            + row['DEFENSE'] * 0.5
-            + (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 1.0
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 0.8
-            + row['Generational (96+ speed or 96+ Acceleration)'] * 4.5
-            + row['BCR_Val'] * 0.45
-            + row['Recruit Score'] * 0.25
-            + u_s['Natties'] * 6
-            + u_s['Natty Apps'] * 2
-            + u_s['CFP Wins'] * 0.8
-            + u_s['Conf Titles'] * 0.5
-            - u_s['CFP Losses'] * 0.9
-            - max(0, u_s['Natty Apps'] - u_s['Natties']) * 1.2
+
+        # This is explicitly a title-winning model, not just "make the title game."
+        # Prior natties / natty appearances matter more because proven championship
+        # programs tend to carry more benefit of the doubt.
+        pedigree_bonus = (
+            u_s['Natties'] * 14
+            + u_s['Natty Apps'] * 7
+            + u_s['CFP Wins'] * 2.5
+            + u_s['Conf Titles'] * 1.2
         )
-        if row['OVERALL'] < 85:
-            raw -= 12
+        heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 1.4
+        playoff_fail_penalty = u_s['CFP Losses'] * 1.3
+
+        raw = (
+            row['OVERALL'] * 2.2
+            + row['OFFENSE'] * 0.7
+            + row['DEFENSE'] * 0.7
+            + (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 1.15
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.1
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 5.5
+            + row['BCR_Val'] * 0.55
+            + row['Recruit Score'] * 0.35
+            + row['Career Win %'] * 0.35
+            + pedigree_bonus
+            - heartbreak_penalty
+            - playoff_fail_penalty
+        )
+
+        if row['OVERALL'] < 86:
+            raw -= 18
         if row['OFFENSE'] < 85:
-            raw -= 4
+            raw -= 6
         if row['DEFENSE'] < 85:
-            raw -= 4
+            raw -= 6
+        if row['BCR_Val'] < 35:
+            raw -= 6
         return raw
 
     df['Contender Raw'] = df.apply(raw_contender_score, axis=1)
 
-    raw_min = df['Contender Raw'].min()
-    raw_max = df['Contender Raw'].max()
-    spread = max(1, raw_max - raw_min)
-    df['Natty Odds'] = ((df['Contender Raw'] - raw_min) / spread * 28 + 3).round(1)
-    df['Natty Odds'] = df['Natty Odds'].clip(lower=3, upper=31)
+    # Convert contender strength into title-winning odds with a softmax so the
+    # numbers stay tough and realistic. This is "odds to win the natty."
+    # Lower temperature => more separation between contenders without ever
+    # producing cartoonish 99% outcomes.
+    temp = max(8.5, df['Contender Raw'].std() * 0.9)
+    raw_shift = df['Contender Raw'] - df['Contender Raw'].max()
+    exp_scores = np.exp(raw_shift / temp)
+    natty_probs = (exp_scores / exp_scores.sum()) * 100
+    df['Natty Odds'] = natty_probs.round(1)
 
     def stock_label(row):
         if row['Natty Odds'] >= 24 and row['Improvement'] >= 0:
             return "🚀 Surging"
-        if row['Natty Odds'] >= 18:
+        if row['Natty Odds'] >= 17:
             return "📈 Rising"
         if row['Improvement'] <= -2 or row['OVERALL'] < 82:
             return "📉 In Trouble"
@@ -369,6 +463,13 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         )
 
     df['Power Index'] = df.apply(power_index, axis=1)
+    df['Team Speed Score'] = (
+        df['Team Speed (90+ Speed Guys)'] * 3.0
+        + df['Off Speed (90+ speed)'] * 1.4
+        + df['Def Speed (90+ speed)'] * 1.4
+        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 2.5
+        + df['Generational (96+ speed or 96+ Acceleration)'] * 8.5
+    ).round(1)
     power_min = df['Power Index'].min()
     power_max = df['Power Index'].max()
     power_spread = max(1, power_max - power_min)
@@ -376,8 +477,8 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     df['Projected Wins'] = (6.2 + ((df['Power Index'] - power_min) / power_spread * 5.3)).round(1)
     df['Projected Wins'] = df['Projected Wins'].clip(lower=5.5, upper=11.5)
 
-    df['Playoff Odds'] = (18 + ((df['Power Index'] - power_min) / power_spread * 58)).round(0).astype(int)
-    df['Playoff Odds'] = df['Playoff Odds'].clip(lower=15, upper=76)
+    df['Playoff Odds'] = (14 + ((df['Power Index'] - power_min) / power_spread * 54)).round(0).astype(int)
+    df['Playoff Odds'] = df['Playoff Odds'].clip(lower=12, upper=68)
 
     df['Collapse Risk'] = (
         66
@@ -664,13 +765,47 @@ if data:
                 st.info("👔 COTY: not found")
 
         if not y_data.empty:
-            biggest_win = y_data.loc[y_data['Margin'].idxmax()]
+            user_games = y_data[
+                (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') &
+                (y_data['H_User_Final'].astype(str).str.upper() != 'CPU') &
+                (y_data['V_User_Final'] != y_data['H_User_Final'])
+            ].copy()
+
             avg_m = round(y_data['Margin'].mean(), 1)
-            st.info(f"🏟️ Game of the Year: {biggest_win['Visitor_Final']} at {biggest_win['Home_Final']} | margin {int(biggest_win['Margin'])}")
+
+            if not user_games.empty:
+                goty = user_games.loc[user_games['Margin'].idxmin()]
+
+                if goty['V_Pts'] > goty['H_Pts']:
+                    winner_user = goty['V_User_Final']
+                    loser_user = goty['H_User_Final']
+                    winner_team = goty['Visitor_Final']
+                    loser_team = goty['Home_Final']
+                else:
+                    winner_user = goty['H_User_Final']
+                    loser_user = goty['V_User_Final']
+                    winner_team = goty['Home_Final']
+                    loser_team = goty['Visitor_Final']
+
+                roast_lines = [
+                    f"{loser_user} snatched defeat from the jaws of competence.",
+                    f"{loser_user} managed to turn a pressure moment into performance art.",
+                    f"{loser_user} got all the way to the finish line and face-planted in front of the cameras."
+                ]
+                roast_line = roast_lines[int(goty['Margin']) % len(roast_lines)]
+
+                st.info(
+                    f"🏟️ Game of the Year: {goty['Visitor_Final']} at {goty['Home_Final']} | "
+                    f"{winner_user} ({winner_team}) escaped by {int(goty['Margin'])}. "
+                    f"{loser_user} ({loser_team}) was one stop away and still found a way to wear it. {roast_line}"
+                )
+            else:
+                st.info("🏟️ Game of the Year: no user-vs-user games found for that season.")
+
             st.caption(f"Fun stat: {infer_best_fun_stat(y_data)}")
             st.write(
-                f"**Narrative:** {sel_year} featured {len(y_data)} user battles. "
-                f"The average margin was {avg_m}, which points to "
+                f"**Narrative:** {sel_year} featured {len(user_games)} user battles. "
+                f"The average margin across all logged games was {avg_m}, which points to "
                 f"{'a season of wars' if avg_m <= 10 else 'a season with clear pecking-order moments'}."
             )
 
@@ -747,33 +882,50 @@ if data:
     # --- TALENT PROFILE ---
     with tabs[6]:
         st.header("🔍 The 2041 Freak List")
-        st.write("Detailed scouting of high-end athletic ceiling.")
+        st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board.")
 
-        for _, r in model_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
+        talent_board = model_2041.copy()
+        talent_board = talent_board.sort_values(
+            ['Team Speed Score', 'Generational (96+ speed or 96+ Acceleration)', 'Team Speed (90+ Speed Guys)'],
+            ascending=False
+        ).reset_index(drop=True)
+        talent_board['TEAM SPEED Rank'] = np.arange(1, len(talent_board) + 1)
+
+        st.subheader("⚡ TEAM SPEED Rankings")
+        st.dataframe(
+            talent_board[[
+                'TEAM SPEED Rank', 'USER', 'TEAM', 'Team Speed Score',
+                'Team Speed (90+ Speed Guys)', 'Game Breakers (90+ Speed & 90+ Acceleration)',
+                'Generational (96+ speed or 96+ Acceleration)'
+            ]],
+            hide_index=True,
+            use_container_width=True
+        )
+
+        for _, r in talent_board.iterrows():
             gens = int(r['Generational (96+ speed or 96+ Acceleration)'])
+            team_speed = float(r.get('Team Speed Score', 0))
+            tier = get_speed_tier(team_speed)
+            gen_desc = get_pop_culture_speed_comp(gens)
 
             if gens == 0:
-                gen_desc = "📉 Fundamentalist squad: no true track demons. This team has to win with structure and execution."
-                tier = "🐢 GROUND & POUND"
+                bonus_desc = "No multiplier bonus here. This is a depth-and-discipline operation."
             elif gens == 1:
-                gen_desc = "🎯 One elite game-breaker. If you find the answer for that player, the whole machine slows down."
-                tier = "🏎️ ROADRUNNER"
-            elif gens == 2:
-                gen_desc = "⚔️ A deadly pair of burners. You can tilt coverage to one side, but not both."
-                tier = "🚀 SONIC BOOM"
-            elif gens == 3:
-                gen_desc = "🔬 The speed lab is open. This roster forgives coaching mistakes with pure explosiveness."
-                tier = "🧨 DYNAMITE DEPTH"
+                bonus_desc = "One generational freak means the whole scouting report bends around a single superhero."
             else:
-                gen_desc = "⚡ This is cheating-adjacent speed. Somebody call compliance."
-                tier = "☣️ GOD-TIER VELOCITY"
+                bonus_desc = f"{gens} generational freaks means the speed depth gets turbocharged. This many cheat codes can vault a roster several spots higher than raw depth alone."
 
-            with st.expander(f"{r['USER']} | {r['TEAM']} - {tier}"):
+            with st.expander(f"#{int(r['TEAM SPEED Rank'])} {r['USER']} | {r['TEAM']} - {tier}"):
                 st.write(gen_desc)
-                st.metric("Blue Chip Ratio", f"{int(r['BCR_Val'])}%")
-                st.write(f"**Total 90+ speed players:** {int(r['Team Speed (90+ Speed Guys)'])}")
+                st.write(bonus_desc)
+                s1, s2, s3 = st.columns(3)
+                s1.metric("TEAM SPEED Score", f"{team_speed}")
+                s2.metric("90+ Speed Players", int(r['Team Speed (90+ Speed Guys)']))
+                s3.metric("Generational Freaks", gens)
                 st.write(f"**Game breakers:** {int(r['Game Breakers (90+ Speed & 90+ Acceleration)'])}")
-                st.progress(min(1.0, float(r['BCR_Val']) / 100))
+                st.write(f"**Offense 90+ speed:** {int(r['Off Speed (90+ speed)'])} | **Defense 90+ speed:** {int(r['Def Speed (90+ speed)'])}")
+                st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
+                st.progress(min(1.0, team_speed / 100.0))
 
     # --- EXECUTIVE OUTLOOK ---
     with tabs[7]:
@@ -807,7 +959,7 @@ if data:
     # --- AI DYNASTY PREDICTOR ---
     with tabs[8]:
         st.header("🧠 AI Dynasty Predictor")
-        st.write("Forward-looking program projections based on roster quality, speed, blue-chip composition, recruiting momentum, coaching pedigree, and dynasty stability.")
+        st.write("Forward-looking program projections based on roster quality, speed, blue-chip composition, recruiting momentum, coaching pedigree, and dynasty stability. Natty Odds here mean odds to **win** the national title, not just make it.")
 
         c1, c2, c3 = st.columns(3)
         with c1:
