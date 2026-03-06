@@ -156,9 +156,7 @@ def load_data():
 def get_ai_recap(year, scores_df, champs_df, meta):
     natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(year)]
     winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "The CPUs"
-    user_games = scores_df[(scores_df[meta['yr']] == year) & (scores_df['V_User_Final'] != 'Cpu') & (scores_df['H_User_Final'] != 'Cpu')].sort_values('Margin', ascending=False)
-    blowout_str = f" Never forget the blowout by {int(user_games.iloc[0]['Margin'])}." if not user_games.empty else ""
-    return f"In {year}, {winner} proved dominance. {blowout_str}"
+    return f"In {year}, {winner} proved dominance. "
 
 def get_gen_freak_commentary(user, team, count):
     if count == 0: return f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks."
@@ -187,35 +185,54 @@ if data:
         sel_year = st.selectbox("Select Season", years)
         st.info(get_ai_recap(sel_year, scores, champs_df, meta))
 
-    with tabs[4]: # NATTY PROBABILITY LOGIC ADDED HERE
+    with tabs[4]: # TEAM ANALYSIS (HEAVY WEIGHTING & WINDOW STATUS)
         st.header("📊 2041 Team Deep-Dive")
         target = st.selectbox("Select Team", r_2041['USER'].tolist())
         row = r_2041[r_2041['USER'] == target].iloc[0]
         u_stats = stats[stats['User'] == target].iloc[0]
         
-        # PROBABILITY ENGINE
-        p_natty = (u_stats['Natties'] * 15) # Pedigree
-        p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 2 # Velocity
-        p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 8 # Gamebreakers
-        p_form = u_stats['Win Pct'] * 30 # Skill/History
-        p_draft = u_stats['1st Rounders'] * 3 # Recruiting/Development
+        # PROBABILITY ENGINE (ADJUSTED WEIGHTS: 70% Speed/OVR focus)
+        p_ovr = (row['OVERALL'] - 75) * 1.5           # OVR Baseline
+        p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 3.5 # Raw Speed
+        p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 12 # Gamebreakers
+        p_history = (u_stats['Natties'] * 5) + (u_stats['Win Pct'] * 10) # Pedigree
         
-        prob_score = min(99, max(5, int(p_natty + p_speed + p_gens + p_form + p_draft)))
+        prob_score = min(99, max(2, int(p_ovr + p_speed + p_gens + p_history)))
+
+        # WINDOW STATUS LOGIC
+        if row['OVERALL'] >= 90 and prob_score > 70: window = "🏔️ Peak - Win Now"
+        elif row['Improvement'] > 2 or row['Tenure'] < 3: window = "📈 Rising - Rebuild"
+        elif row['OVERALL'] < 85: window = "🏚️ Rebuilding"
+        else: window = "⚖️ Neutral"
 
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Tenure", f"{int(row['Tenure'])} Yrs", row['TEAM'])
         c2.metric("Overall", row['OVERALL'])
-        c3.metric("Win Projection", row['2041 Projection'])
-        c4.metric("Natty Probability", f"{prob_score}%", "Dynasty Odds")
+        c3.metric("Natty Probability", f"{prob_score}%")
+        c4.metric("Championship Window", window)
         c5.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
         
         st.markdown(f"### 🎯 Probability Analysis: {target}")
-        if prob_score > 75:
-            st.success(f"**Heavy Favorite:** With {u_stats['Natties']} Natties and an elite speed profile, the data suggests {target} is the team to beat.")
-        elif prob_score > 40:
-            st.warning(f"**Dark Horse:** {target} has the speed floor, but history shows they need to stay consistent to secure a title.")
-        else:
-            st.error(f"**Long Shot:** Low historic win percentage and speed gaps make a Natty run unlikely for {target} this year.")
+        
+        high_pool = [
+            f"Statistically, {target} is a nightmare. With an OVR of {row['OVERALL']} and elite speed, they are the paper favorites for a ring.",
+            f"The 'Sonic Boom' energy is real here. {target} has the athletic profile to outrun every mistake. Probability: High.",
+            f"This is a 'Final Boss' roster. Unless {target} self-destructs, the speed advantage alone should carry them to the CFP."
+        ]
+        mid_pool = [
+            f"{target} has the tools but lacks the 'Generational' depth of the elite. A ring is possible if they play perfectly.",
+            f"A solid {row['OVERALL']} OVR puts them in the conversation, but they might get out-athleted in the semi-finals.",
+            f"The metrics are stable. {target} is a dangerous out, but they're one injury away from a speed deficit."
+        ]
+        low_pool = [
+            f"The math isn't kind to {target} this year. Without elite vertical speed, they'll be chasing games from behind.",
+            f"This roster is built for the long haul, not the immediate Natty. Expect a lot of 'growing pain' losses.",
+            f"Unless {target} pulls off a coaching miracle, the athletic gap in this league is currently too wide to bridge."
+        ]
+
+        if prob_score > 70: st.success(random.choice(high_pool))
+        elif prob_score > 35: st.warning(random.choice(mid_pool))
+        else: st.error(random.choice(low_pool))
 
     with tabs[5]:
         st.header("🔍 Generational Talent Tracker")
