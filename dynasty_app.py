@@ -119,6 +119,27 @@ def load_data():
             fw = round(min(12, max(0, w)))
             return f"{fw}-{12-fw}"
         r_2041['2041 Projection'] = r_2041.apply(project_wins, axis=1)
+
+        # --- ARCHETYPE LOGIC (NEW 2041 OUTLOOK ENGINE) ---
+        def define_archetype(row):
+            off_spd = row.get('Off Speed (90+ speed)', 0)
+            def_spd = row.get('Def Speed (90+ speed)', 0)
+            gens = row.get('Generational (96+ speed or 96+ Acceleration)', 0)
+            
+            if gens >= 2 and off_spd >= 5 and def_spd >= 5:
+                return "Sonic Boom", "🚀", "Elite speed floor + multiple game-breakers. Statistical favorite."
+            elif gens >= 1 and off_spd >= 6 and def_spd < 5:
+                return "Glass Cannon", "🔫", "High-octane scoring threats but the defense can't chase. High shootout potential."
+            elif def_spd >= 6:
+                return "Iron Curtain", "🛡️", "Elite defensive range. Specifically built to punish speed-reliant offenses."
+            elif gens == 0 and (off_spd < 5 or def_spd < 5):
+                return "Sluggish Giant", "🕯️", "Heavy on OVR but low on velocity. Must win through pure user skill."
+            else:
+                return "Balanced Contender", "⚖️", "Solid all-around roster with no glaring athletic deficiencies."
+
+        r_2041[['Archetype', 'Icon', 'Outlook Description']] = r_2041.apply(
+            lambda x: pd.Series(define_archetype(x)), axis=1
+        )
         
         col_meta = {'yr': yr_key, 'vt': smart_col(scores, ['Visitor']), 'vs': v_score_key, 'ht': smart_col(scores, ['Home']), 'hs': h_score_key, 'cyr': champ_yr_key, 'cu': champ_user_key}
         return scores, stats_df, all_users, years_available, col_meta, champs, r_2041, h2h_df, rec_long
@@ -138,7 +159,12 @@ def get_ai_recap(year, scores_df, champs_df, meta):
         f"{year} was a total bloodbath. {winner} stood at the top while the rest of you were struggling to call a basic slant route.",
         f"Looking at the {year} tapes, it's clear {winner} had the juice. Meanwhile, {blowout[meta['vt']] if blowout is not None else 'someone'} lost by {int(blowout['Margin']) if blowout is not None else 'a lot'} points.",
         f"History will remember {year} as the year {winner} stood above the rest.",
-        f"The {year} campaign was defined by {winner}'s dominance."
+        f"The {year} campaign was defined by {winner}'s dominance.",
+        f"{year}: A year of broken controllers and shattered dreams, courtesy of {winner}.",
+        f"If {year} was a movie, {winner} was the main character and everyone else was the comic relief.",
+        f"The record books for {year} are mostly just {winner} flex-tweeting while {blowout[meta['vt']] if blowout is not None else 'their victims'} stared at the ceiling.",
+        f"In {year}, {winner} didn't just win the Natty; they took everyone's lunch money and the lunch lady's keys too.",
+        f"The {year} season was less of a competition and more of a victory lap for {winner}."
     ]
     return random.choice(pool)
 
@@ -203,7 +229,15 @@ def get_gen_freak_commentary(user, team, count):
 data = load_data()
 if data:
     scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, rec_long = data
-    tabs = st.tabs(["🏆 Prestige", "⚔️ H2H Records", "📺 Season Recap", "📊 Team Analysis", "🚀 2041 Scout & Projections", "🔍 Talent Profile"])
+    tabs = st.tabs([
+        "🏆 Prestige", 
+        "⚔️ H2H Records", 
+        "📺 Season Recap", 
+        "📊 Team Analysis", 
+        "🚀 2041 Scout & Projections", 
+        "🔍 Talent Profile",
+        "🌐 2041 Executive Outlook"
+    ])
 
     with tabs[0]:
         st.subheader("The Dynasty Hall of Fame")
@@ -267,13 +301,37 @@ if data:
             cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
             msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
             if cnt >= 3:
-                st.error(msg) # Red for high-level threats
+                st.error(msg)
             elif cnt == 2:
-                st.warning(msg) # Orange for duos
+                st.warning(msg)
             elif cnt == 1:
-                st.success(msg) # Green for singular heroes
+                st.success(msg)
             else:
-                st.info(msg) # Blue for faith-based rosters
+                st.info(msg)
+
+    with tabs[6]:
+        st.header("🌐 2041 Executive League Outlook")
+        
+        # Summary Metrics
+        sm1, sm2, sm3, sm4 = st.columns(4)
+        sm1.metric("Sonic Booms 🚀", len(r_2041[r_2041['Archetype'] == "Sonic Boom"]))
+        sm2.metric("Glass Cannons 🔫", len(r_2041[r_2041['Archetype'] == "Glass Cannon"]))
+        sm3.metric("Iron Curtains 🛡️", len(r_2041[r_2041['Archetype'] == "Iron Curtain"]))
+        sm4.metric("Sluggish Giants 🕯️", len(r_2041[r_2041['Archetype'] == "Sluggish Giant"]))
+        
+        st.markdown("---")
+        
+        # Velocity Analysis Chart
+        st.subheader("📉 The Velocity Gap: Team Speed Correlation")
+        fig = px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", 
+                         color="Archetype", size="OVERALL", hover_name="TEAM",
+                         text="USER", title="2041 Speed Landscape (Size = Team OVR)")
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Archetype Table
+        st.subheader("📋 Team Archetype Classifications")
+        outlook_tbl = r_2041[['USER', 'TEAM', 'Archetype', 'Icon', 'Outlook Description']].sort_values(by='Archetype')
+        st.dataframe(outlook_tbl, hide_index=True, use_container_width=True)
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
