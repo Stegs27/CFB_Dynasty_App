@@ -68,7 +68,7 @@ def load_data():
         natty_counts = champs[champs[champ_user_key].str.upper() != 'CPU'][champ_user_key].str.strip().str.title().value_counts().to_dict()
         coty_counts = coty[coty['User'].str.upper() != 'CPU']['User'].str.strip().str.title().value_counts().to_dict()
 
-        # MASTER STATS ENGINE
+        # MASTER STATS ENGINE & H2H DATA
         stats_list, h2h_rows, h2h_numeric = [], [], []
         for user in all_users:
             h_games = scores[scores['H_User_Final'] == user]
@@ -152,15 +152,35 @@ def load_data():
         st.error(f"⚠️ Load Error: {e}")
         return None
 
-# --- AI FUNCTIONS ---
+# --- RESTORED DYNAMIC AI FUNCTIONS ---
 def get_ai_recap(year, scores_df, champs_df, meta):
     natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(year)]
     winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "The CPUs"
-    return f"In {year}, {winner} proved dominance. "
+    user_games = scores_df[(scores_df[meta['yr']] == year) & (scores_df['V_User_Final'] != 'Cpu') & (scores_df['H_User_Final'] != 'Cpu')].sort_values('Margin', ascending=False)
+    
+    blowout_str = ""
+    if not user_games.empty:
+        bg = user_games.iloc[0]
+        w_user = bg['H_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['V_User_Final']
+        l_user = bg['V_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['H_User_Final']
+        blowout_str = f" Never forget the war crime where **{w_user}** dismantled **{l_user}** by **{int(bg['Margin'])}** points."
+
+    pool = [
+        f"In {year}, {winner} played like they had a cheat code enabled.",
+        f"{year} was a bloodbath. {winner} stood at the top while the rest of you struggled to call a basic slant route.",
+        f"The record books for {year} are mostly just {winner} flex-tweeting while their victims stared at the ceiling."
+    ]
+    return random.choice(pool) + blowout_str
 
 def get_gen_freak_commentary(user, team, count):
-    if count == 0: return f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks."
-    return f"🚀 **{user}** at {team} has **{count}** generational talents."
+    if count == 0:
+        return f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks. Praying for a miracle."
+    elif count == 1:
+        return f"⚔️ **Cloud Strife** has arrived. **{user}** at {team} has **{count}** generational talent wielding a buster sword."
+    elif count == 2:
+        return f"🍄 **Mario & Luigi**! **{user}** at {team} has **{count}** generational freaks making everyone else look like Koopas."
+    else:
+        return f"🦸 **The Avengers**! **{user}** is leading **{count}** generational freaks at {team}."
 
 # --- UI EXECUTION ---
 data = load_data()
@@ -174,70 +194,58 @@ if data:
 
     with tabs[1]:
         st.subheader("The Dynasty Hall of Fame")
-        st.dataframe(stats, hide_index=True)
+        st.dataframe(stats[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders', 'Avg Recruiting Rank']], hide_index=True)
 
-    with tabs[2]:
+    with tabs[2]: # RESTORED H2H TABLES
         st.header("⚔️ Rivalry Risk & H2H Records")
         st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
+        st.subheader("Head-to-Head Win/Loss Detail")
+        st.table(h2h_df.set_index('User'))
 
-    with tabs[3]:
+    with tabs[3]: # RESTORED SEASON RECAP GAMES
         st.header("📺 Season Recap")
         sel_year = st.selectbox("Select Season", years)
         st.info(get_ai_recap(sel_year, scores, champs_df, meta))
+        st.subheader("Game Log")
+        st.dataframe(scores[scores[meta['yr']] == sel_year][[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
 
-    with tabs[4]: # TEAM ANALYSIS (HEAVY WEIGHTING & WINDOW STATUS)
+    with tabs[4]: # TEAM ANALYSIS + NEW PROBABILITY/WINDOW
         st.header("📊 2041 Team Deep-Dive")
         target = st.selectbox("Select Team", r_2041['USER'].tolist())
         row = r_2041[r_2041['USER'] == target].iloc[0]
         u_stats = stats[stats['User'] == target].iloc[0]
         
-        # PROBABILITY ENGINE (ADJUSTED WEIGHTS: 70% Speed/OVR focus)
-        p_ovr = (row['OVERALL'] - 75) * 1.5           # OVR Baseline
-        p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 3.5 # Raw Speed
-        p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 12 # Gamebreakers
-        p_history = (u_stats['Natties'] * 5) + (u_stats['Win Pct'] * 10) # Pedigree
-        
+        # PROBABILITY ENGINE (Heavy Speed/OVR weight)
+        p_ovr = (row['OVERALL'] - 75) * 1.5
+        p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 3.5
+        p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 12
+        p_history = (u_stats['Natties'] * 5) + (u_stats['Win Pct'] * 10)
         prob_score = min(99, max(2, int(p_ovr + p_speed + p_gens + p_history)))
 
-        # WINDOW STATUS LOGIC
         if row['OVERALL'] >= 90 and prob_score > 70: window = "🏔️ Peak - Win Now"
-        elif row['Improvement'] > 2 or row['Tenure'] < 3: window = "📈 Rising - Rebuild"
+        elif row['Improvement'] > 2: window = "📈 Rising - Rebuild"
         elif row['OVERALL'] < 85: window = "🏚️ Rebuilding"
         else: window = "⚖️ Neutral"
 
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Tenure", f"{int(row['Tenure'])} Yrs", row['TEAM'])
         c2.metric("Overall", row['OVERALL'])
-        c3.metric("Natty Probability", f"{prob_score}%")
-        c4.metric("Championship Window", window)
+        c3.metric("Natty Prob", f"{prob_score}%")
+        c4.metric("Window", window)
         c5.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
         
-        st.markdown(f"### 🎯 Probability Analysis: {target}")
-        
-        high_pool = [
-            f"Statistically, {target} is a nightmare. With an OVR of {row['OVERALL']} and elite speed, they are the paper favorites for a ring.",
-            f"The 'Sonic Boom' energy is real here. {target} has the athletic profile to outrun every mistake. Probability: High.",
-            f"This is a 'Final Boss' roster. Unless {target} self-destructs, the speed advantage alone should carry them to the CFP."
-        ]
-        mid_pool = [
-            f"{target} has the tools but lacks the 'Generational' depth of the elite. A ring is possible if they play perfectly.",
-            f"A solid {row['OVERALL']} OVR puts them in the conversation, but they might get out-athleted in the semi-finals.",
-            f"The metrics are stable. {target} is a dangerous out, but they're one injury away from a speed deficit."
-        ]
-        low_pool = [
-            f"The math isn't kind to {target} this year. Without elite vertical speed, they'll be chasing games from behind.",
-            f"This roster is built for the long haul, not the immediate Natty. Expect a lot of 'growing pain' losses.",
-            f"Unless {target} pulls off a coaching miracle, the athletic gap in this league is currently too wide to bridge."
-        ]
+        st.markdown(f"### Scouting Report: {target}")
+        st.write(f"Coach {target} has a {row['OVERALL']} OVR roster. Star {row['⭐ STAR SKILL GUY (Top OVR)']} {'is a speed freak' if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else 'is not a speed freak'}. Historically, recruiting rank is {u_stats['Avg Recruiting Rank']}.")
 
-        if prob_score > 70: st.success(random.choice(high_pool))
-        elif prob_score > 35: st.warning(random.choice(mid_pool))
-        else: st.error(random.choice(low_pool))
-
-    with tabs[5]:
+    with tabs[5]: # RESTORED FREAK COMMENTARY
         st.header("🔍 Generational Talent Tracker")
         for _, r in r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
-            st.info(get_gen_freak_commentary(r['USER'], r['TEAM'], int(r['Generational (96+ speed or 96+ Acceleration)'])))
+            cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
+            msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
+            if cnt >= 3: st.error(msg)
+            elif cnt == 2: st.warning(msg)
+            elif cnt == 1: st.success(msg)
+            else: st.info(msg)
 
     with tabs[6]:
         st.header("🌐 2041 Executive League Outlook")
