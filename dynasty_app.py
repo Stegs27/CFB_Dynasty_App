@@ -26,7 +26,7 @@ def load_data():
         heisman = pd.read_csv('Heisman_History.csv')
         coty = pd.read_csv('COTY.csv')
 
-        # STANDARDIZE KEYS
+        # STANDARDIZE KEYS FOR SCORES
         v_user_key = smart_col(scores, ['Vis_User', 'Visitor User', 'Vis User'])
         h_user_key = smart_col(scores, ['Home_User', 'Home User'])
         v_score_key = smart_col(scores, ['Vis Score', 'Vis_Score'])
@@ -38,6 +38,7 @@ def load_data():
         h_yr_key = smart_col(heisman, ['Year', 'YEAR'])
         h_player_key = smart_col(heisman, ['Player', 'Winner', 'Name'])
         h_school_key = smart_col(heisman, ['School', 'Team', 'University'])
+        
         c_yr_key = smart_col(coty, ['Year', 'YEAR'])
         c_coach_key = smart_col(coty, ['Coach', 'Winner', 'Name'])
         c_school_key = smart_col(coty, ['School', 'Team', 'University'])
@@ -132,7 +133,7 @@ if data:
     scores, stats, all_users, years, meta, r_2041, h2h_df, h2h_heat, coty, heisman = data
     tabs = st.tabs(["🚀 2041 Scout & Projections", "🏆 Prestige", "⚔️ H2H & Risk Map", "📺 Season Recap", "📊 Team Analysis", "🔍 Talent Profile", "🌐 2041 Executive Outlook"])
 
-    # --- 1. SCOUT & PROJECTIONS (FULL RESTORE) ---
+    # --- 1. SCOUT & PROJECTIONS ---
     with tabs[0]:
         st.header("🚀 2041 Executive Projections")
         r_2041['Natty Prob'] = r_2041.apply(lambda x: calculate_hardened_prob(x, stats), axis=1)
@@ -144,67 +145,71 @@ if data:
             st.subheader("Projected Risers")
             st.dataframe(r_2041.sort_values('Improvement', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Improvement']], hide_index=True)
 
-    # --- 4. SEASON RECAP (FULL AI NARRATIVE) ---
+    # --- 2. PRESTIGE ---
+    with tabs[1]:
+        st.subheader("Dynasty Career Leaderboard")
+        st.dataframe(stats.sort_values('HoF Points', ascending=False), hide_index=True)
+
+    # --- 3. H2H & RISK MAP ---
+    with tabs[2]:
+        st.subheader("Head-to-Head Risk Map")
+        st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
+        st.table(h2h_df.set_index('User'))
+
+    # --- 4. SEASON RECAP ---
     with tabs[3]:
         st.header("📺 AI Dynasty Recap Engine")
-        sel_year = st.selectbox("Select Season", years)
-        y_data = scores[scores[meta['yr']] == sel_year]
-        if not y_data.empty:
-            biggest_win = y_data.loc[y_data['Margin'].idxmax()]
-            avg_m = round(y_data['Margin'].mean(), 1)
-            st.info(f"🏟️ **Game of the Year:** {biggest_win['H_User_Final']} vs {biggest_win['V_User_Final']} (Margin: {int(biggest_win['Margin'])})")
+        sel_year = st.selectbox("Select Season to Recap", years)
+        year_data = scores[scores[meta['yr']] == sel_year]
+        
+        st.subheader(f"The Story of {sel_year}")
+        if not year_data.empty:
+            biggest_win = year_data.loc[year_data['Margin'].idxmax()]
+            avg_margin = round(year_data['Margin'].mean(), 1)
+            st.info(f"🏟️ **Game of the Year Performance:** {biggest_win['H_User_Final']} vs {biggest_win['V_User_Final']} (Margin: {int(biggest_win['Margin'])})")
             
-            y_h = heisman[heisman[meta['h_yr']] == sel_year]
-            y_c = coty[coty[meta['c_yr']] == sel_year]
+            # Award Integration
+            year_heisman = heisman[heisman[meta['h_yr']] == sel_year]
+            year_coty = coty[coty[meta['c_yr']] == sel_year]
             ca1, ca2 = st.columns(2)
             with ca1:
-                if not y_h.empty: st.success(f"🏅 **Heisman:** {y_h.iloc[0][meta['h_player']]} ({y_h.iloc[0][meta['h_school']]})")
+                if not year_heisman.empty:
+                    h_win = year_heisman.iloc[0]
+                    st.success(f"🏅 **Heisman Trophy:** {h_win[meta['h_player']]} ({h_win[meta['h_school']]})")
             with ca2:
-                if not y_c.empty: st.success(f"👔 **COTY:** {y_c.iloc[0][meta['c_coach']]} ({y_c.iloc[0][meta['c_school']]})")
-            
-            st.markdown(f"**Narrative:** {sel_year} featured {len(y_data)} user battles. The margin of {avg_m} suggests a season of {'dominant runs' if avg_m > 20 else 'tactical grit'}.")
-        st.dataframe(y_data[[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
+                if not year_coty.empty:
+                    c_win = year_coty.iloc[0]
+                    st.success(f"👔 **Coach of the Year:** {c_win[meta['c_coach']]} ({c_win[meta['c_school']]})")
 
-    # --- 6. TALENT PROFILE (FULL FREAK ADJUSTMENTS) ---
+            st.markdown(f"**Executive Summary:** {sel_year} featured {len(year_data)} user battles with an average margin of {avg_margin}.")
+        st.dataframe(year_data[[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
+
+    # --- 5. TEAM ANALYSIS ---
+    with tabs[4]:
+        st.header("📊 Executive Deep-Dive")
+        target = st.selectbox("Select Program", r_2041['USER'].tolist())
+        row = r_2041[r_2041['USER'] == target].iloc[0]
+        u_s = stats[stats['User'] == target].iloc[0]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Natty Prob", f"{calculate_hardened_prob(row, stats)}%")
+        c2.metric("BCR Score", f"{int(row['BCR_Val'])}%")
+        c3.metric("Postseason", f"{u_s['CFP Wins']}-{u_s['CFP Losses']}")
+        c4.metric("Legacy Rings", u_s['Natties'])
+
+    # --- 6. TALENT PROFILE ---
     with tabs[5]:
         st.header("🔍 The 2041 Freak List")
-        st.write("Detailed scouting of high-end athletic ceiling.")
-        
         for _, r in r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
             gens = int(r['Generational (96+ speed or 96+ Acceleration)'])
-            
-            # THE "MISSING" GENERATIONAL ADJUSTMENTS
-            if gens == 0:
-                gen_desc = "📉 **Fundamentalist Squad:** No track stars found. This team relies on high-IQ play and heavy scheme to win."
-                tier = "🐢 GROUND & POUND"
-            elif gens == 1:
-                gen_desc = "🎯 **The Specialist:** One elite game-breaker. If you stop this one player, you stop the whole engine."
-                tier = "🏎️ ROADRUNNER"
-            elif gens == 2:
-                gen_desc = "⚔️ **Double Trouble:** A lethal duo of track stars. You can't double-team both."
-                tier = "🚀 SONIC BOOM"
-            elif gens == 3:
-                gen_desc = "🔬 **The Speed Lab:** Experimental levels of velocity. This roster erases coaching mistakes with pure foot-speed."
-                tier = "🧨 DYNAMITE DEPTH"
-            elif gens >= 4:
-                gen_desc = "⚡ **Flash Point:** You are officially accessing the Speed Force. This is illegal in 48 states."
-                tier = "☣️ GOD-TIER VELOCITY"
-            
-            with st.expander(f"{r['USER']} | {r['TEAM']} - {tier}"):
-                st.write(gen_desc)
-                st.metric("Blue Chip Ratio", f"{int(r['BCR_Val'])}%")
-                st.write(f"**90+ Speed Depth:** {int(r['Team Speed (90+ Speed Guys)'])} total burners.")
-                st.progress(min(1.0, r['BCR_Val']/100))
+            if gens >= 4: tier = "⚡ FLASH POINT (Accessing the Speed Force)"
+            elif gens >= 2: tier = "🚀 SONIC BOOM (Mach 1 Roster)"
+            elif r['Team Speed (90+ Speed Guys)'] >= 12: tier = "🏎️ THE FAST & THE FURIOUS"
+            else: tier = "🏎️ ROADRUNNER (Elite High-End Speed)"
+            st.info(f"**{tier}**\n\n**{r['USER']}** ({r['TEAM']}) has **{gens}** Generational Talents and a **{int(r['BCR_Val'])}%** Blue Chip Ratio.")
 
-    # --- OTHER TABS ---
-    with tabs[1]: st.dataframe(stats.sort_values('HoF Points', ascending=False), hide_index=True)
-    with tabs[2]: st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
-    with tabs[4]:
-        target = st.selectbox("Select Team", r_2041['USER'].tolist())
-        row = r_2041[r_2041['USER'] == target].iloc[0]
-        st.metric("Natty Prob", f"{calculate_hardened_prob(row, stats)}%")
-        st.metric("Improvement", f"+{row['Improvement']} OVR")
+    # --- 7. EXECUTIVE OUTLOOK ---
     with tabs[6]:
+        st.header("🌐 2041 Executive Outlook")
         st.plotly_chart(px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", color="USER", size="OVERALL", text="TEAM"), use_container_width=True)
 
     if st.sidebar.button("🔄 Refresh Data"):
