@@ -171,6 +171,19 @@ def get_gen_freak_commentary(user, team, count):
             f"🦂 It’s Showtime! **{user}** has **Sting**. One generational vigilante at {team} waiting in the rafters for a big play.",
             f"👑 OHHH YEAH! **{user}** has the **Macho Man** Randy Savage. One generational talent at {team} bringing the cream to the top."
         ]
+    elif count == 2:
+        pool = [
+            f"🍄 **Mario & Luigi** have entered the chat. **{user}** at {team} has a dynamic duo of generational freaks that make the rest of the league look like Koopas.",
+            f"🪵 GET THE TABLES! **{user}** has the **Dudley Boyz**. Two generational specimens at {team} ready to put the competition through the wood.",
+            f"🤘 **Edge & Christian**! **{user}** at {team} has a tag team of generational freaks. Totally reeking of awesomeness and elite speed.",
+            f"🦅 **The Road Warriors** have arrived. **{user}** has two generational monsters at {team}. What a rush!",
+            f"👯 **The Bella Twins** are running the field. **{user}** at {team} has a pair of generational freaks that the defense simply can't handle.",
+            f"🎨 **The Hardy Boyz**! **{user}** has two generational high-flyers at {team} who are ready to jump off any ladder for the win.",
+            f"🐺 **The Outsiders** are in the building. **{user}** has two generational freaks at {team} taking over the league.",
+            f"🔥 **The Brothers of Destruction**! **{user}** has a terrifying duo of generational talents at {team}. It’s a tombstone for any defensive coordinator.",
+            f"🐶 **The Steiner Brothers**! **{user}** at {team} has two generational freaks. The numbers don't lie, and they spell disaster for you!",
+            f"⚔️ **Han Solo & Chewbacca**! **{user}** has the perfect pairing of generational speed and power at {team}."
+        ]
     else:
         pool = [
             f"🚨 **{user}** at {team} is currently running a track meet. They have **{count}** generational freaks. Defensive coordinators are checking into therapy.",
@@ -262,8 +275,10 @@ if data:
         for _, r in gen_df.iterrows():
             cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
             msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
-            if cnt > 1:
+            if cnt > 2:
                 st.warning(msg)
+            elif cnt == 2:
+                st.success(msg) # Keeping the green "Elite Duo" box
             elif cnt == 1:
                 st.success(msg)
             else:
