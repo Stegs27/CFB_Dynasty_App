@@ -120,11 +120,15 @@ def load_data():
             return f"{fw}-{12-fw}"
         r_2041['2041 Projection'] = r_2041.apply(project_wins, axis=1)
 
-        # --- ARCHETYPE LOGIC (NEW 2041 OUTLOOK ENGINE) ---
+        # --- ARCHETYPE LOGIC (REVISED 2041 OUTLOOK ENGINE) ---
         def define_archetype(row):
             off_spd = row.get('Off Speed (90+ speed)', 0)
             def_spd = row.get('Def Speed (90+ speed)', 0)
             gens = row.get('Generational (96+ speed or 96+ Acceleration)', 0)
+            
+            # New Under-Speed Category
+            if off_spd < 5 and def_spd < 5:
+                return "Under-Speed", "🐢", "Critically low speed metrics. Vulnerable to every vertical threat in the league."
             
             if gens >= 2 and off_spd >= 5 and def_spd >= 5:
                 return "Sonic Boom", "🚀", "Elite speed floor + multiple game-breakers. Statistical favorite."
@@ -132,8 +136,8 @@ def load_data():
                 return "Glass Cannon", "🔫", "High-octane scoring threats but the defense can't chase. High shootout potential."
             elif def_spd >= 6:
                 return "Iron Curtain", "🛡️", "Elite defensive range. Specifically built to punish speed-reliant offenses."
-            elif gens == 0 and (off_spd < 5 or def_spd < 5):
-                return "Sluggish Giant", "🕯️", "Heavy on OVR but low on velocity. Must win through pure user skill."
+            elif gens == 0:
+                return "Sluggish Giant", "🕯️", "Heavy on OVR but lacks top-end game breakers. Must win through pure user skill."
             else:
                 return "Balanced Contender", "⚖️", "Solid all-around roster with no glaring athletic deficiencies."
 
@@ -151,22 +155,52 @@ def load_data():
 def get_ai_recap(year, scores_df, champs_df, meta):
     natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(year)]
     winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "The CPUs"
-    blowouts = scores_df[scores_df[meta['yr']] == year].sort_values('Margin', ascending=False)
-    blowout = blowouts.iloc[0] if not blowouts.empty else None
     
+    # Biggest User Blowout Logic
+    user_games = scores_df[(scores_df[meta['yr']] == year) & 
+                           (scores_df['V_User_Final'] != 'Cpu') & 
+                           (scores_df['H_User_Final'] != 'Cpu')].sort_values('Margin', ascending=False)
+    
+    blowout_str = ""
+    if not user_games.empty:
+        bg = user_games.iloc[0]
+        w_user = bg['H_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['V_User_Final']
+        l_user = bg['V_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['H_User_Final']
+        blowout_str = f" Never forget the absolute war crime where **{w_user}** dismantled **{l_user}** by **{int(bg['Margin'])}** points."
+
     pool = [
         f"In {year}, {winner} played like they had a cheat code enabled. Everyone else was just an NPC in their story.",
         f"{year} was a total bloodbath. {winner} stood at the top while the rest of you were struggling to call a basic slant route.",
-        f"Looking at the {year} tapes, it's clear {winner} had the juice. Meanwhile, {blowout[meta['vt']] if blowout is not None else 'someone'} lost by {int(blowout['Margin']) if blowout is not None else 'a lot'} points.",
-        f"History will remember {year} as the year {winner} stood above the rest.",
-        f"The {year} campaign was defined by {winner}'s dominance.",
-        f"{year}: A year of broken controllers and shattered dreams, courtesy of {winner}.",
-        f"If {year} was a movie, {winner} was the main character and everyone else was the comic relief.",
-        f"The record books for {year} are mostly just {winner} flex-tweeting while {blowout[meta['vt']] if blowout is not None else 'their victims'} stared at the ceiling.",
-        f"In {year}, {winner} didn't just win the Natty; they took everyone's lunch money and the lunch lady's keys too.",
-        f"The {year} season was less of a competition and more of a victory lap for {winner}."
+        f"The record books for {year} are mostly just {winner} flex-tweeting while their victims stared at the ceiling.",
+        f"In {year}, {winner} didn't just win the Natty; they took everyone's lunch money.",
+        f"{year}: A vintage year for {winner}, and a year of 'what-ifs' for everyone else.",
+        f"The {year} season proved that while many play, only {winner} truly understands the matrix.",
+        f"If {year} was a court case, {winner} would be the judge, jury, and executioner.",
+        f"The speed gap in {year} was so wide you could fit {winner}'s trophy room in it.",
+        f"{year} was the year common sense went to die, and {winner}'s dynasty was born.",
+        f"Recruiting in {year} was just a formality. {winner} already had the league in a headlock.",
+        f"The {year} playoffs felt like a horror movie where {winner} was the only one who survived the first 10 minutes.",
+        f"I've seen some things, but {winner}'s run in {year} belongs in a museum... or a crime scene report.",
+        f"Rumor has it that in {year}, opponents started checking their settings to see if {winner} was playing on a different difficulty.",
+        f"{year} was the peak of the 'Speed Kills' era, and {winner} was the lead assassin.",
+        f"They say history is written by the victors. In {year}, {winner} ran out of ink.",
+        f"Looking back at {year}, it's clear {winner} was playing chess while the rest of the league was playing hungry-hungry-hippos.",
+        f"In {year}, the only thing faster than {winner}'s receivers was the rate at which opponents quit the game.",
+        f"The {year} Coach of the Year award should have just been a signed apology from everyone else to {winner}.",
+        f"If you look closely at the {year} data, you can actually see the moment the rest of the league gave up hope.",
+        f"{year} was the year that {winner} turned 'The Island' into their private vacation home.",
+        f"The {year} Heisman race was basically a 'Who wants to lose to {winner}'s star player' contest.",
+        f"In {year}, {winner} made the CPU look like a formidable opponent compared to some of the users.",
+        f"The only way to stop {winner} in {year} was to unplug the router. Nobody had the guts.",
+        f"History will judge {year} harshly, but it will judge {winner} as a god amongst men.",
+        f"The {year} trophy ceremony was just {winner} asking if anyone else even tried.",
+        f"In {year}, {winner} achieved a level of dominance that made the analytics guys start questioning their own math.",
+        f"The {year} season was a masterclass in efficiency, mostly because {winner} never wasted a single play.",
+        f"If the league had a 'Mercy Rule' in {year}, half the games would have ended in the second quarter.",
+        f"The {year} highlight reel is 10% football and 90% {winner} laughing in the end zone.",
+        f"In {year}, the 'Island' wasn't big enough for everyone's ego, but {winner} managed to crowd them all out anyway."
     ]
-    return random.choice(pool)
+    return random.choice(pool) + blowout_str
 
 def get_gen_freak_commentary(user, team, count):
     if count == 0:
@@ -267,7 +301,7 @@ if data:
 
         st.markdown(f"### 📋 Scouting Report: {target}")
         
-        is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else "does not possess generational speed metrics"
+        is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Guy is Generational Speed?']).lower() == 'yes' else "does not possess generational speed metrics"
         off_speed_val = row['Off Speed (90+ speed)']
         def_speed_val = row['Def Speed (90+ speed)']
         
@@ -313,11 +347,12 @@ if data:
         st.header("🌐 2041 Executive League Outlook")
         
         # Summary Metrics
-        sm1, sm2, sm3, sm4 = st.columns(4)
+        sm1, sm2, sm3, sm4, sm5 = st.columns(5)
         sm1.metric("Sonic Booms 🚀", len(r_2041[r_2041['Archetype'] == "Sonic Boom"]))
         sm2.metric("Glass Cannons 🔫", len(r_2041[r_2041['Archetype'] == "Glass Cannon"]))
         sm3.metric("Iron Curtains 🛡️", len(r_2041[r_2041['Archetype'] == "Iron Curtain"]))
         sm4.metric("Sluggish Giants 🕯️", len(r_2041[r_2041['Archetype'] == "Sluggish Giant"]))
+        sm5.metric("Under-Speed 🐢", len(r_2041[r_2041['Archetype'] == "Under-Speed"]))
         
         st.markdown("---")
         
