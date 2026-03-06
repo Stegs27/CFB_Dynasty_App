@@ -77,6 +77,27 @@ def get_pop_culture_speed_comp(gens):
     return f"{gens} generational freaks is basically an Avengers-level crossover event. The scouting report just says 'good luck.'"
 
 
+
+
+def team_speed_to_mph(team_speed_score):
+    team_speed_score = float(max(0, team_speed_score))
+    # 40 points is the posted 65 MPH speed limit. Above that, the program is officially speeding.
+    return round((team_speed_score / 40.0) * 65.0, 1)
+
+
+def get_speeding_label(team_speed_score):
+    mph = team_speed_to_mph(team_speed_score)
+    over = round(mph - 65.0, 1)
+    if over <= 0:
+        return f"{mph} MPH in a 65 — technically legal, but the engine is humming."
+    if over <= 10:
+        return f"{mph} MPH in a 65 — light speeding, officer is taking a second look."
+    if over <= 20:
+        return f"{mph} MPH in a 65 — this team is getting pulled over on sight."
+    if over <= 35:
+        return f"{mph} MPH in a 65 — reckless acceleration with no regard for public safety."
+    return f"{mph} MPH in a 65 — felony-level speed. Defensive coordinators should call a lawyer."
+
 def get_speed_tier(team_speed_score):
     if team_speed_score >= 92:
         return "☣️ MULTIVERSE THREAT"
@@ -464,12 +485,13 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     df['Power Index'] = df.apply(power_index, axis=1)
     df['Team Speed Score'] = (
-        df['Team Speed (90+ Speed Guys)'] * 3.0
-        + df['Off Speed (90+ speed)'] * 1.4
-        + df['Def Speed (90+ speed)'] * 1.4
-        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 2.5
-        + df['Generational (96+ speed or 96+ Acceleration)'] * 8.5
-    ).round(1)
+        df['Team Speed (90+ Speed Guys)'] * 2.2
+        + df['Off Speed (90+ speed)'] * 1.0
+        + df['Def Speed (90+ speed)'] * 1.0
+        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.8
+    ) * (1 + df['Generational (96+ speed or 96+ Acceleration)'] * 0.16)
+    df['Team Speed Score'] = df['Team Speed Score'].round(1)
+    df['Speed Limit MPH'] = df['Team Speed Score'].apply(team_speed_to_mph)
     power_min = df['Power Index'].min()
     power_max = df['Power Index'].max()
     power_spread = max(1, power_max - power_min)
