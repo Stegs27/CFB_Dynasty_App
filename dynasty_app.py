@@ -514,7 +514,21 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.8
     ) * (1 + df['Generational (96+ speed or 96+ Acceleration)'] * 0.16)
     df['Team Speed Score'] = df['Team Speed Score'].round(1)
-    df['Speed Limit MPH'] = df['Team Speed Score'].apply(team_speed_to_mph)
+    df['Speedometer'] = df['Team Speed Score'].apply(team_speed_to_mph)
+    df['Speed Limit MPH'] = df['Speedometer']
+
+    def where_is_the_speed(row):
+        off_fast = row['Off Speed (90+ speed)'] > 5
+        def_fast = row['Def Speed (90+ speed)'] > 5
+        if off_fast and def_fast:
+            return 'Off & Def'
+        if off_fast:
+            return 'Offense'
+        if def_fast:
+            return 'Defense'
+        return 'Balanced'
+
+    df['Where is the Speed?'] = df.apply(where_is_the_speed, axis=1)
     power_min = df['Power Index'].min()
     power_max = df['Power Index'].max()
     power_spread = max(1, power_max - power_min)
@@ -626,12 +640,12 @@ if data:
 
     tabs = st.tabs([
         "📰 Dynasty War Room",
-        "🚀 2041 Scout & Projections",
+        "📺 Season Recap",
+        "🔍 Talent Profile",
+        "📊 Team Analysis",
         "🏆 Prestige & Power",
         "⚔️ H2H Matrix",
-        "📺 Season Recap",
-        "📊 Team Analysis",
-        "🔍 Talent Profile",
+        "🚀 2041 Scout & Projections",
         "🌐 2041 Executive Outlook",
         "🧠 AI Dynasty Predictor",
         "🏫 Recruiting Momentum",
@@ -674,7 +688,7 @@ if data:
                 st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
 
     # --- SCOUT & PROJECTIONS ---
-    with tabs[1]:
+    with tabs[6]:
         st.header("🚀 2041 Executive Projections")
 
         c1, c2 = st.columns(2)
@@ -706,7 +720,7 @@ if data:
         )
 
     # --- PRESTIGE & POWER ---
-    with tabs[2]:
+    with tabs[4]:
         st.header("🏆 Prestige & Power")
 
         prestige = stats.copy()
@@ -741,7 +755,7 @@ if data:
         )
 
     # --- H2H MATRIX ---
-    with tabs[3]:
+    with tabs[5]:
         st.header("⚔️ Head-to-Head Matrix")
 
         st.subheader("Full H2H Matrix")
@@ -782,7 +796,7 @@ if data:
         st.dataframe(pd.DataFrame(drill).sort_values(['Games', 'Net Edge'], ascending=[False, False]), hide_index=True, use_container_width=True)
 
     # --- SEASON RECAP ---
-    with tabs[4]:
+    with tabs[1]:
         st.header("📺 AI Dynasty Recap Engine")
         sel_year = st.selectbox("Select Season", years, key="season_year")
         y_data = scores[scores[meta['yr']] == sel_year].copy()
@@ -861,7 +875,7 @@ if data:
         )
 
     # --- TEAM ANALYSIS ---
-    with tabs[5]:
+    with tabs[3]:
         st.header("📊 Team Analysis")
         target = st.selectbox("Select Team", model_2041['USER'].tolist(), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
@@ -904,6 +918,8 @@ if data:
             {'Metric': 'Total Team Speed', 'Value': row['Team Speed (90+ Speed Guys)']},
             {'Metric': 'Game Breakers', 'Value': row['Game Breakers (90+ Speed & 90+ Acceleration)']},
             {'Metric': 'Generational Talent Count', 'Value': row['Generational (96+ speed or 96+ Acceleration)']},
+            {'Metric': 'Where is the Speed?', 'Value': row['Where is the Speed?']},
+            {'Metric': 'Speedometer', 'Value': f"{row['Speedometer']} MPH"},
             {'Metric': 'Blue Chip Ratio', 'Value': f"{row['BCR_Val']}%"},
         ])
 
@@ -925,7 +941,7 @@ if data:
         st.plotly_chart(px.bar(detail_chart, x='Category', y='Score', text='Score'), use_container_width=True)
 
     # --- TALENT PROFILE ---
-    with tabs[6]:
+    with tabs[2]:
         st.header("🔍 The 2041 Freak List")
         st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
@@ -939,8 +955,8 @@ if data:
         st.subheader("⚡ TEAM SPEED Rankings")
         st.dataframe(
             talent_board[[
-                'TEAM SPEED Rank', 'USER', 'TEAM', 'Team Speed Score', 'Speed Limit MPH',
-                'Team Speed (90+ Speed Guys)', 'Game Breakers (90+ Speed & 90+ Acceleration)',
+                'TEAM SPEED Rank', 'USER', 'TEAM', 'Speedometer', 'Team Speed Score',
+                'Where is the Speed?', 'Team Speed (90+ Speed Guys)', 'Game Breakers (90+ Speed & 90+ Acceleration)',
                 'Generational (96+ speed or 96+ Acceleration)'
             ]],
             hide_index=True,
@@ -964,13 +980,14 @@ if data:
                 st.write(gen_desc)
                 st.write(bonus_desc)
                 s1, s2, s3, s4 = st.columns(4)
-                s1.metric("TEAM SPEED Score", f"{team_speed}")
-                s2.metric("90+ Speed Players", int(r['Team Speed (90+ Speed Guys)']))
-                s3.metric("Generational Freaks", gens)
-                s4.metric("Speedometer", f"{float(r.get('Speed Limit MPH', 0))} MPH")
+                s1.metric("Speedometer", f"{float(r.get('Speedometer', r.get('Speed Limit MPH', 0)))} MPH")
+                s2.metric("TEAM SPEED Score", f"{team_speed}")
+                s3.metric("90+ Speed Players", int(r['Team Speed (90+ Speed Guys)']))
+                s4.metric("Generational Freaks", gens)
                 st.write(get_speeding_label(team_speed, gens))
                 st.write(f"**Game breakers:** {int(r['Game Breakers (90+ Speed & 90+ Acceleration)'])}")
                 st.write(f"**Offense 90+ speed:** {int(r['Off Speed (90+ speed)'])} | **Defense 90+ speed:** {int(r['Def Speed (90+ speed)'])}")
+                st.write(f"**Where is the Speed?** {r['Where is the Speed?']}")
                 st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
                 st.progress(min(1.0, team_speed / 100.0))
 
