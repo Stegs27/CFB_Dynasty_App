@@ -22,8 +22,8 @@ def load_data():
         scores = pd.read_csv('scores.csv')
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
-        draft = pd.read_csv('UserDraftPicks.csv')
-        ratings = pd.read_csv('TeamRatingsHistory.csv')
+        draft = pd.read_csv('UserDraftPicks.csv') 
+        ratings = pd.read_csv('TeamRatingsHistory.csv') 
         heisman = pd.read_csv('Heisman_History.csv')
         coty = pd.read_csv('COTY.csv')
 
@@ -70,9 +70,16 @@ def load_data():
             v_games = scores[scores['V_User_Final'] == user]
             all_u_games = pd.concat([h_games, v_games])
             wins = len(h_games[h_games['H_Pts'] > h_games['V_Pts']]) + len(v_games[v_games['V_Pts'] > v_games['H_Pts']])
-            u_draft = draft[draft['USER'] == user.title()]
+            u_draft = draft[draft['USER'].str.title() == user.title()]
             n_sent = u_draft['Guys Sent to NFL'].iloc[0] if not u_draft.empty else 0
             n_1st = u_draft['1st Rounders'].iloc[0] if not u_draft.empty else 0
+            
+            # HARDENED LEGACY METRICS
+            conf_t = u_draft['Conference Titles'].iloc[0] if not u_draft.empty else 0
+            cfp_w = u_draft['CFP Wins'].iloc[0] if not u_draft.empty else 0
+            cfp_l = u_draft['CFP Losses'].iloc[0] if not u_draft.empty else 0
+            natty_a = u_draft['National Title Appearances'].iloc[0] if not u_draft.empty else 0
+            
             avg_rec = user_avg_rec.get(user.title(), 50)
             win_pct = (wins / len(all_u_games)) if len(all_u_games) > 0 else 0
             hof_points = (natty_counts.get(user, 0) * 50) + (n_1st * 10)
@@ -80,7 +87,8 @@ def load_data():
             stats_list.append({
                 'User': user, 'HoF Points': int(hof_points), 'Record': f"{wins}-{len(all_u_games)-wins}", 
                 'Natties': natty_counts.get(user, 0), 'Drafted': n_sent, '1st Rounders': n_1st,
-                'Win Pct': win_pct, 'Avg Recruiting Rank': round(avg_rec, 1)
+                'Win Pct': win_pct, 'Avg Recruiting Rank': round(avg_rec, 1),
+                'Conf Titles': int(conf_t), 'CFP Wins': int(cfp_w), 'CFP Losses': int(cfp_l), 'Natty Apps': int(natty_a)
             })
 
             h2h_row = {'User': user}
@@ -100,6 +108,10 @@ def load_data():
         r_2041['USER'] = r_2041['USER'].str.strip().str.title()
         r_2041['Tenure'] = r_2041.apply(lambda x: calculate_tenure(x['USER'], x['TEAM']), axis=1)
         
+        # Blue Chip Ratio Processing
+        bcr_col = 'Blue Chip Ratio (4 & 5 star recruit ratio on roster)'
+        r_2041['BCR_Val'] = pd.to_numeric(r_2041[bcr_col].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+
         def get_improvement(row):
             prev = r_2040[r_2040['TEAM'] == row['TEAM']]
             return row['OVERALL'] - prev['OVERALL'].values[0] if not prev.empty else 0
@@ -121,74 +133,105 @@ def load_data():
         st.error(f"⚠️ Load Error: {e}")
         return None
 
+# CENTRALIZED NATTY PROBABILITY FUNCTION
+def calculate_hardened_prob(row, stats_df):
+    u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
+    # 1. Talent & Speed Base
+    p_talent = (row['OVERALL'] - 75) * 2.0
+    p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 2.0
+    p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 2.0
+    p_bcr = row['BCR_Val'] * 0.2
+    # 2. Hardened Legacy Logic
+    p_legacy = (u_s['Natties'] * 15) + (u_s['Natty Apps'] * 10) + (u_s['Conf Titles'] * 5) + (u_s['CFP Wins'] * 4)
+    p_loss_tax = (u_s['CFP Losses'] * 6)
+    heartbreak_tax = (u_s['Natty Apps'] - u_s['Natties']) * 8 if u_s['Natty Apps'] > u_s['Natties'] else 0
+    # 3. Final Modifiers
+    p_def_bonus = 10 if row['Def Speed (90+ speed)'] >= 7 else 0
+    penalty = 0
+    if row['OVERALL'] < 82: penalty -= 30
+    elif row['OVERALL'] < 90: penalty -= 15
+    if u_s['Natties'] == 0: penalty -= 25
+    elif u_s['Natties'] == 1: penalty -= 10
+    
+    return min(99, max(1, int(p_talent + p_speed + p_gens + p_bcr + p_legacy - p_loss_tax - heartbreak_tax + p_def_bonus + penalty)))
+
 data = load_data()
 if data:
     scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, h2h_heat = data
     tabs = st.tabs(["🚀 2041 Scout & Projections", "🏆 Prestige", "⚔️ H2H & Risk Map", "📺 Season Recap", "📊 Team Analysis", "🔍 Talent Profile", "🌐 2041 Executive Outlook"])
 
-    with tabs[4]: # TEAM ANALYSIS (WINDOW RESTORED + NATTY LOGIC)
+    # APPLY PROBABILITY TO DATAFRAME FOR USE IN MULTIPLE TABS
+    r_2041['Natty Prob'] = r_2041.apply(lambda x: calculate_hardened_prob(x, stats), axis=1)
+
+    with tabs[0]: # SCOUT & PROJECTIONS
+        st.header("🚀 2041 Season Projections")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("The Championship Favorites")
+            st.dataframe(r_2041.sort_values('Natty Prob', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Natty Prob', 'Archetype']], hide_index=True)
+        with col2:
+            st.subheader("Projected Risers (OVR Gain)")
+            st.dataframe(r_2041.sort_values('Improvement', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Improvement']], hide_index=True)
+
+    with tabs[1]: # PRESTIGE
+        st.subheader("Dynasty Career Leaderboard")
+        st.dataframe(stats[['User', 'HoF Points', 'Record', 'Natties', 'Natty Apps', 'Conf Titles', 'CFP Wins', 'CFP Losses', 'Avg Recruiting Rank']], hide_index=True)
+
+    with tabs[2]: # H2H
+        st.subheader("Head-to-Head Risk Map")
+        st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
+        st.table(h2h_df.set_index('User'))
+
+    with tabs[3]: # SEASON RECAP
+        st.subheader("Historical Results")
+        sel_year = st.selectbox("Select Season", years)
+        st.dataframe(scores[scores[meta['yr']] == sel_year][[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
+
+    with tabs[4]: # TEAM ANALYSIS (ROBUST VERSION)
         st.header("📊 2041 Team Deep-Dive")
         target = st.selectbox("Select Team", r_2041['USER'].tolist())
         row = r_2041[r_2041['USER'] == target].iloc[0]
         u_stats = stats[stats['User'] == target].iloc[0]
         
-        # --- NATTY PROBABILITY MATH (PRESERVED) ---
-        p_talent = (row['OVERALL'] - 75) * 2.0
-        p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 2.0
-        p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 2.0
-        p_legacy = (u_stats['Natties'] * 15) + (u_stats['Win Pct'] * 20)
-        p_def_bonus = 10 if row['Def Speed (90+ speed)'] >= 7 else 0
-        
-        penalty = 0
-        if row['OVERALL'] < 82: penalty -= 30
-        elif row['OVERALL'] < 90: penalty -= 15
-        if u_stats['Natties'] == 0: penalty -= 25
-        elif u_stats['Natties'] == 1: penalty -= 10
-
-        prob_score = min(99, max(1, int(p_talent + p_speed + p_gens + p_legacy + p_def_bonus + penalty)))
-
-        # --- CHAMPIONSHIP WINDOW LOGIC (RESTORED) ---
         window = "⚖️ Neutral"
-        if row['OVERALL'] >= 90 and prob_score > 60: window = "🏔️ Peak - Win Now"
+        if row['OVERALL'] >= 90 and row['Natty Prob'] > 60: window = "🏔️ Peak - Win Now"
         elif row['Improvement'] > 1.5: window = "📈 Rising - Rebuild"
         elif row['OVERALL'] < 85: window = "🏚️ Rebuilding"
 
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Tenure", f"{int(row['Tenure'])} Yrs", row['TEAM'])
         c2.metric("Overall", row['OVERALL'])
-        c3.metric("Natty Prob", f"{prob_score}%")
+        c3.metric("Natty Prob", f"{row['Natty Prob']}%")
         c4.metric("Window", window)
         c5.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
         
         st.markdown("### 📋 Robust Scouting Report & DNA")
-        col_scout_1, col_scout_2 = st.columns(2)
-        with col_scout_1:
-            st.markdown(f"**Talent & Window:**")
-            st.write(f"Coach {target} has a {row['OVERALL']} OVR roster. Their current window is **{window}**. Logic has accounted for the {row['OVERALL']} OVR threshold and defensive speed metrics.")
-            if p_def_bonus > 0: st.success("🛡️ **Elite Defense Bonus:** The 7+ Def Speed is providing a 10% buff.")
-        with col_scout_2:
-            st.markdown("**Dynasty DNA:**")
-            st.write(f"Legacy: {u_stats['Natties']} Natties. Win Pct: {int(u_stats['Win Pct']*100)}%.")
-            if u_stats['Natties'] == 0: st.error("⚠️ **Paper Tiger Warning:** Zero rings is causing a major drag on title odds.")
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            st.write(f"Coach {target} is operating with a **{int(row['BCR_Val'])}% Blue Chip Ratio**. This talent density ensures a high performance floor.")
+            if row['Def Speed (90+ speed)'] >= 7: st.success("🛡️ **Elite Defense Bonus Active:** +10% championship safety net applied.")
+        with col_s2:
+            st.write(f"Postseason W-L: {u_stats['CFP Wins']}-{u_stats['CFP Losses']}. Conference Titles: {u_stats['Conf Titles']}.")
+            if u_stats['Natties'] == 0: st.error("❌ **Ringless Penalty:** Zero career rings is suppressing title odds by 25%.")
+            if u_stats['Natty Apps'] > u_stats['Natties']: st.warning(f"⚠️ **Heartbreak Tax:** Docked for {(u_stats['Natty Apps']-u_stats['Natties'])} failed Title Appearances.")
 
-    # ALL OTHER TABS PRESERVED ADDITIVELY
-    with tabs[1]: st.dataframe(stats[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders', 'Avg Recruiting Rank']], hide_index=True)
-    with tabs[2]: 
-        st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
-        st.table(h2h_df.set_index('User'))
-    with tabs[3]: 
-        sel_year = st.selectbox("Select Season", years)
-        st.dataframe(scores[scores[meta['yr']] == sel_year][[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
-    with tabs[5]:
+    with tabs[5]: # TALENT PROFILE (FULL VERSION)
+        st.header("🔍 Talent Density & Generational Freaks")
         for _, r in r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
-            st.info(f"🚀 **{r['USER']}** at {r['TEAM']} has **{int(r['Generational (96+ speed or 96+ Acceleration)'])}** generational talents.")
-    with tabs[6]:
+            st.info(f"🚀 **{r['USER']}** at {r['TEAM']} has **{int(r['Generational (96+ speed or 96+ Acceleration)'])}** generational talents and a **{int(r['BCR_Val'])}%** BCR.")
+        
+        st.subheader("Roster Talent & Speed Distribution")
+        st.plotly_chart(px.bar(r_2041, x='USER', y='BCR_Val', color='Archetype', title="Blue Chip Ratio (%) by Program"), use_container_width=True)
+        st.plotly_chart(px.bar(r_2041, x='USER', y=['Off Speed (90+ speed)', 'Def Speed (90+ speed)'], barmode='group', title="90+ Speed Depth: Offense vs Defense"), use_container_width=True)
+
+    with tabs[6]: # EXECUTIVE OUTLOOK
+        st.header("🌐 2041 Executive Outlook")
         best_imp = r_2041.sort_values(by='Improvement', ascending=False).iloc[0]
         sm1, sm2, sm3, sm4, sm5 = st.columns(5)
         sm1.metric("Sonic Booms 🚀", len(r_2041[r_2041['Archetype'] == "Sonic Boom"]))
         sm3.metric("Most Improved", best_imp['USER'], f"+{int(best_imp['Improvement'])} OVR")
-        st.plotly_chart(px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", color="Archetype", size="OVERALL", text="USER"), use_container_width=True)
-        st.dataframe(r_2041[['USER', 'TEAM', 'OVERALL', 'Archetype', 'Outlook Description', 'Improvement']], hide_index=True)
+        st.plotly_chart(px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", color="Archetype", size="OVERALL", text="USER", title="Speed Distribution Map"), use_container_width=True)
+        st.dataframe(r_2041[['USER', 'TEAM', 'OVERALL', 'Archetype', 'Outlook Description', 'Improvement', 'BCR_Val']], hide_index=True)
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
