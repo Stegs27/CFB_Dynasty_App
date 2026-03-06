@@ -137,65 +137,65 @@ def get_ai_recap(year, scores_df, champs_df, meta):
         f"In {year}, {winner} played like they had a cheat code enabled. Everyone else was just an NPC in their story.",
         f"{year} was a total bloodbath. {winner} stood at the top while the rest of you were struggling to call a basic slant route.",
         f"Looking at the {year} tapes, it's clear {winner} had the juice. Meanwhile, {blowout[meta['vt']] if blowout is not None else 'someone'} lost by {int(blowout['Margin']) if blowout is not None else 'a lot'} points.",
-        f"History will remember {year} as the year {winner} stopped being polite and started being a nightmare for defensive coordinators.",
-        f"The {year} campaign was defined by {winner}'s dominance. If you weren't on their team, you were just a speed bump."
+        f"History will remember {year} as the year {winner} stood above the rest.",
+        f"The {year} campaign was defined by {winner}'s dominance."
     ]
     return random.choice(pool)
 
 def get_gen_freak_commentary(user, team, count):
     if count == 0:
         pool = [
-            f"🕯️ Faith Alone: **{user}** at {team} has **0** generational freaks. They are currently just praying for that one magical guy to appear and lead them to the promised land.",
-            f"🔮 The Vision: With zero elite burners, **{user}** is simply waiting on a miracle recruit to magically descend upon {team} and deliver them to glory.",
-            f"⛪ The Sanctuary: {team} roster lacks any generational specimens. **{user}** has clearly decided to wait for a chosen one to lead this program to the promised land.",
-            f"🙏 Pious Patience: **{user}** is currently standing at the gates of {team} with 0 freaks, waiting for a savior to magically carry them to the promised land.",
-            f"✨ Hope & Dreams: There are no generational talents here. **{user}** is just biding time until the right player magically emerges to take {team} to the promised land."
+            f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks. They are currently just praying for that one magical guy to lead them to the promised land.",
+            f"🔮 The Vision: With **{count}** elite burners, **{user}** is simply waiting on a miracle recruit to magically descend upon {team}.",
+            f"⛪ The Sanctuary: {team} roster lacks any generational specimens (**{count}**). **{user}** has decided to wait for a chosen one to lead them to the promised land.",
+            f"🙏 Pious Patience: **{user}** is standing at the gates of {team} with **{count}** freaks, waiting for a savior to magically carry them to the promised land.",
+            f"✨ Hope & Dreams: There are **{count}** generational talents here. **{user}** is biding time until the right player magically emerges for {team}."
         ]
     elif count == 1:
         pool = [
-            f"⚔️ **Cloud Strife** has arrived. **{user}** at {team} has one generational talent wielding a buster sword against ordinary defenses.",
-            f"🧪 Maximum Effort! **{user}** found their **Deadpool**. One freakish talent at {team} who simply refuses to be stopped (or stay down).",
-            f"🕶️ **{user}** has found **Neo**. There is no spoon, and apparently, there is no secondary that can stop this generational freak at {team}.",
-            f"💍 The One Ring! **{user}** has their **Frodo**. He might be the only one, but he’s carrying {team} all the way to Mount Doom.",
-            f"⚡ Yer a wizard, **{user}**. You've got **Harry Potter** at {team}. One generational spark of magic to carry the whole squad.",
-            f"🔨 **Thor** has landed. **{user}** has one generational freak at {team} and everyone else is just hoping they’re worthy to watch.",
-            f"🏀 **Michael Jordan** energy. **{user}** at {team} has that one 'Take it Personally' generational freak who won't let them lose.",
-            f"🍄 It’s-a-me! **{user}** has **Mario**. One generational star at {team} who makes every obstacle look like a goomba.",
-            f"🛡️ It’s dangerous to go alone! **{user}** has **Link**. This singular generational talent is the only hero {team} needs.",
-            f"🪓 **Kratos** is on the warpath. **{user}** at {team} has one generational 'God of War' ready to dismantle entire defenses.",
-            f"🔫 Finish the Fight. **{user}** has **Master Chief** at {team}. One generational Spartan to carry the mission.",
-            f"🍻 **Stone Cold Steve Austin** just arrived. **{user}** has one generational freak at {team} ready to stun the entire league and drink some beer.",
-            f"🤨 Can you smell what **{user}** is cooking? They have **The Rock** at {team}. One generational talent, the most electrifying man in sports entertainment.",
-            f"🚫 **John Cena** is here. **{user}** has one generational freak at {team}, but good luck to the defense because You Can’t See Him!",
-            f"🤘 On this day, I see clearly! **{user}** has **Edge**. One generational 'Rated R' freak ready to spear the competition at {team}.",
-            f"🦂 It’s Showtime! **{user}** has **Sting**. One generational vigilante at {team} waiting in the rafters for a big play.",
-            f"👑 OHHH YEAH! **{user}** has the **Macho Man** Randy Savage. One generational talent at {team} bringing the cream to the top."
+            f"⚔️ **Cloud Strife** has arrived. **{user}** at {team} has **{count}** generational talent wielding a buster sword.",
+            f"🧪 Maximum Effort! **{user}** found their **Deadpool**. **{count}** freakish talent at {team} who refuses to be stopped.",
+            f"🕶️ **{user}** has found **Neo**. There is **{count}** generational freak at {team} who can see the code.",
+            f"💍 The One Ring! **{user}** has their **Frodo**. Just **{count}** freak, but he’s carrying {team} to Mount Doom.",
+            f"⚡ Yer a wizard, **{user}**. You've got **Harry Potter** at {team} as your **{count}** generational spark.",
+            f"🔨 **Thor** has landed. **{user}** has **{count}** generational freak at {team}. Are you worthy?",
+            f"🏀 **Michael Jordan** energy. **{user}** at {team} has **{count}** generational freak who takes everything personally.",
+            f"🍄 It’s-a-me! **{user}** has **Mario**. **{count}** generational star at {team} leaping over the competition.",
+            f"🛡️ It’s dangerous to go alone! **{user}** has **Link**. This **{count}** generational talent is the only hero {team} needs.",
+            f"🪓 **Kratos** is on the warpath. **{user}** at {team} has **{count}** generational 'God of War' ready to dismantle defenses.",
+            f"🔫 Finish the Fight. **{user}** has **Master Chief** at {team}. **{count}** generational Spartan on the field.",
+            f"🍻 **Stone Cold Steve Austin** energy. **{user}** has **{count}** generational freak at {team} ready to stun the league.",
+            f"🤨 The most electrifying man! **{user}** has **The Rock** at {team} as their **{count}** generational talent.",
+            f"🚫 **John Cena** is here. **{user}** has **{count}** generational freak at {team}, but You Can’t See Him!",
+            f"🤘 Rated R Superstar! **{user}** has **Edge**. **{count}** generational freak ready to spear the competition at {team}.",
+            f"🦂 It’s Showtime! **{user}** has **Sting**. **{count}** generational vigilante at {team} dropping from the rafters.",
+            f"👑 OHHH YEAH! **{user}** has the **Macho Man**. **{count}** generational talent at {team} and the cream is rising."
         ]
     elif count == 2:
         pool = [
-            f"🍄 **Mario & Luigi** have entered the chat. **{user}** at {team} has a dynamic duo of generational freaks that make the rest of the league look like Koopas.",
-            f"🪵 GET THE TABLES! **{user}** has the **Dudley Boyz**. Two generational specimens at {team} ready to put the competition through the wood.",
-            f"🤘 **Edge & Christian**! **{user}** at {team} has a tag team of generational freaks. Totally reeking of awesomeness and elite speed.",
-            f"🦅 **The Road Warriors** have arrived. **{user}** has two generational monsters at {team}. What a rush!",
-            f"👯 **The Bella Twins** are running the field. **{user}** at {team} has a pair of generational freaks that the defense simply can't handle.",
-            f"🎨 **The Hardy Boyz**! **{user}** has two generational high-flyers at {team} who are ready to jump off any ladder for the win.",
-            f"🐺 **The Outsiders** are in the building. **{user}** has two generational freaks at {team} taking over the league.",
-            f"🔥 **The Brothers of Destruction**! **{user}** has a terrifying duo of generational talents at {team}. It’s a tombstone for any defensive coordinator.",
-            f"🐶 **The Steiner Brothers**! **{user}** at {team} has two generational freaks. The numbers don't lie, and they spell disaster for you!",
-            f"⚔️ **Han Solo & Chewbacca**! **{user}** has the perfect pairing of generational speed and power at {team}."
+            f"🍄 **Mario & Luigi** have entered! **{user}** at {team} has **{count}** generational freaks making everyone else look like Koopas.",
+            f"🪵 GET THE TABLES! **{user}** has the **Dudley Boyz**. **{count}** generational specimens at {team} ready for a 3-D.",
+            f"🤘 **Edge & Christian**! **{user}** at {team} has **{count}** generational freaks reeking of awesomeness.",
+            f"🦅 **The Road Warriors**! **{user}** has **{count}** generational monsters at {team}. What a rush!",
+            f"👯 **The Bella Twins**! **{user}** at {team} has **{count}** generational freaks running twin magic on the field.",
+            f"🎨 **The Hardy Boyz**! **{user}** has **{count}** generational high-flyers at {team} ready to Twist Fate.",
+            f"🐺 **The Outsiders**! **{user}** has **{count}** generational freaks at {team} taking over the league.",
+            f"🔥 **Brothers of Destruction**! **{user}** has **{count}** terrifying generational talents at {team}.",
+            f"🐶 **The Steiner Brothers**! **{user}** at {team} has **{count}** generational freaks. The math says you're gonna lose!",
+            f"⚔️ **Han Solo & Chewbacca**! **{user}** has the perfect pairing of **{count}** generational talents at {team}."
         ]
     else:
         pool = [
-            f"🚨 **{user}** at {team} is currently running a track meet. They have **{count}** generational freaks. Defensive coordinators are checking into therapy.",
-            f"💎 BIOLOGICAL ANOMALY: {team} roster contains **{count}** players who break the game's physics. {user} is building specimens.",
-            f"🏎️ The speed limit in {team} has been repealed. {user} has **{count}** players with 96+ Speed/Accel. You aren't catching them.",
-            f"☣️ WARNING: {team} has **{count}** generational burners. If you don't have a 99-speed corner, just stay on the bus.",
-            f"✈️ Air {user} is cleared for takeoff. With **{count}** generational specimens, {team} is moving at a speed the human eye can barely track.",
-            f"⚡ High Voltage: **{user}** has assembled **{count}** generational talents at {team}. Trying to tackle them is like trying to catch smoke.",
-            f"🧬 Evolution in real-time: **{user}** at {team} has **{count}** freaks on the roster. Physics simply do not apply to these players.",
-            f"🚀 Rocket Science: {team} is launching **{count}** generational burners onto the field. **{user}** has effectively broken the game's speed barrier.",
-            f"🎭 It's a highlight reel every play. **{user}** and {team} boast **{count}** generational athletes that make the rest of the league look like they're in slow motion.",
-            f"🌋 Total Eruption: The roster at {team} features **{count}** generational specimens. **{user}** isn't just winning; they're redefining the limits of the sport."
+            f"🦸 **The Avengers** have assembled! **{user}** is leading **{count}** generational freaks at {team}. Earth's mightiest roster.",
+            f"⚖️ **The Justice League** is here! **{user}** has **{count}** generational specimens at {team} ready to save the season.",
+            f"🎤 Bye Bye Bye! **{user}** has **{count}** generational freaks at {team} moving like **N'Sync** in a music video.",
+            f"🎶 I Want It That Way! **{user}** is managing a **Backstreet Boys** level lineup of **{count}** generational talents at {team}.",
+            f"🌡️ It's getting hot in here! **{user}** has **{count}** generational freaks at {team} bringing that **98 Degrees** heat.",
+            f"🐢 **Teenage Mutant Ninja Turtles**! **{user}** has **{count}** generational freaks at {team} ready to come out of the shells.",
+            f"⚡ **The X-Men**! **{user}** at {team} has **{count}** generational mutants that the league simply cannot contain.",
+            f"🕵️ **The Fellowship**! **{user}** has **{count}** generational freaks at {team} on a quest for the title.",
+            f"🏎️ **The Fast Family**! **{user}** has **{count}** generational freaks at {team}. It's all about family (and 99 speed).",
+            f"🌟 **The Spice Girls**! **{user}** at {team} has **{count}** generational freaks. Tell them what you want, what you really, really want."
         ]
     return random.choice(pool)
 
@@ -234,35 +234,26 @@ if data:
         st.markdown(f"### 📋 Scouting Report: {target}")
         
         is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else "does not possess generational speed metrics"
-        
         off_speed_val = row['Off Speed (90+ speed)']
         def_speed_val = row['Def Speed (90+ speed)']
-        speed_threshold = 5 
         
-        if off_speed_val >= speed_threshold and def_speed_val >= speed_threshold:
-            speed_narrative = "possesses **good speed on both sides of the ball**, making them a nightmare in transition."
-        elif off_speed_val >= speed_threshold:
-            speed_narrative = "features **good speed on offense**, capable of scoring from anywhere."
-        elif def_speed_val >= speed_threshold:
-            speed_narrative = "boasts **good speed on defense**, allowing them to erase perimeter mistakes."
+        if off_speed_val >= 5 and def_speed_val >= 5:
+            speed_narrative = "possesses **good speed on both sides of the ball**."
+        elif off_speed_val >= 5:
+            speed_narrative = "features **good speed on offense**."
+        elif def_speed_val >= 5:
+            speed_narrative = "boasts **good speed on defense**."
         else:
-            speed_narrative = "currently **lacks elite speed on both offense and defense**."
+            speed_narrative = "currently **lacks elite team-wide speed**."
 
         analysis = f"Under Coach {target}, **{row['TEAM']}** has established a **{row['OVERALL']} OVR** roster. "
         analysis += f"Their primary star, **{row['⭐ STAR SKILL GUY (Top OVR)']}**, {is_star_gen}. "
-        analysis += f"When it comes to pure roster velocity, this team {speed_narrative} "
+        analysis += f"This team {speed_narrative} "
         
         if row['Generational (96+ speed or 96+ Acceleration)'] > 0:
             analysis += f"Furthermore, opponents must account for **{int(row['Generational (96+ speed or 96+ Acceleration)'])}** total generational freaks. "
         
-        analysis += f"With {int(row['Tenure'])} years at the helm, {target} has fully implemented their system. "
-        analysis += f"Historically, this coach has an average recruiting rank of **{u_stats['Avg Recruiting Rank']}** and secured **{u_stats['Natties']}** National Titles. "
-        
-        if row['DEFENSE'] > row['OFFENSE']:
-            analysis += "Expect a stingy, defensive-minded approach."
-        else:
-            analysis += "Expect a high-octane scoring machine."
-            
+        analysis += f"Historically, this coach has an average recruiting rank of **{u_stats['Avg Recruiting Rank']}**."
         st.write(analysis)
 
     with tabs[4]:
@@ -275,14 +266,14 @@ if data:
         for _, r in gen_df.iterrows():
             cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
             msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
-            if cnt > 2:
-                st.warning(msg)
+            if cnt >= 3:
+                st.error(msg) # Red for high-level threats
             elif cnt == 2:
-                st.success(msg) # Keeping the green "Elite Duo" box
+                st.warning(msg) # Orange for duos
             elif cnt == 1:
-                st.success(msg)
+                st.success(msg) # Green for singular heroes
             else:
-                st.info(msg)
+                st.info(msg) # Blue for faith-based rosters
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
