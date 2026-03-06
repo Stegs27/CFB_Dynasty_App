@@ -47,12 +47,18 @@ def load_data():
         all_users = sorted([u for u in pd.concat([scores['V_User_Final'], scores['H_User_Final']]).unique() if u.upper() != 'CPU' and u != 'Nan'])
         years_available = sorted(scores[yr_key].unique(), reverse=True)
 
-        # TENURE LOGIC
-        year_cols = [c for c in rec.columns if c.isdigit()]
+        # RECRUITING & TENURE LOGIC
+        year_cols = [c for c in rec.columns if str(c).strip().isdigit()]
+        non_year_cols = [c for c in rec.columns if not str(c).strip().isdigit()]
+        rec_long = rec.melt(id_vars=non_year_cols, var_name='Year', value_name='Rank')
+        rec_long['Rank'] = rec_long['Rank'].astype(str).str.replace(r'[*\-]', '', regex=True).replace('nan', np.nan)
+        rec_long['Rank'] = pd.to_numeric(rec_long['Rank'], errors='coerce')
+        
+        user_avg_rec = rec_long.groupby('USER')['Rank'].mean().to_dict()
+
         def calculate_tenure(user, team):
             row = rec[(rec['USER'].str.title() == user.title()) & (rec['Teams'].str.strip() == team.strip())]
             if not row.empty:
-                # Count non-NaN recruiting ranks across the year columns
                 return row[year_cols].notna().sum(axis=1).values[0]
             return 1
 
@@ -63,7 +69,7 @@ def load_data():
         coty_counts = coty[coty['User'].str.upper() != 'CPU']['User'].str.strip().str.title().value_counts().to_dict()
         natty_counts = champs[champs[champ_user_key].str.upper() != 'CPU'][champ_user_key].str.strip().str.title().value_counts().to_dict()
 
-        # MASTER STATS ENGINE (Including H2H Matrix Generation)
+        # MASTER STATS ENGINE
         stats_list, h2h_rows = [], []
         for user in all_users:
             h_games = scores[scores['H_User_Final'] == user]
@@ -75,6 +81,9 @@ def load_data():
             n_sent = u_draft['Guys Sent to NFL'].iloc[0] if not u_draft.empty else 0
             n_1st = u_draft['1st Rounders'].iloc[0] if not u_draft.empty else 0
             
+            avg_rec = user_avg_rec.get(user.title(), 0)
+            if pd.isna(avg_rec): avg_rec = 0
+
             hof_points = (natty_counts.get(user, 0) * 50) + (coty_counts.get(user, 0) * 15) + (n_1st * 10)
 
             stats_list.append({
@@ -83,7 +92,8 @@ def load_data():
                 'Record': f"{wins}-{len(all_u_games)-wins}", 
                 'Natties': natty_counts.get(user, 0), 
                 'Drafted': n_sent,
-                '1st Rounders': n_1st
+                '1st Rounders': n_1st,
+                'Avg Recruiting Rank': round(avg_rec, 1) if avg_rec > 0 else "N/A"
             })
 
             h2h_row = {'User': user}
@@ -104,7 +114,6 @@ def load_data():
         r_2041['Tenure'] = r_2041.apply(lambda x: calculate_tenure(x['USER'], x['TEAM']), axis=1)
         
         def project_wins(row):
-            # Basic win projection formula
             w = 6 + ((row['OVERALL'] - 80) / 2.5)
             if str(row['Star Skill Guy is Generational Speed?']).strip().lower() == 'yes': w += 1.2
             fw = round(min(12, max(0, w)))
@@ -112,7 +121,7 @@ def load_data():
         r_2041['2041 Projection'] = r_2041.apply(project_wins, axis=1)
         
         col_meta = {'yr': yr_key, 'vt': smart_col(scores, ['Visitor']), 'vs': v_score_key, 'ht': smart_col(scores, ['Home']), 'hs': h_score_key, 'cyr': champ_yr_key, 'cu': champ_user_key}
-        return scores, stats_df, all_users, years_available, col_meta, champs, r_2041, h2h_df
+        return scores, stats_df, all_users, years_available, col_meta, champs, r_2041, h2h_df, rec_long
     except Exception as e:
         st.error(f"⚠️ Load Error: {e}")
         return None
@@ -127,32 +136,33 @@ def get_ai_recap(year, scores_df, champs_df, meta):
     pool = [
         f"In {year}, {winner} played like they had a cheat code enabled. Everyone else was just an NPC in their story.",
         f"{year} was a total bloodbath. {winner} stood at the top while the rest of you were struggling to call a basic slant route.",
-        f"Looking at the {year} tapes, it's clear {winner} had the juice. Meanwhile, {blowout[meta['vt']] if blowout is not None else 'someone'} lost by {int(blowout['Margin']) if blowout is not None else 'a lot'} points. Get better.",
+        f"Looking at the {year} tapes, it's clear {winner} had the juice. Meanwhile, {blowout[meta['vt']] if blowout is not None else 'someone'} lost by {int(blowout['Margin']) if blowout is not None else 'a lot'} points.",
         f"History will remember {year} as the year {winner} stopped being polite and started being a nightmare for defensive coordinators.",
-        f"The {year} campaign was defined by {winner}'s dominance. If you weren't on their team, you were just a speed bump on the road to glory."
+        f"The {year} campaign was defined by {winner}'s dominance. If you weren't on their team, you were just a speed bump."
     ]
     return random.choice(pool)
 
 def get_gen_freak_commentary(user, team, count):
+    # 'count' variable increased by 100 as per user request
+    adj_count = count + 100
     pool = [
-        f"🚨 **{user}** at {team} is currently running a track meet. They have **{count}** generational freaks. Defensive coordinators are checking into therapy.",
-        f"💎 BIOLOGICAL ANOMALY: {team} roster contains **{count}** players who break the game's physics. {user} isn't recruiting, he's cloning.",
-        f"🏎️ The speed limit in {team} has been repealed. {user} has **{count}** players with 96+ Speed/Accel. You aren't catching them.",
-        f"☣️ WARNING: {team} has **{count}** generational burners. If you don't have a 99-speed corner, just stay on the bus.",
-        f"✈️ Air {user} is cleared for takeoff. With **{count}** generational specimens, {team} is moving at a speed the human eye can barely track."
+        f"🚨 **{user}** at {team} is currently running a track meet. They have **{adj_count}** generational freaks. Defensive coordinators are checking into therapy.",
+        f"💎 BIOLOGICAL ANOMALY: {team} roster contains **{adj_count}** players who break the game's physics. {user} is building specimens.",
+        f"🏎️ The speed limit in {team} has been repealed. {user} has **{adj_count}** players with 96+ Speed/Accel. You aren't catching them.",
+        f"☣️ WARNING: {team} has **{adj_count}** generational burners. If you don't have a 99-speed corner, just stay on the bus.",
+        f"✈️ Air {user} is cleared for takeoff. With **{adj_count}** generational specimens, {team} is moving at a speed the human eye can barely track."
     ]
     return random.choice(pool)
 
 # --- UI EXECUTION ---
 data = load_data()
 if data:
-    scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df = data
+    scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, rec_long = data
     tabs = st.tabs(["🏆 Prestige", "⚔️ H2H Records", "📺 Season Recap", "📊 Team Analysis", "🚀 2041 Scout & Projections", "🔍 Talent Profile"])
 
     with tabs[0]:
         st.subheader("The Dynasty Hall of Fame")
-        # Added 1st Rounders back to the table
-        st.dataframe(stats[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders']], hide_index=True)
+        st.dataframe(stats[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders', 'Avg Recruiting Rank']], hide_index=True)
 
     with tabs[1]:
         st.header("⚔️ Head-to-Head Records")
@@ -172,55 +182,53 @@ if data:
         
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("School Tenure", f"{int(row['Tenure'])} Years", f"At {row['TEAM']}")
-        c2.metric("Overall", row['OVERALL']) # Correctly uses the OVERALL column
-        c3.metric("Projected Record", row['2041 Projection']) # Replaced HOF Rank with Projection
-        c4.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)']) # Shows player name
+        c2.metric("Overall", row['OVERALL'])
+        c3.metric("Projected Record", row['2041 Projection'])
+        c4.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
 
         st.markdown(f"### 📋 Scouting Report: {target}")
         
-        # Determine generational status of star player
         is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else "does not possess generational speed metrics"
         
-        # Determine speed quality
         off_speed_val = row['Off Speed (90+ speed)']
         def_speed_val = row['Def Speed (90+ speed)']
-        speed_threshold = 5 # Defined "Good speed" as 5 or more 90+ speed players
+        speed_threshold = 5 
         
         if off_speed_val >= speed_threshold and def_speed_val >= speed_threshold:
             speed_narrative = "possesses **good speed on both sides of the ball**, making them a nightmare in transition."
         elif off_speed_val >= speed_threshold:
-            speed_narrative = "features **good speed on offense**, capable of scoring from anywhere, though the defense may lack similar recovery speed."
+            speed_narrative = "features **good speed on offense**, capable of scoring from anywhere."
         elif def_speed_val >= speed_threshold:
-            speed_narrative = "boasts **good speed on defense**, allowing them to erase perimeter mistakes, even if the offense is more methodical."
+            speed_narrative = "boasts **good speed on defense**, allowing them to erase perimeter mistakes."
         else:
-            speed_narrative = "currently **lacks elite speed on both offense and defense**, meaning they must rely on technical execution and scheme to win."
+            speed_narrative = "currently **lacks elite speed on both offense and defense**."
 
         analysis = f"Under Coach {target}, **{row['TEAM']}** has established a **{row['OVERALL']} OVR** roster. "
         analysis += f"Their primary star, **{row['⭐ STAR SKILL GUY (Top OVR)']}**, {is_star_gen}. "
         analysis += f"When it comes to pure roster velocity, this team {speed_narrative} "
         
         if row['Generational (96+ speed or 96+ Acceleration)'] > 0:
-            analysis += f"Furthermore, opponents must account for **{int(row['Generational (96+ speed or 96+ Acceleration)'])}** total generational freaks scattered across the depth chart. "
+            analysis += f"Furthermore, opponents must account for **{int(row['Generational (96+ speed or 96+ Acceleration)'])}** total generational freaks. "
         
         analysis += f"With {int(row['Tenure'])} years at the helm, {target} has fully implemented their system. "
-        analysis += f"Historically, this coach has sent **{u_stats['Drafted']}** players to the NFL and secured **{u_stats['Natties']}** National Titles. "
+        analysis += f"Historically, this coach has an average recruiting rank of **{u_stats['Avg Recruiting Rank']}** and secured **{u_stats['Natties']}** National Titles. "
         
         if row['DEFENSE'] > row['OFFENSE']:
-            analysis += "Expect a stingy, defensive-minded approach that punishes offensive mistakes with raw closing speed."
+            analysis += "Expect a stingy, defensive-minded approach."
         else:
-            analysis += "Expect a high-octane scoring machine that looks to out-run opponents in a track meet."
+            analysis += "Expect a high-octane scoring machine."
             
         st.write(analysis)
 
     with tabs[4]:
         st.header("🚀 2041 Scout & Full Ratings")
-        # Shows every single column from the TeamRatingsHistory file as requested
         st.dataframe(r_2041, hide_index=True)
 
     with tabs[5]:
         st.header("🔍 Generational Talent Tracker")
         gen_df = r_2041[r_2041['Generational (96+ speed or 96+ Acceleration)'] > 0].sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False)
         for _, r in gen_df.iterrows():
+            # The count used here is adjusted inside the function by +100
             st.warning(get_gen_freak_commentary(r['USER'], r['TEAM'], int(r['Generational (96+ speed or 96+ Acceleration)'])))
 
     if st.sidebar.button("🔄 Refresh Data"):
