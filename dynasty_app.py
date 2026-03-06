@@ -151,6 +151,14 @@ def get_gen_freak_commentary(user, team, count):
             f"🙏 Pious Patience: **{user}** is currently standing at the gates of {team} with 0 freaks, waiting for a savior to magically carry them to the promised land.",
             f"✨ Hope & Dreams: There are no generational talents here. **{user}** is just biding time until the right player magically emerges to take {team} to the promised land."
         ]
+    elif count == 1:
+        pool = [
+            f"🦸 **{user}** at {team} finally has their **Superman**. One generational talent is all it takes to change a timeline.",
+            f"🕷️ With one freak on the roster, **{user}** has found their **Spider-Man**. Great speed comes with great responsibility at {team}.",
+            f"🦇 **{user}** at {team} has found their **Batman**. He may be the only generational freak they have, but he's the hero {team} deserves.",
+            f"🌩️ One generational talent detected at {team}. **{user}** has officially recruited **Thor**; now they just need to see if the rest of the team is worthy.",
+            f"🏹 **{user}** has found their **Hawkeye** at {team}. A singular, generational force of nature that never misses a big play."
+        ]
     else:
         pool = [
             f"🚨 **{user}** at {team} is currently running a track meet. They have **{count}** generational freaks. Defensive coordinators are checking into therapy.",
@@ -242,10 +250,12 @@ if data:
         for _, r in gen_df.iterrows():
             cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
             msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
-            if cnt > 0:
+            if cnt > 1:
                 st.warning(msg)
+            elif cnt == 1:
+                st.success(msg) # Using a positive success color for the singular hero
             else:
-                st.info(msg) # Changed to info box for the "Waiting for a Miracle" teams
+                st.info(msg)
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
