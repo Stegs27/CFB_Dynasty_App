@@ -145,11 +145,11 @@ def get_ai_recap(year, scores_df, champs_df, meta):
 def get_gen_freak_commentary(user, team, count):
     if count == 0:
         pool = [
-            f"🐢 ALERT: **{user}** at {team} is fielding a team of tortoises. Exactly **0** generational freaks. This roster is slow as fuck.",
-            f"🐌 WARNING: {team} has no burners. **{user}**'s depth chart looks like a collection of offensive linemen in a pool of molasses. Pure quicksand.",
-            f"🚜 Snail Mail: **{user}**'s squad at {team} is officially the league's slowest. No speed, no acceleration, just pure, unadulterated lack of athleticism.",
-            f"🛑 STOP: **{user}** has zero speed at {team}. Watching this team run is like watching paint dry on a cold day. Are they running or walking?",
-            f"🚫 Speed Not Found: {team} roster contains **0** generational specimens. **{user}** is recruiting athletes with the closing speed of a tectonic plate."
+            f"🕯️ Faith Alone: **{user}** at {team} has **0** generational freaks. They are currently just praying for that one magical guy to appear and lead them to the promised land.",
+            f"🔮 The Vision: With zero elite burners, **{user}** is simply waiting on a miracle recruit to magically descend upon {team} and deliver them to glory.",
+            f"⛪ The Sanctuary: {team} roster lacks any generational specimens. **{user}** has clearly decided to wait for a chosen one to lead this program to the promised land.",
+            f"🙏 Pious Patience: **{user}** is currently standing at the gates of {team} with 0 freaks, waiting for a savior to magically carry them to the promised land.",
+            f"✨ Hope & Dreams: There are no generational talents here. **{user}** is just biding time until the right player magically emerges to take {team} to the promised land."
         ]
     else:
         pool = [
@@ -238,7 +238,6 @@ if data:
 
     with tabs[5]:
         st.header("🔍 Generational Talent Tracker")
-        # Include all teams and sort by generational freak count
         gen_df = r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False)
         for _, r in gen_df.iterrows():
             cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
@@ -246,7 +245,7 @@ if data:
             if cnt > 0:
                 st.warning(msg)
             else:
-                st.error(msg) # Red box for calling out the slow teams
+                st.info(msg) # Changed to info box for the "Waiting for a Miracle" teams
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
