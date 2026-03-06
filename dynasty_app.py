@@ -143,14 +143,18 @@ def get_ai_recap(year, scores_df, champs_df, meta):
     return random.choice(pool)
 
 def get_gen_freak_commentary(user, team, count):
-    # 'count' variable increased by 100 as per user request
-    adj_count = count + 100
+    # Undid the +100 variable request and expanded the pool of templates
     pool = [
-        f"🚨 **{user}** at {team} is currently running a track meet. They have **{adj_count}** generational freaks. Defensive coordinators are checking into therapy.",
-        f"💎 BIOLOGICAL ANOMALY: {team} roster contains **{adj_count}** players who break the game's physics. {user} is building specimens.",
-        f"🏎️ The speed limit in {team} has been repealed. {user} has **{adj_count}** players with 96+ Speed/Accel. You aren't catching them.",
-        f"☣️ WARNING: {team} has **{adj_count}** generational burners. If you don't have a 99-speed corner, just stay on the bus.",
-        f"✈️ Air {user} is cleared for takeoff. With **{adj_count}** generational specimens, {team} is moving at a speed the human eye can barely track."
+        f"🚨 **{user}** at {team} is currently running a track meet. They have **{count}** generational freaks. Defensive coordinators are checking into therapy.",
+        f"💎 BIOLOGICAL ANOMALY: {team} roster contains **{count}** players who break the game's physics. {user} is building specimens.",
+        f"🏎️ The speed limit in {team} has been repealed. {user} has **{count}** players with 96+ Speed/Accel. You aren't catching them.",
+        f"☣️ WARNING: {team} has **{count}** generational burners. If you don't have a 99-speed corner, just stay on the bus.",
+        f"✈️ Air {user} is cleared for takeoff. With **{count}** generational specimens, {team} is moving at a speed the human eye can barely track.",
+        f"⚡ High Voltage: **{user}** has assembled **{count}** generational talents at {team}. Trying to tackle them is like trying to catch smoke.",
+        f"🧬 Evolution in real-time: **{user}** at {team} has **{count}** freaks on the roster. Physics simply do not apply to these players.",
+        f"🚀 Rocket Science: {team} is launching **{count}** generational burners onto the field. **{user}** has effectively broken the game's speed barrier.",
+        f"🎭 It's a highlight reel every play. **{user}** and {team} boast **{count}** generational athletes that make the rest of the league look like they're in slow motion.",
+        f"🌋 Total Eruption: The roster at {team} features **{count}** generational specimens. **{user}** isn't just winning; they're redefining the limits of the sport."
     ]
     return random.choice(pool)
 
@@ -228,7 +232,6 @@ if data:
         st.header("🔍 Generational Talent Tracker")
         gen_df = r_2041[r_2041['Generational (96+ speed or 96+ Acceleration)'] > 0].sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False)
         for _, r in gen_df.iterrows():
-            # The count used here is adjusted inside the function by +100
             st.warning(get_gen_freak_commentary(r['USER'], r['TEAM'], int(r['Generational (96+ speed or 96+ Acceleration)'])))
 
     if st.sidebar.button("🔄 Refresh Data"):
