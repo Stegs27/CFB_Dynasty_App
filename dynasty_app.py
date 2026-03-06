@@ -296,6 +296,13 @@ def get_recent_recruiting_score(rec_df, user, team=None, current_year=2041, look
 def build_2041_model_table(r_2041, stats_df, rec_df):
     df = r_2041.copy()
 
+    # Pull a few stable program metrics from the stats table so downstream tabs
+    # can reference them directly without KeyErrors.
+    stats_lookup = stats_df[['User', 'Career Win %', 'Career Record', 'Natties', 'Natty Apps', 'CFP Wins', 'CFP Losses', 'Conf Titles']].copy()
+    stats_lookup = stats_lookup.rename(columns={'User': 'USER'})
+    df = df.merge(stats_lookup, on='USER', how='left')
+
+    df['Career Win %'] = pd.to_numeric(df['Career Win %'], errors='coerce').fillna(50.0)
     df['Recruit Score'] = df.apply(lambda x: get_recent_recruiting_score(rec_df, x['USER'], x['TEAM']), axis=1)
 
     def raw_contender_score(row):
@@ -344,7 +351,6 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     df['Program Stock'] = df.apply(stock_label, axis=1)
 
     def power_index(row):
-        u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
         return round(
             row['OVERALL'] * 2.1
             + row['OFFENSE'] * 0.8
@@ -355,10 +361,10 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['BCR_Val'] * 0.55
             + row['Recruit Score'] * 0.45
             + row['Improvement'] * 4
-            + u_s['Career Win %'] * 0.7
-            + u_s['Natties'] * 10
-            + u_s['CFP Wins'] * 1.1
-            - u_s['CFP Losses'] * 1.2,
+            + row['Career Win %'] * 0.7
+            + row['Natties'] * 10
+            + row['CFP Wins'] * 1.1
+            - row['CFP Losses'] * 1.2,
             1
         )
 
@@ -458,6 +464,19 @@ if data:
     champs = data['champs']
 
     model_2041 = build_2041_model_table(r_2041, stats, rec)
+    # Defensive fill so UI sections never fail if a derived column is absent.
+    for col, default in {
+        'Program Stock': '➖ Stable',
+        'Career Win %': 50.0,
+        'Recruit Score': 50.0,
+        'Projected Wins': 6.5,
+        'Playoff Odds': 20,
+        'Natty Odds': 5.0,
+        'Collapse Risk': 35,
+        'Power Index': 200.0
+    }.items():
+        if col not in model_2041.columns:
+            model_2041[col] = default
 
     tabs = st.tabs([
         "📰 Dynasty War Room",
