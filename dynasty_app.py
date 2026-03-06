@@ -153,11 +153,23 @@ def get_gen_freak_commentary(user, team, count):
         ]
     elif count == 1:
         pool = [
-            f"🦸 **{user}** at {team} finally has their **Superman**. One generational talent is all it takes to change a timeline.",
-            f"🕷️ With one freak on the roster, **{user}** has found their **Spider-Man**. Great speed comes with great responsibility at {team}.",
-            f"🦇 **{user}** at {team} has found their **Batman**. He may be the only generational freak they have, but he's the hero {team} deserves.",
-            f"🌩️ One generational talent detected at {team}. **{user}** has officially recruited **Thor**; now they just need to see if the rest of the team is worthy.",
-            f"🏹 **{user}** has found their **Hawkeye** at {team}. A singular, generational force of nature that never misses a big play."
+            f"⚔️ **Cloud Strife** has arrived. **{user}** at {team} has one generational talent wielding a buster sword against ordinary defenses.",
+            f"🧪 Maximum Effort! **{user}** found their **Deadpool**. One freakish talent at {team} who simply refuses to be stopped (or stay down).",
+            f"🕶️ **{user}** has found **Neo**. There is no spoon, and apparently, there is no secondary that can stop this generational freak at {team}.",
+            f"💍 The One Ring! **{user}** has their **Frodo**. He might be the only one, but he’s carrying {team} all the way to Mount Doom.",
+            f"⚡ Yer a wizard, **{user}**. You've got **Harry Potter** at {team}. One generational spark of magic to carry the whole squad.",
+            f"🔨 **Thor** has landed. **{user}** has one generational freak at {team} and everyone else is just hoping they’re worthy to watch.",
+            f"🏀 **Michael Jordan** energy. **{user}** at {team} has that one 'Take it Personally' generational freak who won't let them lose.",
+            f"🍄 It’s-a-me! **{user}** has **Mario**. One generational star at {team} who makes every obstacle look like a goomba.",
+            f"🛡️ It’s dangerous to go alone! **{user}** has **Link**. This singular generational talent is the only hero {team} needs.",
+            f"🪓 **Kratos** is on the warpath. **{user}** at {team} has one generational 'God of War' ready to dismantle entire defenses.",
+            f"🔫 Finish the Fight. **{user}** has **Master Chief** at {team}. One generational Spartan to carry the mission.",
+            f"🍻 **Stone Cold Steve Austin** just arrived. **{user}** has one generational freak at {team} ready to stun the entire league and drink some beer.",
+            f"🤨 Can you smell what **{user}** is cooking? They have **The Rock** at {team}. One generational talent, the most electrifying man in sports entertainment.",
+            f"🚫 **John Cena** is here. **{user}** has one generational freak at {team}, but good luck to the defense because You Can’t See Him!",
+            f"🤘 On this day, I see clearly! **{user}** has **Edge**. One generational 'Rated R' freak ready to spear the competition at {team}.",
+            f"🦂 It’s Showtime! **{user}** has **Sting**. One generational vigilante at {team} waiting in the rafters for a big play.",
+            f"👑 OHHH YEAH! **{user}** has the **Macho Man** Randy Savage. One generational talent at {team} bringing the cream to the top."
         ]
     else:
         pool = [
@@ -253,7 +265,7 @@ if data:
             if cnt > 1:
                 st.warning(msg)
             elif cnt == 1:
-                st.success(msg) # Using a positive success color for the singular hero
+                st.success(msg)
             else:
                 st.info(msg)
 
