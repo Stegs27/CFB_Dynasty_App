@@ -81,6 +81,7 @@ def load_data():
             n_1st = u_draft['1st Rounders'].iloc[0] if not u_draft.empty else 0
             
             avg_rec = user_avg_rec.get(user.title(), 0)
+            win_pct = (wins / len(all_u_games)) if len(all_u_games) > 0 else 0
             hof_points = (natty_counts.get(user, 0) * 50) + (coty_counts.get(user, 0) * 15) + (n_1st * 10)
 
             stats_list.append({
@@ -90,6 +91,7 @@ def load_data():
                 'Natties': natty_counts.get(user, 0), 
                 'Drafted': n_sent,
                 '1st Rounders': n_1st,
+                'Win Pct': win_pct,
                 'Avg Recruiting Rank': round(avg_rec, 1) if not pd.isna(avg_rec) else "N/A"
             })
 
@@ -150,39 +152,17 @@ def load_data():
         st.error(f"⚠️ Load Error: {e}")
         return None
 
-# --- RESTORED DYNAMIC AI FUNCTIONS ---
+# --- AI FUNCTIONS ---
 def get_ai_recap(year, scores_df, champs_df, meta):
     natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(year)]
     winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "The CPUs"
     user_games = scores_df[(scores_df[meta['yr']] == year) & (scores_df['V_User_Final'] != 'Cpu') & (scores_df['H_User_Final'] != 'Cpu')].sort_values('Margin', ascending=False)
-    
-    blowout_str = ""
-    if not user_games.empty:
-        bg = user_games.iloc[0]
-        w_user = bg['H_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['V_User_Final']
-        l_user = bg['V_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['H_User_Final']
-        blowout_str = f" Never forget the absolute war crime where **{w_user}** dismantled **{l_user}** by **{int(bg['Margin'])}** points."
-
-    pool = [
-        f"In {year}, {winner} played like they had a cheat code enabled.",
-        f"{year} was a total bloodbath. {winner} stood at the top while the rest of you were struggling to call a slant route.",
-        f"The record books for {year} are mostly just {winner} flex-tweeting.",
-        f"In {year}, {winner} didn't just win the Natty; they took everyone's lunch money.",
-        f"The only way to stop {winner} in {year} was to unplug the router.",
-        f"If the league had a 'Mercy Rule' in {year}, half the games would have ended in the second quarter."
-    ]
-    return random.choice(pool) + blowout_str
+    blowout_str = f" Never forget the blowout by {int(user_games.iloc[0]['Margin'])}." if not user_games.empty else ""
+    return f"In {year}, {winner} proved dominance. {blowout_str}"
 
 def get_gen_freak_commentary(user, team, count):
-    if count == 0:
-        pool = [f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks. Praying for a miracle.", f"🔮 The Vision: **{user}** is simply waiting on a miracle recruit for {team}."]
-    elif count == 1:
-        pool = [f"⚔️ **Cloud Strife** has arrived. **{user}** at {team} has **{count}** generational talent.", f"🧪 **Deadpool** mode! **{user}** has **{count}** freak at {team}."]
-    elif count == 2:
-        pool = [f"🍄 **Mario & Luigi**! **{user}** at {team} has **{count}** generational freaks.", f"🪵 **Dudley Boyz**! **{user}** has **{count}** generational specimens."]
-    else:
-        pool = [f"🦸 **The Avengers**! **{user}** leading **{count}** generational freaks at {team}.", f"🐢 **Ninja Turtles**! **{user}** has **{count}** freaks at {team}."]
-    return random.choice(pool)
+    if count == 0: return f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks."
+    return f"🚀 **{user}** at {team} has **{count}** generational talents."
 
 # --- UI EXECUTION ---
 data = load_data()
@@ -201,49 +181,53 @@ if data:
     with tabs[2]:
         st.header("⚔️ Rivalry Risk & H2H Records")
         st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
-        st.table(h2h_df.set_index('User'))
 
-    with tabs[3]: # RESTORED RECAP
+    with tabs[3]:
         st.header("📺 Season Recap")
         sel_year = st.selectbox("Select Season", years)
         st.info(get_ai_recap(sel_year, scores, champs_df, meta))
-        st.dataframe(scores[scores[meta['yr']] == sel_year][[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
 
-    with tabs[4]: # RESTORED TEAM ANALYSIS
+    with tabs[4]: # NATTY PROBABILITY LOGIC ADDED HERE
         st.header("📊 2041 Team Deep-Dive")
         target = st.selectbox("Select Team", r_2041['USER'].tolist())
         row = r_2041[r_2041['USER'] == target].iloc[0]
         u_stats = stats[stats['User'] == target].iloc[0]
-        c1, c2, c3, c4 = st.columns(4)
+        
+        # PROBABILITY ENGINE
+        p_natty = (u_stats['Natties'] * 15) # Pedigree
+        p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 2 # Velocity
+        p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 8 # Gamebreakers
+        p_form = u_stats['Win Pct'] * 30 # Skill/History
+        p_draft = u_stats['1st Rounders'] * 3 # Recruiting/Development
+        
+        prob_score = min(99, max(5, int(p_natty + p_speed + p_gens + p_form + p_draft)))
+
+        c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Tenure", f"{int(row['Tenure'])} Yrs", row['TEAM'])
         c2.metric("Overall", row['OVERALL'])
-        c3.metric("Projection", row['2041 Projection'])
-        c4.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
+        c3.metric("Win Projection", row['2041 Projection'])
+        c4.metric("Natty Probability", f"{prob_score}%", "Dynasty Odds")
+        c5.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
         
-        is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else "is not a speed freak"
-        st.markdown(f"### Scouting Report: {target}")
-        st.write(f"Coach {target} has a {row['OVERALL']} OVR roster. Star {row['⭐ STAR SKILL GUY (Top OVR)']} {is_star_gen}. Historically, this coach averages a recruiting rank of {u_stats['Avg Recruiting Rank']}.")
+        st.markdown(f"### 🎯 Probability Analysis: {target}")
+        if prob_score > 75:
+            st.success(f"**Heavy Favorite:** With {u_stats['Natties']} Natties and an elite speed profile, the data suggests {target} is the team to beat.")
+        elif prob_score > 40:
+            st.warning(f"**Dark Horse:** {target} has the speed floor, but history shows they need to stay consistent to secure a title.")
+        else:
+            st.error(f"**Long Shot:** Low historic win percentage and speed gaps make a Natty run unlikely for {target} this year.")
 
-    with tabs[5]: # RESTORED TALENT PROFILE
+    with tabs[5]:
         st.header("🔍 Generational Talent Tracker")
         for _, r in r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
-            cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
-            msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
-            if cnt >= 3: st.error(msg)
-            elif cnt == 2: st.warning(msg)
-            elif cnt == 1: st.success(msg)
-            else: st.info(msg)
+            st.info(get_gen_freak_commentary(r['USER'], r['TEAM'], int(r['Generational (96+ speed or 96+ Acceleration)'])))
 
     with tabs[6]:
         st.header("🌐 2041 Executive League Outlook")
         best_imp = r_2041.sort_values(by='Improvement', ascending=False).iloc[0]
         sm1, sm2, sm3, sm4, sm5 = st.columns(5)
         sm1.metric("Sonic Booms 🚀", len(r_2041[r_2041['Archetype'] == "Sonic Boom"]))
-        sm2.metric("Under-Speed 🐢", len(r_2041[r_2041['Archetype'] == "Under-Speed"]))
-        sm3.metric("Most Improved", best_imp['USER'], f"+{int(best_imp['Improvement'])} OVR" if best_imp['Improvement'] > 0 else "Stable")
-        sm4.metric("Avg OVR", int(r_2041['OVERALL'].mean()))
-        sm5.metric("Total Freaks", int(r_2041['Generational (96+ speed or 96+ Acceleration)'].sum()))
-        
+        sm3.metric("Most Improved", best_imp['USER'], f"+{int(best_imp['Improvement'])} OVR")
         st.plotly_chart(px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", color="Archetype", size="OVERALL", text="USER"), use_container_width=True)
 
     if st.sidebar.button("🔄 Refresh Data"):
