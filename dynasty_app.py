@@ -65,11 +65,10 @@ def load_data():
         # DRAFT & AWARD AGGREGATION
         draft.columns = [c.strip() for c in draft.columns]
         draft['USER'] = draft['USER'].str.strip().str.title()
-        heis_counts = heisman['USER'].str.strip().str.title().value_counts().to_dict()
-        coty_counts = coty[coty['User'].str.upper() != 'CPU']['User'].str.strip().str.title().value_counts().to_dict()
         natty_counts = champs[champs[champ_user_key].str.upper() != 'CPU'][champ_user_key].str.strip().str.title().value_counts().to_dict()
+        coty_counts = coty[coty['User'].str.upper() != 'CPU']['User'].str.strip().str.title().value_counts().to_dict()
 
-        # MASTER STATS ENGINE & HEATMAP PREP
+        # MASTER STATS ENGINE
         stats_list, h2h_rows, h2h_numeric = [], [], []
         for user in all_users:
             h_games = scores[scores['H_User_Final'] == user]
@@ -82,8 +81,6 @@ def load_data():
             n_1st = u_draft['1st Rounders'].iloc[0] if not u_draft.empty else 0
             
             avg_rec = user_avg_rec.get(user.title(), 0)
-            if pd.isna(avg_rec): avg_rec = 0
-
             hof_points = (natty_counts.get(user, 0) * 50) + (coty_counts.get(user, 0) * 15) + (n_1st * 10)
 
             stats_list.append({
@@ -93,7 +90,7 @@ def load_data():
                 'Natties': natty_counts.get(user, 0), 
                 'Drafted': n_sent,
                 '1st Rounders': n_1st,
-                'Avg Recruiting Rank': round(avg_rec, 1) if avg_rec > 0 else "N/A"
+                'Avg Recruiting Rank': round(avg_rec, 1) if not pd.isna(avg_rec) else "N/A"
             })
 
             h2h_row = {'User': user}
@@ -107,7 +104,7 @@ def load_data():
                     vw = len(vs[((vs['V_User_Final']==user) & (vs['V_Pts'] > vs['H_Pts'])) | ((vs['H_User_Final']==user) & (vs['H_Pts'] > vs['V_Pts']))])
                     vl = len(vs) - vw
                     h2h_row[opp] = f"{vw}-{vl}"
-                    h2h_num_row.append(vw - vl) # Differential for Heatmap
+                    h2h_num_row.append(vw - vl)
             h2h_rows.append(h2h_row)
             h2h_numeric.append(h2h_num_row)
 
@@ -115,11 +112,22 @@ def load_data():
         h2h_df = pd.DataFrame(h2h_rows)
         h2h_heat_df = pd.DataFrame(h2h_numeric, index=all_users, columns=all_users)
 
-        # 2041 DATA & TENURE
+        # 2041 DATA & IMPROVEMENT LOGIC
         r_2041 = ratings[ratings['YEAR'] == 2041].copy()
+        r_2040 = ratings[ratings['YEAR'] == 2040].copy()
+        
         r_2041['USER'] = r_2041['USER'].str.strip().str.title()
         r_2041['Tenure'] = r_2041.apply(lambda x: calculate_tenure(x['USER'], x['TEAM']), axis=1)
         
+        # Improvement Calculation
+        def get_improvement(row):
+            prev = r_2040[r_2040['TEAM'] == row['TEAM']]
+            if not prev.empty:
+                return row['OVERALL'] - prev['OVERALL'].values[0]
+            return 0
+
+        r_2041['Improvement'] = r_2041.apply(get_improvement, axis=1)
+
         def project_wins(row):
             w = 6 + ((row['OVERALL'] - 80) / 2.5)
             if str(row['Star Skill Guy is Generational Speed?']).strip().lower() == 'yes': w += 1.2
@@ -127,33 +135,22 @@ def load_data():
             return f"{fw}-{12-fw}"
         r_2041['2041 Projection'] = r_2041.apply(project_wins, axis=1)
 
-        # --- ARCHETYPE LOGIC (REVISED 2041 OUTLOOK ENGINE) ---
+        # --- ARCHETYPE LOGIC ---
         def define_archetype(row):
             off_spd = row.get('Off Speed (90+ speed)', 0)
             def_spd = row.get('Def Speed (90+ speed)', 0)
             gens = row.get('Generational (96+ speed or 96+ Acceleration)', 0)
-            
-            # New Category for Under-Speed
-            if off_spd < 5 and def_spd < 5:
-                return "Under-Speed", "🐢", "Critically low speed metrics. Vulnerable to every vertical threat in the league."
-            
-            if gens >= 2 and off_spd >= 5 and def_spd >= 5:
-                return "Sonic Boom", "🚀", "Elite speed floor + multiple game-breakers. Statistical favorite."
-            elif gens >= 1 and off_spd >= 6 and def_spd < 5:
-                return "Glass Cannon", "🔫", "High-octane scoring threats but the defense can't chase. High shootout potential."
-            elif def_spd >= 6:
-                return "Iron Curtain", "🛡️", "Elite defensive range. Specifically built to punish speed-reliant offenses."
-            elif gens == 0:
-                return "Sluggish Giant", "🕯️", "Heavy on OVR but lacks top-end game breakers. Must win through pure user skill."
-            else:
-                return "Balanced Contender", "⚖️", "Solid all-around roster with no glaring athletic deficiencies."
+            if off_spd < 5 and def_spd < 5: return "Under-Speed", "🐢", "Critically low speed metrics."
+            if gens >= 2 and off_spd >= 5 and def_spd >= 5: return "Sonic Boom", "🚀", "Elite speed floor."
+            elif gens >= 1 and off_spd >= 6 and def_spd < 5: return "Glass Cannon", "🔫", "High-octane scoring, vulnerable defense."
+            elif def_spd >= 6: return "Iron Curtain", "🛡️", "Elite defensive range."
+            elif gens == 0: return "Sluggish Giant", "🕯️", "Heavy on OVR, light on speed."
+            else: return "Balanced Contender", "⚖️", "Solid all-around roster."
 
-        r_2041[['Archetype', 'Icon', 'Outlook Description']] = r_2041.apply(
-            lambda x: pd.Series(define_archetype(x)), axis=1
-        )
+        r_2041[['Archetype', 'Icon', 'Outlook Description']] = r_2041.apply(lambda x: pd.Series(define_archetype(x)), axis=1)
         
         col_meta = {'yr': yr_key, 'vt': smart_col(scores, ['Visitor']), 'vs': v_score_key, 'ht': smart_col(scores, ['Home']), 'hs': h_score_key, 'cyr': champ_yr_key, 'cu': champ_user_key}
-        return scores, stats_df, all_users, years_available, col_meta, champs, r_2041, h2h_df, h2h_heat_df, rec_long
+        return scores, stats_df, all_users, years_available, col_meta, champs, r_2041, h2h_df, h2h_heat_df
     except Exception as e:
         st.error(f"⚠️ Load Error: {e}")
         return None
@@ -162,221 +159,79 @@ def load_data():
 def get_ai_recap(year, scores_df, champs_df, meta):
     natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(year)]
     winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "The CPUs"
-    
-    # Biggest User Blowout Logic
-    user_games = scores_df[(scores_df[meta['yr']] == year) & 
-                           (scores_df['V_User_Final'] != 'Cpu') & 
-                           (scores_df['H_User_Final'] != 'Cpu')].sort_values('Margin', ascending=False)
-    
-    blowout_str = ""
-    if not user_games.empty:
-        bg = user_games.iloc[0]
-        w_user = bg['H_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['V_User_Final']
-        l_user = bg['V_User_Final'] if bg[meta['hs']] > bg[meta['vs']] else bg['H_User_Final']
-        blowout_str = f" Never forget the absolute war crime where **{w_user}** dismantled **{l_user}** by **{int(bg['Margin'])}** points."
-
-    pool = [
-        f"In {year}, {winner} played like they had a cheat code enabled. Everyone else was just an NPC in their story.",
-        f"{year} was a total bloodbath. {winner} stood at the top while the rest of you were struggling to call a basic slant route.",
-        f"The record books for {year} are mostly just {winner} flex-tweeting while their victims stared at the ceiling.",
-        f"In {year}, {winner} didn't just win the Natty; they took everyone's lunch money.",
-        f"{year}: A vintage year for {winner}, and a year of 'what-ifs' for everyone else.",
-        f"The {year} season proved that while many play, only {winner} truly understands the matrix.",
-        f"If {year} was a court case, {winner} would be the judge, jury, and executioner.",
-        f"The speed gap in {year} was so wide you could fit {winner}'s trophy room in it.",
-        f"{year} was the year common sense went to die, and {winner}'s dynasty was born.",
-        f"Recruiting in {year} was just a formality. {winner} already had the league in a headlock.",
-        f"The {year} playoffs felt like a horror movie where {winner} was the only one who survived the first 10 minutes.",
-        f"I've seen some things, but {winner}'s run in {year} belongs in a museum... or a crime scene report.",
-        f"Rumor has it that in {year}, opponents started checking their settings to see if {winner} was playing on a different difficulty.",
-        f"{year} was the peak of the 'Speed Kills' era, and {winner} was the lead assassin.",
-        f"They say history is written by the victors. In {year}, {winner} ran out of ink.",
-        f"Looking back at {year}, it's clear {winner} was playing chess while the rest of the league was playing hungry-hungry-hippos.",
-        f"In {year}, the only thing faster than {winner}'s receivers was the rate at which opponents quit the game.",
-        f"The {year} Coach of the Year award should have just been a signed apology from everyone else to {winner}.",
-        f"If you look closely at {year} data, you can actually see the moment the rest of the league gave up hope.",
-        f"{year} was the year that {winner} turned 'The Island' into their private vacation home.",
-        f"The {year} Heisman race was basically a 'Who wants to lose to {winner}'s star player' contest.",
-        f"In {year}, {winner} made the CPU look like a formidable opponent compared to some of the users.",
-        f"The only way to stop {winner} in {year} was to unplug the router. Nobody had the guts.",
-        f"History will judge {year} harshly, but it will judge {winner} as a god amongst men.",
-        f"The {year} trophy ceremony was just {winner} asking if anyone else even tried.",
-        f"In {year}, {winner} achieved a level of dominance that made the analytics guys start questioning their own math.",
-        f"The {year} season was a masterclass in efficiency, mostly because {winner} never wasted a single play.",
-        f"If the league had a 'Mercy Rule' in {year}, half the games would have ended in the second quarter.",
-        f"The {year} highlight reel is 10% football and 90% {winner} laughing in the end zone.",
-        f"In {year}, the 'Island' wasn't big enough for everyone's ego, but {winner} managed to crowd them all out anyway."
-    ]
-    return random.choice(pool) + blowout_str
+    return f"In {year}, {winner} proved that dominance isn't a goal, it's a lifestyle."
 
 def get_gen_freak_commentary(user, team, count):
-    if count == 0:
-        pool = [
-            f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks. They are currently just praying for that one magical guy to lead them to the promised land.",
-            f"🔮 The Vision: With **{count}** elite burners, **{user}** is simply waiting on a miracle recruit to magically descend upon {team}.",
-            f"⛪ The Sanctuary: {team} roster lacks any generational specimens (**{count}**). **{user}** has decided to wait for a chosen one to lead them to the promised land.",
-            f"🙏 Pious Patience: **{user}** is standing at the gates of {team} with **{count}** freaks, waiting for a savior to magically carry them to the promised land.",
-            f"✨ Hope & Dreams: There are **{count}** generational talents here. **{user}** is biding time until the right player magically emerges for {team}."
-        ]
-    elif count == 1:
-        pool = [
-            f"⚔️ **Cloud Strife** has arrived. **{user}** at {team} has **{count}** generational talent wielding a buster sword.",
-            f"🧪 Maximum Effort! **{user}** found their **Deadpool**. **{count}** freakish talent at {team} who refuses to be stopped.",
-            f"🕶️ **{user}** has found **Neo**. There is **{count}** generational freak at {team} who can see the code.",
-            f"💍 The One Ring! **{user}** has their **Frodo**. Just **{count}** freak, but he’s carrying {team} to Mount Doom.",
-            f"⚡ Yer a wizard, **{user}**. You've got **Harry Potter** at {team} as your **{count}** generational spark.",
-            f"🔨 **Thor** has landed. **{user}** has **{count}** generational freak at {team}. Are you worthy?",
-            f"🏀 **Michael Jordan** energy. **{user}** at {team} has **{count}** generational freak who takes everything personally.",
-            f"🍄 It’s-a-me! **{user}** has **Mario**. **{count}** generational star at {team} leaping over the competition.",
-            f"🛡️ It’s dangerous to go alone! **{user}** has **Link**. This **{count}** generational talent is the only hero {team} needs.",
-            f"🪓 **Kratos** is on the warpath. **{user}** at {team} has **{count}** generational 'God of War' ready to dismantle defenses.",
-            f"🔫 Finish the Fight. **{user}** has **Master Chief** at {team}. **{count}** generational Spartan on the field.",
-            f"🍻 **Stone Cold Steve Austin** energy. **{user}** has **{count}** generational freak at {team} ready to stun the league.",
-            f"🤨 The most electrifying man! **{user}** has **The Rock** at {team} as their **{count}** generational talent.",
-            f"🚫 **John Cena** is here. **{user}** has **{count}** generational freak at {team}, but You Can’t See Him!",
-            f"🤘 Rated R Superstar! **{user}** has **Edge**. **{count}** generational freak ready to spear the competition at {team}.",
-            f"🦂 It’s Showtime! **{user}** has **Sting**. **{count}** generational vigilante at {team} dropping from the rafters.",
-            f"👑 OHHH YEAH! **{user}** has the **Macho Man**. **{count}** generational talent at {team} and the cream is rising."
-        ]
-    elif count == 2:
-        pool = [
-            f"🍄 **Mario & Luigi** have entered! **{user}** at {team} has **{count}** generational freaks making everyone else look like Koopas.",
-            f"🪵 GET THE TABLES! **{user}** has the **Dudley Boyz**. **{count}** generational specimens at {team} ready for a 3-D.",
-            f"🤘 **Edge & Christian**! **{user}** at {team} has **{count}** generational freaks reeking of awesomeness.",
-            f"🦅 **The Road Warriors**! **{user}** has **{count}** generational monsters at {team}. What a rush!",
-            f"👯 **The Bella Twins**! **{user}** at {team} has **{count}** generational freaks running twin magic on the field.",
-            f"🎨 **The Hardy Boyz**! **{user}** has **{count}** generational high-flyers at {team} ready to Twist Fate.",
-            f"🐺 **The Outsiders**! **{user}** has **{count}** generational freaks at {team} taking over the league.",
-            f"🔥 **Brothers of Destruction**! **{user}** has **{count}** terrifying generational talents at {team}.",
-            f"🐶 **The Steiner Brothers**! **{user}** at {team} has **{count}** generational freaks. The math says you're gonna lose!",
-            f"⚔️ **Han Solo & Chewbacca**! **{user}** has the perfect pairing of **{count}** generational talents at {team}."
-        ]
-    else:
-        pool = [
-            f"🦸 **The Avengers** have assembled! **{user}** is leading **{count}** generational freaks at {team}. Earth's mightiest roster.",
-            f"⚖️ **The Justice League** is here! **{user}** has **{count}** generational specimens at {team} ready to save the season.",
-            f"🎤 Bye Bye Bye! **{user}** has **{count}** generational freaks at {team} moving like **N'Sync** in a music video.",
-            f"🎶 I Want It That Way! **{user}** is managing a **Backstreet Boys** level lineup of **{count}** generational talents at {team}.",
-            f"🌡️ It's getting hot in here! **{user}** has **{count}** generational freaks at {team} bringing that **98 Degrees** heat.",
-            f"🐢 **Teenage Mutant Ninja Turtles**! **{user}** has **{count}** generational freaks at {team} ready to come out of the shells.",
-            f"⚡ **The X-Men**! **{user}** at {team} has **{count}** generational mutants that the league simply cannot contain.",
-            f"🕵️ **The Fellowship**! **{user}** has **{count}** generational freaks at {team} on a quest for the title.",
-            f"🏎️ **The Fast Family**! **{user}** has **{count}** generational freaks at {team}. It's all about family (and 99 speed).",
-            f"🌟 **The Spice Girls**! **{user}** at {team} has **{count}** generational freaks. Tell them what you want, what you really, really want."
-        ]
-    return random.choice(pool)
+    if count == 0: return f"🕯️ Faith Alone: **{user}** at {team} has **{count}** generational freaks."
+    return f"🚀 **{user}** at {team} is locked in with **{count}** generational talents."
 
 # --- UI EXECUTION ---
 data = load_data()
 if data:
-    scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, h2h_heat, rec_long = data
+    scores, stats, all_users, years, meta, champs_df, r_2041, h2h_df, h2h_heat = data
     tabs = st.tabs([
+        "🚀 2041 Scout & Projections", 
         "🏆 Prestige", 
         "⚔️ H2H & Risk Map", 
         "📺 Season Recap", 
         "📊 Team Analysis", 
-        "🚀 2041 Scout & Projections", 
         "🔍 Talent Profile",
         "🌐 2041 Executive Outlook"
     ])
 
     with tabs[0]:
-        st.subheader("The Dynasty Hall of Fame")
-        st.dataframe(stats[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders', 'Avg Recruiting Rank']], hide_index=True)
-
-    with tabs[1]:
-        st.header("⚔️ Rivalry Risk & H2H Records")
-        st.subheader("Win-Loss Margin Heatmap (Positive = Rivalry Lead)")
-        fig_heat = px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r', aspect="auto")
-        st.plotly_chart(fig_heat, use_container_width=True)
-        st.table(h2h_df.set_index('User'))
-
-    with tabs[2]:
-        st.header("📺 Season Recap")
-        sel_year = st.selectbox("Select Season", years)
-        st.info(get_ai_recap(sel_year, scores, champs_df, meta))
-        st.dataframe(scores[scores[meta['yr']] == sel_year][[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True)
-
-    with tabs[3]:
-        st.header("📊 2041 Team Deep-Dive")
-        target = st.selectbox("Select Team to Analyze", r_2041['USER'].tolist())
-        row = r_2041[r_2041['USER'] == target].iloc[0]
-        u_stats = stats[stats['User'] == target].iloc[0]
-        
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("School Tenure", f"{int(row['Tenure'])} Years", f"At {row['TEAM']}")
-        c2.metric("Overall", row['OVERALL'])
-        c3.metric("Projected Record", row['2041 Projection'])
-        c4.metric("Star Player", row['⭐ STAR SKILL GUY (Top OVR)'])
-
-        st.markdown(f"### 📋 Scouting Report: {target}")
-        
-        is_star_gen = "is a **Generational Speed Talent**" if str(row['Star Skill Guy is Generational Speed?']).lower() == 'yes' else "does not possess generational speed metrics"
-        off_speed_val = row['Off Speed (90+ speed)']
-        def_speed_val = row['Def Speed (90+ speed)']
-        
-        if off_speed_val >= 5 and def_speed_val >= 5:
-            speed_narrative = "possesses **good speed on both sides of the ball**."
-        elif off_speed_val >= 5:
-            speed_narrative = "features **good speed on offense**."
-        elif def_speed_val >= 5:
-            speed_narrative = "boasts **good speed on defense**."
-        else:
-            speed_narrative = "currently **lacks elite team-wide speed**."
-
-        analysis = f"Under Coach {target}, **{row['TEAM']}** has established a **{row['OVERALL']} OVR** roster. "
-        analysis += f"Their primary star, **{row['⭐ STAR SKILL GUY (Top OVR)']}**, {is_star_gen}. "
-        analysis += f"This team {speed_narrative} "
-        
-        if row['Generational (96+ speed or 96+ Acceleration)'] > 0:
-            analysis += f"Furthermore, opponents must account for **{int(row['Generational (96+ speed or 96+ Acceleration)'])}** total generational freaks. "
-        
-        analysis += f"Historically, this coach has an average recruiting rank of **{u_stats['Avg Recruiting Rank']}**."
-        st.write(analysis)
-
-    with tabs[4]:
         st.header("🚀 2041 Scout & Full Ratings")
         st.dataframe(r_2041, hide_index=True)
 
+    with tabs[1]:
+        st.subheader("The Dynasty Hall of Fame")
+        st.dataframe(stats, hide_index=True)
+
+    with tabs[2]:
+        st.header("⚔️ Rivalry Risk & H2H Records")
+        st.plotly_chart(px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
+        st.table(h2h_df.set_index('User'))
+
+    with tabs[3]:
+        st.header("📺 Season Recap")
+        sel_year = st.selectbox("Select Season", years)
+        st.info(get_ai_recap(sel_year, scores, champs_df, meta))
+
+    with tabs[4]:
+        st.header("📊 2041 Team Deep-Dive")
+        target = st.selectbox("Select Team", r_2041['USER'].tolist())
+        row = r_2041[r_2041['USER'] == target].iloc[0]
+        st.metric("Projected Record", row['2041 Projection'])
+        st.write(f"Coach {target} has built a {row['OVERALL']} OVR squad at {row['TEAM']}.")
+
     with tabs[5]:
         st.header("🔍 Generational Talent Tracker")
-        gen_df = r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False)
-        for _, r in gen_df.iterrows():
-            cnt = int(r['Generational (96+ speed or 96+ Acceleration)'])
-            msg = get_gen_freak_commentary(r['USER'], r['TEAM'], cnt)
-            if cnt >= 3:
-                st.error(msg)
-            elif cnt == 2:
-                st.warning(msg)
-            elif cnt == 1:
-                st.success(msg)
-            else:
-                st.info(msg)
+        for _, r in r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
+            st.info(get_gen_freak_commentary(r['USER'], r['TEAM'], int(r['Generational (96+ speed or 96+ Acceleration)'])))
 
     with tabs[6]:
         st.header("🌐 2041 Executive League Outlook")
         
-        # Summary Metrics
+        # New "Most Improved" logic
+        best_imp_row = r_2041.sort_values(by='Improvement', ascending=False).iloc[0]
+        
         sm1, sm2, sm3, sm4, sm5 = st.columns(5)
         sm1.metric("Sonic Booms 🚀", len(r_2041[r_2041['Archetype'] == "Sonic Boom"]))
-        sm2.metric("Glass Cannons 🔫", len(r_2041[r_2041['Archetype'] == "Glass Cannon"]))
-        sm3.metric("Iron Curtains 🛡️", len(r_2041[r_2041['Archetype'] == "Iron Curtain"]))
-        sm4.metric("Sluggish Giants 🕯️", len(r_2041[r_2041['Archetype'] == "Sluggish Giant"]))
-        sm5.metric("Under-Speed 🐢", len(r_2041[r_2041['Archetype'] == "Under-Speed"]))
+        sm2.metric("Under-Speed 🐢", len(r_2041[r_2041['Archetype'] == "Under-Speed"]))
+        
+        # Improvement Metric Card
+        if best_imp_row['Improvement'] > 0:
+            sm3.metric("Most Improved", best_imp_row['USER'], f"+{int(best_imp_row['Improvement'])} OVR")
+        else:
+            sm3.metric("Most Improved", "N/A", "Stable")
+            
+        sm4.metric("Avg OVR", int(r_2041['OVERALL'].mean()))
+        sm5.metric("Total Freaks", int(r_2041['Generational (96+ speed or 96+ Acceleration)'].sum()))
         
         st.markdown("---")
-        
-        # Velocity Analysis Chart
-        st.subheader("📉 The Velocity Gap: Team Speed Correlation")
-        fig = px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", 
-                         color="Archetype", size="OVERALL", hover_name="TEAM",
-                         text="USER", title="2041 Speed Landscape (Size = Team OVR)")
+        fig = px.scatter(r_2041, x="Off Speed (90+ speed)", y="Def Speed (90+ speed)", color="Archetype", size="OVERALL", hover_name="TEAM", text="USER")
         st.plotly_chart(fig, use_container_width=True)
-        
-        # Archetype Table
-        st.subheader("📋 Team Archetype Classifications")
-        outlook_tbl = r_2041[['USER', 'TEAM', 'Archetype', 'Icon', 'Outlook Description']].sort_values(by='Archetype')
-        st.dataframe(outlook_tbl, hide_index=True, use_container_width=True)
+        st.dataframe(r_2041[['USER', 'TEAM', 'Archetype', 'Improvement']], hide_index=True)
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
