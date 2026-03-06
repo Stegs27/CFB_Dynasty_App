@@ -6,7 +6,7 @@ import random
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: Prestige & Scouting")
+st.title("🏈 Island Dynasty: The War Room")
 
 def smart_col(df, target_names):
     for target in target_names:
@@ -18,7 +18,7 @@ def smart_col(df, target_names):
 @st.cache_data
 def load_data():
     try:
-        # 1. CORE FILES
+        # 1. LOAD ALL FILES
         scores = pd.read_csv('scores.csv')
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
@@ -36,7 +36,7 @@ def load_data():
         champ_user_key = smart_col(champs, ['user', 'User', 'User of team'])
         champ_yr_key = smart_col(champs, ['Year', 'YEAR'])
 
-        # CLEAN SCORES
+        # CLEAN SCORES & CALCULATE MARGINS
         scores['V_User_Final'] = scores[v_user_key].astype(str).str.strip().str.title()
         scores['H_User_Final'] = scores[h_user_key].astype(str).str.strip().str.title()
         scores['V_Pts'] = pd.to_numeric(scores[v_score_key], errors='coerce')
@@ -72,8 +72,9 @@ def load_data():
             all_u_games = pd.concat([h_games, v_games])
             wins = len(h_games[h_games['H_Pts'] > h_games['V_Pts']]) + len(v_games[v_games['V_Pts'] > v_games['H_Pts']])
             
+            # FIXED LOGIC: Corrected internal comparison to fix "Label" error
             conf_titles = len(v_games[(v_games['Conf Title'].str.lower() == 'yes') & (v_games['V_Pts'] > v_games['H_Pts'])]) + \
-                          len(h_games[(h_games['Conf Title'].str.lower() == 'yes') & (h_games['H_Pts'] > v_games['H_Pts'])])
+                          len(h_games[(h_games['Conf Title'].str.lower() == 'yes') & (h_games['H_Pts'] > h_games['V_Pts'])])
             
             cfp_apps = pd.concat([v_games[v_games['CFP'].str.lower() == 'yes'], h_games[h_games['CFP'].str.lower() == 'yes']])['YEAR'].nunique()
 
@@ -87,7 +88,9 @@ def load_data():
 
             stats_list.append({
                 'User': user, 'HoF Points': int(hof_points), 'Record': f"{wins}-{len(all_u_games)-wins}", 
-                'NFL Guys': int(n_sent), '1st Rounders': int(n_1st), 'Natties': natty_counts.get(user, 0), 
+                'NFL Guys': int(n_sent), '1st Rounders': int(n_1st), 'Natties': natty_counts.get(user, 0),
+                'Off_Avg': all_u_games.apply(lambda r: r['H_Pts'] if r['H_User_Final']==user else r['V_Pts'], axis=1).mean(),
+                'Def_Avg': all_u_games.apply(lambda r: r['V_Pts'] if r['H_User_Final']==user else r['H_Pts'], axis=1).mean(),
                 'Home Strength': round(h_games['H_Pts'].mean() - h_games['V_Pts'].mean(), 1) if not h_games.empty else 0,
                 'Away Strength': round(v_games['V_Pts'].mean() - v_games['H_Pts'].mean(), 1) if not v_games.empty else 0
             })
@@ -108,9 +111,11 @@ def load_data():
         # 2041 PROJECTION
         current_2041 = ratings[ratings['YEAR'] == 2041].copy()
         current_2041['USER'] = current_2041['USER'].str.strip().str.title()
+        
         def project_wins(row):
             w = 6 + ((row['OVERALL'] - 80) / 2.5)
             if str(row['Star Skill Guy is Generational Speed?']).strip().lower() == 'yes': w += 1.0
+            if row['Off Speed (90+ speed)'] > 8: w += 0.5
             fw = round(min(12, max(0, w)))
             return f"{fw}-{12-fw}"
         current_2041['2041 Projection'] = current_2041.apply(project_wins, axis=1)
@@ -121,33 +126,38 @@ def load_data():
         st.error(f"⚠️ Load Error: {e}")
         return None
 
-# --- AI ANALYTICS ---
-def get_season_recap(year, scores_df, champs_df, meta):
+# --- AI RECAP ENGINE ---
+def get_ai_recap(year, scores_df, champs_df, meta, stats_df):
     yr_data = scores_df[scores_df[meta['yr']] == year]
     natty_row = champs_df[champs_df[meta['cyr']].astype(str) == str(year)]
     winner = natty_row[meta['cu']].values[0] if not natty_row.empty else "Nobody"
     
-    avg_margin = round(yr_data['Margin'].mean(), 1)
-    biggest_blowout = yr_data.loc[yr_data['Margin'].idxmax()]
+    # Analyze why the winner won
+    win_stats = stats_df[stats_df['User'] == winner]
+    off_rank = stats_df['Off_Avg'].rank(ascending=False).loc[win_stats.index[0]] if not win_stats.empty else 99
     
-    recap = f"### 🎙️ The {year} Post-Mortem\n"
-    recap += f"**Champion:** {winner}\n\n"
-    
+    recap = f"### 🎬 The {year} Season Premiere/Finale Recap\n"
     if winner != "Nobody":
-        recap += f"**How they won:** {winner} survived a season where the average margin was {avg_margin}. "
-        recap += f"While the rest of you were busy sniffing glue, {winner} actually remembered how to call a play.\n\n"
+        recap += f"#### 🏆 WHY {winner.upper()} WON:\n"
+        recap += f"In {year}, {winner} proved that while you guys were playing checkers, they were playing a different game entirely. "
+        recap += f"With a scoring average that put them at Rank #{int(off_rank)} in league history, they simply out-gunned the fraudulence.\n\n"
     
-    recap += f"**The 'Should Have Stayed Home' Award:** Goes to **{biggest_blowout[meta['vt']]}** or **{biggest_blowout[meta['ht']]}** for that {int(biggest_blowout['Margin'])} point disaster. Absolute embarrassment.\n\n"
+    recap += f"#### 💀 THE TRASH BIN (Loser Analysis):\n"
+    others = [u for u in stats_df['User'] if u != winner]
+    victim = random.choice(others)
     
-    trash_talk = ["If defense was a crime, most of you would be innocent.", "I've seen better clock management in a kindergarten cafeteria.", "Some of these 'Users' are clearly just CPUs in human masks."]
-    recap += f"**The AI's Take:** {random.choice(trash_talk)}"
+    recap += f"- **{victim}**: You had all the talent but the execution of a wet noodle. Another year of 'what ifs' while the trophy sits in someone else's case.\n"
+    recap += f"- **General Report**: The league average margin of {round(yr_data['Margin'].mean(), 1)} proves half of you can't stop a nosebleed. Get some recruits who actually have a pulse.\n\n"
+    
+    blowout = yr_data.loc[yr_data['Margin'].idxmax()]
+    recap += f"**Moment of Shame:** {blowout[meta['vt']]} vs {blowout[meta['ht']]} ({int(blowout['Margin'])} point gap). This isn't football, it's a crime scene."
     return recap
 
 # --- UI ---
 data = load_data()
 if data:
     scores, rec_long, stats, h2h_df, all_users, years, meta, champs_df, ratings_2041 = data
-    tabs = st.tabs(["🏆 Prestige", "⚔️ H2H Matrix", "📺 Season Recap", "🎰 Vegas Odds", "🚀 2041 Scout & Projections", "📈 Recruiting", "📝 2041 Talent Analysis"])
+    tabs = st.tabs(["🏆 Prestige", "⚔️ H2H Matrix", "📺 Season Recap", "🎰 Vegas Odds", "🚀 2041 Scout & Projections", "📈 Recruiting", "🔍 2041 Talent Analysis"])
 
     with tabs[0]:
         st.subheader("The Dynasty Hall of Fame")
@@ -162,12 +172,18 @@ if data:
     with tabs[2]:
         st.header("📺 Season Recap")
         sel_year = st.selectbox("Select Season", years)
-        st.markdown(get_season_recap(sel_year, scores, champs_df, meta))
+        st.markdown(get_ai_recap(sel_year, scores, champs_df, meta, stats))
         st.dataframe(scores[scores[meta['yr']] == sel_year][[meta['vt'], meta['vs'], meta['hs'], meta['ht']]], hide_index=True)
 
     with tabs[4]:
         st.header("🚀 2041 Scout & Win Projections")
-        scout_cols = ['USER', 'TEAM', 'OVERALL', '2041 Projection', '⭐ STAR SKILL GUY (Top OVR)', 'Star Skill Guy is Generational Speed?', 'Generational (96+ speed or 96+ Acceleration)', 'Off Speed (90+ speed)', 'Def Speed (90+ speed)']
+        # Added the requested Generational column here
+        scout_cols = [
+            'USER', 'TEAM', 'OVERALL', '2041 Projection', 
+            '⭐ STAR SKILL GUY (Top OVR)', 'Star Skill Guy is Generational Speed?', 
+            'Generational (96+ speed or 96+ Acceleration)', 
+            'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
+        ]
         st.dataframe(ratings_2041[scout_cols], hide_index=True)
 
     with tabs[5]:
@@ -181,17 +197,23 @@ if data:
 
     with tabs[6]:
         st.header("📝 2041 Recruiting & Talent Analysis")
-        fastest_team = ratings_2041.loc[ratings_2041['Off Speed (90+ speed)'].idxmax()]
-        scary_def = ratings_2041.loc[ratings_2041['Def Speed (90+ speed)'].idxmax()]
+        # Speed Split Analysis
+        fastest_off = ratings_2041.loc[ratings_2041['Off Speed (90+ speed)'].idxmax()]
+        fastest_def = ratings_2041.loc[ratings_2041['Def Speed (90+ speed)'].idxmax()]
         
-        st.subheader("The Speed Report")
-        st.write(f"🏃 **Offensive Burners:** {fastest_team['USER']} ({fastest_team['TEAM']}) is currently leading the league with {fastest_team['Off Speed (90+ speed)']} players over 90 speed on offense. Good luck catching them in the open field.")
-        st.write(f"🔒 **Defensive Lockdown:** {scary_def['USER']} ({scary_def['TEAM']}) has {scary_def['Def Speed (90+ speed)']} speedsters on defense. They are effectively erasing the perimeter.")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.metric("💨 Fastest Offense", f"{fastest_off['USER']}", f"{int(fastest_off['Off Speed (90+ speed)'])} Speedsters")
+            st.write(f"The {fastest_off['TEAM']} offense is a nightmare. They are effectively running a track meet while everyone else is in quicksand.")
         
-        st.subheader("Generational Talent")
-        gen_players = ratings_2041[ratings_2041['Generational (96+ speed or 96+ Acceleration)'] > 0]
-        for _, row in gen_players.iterrows():
-            st.write(f"💎 **{row['USER']}** has **{int(row['Generational (96+ speed or 96+ Acceleration)'])}** generational freak(s) on the roster. This is the difference between a good season and a Natty.")
+        with c2:
+            st.metric("🔒 Fastest Defense", f"{fastest_def['USER']}", f"{int(fastest_def['Def Speed (90+ speed)'])} Speedsters")
+            st.write(f"The {fastest_def['TEAM']} defense is built to erase mistakes. You aren't getting outside on these guys.")
+        
+        st.subheader("Generational Freak Report")
+        gen_df = ratings_2041[ratings_2041['Generational (96+ speed or 96+ Acceleration)'] > 0].sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False)
+        for _, row in gen_df.iterrows():
+            st.write(f"💎 **{row['USER']}** has **{int(row['Generational (96+ speed or 96+ Acceleration)'])}** player(s) with 96+ Speed/Accel. This is biological warfare.")
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
