@@ -133,7 +133,7 @@ def load_data():
             def_spd = row.get('Def Speed (90+ speed)', 0)
             gens = row.get('Generational (96+ speed or 96+ Acceleration)', 0)
             
-            # Revised Category for Under-Speed
+            # New Category for Under-Speed
             if off_spd < 5 and def_spd < 5:
                 return "Under-Speed", "🐢", "Critically low speed metrics. Vulnerable to every vertical threat in the league."
             
@@ -227,7 +227,7 @@ def get_gen_freak_commentary(user, team, count):
             f"⚡ Yer a wizard, **{user}**. You've got **Harry Potter** at {team} as your **{count}** generational spark.",
             f"🔨 **Thor** has landed. **{user}** has **{count}** generational freak at {team}. Are you worthy?",
             f"🏀 **Michael Jordan** energy. **{user}** at {team} has **{count}** generational freak who takes everything personally.",
-            f"🍄 It’s-a-me! **{user}** has **Mario**. **{count}** generational star at {team leaping over the competition.",
+            f"🍄 It’s-a-me! **{user}** has **Mario**. **{count}** generational star at {team} leaping over the competition.",
             f"🛡️ It’s dangerous to go alone! **{user}** has **Link**. This **{count}** generational talent is the only hero {team} needs.",
             f"🪓 **Kratos** is on the warpath. **{user}** at {team} has **{count}** generational 'God of War' ready to dismantle defenses.",
             f"🔫 Finish the Fight. **{user}** has **Master Chief** at {team}. **{count}** generational Spartan on the field.",
