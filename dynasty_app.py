@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -26,62 +27,16 @@ def clean_rank_value(val):
         return np.nan
 
 
-def get_recent_recruiting_score(rec_df, user, team=None, current_year=2041, lookback=3):
-    """
-    Converts recent recruiting ranks into a 0-100 style score.
-    Lower class rank = better score.
-    Uses the latest non-null classes from the matching user/team row.
-    """
-    rec_work = rec_df.copy()
-    rec_work['USER_CLEAN'] = rec_work['USER'].astype(str).str.strip().str.title()
-    rec_work['TEAM_CLEAN'] = rec_work['Teams'].astype(str).str.strip().str.title()
-
-    user_clean = str(user).strip().title()
-    team_clean = str(team).strip().title() if team is not None else None
-
-    row = pd.DataFrame()
-    if team_clean:
-        row = rec_work[(rec_work['USER_CLEAN'] == user_clean) & (rec_work['TEAM_CLEAN'] == team_clean)]
-
-    if row.empty:
-        row = rec_work[rec_work['USER_CLEAN'] == user_clean]
-
-    if row.empty:
-        return 50.0
-
-    # Prefer the first exact current-team match; otherwise most recent row for the user.
-    row = row.iloc[0]
-
-    year_cols = sorted([c for c in rec_df.columns if str(c).isdigit() and int(c) <= current_year], key=lambda x: int(x), reverse=True)
-    vals = []
-    for col in year_cols:
-        v = clean_rank_value(row[col])
-        if not pd.isna(v):
-            vals.append(v)
-        if len(vals) >= lookback:
-            break
-
-    if not vals:
-        return 50.0
-
-    avg_rank = float(np.mean(vals))
-    # Rank 1 -> 100, Rank 100 -> 1
-    score = max(1, min(100, 101 - avg_rank))
-    return round(score, 1)
+def safe_title_series(series):
+    return series.astype(str).str.strip().str.title()
 
 
-def get_user_win_pct(user, draft_df):
-    row = draft_df[draft_df['USER'].astype(str).str.strip().str.title() == str(user).strip().title()]
-    if row.empty:
-        return 0.500
-
-    wins = pd.to_numeric(row.iloc[0]['Career Wins'], errors='coerce')
-    losses = pd.to_numeric(row.iloc[0]['Career Losses'], errors='coerce')
-
-    if pd.isna(wins) or pd.isna(losses) or (wins + losses) == 0:
-        return 0.500
-
-    return float(wins / (wins + losses))
+def get_record_parts(record_str):
+    try:
+        wins, losses = str(record_str).split('-')
+        return int(wins), int(losses)
+    except Exception:
+        return 0, 0
 
 
 @st.cache_data
@@ -96,13 +51,19 @@ def load_data():
         heisman = pd.read_csv('Heisman_History.csv')
         coty = pd.read_csv('COTY.csv')
 
-        # NORMALIZE KEY TEXT FIELDS
-        draft['USER'] = draft['USER'].astype(str).str.strip().str.title()
-        rec['USER'] = rec['USER'].astype(str).str.strip().str.title()
-        rec['Teams'] = rec['Teams'].astype(str).str.strip().str.title()
-        ratings['USER'] = ratings['USER'].astype(str).str.strip().str.title()
-        ratings['TEAM'] = ratings['TEAM'].astype(str).str.strip().str.title()
-        champs['user'] = champs['user'].astype(str).str.strip().str.title()
+        # STANDARDIZE MAJOR TEXT FIELDS
+        draft['USER'] = safe_title_series(draft['USER'])
+        rec['USER'] = safe_title_series(rec['USER'])
+        if 'Teams' in rec.columns:
+            rec['Teams'] = rec['Teams'].astype(str).str.strip()
+        champs['user'] = safe_title_series(champs['user'])
+        champs['Team'] = champs['Team'].astype(str).str.strip()
+        ratings['USER'] = safe_title_series(ratings['USER'])
+        ratings['TEAM'] = ratings['TEAM'].astype(str).str.strip()
+        heisman['USER'] = safe_title_series(heisman['USER'])
+        heisman['TEAM'] = heisman['TEAM'].astype(str).str.strip()
+        coty['User'] = safe_title_series(coty['User'])
+        coty['Team'] = coty['Team'].astype(str).str.strip()
 
         # STANDARDIZE KEYS
         v_user_key = smart_col(scores, ['Vis_User', 'Visitor User', 'Vis User'])
@@ -116,60 +77,89 @@ def load_data():
         h_yr_key = smart_col(heisman, ['Year', 'YEAR'])
         h_player_key = smart_col(heisman, ['Player', 'Winner', 'Name', 'NAME'])
         h_school_key = smart_col(heisman, ['School', 'Team', 'University', 'TEAM'])
+        h_user_key_award = smart_col(heisman, ['User', 'USER'])
         c_yr_key = smart_col(coty, ['Year', 'YEAR'])
         c_coach_key = smart_col(coty, ['Coach', 'Winner', 'Name'])
         c_school_key = smart_col(coty, ['School', 'Team', 'University'])
+        c_user_key_award = smart_col(coty, ['User', 'USER'])
 
         # CLEAN SCORES
-        scores['V_User_Final'] = scores[v_user_key].astype(str).str.strip().str.title()
-        scores['H_User_Final'] = scores[h_user_key].astype(str).str.strip().str.title()
+        scores['V_User_Final'] = safe_title_series(scores[v_user_key])
+        scores['H_User_Final'] = safe_title_series(scores[h_user_key])
+        scores['Visitor_Final'] = scores[smart_col(scores, ['Visitor'])].astype(str).str.strip()
+        scores['Home_Final'] = scores[smart_col(scores, ['Home'])].astype(str).str.strip()
         scores['V_Pts'] = pd.to_numeric(scores[v_score_key], errors='coerce')
         scores['H_Pts'] = pd.to_numeric(scores[h_score_key], errors='coerce')
-        scores = scores.dropna(subset=['V_Pts', 'H_Pts'])
+        scores = scores.dropna(subset=['V_Pts', 'H_Pts']).copy()
         scores['Margin'] = (scores['H_Pts'] - scores['V_Pts']).abs()
-        scores['Winner'] = np.where(scores['H_Pts'] > scores['V_Pts'], scores['H_User_Final'], scores['V_User_Final'])
-        scores['Loser'] = np.where(scores['H_Pts'] > scores['V_Pts'], scores['V_User_Final'], scores['H_User_Final'])
+        scores['Total Points'] = scores['H_Pts'] + scores['V_Pts']
+        scores['Winner_User'] = np.where(scores['H_Pts'] > scores['V_Pts'], scores['H_User_Final'], scores['V_User_Final'])
+        scores['Loser_User'] = np.where(scores['H_Pts'] > scores['V_Pts'], scores['V_User_Final'], scores['H_User_Final'])
+        scores['Winner_Team'] = np.where(scores['H_Pts'] > scores['V_Pts'], scores['Home_Final'], scores['Visitor_Final'])
+        scores['Loser_Team'] = np.where(scores['H_Pts'] > scores['V_Pts'], scores['Visitor_Final'], scores['Home_Final'])
 
         all_users = sorted([
-            u for u in pd.concat([scores['V_User_Final'], scores['H_User_Final']]).unique()
-            if u.upper() != 'CPU' and u != 'Nan'
+            u for u in pd.concat([scores['V_User_Final'], scores['H_User_Final']]).dropna().unique()
+            if str(u).upper() != 'CPU' and str(u).lower() != 'nan'
         ])
-        years_available = sorted(scores[yr_key].dropna().unique(), reverse=True)
+        years_available = sorted(pd.to_numeric(scores[yr_key], errors='coerce').dropna().astype(int).unique(), reverse=True)
 
         # MASTER STATS ENGINE
-        stats_list, h2h_rows, h2h_numeric = [], [], []
+        stats_list, h2h_rows, h2h_numeric, rivalry_rows = [], [], [], []
         natty_counts = champs[champs[champ_user_key].str.upper() != 'CPU'][champ_user_key].value_counts().to_dict()
 
         for user in all_users:
             h_games = scores[scores['H_User_Final'] == user]
             v_games = scores[scores['V_User_Final'] == user]
-            all_u_games = pd.concat([h_games, v_games])
+            all_u_games = pd.concat([h_games, v_games], ignore_index=True)
+
             wins = len(h_games[h_games['H_Pts'] > h_games['V_Pts']]) + len(v_games[v_games['V_Pts'] > v_games['H_Pts']])
             losses = len(all_u_games) - wins
-            win_pct = round((wins / len(all_u_games)) * 100, 1) if len(all_u_games) else 0.0
 
             u_draft = draft[draft['USER'] == user]
-            n_sent = u_draft['Guys Sent to NFL'].iloc[0] if not u_draft.empty else 0
-            n_1st = u_draft['1st Rounders'].iloc[0] if not u_draft.empty else 0
-            conf_t = u_draft['Conference Titles'].iloc[0] if not u_draft.empty else 0
-            cfp_w = u_draft['CFP Wins'].iloc[0] if not u_draft.empty else 0
-            cfp_l = u_draft['CFP Losses'].iloc[0] if not u_draft.empty else 0
-            natty_a = u_draft['National Title Appearances'].iloc[0] if not u_draft.empty else 0
+            n_sent = int(u_draft['Guys Sent to NFL'].iloc[0]) if not u_draft.empty else 0
+            n_1st = int(u_draft['1st Rounders'].iloc[0]) if not u_draft.empty else 0
+            conf_t = int(u_draft['Conference Titles'].iloc[0]) if not u_draft.empty else 0
+            cfp_w = int(u_draft['CFP Wins'].iloc[0]) if not u_draft.empty else 0
+            cfp_l = int(u_draft['CFP Losses'].iloc[0]) if not u_draft.empty else 0
+            natty_a = int(u_draft['National Title Appearances'].iloc[0]) if not u_draft.empty else 0
+            career_wins = int(u_draft['Career Wins'].iloc[0]) if not u_draft.empty else wins
+            career_losses = int(u_draft['Career Losses'].iloc[0]) if not u_draft.empty else losses
+            career_win_pct = round((career_wins / max(1, career_wins + career_losses)) * 100, 1)
 
             hof_points = (natty_counts.get(user, 0) * 50) + (n_1st * 10)
+            goat_score = (
+                natty_counts.get(user, 0) * 200
+                + natty_a * 80
+                + cfp_w * 40
+                + conf_t * 25
+                + n_1st * 12
+                + n_sent * 4
+            )
+            dynasty_score = (
+                natty_counts.get(user, 0) * 100
+                + natty_a * 40
+                + cfp_w * 25
+                + conf_t * 15
+                + n_1st * 8
+                + n_sent * 3
+            )
 
             stats_list.append({
                 'User': user,
                 'HoF Points': int(hof_points),
+                'GOAT Score': int(goat_score),
+                'Dynasty Score': int(dynasty_score),
                 'Record': f"{wins}-{losses}",
-                'Win %': win_pct,
-                'Natties': int(natty_counts.get(user, 0)),
-                'Drafted': int(n_sent),
-                '1st Rounders': int(n_1st),
-                'Conf Titles': int(conf_t),
-                'CFP Wins': int(cfp_w),
-                'CFP Losses': int(cfp_l),
-                'Natty Apps': int(natty_a)
+                'Career Record': f"{career_wins}-{career_losses}",
+                'Career Win %': career_win_pct,
+                'Natties': natty_counts.get(user, 0),
+                'Drafted': n_sent,
+                '1st Rounders': n_1st,
+                'Conf Titles': conf_t,
+                'CFP Wins': cfp_w,
+                'CFP Losses': cfp_l,
+                'Natty Apps': natty_a,
             })
 
             h2h_row = {'User': user}
@@ -190,23 +180,43 @@ def load_data():
                     vl = len(vs) - vw
                     h2h_row[opp] = f"{vw}-{vl}"
                     h2h_num_row.append(vw - vl)
+
+                    if user < opp and len(vs) > 0:
+                        balance = 1 - (abs(vw - vl) / max(1, len(vs)))
+                        rivalry_score = round((len(vs) * 2.5) + (balance * 10), 1)
+                        rivalry_rows.append({
+                            'Matchup': f"{user} vs {opp}",
+                            'Games': int(len(vs)),
+                            user: vw,
+                            opp: vl,
+                            'Balance': round(balance, 2),
+                            'Avg Margin': round(vs['Margin'].mean(), 1),
+                            'Rivalry Score': rivalry_score
+                        })
+
             h2h_rows.append(h2h_row)
             h2h_numeric.append(h2h_num_row)
 
         stats_df = pd.DataFrame(stats_list)
+        h2h_df = pd.DataFrame(h2h_rows)
+        h2h_heat = pd.DataFrame(h2h_numeric, index=all_users, columns=all_users)
+        rivalry_df = pd.DataFrame(rivalry_rows).sort_values(['Rivalry Score', 'Games'], ascending=[False, False]) if rivalry_rows else pd.DataFrame()
 
+        # Ratings prep
         r_2041 = ratings[ratings['YEAR'] == 2041].copy()
         r_2040 = ratings[ratings['YEAR'] == 2040].copy()
+        r_2041['USER'] = safe_title_series(r_2041['USER'])
+        r_2040['USER'] = safe_title_series(r_2040['USER'])
+        r_2041['TEAM'] = r_2041['TEAM'].astype(str).str.strip()
+        r_2040['TEAM'] = r_2040['TEAM'].astype(str).str.strip()
 
-        # BCR & Improvement
         bcr_col = 'Blue Chip Ratio (4 & 5 star recruit ratio on roster)'
         r_2041['BCR_Val'] = pd.to_numeric(r_2041[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
+        r_2040['BCR_Val'] = pd.to_numeric(r_2040[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
 
         def get_improvement(row):
-            prev = r_2040[(r_2040['TEAM'] == row['TEAM']) & (r_2040['USER'] == row['USER'])]
-            if prev.empty:
-                prev = r_2040[r_2040['TEAM'] == row['TEAM']]
-            return row['OVERALL'] - prev['OVERALL'].values[0] if not prev.empty else 0
+            prev = r_2040[r_2040['TEAM'].str.lower() == str(row['TEAM']).strip().lower()]
+            return int(row['OVERALL'] - prev['OVERALL'].values[0]) if not prev.empty else 0
 
         r_2041['Improvement'] = r_2041.apply(get_improvement, axis=1)
 
@@ -219,295 +229,572 @@ def load_data():
             'h_yr': h_yr_key,
             'h_player': h_player_key,
             'h_school': h_school_key,
+            'h_user': h_user_key_award,
             'c_yr': c_yr_key,
             'c_coach': c_coach_key,
-            'c_school': c_school_key
+            'c_school': c_school_key,
+            'c_user': c_user_key_award,
         }
 
-        return (
-            scores,
-            stats_df,
-            all_users,
-            years_available,
-            meta,
-            r_2041,
-            pd.DataFrame(h2h_rows),
-            pd.DataFrame(h2h_numeric, index=all_users, columns=all_users),
-            coty,
-            heisman,
-            rec,
-            draft
-        )
+        return {
+            'scores': scores,
+            'stats': stats_df,
+            'all_users': all_users,
+            'years': years_available,
+            'meta': meta,
+            'r_2041': r_2041,
+            'h2h_df': h2h_df,
+            'h2h_heat': h2h_heat,
+            'rivalry_df': rivalry_df,
+            'coty': coty,
+            'heisman': heisman,
+            'rec': rec,
+            'draft': draft,
+            'champs': champs,
+        }
     except Exception as e:
         st.error(f"⚠️ Load Error: {e}")
         return None
 
 
-def calculate_hardened_prob(row, stats_df):
-    u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
-    p_talent = (row['OVERALL'] - 75) * 2.0
-    p_speed = (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 2.0
-    p_gens = row['Generational (96+ speed or 96+ Acceleration)'] * 2.0
-    p_bcr = row['BCR_Val'] * 0.2
-    p_legacy = (u_s['Natties'] * 15) + (u_s['Natty Apps'] * 10) + (u_s['Conf Titles'] * 5) + (u_s['CFP Wins'] * 4)
-    p_loss_tax = u_s['CFP Losses'] * 6
-    heartbreak_tax = (u_s['Natty Apps'] - u_s['Natties']) * 8 if u_s['Natty Apps'] > u_s['Natties'] else 0
-    penalty = -25 if u_s['Natties'] == 0 else 0
-    if row['OVERALL'] < 82:
-        penalty -= 30
-    return min(99, max(1, int(p_talent + p_speed + p_gens + p_bcr + p_legacy - p_loss_tax - heartbreak_tax + penalty)))
+def get_recent_recruiting_score(rec_df, user, team=None, current_year=2041, lookback=3):
+    user = str(user).strip().title()
+    rows = rec_df[rec_df['USER'] == user].copy()
+
+    if team is not None and 'Teams' in rec_df.columns:
+        rows_team = rows[rows['Teams'].astype(str).str.strip().str.lower() == str(team).strip().lower()]
+        if not rows_team.empty:
+            rows = rows_team
+
+    if rows.empty:
+        return 50.0
+
+    vals = []
+    for y in range(current_year - lookback + 1, current_year + 1):
+        col = str(y)
+        if col in rows.columns:
+            for _, row in rows.iterrows():
+                v = clean_rank_value(row[col])
+                if not pd.isna(v):
+                    vals.append(v)
+
+    if not vals:
+        historic_cols = [c for c in rows.columns if str(c).isdigit()]
+        for col in historic_cols[-lookback:]:
+            for _, row in rows.iterrows():
+                v = clean_rank_value(row[col])
+                if not pd.isna(v):
+                    vals.append(v)
+
+    if not vals:
+        return 50.0
+
+    avg_rank = float(np.mean(vals))
+    return float(max(1, min(100, 101 - avg_rank)))
 
 
+def build_2041_model_table(r_2041, stats_df, rec_df):
+    df = r_2041.copy()
 
-def calculate_dynasty_predictor(row, stats_df, rec_df, draft_df):
-    """
-    Forward-looking program projection using:
-    roster strength, explosiveness, blue-chip ratio, recruiting momentum,
-    coaching pedigree, historical win rate, and recent improvement.
-    """
-    user = str(row['USER']).strip().title()
-    team = str(row['TEAM']).strip().title()
-    u_stats = stats_df[stats_df['User'] == user].iloc[0]
+    df['Recruit Score'] = df.apply(lambda x: get_recent_recruiting_score(rec_df, x['USER'], x['TEAM']), axis=1)
 
-    overall = pd.to_numeric(row['OVERALL'], errors='coerce')
-    offense = pd.to_numeric(row['OFFENSE'], errors='coerce')
-    defense = pd.to_numeric(row['DEFENSE'], errors='coerce')
-    off_speed = pd.to_numeric(row['Off Speed (90+ speed)'], errors='coerce')
-    def_speed = pd.to_numeric(row['Def Speed (90+ speed)'], errors='coerce')
-    team_speed = pd.to_numeric(row['Team Speed (90+ Speed Guys)'], errors='coerce')
-    breakers = pd.to_numeric(row['Game Breakers (90+ Speed & 90+ Acceleration)'], errors='coerce')
-    generational = pd.to_numeric(row['Generational (96+ speed or 96+ Acceleration)'], errors='coerce')
-    bcr = pd.to_numeric(row['BCR_Val'], errors='coerce')
-    improvement = pd.to_numeric(row['Improvement'], errors='coerce')
-
-    recruit_score = get_recent_recruiting_score(rec_df, user, team=team, current_year=2041, lookback=3)
-    win_pct = get_user_win_pct(user, draft_df)
-
-    pedigree_score = (
-        u_stats['Natties'] * 12 +
-        u_stats['Natty Apps'] * 6 +
-        u_stats['CFP Wins'] * 3 +
-        u_stats['Conf Titles'] * 2
-    )
-
-    heartbreak_penalty = max(0, (u_stats['Natty Apps'] - u_stats['Natties'])) * 2
-    playoff_fail_penalty = u_stats['CFP Losses'] * 1.5
-
-    power_index = (
-        (overall * 2.4) +
-        (offense * 0.8) +
-        (defense * 0.8) +
-        ((off_speed + def_speed) * 1.8) +
-        (team_speed * 0.7) +
-        (breakers * 1.4) +
-        (generational * 3.5) +
-        (bcr * 0.45) +
-        (recruit_score * 0.55) +
-        (improvement * 3.0) +
-        (win_pct * 100 * 0.7) +
-        pedigree_score -
-        heartbreak_penalty -
-        playoff_fail_penalty
-    )
-    power_index = round(power_index, 1)
-
-    projected_wins = round(max(5.0, min(12.0, 4.0 + ((power_index - 180) / 18))), 1)
-    playoff_odds = int(max(1, min(99, (power_index - 150) * 0.9)))
-    natty_odds = int(max(1, min(95, playoff_odds * 0.42 + u_stats['Natties'] * 4 + generational * 2)))
-
-    collapse_risk = int(max(
-        1,
-        min(
-            95,
-            55
-            - (improvement * 5)
-            - ((overall - 80) * 1.2)
-            - (bcr * 0.25)
-            - (recruit_score * 0.18)
-            - (team_speed * 0.5)
-            + (u_stats['CFP Losses'] * 1.8)
-            + heartbreak_penalty
+    def raw_contender_score(row):
+        u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
+        raw = (
+            row['OVERALL'] * 1.9
+            + row['OFFENSE'] * 0.5
+            + row['DEFENSE'] * 0.5
+            + (row['Off Speed (90+ speed)'] + row['Def Speed (90+ speed)']) * 1.0
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 0.8
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 4.5
+            + row['BCR_Val'] * 0.45
+            + row['Recruit Score'] * 0.25
+            + u_s['Natties'] * 6
+            + u_s['Natty Apps'] * 2
+            + u_s['CFP Wins'] * 0.8
+            + u_s['Conf Titles'] * 0.5
+            - u_s['CFP Losses'] * 0.9
+            - max(0, u_s['Natty Apps'] - u_s['Natties']) * 1.2
         )
-    ))
+        if row['OVERALL'] < 85:
+            raw -= 12
+        if row['OFFENSE'] < 85:
+            raw -= 4
+        if row['DEFENSE'] < 85:
+            raw -= 4
+        return raw
 
-    if power_index >= 380:
-        stock = "🚀 Surging"
-    elif power_index >= 340:
-        stock = "📈 Rising"
-    elif collapse_risk >= 55:
-        stock = "⚠️ Volatile"
-    elif power_index < 300:
-        stock = "📉 In Trouble"
-    else:
-        stock = "➖ Stable"
+    df['Contender Raw'] = df.apply(raw_contender_score, axis=1)
 
-    return pd.Series({
-        'Recruit Score': round(recruit_score, 1),
-        'Career Win %': round(win_pct * 100, 1),
-        'Power Index': power_index,
-        'Projected Wins': projected_wins,
-        'Playoff Odds': playoff_odds,
-        'Natty Odds': natty_odds,
-        'Collapse Risk': collapse_risk,
-        'Stock': stock
-    })
+    raw_min = df['Contender Raw'].min()
+    raw_max = df['Contender Raw'].max()
+    spread = max(1, raw_max - raw_min)
+    df['Natty Odds'] = ((df['Contender Raw'] - raw_min) / spread * 28 + 3).round(1)
+    df['Natty Odds'] = df['Natty Odds'].clip(lower=3, upper=31)
+
+    def stock_label(row):
+        if row['Natty Odds'] >= 24 and row['Improvement'] >= 0:
+            return "🚀 Surging"
+        if row['Natty Odds'] >= 18:
+            return "📈 Rising"
+        if row['Improvement'] <= -2 or row['OVERALL'] < 82:
+            return "📉 In Trouble"
+        return "➖ Stable"
+
+    df['Program Stock'] = df.apply(stock_label, axis=1)
+
+    def power_index(row):
+        u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
+        return round(
+            row['OVERALL'] * 2.1
+            + row['OFFENSE'] * 0.8
+            + row['DEFENSE'] * 0.8
+            + row['Team Speed (90+ Speed Guys)'] * 1.8
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.5
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 5
+            + row['BCR_Val'] * 0.55
+            + row['Recruit Score'] * 0.45
+            + row['Improvement'] * 4
+            + u_s['Career Win %'] * 0.7
+            + u_s['Natties'] * 10
+            + u_s['CFP Wins'] * 1.1
+            - u_s['CFP Losses'] * 1.2,
+            1
+        )
+
+    df['Power Index'] = df.apply(power_index, axis=1)
+    power_min = df['Power Index'].min()
+    power_max = df['Power Index'].max()
+    power_spread = max(1, power_max - power_min)
+
+    df['Projected Wins'] = (6.2 + ((df['Power Index'] - power_min) / power_spread * 5.3)).round(1)
+    df['Projected Wins'] = df['Projected Wins'].clip(lower=5.5, upper=11.5)
+
+    df['Playoff Odds'] = (18 + ((df['Power Index'] - power_min) / power_spread * 58)).round(0).astype(int)
+    df['Playoff Odds'] = df['Playoff Odds'].clip(lower=15, upper=76)
+
+    df['Collapse Risk'] = (
+        66
+        - (df['OVERALL'] - 80) * 2.0
+        - df['Improvement'] * 4.5
+        - df['BCR_Val'] * 0.35
+        - df['Recruit Score'] * 0.20
+        - df['Generational (96+ speed or 96+ Acceleration)'] * 3.0
+    ).round(0).astype(int)
+    df['Collapse Risk'] = df['Collapse Risk'].clip(lower=8, upper=72)
+
+    return df.sort_values(['Power Index', 'Natty Odds'], ascending=False).reset_index(drop=True)
+
+
+def get_team_schedule_summary(scores_df, user):
+    user = str(user).strip().title()
+    games = scores_df[(scores_df['V_User_Final'] == user) | (scores_df['H_User_Final'] == user)].copy()
+
+    if games.empty:
+        return 0, 0, 0.0, 0.0
+
+    wins = len(games[
+        ((games['V_User_Final'] == user) & (games['V_Pts'] > games['H_Pts'])) |
+        ((games['H_User_Final'] == user) & (games['H_Pts'] > games['V_Pts']))
+    ])
+    losses = len(games) - wins
+
+    points_for = np.where(games['V_User_Final'] == user, games['V_Pts'], games['H_Pts']).sum()
+    points_against = np.where(games['V_User_Final'] == user, games['H_Pts'], games['V_Pts']).sum()
+    avg_margin = round((points_for - points_against) / max(1, len(games)), 1)
+
+    return wins, losses, round(points_for / max(1, len(games)), 1), avg_margin
+
+
+def infer_best_fun_stat(y_data):
+    if y_data.empty:
+        return "No games found for that season."
+
+    closest = y_data[y_data['Margin'] == y_data['Margin'].min()].iloc[0]
+    highest_scoring = y_data[y_data['Total Points'] == y_data['Total Points'].max()].iloc[0]
+    blowout = y_data[y_data['Margin'] == y_data['Margin'].max()].iloc[0]
+
+    options = [
+        f"Closest game: {closest['Visitor_Final']} vs {closest['Home_Final']} ended with just a {int(closest['Margin'])}-point margin.",
+        f"Track meet alert: {highest_scoring['Visitor_Final']} vs {highest_scoring['Home_Final']} combined for {int(highest_scoring['Total Points'])} points.",
+        f"Beatdown of the year: {blowout['Winner_Team']} handled business by {int(blowout['Margin'])}."
+    ]
+
+    avg_margin = y_data['Margin'].mean()
+    if avg_margin <= 7:
+        options.append("The whole season played like a knife fight. Average margin was under one score.")
+    elif avg_margin >= 20:
+        options.append("A lot of Saturdays turned into statements. Average margin cleared 20 points.")
+
+    return options[len(y_data) % len(options)]
+
+
+def tier_from_dynasty_score(score):
+    if score >= 650:
+        return "Blue Blood"
+    if score >= 450:
+        return "Contender"
+    if score >= 250:
+        return "Builder"
+    return "Upstart"
 
 
 data = load_data()
+
 if data:
-    scores, stats, all_users, years, meta, r_2041, h2h_df, h2h_heat, coty, heisman, rec, draft = data
+    scores = data['scores']
+    stats = data['stats']
+    all_users = data['all_users']
+    years = data['years']
+    meta = data['meta']
+    r_2041 = data['r_2041']
+    h2h_df = data['h2h_df']
+    h2h_heat = data['h2h_heat']
+    rivalry_df = data['rivalry_df']
+    coty = data['coty']
+    heisman = data['heisman']
+    rec = data['rec']
+    draft = data['draft']
+    champs = data['champs']
+
+    model_2041 = build_2041_model_table(r_2041, stats, rec)
 
     tabs = st.tabs([
+        "📰 Dynasty War Room",
         "🚀 2041 Scout & Projections",
-        "🏆 Prestige",
-        "⚔️ H2H & Risk Map",
+        "🏆 Prestige & Power",
+        "⚔️ H2H Matrix",
         "📺 Season Recap",
         "📊 Team Analysis",
         "🔍 Talent Profile",
         "🌐 2041 Executive Outlook",
-        "🧠 AI Dynasty Predictor"
+        "🧠 AI Dynasty Predictor",
+        "🏫 Recruiting Momentum",
+        "🚨 Upset Tracker",
+        "🐐 GOAT Rankings",
     ])
 
-    # --- 1. SCOUT & PROJECTIONS ---
+    # --- WAR ROOM ---
     with tabs[0]:
+        st.header("📰 Dynasty War Room")
+
+        title_favorite = model_2041.sort_values('Natty Odds', ascending=False).iloc[0]
+        most_dangerous = model_2041.sort_values('Power Index', ascending=False).iloc[0]
+        best_recruiter_user = model_2041.sort_values('Recruit Score', ascending=False).iloc[0]
+        collapse_team = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
+        pipeline_king = stats.sort_values('Drafted', ascending=False).iloc[0]
+
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Title Favorite", f"{title_favorite['USER']} ({title_favorite['Natty Odds']}%)")
+        c2.metric("Power Index Leader", f"{most_dangerous['USER']}", f"{most_dangerous['Power Index']}")
+        c3.metric("Recruiting King", f"{best_recruiter_user['USER']}", f"{best_recruiter_user['Recruit Score']}")
+        c4.metric("Collapse Watch", collapse_team['USER'], f"{collapse_team['Collapse Risk']}%")
+        c5.metric("NFL Pipeline", pipeline_king['User'], f"{pipeline_king['Drafted']} drafted")
+
+        st.markdown("---")
+        wc1, wc2 = st.columns([1.1, 0.9])
+
+        with wc1:
+            st.subheader("War Room Board")
+            board = model_2041[['USER', 'TEAM', 'Power Index', 'Natty Odds', 'Playoff Odds', 'Collapse Risk', 'Program Stock']].copy()
+            st.dataframe(board, hide_index=True, use_container_width=True)
+
+        with wc2:
+            st.subheader("Headlines")
+            st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 thanks to roster quality, recruiting, and postseason pedigree.")
+            st.info(f"**{most_dangerous['USER']}** owns the highest overall Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
+            st.warning(f"**{collapse_team['USER']}** carries the highest volatility marker. The model sees real downside if things break wrong.")
+            if not rivalry_df.empty:
+                top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
+                st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
+
+    # --- SCOUT & PROJECTIONS ---
+    with tabs[1]:
         st.header("🚀 2041 Executive Projections")
-        scout_df = r_2041.copy()
-        scout_df['Natty Prob'] = scout_df.apply(lambda x: calculate_hardened_prob(x, stats), axis=1)
+
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("Title Contender Odds")
             st.dataframe(
-                scout_df.sort_values('Natty Prob', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Natty Prob']],
+                model_2041.sort_values('Natty Odds', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Natty Odds', 'Playoff Odds', 'Program Stock']],
                 hide_index=True,
                 use_container_width=True
             )
+
         with c2:
             st.subheader("Projected Risers")
             st.dataframe(
-                scout_df.sort_values('Improvement', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Improvement']],
+                model_2041.sort_values('Improvement', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Improvement', 'Recruit Score', 'Program Stock']],
                 hide_index=True,
                 use_container_width=True
             )
 
-    # --- 2. PRESTIGE ---
-    with tabs[1]:
-        st.header("🏆 Prestige Board")
-        st.dataframe(stats.sort_values('HoF Points', ascending=False), hide_index=True, use_container_width=True)
-
-    # --- 3. H2H ---
-    with tabs[2]:
-        st.header("⚔️ Head-to-Head & Risk Map")
         st.plotly_chart(
-            px.imshow(h2h_heat, text_auto=True, color_continuous_scale='RdBu_r', aspect='auto'),
+            px.bar(
+                model_2041.sort_values('Natty Odds', ascending=False),
+                x='USER',
+                y='Natty Odds',
+                color='Program Stock',
+                hover_data=['TEAM', 'OVERALL', 'Playoff Odds', 'Recruit Score']
+            ),
             use_container_width=True
         )
 
-    # --- 4. SEASON RECAP ---
+    # --- PRESTIGE & POWER ---
+    with tabs[2]:
+        st.header("🏆 Prestige & Power")
+
+        prestige = stats.copy()
+        prestige['Dynasty Tier'] = prestige['Dynasty Score'].apply(tier_from_dynasty_score)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Dynasty Power Rankings")
+            st.dataframe(
+                prestige.sort_values('Dynasty Score', ascending=False)[['User', 'Dynasty Score', 'Dynasty Tier', 'Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles']],
+                hide_index=True,
+                use_container_width=True
+            )
+
+        with c2:
+            st.subheader("Prestige Board")
+            st.dataframe(
+                prestige.sort_values('HoF Points', ascending=False)[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders']],
+                hide_index=True,
+                use_container_width=True
+            )
+
+        st.plotly_chart(
+            px.bar(
+                prestige.sort_values('Dynasty Score', ascending=False),
+                x='User',
+                y='Dynasty Score',
+                color='Dynasty Tier',
+                hover_data=['Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', 'Drafted']
+            ),
+            use_container_width=True
+        )
+
+    # --- H2H MATRIX ---
     with tabs[3]:
+        st.header("⚔️ Head-to-Head Matrix")
+
+        st.subheader("Full H2H Matrix")
+        st.dataframe(h2h_df, hide_index=True, use_container_width=True)
+
+        st.subheader("Rivalry Meter")
+        if not rivalry_df.empty:
+            st.dataframe(
+                rivalry_df[['Matchup', 'Games', 'Avg Margin', 'Rivalry Score']].sort_values(['Rivalry Score', 'Games'], ascending=[False, False]),
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.info("No rivalry data available yet.")
+
+        selected_user = st.selectbox("Select a user for H2H drilldown", all_users, key="h2h_select")
+        drill = []
+        for opp in all_users:
+            if opp == selected_user:
+                continue
+            matchup = h2h_df[h2h_df['User'] == selected_user][opp].iloc[0]
+            diff = h2h_heat.loc[selected_user, opp]
+            games = 0
+            wins = 0
+            losses = 0
+            if matchup != "-":
+                parts = str(matchup).split('-')
+                if len(parts) == 2:
+                    wins = int(parts[0])
+                    losses = int(parts[1])
+                    games = wins + losses
+            drill.append({
+                'Opponent': opp,
+                'Record': matchup,
+                'Games': games,
+                'Net Edge': diff
+            })
+        st.dataframe(pd.DataFrame(drill).sort_values(['Games', 'Net Edge'], ascending=[False, False]), hide_index=True, use_container_width=True)
+
+    # --- SEASON RECAP ---
+    with tabs[4]:
         st.header("📺 AI Dynasty Recap Engine")
-        sel_year = st.selectbox("Select Season", years)
-        y_data = scores[scores[meta['yr']] == sel_year]
+        sel_year = st.selectbox("Select Season", years, key="season_year")
+        y_data = scores[scores[meta['yr']] == sel_year].copy()
+
+        champ_row = champs[champs['YEAR'] == sel_year]
+        heisman_row = heisman[heisman[meta['h_yr']] == sel_year]
+        coty_row = coty[coty[meta['c_yr']] == sel_year]
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if not champ_row.empty:
+                champ_text = f"{champ_row.iloc[0]['Team']} ({champ_row.iloc[0]['user']})"
+                st.success(f"🏆 National Champion: {champ_text}")
+            else:
+                st.info("🏆 National Champion: not found")
+        with c2:
+            if not heisman_row.empty:
+                st.success(f"🏅 Heisman: {heisman_row.iloc[0][meta['h_player']]} ({heisman_row.iloc[0][meta['h_school']]})")
+            else:
+                st.info("🏅 Heisman: not found")
+        with c3:
+            if not coty_row.empty:
+                st.success(f"👔 COTY: {coty_row.iloc[0][meta['c_coach']]} ({coty_row.iloc[0][meta['c_school']]})")
+            else:
+                st.info("👔 COTY: not found")
+
         if not y_data.empty:
             biggest_win = y_data.loc[y_data['Margin'].idxmax()]
             avg_m = round(y_data['Margin'].mean(), 1)
-            st.info(
-                f"🏟️ **Game of the Year:** {biggest_win['H_User_Final']} vs {biggest_win['V_User_Final']} "
-                f"(Margin: {int(biggest_win['Margin'])})"
-            )
-
-            y_h = heisman[heisman[meta['h_yr']] == sel_year]
-            y_c = coty[coty[meta['c_yr']] == sel_year]
-            ca1, ca2 = st.columns(2)
-            with ca1:
-                if not y_h.empty:
-                    st.success(f"🏅 **Heisman:** {y_h.iloc[0][meta['h_player']]} ({y_h.iloc[0][meta['h_school']]})")
-            with ca2:
-                if not y_c.empty:
-                    st.success(f"👔 **COTY:** {y_c.iloc[0][meta['c_coach']]} ({y_c.iloc[0][meta['c_school']]})")
-
-            st.markdown(
+            st.info(f"🏟️ Game of the Year: {biggest_win['Visitor_Final']} at {biggest_win['Home_Final']} | margin {int(biggest_win['Margin'])}")
+            st.caption(f"Fun stat: {infer_best_fun_stat(y_data)}")
+            st.write(
                 f"**Narrative:** {sel_year} featured {len(y_data)} user battles. "
-                f"The average margin of {avg_m} suggests a season of {'dominant runs' if avg_m > 20 else 'tactical grit'}."
+                f"The average margin was {avg_m}, which points to "
+                f"{'a season of wars' if avg_m <= 10 else 'a season with clear pecking-order moments'}."
             )
-        st.dataframe(y_data[[meta['vt'], meta['vs'], meta['hs'], meta['ht'], 'Margin']], hide_index=True, use_container_width=True)
 
-    # --- 5. TEAM ANALYSIS ---
-    with tabs[4]:
-        st.header("📊 Team Analysis")
-        target = st.selectbox("Select Team", r_2041['USER'].tolist())
-        row = r_2041[r_2041['USER'] == target].iloc[0]
-        t1, t2, t3 = st.columns(3)
-        t1.metric("Natty Prob", f"{calculate_hardened_prob(row, stats)}%")
-        t2.metric("Improvement", f"{row['Improvement']:+.0f} OVR")
-        t3.metric("Blue Chip Ratio", f"{row['BCR_Val']:.0f}%")
+        st.dataframe(
+            y_data[['Visitor_Final', 'V_User_Final', 'V_Pts', 'H_Pts', 'H_User_Final', 'Home_Final', 'Margin', 'Total Points']],
+            hide_index=True,
+            use_container_width=True
+        )
 
-    # --- 6. TALENT PROFILE ---
+    # --- TEAM ANALYSIS ---
     with tabs[5]:
+        st.header("📊 Team Analysis")
+        target = st.selectbox("Select Team", model_2041['USER'].tolist(), key="team_analysis_user")
+        row = model_2041[model_2041['USER'] == target].iloc[0]
+
+        wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Natty Odds", f"{row['Natty Odds']}%")
+        m2.metric("Playoff Odds", f"{row['Playoff Odds']}%")
+        m3.metric("Projected Wins", row['Projected Wins'])
+        m4.metric("Power Index", row['Power Index'])
+
+        st.markdown("---")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader(f"{row['USER']} | {row['TEAM']}")
+            st.write(f"**Program Stock:** {row['Program Stock']}")
+            st.write(f"**Current User Record in scores file:** {wins}-{losses}")
+            st.write(f"**Average Points Per Game:** {ppg}")
+            st.write(f"**Average Margin:** {avg_margin}")
+            st.write(f"**Recruit Score:** {row['Recruit Score']}")
+            st.write(f"**Improvement from prior year:** {row['Improvement']} OVR")
+
+        with c2:
+            st.subheader("Star Skill Profile")
+            st.write(f"**Star Skill Player:** {row['⭐ STAR SKILL GUY (Top OVR)']}")
+            st.write(f"**Generational Speed?** {row['Star Skill Guy is Generational Speed?']}")
+            st.write(
+                "This profile blends pure roster power with game-breaking speed. "
+                "If the star player is also a generational athlete, the offense can erase mistakes fast."
+            )
+
+        stat_table = pd.DataFrame([
+            {'Metric': 'Overall', 'Value': row['OVERALL']},
+            {'Metric': 'Offense', 'Value': row['OFFENSE']},
+            {'Metric': 'Defense', 'Value': row['DEFENSE']},
+            {'Metric': 'Off 90+ Speed Players', 'Value': row['Off Speed (90+ speed)']},
+            {'Metric': 'Def 90+ Speed Players', 'Value': row['Def Speed (90+ speed)']},
+            {'Metric': 'Total Team Speed', 'Value': row['Team Speed (90+ Speed Guys)']},
+            {'Metric': 'Game Breakers', 'Value': row['Game Breakers (90+ Speed & 90+ Acceleration)']},
+            {'Metric': 'Generational Talent Count', 'Value': row['Generational (96+ speed or 96+ Acceleration)']},
+            {'Metric': 'Blue Chip Ratio', 'Value': f"{row['BCR_Val']}%"},
+        ])
+
+        st.subheader("Detailed Team Metrics")
+        st.dataframe(stat_table, hide_index=True, use_container_width=True)
+
+        detail_chart = pd.DataFrame({
+            'Category': ['Overall', 'Offense', 'Defense', 'Off Speed', 'Def Speed', 'Game Breakers', 'Generational'],
+            'Score': [
+                row['OVERALL'],
+                row['OFFENSE'],
+                row['DEFENSE'],
+                row['Off Speed (90+ speed)'],
+                row['Def Speed (90+ speed)'],
+                row['Game Breakers (90+ Speed & 90+ Acceleration)'],
+                row['Generational (96+ speed or 96+ Acceleration)']
+            ]
+        })
+        st.plotly_chart(px.bar(detail_chart, x='Category', y='Score', text='Score'), use_container_width=True)
+
+    # --- TALENT PROFILE ---
+    with tabs[6]:
         st.header("🔍 The 2041 Freak List")
         st.write("Detailed scouting of high-end athletic ceiling.")
 
-        for _, r in r_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
+        for _, r in model_2041.sort_values('Generational (96+ speed or 96+ Acceleration)', ascending=False).iterrows():
             gens = int(r['Generational (96+ speed or 96+ Acceleration)'])
 
             if gens == 0:
-                gen_desc = "📉 **Fundamentalist Squad:** No track stars found. This team relies on high-IQ play and scheme to win."
+                gen_desc = "📉 Fundamentalist squad: no true track demons. This team has to win with structure and execution."
                 tier = "🐢 GROUND & POUND"
             elif gens == 1:
-                gen_desc = "🎯 **The Specialist:** One elite game-breaker. If you stop this one player, you stop the whole engine."
+                gen_desc = "🎯 One elite game-breaker. If you find the answer for that player, the whole machine slows down."
                 tier = "🏎️ ROADRUNNER"
             elif gens == 2:
-                gen_desc = "⚔️ **Double Trouble:** A lethal duo of track stars. You can't double-team both."
+                gen_desc = "⚔️ A deadly pair of burners. You can tilt coverage to one side, but not both."
                 tier = "🚀 SONIC BOOM"
             elif gens == 3:
-                gen_desc = "🔬 **The Speed Lab:** Experimental levels of velocity. This roster erases coaching mistakes with pure foot-speed."
+                gen_desc = "🔬 The speed lab is open. This roster forgives coaching mistakes with pure explosiveness."
                 tier = "🧨 DYNAMITE DEPTH"
             else:
-                gen_desc = "⚡ **Flash Point:** You are officially accessing the Speed Force. This is illegal in 48 states."
+                gen_desc = "⚡ This is cheating-adjacent speed. Somebody call compliance."
                 tier = "☣️ GOD-TIER VELOCITY"
 
             with st.expander(f"{r['USER']} | {r['TEAM']} - {tier}"):
                 st.write(gen_desc)
                 st.metric("Blue Chip Ratio", f"{int(r['BCR_Val'])}%")
-                st.write(f"**90+ Speed Depth:** {int(r['Team Speed (90+ Speed Guys)'])} total burners.")
-                st.progress(min(1.0, r['BCR_Val'] / 100))
+                st.write(f"**Total 90+ speed players:** {int(r['Team Speed (90+ Speed Guys)'])}")
+                st.write(f"**Game breakers:** {int(r['Game Breakers (90+ Speed & 90+ Acceleration)'])}")
+                st.progress(min(1.0, float(r['BCR_Val']) / 100))
 
-    # --- 7. EXECUTIVE OUTLOOK ---
-    with tabs[6]:
+    # --- EXECUTIVE OUTLOOK ---
+    with tabs[7]:
         st.header("🌐 2041 Executive Outlook")
         st.plotly_chart(
             px.scatter(
-                r_2041,
+                model_2041,
                 x="Off Speed (90+ speed)",
                 y="Def Speed (90+ speed)",
                 color="USER",
                 size="OVERALL",
                 text="TEAM",
-                hover_data=["BCR_Val", "Improvement", "Generational (96+ speed or 96+ Acceleration)"]
+                hover_data=["Natty Odds", "Playoff Odds", "Collapse Risk", "Recruit Score"]
             ),
             use_container_width=True
         )
 
-    # --- 8. AI DYNASTY PREDICTOR ---
-    with tabs[7]:
-        st.header("🧠 AI Dynasty Predictor")
-        st.write(
-            "Forward-looking program projections based on roster quality, speed, blue-chip composition, "
-            "recruiting momentum, coaching pedigree, and dynasty stability."
+        st.plotly_chart(
+            px.scatter(
+                model_2041,
+                x="BCR_Val",
+                y="Power Index",
+                color="Program Stock",
+                size="Natty Odds",
+                text="USER",
+                hover_data=["TEAM", "Recruit Score", "Playoff Odds"]
+            ),
+            use_container_width=True
         )
 
-        predictor_df = r_2041.copy()
-        predictor_metrics = predictor_df.apply(
-            lambda x: calculate_dynasty_predictor(x, stats, rec, draft),
-            axis=1
-        )
-        predictor_df = pd.concat([predictor_df, predictor_metrics], axis=1)
-        predictor_df = predictor_df.sort_values("Power Index", ascending=False).reset_index(drop=True)
+    # --- AI DYNASTY PREDICTOR ---
+    with tabs[8]:
+        st.header("🧠 AI Dynasty Predictor")
+        st.write("Forward-looking program projections based on roster quality, speed, blue-chip composition, recruiting momentum, coaching pedigree, and dynasty stability.")
 
         c1, c2, c3 = st.columns(3)
         with c1:
             st.subheader("🏆 Title Favorites")
             st.dataframe(
-                predictor_df[["USER", "TEAM", "Power Index", "Projected Wins", "Playoff Odds", "Natty Odds", "Stock"]]
+                model_2041[['USER', 'TEAM', 'Power Index', 'Projected Wins', 'Playoff Odds', 'Natty Odds', 'Program Stock']]
                 .sort_values("Natty Odds", ascending=False),
                 hide_index=True,
                 use_container_width=True
@@ -516,7 +803,7 @@ if data:
         with c2:
             st.subheader("⚠️ Collapse Watch")
             st.dataframe(
-                predictor_df[["USER", "TEAM", "Collapse Risk", "Projected Wins", "Recruit Score", "Stock"]]
+                model_2041[['USER', 'TEAM', 'Collapse Risk', 'Projected Wins', 'Recruit Score', 'Program Stock']]
                 .sort_values("Collapse Risk", ascending=False),
                 hide_index=True,
                 use_container_width=True
@@ -525,7 +812,7 @@ if data:
         with c3:
             st.subheader("📈 Best Program Stock")
             st.dataframe(
-                predictor_df[["USER", "TEAM", "Power Index", "Recruit Score", "Career Win %", "Stock"]]
+                model_2041[['USER', 'TEAM', 'Power Index', 'Recruit Score', 'Career Win %', 'Program Stock']]
                 .sort_values("Power Index", ascending=False),
                 hide_index=True,
                 use_container_width=True
@@ -536,10 +823,10 @@ if data:
         st.subheader("Power Index Board")
         st.plotly_chart(
             px.bar(
-                predictor_df.sort_values("Power Index", ascending=False),
+                model_2041.sort_values("Power Index", ascending=False),
                 x="USER",
                 y="Power Index",
-                color="Stock",
+                color="Program Stock",
                 hover_data=["TEAM", "Projected Wins", "Playoff Odds", "Natty Odds", "Collapse Risk"]
             ),
             use_container_width=True
@@ -548,20 +835,20 @@ if data:
         st.subheader("Playoff Odds vs Collapse Risk")
         st.plotly_chart(
             px.scatter(
-                predictor_df,
+                model_2041,
                 x="Collapse Risk",
                 y="Playoff Odds",
                 size="Power Index",
                 color="USER",
                 text="TEAM",
-                hover_data=["Projected Wins", "Natty Odds", "Recruit Score", "Career Win %", "Stock"]
+                hover_data=["Projected Wins", "Natty Odds", "Recruit Score", "Career Win %", "Program Stock"]
             ),
             use_container_width=True
         )
 
         st.subheader("Full AI Projection Table")
         st.dataframe(
-            predictor_df[[
+            model_2041[[
                 "USER",
                 "TEAM",
                 "OVERALL",
@@ -576,14 +863,14 @@ if data:
                 "Playoff Odds",
                 "Natty Odds",
                 "Collapse Risk",
-                "Stock"
+                "Program Stock"
             ]],
             hide_index=True,
             use_container_width=True
         )
 
-        selected_user = st.selectbox("Select program for executive briefing", predictor_df["USER"].tolist())
-        p_row = predictor_df[predictor_df["USER"] == selected_user].iloc[0]
+        selected_user = st.selectbox("Select program for executive briefing", model_2041["USER"].tolist(), key="briefing_user")
+        p_row = model_2041[model_2041["USER"] == selected_user].iloc[0]
 
         st.markdown("---")
         st.subheader(f"📋 Executive Briefing: {p_row['USER']} | {p_row['TEAM']}")
@@ -592,26 +879,117 @@ if data:
         b1.metric("Power Index", p_row["Power Index"])
         b2.metric("Projected Wins", p_row["Projected Wins"])
         b3.metric("Playoff Odds", f"{int(p_row['Playoff Odds'])}%")
-        b4.metric("Natty Odds", f"{int(p_row['Natty Odds'])}%")
+        b4.metric("Natty Odds", f"{p_row['Natty Odds']}%")
 
         st.progress(min(1.0, float(p_row["Playoff Odds"]) / 100))
-        st.caption(f"Collapse Risk: {int(p_row['Collapse Risk'])}% | Program Stock: {p_row['Stock']}")
+        st.caption(f"Collapse Risk: {int(p_row['Collapse Risk'])}% | Program Stock: {p_row['Program Stock']}")
 
-        if p_row["Natty Odds"] >= 30:
-            st.success(
-                f"{p_row['USER']} enters 2041 as a legitimate title threat. "
-                f"The model sees enough talent, explosiveness, and institutional pedigree to make a serious run."
-            )
-        elif p_row["Collapse Risk"] >= 55:
-            st.warning(
-                f"{p_row['USER']} has real volatility signals. The roster has enough warning signs "
-                f"that a disappointing season is very live."
-            )
+        if p_row["Natty Odds"] >= 24:
+            st.success(f"{p_row['USER']} enters 2041 as a real title threat. The model loves the talent base, athletic ceiling, and overall program health.")
+        elif p_row["Collapse Risk"] >= 50:
+            st.warning(f"{p_row['USER']} has real volatility signals. There is enough downside here for a season to wobble fast.")
         else:
-            st.info(
-                f"{p_row['USER']} profiles as a competitive program with a credible postseason path, "
-                f"but the model stops short of calling them a top-tier title favorite."
+            st.info(f"{p_row['USER']} profiles as a postseason-capable program, but not as the clear favorite entering the year.")
+
+    # --- RECRUITING MOMENTUM ---
+    with tabs[9]:
+        st.header("🏫 Recruiting Momentum")
+
+        year_cols = [c for c in rec.columns if str(c).isdigit()]
+        rec_view = rec.copy()
+
+        recent_cols = [c for c in year_cols if int(c) <= 2041][-4:]
+        rec_view['Recent Avg Rank'] = rec_view[recent_cols].applymap(clean_rank_value).mean(axis=1)
+        rec_view['Momentum Score'] = (101 - rec_view['Recent Avg Rank']).fillna(0).round(1)
+
+        user_momentum = rec_view.groupby('USER', as_index=False).agg({
+            'Recent Avg Rank': 'min',
+            'Momentum Score': 'max'
+        }).sort_values('Momentum Score', ascending=False)
+
+        st.dataframe(user_momentum, hide_index=True, use_container_width=True)
+
+        st.plotly_chart(
+            px.bar(
+                user_momentum,
+                x='USER',
+                y='Momentum Score',
+                color='USER',
+                hover_data=['Recent Avg Rank']
+            ),
+            use_container_width=True
+        )
+
+        selected_recruit_user = st.selectbox("Select recruiter", sorted(rec['USER'].unique()), key="recruiting_user")
+        recruit_rows = rec[rec['USER'] == selected_recruit_user].copy()
+        st.dataframe(recruit_rows, hide_index=True, use_container_width=True)
+
+    # --- UPSET TRACKER ---
+    with tabs[10]:
+        st.header("🚨 Upset Tracker")
+
+        upset_df = scores.copy()
+        rating_map = model_2041.set_index('TEAM')['OVERALL'].to_dict()
+        upset_df['Visitor OVR Proxy'] = upset_df['Visitor_Final'].map(rating_map)
+        upset_df['Home OVR Proxy'] = upset_df['Home_Final'].map(rating_map)
+
+        upset_df['Expected Winner'] = np.where(
+            upset_df['Home OVR Proxy'].fillna(-999) >= upset_df['Visitor OVR Proxy'].fillna(-999),
+            upset_df['Home_Final'],
+            upset_df['Visitor_Final']
+        )
+        upset_df['Actual Winner'] = upset_df['Winner_Team']
+        upset_df['Underdog Delta'] = np.where(
+            upset_df['Actual Winner'] == upset_df['Home_Final'],
+            upset_df['Visitor OVR Proxy'].fillna(upset_df['Home OVR Proxy']) - upset_df['Home OVR Proxy'].fillna(upset_df['Visitor OVR Proxy']),
+            upset_df['Home OVR Proxy'].fillna(upset_df['Visitor OVR Proxy']) - upset_df['Visitor OVR Proxy'].fillna(upset_df['Home OVR Proxy'])
+        )
+
+        upset_df = upset_df[upset_df['Actual Winner'] != upset_df['Expected Winner']].copy()
+        upset_df['Upset Score'] = (upset_df['Underdog Delta'].abs().fillna(0) + upset_df['Margin']).round(1)
+        upset_df = upset_df.sort_values('Upset Score', ascending=False)
+
+        if upset_df.empty:
+            st.info("No upsets were detected with the current proxy model.")
+        else:
+            st.dataframe(
+                upset_df[['YEAR', 'Visitor_Final', 'V_Pts', 'H_Pts', 'Home_Final', 'Actual Winner', 'Expected Winner', 'Upset Score']],
+                hide_index=True,
+                use_container_width=True
             )
+
+            st.plotly_chart(
+                px.bar(
+                    upset_df.head(15),
+                    x='Actual Winner',
+                    y='Upset Score',
+                    color='YEAR',
+                    hover_data=['Visitor_Final', 'Home_Final', 'Expected Winner']
+                ),
+                use_container_width=True
+            )
+
+    # --- GOAT RANKINGS ---
+    with tabs[11]:
+        st.header("🐐 Dynasty GOAT Rankings")
+        goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
+
+        st.dataframe(
+            goat[['User', 'GOAT Score', 'Career Record', 'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', '1st Rounders', 'Drafted']],
+            hide_index=True,
+            use_container_width=True
+        )
+
+        st.plotly_chart(
+            px.bar(
+                goat,
+                x="User",
+                y="GOAT Score",
+                color="User",
+                hover_data=['Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', '1st Rounders', 'Drafted']
+            ),
+            use_container_width=True
+        )
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
