@@ -7,6 +7,7 @@ import os
 import re
 import html
 import base64
+import hashlib
 from pathlib import Path
 
 # --- PAGE SETUP ---
