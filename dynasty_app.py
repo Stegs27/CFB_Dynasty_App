@@ -1792,12 +1792,7 @@ if data:
         "📺 Season Recap",
         "🔍 Speed Freaks",
         "📊 Team Overview",
-        "🏆 Prestige & Power",
         "⚔️ H2H Matrix",
-        "🚀 2041 Scout & Projections",
-        "🌐 2041 Executive Outlook",
-        "🧠 AI Dynasty Predictor",
-        "🏫 Recruiting Momentum",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
     ])
@@ -1883,75 +1878,8 @@ if data:
             top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
             st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
 
-    # --- SCOUT & PROJECTIONS ---
-    with tabs[8]:
-        st.header("🚀 2041 Executive Projections")
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Title Contender Odds")
-            st.dataframe(
-                model_2041.sort_values('Natty Odds', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Natty Odds', 'CFP Odds', 'Program Stock']],
-                hide_index=True,
-                use_container_width=True
-            )
-
-        with c2:
-            st.subheader("Projected Risers")
-            st.dataframe(
-                model_2041.sort_values('Improvement', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Improvement', 'Recruit Score', 'Program Stock']],
-                hide_index=True,
-                use_container_width=True
-            )
-
-        st.plotly_chart(
-            px.bar(
-                model_2041.sort_values('Natty Odds', ascending=False),
-                x='USER',
-                y='Natty Odds',
-                color='Program Stock',
-                hover_data=['TEAM', 'OVERALL', 'CFP Odds', 'Recruit Score']
-            ),
-            use_container_width=True
-        )
-
-    # --- PRESTIGE & POWER ---
-    with tabs[6]:
-        st.header("🏆 Prestige & Power")
-
-        prestige = stats.copy()
-        prestige['Dynasty Tier'] = prestige['Dynasty Score'].apply(tier_from_dynasty_score)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Dynasty Power Rankings")
-            st.dataframe(
-                prestige.sort_values('Dynasty Score', ascending=False)[['User', 'Dynasty Score', 'Dynasty Tier', 'Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles']],
-                hide_index=True,
-                use_container_width=True
-            )
-
-        with c2:
-            st.subheader("Prestige Board")
-            st.dataframe(
-                prestige.sort_values('HoF Points', ascending=False)[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders']],
-                hide_index=True,
-                use_container_width=True
-            )
-
-        st.plotly_chart(
-            px.bar(
-                prestige.sort_values('Dynasty Score', ascending=False),
-                x='User',
-                y='Dynasty Score',
-                color='Dynasty Tier',
-                hover_data=['Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', 'Drafted']
-            ),
-            use_container_width=True
-        )
-
     # --- H2H MATRIX ---
-    with tabs[7]:
+    with tabs[6]:
         st.header("⚔️ Head-to-Head Matrix")
 
         st.subheader("Full H2H Matrix")
@@ -2230,7 +2158,7 @@ if data:
         st.plotly_chart(px.bar(detail_chart, x='Category', y='Score', text='Score'), use_container_width=True)
 
     # --- TALENT PROFILE ---
-    with tabs[3]:
+    with tabs[4]:
         st.header("🔍 2041 Speed Freaks")
         st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
@@ -2272,182 +2200,8 @@ if data:
                 st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
                 st.progress(min(1.0, team_speed / 100.0))
 
-    # --- EXECUTIVE OUTLOOK ---
-    with tabs[9]:
-        st.header("🌐 2041 Executive Outlook")
-        st.plotly_chart(
-            px.scatter(
-                model_2041,
-                x="Off Speed (90+ speed)",
-                y="Def Speed (90+ speed)",
-                color="USER",
-                color_discrete_map=user_color_map,
-                size="OVERALL",
-                text="TEAM",
-                hover_data=["Natty Odds", "CFP Odds", "Collapse Risk", "Recruit Score"]
-            ),
-            use_container_width=True
-        )
-
-        st.plotly_chart(
-            px.scatter(
-                model_2041,
-                x="BCR_Val",
-                y="Power Index",
-                color="Program Stock",
-                size="Natty Odds",
-                text="USER",
-                hover_data=["TEAM", "Recruit Score", "CFP Odds"]
-            ),
-            use_container_width=True
-        )
-
-    # --- AI DYNASTY PREDICTOR ---
-    with tabs[10]:
-        st.header("🧠 AI Dynasty Predictor")
-        st.write("Forward-looking program projections based on roster quality, speed, blue-chip composition, recruiting momentum, coaching pedigree, and dynasty stability. Natty Odds here mean odds to **win** the national title, not just make it.")
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.subheader("🏆 Title Favorites")
-            st.dataframe(
-                model_2041[['USER', 'TEAM', 'Power Index', 'Projected Wins', 'CFP Odds', 'Natty Odds', 'Program Stock']]
-                .sort_values("Natty Odds", ascending=False),
-                hide_index=True,
-                use_container_width=True
-            )
-
-        with c2:
-            st.subheader("⚠️ Collapse Watch")
-            st.dataframe(
-                model_2041[['USER', 'TEAM', 'Collapse Risk', 'Projected Wins', 'Recruit Score', 'Program Stock']]
-                .sort_values("Collapse Risk", ascending=False),
-                hide_index=True,
-                use_container_width=True
-            )
-
-        with c3:
-            st.subheader("📈 Best Program Stock")
-            st.dataframe(
-                model_2041[['USER', 'TEAM', 'Power Index', 'Recruit Score', 'Career Win %', 'Program Stock']]
-                .sort_values("Power Index", ascending=False),
-                hide_index=True,
-                use_container_width=True
-            )
-
-        st.markdown("---")
-
-        st.subheader("Power Index Board")
-        st.plotly_chart(
-            px.bar(
-                model_2041.sort_values("Power Index", ascending=False),
-                x="USER",
-                y="Power Index",
-                color="Program Stock",
-                hover_data=["TEAM", "Projected Wins", "CFP Odds", "Natty Odds", "Collapse Risk"]
-            ),
-            use_container_width=True
-        )
-
-        st.subheader("CFP Odds vs Collapse Risk")
-        st.plotly_chart(
-            px.scatter(
-                model_2041,
-                x="Collapse Risk",
-                y="CFP Odds",
-                size="Power Index",
-                color="USER",
-                color_discrete_map=user_color_map,
-                text="TEAM",
-                hover_data=["Projected Wins", "Natty Odds", "Recruit Score", "Career Win %", "Program Stock"]
-            ),
-            use_container_width=True
-        )
-
-        st.subheader("Full AI Projection Table")
-        st.dataframe(
-            model_2041[[
-                "USER",
-                "TEAM",
-                "OVERALL",
-                "OFFENSE",
-                "DEFENSE",
-                "Improvement",
-                "BCR_Val",
-                "Recruit Score",
-                "Career Win %",
-                "Current CFP Ranking",
-                "QB OVR",
-                "QB Tier",
-                "Power Index",
-                "Projected Wins",
-                "CFP Odds",
-                "Natty Odds",
-                "Collapse Risk",
-                "Program Stock"
-            ]],
-            hide_index=True,
-            use_container_width=True
-        )
-
-        selected_user = st.selectbox("Select program for executive briefing", model_2041["USER"].tolist(), key="briefing_user")
-        p_row = model_2041[model_2041["USER"] == selected_user].iloc[0]
-
-        st.markdown("---")
-        st.subheader(f"📋 Executive Briefing: {p_row['USER']} | {p_row['TEAM']}")
-
-        b1, b2, b3, b4 = st.columns(4)
-        b1.metric("Power Index", p_row["Power Index"])
-        b2.metric("Projected Wins", p_row["Projected Wins"])
-        b3.metric("CFP Odds", f"{int(p_row['CFP Odds'])}%")
-        b4.metric("Natty Odds", f"{p_row['Natty Odds']}%")
-
-        st.progress(min(1.0, float(p_row["CFP Odds"]) / 100))
-        st.caption(f"Collapse Risk: {int(p_row['Collapse Risk'])}% | Program Stock: {p_row['Program Stock']}")
-
-        if p_row["Natty Odds"] >= 24:
-            st.success(f"{p_row['USER']} enters 2041 as a real title threat. The model loves the talent base, athletic ceiling, and overall program health.")
-        elif p_row["Collapse Risk"] >= 50:
-            st.warning(f"{p_row['USER']} has real volatility signals. There is enough downside here for a season to wobble fast.")
-        else:
-            st.info(f"{p_row['USER']} profiles as a postseason-capable program, but not as the clear favorite entering the year.")
-
-    # --- RECRUITING MOMENTUM ---
-    with tabs[11]:
-        st.header("🏫 Recruiting Momentum")
-
-        year_cols = [c for c in rec.columns if str(c).isdigit()]
-        rec_view = rec.copy()
-
-        recent_cols = [c for c in year_cols if int(c) <= 2041][-4:]
-        rec_view['Recent Avg Rank'] = rec_view[recent_cols].applymap(clean_rank_value).mean(axis=1)
-        rec_view['Momentum Score'] = (101 - rec_view['Recent Avg Rank']).fillna(0).round(1)
-
-        user_momentum = rec_view.groupby('USER', as_index=False).agg({
-            'Recent Avg Rank': 'min',
-            'Momentum Score': 'max'
-        }).sort_values('Momentum Score', ascending=False)
-
-        st.dataframe(user_momentum, hide_index=True, use_container_width=True)
-
-        st.plotly_chart(
-            px.bar(
-                user_momentum,
-                x='USER',
-                y='Momentum Score',
-                color='USER',
-                color_discrete_map=user_color_map,
-                hover_data=['Recent Avg Rank']
-            ),
-            use_container_width=True
-        )
-
-        selected_recruit_user = st.selectbox("Select recruiter", sorted(rec['USER'].unique()), key="recruiting_user")
-        recruit_rows = rec[rec['USER'] == selected_recruit_user].copy()
-        st.dataframe(recruit_rows, hide_index=True, use_container_width=True)
-
     # --- UPSET TRACKER ---
-    with tabs[12]:
+    with tabs[7]:
         st.header("🚨 Upset Tracker")
 
         upset_df = scores.copy()
@@ -2492,7 +2246,7 @@ if data:
             )
 
     # --- GOAT RANKINGS ---
-    with tabs[13]:
+    with tabs[8]:
         st.header("🐐 Dynasty GOAT Rankings")
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
