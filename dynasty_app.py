@@ -1433,9 +1433,9 @@ if data:
         "📊 Team Overview",
         "🏆 Prestige & Power",
         "⚔️ H2H Matrix",
-        "🚀 2041 Scout & Projections",
+        "_",
         "🌐 2041 Executive Outlook",
-        "🧠 AI Dynasty Predictor",
+        "_",
         "🏫 Recruiting Momentum",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
@@ -1865,7 +1865,7 @@ if data:
 
     # --- AI DYNASTY PREDICTOR ---
     with tabs[9]:
-        st.header("🧠 AI Dynasty Predictor")
+        st.header("_")
         st.write("Forward-looking program projections based on roster quality, speed, blue-chip composition, recruiting momentum, coaching pedigree, and dynasty stability. Natty Odds here mean odds to **win** the national title, not just make it.")
 
         c1, c2, c3 = st.columns(3)
