@@ -653,6 +653,65 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     return df.sort_values(['Power Index', 'Natty Odds'], ascending=False).reset_index(drop=True)
 
 
+
+def project_loss_scenarios(row):
+    natty = float(pd.to_numeric(row.get('Natty Odds', 0), errors='coerce'))
+    cfp = float(pd.to_numeric(row.get('Playoff Odds', 0), errors='coerce'))
+    overall = float(pd.to_numeric(row.get('OVERALL', 0), errors='coerce'))
+    team_speed = float(pd.to_numeric(row.get('Team Speed (90+ Speed Guys)', 0), errors='coerce'))
+    qb_tier = str(row.get('QB Tier', '')).strip()
+    cfp_rank = row.get('Current CFP Ranking', np.nan)
+    ranked_now = pd.notna(cfp_rank)
+
+    base_unranked_natty_drop = 7.5
+    base_ranked_natty_drop = 4.0
+    base_unranked_cfp_drop = 16.0
+    base_ranked_cfp_drop = 8.0
+
+    if overall >= 90:
+        base_unranked_natty_drop += 2.0
+        base_unranked_cfp_drop += 2.5
+    elif overall <= 84:
+        base_ranked_natty_drop += 1.0
+        base_ranked_cfp_drop += 2.0
+
+    if team_speed >= 12:
+        base_unranked_natty_drop += 1.5
+        base_unranked_cfp_drop += 1.5
+
+    if qb_tier == 'Elite':
+        base_unranked_natty_drop += 1.8
+        base_ranked_natty_drop += 0.8
+        base_unranked_cfp_drop += 1.8
+        base_ranked_cfp_drop += 0.8
+    elif qb_tier == 'Leader':
+        base_unranked_natty_drop += 1.0
+        base_ranked_natty_drop += 0.4
+        base_unranked_cfp_drop += 1.0
+        base_ranked_cfp_drop += 0.4
+    elif qb_tier == 'Ass':
+        base_unranked_natty_drop -= 1.0
+        base_ranked_natty_drop -= 0.5
+        base_unranked_cfp_drop -= 1.5
+        base_ranked_cfp_drop -= 1.0
+
+    if ranked_now:
+        base_unranked_natty_drop += 1.8
+        base_unranked_cfp_drop += 3.0
+
+    natty_unranked = max(0.1, round(natty - base_unranked_natty_drop, 1))
+    natty_ranked = max(0.1, round(natty - base_ranked_natty_drop, 1))
+    cfp_unranked = max(1, int(round(cfp - base_unranked_cfp_drop, 0)))
+    cfp_ranked = max(1, int(round(cfp - base_ranked_cfp_drop, 0)))
+
+    return pd.Series({
+        'Natty if Lose to Unranked': natty_unranked,
+        'Natty if Lose to Ranked': natty_ranked,
+        'CFP if Lose to Unranked': cfp_unranked,
+        'CFP if Lose to Ranked': cfp_ranked
+    })
+
+
 def get_team_schedule_summary(scores_df, user):
     user = str(user).strip().title()
     games = scores_df[(scores_df['V_User_Final'] == user) | (scores_df['H_User_Final'] == user)].copy()
@@ -739,6 +798,9 @@ if data:
         if col not in model_2041.columns:
             model_2041[col] = default
 
+    scenario_df = model_2041.apply(project_loss_scenarios, axis=1)
+    model_2041 = pd.concat([model_2041, scenario_df], axis=1)
+
     tabs = st.tabs([
         "📰 Dynasty War Room",
         "📺 Season Recap",
@@ -776,13 +838,13 @@ if data:
 
         with wc1:
             st.subheader("War Room Board")
-            board = model_2041[['USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'Playoff Odds', 'Collapse Risk', 'Program Stock']].copy()
-            board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})
+            board = model_2041[['USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']].copy()
+            board = board.rename(columns={'Current CFP Ranking': 'CFP Rank', 'CFP Odds': 'CFP Odds'})
             st.dataframe(board, hide_index=True, use_container_width=True)
 
         with wc2:
             st.subheader("Headlines")
-            st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model now leans hardest on overall roster quality and flat-out team speed, with pedigree finishing the job.")
+            st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model now leans hardest on overall roster quality and raw team speed, with CFP position and pedigree finishing the damn job.")
             st.info(f"**{most_dangerous['USER']}** owns the highest overall Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
             st.warning(f"**{collapse_team['USER']}** carries the highest volatility marker. The model sees real downside if things break wrong.")
 
@@ -792,7 +854,7 @@ if data:
                 if qb_star['QB Tier'] == 'Elite':
                     st.write(f"🧠 **QB headline:** {qb_star['USER']} has an **Elite** quarterback, and that spikes the ceiling like hell. The model treats that shit as a real title accelerator, not fluff.")
                 else:
-                    st.write(f"🧠 **QB headline:** {qb_star['USER']} has a **Leader** at quarterback. Not quite superhero mode, but it's still a damn meaningful bump to playoff and natty odds.")
+                    st.write(f"🧠 **QB headline:** {qb_star['USER']} has a **Leader** at quarterback. Not quite superhero mode, but it's still a damn meaningful bump to CFP and natty odds.")
 
             qb_disaster_board = model_2041[model_2041['QB Tier'] == 'Ass'].sort_values(['Natty Odds', 'Power Index'], ascending=True)
             if not qb_disaster_board.empty:
@@ -811,7 +873,7 @@ if data:
         with c1:
             st.subheader("Title Contender Odds")
             st.dataframe(
-                model_2041.sort_values('Natty Odds', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Natty Odds', 'Playoff Odds', 'Program Stock']],
+                model_2041.sort_values('Natty Odds', ascending=False)[['USER', 'TEAM', 'OVERALL', 'Natty Odds', 'CFP Odds', 'Program Stock']],
                 hide_index=True,
                 use_container_width=True
             )
@@ -830,7 +892,7 @@ if data:
                 x='USER',
                 y='Natty Odds',
                 color='Program Stock',
-                hover_data=['TEAM', 'OVERALL', 'Playoff Odds', 'Recruit Score']
+                hover_data=['TEAM', 'OVERALL', 'CFP Odds', 'Recruit Score']
             ),
             use_container_width=True
         )
@@ -992,7 +1054,7 @@ if data:
 
     # --- TEAM ANALYSIS ---
     with tabs[3]:
-        st.header("📊 Team Analysis")
+        st.header("📊 Speed Analysis")
         target = st.selectbox("Select Team", model_2041['USER'].tolist(), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
 
@@ -1000,7 +1062,7 @@ if data:
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Natty Odds", f"{row['Natty Odds']}%")
-        m2.metric("Playoff Odds", f"{row['Playoff Odds']}%")
+        m2.metric("CFP Odds", f"{row['Playoff Odds']}%")
         m3.metric("Projected Wins", row['Projected Wins'])
         m4.metric("Power Index", row['Power Index'])
 
@@ -1121,7 +1183,7 @@ if data:
                 color="USER",
                 size="OVERALL",
                 text="TEAM",
-                hover_data=["Natty Odds", "Playoff Odds", "Collapse Risk", "Recruit Score"]
+                hover_data=["Natty Odds", "CFP Odds", "Collapse Risk", "Recruit Score"]
             ),
             use_container_width=True
         )
@@ -1134,7 +1196,7 @@ if data:
                 color="Program Stock",
                 size="Natty Odds",
                 text="USER",
-                hover_data=["TEAM", "Recruit Score", "Playoff Odds"]
+                hover_data=["TEAM", "Recruit Score", "CFP Odds"]
             ),
             use_container_width=True
         )
@@ -1148,7 +1210,7 @@ if data:
         with c1:
             st.subheader("🏆 Title Favorites")
             st.dataframe(
-                model_2041[['USER', 'TEAM', 'Power Index', 'Projected Wins', 'Playoff Odds', 'Natty Odds', 'Program Stock']]
+                model_2041[['USER', 'TEAM', 'Power Index', 'Projected Wins', 'CFP Odds', 'Natty Odds', 'Program Stock']]
                 .sort_values("Natty Odds", ascending=False),
                 hide_index=True,
                 use_container_width=True
@@ -1181,17 +1243,17 @@ if data:
                 x="USER",
                 y="Power Index",
                 color="Program Stock",
-                hover_data=["TEAM", "Projected Wins", "Playoff Odds", "Natty Odds", "Collapse Risk"]
+                hover_data=["TEAM", "Projected Wins", "CFP Odds", "Natty Odds", "Collapse Risk"]
             ),
             use_container_width=True
         )
 
-        st.subheader("Playoff Odds vs Collapse Risk")
+        st.subheader("CFP Odds vs Collapse Risk")
         st.plotly_chart(
             px.scatter(
                 model_2041,
                 x="Collapse Risk",
-                y="Playoff Odds",
+                y="CFP Odds",
                 size="Power Index",
                 color="USER",
                 text="TEAM",
@@ -1217,7 +1279,7 @@ if data:
                 "QB Tier",
                 "Power Index",
                 "Projected Wins",
-                "Playoff Odds",
+                "CFP Odds",
                 "Natty Odds",
                 "Collapse Risk",
                 "Program Stock"
@@ -1235,10 +1297,10 @@ if data:
         b1, b2, b3, b4 = st.columns(4)
         b1.metric("Power Index", p_row["Power Index"])
         b2.metric("Projected Wins", p_row["Projected Wins"])
-        b3.metric("Playoff Odds", f"{int(p_row['Playoff Odds'])}%")
+        b3.metric("CFP Odds", f"{int(p_row['CFP Odds'])}%")
         b4.metric("Natty Odds", f"{p_row['Natty Odds']}%")
 
-        st.progress(min(1.0, float(p_row["Playoff Odds"]) / 100))
+        st.progress(min(1.0, float(p_row["CFP Odds"]) / 100))
         st.caption(f"Collapse Risk: {int(p_row['Collapse Risk'])}% | Program Stock: {p_row['Program Stock']}")
 
         if p_row["Natty Odds"] >= 24:
