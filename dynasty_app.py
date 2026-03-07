@@ -629,8 +629,8 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     )
     playoff_min = playoff_raw.min()
     playoff_spread = max(1, playoff_raw.max() - playoff_min)
-    df['Playoff Odds'] = (18 + ((playoff_raw - playoff_min) / playoff_spread * 62)).round(0).astype(int)
-    df['Playoff Odds'] = df['Playoff Odds'].clip(lower=14, upper=80)
+    df['CFP Odds'] = (18 + ((playoff_raw - playoff_min) / playoff_spread * 62)).round(0).astype(int)
+    df['CFP Odds'] = df['CFP Odds'].clip(lower=14, upper=80)
 
     power_min = df['Power Index'].min()
     power_max = df['Power Index'].max()
@@ -656,7 +656,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
 def project_loss_scenarios(row):
     natty = float(pd.to_numeric(row.get('Natty Odds', 0), errors='coerce'))
-    cfp = float(pd.to_numeric(row.get('Playoff Odds', 0), errors='coerce'))
+    cfp = float(pd.to_numeric(row.get('CFP Odds', 0), errors='coerce'))
     overall = float(pd.to_numeric(row.get('OVERALL', 0), errors='coerce'))
     team_speed = float(pd.to_numeric(row.get('Team Speed (90+ Speed Guys)', 0), errors='coerce'))
     qb_tier = str(row.get('QB Tier', '')).strip()
@@ -790,7 +790,7 @@ if data:
         'Career Win %': 50.0,
         'Recruit Score': 50.0,
         'Projected Wins': 6.5,
-        'Playoff Odds': 20,
+        'CFP Odds': 20,
         'Natty Odds': 5.0,
         'Collapse Risk': 35,
         'Power Index': 200.0
@@ -838,8 +838,23 @@ if data:
 
         with wc1:
             st.subheader("War Room Board")
-            board = model_2041[['USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']].copy()
-            board = board.rename(columns={'Current CFP Ranking': 'CFP Rank', 'CFP Odds': 'CFP Odds'})
+            board_cols = ['USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']
+            for col, default in {
+                'Current CFP Ranking': np.nan,
+                'Power Index': 0.0,
+                'Natty Odds': 0.0,
+                'CFP Odds': 0,
+                'Natty if Lose to Unranked': 0.0,
+                'Natty if Lose to Ranked': 0.0,
+                'CFP if Lose to Unranked': 0,
+                'CFP if Lose to Ranked': 0,
+                'Collapse Risk': 0,
+                'Program Stock': '➖ Stable'
+            }.items():
+                if col not in model_2041.columns:
+                    model_2041[col] = default
+            board = model_2041[board_cols].copy()
+            board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})
             st.dataframe(board, hide_index=True, use_container_width=True)
 
         with wc2:
@@ -1062,7 +1077,7 @@ if data:
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Natty Odds", f"{row['Natty Odds']}%")
-        m2.metric("CFP Odds", f"{row['Playoff Odds']}%")
+        m2.metric("CFP Odds", f"{row['CFP Odds']}%")
         m3.metric("Projected Wins", row['Projected Wins'])
         m4.metric("Power Index", row['Power Index'])
 
