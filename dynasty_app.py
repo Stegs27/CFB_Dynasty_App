@@ -2242,93 +2242,162 @@ def compute_projected_seed_score(board_df):
 
 
 
+
 def render_playoff_bracket(projected_field):
-    if projected_field.empty or len(projected_field) < 12:
+    if projected_field is None or projected_field.empty or len(projected_field) < 12:
         st.info("Need 12 projected teams to render the bracket.")
         return
 
     pf = projected_field.sort_values('Projected Seed').reset_index(drop=True)
     seed_lookup = {int(r['Projected Seed']): r for _, r in pf.iterrows()}
 
-    st.markdown("""
-    <style>
-    .pf-panel {
-        background: linear-gradient(180deg,#111827 0%,#0f172a 100%);
-        border: 1px solid #334155;
-        border-radius: 18px;
-        padding: 14px;
-        box-shadow: 0 8px 24px rgba(15,23,42,0.25);
-        margin-bottom: 12px;
-    }
-    .pf-title {
-        font-size: 14px;
-        font-weight: 900;
-        color: #f8fafc;
-        margin-bottom: 10px;
-        letter-spacing: .02em;
-    }
-    .pf-vs {
-        text-align:center;
-        font-size:12px;
-        font-weight:900;
-        color:#cbd5e1;
-        letter-spacing:.10em;
-        text-transform:uppercase;
-        margin:6px 0 10px 0;
-    }
-    .pf-meta {
-        font-size:12px;
-        color:#cbd5e1;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    def seed_badge(seed, color):
+        return (
+            f"<div style='min-width:28px;height:28px;border-radius:999px;background:{color};"
+            f"display:flex;align-items:center;justify-content:center;color:white;font-size:12px;"
+            f"font-weight:900;box-shadow:0 2px 6px rgba(0,0,0,0.28);'>#{int(seed)}</div>"
+        )
 
-    def badge(team_row, compact=False):
-        team = str(team_row['Team'])
-        rank = int(team_row['Rank'])
-        record = str(team_row['Record'])
-        make_pct = format_pct(team_row.get('CFP Make %', np.nan), 1)
-        logo_path = get_logo_source(team)
+    def team_win_prob(seed_a, seed_b):
+        diff = max(-8, min(8, seed_b - seed_a))
+        prob = 50 + (diff * 4.5)
+        return max(18.0, min(82.0, prob))
+
+    def auto_bid_label(row):
+        auto_bid = float(pd.to_numeric(row.get("Auto-Bid %", 0), errors="coerce") or 0)
+        if auto_bid >= 55:
+            return "<span style='font-size:11px;font-weight:800;color:#111827;background:#fef3c7;border-radius:999px;padding:3px 8px;'>AUTO-BID TRACK</span>"
+        return ""
+
+    def team_row_html(row, win_prob=None):
+        team = str(row["Team"])
+        seed = int(row["Projected Seed"])
+        record = str(row.get("Record", "—"))
         primary = get_team_primary_color(team)
-        secondary = get_team_secondary_color(team)
-        logo_uri = image_file_to_data_uri(logo_path)
-        logo_html = f"<img src='{logo_uri}' style='width:38px;height:38px;object-fit:contain;'/>" if logo_uri else "🏈"
-        bar_pct = max(6, min(100, float(team_row.get('CFP Make %', 0))))
-        padding = '12px' if not compact else '10px'
+        logo_uri = image_file_to_data_uri(get_logo_source(team))
+        logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "🏈"
+        wp_html = ""
+        if win_prob is not None:
+            wp_html = (
+                "<div style='margin-top:8px;'>"
+                "<div style='font-size:11px;color:#9ca3af;font-weight:700;margin-bottom:4px;'>Win Probability</div>"
+                f"<div style='height:8px;background:#111827;border-radius:999px;overflow:hidden;border:1px solid #374151;'>"
+                f"<div style='width:{win_prob:.1f}%;height:100%;background:{primary};'></div>"
+                f"</div>"
+                f"<div style='font-size:11px;color:#d1d5db;font-weight:700;margin-top:4px;'>{win_prob:.1f}%</div>"
+                "</div>"
+            )
         return f"""
-        <div style='background:linear-gradient(145deg,#1f2937,#111827);border:1px solid #374151;border-radius:16px;padding:{padding};box-shadow:0 4px 12px rgba(0,0,0,0.25);'>
-            <div style='display:flex;align-items:center;gap:12px;'>
-                <div style='width:48px;height:48px;border-radius:12px;background:{primary}20;border:2px solid {primary};display:flex;align-items:center;justify-content:center;flex-shrink:0;'>{logo_html}</div>
-                <div style='flex:1;'>
-                    <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;'>
-                        <div style='font-weight:900;color:{primary};font-size:16px;'>#{int(team_row['Projected Seed'])} {html.escape(team)}</div>
-                        <div style='font-size:11px;font-weight:900;color:#e5e7eb;background:{secondary}22;border:1px solid {secondary}55;padding:3px 8px;border-radius:999px;'>CFP #{rank}</div>
+        <div style='padding:12px 14px;border-radius:16px;background:linear-gradient(180deg,#1f2937,#111827);
+                    border:1px solid #374151;box-shadow:0 6px 14px rgba(0,0,0,0.28);'>
+            <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;'>
+                <div style='display:flex;align-items:center;gap:10px;'>
+                    {seed_badge(seed, primary)}
+                    <div style='width:40px;height:40px;border-radius:12px;background:{primary}22;
+                                border:2px solid {primary};display:flex;align-items:center;justify-content:center;'>
+                        {logo_html}
                     </div>
-                    <div class='pf-meta'>{html.escape(record)} • Make {make_pct}</div>
-                    <div style='height:7px;border-radius:999px;background:{secondary}22;margin-top:8px;overflow:hidden;'><div style='width:{bar_pct}%;height:100%;background:{primary};'></div></div>
+                    <div>
+                        <div style='font-size:16px;font-weight:900;color:{primary};'>{html.escape(team)}</div>
+                        <div style='font-size:12px;color:#cbd5e1;font-weight:700;'>Record: {html.escape(record)}</div>
+                    </div>
                 </div>
+                <div style='text-align:right;'>{auto_bid_label(row)}</div>
             </div>
+            {wp_html}
         </div>
         """
 
-    left, right = st.columns(2)
+    def matchup_card(top_row, bottom_row, title):
+        p_top = team_win_prob(int(top_row["Projected Seed"]), int(bottom_row["Projected Seed"]))
+        p_bottom = round(100 - p_top, 1)
+        st.markdown(
+            f"""
+            <div style='padding:16px;border-radius:18px;background:linear-gradient(180deg,#0f172a,#111827);
+                        border:1px solid #334155;box-shadow:0 10px 24px rgba(0,0,0,0.30);margin-bottom:22px;'>
+                <div style='font-size:14px;font-weight:900;color:#e5e7eb;margin-bottom:14px;letter-spacing:.02em;'>
+                    {html.escape(title)}
+                </div>
+                {team_row_html(top_row, p_top)}
+                <div style='height:14px;'></div>
+                <div style='text-align:center;font-size:12px;font-weight:900;color:#9ca3af;letter-spacing:.08em;'>VS</div>
+                <div style='height:14px;'></div>
+                {team_row_html(bottom_row, p_bottom)}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
+    def bye_card(row):
+        team = str(row["Team"])
+        primary = get_team_primary_color(team)
+        st.markdown(
+            f"""
+            <div style='padding:16px;border-radius:18px;background:linear-gradient(180deg,{primary}22,#111827);
+                        border:1px solid {primary};box-shadow:0 10px 24px rgba(0,0,0,0.26);margin-bottom:22px;'>
+                <div style='font-size:13px;font-weight:900;color:#f8fafc;margin-bottom:12px;letter-spacing:.04em;'>
+                    FIRST-ROUND BYE
+                </div>
+                {team_row_html(row, None)}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    semis = [seed_lookup[s]["Team"] for s in [1, 2, 3, 4]]
+    st.caption("Projected semifinalists: " + " • ".join(semis))
+
+    left, right = st.columns([1.02, 1.35])
     with left:
-        st.markdown("<div class='pf-panel'><div class='pf-title'>Top 4 Byes</div>", unsafe_allow_html=True)
+        st.markdown("#### Top 4 Byes")
         for s in [1, 2, 3, 4]:
-            st.markdown(badge(seed_lookup[s]), unsafe_allow_html=True)
-            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            bye_card(seed_lookup[s])
 
     with right:
-        st.markdown("<div class='pf-panel'><div class='pf-title'>Projected First Round</div>", unsafe_allow_html=True)
+        st.markdown("#### Projected First Round")
         for a, b in [(5, 12), (6, 11), (7, 10), (8, 9)]:
-            st.markdown(badge(seed_lookup[a], compact=True), unsafe_allow_html=True)
-            st.markdown("<div class='pf-vs'>vs</div>", unsafe_allow_html=True)
-            st.markdown(badge(seed_lookup[b], compact=True), unsafe_allow_html=True)
-            if (a, b) != (8, 9):
-                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            matchup_card(seed_lookup[a], seed_lookup[b], f"#{a} vs #{b}")
+
+def render_first_four_out(board_df):
+    if board_df is None or board_df.empty:
+        st.caption("No first four out teams available.")
+        return
+    rows_html = []
+    for _, row in board_df.iterrows():
+        team = str(row.get('Team', ''))
+        primary = get_team_primary_color(team)
+        logo_uri = image_file_to_data_uri(get_logo_source(team))
+        logo_html = f"<img src='{logo_uri}' style='width:30px;height:30px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:18px;'>🏈</div>"
+        rows_html.append(f"""
+        <tr style='border-left:4px solid {primary};background:linear-gradient(90deg,{primary}12,transparent 14%);'>
+            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;'>
+                <div style='display:flex;align-items:center;gap:10px;'>
+                    <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get("Rank", 0))}</div>
+                    <div style='width:32px;text-align:center;'>{logo_html}</div>
+                    <div style='font-weight:800;color:{primary};'>{html.escape(team)}</div>
+                </div>
+            </td>
+            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{html.escape(str(row.get("Record", "—")))}</td>
+            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{format_pct(row.get("CFP Make %", np.nan), 1)}</td>
+            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{format_pct(row.get("Bye %", np.nan), 1)}</td>
+        </tr>
+        """)
+    table_html = f"""
+    <div style='overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;'>
+      <table style='width:100%;border-collapse:collapse;font-size:13px;'>
+        <thead>
+          <tr style='background:#f8fafc;color:#111827;'>
+            <th style='text-align:left;padding:10px 12px;color:#111827;font-weight:800;'>Team</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Record</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Make CFP</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Bye Odds</th>
+          </tr>
+        </thead>
+        <tbody>{''.join(rows_html)}</tbody>
+      </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
 
 def render_cfp_table(board_df):
     rows_html = []
@@ -2602,11 +2671,11 @@ if data:
         st.subheader('Projected CFP Field')
         render_cfp_table(cfp_board)
 
-        st.subheader('First Four Out')
-        st.dataframe(first_four_out[['Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
-
         st.subheader('Playoff Bracket')
         render_playoff_bracket(projected_field)
+
+        st.subheader('First Four Out')
+        render_first_four_out(first_four_out)
 
         st.subheader('CFP Chaos Simulator')
         sim_team = st.selectbox('Pick a team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
@@ -2628,20 +2697,6 @@ if data:
             st.success(f"That's a résumé steroid shot. A top-12 win would give {sim_team} a real committee argument and bye-path juice.")
         else:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
-
-        st.plotly_chart(
-            px.scatter(
-                cfp_board,
-                x='Rank',
-                y='CFP Make %',
-                size='Bye %',
-                color='Bubble Tier',
-                text='Team',
-                hover_data=['Record', 'SOS', 'Resume Score', 'QB Tier']
-            ).update_xaxes(autorange='reversed'),
-            use_container_width=True
-        )
-
     # --- RECRUITING RANKINGS ---
     with tabs[6]:
         st.header("🏈 Recruiting Rankings")
