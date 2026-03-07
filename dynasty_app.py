@@ -9,6 +9,46 @@ st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="�
 st.title("🏈 Island Dynasty: The Executive Suite")
 
 
+TEAM_VISUALS = {
+    "Florida": {"slug": "florida", "primary": "#0021A5"},
+    "Florida State": {"slug": "florida-state", "primary": "#782F40"},
+    "Texas Tech": {"slug": "texas-tech", "primary": "#CC0000"},
+    "USF": {"slug": "south-florida", "primary": "#006747"},
+    "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2"},
+    "Bowling Green": {"slug": "bowling-green", "primary": "#4F2D7F"},
+}
+
+def get_team_logo_url(team):
+    team = str(team).strip()
+    if not team or team.lower() == 'nan':
+        return ""
+    slug = TEAM_VISUALS.get(team, {}).get("slug")
+    if not slug:
+        slug = team.lower().replace("&", "and").replace(".", "").replace("'", "").replace(" ", "-")
+    return f"https://a.espncdn.com/i/teamlogos/ncaa/500/{slug}.png"
+
+def get_team_primary_color(team):
+    team = str(team).strip()
+    return TEAM_VISUALS.get(team, {}).get("primary", "#1f77b4")
+
+def build_user_color_map(model_df):
+    if model_df is None or model_df.empty:
+        return {}
+    return {str(r["USER"]).strip().title(): get_team_primary_color(r["TEAM"]) for _, r in model_df[["USER", "TEAM"]].drop_duplicates().iterrows()}
+
+def build_team_color_map(model_df):
+    if model_df is None or model_df.empty:
+        return {}
+    return {str(r["TEAM"]).strip(): get_team_primary_color(r["TEAM"]) for _, r in model_df[["TEAM"]].drop_duplicates().iterrows()}
+
+def ensure_columns(df, defaults):
+    for col, default in defaults.items():
+        if col not in df.columns:
+            df[col] = default
+    return df
+
+
+
 def smart_col(df, target_names):
     for target in target_names:
         for col in df.columns:
@@ -784,6 +824,9 @@ if data:
     champs = data['champs']
 
     model_2041 = build_2041_model_table(r_2041, stats, rec)
+    model_2041['Logo'] = model_2041['TEAM'].apply(get_team_logo_url)
+    user_color_map = build_user_color_map(model_2041)
+    team_color_map = build_team_color_map(model_2041)
     # Defensive fill so UI sections never fail if a derived column is absent.
     for col, default in {
         'Program Stock': '➖ Stable',
@@ -838,8 +881,8 @@ if data:
 
         with wc1:
             st.subheader("War Room Board")
-            board_cols = ['USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']
-            for col, default in {
+            board_defaults = {
+                'Logo': '',
                 'Current CFP Ranking': np.nan,
                 'Power Index': 0.0,
                 'Natty Odds': 0.0,
@@ -850,12 +893,17 @@ if data:
                 'CFP if Lose to Ranked': 0,
                 'Collapse Risk': 0,
                 'Program Stock': '➖ Stable'
-            }.items():
-                if col not in model_2041.columns:
-                    model_2041[col] = default
+            }
+            model_2041 = ensure_columns(model_2041, board_defaults)
+            board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']
             board = model_2041[board_cols].copy()
             board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})
-            st.dataframe(board, hide_index=True, use_container_width=True)
+            st.dataframe(
+                board,
+                hide_index=True,
+                use_container_width=True,
+                column_config={'Logo': st.column_config.ImageColumn('Logo', help='University logo', width='small')}
+            )
 
         with wc2:
             st.subheader("Headlines")
@@ -875,6 +923,10 @@ if data:
             if not qb_disaster_board.empty:
                 qb_disaster = qb_disaster_board.iloc[0]
                 st.write(f"💀 **QB disaster watch:** {qb_disaster['USER']} is rolling out an **Ass** QB situation. That's the kind of setup that can take a good roster and make it play like it forgot where the fuck the sticks are.")
+
+            doug_florida = model_2041[(model_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (model_2041['TEAM'].astype(str).str.strip() == 'Florida')]
+            if not doug_florida.empty and str(doug_florida.iloc[0].get('QB Tier', '')).strip() == 'Ass':
+                st.write("☠️ **Doug/Florida QB update:** Florida's QB room is still ass. The Gators have enough brand power to scare people in the tunnel, then that quarterback strolls out and turns the whole damn thing into a liability test.")
 
             if not rivalry_df.empty:
                 top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
@@ -1196,6 +1248,7 @@ if data:
                 x="Off Speed (90+ speed)",
                 y="Def Speed (90+ speed)",
                 color="USER",
+                color_discrete_map=user_color_map,
                 size="OVERALL",
                 text="TEAM",
                 hover_data=["Natty Odds", "CFP Odds", "Collapse Risk", "Recruit Score"]
@@ -1271,6 +1324,7 @@ if data:
                 y="CFP Odds",
                 size="Power Index",
                 color="USER",
+                color_discrete_map=user_color_map,
                 text="TEAM",
                 hover_data=["Projected Wins", "Natty Odds", "Recruit Score", "Career Win %", "Program Stock"]
             ),
@@ -1349,6 +1403,7 @@ if data:
                 x='USER',
                 y='Momentum Score',
                 color='USER',
+                color_discrete_map=user_color_map,
                 hover_data=['Recent Avg Rank']
             ),
             use_container_width=True
