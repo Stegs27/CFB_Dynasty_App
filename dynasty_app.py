@@ -1755,15 +1755,17 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
 
     rankings_df = get_cfp_rankings_snapshot()
     rank_map = dict(rankings_df[['Team', 'Rank']].values)
-    cards = []
+
     for _, g in games_df.iterrows():
         team = str(g['Team']).strip()
         opp = str(g['Opponent']).strip()
         team_user = str(g.get('User', '')).strip()
         opp_user = str(g.get('Opponent User', '')).strip() or 'CPU'
         game_type = str(g.get('Game Type', 'Game'))
+
         team_primary = get_team_primary_color(team)
         opp_primary = get_team_primary_color(opp) if opp != 'BYE' else '#6b7280'
+
         team_logo = image_file_to_data_uri(get_logo_source(team))
         opp_logo = image_file_to_data_uri(get_logo_source(opp)) if opp != 'BYE' else ''
         team_logo_html = f"<img src='{team_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if team_logo else "🏈"
@@ -1787,58 +1789,57 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
             series_text = f"{team_user or team} is on a bye this week. No game, no opponent, just a chance to heal up and talk a little shit from the couch."
         elif game_type == 'Completed Game':
             series_text = result_text or 'Week 12 final shown on the uploaded schedule screenshot.'
-        game_chip = 'BYE WEEK' if game_type == 'BYE' else ('FINAL' if game_type == 'Completed Game' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU'))
 
-        right_meta = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
+        game_chip = 'BYE WEEK' if game_type == 'BYE' else ('FINAL' if game_type == 'Completed Game' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU'))
+        right_meta_html = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
         series_html = f"<div style='margin-top:10px;font-size:12px;color:#4b5563;font-weight:700;'>{html.escape(series_text)}</div>" if series_text else ''
 
         if opp == 'BYE':
-            right_block = f"""
-            <div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>
-              <div>
-                <div style='font-size:13px;color:#6b7280;text-align:right;'>Open date</div>
-                <div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>BYE</div>
-                <div style='font-size:12px;color:#6b7280;text-align:right;'>Record: —</div>
-              </div>
-              <div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>
-            </div>
-            """
+            right_block_html = (
+                "<div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>"
+                "<div>"
+                "<div style='font-size:13px;color:#6b7280;text-align:right;'>Open date</div>"
+                f"<div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>BYE</div>"
+                "<div style='font-size:12px;color:#6b7280;text-align:right;'>Record: —</div>"
+                "</div>"
+                f"<div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
+                "</div>"
+            )
         else:
-            right_block = f"""
-            <div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>
-              <div>
-                <div style='font-size:13px;color:#6b7280;text-align:right;'>{html.escape(opp_user)}</div>
-                <div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>{html.escape(opp_label)}</div>
-                <div style='font-size:12px;color:#6b7280;text-align:right;'>Record: {html.escape(opp_record)}</div>
-              </div>
-              <div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>
-            </div>
-            """
+            right_block_html = (
+                "<div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>"
+                "<div>"
+                f"<div style='font-size:13px;color:#6b7280;text-align:right;'>{html.escape(opp_user)}</div>"
+                f"<div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>{html.escape(opp_label)}</div>"
+                f"<div style='font-size:12px;color:#6b7280;text-align:right;'>Record: {html.escape(opp_record)}</div>"
+                "</div>"
+                f"<div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
+                "</div>"
+            )
 
         center_vs = 'vs' if opp != 'BYE' else ''
-        card_html = f"""
-        <div style='border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;'>
-          <div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;'>
-            <div style='font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;'>{html.escape(game_chip)}</div>
-            {right_meta}
-          </div>
-          <div style='display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;'>
-            <div style='display:flex;align-items:center;gap:10px;min-width:230px;'>
-              <div style='width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};'>{team_logo_html}</div>
-              <div>
-                <div style='font-size:13px;color:#6b7280;'>{html.escape(team_user)}</div>
-                <div style='font-size:18px;font-weight:800;color:{team_primary};'>{html.escape(team_label)}</div>
-                <div style='font-size:12px;color:#6b7280;'>Record: {html.escape(team_record)}</div>
-              </div>
-            </div>
-            <div style='font-size:18px;font-weight:900;color:#111827;'>{center_vs}</div>
-            {right_block}
-          </div>
-          {series_html}
-        </div>
-        """
-        cards.append(card_html)
-    st.markdown("".join(cards), unsafe_allow_html=True)
+        card_html = (
+            f"<div style='border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;'>"
+            f"<div style='font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;'>{html.escape(game_chip)}</div>"
+            f"{right_meta_html}"
+            f"</div>"
+            f"<div style='display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;'>"
+            f"<div style='display:flex;align-items:center;gap:10px;min-width:230px;'>"
+            f"<div style='width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};'>{team_logo_html}</div>"
+            f"<div>"
+            f"<div style='font-size:13px;color:#6b7280;'>{html.escape(team_user)}</div>"
+            f"<div style='font-size:18px;font-weight:800;color:{team_primary};'>{html.escape(team_label)}</div>"
+            f"<div style='font-size:12px;color:#6b7280;'>Record: {html.escape(team_record)}</div>"
+            f"</div>"
+            f"</div>"
+            f"<div style='font-size:18px;font-weight:900;color:#111827;'>{center_vs}</div>"
+            f"{right_block_html}"
+            f"</div>"
+            f"{series_html}"
+            f"</div>"
+        )
+        st.markdown(card_html, unsafe_allow_html=True)
 
 
 def get_current_recruiting_snapshot():
