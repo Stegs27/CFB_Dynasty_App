@@ -2248,156 +2248,129 @@ def render_playoff_bracket(projected_field):
         st.info("Need 12 projected teams to render the bracket.")
         return
 
-    pf = projected_field.sort_values('Projected Seed').reset_index(drop=True)
-    seed_lookup = {int(r['Projected Seed']): r for _, r in pf.iterrows()}
+    pf = projected_field.copy()
+    pf['Projected Seed'] = pd.to_numeric(pf['Projected Seed'], errors='coerce')
+    pf = pf.dropna(subset=['Projected Seed']).sort_values('Projected Seed').reset_index(drop=True)
 
-    def seed_badge(seed, color):
-        return (
-            f"<div style='min-width:28px;height:28px;border-radius:999px;background:{color};"
-            f"display:flex;align-items:center;justify-content:center;color:white;font-size:12px;"
-            f"font-weight:900;box-shadow:0 2px 6px rgba(0,0,0,0.28);'>#{int(seed)}</div>"
-        )
+    def get_logo_path(team):
+        path = get_logo_source(team)
+        if isinstance(path, str) and path and Path(path).exists():
+            return path
+        return None
 
-    def team_win_prob(seed_a, seed_b):
+    def team_card(row, win_prob=None, bye=False):
+        team = str(row.get('Team', 'Unknown Team'))
+        seed = int(pd.to_numeric(row.get('Projected Seed', 0), errors='coerce') or 0)
+        record = str(row.get('Record', '—'))
+        primary = get_team_primary_color(team)
+        auto_bid = float(pd.to_numeric(row.get('Auto-Bid %', 0), errors='coerce') or 0)
+        logo_path = get_logo_path(team)
+
+        with st.container(border=True):
+            head_left, head_right = st.columns([4, 1])
+            with head_left:
+                info_cols = st.columns([0.8, 1.2, 6])
+                with info_cols[0]:
+                    st.markdown(
+                        f"""
+                        <div style='display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;background:{primary};color:white;font-weight:900;font-size:12px;'>#{seed}</div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                with info_cols[1]:
+                    if logo_path:
+                        st.image(logo_path, width=36)
+                    else:
+                        st.markdown("### 🏈")
+                with info_cols[2]:
+                    st.markdown(
+                        f"<div style='font-size:18px;font-weight:900;color:{primary};line-height:1.15;'>{html.escape(team)}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(f"Record: {record}")
+            with head_right:
+                if bye:
+                    st.markdown(
+                        "<div style='margin-top:6px;display:inline-block;padding:4px 8px;border-radius:999px;background:#dcfce7;color:#14532d;font-size:11px;font-weight:800;'>BYE</div>",
+                        unsafe_allow_html=True,
+                    )
+                elif auto_bid >= 55:
+                    st.markdown(
+                        "<div style='margin-top:6px;display:inline-block;padding:4px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;'>AUTO-BID TRACK</div>",
+                        unsafe_allow_html=True,
+                    )
+            if win_prob is not None:
+                st.progress(float(win_prob) / 100.0)
+                st.caption(f"Win probability: {win_prob:.1f}%")
+
+    def matchup(seed_a, seed_b):
+        row_a = pf[pf['Projected Seed'] == seed_a].iloc[0]
+        row_b = pf[pf['Projected Seed'] == seed_b].iloc[0]
         diff = max(-8, min(8, seed_b - seed_a))
-        prob = 50 + (diff * 4.5)
-        return max(18.0, min(82.0, prob))
+        p_a = max(18.0, min(82.0, 50 + (diff * 4.5)))
+        p_b = round(100 - p_a, 1)
+        with st.container(border=True):
+            st.markdown(f"#### #{seed_a} vs #{seed_b}")
+            team_card(row_a, p_a)
+            st.markdown("<div style='text-align:center;font-size:12px;font-weight:900;color:#94a3b8;margin:8px 0;'>VS</div>", unsafe_allow_html=True)
+            team_card(row_b, p_b)
 
-    def auto_bid_label(row):
-        auto_bid = float(pd.to_numeric(row.get("Auto-Bid %", 0), errors="coerce") or 0)
-        if auto_bid >= 55:
-            return "<span style='font-size:11px;font-weight:800;color:#111827;background:#fef3c7;border-radius:999px;padding:3px 8px;'>AUTO-BID TRACK</span>"
-        return ""
-
-    def team_row_html(row, win_prob=None):
-        team = str(row["Team"])
-        seed = int(row["Projected Seed"])
-        record = str(row.get("Record", "—"))
-        primary = get_team_primary_color(team)
-        logo_uri = image_file_to_data_uri(get_logo_source(team))
-        logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "🏈"
-        wp_html = ""
-        if win_prob is not None:
-            wp_html = (
-                "<div style='margin-top:8px;'>"
-                "<div style='font-size:11px;color:#9ca3af;font-weight:700;margin-bottom:4px;'>Win Probability</div>"
-                f"<div style='height:8px;background:#111827;border-radius:999px;overflow:hidden;border:1px solid #374151;'>"
-                f"<div style='width:{win_prob:.1f}%;height:100%;background:{primary};'></div>"
-                f"</div>"
-                f"<div style='font-size:11px;color:#d1d5db;font-weight:700;margin-top:4px;'>{win_prob:.1f}%</div>"
-                "</div>"
-            )
-        return f"""
-        <div style='padding:12px 14px;border-radius:16px;background:linear-gradient(180deg,#1f2937,#111827);
-                    border:1px solid #374151;box-shadow:0 6px 14px rgba(0,0,0,0.28);'>
-            <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;'>
-                <div style='display:flex;align-items:center;gap:10px;'>
-                    {seed_badge(seed, primary)}
-                    <div style='width:40px;height:40px;border-radius:12px;background:{primary}22;
-                                border:2px solid {primary};display:flex;align-items:center;justify-content:center;'>
-                        {logo_html}
-                    </div>
-                    <div>
-                        <div style='font-size:16px;font-weight:900;color:{primary};'>{html.escape(team)}</div>
-                        <div style='font-size:12px;color:#cbd5e1;font-weight:700;'>Record: {html.escape(record)}</div>
-                    </div>
-                </div>
-                <div style='text-align:right;'>{auto_bid_label(row)}</div>
-            </div>
-            {wp_html}
-        </div>
-        """
-
-    def matchup_card(top_row, bottom_row, title):
-        p_top = team_win_prob(int(top_row["Projected Seed"]), int(bottom_row["Projected Seed"]))
-        p_bottom = round(100 - p_top, 1)
-        st.markdown(
-            f"""
-            <div style='padding:16px;border-radius:18px;background:linear-gradient(180deg,#0f172a,#111827);
-                        border:1px solid #334155;box-shadow:0 10px 24px rgba(0,0,0,0.30);margin-bottom:22px;'>
-                <div style='font-size:14px;font-weight:900;color:#e5e7eb;margin-bottom:14px;letter-spacing:.02em;'>
-                    {html.escape(title)}
-                </div>
-                {team_row_html(top_row, p_top)}
-                <div style='height:14px;'></div>
-                <div style='text-align:center;font-size:12px;font-weight:900;color:#9ca3af;letter-spacing:.08em;'>VS</div>
-                <div style='height:14px;'></div>
-                {team_row_html(bottom_row, p_bottom)}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    def bye_card(row):
-        team = str(row["Team"])
-        primary = get_team_primary_color(team)
-        st.markdown(
-            f"""
-            <div style='padding:16px;border-radius:18px;background:linear-gradient(180deg,{primary}22,#111827);
-                        border:1px solid {primary};box-shadow:0 10px 24px rgba(0,0,0,0.26);margin-bottom:22px;'>
-                <div style='font-size:13px;font-weight:900;color:#f8fafc;margin-bottom:12px;letter-spacing:.04em;'>
-                    FIRST-ROUND BYE
-                </div>
-                {team_row_html(row, None)}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    semis = [seed_lookup[s]["Team"] for s in [1, 2, 3, 4]]
+    semis = [str(pf[pf['Projected Seed'] == s].iloc[0]['Team']) for s in [1, 2, 3, 4]]
     st.caption("Projected semifinalists: " + " • ".join(semis))
 
-    left, right = st.columns([1.02, 1.35])
+    left, right = st.columns([1.0, 1.35])
     with left:
         st.markdown("#### Top 4 Byes")
-        for s in [1, 2, 3, 4]:
-            bye_card(seed_lookup[s])
-
+        for seed in [1, 2, 3, 4]:
+            team_card(pf[pf['Projected Seed'] == seed].iloc[0], bye=True)
+            st.markdown("")
     with right:
         st.markdown("#### Projected First Round")
         for a, b in [(5, 12), (6, 11), (7, 10), (8, 9)]:
-            matchup_card(seed_lookup[a], seed_lookup[b], f"#{a} vs #{b}")
+            matchup(a, b)
+            st.markdown("")
+
 
 def render_first_four_out(board_df):
     if board_df is None or board_df.empty:
         st.caption("No first four out teams available.")
         return
-    rows_html = []
+
+    def get_logo_path(team):
+        path = get_logo_source(team)
+        if isinstance(path, str) and path and Path(path).exists():
+            return path
+        return None
+
     for _, row in board_df.iterrows():
         team = str(row.get('Team', ''))
         primary = get_team_primary_color(team)
-        logo_uri = image_file_to_data_uri(get_logo_source(team))
-        logo_html = f"<img src='{logo_uri}' style='width:30px;height:30px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:18px;'>🏈</div>"
-        rows_html.append(f"""
-        <tr style='border-left:4px solid {primary};background:linear-gradient(90deg,{primary}12,transparent 14%);'>
-            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;'>
-                <div style='display:flex;align-items:center;gap:10px;'>
-                    <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get("Rank", 0))}</div>
-                    <div style='width:32px;text-align:center;'>{logo_html}</div>
-                    <div style='font-weight:800;color:{primary};'>{html.escape(team)}</div>
-                </div>
-            </td>
-            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{html.escape(str(row.get("Record", "—")))}</td>
-            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{format_pct(row.get("CFP Make %", np.nan), 1)}</td>
-            <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{format_pct(row.get("Bye %", np.nan), 1)}</td>
-        </tr>
-        """)
-    table_html = f"""
-    <div style='overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;'>
-      <table style='width:100%;border-collapse:collapse;font-size:13px;'>
-        <thead>
-          <tr style='background:#f8fafc;color:#111827;'>
-            <th style='text-align:left;padding:10px 12px;color:#111827;font-weight:800;'>Team</th>
-            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Record</th>
-            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Make CFP</th>
-            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Bye Odds</th>
-          </tr>
-        </thead>
-        <tbody>{''.join(rows_html)}</tbody>
-      </table>
-    </div>
-    """
-    st.markdown(table_html, unsafe_allow_html=True)
+        record = str(row.get('Record', '—'))
+        make_pct = format_pct(row.get('CFP Make %', np.nan), 1)
+        bye_pct = format_pct(row.get('Bye %', np.nan), 1)
+        rank_raw = pd.to_numeric(row.get('Rank', np.nan), errors='coerce')
+        rank_disp = f"#{int(rank_raw)}" if pd.notna(rank_raw) else '—'
+        logo_path = get_logo_path(team)
+
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([5, 1.3, 1.5, 1.2])
+            with c1:
+                inner = st.columns([0.9, 1.2, 6])
+                with inner[0]:
+                    st.markdown(f"**{rank_disp}**")
+                with inner[1]:
+                    if logo_path:
+                        st.image(logo_path, width=30)
+                    else:
+                        st.markdown("🏈")
+                with inner[2]:
+                    st.markdown(
+                        f"<div style='font-size:16px;font-weight:900;color:{primary};'>{html.escape(team)}</div>",
+                        unsafe_allow_html=True,
+                    )
+            c2.markdown(f"**{record}**")
+            c3.markdown(f"**{make_pct}**")
+            c4.markdown(f"**{bye_pct}**")
 
 def render_cfp_table(board_df):
     rows_html = []
