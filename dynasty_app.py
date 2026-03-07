@@ -38,12 +38,6 @@ TEAM_VISUALS = {
     "South Florida": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
     "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2", "secondary": "#E5A823"},
     "Bowling Green": {"slug": "bowling-green", "primary": "#FE5000", "secondary": "#4F2C1D"},
-    "Hammond": {"slug": "hammond", "primary": "#2E8B57", "secondary": "#0B3D0B"},
-    "Rapid City": {"slug": "rapid-city", "primary": "#14B8A6", "secondary": "#FF4FA3"},
-    "Gate City": {"slug": "gate-city", "primary": "#FACC15", "secondary": "#111111"},
-    "Panama City": {"slug": "panama-city", "primary": "#F97316", "secondary": "#111111"},
-    "Alabaster": {"slug": "alabaster", "primary": "#DC2626", "secondary": "#FACC15"},
-    "Death Valley": {"slug": "death-valley", "primary": "#7C3AED", "secondary": "#111111"},
     "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
     "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
     "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
@@ -76,12 +70,6 @@ TEAM_ALIASES = {
     "South Florida": ["usf", "south florida", "south florida bulls"],
     "San Jose State": ["san jose state", "san jose state spartans", "sjsu"],
     "Bowling Green": ["bowling green", "bowling green falcons"],
-    "Hammond": ["hammond", "hammond carnivores"],
-    "Rapid City": ["rapid city"],
-    "Gate City": ["gate city"],
-    "Panama City": ["panama city"],
-    "Alabaster": ["alabaster"],
-    "Death Valley": ["death valley"],
 }
 
 def normalize_key(value):
@@ -665,6 +653,57 @@ def generate_mvp_backstory(row):
 
 
 
+def generate_coach_profile(row, stats_row):
+    user = str(row.get('USER', 'Unknown Coach')).strip()
+    team = str(row.get('TEAM', 'Unknown Team')).strip()
+    natties = int(pd.to_numeric(stats_row.get('Natties', 0), errors='coerce') or 0)
+    natty_apps = int(pd.to_numeric(stats_row.get('Natty Apps', 0), errors='coerce') or 0)
+    cfp_wins = int(pd.to_numeric(stats_row.get('CFP Wins', 0), errors='coerce') or 0)
+    conf_titles = int(pd.to_numeric(stats_row.get('Conf Titles', 0), errors='coerce') or 0)
+    drafted = int(pd.to_numeric(stats_row.get('Drafted', 0), errors='coerce') or 0)
+    win_pct = float(pd.to_numeric(stats_row.get('Career Win %', 50.0), errors='coerce') or 50.0)
+    recruit_score = float(pd.to_numeric(row.get('Recruit Score', 50.0), errors='coerce') or 50.0)
+    bcr = float(pd.to_numeric(row.get('BCR_Val', 0), errors='coerce') or 0.0)
+    speed = float(pd.to_numeric(row.get('Team Speed Score', 0), errors='coerce') or 0.0)
+    qbt = str(row.get('QB Tier', 'Unknown')).strip()
+
+    if natties >= 3:
+        archetype = 'Empire builder'
+    elif natties >= 1 or natty_apps >= 2:
+        archetype = 'Big-game shark'
+    elif win_pct >= 70:
+        archetype = 'Program surgeon'
+    elif recruit_score >= 78 and bcr >= 45:
+        archetype = 'Roster architect'
+    elif speed >= 65:
+        archetype = 'Chaos mechanic'
+    else:
+        archetype = 'Grinder with a whistle'
+
+    tone_lines = [
+        f"{user} runs {team} like every Saturday is a boardroom coup. The vibe is {archetype.lower()}, and the résumé already has {natties} natties, {natty_apps} title appearances, and {cfp_wins} CFP wins hanging off it.",
+        f"{user}'s coaching profile screams {archetype.lower()}. The man has stacked {conf_titles} conference titles, pushed {drafted} players into the league, and built a roster with a {bcr:.1f}% blue-chip ratio.",
+        f"This is {user} in full character: {archetype.lower()}, a {win_pct:.1f}% career winner, and absolutely willing to win ugly if that's what the room calls for."
+    ]
+
+    if qbt == 'Elite':
+        qb_line = 'The elite QB gives him the luxury of calling games like a rich asshole with options.'
+    elif qbt == 'Leader':
+        qb_line = 'The leader-level QB keeps the operation on schedule and cuts down the dumb shit.'
+    elif qbt == 'Average Joe':
+        qb_line = 'The quarterback room is usable, but some Saturdays still feel like the coach is doing extra labor.'
+    elif qbt == 'Ass':
+        qb_line = 'The quarterback situation is ass, which means some of this profile is being held together with spit, rage, and halftime adjustments.'
+    else:
+        qb_line = 'Quarterback uncertainty means the coach still has to keep one hand on the fire extinguisher.'
+
+    build_line = 'The recruiting profile says this program is loading talent the right way.' if recruit_score >= 78 and bcr >= 45 else 'The recruiting pipeline is still uneven, so the coach has to manufacture edges instead of just buying them with talent.'
+    speed_line = 'And the speed profile is nasty enough to let his mistakes survive contact.' if speed >= 65 else 'The speed profile is decent, but not enough to bail out every bad Saturday.'
+
+    idx = int(hashlib.md5(f"coach|{user}|{team}".encode()).hexdigest(), 16) % len(tone_lines)
+    return f"{tone_lines[idx]} {qb_line} {build_line} {speed_line}"
+
+
 def team_speed_to_mph(team_speed_score):
     team_speed_score = float(max(0, team_speed_score))
     # 40 points is the posted 65 MPH speed limit. Above that, the program is officially speeding.
@@ -1066,70 +1105,6 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     df['Recruit Score'] = df.apply(lambda x: get_recent_recruiting_score(rec_df, x['USER'], x['TEAM']), axis=1)
     df['QB Tier'] = df.apply(qb_label, axis=1)
 
-    # --- CFP screenshot intelligence: conference race + remaining schedule pressure ---
-    conf_snap = get_conference_snapshot().copy()
-    sched_snap = get_remaining_schedule_snapshot().copy()
-    rank_snap = get_cfp_rankings_snapshot()[['Team', 'Rank']].rename(columns={'Rank': 'Screenshot CFP Rank'})
-    df['_team_key'] = df['TEAM'].apply(_normalize_team_match_key)
-    conf_snap['_team_key'] = conf_snap['Team'].apply(_normalize_team_match_key)
-    sched_snap['_team_key'] = sched_snap['Team'].apply(_normalize_team_match_key)
-    rank_snap['_team_key'] = rank_snap['Team'].apply(_normalize_team_match_key)
-    df = df.merge(conf_snap.drop(columns=['Team']), on='_team_key', how='left')
-    df = df.merge(sched_snap.drop(columns=['Team']), on='_team_key', how='left')
-    df = df.merge(rank_snap.drop(columns=['Team']), on='_team_key', how='left')
-    df['Conference'] = df['Conference'].fillna('Unknown')
-    df['Conf Rank'] = pd.to_numeric(df['Conf Rank'], errors='coerce').fillna(99)
-    df['Conference Title Odds'] = pd.to_numeric(df['Conference Title Odds'], errors='coerce').fillna(0.0)
-    df['Auto-Bid Leverage'] = pd.to_numeric(df['Auto-Bid Leverage'], errors='coerce').fillna(0.0)
-    df['Ranked Remaining'] = pd.to_numeric(df['Ranked Remaining'], errors='coerce').fillna(0)
-    df['Top12 Remaining'] = pd.to_numeric(df['Top12 Remaining'], errors='coerce').fillna(0)
-    df['Remaining Difficulty'] = pd.to_numeric(df['Remaining Difficulty'], errors='coerce').fillna(50.0)
-    df['Remaining Games Count'] = pd.to_numeric(df['Remaining Games Count'], errors='coerce').fillna(0)
-    df['Next Test'] = df['Next Test'].fillna('TBD')
-    if 'Current CFP Ranking' in df.columns:
-        df['Current CFP Ranking'] = pd.to_numeric(df['Current CFP Ranking'], errors='coerce')
-        df['Current CFP Ranking'] = df['Current CFP Ranking'].fillna(df['Screenshot CFP Rank'])
-    else:
-        df['Current CFP Ranking'] = df['Screenshot CFP Rank']
-
-    # --- current recruiting board from screenshots ---
-    recruit_snap = get_current_recruiting_snapshot().copy()
-    recruit_snap['_team_key'] = recruit_snap['Team'].apply(_normalize_team_match_key)
-    df = df.merge(recruit_snap.drop(columns=['Team', 'Logo']), on='_team_key', how='left', suffixes=('', '_currentrecruit'))
-    for col, default in {
-        'Rank': 999,
-        'Total': 0,
-        '5-Star': 0,
-        '4-Star': 0,
-        '3-Star': 0,
-        '2-Star': 0,
-        '1-Star': 0,
-        'Points': 0.0,
-        'Blue Chip Ratio': 0.0,
-        'Recruit Heat Index': 0.0,
-        'Recruit Rank Score': 0.0,
-        'Recruiting Score': 0.0,
-        'Class Tier': 'Rebuild',
-    }.items():
-        if col not in df.columns:
-            df[col] = default
-        df[col] = df[col].fillna(default)
-    df = df.rename(columns={
-        'Rank': 'Current Recruit Rank',
-        'Points': 'Current Recruit Points',
-        'Blue Chip Ratio': 'Current Recruit BCR',
-        'Recruit Heat Index': 'Recruit Heat Index',
-        'Recruit Rank Score': 'Current Recruit Rank Score',
-        'Recruiting Score': 'Current Recruiting Score',
-        'Class Tier': 'Current Class Tier',
-        'Total': 'Current Recruit Total',
-        '5-Star': 'Current 5-Star',
-        '4-Star': 'Current 4-Star',
-        '3-Star': 'Current 3-Star',
-        '2-Star': 'Current 2-Star',
-        '1-Star': 'Current 1-Star',
-    })
-
     # --- schedule strength / resume inputs from latest TeamRatingsHistory ---
     for col in ['Combined Opponent Wins', 'Combined Opponent Losses', 'Current Record Wins', 'Current Record Losses']:
         if col not in df.columns:
@@ -1204,10 +1179,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.65
             + row['Generational (96+ speed or 96+ Acceleration)'] * 7.2
             + row['BCR_Val'] * 0.52
-            + row['Recruit Score'] * 0.28
-            + row['Current Recruiting Score'] * 0.20
-            + row['Current Recruit BCR'] * 0.08
-            + max(0, 40 - row['Current Recruit Rank']) * 0.30
+            + row['Recruit Score'] * 0.58
             + row['Career Win %'] * 0.26
             + row['Current Win %'] * 0.45
             + row['SOS'] * 0.40
@@ -1261,14 +1233,11 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.6
             + row['Generational (96+ speed or 96+ Acceleration)'] * 5.2
             + row['BCR_Val'] * 0.56
-            + row['Recruit Score'] * 0.44
-            + row['Current Recruiting Score'] * 0.40
-            + row['Current Recruit BCR'] * 0.10
+            + row['Recruit Score'] * 0.50
             + row['Improvement'] * 4.0
             + row['Career Win %'] * 0.60
             + row['Current Win %'] * 0.50
             + row['SOS'] * 0.38
-            + row['Conference Title Odds'] * 0.20
             + cfp_rank_bonus(row.get('Current CFP Ranking', np.nan)) * 0.86
             + qb_cfp_bonus(row) * 0.95
             + row['Natties'] * 10.5
@@ -1312,9 +1281,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Def Speed (90+ speed)'] * 0.75
         + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.25
         + df['Generational (96+ speed or 96+ Acceleration)'] * 3.1
-        + df['Recruit Score'] * 0.20
-        + df['Current Recruiting Score'] * 0.28
-        + df['Current Recruit BCR'] * 0.08
+        + df['Recruit Score'] * 0.46
         + df['Career Win %'] * 0.18
         + df['Current Win %'] * 0.70
         + df['SOS'] * 0.58
@@ -1327,7 +1294,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     cfp_min = cfp_raw.min()
     cfp_spread = max(1, cfp_raw.max() - cfp_min)
     df['CFP Odds'] = (16 + ((cfp_raw - cfp_min) / cfp_spread * 66)).round(0).astype(int)
-    df['CFP Odds'] = df['CFP Odds'].clip(lower=8, upper=92)
+    df['CFP Odds'] = df['CFP Odds'].clip(lower=12, upper=82)
 
     power_min = df['Power Index'].min()
     power_max = df['Power Index'].max()
@@ -1340,7 +1307,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         - (df['OVERALL'] - 80) * 2.0
         - df['Improvement'] * 4.5
         - df['BCR_Val'] * 0.35
-        - df['Recruit Score'] * 0.20
+        - df['Recruit Score'] * 0.12
         - df['Generational (96+ speed or 96+ Acceleration)'] * 3.0
         - df['SOS'] * 0.18
         - df['Current Win %'] * 0.10
@@ -1464,351 +1431,37 @@ def tier_from_dynasty_score(score):
 
 
 
-CURRENT_RECRUITING_SCREENSHOT = [
-    (1, "Nebraska", 18, 3, 15, 0, 0, 0, 239.05),
-    (2, "Georgia", 16, 2, 14, 0, 0, 0, 226.55),
-    (3, "USC", 13, 3, 9, 1, 0, 0, 211.40),
-    (4, "Miami", 15, 0, 11, 4, 0, 0, 203.95),
-    (5, "Bowling Green", 11, 4, 6, 1, 0, 0, 197.90),
-    (6, "Ohio State", 12, 0, 12, 0, 0, 0, 190.40),
-    (7, "Penn State", 12, 0, 9, 3, 0, 0, 182.30),
-    (8, "Baylor", 12, 0, 6, 6, 0, 0, 171.25),
-    (9, "Florida State", 10, 0, 10, 0, 0, 0, 170.20),
-    (10, "Alabama", 9, 1, 8, 0, 0, 0, 163.00),
-    (11, "Texas Tech", 8, 3, 5, 0, 0, 0, 159.45),
-    (12, "Washington", 11, 0, 4, 7, 0, 0, 155.35),
-    (13, "UCLA", 12, 0, 2, 10, 0, 0, 152.75),
-    (14, "San Jose State", 9, 0, 6, 3, 0, 0, 146.95),
-    (15, "Rapid City", 8, 0, 8, 0, 0, 0, 144.60),
-    (16, "LSU", 8, 0, 6, 2, 0, 0, 136.90),
-    (17, "Wake Forest", 12, 0, 0, 9, 3, 0, 134.70),
-    (18, "Iowa", 10, 0, 2, 7, 1, 0, 134.55),
-    (19, "TCU", 7, 0, 7, 0, 0, 0, 129.80),
-    (20, "Hammond", 7, 0, 7, 0, 0, 0, 129.80),
-    (21, "Auburn", 8, 1, 2, 5, 0, 0, 128.30),
-    (22, "Ole Miss", 7, 1, 4, 2, 0, 0, 126.50),
-    (23, "Clemson", 7, 0, 6, 1, 0, 0, 125.80),
-    (24, "Troy", 15, 0, 0, 3, 12, 0, 120.65),
-    (25, "Colorado", 10, 0, 0, 7, 3, 0, 117.55),
-    (26, "Kansas State", 9, 0, 0, 8, 1, 0, 115.15),
-    (27, "Oklahoma", 6, 0, 6, 0, 0, 0, 113.80),
-    (28, "Indiana", 9, 0, 0, 7, 2, 0, 111.45),
-    (29, "Fresno State", 15, 0, 0, 1, 14, 0, 110.80),
-    (30, "Florida International", 11, 0, 0, 4, 7, 0, 110.10),
-    (31, "Tulane", 8, 0, 1, 6, 1, 0, 109.75),
-    (32, "Arizona State", 6, 0, 5, 1, 0, 0, 109.50),
-    (33, "UCF", 13, 0, 0, 2, 11, 0, 109.25),
-    (34, "USF", 5, 2, 3, 0, 0, 0, 106.55),
-    (35, "Minnesota", 11, 0, 0, 3, 8, 0, 105.35),
-    (36, "North Texas", 8, 0, 0, 7, 1, 0, 104.75),
-    (37, "Kansas", 9, 0, 0, 5, 4, 0, 103.15),
-    (38, "Cincinnati", 11, 0, 0, 3, 7, 1, 102.65),
-    (39, "Michigan State", 13, 0, 0, 1, 11, 1, 102.25),
-    (40, "Oregon", 5, 1, 4, 0, 0, 0, 101.60),
-    (41, "Louisville", 8, 0, 0, 6, 2, 0, 100.75),
-    (42, "Hawai'i", 11, 0, 0, 2, 9, 0, 100.45),
-    (43, "Texas", 6, 0, 3, 3, 0, 0, 100.20),
-    (44, "Kentucky", 12, 0, 0, 1, 11, 0, 100.20),
-    (45, "Southern Miss", 9, 0, 0, 4, 5, 0, 98.60),
-    (46, "Notre Dame", 5, 1, 3, 1, 0, 0, 97.05),
-    (47, "Michigan", 5, 0, 5, 0, 0, 0, 96.60),
-    (48, "Duke", 5, 0, 5, 0, 0, 0, 96.60),
-    (49, "Missouri", 7, 0, 1, 4, 2, 0, 94.05),
-    (50, "Arizona", 7, 0, 0, 6, 1, 0, 93.35),
-    (51, "Boston College", 7, 0, 0, 6, 1, 0, 93.35),
-    (52, "Houston", 7, 0, 0, 6, 1, 0, 93.35),
-    (53, "Maryland", 5, 0, 4, 1, 0, 0, 92.05),
-    (54, "Panama City", 5, 0, 4, 1, 0, 0, 92.05),
-    (55, "Tulsa", 9, 0, 0, 3, 5, 1, 90.50),
-    (56, "Toledo", 7, 0, 0, 5, 2, 0, 89.05),
-    (57, "Syracuse", 9, 0, 0, 2, 7, 0, 88.95),
-    (58, "Oregon State", 9, 0, 0, 2, 7, 0, 88.95),
-    (59, "Miami (OH)", 8, 0, 0, 3, 5, 0, 87.15),
-    (60, "Memphis", 6, 0, 0, 6, 0, 0, 85.35),
-    (61, "Marshall", 7, 0, 0, 5, 1, 1, 85.05),
-    (62, "East Carolina", 7, 0, 0, 4, 3, 0, 84.50),
-    (63, "Illinois", 9, 0, 0, 1, 8, 0, 84.00),
-    (64, "California", 5, 0, 2, 3, 0, 0, 82.40),
-    (65, "Texas A&M", 5, 0, 2, 3, 0, 0, 82.40),
-    (66, "Temple", 6, 0, 0, 5, 1, 0, 81.05),
-    (67, "Middle Tennessee", 7, 0, 0, 3, 4, 0, 79.75),
-    (68, "Wisconsin", 5, 0, 2, 2, 1, 0, 77.85),
-    (69, "Virginia", 6, 0, 0, 4, 2, 0, 76.50),
-    (70, "Navy", 7, 0, 0, 3, 3, 1, 75.75),
-    (71, "Arkansas State", 7, 0, 0, 2, 5, 0, 74.85),
-    (72, "UTSA", 7, 0, 0, 2, 5, 0, 74.85),
-    (73, "BYU", 4, 1, 1, 2, 0, 0, 73.75),
-    (74, "NC State", 4, 0, 3, 1, 0, 0, 73.65),
-    (75, "Rutgers", 7, 0, 0, 3, 2, 2, 71.45),
-    (76, "Central Michigan", 7, 0, 0, 3, 2, 2, 71.45),
-    (77, "Sam Houston", 11, 0, 0, 0, 5, 6, 69.40),
-    (78, "Iowa State", 10, 0, 0, 0, 5, 5, 66.70),
-    (79, "Mississippi State", 7, 0, 0, 2, 3, 2, 66.55),
-    (80, "Washington State", 8, 0, 0, 0, 6, 2, 64.60),
-    (81, "Rice", 4, 0, 1, 3, 0, 0, 63.80),
-    (82, "Air Force", 5, 0, 0, 3, 2, 0, 63.15),
-    (83, "Liberty", 5, 0, 0, 3, 2, 0, 63.15),
-    (84, "Florida", 3, 0, 3, 0, 0, 0, 59.40),
-    (85, "Alabaster", 3, 0, 3, 0, 0, 0, 59.40),
-    (86, "Georgia Tech", 3, 0, 3, 0, 0, 0, 59.40),
-    (87, "Colorado State", 9, 0, 0, 1, 2, 6, 59.35),
-    (88, "Gate City", 4, 0, 1, 2, 1, 0, 59.05),
-    (89, "Appalachian State", 4, 0, 0, 4, 0, 0, 58.80),
-    (90, "Death Valley", 4, 0, 0, 4, 0, 0, 58.80),
-    (91, "Oklahoma State", 4, 0, 0, 4, 0, 0, 58.80),
-    (92, "Old Dominion", 9, 0, 0, 0, 3, 6, 54.35),
-    (93, "Utah", 4, 0, 0, 3, 1, 0, 54.05),
-    (94, "Louisiana Tech", 5, 0, 0, 1, 4, 0, 53.30),
-    (95, "South Carolina", 6, 0, 0, 0, 5, 1, 52.60),
-    (96, "Charlotte", 10, 0, 0, 0, 1, 9, 47.55),
-    (97, "Virginia Tech", 3, 0, 1, 1, 1, 0, 44.65),
-    (98, "UL Monroe", 5, 0, 0, 1, 2, 2, 44.00),
-    (99, "Northwestern", 5, 0, 0, 0, 4, 1, 43.75),
-    (100, "UNLV", 6, 0, 0, 0, 3, 3, 43.30),
-    (101, "Georgia State", 10, 0, 0, 0, 0, 10, 42.55),
-    (102, "James Madison", 7, 0, 0, 0, 2, 5, 42.40),
-    (103, "Vanderbilt", 7, 0, 0, 0, 2, 5, 42.40),
-    (104, "UTEP", 8, 0, 0, 0, 1, 7, 41.15),
-    (105, "Utah State", 8, 0, 0, 0, 1, 7, 41.15),
-    (106, "Pittsburgh", 2, 0, 2, 0, 0, 0, 39.80),
-    (107, "San Diego State", 2, 0, 2, 0, 0, 0, 39.80),
-    (108, "Ball State", 3, 0, 0, 2, 1, 0, 39.65),
-    (109, "Ohio", 3, 0, 0, 2, 1, 0, 39.65),
-    (110, "Louisiana", 4, 0, 0, 1, 2, 1, 39.45),
-    (111, "Purdue", 4, 0, 0, 1, 2, 1, 39.45),
-    (112, "UMass", 6, 0, 0, 0, 2, 4, 38.40),
-    (113, "Texas State", 6, 0, 0, 0, 2, 4, 38.40),
-    (114, "Jax State", 7, 0, 0, 0, 1, 6, 37.45),
-    (115, "Army", 7, 0, 0, 0, 1, 6, 37.45),
-    (116, "Delaware", 7, 0, 0, 0, 1, 6, 37.45),
-    (117, "Missouri State", 7, 0, 0, 0, 1, 6, 37.45),
-    (118, "North Carolina", 2, 0, 1, 1, 0, 0, 34.85),
-    (119, "UConn", 3, 0, 0, 2, 0, 1, 34.75),
-    (120, "Coastal Carolina", 4, 0, 0, 0, 3, 1, 34.45),
-    (121, "Western Michigan", 6, 0, 0, 0, 1, 5, 33.45),
-    (122, "Eastern Michigan", 6, 0, 0, 0, 1, 5, 33.45),
-    (123, "Kent State", 7, 0, 0, 0, 0, 7, 32.45),
-    (124, "Stanford", 2, 0, 0, 2, 0, 0, 29.85),
-    (125, "Western Kentucky", 4, 0, 0, 0, 2, 2, 29.55),
-    (126, "Akron", 6, 0, 0, 0, 0, 6, 28.45),
-    (127, "Kennesaw State", 5, 0, 0, 0, 0, 5, 24.15),
-    (128, "SMU", 1, 0, 1, 0, 0, 0, 20.00),
-    (129, "Tennessee", 1, 0, 1, 0, 0, 0, 20.00),
-    (130, "West Virginia", 1, 0, 1, 0, 0, 0, 20.00),
-    (131, "Boise State", 1, 0, 0, 1, 0, 0, 15.00),
-    (132, "Georgia Southern", 2, 0, 0, 0, 1, 1, 14.95),
-    (133, "New Mexico State", 3, 0, 0, 0, 0, 3, 14.85),
-    (134, "South Alabama", 1, 0, 0, 0, 0, 1, 5.00),
-    (135, "Wyoming", 0, 0, 0, 0, 0, 0, 0.00),
-    (136, "Arkansas", 0, 0, 0, 0, 0, 0, 0.00),
-]
-
-
-def get_current_recruiting_snapshot():
-    df = pd.DataFrame(CURRENT_RECRUITING_SCREENSHOT, columns=['Rank', 'Team', 'Total', '5-Star', '4-Star', '3-Star', '2-Star', '1-Star', 'Points'])
-    df['Blue Chip Ratio'] = np.where(df['Total'] > 0, ((df['5-Star'] + df['4-Star']) / df['Total']) * 100, 0.0)
-    df['Recruit Heat Index'] = (df['5-Star'] * 5 + df['4-Star'] * 3 + df['3-Star'] * 1).astype(float)
-    df['Recruit Rank Score'] = (137 - df['Rank']).clip(lower=1)
-    df['Recruiting Score'] = (df['Recruit Rank Score'] * 0.55 + df['Blue Chip Ratio'] * 0.30 + df['Recruit Heat Index'] * 1.6 + df['Points'] * 0.08).round(1)
-    df['Class Tier'] = pd.cut(
-        df['Rank'],
-        bins=[0, 5, 15, 25, 60, 200],
-        labels=['Elite', 'Strong', 'Solid', 'Mid', 'Rebuild'],
-        right=True
-    ).astype(str)
-    df.loc[df['5-Star'] >= 3, 'Class Tier'] = 'Dynasty Class'
-    df['Logo'] = df['Team'].apply(get_logo_source)
-    return df
-
-
-def build_recruiting_board(model_df):
-    rec_df = get_current_recruiting_snapshot().copy()
-    model_small = model_df[['TEAM', 'USER', 'Natty Odds', 'CFP Odds', 'Team Speed Score', 'OVERALL', 'BCR_Val', 'Power Index']].copy()
-    model_small['_team_key'] = model_small['TEAM'].apply(_normalize_team_match_key)
-    rec_df['_team_key'] = rec_df['Team'].apply(_normalize_team_match_key)
-    rec_df = rec_df.merge(model_small.drop_duplicates('_team_key'), on='_team_key', how='left')
-    rec_df['USER'] = rec_df['USER'].fillna('CPU')
-    rec_df['Natty Odds'] = pd.to_numeric(rec_df['Natty Odds'], errors='coerce').fillna(0.0)
-    rec_df['CFP Odds'] = pd.to_numeric(rec_df['CFP Odds'], errors='coerce').fillna(0.0)
-    rec_df['Team Speed Score'] = pd.to_numeric(rec_df['Team Speed Score'], errors='coerce').fillna(0.0)
-    rec_df['OVERALL'] = pd.to_numeric(rec_df['OVERALL'], errors='coerce').fillna(70.0)
-    rec_df['BCR_Val'] = pd.to_numeric(rec_df['BCR_Val'], errors='coerce').fillna(0.0)
-    rec_df['Dynasty Power Score'] = (
-        rec_df['Recruiting Score'] * 0.34 +
-        rec_df['Blue Chip Ratio'] * 0.20 +
-        rec_df['Team Speed Score'] * 0.16 +
-        rec_df['OVERALL'] * 0.14 +
-        rec_df['CFP Odds'] * 0.10 +
-        rec_df['Natty Odds'] * 0.06
-    ).round(1)
-    rec_df['Trajectory'] = rec_df.apply(recruiting_trajectory_label, axis=1)
-    rec_df['Recruiting Verdict'] = rec_df.apply(recruiting_story_blurb, axis=1)
-    return rec_df.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
-
-
-def recruiting_trajectory_label(row):
-    rank = int(row['Rank'])
-    bcr = float(row['Blue Chip Ratio'])
-    speed = float(row.get('Team Speed Score', 0) or 0)
-    natty = float(row.get('Natty Odds', 0) or 0)
-    if rank <= 5 and bcr >= 85:
-        return 'Death Star'
-    if rank <= 15 and natty >= 10:
-        return 'Rising Empire'
-    if rank <= 20 and speed >= 55:
-        return 'Sustained Contender'
-    if rank <= 35 and bcr >= 45:
-        return 'Dangerous Build'
-    if rank >= 80 and natty < 5:
-        return 'Freefall'
-    return 'Work in Progress'
-
-
-def recruiting_story_blurb(row):
-    team = str(row['Team'])
-    rank = int(row['Rank'])
-    total = int(row['Total'])
-    five = int(row['5-Star'])
-    four = int(row['4-Star'])
-    bcr = float(row['Blue Chip Ratio'])
-    natty = float(row.get('Natty Odds', 0) or 0)
-    speed = float(row.get('Team Speed Score', 0) or 0)
-    if rank == 1:
-        return f"{team} signed the No. 1 class and basically told the rest of the country to eat shit."
-    if rank <= 5 and bcr >= 85:
-        return f"{team} is stacking blue-chips like a cartel. {five} five-stars and {four} four-stars is dynasty behavior."
-    if rank <= 15 and speed >= 55:
-        return f"{team} isn't just recruiting stars — it's recruiting gasoline. This class keeps the speed machine fed."
-    if rank <= 25:
-        return f"{team} quietly put together a real class. Not enough for fireworks, but definitely enough to keep the assholes in the playoff mix."
-    if rank >= 80 and total <= 4:
-        return f"{team} signed {total} humans and called it a class. That's not roster building, that's light stalking."
-    if rank >= 100:
-        return f"{team} is recruiting like the fax machine got repossessed."
-    if bcr < 15 and total >= 10:
-        return f"{team} found bodies, not headliners. Useful, sure, but nobody is confusing this for a talent raid."
-    if natty >= 10:
-        return f"{team} already has the big-picture juice, and this class keeps the bastard rolling downhill."
-    return f"{team} landed a {rank}th-ranked class with {total} commits. Functional, a little weird, and not totally useless."
-
-
-def recruiting_winners_losers(rec_board):
-    winners = rec_board.sort_values(['Recruiting Score', 'Points'], ascending=False).head(5).copy()
-    losers = rec_board.sort_values(['Recruiting Score', 'Rank'], ascending=[True, False]).head(5).copy()
-    return winners, losers
-
-
-def coach_recruiting_personality(row):
-    team = str(row['Team'])
-    if row['Rank'] <= 5 and row['Blue Chip Ratio'] >= 85:
-        return f"{team} recruiting style: talent arms dealer."
-    if row['5-Star'] >= 2:
-        return f"{team} recruiting style: headline chaser with receipts."
-    if row['3-Star'] >= row['4-Star'] and row['Total'] >= 10:
-        return f"{team} recruiting style: depth goblin who refuses to leave a board half-full."
-    if row['Rank'] >= 80:
-        return f"{team} recruiting style: prayer circle and blind optimism."
-    return f"{team} recruiting style: selective menace."
-
-CFP_RANKINGS_SCREENSHOT = [
-    (1, "Bowling Green", 9, 0),
-    (2, "San Jose State", 9, 1),
-    (3, "USF", 9, 0),
-    (4, "Florida State", 9, 1),
-    (5, "Rapid City", 9, 1),
-    (6, "Texas", 9, 1),
-    (7, "Texas Tech", 9, 1),
-    (8, "Georgia", 8, 1),
-    (9, "Miami", 8, 1),
-    (10, "Alabaster", 7, 2),
-    (11, "Nebraska", 7, 2),
-    (12, "Oklahoma", 7, 2),
-    (13, "Georgia Tech", 8, 1),
-    (14, "Hammond", 8, 2),
-    (15, "Texas A&M", 7, 2),
-    (16, "Penn State", 9, 2),
-    (17, "Clemson", 8, 1),
-    (18, "NC State", 8, 1),
-    (19, "Oregon", 6, 3),
-    (20, "San Diego State", 9, 1),
-    (21, "Florida", 9, 2),
-    (22, "Ohio State", 6, 3),
-    (23, "Notre Dame", 7, 3),
-    (24, "Panama City", 7, 3),
-    (25, "Appalachian State", 8, 1),
-]
-
-CONFERENCE_SCREENSHOT = [
-    ("Bowling Green", "SEC", 1, 5, 0, 68, 1.0),
-    ("Florida State", "SEC", 2, 5, 1, 46, 1.0),
-    ("Texas", "SEC", 3, 5, 1, 38, 1.0),
-    ("Georgia", "SEC", 4, 5, 1, 22, 1.0),
-    ("Florida", "SEC", 5, 5, 2, 8, 1.0),
-    ("Texas A&M", "SEC", 6, 4, 2, 6, 1.0),
-    ("Oklahoma", "SEC", 7, 3, 2, 4, 1.0),
-    ("San Jose State", "Big Ten", 2, 7, 0, 57, 1.0),
-    ("USF", "Big Ten", 1, 6, 0, 52, 1.0),
-    ("Texas Tech", "Big Ten", 4, 6, 1, 24, 1.0),
-    ("Penn State", "Big Ten", 3, 7, 1, 18, 1.0),
-    ("Nebraska", "Big Ten", 5, 4, 2, 6, 1.0),
-    ("Oregon", "Big Ten", 7, 3, 3, 2, 1.0),
-    ("Ohio State", "Big Ten", 8, 3, 3, 1, 1.0),
-    ("Miami", "ACC", 1, 5, 0, 36, 1.0),
-    ("Georgia Tech", "ACC", 2, 6, 0, 29, 1.0),
-    ("Clemson", "ACC", 3, 6, 0, 22, 1.0),
-    ("NC State", "ACC", 4, 5, 0, 18, 1.0),
-    ("Rapid City", "Big 12", 2, 6, 1, 44, 1.0),
-    ("Alabaster", "Big 12", 1, 6, 0, 41, 1.0),
-    ("Hammond", "Big 12", 3, 6, 1, 20, 1.0),
-    ("Panama City", "Big 12", 4, 5, 2, 8, 1.0),
-    ("San Diego State", "MWC", 1, 5, 1, 62, 0.85),
-    ("Appalachian State", "Sun Belt", 1, 5, 0, 34, 0.80),
-    ("Notre Dame", "Independent", 1, 0, 0, 0, 0.0),
-]
-
-REMAINING_SCHEDULE_SCREENSHOT = [
-    ("Bowling Green", "South Carolina; LSU; Oklahoma", 1, 1, 74.0, "at South Carolina"),
-    ("San Jose State", "Ohio State; USF", 2, 1, 83.0, "at Ohio State"),
-    ("USF", "Penn State; San Jose State; Texas Tech", 3, 2, 88.0, "Penn State"),
-    ("Florida State", "LSU; at Florida", 1, 1, 70.0, "LSU"),
-    ("Florida", "Oklahoma State; Florida State", 1, 1, 69.0, "Oklahoma State"),
-    ("Texas Tech", "at Indiana; at USF", 1, 1, 73.0, "at Indiana"),
-    ("Texas", "at Ole Miss", 0, 0, 58.0, "at Ole Miss"),
-    ("Rapid City", "Arizona", 0, 0, 54.0, "Arizona"),
-    ("Georgia", "at Auburn", 0, 0, 57.0, "at Auburn"),
-    ("Miami", "SMU", 0, 0, 55.0, "SMU"),
-    ("Alabaster", "at Utah", 0, 0, 56.0, "at Utah"),
-    ("Nebraska", "Illinois", 0, 0, 53.0, "Illinois"),
-    ("Oklahoma", "at Missouri", 0, 0, 55.0, "at Missouri"),
-    ("Georgia Tech", "at Pittsburgh", 0, 0, 54.0, "at Pittsburgh"),
-    ("Hammond", "Arizona State", 0, 0, 53.0, "Arizona State"),
-    ("Texas A&M", "at Kentucky", 0, 0, 54.0, "at Kentucky"),
-    ("Penn State", "at USF", 1, 1, 66.0, "at USF"),
-    ("Clemson", "North Carolina", 0, 0, 54.0, "North Carolina"),
-    ("NC State", "Stanford", 0, 0, 53.0, "Stanford"),
-    ("Oregon", "Wisconsin", 0, 0, 52.0, "Wisconsin"),
-    ("San Diego State", "at Boise State", 0, 0, 59.0, "at Boise State"),
-    ("Ohio State", "San Jose State", 1, 1, 67.0, "San Jose State"),
-    ("Notre Dame", "—", 0, 0, 45.0, "No major threat listed"),
-    ("Panama City", "Death Valley", 0, 0, 52.0, "Death Valley"),
-    ("Appalachian State", "Louisiana", 0, 0, 57.0, "Louisiana"),
-]
-
 def get_cfp_rankings_snapshot():
-    df = pd.DataFrame(CFP_RANKINGS_SCREENSHOT, columns=['Rank', 'Team', 'Wins', 'Losses'])
+    data = [
+        (1, "Bowling Green", 9, 0),
+        (2, "San Jose State", 9, 1),
+        (3, "USF", 9, 0),
+        (4, "Florida State", 9, 1),
+        (5, "Rapid City", 9, 1),
+        (6, "Texas", 9, 1),
+        (7, "Texas Tech", 9, 1),
+        (8, "Georgia", 8, 1),
+        (9, "Miami", 8, 1),
+        (10, "Alabaster", 7, 2),
+        (11, "Nebraska", 7, 2),
+        (12, "Oklahoma", 7, 2),
+        (13, "Georgia Tech", 8, 1),
+        (14, "Hammond", 8, 2),
+        (15, "Texas A&M", 7, 2),
+        (16, "Penn State", 9, 2),
+        (17, "Clemson", 8, 1),
+        (18, "NC State", 8, 1),
+        (19, "Oregon", 6, 3),
+        (20, "San Diego State", 9, 1),
+        (21, "Florida", 9, 2),
+        (22, "Ohio State", 6, 3),
+        (23, "Notre Dame", 7, 3),
+        (24, "Panama City", 7, 3),
+        (25, "Appalachian State", 8, 1),
+    ]
+    df = pd.DataFrame(data, columns=['Rank', 'Team', 'Wins', 'Losses'])
     df['Record'] = df['Wins'].astype(str) + '-' + df['Losses'].astype(str)
     df['Logo'] = df['Team'].apply(get_logo_source)
-    return df
-
-
-def get_conference_snapshot():
-    df = pd.DataFrame(CONFERENCE_SCREENSHOT, columns=['Team', 'Conference', 'Conf Rank', 'Conf Wins', 'Conf Losses', 'Conference Title Odds', 'Auto-Bid Leverage'])
-    return df
-
-
-def get_remaining_schedule_snapshot():
-    df = pd.DataFrame(REMAINING_SCHEDULE_SCREENSHOT, columns=['Team', 'Remaining Games', 'Ranked Remaining', 'Top12 Remaining', 'Remaining Difficulty', 'Next Test'])
-    df['Remaining Games Count'] = df['Remaining Games'].apply(lambda x: 0 if str(x).strip() in {'', '—'} else len([p for p in str(x).split(';') if p.strip()]))
     return df
 
 
@@ -1818,16 +1471,9 @@ def _normalize_team_match_key(team):
 
 def build_cfp_bubble_board(rankings_df, model_df):
     df = rankings_df.copy()
-    conf_df = get_conference_snapshot().copy()
-    sched_df = get_remaining_schedule_snapshot().copy()
     model_local = model_df.copy()
-
-    for snap in (conf_df, sched_df, model_local):
-        snap['_team_key'] = snap['Team'].apply(_normalize_team_match_key) if 'Team' in snap.columns else snap['TEAM'].apply(_normalize_team_match_key)
-
+    model_local['_team_key'] = model_local['TEAM'].apply(_normalize_team_match_key)
     model_lookup = model_local.drop_duplicates('_team_key').set_index('_team_key')
-    conf_lookup = conf_df.drop_duplicates('_team_key').set_index('_team_key')
-    sched_lookup = sched_df.drop_duplicates('_team_key').set_index('_team_key')
 
     defaults = {
         'Current CFP Ranking': np.nan,
@@ -1842,31 +1488,15 @@ def build_cfp_bubble_board(rankings_df, model_df):
         'Team Speed Score': 50.0,
         'BCR_Val': 35.0,
         'Recruit Score': 50.0,
-        'Conference': 'Unknown',
-        'Conf Rank': 99,
-        'Conf Wins': 0,
-        'Conf Losses': 0,
-        'Conference Title Odds': 0.0,
-        'Auto-Bid Leverage': 0.0,
-        'Remaining Games': '—',
-        'Ranked Remaining': 0,
-        'Top12 Remaining': 0,
-        'Remaining Difficulty': 50.0,
-        'Next Test': 'TBD',
-        'Remaining Games Count': 0,
     }
 
-    out_cols = list(defaults.keys())
-    for col in out_cols:
+    enrich_cols = list(defaults.keys())
+    for col in enrich_cols:
         vals = []
         for team in df['Team']:
             key = _normalize_team_match_key(team)
-            if key in model_lookup.index and col in model_lookup.columns:
-                vals.append(model_lookup.loc[key][col])
-            elif key in conf_lookup.index and col in conf_lookup.columns:
-                vals.append(conf_lookup.loc[key][col])
-            elif key in sched_lookup.index and col in sched_lookup.columns:
-                vals.append(sched_lookup.loc[key][col])
+            if key in model_lookup.index:
+                vals.append(model_lookup.loc[key][col] if col in model_lookup.columns else defaults[col])
             else:
                 vals.append(defaults[col])
         df[col] = vals
@@ -1876,59 +1506,53 @@ def build_cfp_bubble_board(rankings_df, model_df):
     df['Top12 Flag'] = (df['Rank'] <= 12).astype(int)
     df['Top8 Flag'] = (df['Rank'] <= 8).astype(int)
     df['Loss Penalty'] = np.where(df['Losses'] <= 1, 0, (df['Losses'] - 1) * 8.5)
-    qbm = {'Elite': 8.0, 'Leader': 4.0, 'Average Joe': -2.5, 'Ass': -8.5, 'Unknown': 0.0}
+
+    qbm = {
+        'Elite': 8.0,
+        'Leader': 4.0,
+        'Average Joe': -2.5,
+        'Ass': -8.5,
+        'Unknown': 0.0,
+    }
     df['QB Mod'] = df['QB Tier'].map(qbm).fillna(0.0)
-    df['Schedule Pressure'] = df['Remaining Difficulty'] + df['Ranked Remaining'] * 6 + df['Top12 Remaining'] * 8
-    df['Control Destiny'] = np.where((df['Conference Title Odds'] >= 40) | ((df['Rank'] <= 8) & (df['Losses'] <= 1)), 'Yes', 'Maybe')
-    df.loc[df['CFP Odds'] > 0, 'Control Destiny'] = np.where((df['CFP Odds'] >= 78) & (df['Losses'] <= 1), 'Yes', df['Control Destiny'])
 
     df['CFP Raw'] = (
-        df['Committee Score'] * 0.28
-        + (df['Win %'] * 100) * 0.16
-        + df['SOS'] * 0.08
+        df['Committee Score'] * 0.42
+        + (df['Win %'] * 100) * 0.21
+        + df['SOS'] * 0.10
         + df['Resume Score'] * 0.10
         + df['Recruit Score'] * 0.05
-        + df['Current Recruiting Score'] * 0.09
-        + df['Current Recruit BCR'] * 0.04
-        + df['Team Speed Score'] * 0.03
-        + df['BCR_Val'] * 0.02
-        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.04
-        + df['CFP Odds'] * 0.17
-        + df['Conference Title Odds'] * 0.14
-        + df['Auto-Bid Leverage'] * 7.5
-        + df['Top12 Flag'] * 6.5
+        + df['Team Speed Score'] * 0.04
+        + df['BCR_Val'] * 0.03
+        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.05
+        + df['Top12 Flag'] * 7.5
         + df['Top8 Flag'] * 4.5
         + df['QB Mod']
         - df['Loss Penalty']
-        - df['Schedule Pressure'] * 0.05
     )
-    df['CFP Make %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 43) / 7.0)) * 100).round(1)
+    df['CFP Make %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 42) / 7.5)) * 100).round(1)
     df['CFP Make %'] = df['CFP Make %'].clip(lower=1.0, upper=99.0)
 
+    # Automatic-bid path estimate: best shot for likely conference champs among highly ranked teams.
     auto_bid_raw = (
-        df['Conference Title Odds'] * 0.65
-        + df['Committee Score'] * 0.14
-        + (df['Win %'] * 100) * 0.10
-        + df['SOS'] * 0.04
-        + df['Resume Score'] * 0.04
-        + df['QB Mod'] * 0.4
-        - df['Top12 Remaining'] * 4.0
-        - np.maximum(df['Conf Rank'] - 1, 0) * 4.5
+        df['Committee Score'] * 0.55
+        + (df['Win %'] * 100) * 0.20
+        + df['SOS'] * 0.08
+        + df['Resume Score'] * 0.07
+        + df['QB Mod'] * 0.5
+        - df['Losses'] * 5.5
     )
-    df['Auto-Bid %'] = (1 / (1 + np.exp(-(auto_bid_raw - 28) / 6.5)) * 100).round(1)
-    df['Auto-Bid %'] = np.where(df['Conference'] == 'Independent', 0.0, df['Auto-Bid %'])
-    df['Auto-Bid %'] = df['Auto-Bid %'].clip(lower=0.0, upper=97.0)
+    df['Auto-Bid %'] = (1 / (1 + np.exp(-(auto_bid_raw - 48) / 7.0)) * 100).round(1)
+    df['Auto-Bid %'] = df['Auto-Bid %'].clip(lower=1.0, upper=97.0)
 
     bye_raw = (
-        df['Committee Score'] * 0.42
-        + (df['Win %'] * 100) * 0.12
-        + df['Auto-Bid %'] * 0.24
-        + df['Conference Title Odds'] * 0.14
-        + df['CFP Make %'] * 0.06
-        - df['Rank'] * 1.2
-        - df['Top12 Remaining'] * 4.0
+        df['Committee Score'] * 0.60
+        + (df['Win %'] * 100) * 0.15
+        + df['Auto-Bid %'] * 0.20
+        + df['CFP Make %'] * 0.05
+        - df['Rank'] * 1.5
     )
-    df['Bye %'] = (1 / (1 + np.exp(-(bye_raw - 38) / 6.2)) * 100).round(1)
+    df['Bye %'] = (1 / (1 + np.exp(-(bye_raw - 55) / 6.5)) * 100).round(1)
     df['Bye %'] = np.where(df['Rank'] > 12, df['Bye %'] * 0.35, df['Bye %'])
     df['Bye %'] = df['Bye %'].clip(lower=0.5, upper=96.0).round(1)
 
@@ -1963,10 +1587,7 @@ def render_cfp_table(board_df):
             <div style='display:flex;align-items:center;gap:10px;'>
                 <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get('Rank', 0))}</div>
                 <div style='width:38px;text-align:center;'>{logo_html}</div>
-                <div>
-                    <div style='font-weight:800;color:{primary};'>{html.escape(team)}</div>
-                    <div style='font-size:12px;color:#6b7280;'>{html.escape(str(row.get('Conference', 'Unknown')))}</div>
-                </div>
+                <div style='font-weight:800;color:{primary};'>{html.escape(team)}</div>
             </div>
         </td>
         """]
@@ -1976,7 +1597,6 @@ def render_cfp_table(board_df):
             format_pct(row.get('Bye %', np.nan), 1),
             format_pct(row.get('Auto-Bid %', np.nan), 1),
             row.get('Bubble Tier', '—'),
-            row.get('Next Test', 'TBD'),
             seed_disp,
         ]
         for val in vals:
@@ -1993,7 +1613,6 @@ def render_cfp_table(board_df):
             <th style='padding:10px 12px;color:#111827;font-weight:800;'>Bye Odds</th>
             <th style='padding:10px 12px;color:#111827;font-weight:800;'>Auto-Bid Path</th>
             <th style='padding:10px 12px;color:#111827;font-weight:800;'>Tier</th>
-            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Next Test</th>
             <th style='padding:10px 12px;color:#111827;font-weight:800;'>Projected Seed</th>
           </tr>
         </thead>
@@ -2009,130 +1628,46 @@ def simulate_cfp_chaos(team_row, scenario, board_df):
     rank = int(row['Rank'])
     wins = int(row['Wins'])
     losses = int(row['Losses'])
+    sos = float(row.get('SOS', 55.0))
+    resume = float(row.get('Resume Score', 58.0))
     cfp_make = float(row.get('CFP Make %', 50.0))
     bye = float(row.get('Bye %', 12.0))
-    auto_bid = float(row.get('Auto-Bid %', 15.0))
 
     if scenario == 'Win next game':
         wins += 1
         rank = max(1, rank - (2 if rank > 4 else 1))
+        sos += 1.5
+        resume += 3.0
         cfp_make = min(99.0, cfp_make + (10 if rank <= 10 else 14))
         bye = min(96.0, bye + (7 if rank <= 8 else 4))
-        auto_bid = min(97.0, auto_bid + 8.0)
     elif scenario == 'Win over Top-12 team':
         wins += 1
         rank = max(1, rank - (4 if rank > 8 else 2))
+        sos += 4.0
+        resume += 6.0
         cfp_make = min(99.0, cfp_make + (18 if rank <= 12 else 22))
         bye = min(96.0, bye + (12 if rank <= 8 else 8))
-        auto_bid = min(97.0, auto_bid + 11.0)
     elif scenario == 'Lose to ranked team':
         losses += 1
         rank = min(25, rank + (3 if rank <= 8 else 2))
+        sos += 1.0
+        resume -= 3.0
         cfp_make = max(1.0, cfp_make - (11 if losses <= 2 else 16))
         bye = max(0.5, bye - (8 if rank <= 6 else 5))
-        auto_bid = max(0.0, auto_bid - 10.0)
     elif scenario == 'Lose to unranked team':
         losses += 1
         rank = min(25, rank + (8 if rank <= 10 else 5))
+        sos -= 1.5
+        resume -= 8.0
         cfp_make = max(1.0, cfp_make - (24 if losses <= 2 else 30))
         bye = max(0.5, bye - (18 if rank <= 8 else 10))
-        auto_bid = max(0.0, auto_bid - 19.0)
 
-    temp = pd.Series({
+    temp = pd.DataFrame([{
         'Rank': rank, 'Wins': wins, 'Losses': losses, 'Record': f'{wins}-{losses}',
-        'Team': row['Team'], 'CFP Make %': cfp_make, 'Bye %': bye, 'Auto-Bid %': auto_bid
-    })
-    return temp
-
-
-
-
-def generate_coach_profile(user, team_row, stats_df, champs_df, heisman_df, coty_df, rec_df, ratings_df, scores_df):
-    user_clean = str(user).strip().title()
-    team = str(team_row.get('TEAM', 'Unknown Team')).strip()
-    stat_row = stats_df[stats_df['User'] == user_clean]
-    if stat_row.empty:
-        return f"{user_clean} is apparently such a mystery figure that even the database shrugged. Still, somebody put this fool in charge of {team}, so here we are."
-    s = stat_row.iloc[0]
-
-    natties = int(pd.to_numeric(s.get('Natties', 0), errors='coerce') or 0)
-    natty_apps = int(pd.to_numeric(s.get('Natty Apps', 0), errors='coerce') or 0)
-    cfp_wins = int(pd.to_numeric(s.get('CFP Wins', 0), errors='coerce') or 0)
-    cfp_losses = int(pd.to_numeric(s.get('CFP Losses', 0), errors='coerce') or 0)
-    conf_titles = int(pd.to_numeric(s.get('Conf Titles', 0), errors='coerce') or 0)
-    drafted = int(pd.to_numeric(s.get('Drafted', 0), errors='coerce') or 0)
-    first_rounders = int(pd.to_numeric(s.get('1st Rounders', 0), errors='coerce') or 0)
-    career_record = str(s.get('Career Record', s.get('Record', '0-0')) )
-    career_wpct = float(pd.to_numeric(s.get('Career Win %', 50), errors='coerce') or 50)
-
-    heisman_count = 0
-    if heisman_df is not None and not heisman_df.empty:
-        user_cols = [c for c in heisman_df.columns if str(c).strip().lower() == 'user']
-        if user_cols:
-            heisman_count = int((heisman_df[user_cols[0]].astype(str).str.strip().str.title() == user_clean).sum())
-    coty_count = 0
-    if coty_df is not None and not coty_df.empty:
-        user_cols = [c for c in coty_df.columns if str(c).strip().lower() == 'user']
-        if user_cols:
-            coty_count = int((coty_df[user_cols[0]].astype(str).str.strip().str.title() == user_clean).sum())
-
-    stops = get_program_history_cards(user_clean, ratings_df, champs_df, rec_df)
-    stop_count = len(stops)
-    ring_stops = [c['team'] for c in stops if int(c.get('titles', 0)) > 0]
-    ring_stop_text = ', '.join(ring_stops[:3]) if ring_stops else 'nowhere yet'
-
-    score_games = scores_df[(scores_df['V_User_Final'] == user_clean) | (scores_df['H_User_Final'] == user_clean)].copy()
-    if not score_games.empty:
-        score_games['UserMargin'] = np.where(score_games['H_User_Final'] == user_clean, score_games['H_Pts'] - score_games['V_Pts'], score_games['V_Pts'] - score_games['H_Pts'])
-        blowout_wins = int((score_games['UserMargin'] >= 21).sum())
-        one_score_losses = int(((score_games['UserMargin'] < 0) & (score_games['UserMargin'] >= -8)).sum())
-    else:
-        blowout_wins = 0
-        one_score_losses = 0
-
-    upbringing_pool = [
-        f"grew up in a place where the playbook was optional but running your mouth was mandatory",
-        f"came out of a football backwater where every local myth ends with somebody swearing they could've coached better",
-        f"was apparently raised on grainy highlight tapes, bad coffee, and the stubborn belief that fourth-and-short is a personality trait",
-        f"learned the sport in the kind of town where the stadium lights mattered more than church bells",
-        f"was forged in the ancient tradition of overconfidence, clipboard abuse, and absolutely reckless optimism",
-        f"looks like he was raised by film study, pettiness, and one very angry booster"
-    ]
-    accomplishment_pool = [
-        f"The résumé says {career_record} with a {career_wpct:.1f}% career win rate, {natties} natties, {natty_apps} title game trips, and {conf_titles} conference crowns — which is either elite stewardship or a beautifully organized addiction to winning",
-        f"The bastard has stacked {cfp_wins} CFP wins, {drafted} drafted dudes, and {first_rounders} first-rounders, which means his pitch to recruits is basically 'come here and your Sundays get expensive'",
-        f"Across {stop_count} coaching stops, he has left behind {ring_stop_text} and a trail of assistants who probably still flinch at 6 a.m. texts",
-        f"He has {coty_count} coach-of-the-year nods and {heisman_count} Heisman ties in the orbit, so clearly the bullshit has been productive"
-    ]
-    failure_pool = [
-        f"Of course, there are scars: {cfp_losses} CFP losses and {max(natty_apps - natties, 0)} title-game heartbreaks say the big stage has occasionally slapped him in the mouth",
-        f"He's also authored {one_score_losses} one-score losses in the tracked games, which suggests the man's blood pressure should legally qualify as a weather pattern",
-        f"Not every Saturday is genius. Sometimes the whole thing looks like a brilliant plan held together by caffeine and pure spite",
-        f"When it goes bad, it goes bad loudly enough that message boards start writing fan fiction about the buyout"
-    ]
-    style_pool = [
-        f"At {team}, he coaches like every possession insulted his ancestors",
-        f"At {team}, the vibe is half tactician, half neighborhood menace",
-        f"With {team}, he has built the kind of machine that makes opponents feel underdressed for the ass-kicking",
-        f"His current operation at {team} feels like competence with a criminal edge"
-    ]
-
-    # deterministic selection
-    seed = int(hashlib.md5(f"coach|{user_clean}|{team}".encode()).hexdigest(), 16)
-    up = upbringing_pool[seed % len(upbringing_pool)]
-    acc = accomplishment_pool[(seed // 3) % len(accomplishment_pool)]
-    fail = failure_pool[(seed // 5) % len(failure_pool)]
-    style = style_pool[(seed // 7) % len(style_pool)]
-
-    special = ''
-    if natties >= 3:
-        special = f" At this point, {user_clean} isn't building a program so much as hoarding silverware like a raccoon with access to the trophy case."
-    elif natties == 0 and natty_apps == 0:
-        special = f" The title section of the résumé is still suspiciously empty, so for now we're grading on swagger, damage, and blind faith."
-    elif blowout_wins >= 5:
-        special = f" The fun part is that {blowout_wins} tracked wins were by 21+, which means somebody on the headset enjoys stepping on necks after halftime."
-
-    return f"{user_clean} {up}. {acc}. {fail}. {style}.{special}"
+        'Team': row['Team'], 'SOS': sos, 'Resume Score': resume,
+        'CFP Make %': cfp_make, 'Bye %': bye
+    }])
+    return temp.iloc[0]
 
 data = load_data()
 
@@ -2187,22 +1722,10 @@ if data:
         "📺 Season Recap",
         "🔍 Speed Freaks",
         "📊 Team Overview",
-        "🏗️ Recruiting Rankings",
         "⚔️ H2H Matrix",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
     ])
-
-    cfp_rankings = get_cfp_rankings_snapshot()
-    cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
-    projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).head(12).copy()
-    projected_field = projected_field.sort_values(['Auto-Bid %', 'Rank'], ascending=[False, True]).reset_index(drop=True)
-    projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
-    seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
-    cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
-    first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).head(4).copy()
-    cfp_make_lookup = cfp_board.set_index('Team')['CFP Make %'].to_dict()
-    recruiting_board = build_recruiting_board(model_2041)
 
     # --- WAR ROOM ---
     with tabs[0]:
@@ -2285,8 +1808,91 @@ if data:
             top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
             st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
 
+    # --- WHO'S IN? ---
+    with tabs[2]:
+        st.header("🏆 Who's In? | CFP Bubble Watch")
+        st.caption("Built from your uploaded CFP ranking screenshots, then sharpened with this app's SOS, resume, QB, recruiting, and roster-strength model. Current CFP standards are assumed: five highest-ranked conference champs get in, plus seven at-larges, with the top four seeds earning byes.")
+
+        cfp_rankings = get_cfp_rankings_snapshot()
+        cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
+
+        # Select the projected 12-team field by make odds, but seed the field by committee rank.
+        projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).head(12).copy()
+        projected_field = projected_field.sort_values(['Rank', 'Bye %', 'CFP Make %'], ascending=[True, False, False]).reset_index(drop=True)
+        projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
+
+        # Push the corrected projected seeds back onto the full board so the main table matches the bracket table.
+        cfp_board['Projected Seed'] = np.nan
+        seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
+        cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
+
+        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).head(4).copy()
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric('Projected Locks', int((cfp_board['CFP Make %'] >= 92).sum()))
+        m2.metric('Last Team In', f"#{int(projected_field.iloc[-1]['Rank'])} {projected_field.iloc[-1]['Team']}")
+        m3.metric('First Team Out', f"#{int(first_four_out.iloc[0]['Rank'])} {first_four_out.iloc[0]['Team']}")
+        m4.metric('Best Bye Shot', f"{projected_field.sort_values('Bye %', ascending=False).iloc[0]['Team']} ({format_pct(projected_field['Bye %'].max(),1)})")
+
+        st.subheader('Projected CFP Field')
+        render_cfp_table(cfp_board)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader('Projected 12-Team Bracket')
+            st.dataframe(projected_field[['Projected Seed', 'Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
+        with c2:
+            st.subheader('First Four Out')
+            st.dataframe(first_four_out[['Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
+
+        tier_cols = st.columns(4)
+        tier_map = [
+            ('🔒 Locks', cfp_board[cfp_board['Bubble Tier'] == '🔒 Lock']['Team'].tolist()),
+            ('✅ In Control', cfp_board[cfp_board['Bubble Tier'] == '✅ In Control']['Team'].tolist()),
+            ('⚠️ Bubble', cfp_board[cfp_board['Bubble Tier'] == '⚠️ Bubble']['Team'].tolist()),
+            ('🔥 Need Chaos', cfp_board[cfp_board['Bubble Tier'].isin(['🔥 Need Chaos', '🪦 Practically Dead'])]['Team'].tolist()),
+        ]
+        for col, (label, teams) in zip(tier_cols, tier_map):
+            with col:
+                st.markdown(f"**{label}**")
+                st.write(', '.join(teams[:8]) if teams else '—')
+
+        st.subheader('CFP Chaos Simulator')
+        sim_team = st.selectbox('Pick a team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
+        sim_scenario = st.selectbox('Scenario', ['Win next game', 'Win over Top-12 team', 'Lose to ranked team', 'Lose to unranked team'], key='cfp_sim_scenario')
+        sim_row = cfp_board[cfp_board['Team'] == sim_team].iloc[0]
+        sim_result = simulate_cfp_chaos(sim_row, sim_scenario, cfp_board)
+
+        s1, s2, s3, s4 = st.columns(4)
+        s1.metric('Current CFP', format_pct(sim_row['CFP Make %'], 1), delta=f"{sim_result['CFP Make %'] - sim_row['CFP Make %']:+.1f}%")
+        s2.metric('Current Bye', format_pct(sim_row['Bye %'], 1), delta=f"{sim_result['Bye %'] - sim_row['Bye %']:+.1f}%")
+        s3.metric('New Record', sim_result['Record'])
+        s4.metric('Projected Rank', f"#{int(sim_result['Rank'])}", delta=f"{int(sim_row['Rank']) - int(sim_result['Rank']):+d}")
+
+        if sim_scenario == 'Lose to unranked team':
+            st.warning(f"{sim_team} would set fire to a lot of goodwill with an unranked loss. The model treats that as a straight-up committee trust killer.")
+        elif sim_scenario == 'Lose to ranked team':
+            st.info(f"A ranked loss hurts {sim_team}, but it usually doesn't nuke the whole damn résumé unless the record was already hanging by a thread.")
+        elif sim_scenario == 'Win over Top-12 team':
+            st.success(f"That's a résumé steroid shot. A top-12 win would give {sim_team} a real committee argument and bye-path juice.")
+        else:
+            st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
+
+        st.plotly_chart(
+            px.scatter(
+                cfp_board,
+                x='Rank',
+                y='CFP Make %',
+                size='Bye %',
+                color='Bubble Tier',
+                text='Team',
+                hover_data=['Record', 'SOS', 'Resume Score', 'QB Tier']
+            ).update_xaxes(autorange='reversed'),
+            use_container_width=True
+        )
+
     # --- H2H MATRIX ---
-    with tabs[7]:
+    with tabs[6]:
         st.header("⚔️ Head-to-Head Matrix")
 
         st.subheader("Full H2H Matrix")
@@ -2325,76 +1931,6 @@ if data:
                 'Net Edge': diff
             })
         st.dataframe(pd.DataFrame(drill).sort_values(['Games', 'Net Edge'], ascending=[False, False]), hide_index=True, use_container_width=True)
-
-    # --- WHO'S IN? ---
-    with tabs[2]:
-        st.header("🏆 Who's In? | CFP Bubble Watch")
-        st.caption("Updated with the CFP ranking screenshots, conference standings screenshots, and the remaining user schedule screenshots you uploaded. This section now bakes in conference-title paths, auto-bid logic, and late-season schedule pressure.")
-
-
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric('Projected Locks', int((cfp_board['CFP Make %'] >= 92).sum()))
-        m2.metric('Last Team In', f"#{int(projected_field.iloc[-1]['Rank'])} {projected_field.iloc[-1]['Team']}")
-        m3.metric('First Team Out', f"#{int(first_four_out.iloc[0]['Rank'])} {first_four_out.iloc[0]['Team']}")
-        bye_leader = projected_field.sort_values('Bye %', ascending=False).iloc[0]
-        m4.metric('Best Bye Shot', f"{bye_leader['Team']} ({format_pct(bye_leader['Bye %'],1)})")
-
-        st.subheader('Projected CFP Board')
-        render_cfp_table(cfp_board)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader('Projected 12-Team Field')
-            st.dataframe(projected_field[['Projected Seed', 'Rank', 'Team', 'Conference', 'Record', 'CFP Make %', 'Bye %', 'Auto-Bid %', 'Next Test']], hide_index=True, use_container_width=True)
-        with c2:
-            st.subheader('First Four Out')
-            st.dataframe(first_four_out[['Rank', 'Team', 'Conference', 'Record', 'CFP Make %', 'Bye %', 'Next Test']], hide_index=True, use_container_width=True)
-
-        tier_cols = st.columns(4)
-        tier_map = [
-            ('🔒 Locks', cfp_board[cfp_board['Bubble Tier'] == '🔒 Lock']['Team'].tolist()),
-            ('✅ In Control', cfp_board[cfp_board['Bubble Tier'] == '✅ In Control']['Team'].tolist()),
-            ('⚠️ Bubble', cfp_board[cfp_board['Bubble Tier'] == '⚠️ Bubble']['Team'].tolist()),
-            ('🔥 Need Chaos', cfp_board[cfp_board['Bubble Tier'].isin(['🔥 Need Chaos', '🪦 Practically Dead'])]['Team'].tolist()),
-        ]
-        for col, (label, teams) in zip(tier_cols, tier_map):
-            with col:
-                st.markdown(f"**{label}**")
-                st.write(', '.join(teams[:8]) if teams else '—')
-
-        st.subheader('CFP Chaos Simulator')
-        sim_team = st.selectbox('Pick a team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
-        sim_scenario = st.selectbox('Scenario', ['Win next game', 'Win over Top-12 team', 'Lose to ranked team', 'Lose to unranked team'], key='cfp_sim_scenario')
-        sim_row = cfp_board[cfp_board['Team'] == sim_team].iloc[0]
-        sim_result = simulate_cfp_chaos(sim_row, sim_scenario, cfp_board)
-
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric('Current CFP', format_pct(sim_row['CFP Make %'], 1), delta=f"{sim_result['CFP Make %'] - sim_row['CFP Make %']:+.1f}%")
-        s2.metric('Current Bye', format_pct(sim_row['Bye %'], 1), delta=f"{sim_result['Bye %'] - sim_row['Bye %']:+.1f}%")
-        s3.metric('Auto-Bid Path', format_pct(sim_row['Auto-Bid %'], 1), delta=f"{sim_result['Auto-Bid %'] - sim_row['Auto-Bid %']:+.1f}%")
-        s4.metric('New Record', sim_result['Record'])
-
-        if sim_scenario == 'Lose to unranked team':
-            st.warning(f"{sim_team} would set fire to a lot of goodwill with an unranked loss. The model treats that as a straight-up committee trust killer.")
-        elif sim_scenario == 'Lose to ranked team':
-            st.info(f"A ranked loss hurts {sim_team}, but it usually doesn't nuke the whole damn résumé unless the record was already hanging by a thread.")
-        elif sim_scenario == 'Win over Top-12 team':
-            st.success(f"That's a résumé steroid shot. A top-12 win would give {sim_team} a real committee argument and bye-path juice.")
-        else:
-            st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
-
-        st.plotly_chart(
-            px.scatter(
-                cfp_board,
-                x='Rank',
-                y='CFP Make %',
-                size='Bye %',
-                color='Bubble Tier',
-                text='Team',
-                hover_data=['Record', 'Conference', 'Conference Title Odds', 'SOS', 'Resume Score', 'Next Test']
-            ).update_xaxes(autorange='reversed'),
-            use_container_width=True
-        )
 
     # --- SEASON RECAP ---
     with tabs[3]:
@@ -2488,11 +2024,10 @@ if data:
         row = model_2041[model_2041['USER'] == target].iloc[0]
 
         wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
-        board_cfp_pct = cfp_make_lookup.get(str(row['TEAM']).strip(), float(pd.to_numeric(row.get('CFP Odds', np.nan), errors='coerce') or 0))
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Natty Odds", f"{row['Natty Odds']}%")
-        m2.metric("CFP Odds", format_pct(board_cfp_pct, 1))
+        m2.metric("CFP Odds", f"{row['CFP Odds']}%")
         m3.metric("Projected Wins", row['Projected Wins'])
         m4.metric("Power Index", row['Power Index'])
 
@@ -2510,12 +2045,12 @@ if data:
             st.write(f"**Average Margin:** {avg_margin}")
             st.write(f"**Recruit Score:** {row['Recruit Score']}")
             st.write(f"**Current CFP Ranking:** {int(row['Current CFP Ranking']) if pd.notna(row['Current CFP Ranking']) else 'Unranked'}")
-            st.write(f"**Board Make CFP:** {format_pct(board_cfp_pct, 1)} (matched to the Projected CFP Board)")
             st.write(f"**QB OVR:** {int(row['QB OVR']) if pd.notna(row['QB OVR']) else 'N/A'}")
             st.write(f"**QB Tier:** {row['QB Tier']}")
             st.write(f"**Improvement from prior year:** {row['Improvement']} OVR")
             st.write(f"**SOS:** {row['SOS']} (higher = tougher schedule)")
             st.write(f"**Resume Score:** {row['Resume Score']} (62% current win %, 38% SOS)")
+            st.caption("Recent recruiting classes are now baked directly into CFP and natty odds through the Recruit Score, so the class pipeline still matters even without a separate recruiting tab.")
             st.markdown("**Coaching Stops & Rings**")
             render_history_cards(get_program_history_cards(row['USER'], ratings, champs, rec))
 
@@ -2524,9 +2059,15 @@ if data:
             st.write(f"**MVP:** {row['⭐ STAR SKILL GUY (Top OVR)']}")
             st.write(f"**Generational Speed?** {row['Star Skill Guy is Generational Speed?']}")
             st.write(generate_mvp_backstory(row))
+
+            coach_stats_row = stats[stats['User'] == target].iloc[0]
             st.markdown("---")
             st.subheader("Coach Profile")
-            st.write(generate_coach_profile(row['USER'], row, stats, champs, heisman, coty, rec, ratings, scores))
+            st.write(generate_coach_profile(row, coach_stats_row))
+            cpa, cpb, cpc = st.columns(3)
+            cpa.metric("Career Win %", f"{coach_stats_row['Career Win %']}%")
+            cpb.metric("Natties", int(coach_stats_row['Natties']))
+            cpc.metric("CFP Wins", int(coach_stats_row['CFP Wins']))
 
         stat_table = pd.DataFrame([
             {'Metric': 'Overall', 'Value': row['OVERALL']},
@@ -2573,7 +2114,9 @@ if data:
         ).reset_index(drop=True)
         talent_board['TEAM SPEED Rank'] = np.arange(1, len(talent_board) + 1)
 
+        fastest_team = talent_board.iloc[0]
         st.subheader("⚡ TEAM SPEED Rankings")
+        st.success(f"Fastest team alive right now: {fastest_team['TEAM']} ({fastest_team['USER']}) at {fastest_team['Speedometer']} MPH. Defensive coordinators should file a complaint.")
         render_speed_freaks_table(talent_board)
 
         for _, r in talent_board.iterrows():
@@ -2604,81 +2147,8 @@ if data:
                 st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
                 st.progress(min(1.0, team_speed / 100.0))
 
-
-    # --- RECRUITING RANKINGS ---
-    with tabs[6]:
-        st.header("🏗️ Recruiting Rankings")
-        st.caption("Built from your current recruiting ranking screenshots. This board now feeds current class quality directly into CFP odds, natty odds, and long-range dynasty trajectory.")
-
-        r1, r2, r3, r4 = st.columns(4)
-        top_class = recruiting_board.iloc[0]
-        top_user_row = recruiting_board[recruiting_board['USER'].astype(str).str.upper() != 'CPU'].sort_values(['Recruiting Score', 'Rank'], ascending=[False, True]).iloc[0]
-        worst_user_row = recruiting_board[recruiting_board['USER'].astype(str).str.upper() != 'CPU'].sort_values(['Recruiting Score', 'Rank'], ascending=[True, False]).iloc[0]
-        r1.metric('No. 1 Class', f"{top_class['Team']}", f"{top_class['Points']:.2f} pts")
-        r2.metric('Best User Class', f"{top_user_row['USER']} ({top_user_row['Team']})", f"#{int(top_user_row['Rank'])}")
-        r3.metric('Blue-Chip Monster', f"{recruiting_board.sort_values('Blue Chip Ratio', ascending=False).iloc[0]['Team']}", format_pct(recruiting_board.sort_values('Blue Chip Ratio', ascending=False).iloc[0]['Blue Chip Ratio'], 1))
-        r4.metric('Recruiting Disaster', f"{worst_user_row['USER']} ({worst_user_row['Team']})", f"#{int(worst_user_row['Rank'])}")
-
-        user_only = recruiting_board[recruiting_board['USER'].astype(str).str.upper() != 'CPU'].copy()
-        st.subheader('National Recruiting Board')
-        display_cols = ['Rank', 'Team', 'USER', 'Total', '5-Star', '4-Star', '3-Star', '2-Star', '1-Star', 'Blue Chip Ratio', 'Points', 'Recruiting Score', 'Class Tier', 'Trajectory', 'CFP Odds', 'Natty Odds']
-        st.dataframe(user_only[display_cols].rename(columns={'USER': 'User'}), hide_index=True, use_container_width=True)
-
-        winners, losers = recruiting_winners_losers(user_only)
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader('Recruiting Winners')
-            for _, rr in winners.iterrows():
-                st.success(f"**#{int(rr['Rank'])} {rr['Team']}** — {recruiting_story_blurb(rr)}")
-                st.caption(coach_recruiting_personality(rr))
-        with c2:
-            st.subheader('Recruiting Disasters')
-            for _, rr in losers.iterrows():
-                st.warning(f"**#{int(rr['Rank'])} {rr['Team']}** — {recruiting_story_blurb(rr)}")
-                st.caption(coach_recruiting_personality(rr))
-
-        st.subheader('Program Trajectory')
-        traj = user_only[['Rank', 'Team', 'USER', 'Trajectory', 'Dynasty Power Score', 'Recruiting Score', 'Blue Chip Ratio', 'Team Speed Score', 'CFP Odds', 'Natty Odds']].sort_values(['Dynasty Power Score', 'Rank'], ascending=[False, True])
-        st.dataframe(traj.rename(columns={'USER': 'User'}), hide_index=True, use_container_width=True)
-
-        st.subheader('Future CFP Impact')
-        impact = user_only[['Team', 'USER', 'Rank', 'Class Tier', 'Blue Chip Ratio', 'Recruiting Score', 'CFP Odds', 'Natty Odds']].copy()
-        impact['CFP Lift'] = (impact['Recruiting Score'] * 0.18 + impact['Blue Chip Ratio'] * 0.08).round(1)
-        impact['Natty Lift'] = (impact['Recruiting Score'] * 0.22 + impact['Blue Chip Ratio'] * 0.10).round(1)
-        st.dataframe(impact.rename(columns={'USER': 'User'}), hide_index=True, use_container_width=True)
-
-        st.subheader('Recruiting vs Championship Ceiling')
-        st.plotly_chart(
-            px.scatter(
-                user_only,
-                x='Blue Chip Ratio',
-                y='Natty Odds',
-                size='Points',
-                color='Trajectory',
-                hover_data=['Team', 'USER', 'Rank', 'CFP Odds', 'Team Speed Score', 'Recruiting Score'],
-                text='Team'
-            ),
-            use_container_width=True
-        )
-
-        spotlight_team = st.selectbox('Recruiting spotlight team', user_only.sort_values('Rank')['Team'].tolist(), key='recruiting_spotlight')
-        spotlight = user_only[user_only['Team'] == spotlight_team].iloc[0]
-        st.subheader('Team Spotlight')
-        col_a, col_b = st.columns([0.25, 0.75])
-        with col_a:
-            render_logo(get_logo_source(spotlight['Team']), width=86)
-        with col_b:
-            st.markdown(f"### #{int(spotlight['Rank'])} {spotlight['Team']}")
-            st.write(f"**User:** {spotlight['USER']}")
-            st.write(f"**Class Tier:** {spotlight['Class Tier']}")
-            st.write(f"**Blue Chip Ratio:** {format_pct(spotlight['Blue Chip Ratio'], 1)}")
-            st.write(f"**Heat Index:** {spotlight['Recruit Heat Index']:.1f}")
-            st.write(f"**Trajectory:** {spotlight['Trajectory']}")
-            st.write(f"**Verdict:** {spotlight['Recruiting Verdict']}")
-            st.write(f"**Future CFP impact:** current class influence bakes into a projected {format_pct(spotlight['CFP Odds'],1)} CFP shot and {format_pct(spotlight['Natty Odds'],1)} natty shot.")
-
     # --- UPSET TRACKER ---
-    with tabs[8]:
+    with tabs[7]:
         st.header("🚨 Upset Tracker")
 
         upset_df = scores.copy()
@@ -2723,7 +2193,7 @@ if data:
             )
 
     # --- GOAT RANKINGS ---
-    with tabs[9]:
+    with tabs[8]:
         st.header("🐐 Dynasty GOAT Rankings")
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
