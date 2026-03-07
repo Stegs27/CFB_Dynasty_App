@@ -2000,6 +2000,7 @@ if data:
         "📺 Season Recap",
         "🔍 Speed Freaks",
         "📊 Team Overview",
+        "🏈 Recruiting Rankings",
         "⚔️ H2H Matrix",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
@@ -2059,6 +2060,13 @@ if data:
 
     with tabs[1]:
         st.header("🗞️ Dynasty News & Headlines")
+        st.markdown(f"<h3 style='text-align:center;margin-top:0.2rem;margin-bottom:1rem;'>Week {CURRENT_WEEK_NUMBER} Games</h3>", unsafe_allow_html=True)
+        try:
+            if 'current_user_games' in locals():
+                render_current_user_games_cards(current_user_games, model_2041, scores)
+        except Exception:
+            pass
+        st.markdown("---")
         st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model leans hardest on overall roster quality and raw team speed, then lets CFP position and pedigree finish the damn job.")
         st.info(f"**{most_dangerous['USER']}** owns the highest Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
         st.warning(f"**{collapse_team['USER']}** carries the highest volatility marker. The model sees real downside if things break wrong.")
@@ -2096,8 +2104,16 @@ if data:
             top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
             st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
 
-    # --- H2H MATRIX ---
+    # --- RECRUITING RANKINGS ---
     with tabs[6]:
+        st.header("🏈 Recruiting Rankings")
+        st.subheader("Current Season National Recruiting Snapshot")
+        st.caption("Top 25 only, with team logos from the current recruiting screenshot board.")
+        current_recruiting = get_current_recruiting_snapshot()
+        render_current_recruiting_snapshot(current_recruiting)
+
+    # --- H2H MATRIX ---
+    with tabs[7]:
         st.header("⚔️ Head-to-Head Matrix")
 
         st.subheader("Full H2H Matrix")
@@ -2416,7 +2432,7 @@ if data:
                 st.progress(min(1.0, team_speed / 100.0))
 
     # --- UPSET TRACKER ---
-    with tabs[7]:
+    with tabs[8]:
         st.header("🚨 Upset Tracker")
 
         upset_df = scores.copy()
@@ -2461,7 +2477,7 @@ if data:
             )
 
     # --- GOAT RANKINGS ---
-    with tabs[8]:
+    with tabs[9]:
         st.header("🐐 Dynasty GOAT Rankings")
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
