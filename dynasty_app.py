@@ -232,19 +232,17 @@ def render_war_room_table(board_df):
                     'CFP if Lose to Unranked','CFP if Lose to Ranked',
                     'Collapse Risk','Program Stock']:
             val = row.get(col, '')
-            if isinstance(val, float):
-                if col in {'SOS','Power Index'}:
-                    disp = f"{val:.1f}"
-                elif 'Odds' in col:
-                    disp = f"{val:.1f}%" if col == 'Natty Odds' or 'Natty' in col else f"{int(round(val))}%"
-                else:
-                    disp = f"{val:.1f}"
+            if col in {'Natty Odds','CFP Odds','Natty if Lose to Unranked','Natty if Lose to Ranked','CFP if Lose to Unranked','CFP if Lose to Ranked','Collapse Risk'}:
+                disp = format_pct(val, digits=1)
+            elif col in {'SOS','Power Index'}:
+                try:
+                    disp = f"{float(val):.1f}"
+                except Exception:
+                    disp = str(val)
+            elif col == 'CFP Rank':
+                disp = '—' if pd.isna(val) or str(val).strip() in {'nan',''} else str(int(float(val)))
             else:
                 disp = str(val)
-            if col in {'CFP Odds','CFP if Lose to Unranked','CFP if Lose to Ranked'} and str(disp).replace('%','').replace('.0','').isdigit():
-                disp = f"{disp.replace('.0','')}%"
-            if col == 'CFP Rank' and (pd.isna(val) or str(val).strip() in {'nan',''}):
-                disp = '—'
             if col == 'Program Stock':
                 disp = html.escape(disp)
             cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{html.escape(disp)}</td>")
@@ -283,6 +281,106 @@ def ensure_columns(df, defaults):
             df[col] = default
     return df
 
+
+
+def format_pct(val, digits=1):
+    try:
+        if pd.isna(val):
+            return "—"
+        num = float(val)
+        if digits == 0:
+            return f"{int(round(num))}%"
+        return f"{round(num, digits):.{digits}f}%"
+    except Exception:
+        return "—"
+
+def get_program_history_cards(user, ratings_df, champs_df):
+    user_clean = str(user).strip().title()
+    history = ratings_df[ratings_df['USER'].astype(str).str.strip().str.title() == user_clean].copy()
+    if history.empty:
+        return []
+    history['YEAR'] = pd.to_numeric(history['YEAR'], errors='coerce')
+    school_rows = history.sort_values('YEAR').drop_duplicates('TEAM', keep='last')
+    cards = []
+    for _, r in school_rows.iterrows():
+        team = str(r['TEAM']).strip()
+        years = history[history['TEAM'].astype(str).str.strip() == team]['YEAR'].dropna()
+        title_count = champs_df[
+            (champs_df['user'].astype(str).str.strip().str.title() == user_clean) &
+            (champs_df['Team'].astype(str).str.strip() == team)
+        ].shape[0]
+        cards.append({
+            'team': team,
+            'logo': get_logo_source(team),
+            'years': f"{int(years.min())}-{int(years.max())}" if len(years) else "—",
+            'titles': int(title_count)
+        })
+    return cards
+
+def render_history_cards(cards):
+    if not cards:
+        st.caption("No prior school history found.")
+        return
+    cols = st.columns(min(4, len(cards)))
+    for i, card in enumerate(cards):
+        with cols[i % len(cols)]:
+            render_logo(card['logo'], width=44)
+            st.caption(card['team'])
+            st.caption(card['years'])
+            trophies = "🏆" * max(1, int(card['titles'])) if int(card['titles']) > 0 else "—"
+            st.caption(f"Titles: {trophies}")
+
+def render_speed_freaks_table(df):
+    rows_html = []
+    for _, row in df.iterrows():
+        team = str(row.get('TEAM', ''))
+        user = str(row.get('USER', ''))
+        primary = get_team_primary_color(team)
+        logo_path = get_logo_source(team)
+        logo_uri = image_file_to_data_uri(logo_path)
+        logo_html = f"<img src='{logo_uri}' style='width:38px;height:38px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:22px;'>🏈</div>"
+        cells = [f"""
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="font-weight:800;min-width:24px;text-align:center;">#{int(row.get('TEAM SPEED Rank', 0))}</div>
+            <div style="width:40px;text-align:center;">{logo_html}</div>
+            <div>
+              <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
+              <div style="font-size:12px;color:#6b7280;">{html.escape(user)}</div>
+            </div>
+          </div>
+        </td>
+        """]
+        display_vals = [
+            f"{float(row.get('Speedometer', 0)):.1f} MPH",
+            f"{float(row.get('Team Speed Score', 0)):.1f}",
+            html.escape(str(row.get('Where is the Speed?', '—'))),
+            str(int(row.get('Team Speed (90+ Speed Guys)', 0))),
+            str(int(row.get('Game Breakers (90+ Speed & 90+ Acceleration)', 0))),
+            str(int(row.get('Generational (96+ speed or 96+ Acceleration)', 0))),
+        ]
+        for disp in display_vals:
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{disp}</td>")
+        rows_html.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}12,transparent 14%);'>{''.join(cells)}</tr>")
+    table_html = f"""
+    <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#f8fafc;color:#111827;">
+            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Team</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Speedometer</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Team Speed Score</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Where is the Speed?</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">90+ Speed</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Game Breakers</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Gen Freaks</th>
+          </tr>
+        </thead>
+        <tbody>{''.join(rows_html)}</tbody>
+      </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
 
 
 def smart_col(df, target_names):
@@ -1474,8 +1572,14 @@ if data:
         c1, c2, c3 = st.columns(3)
         with c1:
             if not champ_row.empty:
-                champ_text = f"{champ_row.iloc[0]['Team']} ({champ_row.iloc[0]['user']})"
-                st.success(f"🏆 National Champion: {champ_text}")
+                champ_team = champ_row.iloc[0]['Team']
+                champ_user = champ_row.iloc[0]['user']
+                champ_logo = get_logo_source(champ_team)
+                lc1, lc2 = st.columns([0.28, 0.72])
+                with lc1:
+                    render_logo(champ_logo, width=64)
+                with lc2:
+                    st.success(f"🏆 National Champion: {champ_team} ({champ_user})")
             else:
                 st.info("🏆 National Champion: not found")
         with c2:
@@ -1571,8 +1675,10 @@ if data:
             st.write(f"**QB OVR:** {int(row['QB OVR']) if pd.notna(row['QB OVR']) else 'N/A'}")
             st.write(f"**QB Tier:** {row['QB Tier']}")
             st.write(f"**Improvement from prior year:** {row['Improvement']} OVR")
-            st.write(f"**SOS:** {row['SOS']}")
-            st.write(f"**Resume Score:** {row['Resume Score']}")
+            st.write(f"**SOS:** {row['SOS']} (higher = tougher schedule)")
+            st.write(f"**Resume Score:** {row['Resume Score']} (62% current win %, 38% SOS)")
+            st.markdown("**Coaching Stops & Rings**")
+            render_history_cards(get_program_history_cards(row['USER'], ratings, champs))
 
         with c2:
             st.subheader("MVP Profile")
@@ -1626,15 +1732,7 @@ if data:
         talent_board['TEAM SPEED Rank'] = np.arange(1, len(talent_board) + 1)
 
         st.subheader("⚡ TEAM SPEED Rankings")
-        st.dataframe(
-            talent_board[[
-                'TEAM SPEED Rank', 'USER', 'TEAM', 'Speedometer', 'Team Speed Score',
-                'Where is the Speed?', 'Team Speed (90+ Speed Guys)', 'Game Breakers (90+ Speed & 90+ Acceleration)',
-                'Generational (96+ speed or 96+ Acceleration)'
-            ]],
-            hide_index=True,
-            use_container_width=True
-        )
+        render_speed_freaks_table(talent_board)
 
         for _, r in talent_board.iterrows():
             gens = int(r['Generational (96+ speed or 96+ Acceleration)'])
