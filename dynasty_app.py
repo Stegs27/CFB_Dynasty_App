@@ -46,6 +46,8 @@ TEAM_VISUALS = {
     "Alabaster": {"slug": "alabaster", "primary": "#DC2626", "secondary": "#FACC15"},
     "Death Valley": {"slug": "death-valley", "primary": "#7C3AED", "secondary": "#000000"},
     "Gate City": {"slug": "gate-city", "primary": "#FACC15", "secondary": "#000000"},
+    "Oklahoma State": {"slug": "oklahoma-state", "primary": "#FF7300", "secondary": "#000000"},
+    "South Carolina": {"slug": "south-carolina", "primary": "#73000A", "secondary": "#000000"},
     "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
     "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
     "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
@@ -90,12 +92,16 @@ TEAM_ALIASES = {
     "Alabaster": ["alabaster"],
     "Death Valley": ["death valley"],
     "Gate City": ["gate city"],
+    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
+    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
     "Rapid City": ["rapid city"],
     "Panama City": ["panama city"],
     "Hammond": ["hammond"],
     "Alabaster": ["alabaster"],
     "Death Valley": ["death valley"],
     "Gate City": ["gate city"],
+    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
+    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
 }
 
 def normalize_key(value):
@@ -1755,6 +1761,69 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
 
     rankings_df = get_cfp_rankings_snapshot()
     rank_map = dict(rankings_df[['Team', 'Rank']].values)
+    model_lookup = model_df.drop_duplicates('TEAM').set_index('TEAM') if model_df is not None and not model_df.empty else pd.DataFrame()
+
+    def get_metric(team_name, col, fallback=0.0):
+        if isinstance(model_lookup, pd.DataFrame) and not model_lookup.empty and team_name in model_lookup.index:
+            try:
+                return float(pd.to_numeric(model_lookup.loc[team_name].get(col, fallback), errors='coerce') or fallback)
+            except Exception:
+                return fallback
+        return fallback
+
+    def impact_badge(team_name, opp_name):
+        score = get_metric(team_name, 'CFP Odds') + get_metric(team_name, 'Natty Odds')
+        if opp_name and opp_name != 'BYE':
+            opp_rank = rank_map.get(opp_name)
+            if opp_rank is not None and not pd.isna(opp_rank):
+                score += max(0, 26 - float(opp_rank)) * 1.35
+            score += get_metric(opp_name, 'CFP Odds') * 0.18
+        if score >= 75:
+            return ('CFP IMPACT: HIGH', '#fecaca', '#7f1d1d')
+        if score >= 42:
+            return ('CFP IMPACT: MED', '#fde68a', '#78350f')
+        return ('CFP IMPACT: LOW', '#d1fae5', '#065f46')
+
+    def rivalry_meter_text(user_a, user_b):
+        ua = str(user_a).strip().title()
+        ub = str(user_b).strip().title()
+        if not ua or not ub or ua.lower() == 'cpu' or ub.lower() == 'cpu' or ua == ub:
+            return '', ''
+        vs = scores_df[
+            ((scores_df['V_User_Final'] == ua) & (scores_df['H_User_Final'] == ub)) |
+            ((scores_df['V_User_Final'] == ub) & (scores_df['H_User_Final'] == ua))
+        ].copy()
+        if vs.empty:
+            return 'RIVALRY METER', 'First meeting. Fresh beef.'
+        games = len(vs)
+        margins = pd.to_numeric(vs['Margin'], errors='coerce').dropna()
+        avg_margin = float(margins.mean()) if not margins.empty else 14.0
+        if games >= 6 and avg_margin <= 10:
+            return 'RIVALRY METER: SPICY', f'{games} prior meetings. This one has real scar tissue.'
+        if games >= 3:
+            return 'RIVALRY METER: ACTIVE', f'{games} prior meetings. Enough history for both sides to talk shit.'
+        return 'RIVALRY METER: WARM', f'{games} prior meetings. Not a blood feud yet, but it is getting there.'
+
+    st.markdown("""
+    <style>
+    .dynasty-news-v2-card {
+        border-radius: 18px;
+        padding: 16px 18px;
+        margin-bottom: 14px;
+        background: linear-gradient(145deg, #111827 0%, #1f2937 100%);
+        border: 1px solid #334155;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+    }
+    .dynasty-news-v2-chip {
+        display:inline-block;
+        padding:4px 10px;
+        border-radius:999px;
+        font-size:11px;
+        font-weight:900;
+        letter-spacing:.04em;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     for _, g in games_df.iterrows():
         team = str(g['Team']).strip()
@@ -1764,12 +1833,14 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
         game_type = str(g.get('Game Type', 'Game'))
 
         team_primary = get_team_primary_color(team)
-        opp_primary = get_team_primary_color(opp) if opp != 'BYE' else '#6b7280'
+        team_secondary = get_team_secondary_color(team)
+        opp_primary = get_team_primary_color(opp) if opp != 'BYE' else '#64748b'
+        opp_secondary = get_team_secondary_color(opp) if opp != 'BYE' else '#e5e7eb'
 
         team_logo = image_file_to_data_uri(get_logo_source(team))
         opp_logo = image_file_to_data_uri(get_logo_source(opp)) if opp != 'BYE' else ''
-        team_logo_html = f"<img src='{team_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if team_logo else "🏈"
-        opp_logo_html = f"<img src='{opp_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if opp_logo else ("😴" if opp == 'BYE' else "🏈")
+        team_logo_html = f"<img src='{team_logo}' style='width:44px;height:44px;object-fit:contain;'/>" if team_logo else "🏈"
+        opp_logo_html = f"<img src='{opp_logo}' style='width:44px;height:44px;object-fit:contain;'/>" if opp_logo else ("😴" if opp == 'BYE' else "🏈")
 
         team_label = format_ranked_team_name(team, rank_map)
         opp_label = format_ranked_team_name(opp, rank_map) if opp != 'BYE' else 'BYE'
@@ -1779,71 +1850,98 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
             opp_record = get_team_record_display(opp, model_df, rankings_df)
 
         favor_text = ''
-        series_text = ''
         result_text = str(g.get('Result', '')).strip()
         if game_type == 'User Game':
             line_text, _favored = estimate_game_line(team, opp, model_df, rank_map)
             favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
+
+        series_text = ''
+        rivalry_head = ''
+        rivalry_text = ''
+        if game_type == 'User Game':
             series_text = get_user_series_record(team_user, opp_user, scores_df)
+            rivalry_head, rivalry_text = rivalry_meter_text(team_user, opp_user)
         elif game_type == 'BYE':
-            series_text = f"{team_user or team} is on a bye this week. No game, no opponent, just a chance to heal up and talk a little shit from the couch."
+            rivalry_text = f"{team_user or team} gets a bye. Heal up, self-scout, and enjoy a stress-free Saturday for once."
         elif game_type == 'Completed Game':
-            series_text = result_text or 'Week 12 final shown on the uploaded schedule screenshot.'
+            rivalry_text = result_text or f'Week {CURRENT_WEEK_NUMBER} final shown on the uploaded schedule screenshot.'
+        else:
+            rivalry_text = f"{team_user or team} has a CPU game this week. No fake drama here — just take care of business and don't do anything stupid."
 
         game_chip = 'BYE WEEK' if game_type == 'BYE' else ('FINAL' if game_type == 'Completed Game' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU'))
-        right_meta_html = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
-        series_html = f"<div style='margin-top:10px;font-size:12px;color:#4b5563;font-weight:700;'>{html.escape(series_text)}</div>" if series_text else ''
+        impact_label, impact_bg, impact_fg = impact_badge(team, opp)
+
+        top_row_right = [
+            f"<div class='dynasty-news-v2-chip' style='background:{impact_bg};color:{impact_fg};'>{html.escape(impact_label)}</div>"
+        ]
+        if favor_text:
+            top_row_right.append(f"<div class='dynasty-news-v2-chip' style='background:#dbeafe;color:#1e3a8a;'>{html.escape(favor_text)}</div>")
+
         result_bar_html = ''
         if game_type == 'Completed Game' and result_text:
             win_loss = 'W' if result_text.strip().upper().startswith('W') else ('L' if result_text.strip().upper().startswith('L') else 'FINAL')
-            result_color = '#166534' if win_loss == 'W' else ('#991b1b' if win_loss == 'L' else '#1f2937')
+            result_color = '#166534' if win_loss == 'W' else ('#991b1b' if win_loss == 'L' else '#111827')
             result_bg = '#dcfce7' if win_loss == 'W' else ('#fee2e2' if win_loss == 'L' else '#e5e7eb')
-            result_bar_html = f"<div style='margin-top:12px;padding:10px 12px;border-radius:12px;background:{result_bg};color:{result_color};font-size:14px;font-weight:900;text-align:center;'>FINAL — {html.escape(result_text)}</div>"
+            result_bar_html = f"<div style='margin-top:14px;padding:12px 14px;border-radius:14px;background:{result_bg};color:{result_color};font-size:14px;font-weight:900;text-align:center;border:1px solid rgba(255,255,255,.08);'>FINAL — {html.escape(result_text)}</div>"
+
+        left_block = (
+            f"<div style='display:flex;align-items:center;gap:12px;min-width:230px;'>"
+            f"<div style='width:58px;height:58px;border-radius:14px;background:{team_primary}22;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};box-shadow:0 0 0 1px rgba(255,255,255,.05) inset;'>{team_logo_html}</div>"
+            f"<div>"
+            f"<div style='font-size:12px;color:#9ca3af;font-weight:700;'>{html.escape(team_user)}</div>"
+            f"<div style='font-size:19px;font-weight:900;color:{team_secondary if team_secondary != '#FFFFFF' else '#f8fafc'};'>{html.escape(team_label)}</div>"
+            f"<div style='font-size:12px;color:#cbd5e1;'>Record: {html.escape(team_record)}</div>"
+            f"</div>"
+            f"</div>"
+        )
 
         if opp == 'BYE':
-            right_block_html = (
-                "<div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>"
-                "<div>"
-                "<div style='font-size:13px;color:#6b7280;text-align:right;'>Open date</div>"
-                f"<div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>BYE</div>"
-                "<div style='font-size:12px;color:#6b7280;text-align:right;'>Record: —</div>"
-                "</div>"
-                f"<div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
-                "</div>"
+            right_block = (
+                f"<div style='display:flex;align-items:center;gap:12px;min-width:230px;justify-content:flex-end;'>"
+                f"<div>"
+                f"<div style='font-size:12px;color:#9ca3af;text-align:right;font-weight:700;'>Open date</div>"
+                f"<div style='font-size:19px;font-weight:900;color:#f8fafc;text-align:right;'>BYE</div>"
+                f"<div style='font-size:12px;color:#cbd5e1;text-align:right;'>Record: —</div>"
+                f"</div>"
+                f"<div style='width:58px;height:58px;border-radius:14px;background:{opp_primary}22;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
+                f"</div>"
             )
         else:
-            right_block_html = (
-                "<div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>"
-                "<div>"
-                f"<div style='font-size:13px;color:#6b7280;text-align:right;'>{html.escape(opp_user)}</div>"
-                f"<div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>{html.escape(opp_label)}</div>"
-                f"<div style='font-size:12px;color:#6b7280;text-align:right;'>Record: {html.escape(opp_record)}</div>"
-                "</div>"
-                f"<div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
-                "</div>"
+            right_block = (
+                f"<div style='display:flex;align-items:center;gap:12px;min-width:230px;justify-content:flex-end;'>"
+                f"<div>"
+                f"<div style='font-size:12px;color:#9ca3af;text-align:right;font-weight:700;'>{html.escape(opp_user)}</div>"
+                f"<div style='font-size:19px;font-weight:900;color:{opp_secondary if opp_secondary != '#FFFFFF' else '#f8fafc'};text-align:right;'>{html.escape(opp_label)}</div>"
+                f"<div style='font-size:12px;color:#cbd5e1;text-align:right;'>Record: {html.escape(opp_record)}</div>"
+                f"</div>"
+                f"<div style='width:58px;height:58px;border-radius:14px;background:{opp_primary}22;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
+                f"</div>"
             )
 
-        center_vs = 'vs' if opp != 'BYE' else ''
+        lower_notes = []
+        if series_text:
+            lower_notes.append(f"<div style='font-size:12px;color:#e2e8f0;font-weight:800;'>{html.escape(series_text)}</div>")
+        if rivalry_head or rivalry_text:
+            lower_notes.append(
+                f"<div style='margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);'>"
+                f"<div style='font-size:11px;font-weight:900;letter-spacing:.05em;color:#94a3b8;'>{html.escape(rivalry_head or 'WEEKLY READ')}</div>"
+                f"<div style='font-size:13px;color:#f8fafc;font-weight:700;margin-top:4px;'>{html.escape(rivalry_text)}</div>"
+                f"</div>"
+            )
+
         card_html = (
-            f"<div style='border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;'>"
-            f"<div style='font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;'>{html.escape(game_chip)}</div>"
-            f"{right_meta_html}"
+            f"<div class='dynasty-news-v2-card' style='border-left:6px solid {team_primary};'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;'>"
+            f"<div class='dynasty-news-v2-chip' style='background:rgba(255,255,255,0.08);color:#e5e7eb;'>{html.escape(game_chip)}</div>"
+            f"<div style='display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;'>{''.join(top_row_right)}</div>"
             f"</div>"
-            f"<div style='display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;'>"
-            f"<div style='display:flex;align-items:center;gap:10px;min-width:230px;'>"
-            f"<div style='width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};'>{team_logo_html}</div>"
-            f"<div>"
-            f"<div style='font-size:13px;color:#6b7280;'>{html.escape(team_user)}</div>"
-            f"<div style='font-size:18px;font-weight:800;color:{team_primary};'>{html.escape(team_label)}</div>"
-            f"<div style='font-size:12px;color:#6b7280;'>Record: {html.escape(team_record)}</div>"
-            f"</div>"
-            f"</div>"
-            f"<div style='font-size:18px;font-weight:900;color:#111827;'>{center_vs}</div>"
-            f"{right_block_html}"
+            f"<div style='display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;'>"
+            f"{left_block}"
+            f"<div style='font-size:17px;font-weight:900;color:#94a3b8;letter-spacing:.08em;'>" + ('VS' if opp != 'BYE' else '—') + "</div>"
+            f"{right_block}"
             f"</div>"
             f"{result_bar_html}"
-            f"{series_html}"
+            f"{''.join(lower_notes)}"
             f"</div>"
         )
         st.markdown(card_html, unsafe_allow_html=True)
