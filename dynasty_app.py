@@ -65,6 +65,13 @@ def render_logo(url, width=52):
     except Exception:
         st.markdown("<div style='font-size:2rem;line-height:1;'>🏈</div>", unsafe_allow_html=True)
 
+def logo_html(url, team):
+    fallback = "🏈"
+    safe_team = str(team).strip()
+    if isinstance(url, str) and url.strip():
+        return f"<img src='{url}' alt='{safe_team} logo' style='width:52px;height:52px;object-fit:contain;display:block;' />"
+    return f"<div style='width:52px;height:52px;border-radius:12px;background:#111827;color:white;display:flex;align-items:center;justify-content:center;font-size:1.6rem;'>{fallback}</div>"
+
 def ensure_columns(df, defaults):
     for col, default in defaults.items():
         if col not in df.columns:
@@ -217,17 +224,20 @@ def normalize_yes_no_columns(df, cols):
     return df
 
 def qb_label(row):
+    # Bad QB should win ties. If the source sheet says 'ass', we trust it.
+    if yes_no_flag(row.get('Qb is Ass (under 80)', 'No')):
+        return 'Ass'
     if yes_no_flag(row.get('QB is Elite (90+)', 'No')):
         return 'Elite'
     if yes_no_flag(row.get('QB is Leader (85+)', 'No')):
         return 'Leader'
     if yes_no_flag(row.get('QB is Average Joe (between 80 and 84)', 'No')):
         return 'Average Joe'
-    if yes_no_flag(row.get('Qb is Ass (under 80)', 'No')):
-        return 'Ass'
     qb_ovr = pd.to_numeric(row.get('QB OVR', np.nan), errors='coerce')
     if pd.isna(qb_ovr):
         return 'Unknown'
+    if qb_ovr < 80:
+        return 'Ass'
     if qb_ovr >= 90:
         return 'Elite'
     if qb_ovr >= 85:
@@ -252,7 +262,6 @@ def get_record_parts(record_str):
         return 0, 0
 
 
-@st.cache_data
 def load_data():
     try:
         # LOAD ALL CORE FILES
@@ -848,6 +857,12 @@ if data:
     champs = data['champs']
 
     model_2041 = build_2041_model_table(r_2041, stats, rec)
+    # Recompute the visible QB tier straight from the latest source file so cache/file drift doesn't screw us.
+    if 'QB Tier' in model_2041.columns:
+        model_2041 = model_2041.drop(columns=['QB Tier'])
+    qb_source = r_2041[['USER', 'TEAM']].copy()
+    qb_source['QB Tier'] = r_2041.apply(qb_label, axis=1)
+    model_2041 = model_2041.merge(qb_source, on=['USER', 'TEAM'], how='left')
     model_2041['Logo'] = model_2041['TEAM'].apply(get_team_logo_url)
     user_color_map = build_user_color_map(model_2041)
     team_color_map = build_team_color_map(model_2041)
@@ -919,23 +934,35 @@ if data:
                 'Program Stock': '➖ Stable'
             }
             model_2041 = ensure_columns(model_2041, board_defaults)
-            board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock', 'QB Tier']
+            board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds',
+                          'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked',
+                          'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock', 'QB Tier']
             board = model_2041[board_cols].copy().sort_values(['Natty Odds', 'CFP Odds', 'Power Index'], ascending=False)
 
             for _, r in board.iterrows():
                 team_color = get_team_primary_color(r['TEAM'])
-                c_logo, c_info, c_natty, c_cfp = st.columns([0.7, 1.7, 1.0, 1.0])
-                with c_logo:
-                    render_logo(r['Logo'])
-                with c_info:
-                    rank_txt = 'Unranked' if pd.isna(r['Current CFP Ranking']) else int(r['Current CFP Ranking'])
-                    st.markdown(f"<div style='border-left: 6px solid {team_color}; padding-left: 0.6rem; margin-bottom: 0.35rem;'><div style='font-weight:800; font-size:1.02rem; color:{team_color};'>{r['TEAM']}</div><div style='font-size:0.93rem;'>{r['USER']} | CFP Rank: {rank_txt} | QB: {r['QB Tier']}</div><div style='font-size:0.86rem; opacity:0.88;'>Stock: {r['Program Stock']} | Power Index: {r['Power Index']}</div></div>", unsafe_allow_html=True)
-                with c_natty:
-                    st.metric("Natty Win %", f"{r['Natty Odds']}%")
-                    st.caption(f"Unranked L: {r['Natty if Lose to Unranked']}% | Ranked L: {r['Natty if Lose to Ranked']}%")
-                with c_cfp:
-                    st.metric("CFP %", f"{int(r['CFP Odds'])}%")
-                    st.caption(f"Unranked L: {int(r['CFP if Lose to Unranked'])}% | Ranked L: {int(r['CFP if Lose to Ranked'])}%")
+                rank_txt = 'Unranked' if pd.isna(r['Current CFP Ranking']) else int(r['Current CFP Ranking'])
+                logo_tag = logo_html(r['Logo'], r['TEAM'])
+                st.markdown(
+                    f"""
+                    <div style="border:1px solid rgba(128,128,128,0.28); border-left:10px solid {team_color}; border-radius:16px; padding:12px; margin:10px 0; background:rgba(255,255,255,0.02);">
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                            <div>{logo_tag}</div>
+                            <div style="flex:1; min-width:180px;">
+                                <div style="font-size:1.1rem; font-weight:800; color:{team_color};">{r['TEAM']}</div>
+                                <div style="font-size:0.95rem;"><strong>{r['USER']}</strong> · CFP Rank: {rank_txt} · QB: {r['QB Tier']}</div>
+                                <div style="font-size:0.85rem; opacity:0.85;">Stock: {r['Program Stock']} · Power Index: {r['Power Index']}</div>
+                            </div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Natty Win %", f"{r['Natty Odds']}%")
+                m2.metric("CFP %", f"{int(r['CFP Odds'])}%")
+                m3.metric("If Lose to Unranked", f"N {r['Natty if Lose to Unranked']}% / C {int(r['CFP if Lose to Unranked'])}%")
+                m4.metric("If Lose to Ranked", f"N {r['Natty if Lose to Ranked']}% / C {int(r['CFP if Lose to Ranked'])}%")
                 st.markdown("---")
 
             with st.expander("Open compact War Room table"):
@@ -966,13 +993,15 @@ if data:
                 qb_disaster = qb_disaster_board.iloc[0]
                 st.write(f"💀 **QB disaster watch:** {qb_disaster['USER']} is rolling out an **Ass** QB situation. That's the kind of setup that can take a good roster and make it play like it forgot where the fuck the sticks are.")
 
-            doug_florida = model_2041[(model_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (model_2041['TEAM'].astype(str).str.strip() == 'Florida')]
-            if not doug_florida.empty:
-                doug_row = doug_florida.iloc[0]
-                if str(doug_row.get('QB Tier', '')).strip() == 'Ass':
-                    st.write("☠️ **Doug/Florida QB update:** Florida's QB room is still ass. The Gators have enough brand power to scare people in the tunnel, then that quarterback strolls out and turns the whole damn thing into a liability test.")
+            doug_source = r_2041[(r_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (r_2041['TEAM'].astype(str).str.strip() == 'Florida')]
+            if not doug_source.empty:
+                doug_src = doug_source.iloc[0]
+                doug_qb_flag = yes_no_flag(doug_src.get('Qb is Ass (under 80)', 'No'))
+                doug_qb_tier = qb_label(doug_src)
+                if doug_qb_flag or doug_qb_tier == 'Ass':
+                    st.write("☠️ **Doug/Florida QB update:** Florida's QB room is still ass. The Gators can put on the brand-name cape all they want, but that quarterback spot is one bad read away from turning the whole damn offense into a fire drill.")
                 else:
-                    st.write(f"ℹ️ **Doug/Florida QB check:** Latest file currently labels the Florida QB tier as **{doug_row.get('QB Tier', 'Unknown')}**.")
+                    st.write(f"ℹ️ **Doug/Florida QB check:** Latest file currently labels the Florida QB tier as **{doug_qb_tier}**.")
 
             if not rivalry_df.empty:
                 top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
