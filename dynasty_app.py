@@ -1729,11 +1729,11 @@ def get_current_user_games(model_df):
     OPP W-L is the opponent record shown on those screenshots.
     """
     weekly_games = [
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida State', 'User': 'Doug', 'Opponent': 'LSU', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '5-4', 'Game Type': 'CPU Game'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida', 'User': 'Michael', 'Opponent': 'BYE', 'Opponent User': '', 'Team Record': '9-2', 'OPP W-L': '', 'Game Type': 'BYE'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Bowling Green', 'User': 'Chris', 'Opponent': 'South Carolina', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '4-5', 'Game Type': 'CPU Game'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida State', 'User': 'Doug', 'Opponent': 'LSU', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '4-5', 'Game Type': 'CPU Game'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida', 'User': 'Michael', 'Opponent': 'Oklahoma State', 'Opponent User': 'CPU', 'Team Record': '9-2', 'OPP W-L': '6-4', 'Game Type': 'Completed Game', 'Result': 'Week 12 final shown on schedule screenshot'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Bowling Green', 'User': 'Chris', 'Opponent': 'South Carolina', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '2-7', 'Game Type': 'CPU Game'},
         {'Week': CURRENT_WEEK_NUMBER, 'Team': 'USF', 'User': 'Anthony', 'Opponent': 'Penn State', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '9-2', 'Game Type': 'CPU Game'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Texas Tech', 'User': 'Bubba', 'Opponent': 'Indiana', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '5-4', 'Game Type': 'CPU Game'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Texas Tech', 'User': 'Bubba', 'Opponent': 'BYE', 'Opponent User': '', 'Team Record': '9-1', 'OPP W-L': '', 'Game Type': 'BYE'},
         {'Week': CURRENT_WEEK_NUMBER, 'Team': 'San Jose State', 'User': 'Michael', 'Opponent': 'Ohio State', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '6-3', 'Game Type': 'CPU Game'},
     ]
     team_to_user = {str(r['TEAM']).strip(): str(r['USER']).strip() for _, r in model_df[['TEAM','USER']].drop_duplicates().iterrows()}
@@ -1778,13 +1778,16 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
 
         favor_text = ''
         series_text = ''
+        result_text = str(g.get('Result', '')).strip()
         if game_type == 'User Game':
             line_text, _favored = estimate_game_line(team, opp, model_df, rank_map)
             favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
             series_text = get_user_series_record(team_user, opp_user, scores_df)
         elif game_type == 'BYE':
             series_text = f"{team_user or team} is on a bye this week. No game, no opponent, just a chance to heal up and talk a little shit from the couch."
-        game_chip = 'BYE WEEK' if game_type == 'BYE' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU')
+        elif game_type == 'Completed Game':
+            series_text = result_text or 'Week 12 final shown on the uploaded schedule screenshot.'
+        game_chip = 'BYE WEEK' if game_type == 'BYE' else ('FINAL' if game_type == 'Completed Game' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU'))
 
         right_meta = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
         series_html = f"<div style='margin-top:10px;font-size:12px;color:#4b5563;font-weight:700;'>{html.escape(series_text)}</div>" if series_text else ''
