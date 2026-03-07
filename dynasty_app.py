@@ -60,6 +60,12 @@ TEAM_VISUALS = {
     "UCLA": {"slug": "ucla", "primary": "#2774AE", "secondary": "#FFD100"},
     "TCU": {"slug": "tcu", "primary": "#4D1979", "secondary": "#A3A9AC"},
     "Utah": {"slug": "utah", "primary": "#CC0000", "secondary": "#000000"},
+    "Rapid City": {"slug": "rapid-city", "primary": "#11B5AE", "secondary": "#FF4FA3"},
+    "Panama City": {"slug": "panama-city", "primary": "#FF7A00", "secondary": "#000000"},
+    "Hammond": {"slug": "hammond", "primary": "#1FA34A", "secondary": "#0B3D0B"},
+    "Alabaster": {"slug": "alabaster", "primary": "#D62828", "secondary": "#F4D35E"},
+    "Death Valley": {"slug": "death-valley", "primary": "#6A0DAD", "secondary": "#000000"},
+    "Gate City": {"slug": "gate-city", "primary": "#FFD100", "secondary": "#000000"},
 }
 
 TEAM_ALIASES = {
@@ -70,6 +76,12 @@ TEAM_ALIASES = {
     "South Florida": ["usf", "south florida", "south florida bulls"],
     "San Jose State": ["san jose state", "san jose state spartans", "sjsu"],
     "Bowling Green": ["bowling green", "bowling green falcons"],
+    "Rapid City": ["rapid city"],
+    "Panama City": ["panama city"],
+    "Hammond": ["hammond"],
+    "Alabaster": ["alabaster"],
+    "Death Valley": ["death valley"],
+    "Gate City": ["gate city"],
 }
 
 def normalize_key(value):
@@ -1430,6 +1442,201 @@ def tier_from_dynasty_score(score):
     return "Upstart"
 
 
+def _recent_recruit_window(row, anchor_year=2041, lookback=4):
+    year_cols = sorted([int(c) for c in row.index if str(c).isdigit()])
+    vals = []
+    for y in year_cols:
+        if y <= anchor_year:
+            v = clean_rank_value(row.get(str(y)))
+            if not pd.isna(v):
+                vals.append((y, float(v)))
+    if not vals:
+        return [], np.nan, 0.0
+    vals = vals[-lookback:]
+    ranks = [v for _, v in vals]
+    weights = np.linspace(1, len(ranks), len(ranks))
+    weighted_avg = float(np.average(ranks, weights=weights))
+    trend = float(ranks[0] - ranks[-1]) if len(ranks) >= 2 else 0.0
+    return vals, weighted_avg, trend
+
+
+def _recruit_class_tier(weighted_rank, heat_index, bcr):
+    if pd.isna(weighted_rank):
+        return "No Read"
+    if weighted_rank <= 5 or (heat_index >= 88 and bcr >= 55):
+        return "Dynasty Class"
+    if weighted_rank <= 12 or heat_index >= 80:
+        return "Elite Haul"
+    if weighted_rank <= 25 or heat_index >= 72:
+        return "Strong Class"
+    if weighted_rank <= 40 or heat_index >= 62:
+        return "Solid Build"
+    if weighted_rank <= 65:
+        return "Mid Pack"
+    return "Needs Bags"
+
+
+def _recruit_trajectory(row):
+    heat = float(row.get('Heat Index', 50))
+    pipeline = float(row.get('Pipeline Score', 50))
+    speed = float(row.get('Speed Recruiter Index', 50))
+    bcr = float(row.get('Blue Chip %', 0))
+    if heat >= 84 and pipeline >= 82 and bcr >= 55:
+        return "Death Star Loading"
+    if heat >= 78 and speed >= 75:
+        return "Track Team With Bags"
+    if pipeline >= 76:
+        return "Roster Machine"
+    if heat >= 70 and bcr < 40:
+        return "Stars Without Bulk"
+    if speed >= 72 and heat < 68:
+        return "Speed Lab"
+    if heat < 55 and pipeline < 58:
+        return "Fraud Watch"
+    return "On Schedule"
+
+
+def _recruit_blurb(row):
+    team = row['TEAM']
+    tier = row['Class Tier']
+    traj = row['Trajectory']
+    heat = float(row['Heat Index'])
+    bcr = float(row['Blue Chip %'])
+    speed = float(row['Speed Recruiter Index'])
+    if tier == 'Dynasty Class':
+        return f"{team} is recruiting like somebody found the NIL nuke button. This class has full-on dynasty stink on it."
+    if traj == 'Track Team With Bags':
+        return f"{team} is signing speed freaks and doing it with zero shame. This is less roster building and more a felony footrace."
+    if traj == 'Stars Without Bulk':
+        return f"{team} keeps landing names, but the blue-chip body count still says somebody forgot the damn trench warfare."
+    if traj == 'Fraud Watch':
+        return f"{team} is recruiting like the fax machine, the group chat, and the head coach's judgment all failed at once."
+    if heat >= 75 and bcr >= 50:
+        return f"{team} is stacking a nasty little class. Not all glitz, but enough juice to make the future deeply annoying for everybody else."
+    if speed >= 72:
+        return f"{team} may not own the whole blue-chip galaxy, but they are absolutely recruiting like speed is a controlled substance."
+    return f"{team} is putting together a respectable class. Nothing to start a parade over yet, but definitely not clown shoes either."
+
+
+def build_recruiting_board(rec_df, model_df, anchor_year=2041):
+    rows = []
+    rec_local = rec_df.copy()
+    rec_local['USER'] = rec_local['USER'].astype(str).str.strip().str.title()
+    if 'Teams' in rec_local.columns:
+        rec_local['Teams'] = rec_local['Teams'].astype(str).str.strip()
+
+    for _, m in model_df.iterrows():
+        user = str(m['USER']).strip().title()
+        team = str(m['TEAM']).strip()
+        match = rec_local[(rec_local['USER'] == user) & (rec_local['Teams'].astype(str).str.lower() == team.lower())]
+        if match.empty:
+            match = rec_local[rec_local['Teams'].astype(str).str.lower() == team.lower()]
+        if match.empty:
+            match = rec_local[rec_local['USER'] == user]
+        rec_row = match.iloc[-1] if not match.empty else pd.Series(dtype=object)
+
+        recent_vals, weighted_rank, trend = _recent_recruit_window(rec_row, anchor_year=anchor_year, lookback=4) if not match.empty else ([], np.nan, 0.0)
+        recent_display = ' | '.join([f"{y}:{int(v)}" for y, v in recent_vals]) if recent_vals else 'No recent class data'
+        heat = round(max(1.0, min(100.0, 101 - weighted_rank)), 1) if not pd.isna(weighted_rank) else 50.0
+        blue = round(float(pd.to_numeric(m.get('BCR_Val', 0), errors='coerce') or 0.0), 1)
+        pipeline = round(
+            heat * 0.34
+            + blue * 0.26
+            + float(m.get('Team Speed Score', 0)) * 0.16
+            + float(m.get('OVERALL', 0)) * 0.12
+            + max(trend, 0) * 1.8
+            + float(m.get('Generational (96+ speed or 96+ Acceleration)', 0)) * 2.8,
+            1
+        )
+        speed_idx = round(
+            heat * 0.22
+            + float(m.get('Team Speed Score', 0)) * 0.34
+            + float(m.get('Off Speed (90+ speed)', 0)) * 1.0
+            + float(m.get('Def Speed (90+ speed)', 0)) * 1.0
+            + float(m.get('Game Breakers (90+ Speed & 90+ Acceleration)', 0)) * 2.0
+            + float(m.get('Generational (96+ speed or 96+ Acceleration)', 0)) * 4.0,
+            1
+        )
+        row = {
+            'USER': user,
+            'TEAM': team,
+            'Logo': get_logo_source(team),
+            'Recent Cycle': recent_display,
+            'Weighted Avg Rank': round(weighted_rank, 1) if not pd.isna(weighted_rank) else np.nan,
+            'Trend Score': round(trend, 1),
+            'Heat Index': heat,
+            'Blue Chip %': blue,
+            'Pipeline Score': pipeline,
+            'Speed Recruiter Index': speed_idx,
+            'Current Recruiting Score': heat,
+            'Current Blue Chip Ratio': round(blue / 100.0, 3),
+        }
+        row['Class Tier'] = _recruit_class_tier(row['Weighted Avg Rank'], heat, blue)
+        row['Trajectory'] = _recruit_trajectory(row)
+        row['Recruiting Blurb'] = _recruit_blurb(row)
+        rows.append(row)
+
+    out = pd.DataFrame(rows).sort_values(['Heat Index', 'Pipeline Score', 'Speed Recruiter Index'], ascending=False).reset_index(drop=True)
+    if not out.empty:
+        out['Rank'] = np.arange(1, len(out) + 1)
+    return out
+
+
+def render_recruiting_table(df):
+    rows_html = []
+    for _, row in df.iterrows():
+        team = str(row.get('TEAM', ''))
+        user = str(row.get('USER', ''))
+        primary = get_team_primary_color(team)
+        logo_path = get_logo_source(team)
+        logo_uri = image_file_to_data_uri(logo_path)
+        logo_html = f"<img src='{logo_uri}' style='width:38px;height:38px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:22px;'>🏈</div>"
+        cells = [f"""
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="font-weight:800;min-width:24px;text-align:center;">#{int(row.get('Rank', 0))}</div>
+            <div style="width:40px;text-align:center;">{logo_html}</div>
+            <div>
+              <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
+              <div style="font-size:12px;color:#6b7280;">{html.escape(user)}</div>
+            </div>
+          </div>
+        </td>
+        """]
+        vals = [
+            html.escape(str(row.get('Recent Cycle', '—'))),
+            f"{float(row.get('Heat Index', 0)):.1f}",
+            f"{float(row.get('Pipeline Score', 0)):.1f}",
+            f"{float(row.get('Speed Recruiter Index', 0)):.1f}",
+            f"{float(row.get('Blue Chip %', 0)):.1f}%",
+            html.escape(str(row.get('Class Tier', '—'))),
+            html.escape(str(row.get('Trajectory', '—'))),
+        ]
+        for disp in vals:
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{disp}</td>")
+        rows_html.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}12,transparent 14%);'>{''.join(cells)}</tr>")
+    table_html = f"""
+    <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#f8fafc;color:#111827;">
+            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Recruiting Board</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Recent Classes</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Heat Index</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Pipeline Score</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Speed Recruiter</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Blue Chip</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Class Tier</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Trajectory</th>
+          </tr>
+        </thead>
+        <tbody>{''.join(rows_html)}</tbody>
+      </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+
+
 
 def get_cfp_rankings_snapshot():
     data = [
@@ -1714,6 +1921,10 @@ if data:
 
     scenario_df = model_2041.apply(project_loss_scenarios, axis=1)
     model_2041 = pd.concat([model_2041, scenario_df], axis=1)
+    if 'Current Recruiting Score' not in model_2041.columns:
+        model_2041['Current Recruiting Score'] = model_2041.get('Recruit Score', 50.0)
+    if 'Current Blue Chip Ratio' not in model_2041.columns:
+        model_2041['Current Blue Chip Ratio'] = pd.to_numeric(model_2041.get('BCR_Val', 0), errors='coerce').fillna(0) / 100.0
 
     tabs = st.tabs([
         "📰 Dynasty War Room",
@@ -1722,6 +1933,7 @@ if data:
         "📺 Season Recap",
         "🔍 Speed Freaks",
         "📊 Team Overview",
+        "🏈 Recruiting Rankings",
         "⚔️ H2H Matrix",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
@@ -1891,9 +2103,72 @@ if data:
             use_container_width=True
         )
 
+
+# --- RECRUITING RANKINGS ---
+with tabs[6]:
+    st.header("🏈 Recruiting Rankings")
+    st.caption("This board blends recent recruiting classes with blue-chip ratio, speed development, and current roster payoff. In other words: who is actually recruiting like a menace instead of just talking about it.")
+
+    recruiting_board = build_recruiting_board(rec, model_2041)
+    render_recruiting_table(recruiting_board)
+
+    if not recruiting_board.empty:
+        w1, w2, w3, w4 = st.columns(4)
+        leader = recruiting_board.iloc[0]
+        pipeline = recruiting_board.sort_values('Pipeline Score', ascending=False).iloc[0]
+        speed = recruiting_board.sort_values('Speed Recruiter Index', ascending=False).iloc[0]
+        fraud = recruiting_board.sort_values('Heat Index', ascending=True).iloc[0]
+        w1.metric("Recruiting King", leader['TEAM'], f"{leader['Heat Index']:.1f} heat")
+        w2.metric("Best Pipeline", pipeline['TEAM'], f"{pipeline['Pipeline Score']:.1f}")
+        w3.metric("Fastest Recruiter", speed['TEAM'], f"{speed['Speed Recruiter Index']:.1f}")
+        w4.metric("Fraud Watch", fraud['TEAM'], f"{fraud['Heat Index']:.1f} heat")
+
+        st.markdown("#### Winners and disasters")
+        c1, c2 = st.columns(2)
+        winners = recruiting_board.sort_values(['Heat Index','Pipeline Score'], ascending=False).head(3)
+        disasters = recruiting_board.sort_values(['Heat Index','Pipeline Score'], ascending=[True, True]).head(2)
+        with c1:
+            for _, rr in winners.iterrows():
+                st.success(rr['Recruiting Blurb'])
+        with c2:
+            for _, rr in disasters.iterrows():
+                st.error(rr['Recruiting Blurb'])
+
+        st.markdown("#### Recruiting lab")
+        lc1, lc2 = st.columns([1.15, 1.35])
+        with lc1:
+            st.plotly_chart(
+                px.scatter(
+                    recruiting_board,
+                    x='Heat Index',
+                    y='Pipeline Score',
+                    size='Speed Recruiter Index',
+                    color='TEAM',
+                    color_discrete_map=team_color_map,
+                    hover_data=['USER','Class Tier','Trajectory','Blue Chip %']
+                ),
+                use_container_width=True
+            )
+        with lc2:
+            spotlight_team = st.selectbox("Recruiting spotlight", recruiting_board['TEAM'].tolist(), key='recruit_spotlight')
+            sp = recruiting_board[recruiting_board['TEAM'] == spotlight_team].iloc[0]
+            render_logo(sp['Logo'], width=90)
+            st.markdown(f"### {sp['TEAM']} | {sp['USER']}")
+            st.write(f"**Recent classes:** {sp['Recent Cycle']}")
+            st.write(f"**Class Tier:** {sp['Class Tier']}")
+            st.write(f"**Trajectory:** {sp['Trajectory']}")
+            st.write(f"**Blue Chip Ratio proxy:** {sp['Blue Chip %']:.1f}%")
+            st.write(f"**Current recruiting score:** {sp['Current Recruiting Score']:.1f}")
+            st.info(sp['Recruiting Blurb'])
+            st.caption("Recruiting now matters two ways in this app: it already feeds the model's natty/CFP outlook, and this board shows who is actually turning those classes into scary roster ingredients.")
+
+    with st.expander("Show recruiting board data"):
+        st.dataframe(recruiting_board, hide_index=True, use_container_width=True)
+
     # --- H2H MATRIX ---
-    with tabs[6]:
+    with tabs[7]:
         st.header("⚔️ Head-to-Head Matrix")
+
 
         st.subheader("Full H2H Matrix")
         st.dataframe(h2h_df, hide_index=True, use_container_width=True)
@@ -2148,7 +2423,7 @@ if data:
                 st.progress(min(1.0, team_speed / 100.0))
 
     # --- UPSET TRACKER ---
-    with tabs[7]:
+    with tabs[8]:
         st.header("🚨 Upset Tracker")
 
         upset_df = scores.copy()
@@ -2193,7 +2468,7 @@ if data:
             )
 
     # --- GOAT RANKINGS ---
-    with tabs[8]:
+    with tabs[9]:
         st.header("🐐 Dynasty GOAT Rankings")
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
