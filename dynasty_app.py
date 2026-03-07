@@ -1722,30 +1722,28 @@ def get_user_series_record(user_a, user_b, scores_df):
     return f"Series: tied {a_wins}-{b_wins}."
 
 
+
 def get_current_user_games(model_df):
+    """Week 12 slate pulled from the uploaded user schedule screenshots.
+    The current week is the week after the last final score shown on each user schedule.
+    OPP W-L is the opponent record shown on those screenshots.
+    """
     weekly_games = [
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida State', 'Opponent': 'LSU'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Bowling Green', 'Opponent': 'South Carolina'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'USF', 'Opponent': 'Penn State'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Texas Tech', 'Opponent': 'Indiana'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'San Jose State', 'Opponent': 'Ohio State'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida State', 'User': 'Doug', 'Opponent': 'LSU', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '5-4', 'Game Type': 'CPU Game'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida', 'User': 'Michael', 'Opponent': 'BYE', 'Opponent User': '', 'Team Record': '9-2', 'OPP W-L': '', 'Game Type': 'BYE'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Bowling Green', 'User': 'Chris', 'Opponent': 'South Carolina', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '4-5', 'Game Type': 'CPU Game'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'USF', 'User': 'Anthony', 'Opponent': 'Penn State', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '9-2', 'Game Type': 'CPU Game'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Texas Tech', 'User': 'Bubba', 'Opponent': 'Indiana', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '5-4', 'Game Type': 'CPU Game'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'San Jose State', 'User': 'Michael', 'Opponent': 'Ohio State', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '6-3', 'Game Type': 'CPU Game'},
     ]
     team_to_user = {str(r['TEAM']).strip(): str(r['USER']).strip() for _, r in model_df[['TEAM','USER']].drop_duplicates().iterrows()}
     rows = []
     for g in weekly_games:
-        team = g['Team']
-        opp = g['Opponent']
-        if team not in team_to_user:
-            continue
-        opp_user = team_to_user.get(opp, 'CPU')
-        rows.append({
-            'Week': g['Week'],
-            'User': team_to_user[team],
-            'Team': team,
-            'Opponent': opp,
-            'Opponent User': opp_user,
-            'Game Type': 'User Game' if opp_user != 'CPU' else 'CPU Game'
-        })
+        row = dict(g)
+        team = row['Team']
+        if team in team_to_user:
+            row['User'] = team_to_user[team]
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -1761,62 +1759,84 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
     for _, g in games_df.iterrows():
         team = str(g['Team']).strip()
         opp = str(g['Opponent']).strip()
-        team_user = str(g['User']).strip()
-        opp_user = str(g['Opponent User']).strip()
+        team_user = str(g.get('User', '')).strip()
+        opp_user = str(g.get('Opponent User', '')).strip() or 'CPU'
         game_type = str(g.get('Game Type', 'Game'))
         team_primary = get_team_primary_color(team)
-        opp_primary = get_team_primary_color(opp)
+        opp_primary = get_team_primary_color(opp) if opp != 'BYE' else '#6b7280'
         team_logo = image_file_to_data_uri(get_logo_source(team))
-        opp_logo = image_file_to_data_uri(get_logo_source(opp))
+        opp_logo = image_file_to_data_uri(get_logo_source(opp)) if opp != 'BYE' else ''
         team_logo_html = f"<img src='{team_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if team_logo else "🏈"
-        opp_logo_html = f"<img src='{opp_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if opp_logo else "🏈"
+        opp_logo_html = f"<img src='{opp_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if opp_logo else ("😴" if opp == 'BYE' else "🏈")
 
         team_label = format_ranked_team_name(team, rank_map)
-        opp_label = format_ranked_team_name(opp, rank_map)
-        team_record = get_team_record_display(team, model_df, rankings_df)
-        opp_record = get_team_record_display(opp, model_df, rankings_df)
+        opp_label = format_ranked_team_name(opp, rank_map) if opp != 'BYE' else 'BYE'
+        team_record = str(g.get('Team Record', '')).strip() or get_team_record_display(team, model_df, rankings_df)
+        opp_record = str(g.get('OPP W-L', '')).strip() if opp != 'BYE' else '—'
+        if opp != 'BYE' and not opp_record:
+            opp_record = get_team_record_display(opp, model_df, rankings_df)
 
         favor_text = ''
         series_text = ''
         if game_type == 'User Game':
-            line_text, favored = estimate_game_line(team, opp, model_df, rank_map)
+            line_text, _favored = estimate_game_line(team, opp, model_df, rank_map)
             favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
             series_text = get_user_series_record(team_user, opp_user, scores_df)
-        game_chip = "USER vs USER" if game_type == 'User Game' else "USER vs CPU"
+        elif game_type == 'BYE':
+            series_text = f"{team_user or team} is on a bye this week. No game, no opponent, just a chance to heal up and talk a little shit from the couch."
+        game_chip = 'BYE WEEK' if game_type == 'BYE' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU')
 
         right_meta = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
         series_html = f"<div style='margin-top:10px;font-size:12px;color:#4b5563;font-weight:700;'>{html.escape(series_text)}</div>" if series_text else ''
 
+        if opp == 'BYE':
+            right_block = f"""
+            <div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>
+              <div>
+                <div style='font-size:13px;color:#6b7280;text-align:right;'>Open date</div>
+                <div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>BYE</div>
+                <div style='font-size:12px;color:#6b7280;text-align:right;'>Record: —</div>
+              </div>
+              <div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>
+            </div>
+            """
+        else:
+            right_block = f"""
+            <div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>
+              <div>
+                <div style='font-size:13px;color:#6b7280;text-align:right;'>{html.escape(opp_user)}</div>
+                <div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>{html.escape(opp_label)}</div>
+                <div style='font-size:12px;color:#6b7280;text-align:right;'>Record: {html.escape(opp_record)}</div>
+              </div>
+              <div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>
+            </div>
+            """
+
+        center_vs = 'vs' if opp != 'BYE' else ''
         card_html = f"""
-        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-            <div style="font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;">{html.escape(game_chip)}</div>
+        <div style='border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;'>
+          <div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;'>
+            <div style='font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;'>{html.escape(game_chip)}</div>
             {right_meta}
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:10px;min-width:230px;">
-              <div style="width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};">{team_logo_html}</div>
+          <div style='display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;'>
+            <div style='display:flex;align-items:center;gap:10px;min-width:230px;'>
+              <div style='width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};'>{team_logo_html}</div>
               <div>
-                <div style="font-size:13px;color:#6b7280;">{html.escape(team_user)}</div>
-                <div style="font-size:18px;font-weight:800;color:{team_primary};">{html.escape(team_label)}</div>
-                <div style="font-size:12px;color:#6b7280;">Record: {html.escape(team_record)}</div>
+                <div style='font-size:13px;color:#6b7280;'>{html.escape(team_user)}</div>
+                <div style='font-size:18px;font-weight:800;color:{team_primary};'>{html.escape(team_label)}</div>
+                <div style='font-size:12px;color:#6b7280;'>Record: {html.escape(team_record)}</div>
               </div>
             </div>
-            <div style="font-size:18px;font-weight:900;color:#111827;">vs</div>
-            <div style="display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;">
-              <div>
-                <div style="font-size:13px;color:#6b7280;text-align:right;">{html.escape(opp_user)}</div>
-                <div style="font-size:18px;font-weight:800;color:{opp_primary};text-align:right;">{html.escape(opp_label)}</div>
-                <div style="font-size:12px;color:#6b7280;text-align:right;">Record: {html.escape(opp_record)}</div>
-              </div>
-              <div style="width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};">{opp_logo_html}</div>
-            </div>
+            <div style='font-size:18px;font-weight:900;color:#111827;'>{center_vs}</div>
+            {right_block}
           </div>
           {series_html}
         </div>
         """
         cards.append(card_html)
     st.markdown("".join(cards), unsafe_allow_html=True)
+
 
 def get_current_recruiting_snapshot():
     rows = [
