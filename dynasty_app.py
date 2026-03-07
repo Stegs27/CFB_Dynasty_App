@@ -2132,6 +2132,8 @@ def build_cfp_bubble_board(rankings_df, model_df):
                 vals.append(defaults[col])
         df[col] = vals
 
+    df['Games Played'] = df['Wins'] + df['Losses']
+    df['Remaining Games'] = (12 - df['Games Played']).clip(lower=0)
     df['Win %'] = (df['Wins'] / (df['Wins'] + df['Losses'])).round(3)
     df['Committee Score'] = ((26 - df['Rank']) / 25) * 100
     df['Top12 Flag'] = (df['Rank'] <= 12).astype(int)
@@ -2147,24 +2149,39 @@ def build_cfp_bubble_board(rankings_df, model_df):
         'Unknown': 0.0,
     }
     df['QB Mod'] = df['QB Tier'].map(qbm).fillna(0.0)
+    df['Overall CFP Mod'] = np.select(
+        [df['OVERALL'] <= 80, df['OVERALL'] <= 82, df['OVERALL'] <= 84],
+        [-16.0, -11.0, -6.0],
+        default=0.0
+    )
+    df['Lose Out Penalty'] = (
+        df['Remaining Games'] * 5.0
+        + np.maximum(0, (df['Losses'] + df['Remaining Games']) - 2) * 8.0
+        + np.where(df['Rank'] <= 12, df['Remaining Games'] * 2.5, df['Remaining Games'] * 1.2)
+    )
 
     df['CFP Raw'] = (
-        df['Committee Score'] * 0.36
-        + (df['Win %'] * 100) * 0.18
+        df['Committee Score'] * 0.35
+        + (df['Win %'] * 100) * 0.17
         + df['SOS'] * 0.12
-        + df['Resume Score'] * 0.12
+        + df['Resume Score'] * 0.11
         + df['Recruit Score'] * 0.04
         + df['Team Speed Score'] * 0.03
         + df['BCR_Val'] * 0.02
-        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.04
-        + df['Top12 Flag'] * 6.0
-        + df['Top8 Flag'] * 3.0
+        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.05
+        + df['OVERALL'] * 0.07
+        + df['Top12 Flag'] * 5.2
+        + df['Top8 Flag'] * 2.5
         + df['QB Mod']
+        + df['Overall CFP Mod']
         - df['Loss Penalty']
         - df['Rank Pressure']
     )
-    df['CFP Make %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 46) / 6.0)) * 100).round(1)
-    df['CFP Make %'] = df['CFP Make %'].clip(lower=1.0, upper=94.5)
+    df['Lose Out Raw'] = df['CFP Raw'] - df['Lose Out Penalty']
+    df['Lose Out CFP %'] = (1 / (1 + np.exp(-(df['Lose Out Raw'] - 43) / 5.8)) * 100).round(1)
+    df['Base CFP %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 46) / 5.8)) * 100).round(1)
+    df['CFP Make %'] = (df['Base CFP %'] * 0.76 + df['Lose Out CFP %'] * 0.24).round(1)
+    df['CFP Make %'] = df['CFP Make %'].clip(lower=1.0, upper=92.5)
 
     # Automatic-bid path estimate: best shot for likely conference champs among highly ranked teams.
     auto_bid_raw = (
