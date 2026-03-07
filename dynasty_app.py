@@ -2252,40 +2252,38 @@ def render_playoff_bracket(projected_field):
 
     st.markdown("""
     <style>
-    .bracket-panel {
-        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-        border: 1px solid #dbeafe;
+    .pf-panel {
+        background: linear-gradient(180deg,#111827 0%,#0f172a 100%);
+        border: 1px solid #334155;
         border-radius: 18px;
         padding: 14px;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 8px 24px rgba(15,23,42,0.25);
         margin-bottom: 12px;
     }
-    .bracket-title {
+    .pf-title {
         font-size: 14px;
         font-weight: 900;
-        color: #0f172a;
+        color: #f8fafc;
         margin-bottom: 10px;
+        letter-spacing: .02em;
     }
-    .bracket-badge {
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        padding: 10px 12px;
-        margin-bottom: 10px;
+    .pf-vs {
+        text-align:center;
+        font-size:12px;
+        font-weight:900;
+        color:#cbd5e1;
+        letter-spacing:.10em;
+        text-transform:uppercase;
+        margin:6px 0 10px 0;
     }
-    .bracket-vs {
-        text-align: center;
-        font-size: 12px;
-        font-weight: 900;
-        color: #64748b;
-        margin: 4px 0 8px 0;
-        letter-spacing: .08em;
-        text-transform: uppercase;
+    .pf-meta {
+        font-size:12px;
+        color:#cbd5e1;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    def badge(team_row):
+    def badge(team_row, compact=False):
         team = str(team_row['Team'])
         rank = int(team_row['Rank'])
         record = str(team_row['Record'])
@@ -2293,37 +2291,44 @@ def render_playoff_bracket(projected_field):
         logo_path = get_logo_source(team)
         primary = get_team_primary_color(team)
         secondary = get_team_secondary_color(team)
-        c1, c2 = st.columns([0.18, 0.82])
-        with c1:
-            render_logo(logo_path, width=34)
-        with c2:
-            st.markdown(
-                f"<div style='font-weight:900;color:{primary};'>#{int(team_row['Projected Seed'])} {html.escape(team)}</div>"
-                f"<div style='font-size:12px;color:#475569;'>CFP #{rank} • {html.escape(record)} • Make {make_pct}</div>"
-                f"<div style='height:6px;border-radius:999px;background:{secondary}22;margin-top:6px;overflow:hidden;'><div style='width:{max(2, min(100, float(team_row.get('CFP Make %', 0))))}%;height:100%;background:{primary};'></div></div>",
-                unsafe_allow_html=True
-            )
+        logo_uri = image_file_to_data_uri(logo_path)
+        logo_html = f"<img src='{logo_uri}' style='width:38px;height:38px;object-fit:contain;'/>" if logo_uri else "🏈"
+        bar_pct = max(6, min(100, float(team_row.get('CFP Make %', 0))))
+        padding = '12px' if not compact else '10px'
+        return f"""
+        <div style='background:linear-gradient(145deg,#1f2937,#111827);border:1px solid #374151;border-radius:16px;padding:{padding};box-shadow:0 4px 12px rgba(0,0,0,0.25);'>
+            <div style='display:flex;align-items:center;gap:12px;'>
+                <div style='width:48px;height:48px;border-radius:12px;background:{primary}20;border:2px solid {primary};display:flex;align-items:center;justify-content:center;flex-shrink:0;'>{logo_html}</div>
+                <div style='flex:1;'>
+                    <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;'>
+                        <div style='font-weight:900;color:{primary};font-size:16px;'>#{int(team_row['Projected Seed'])} {html.escape(team)}</div>
+                        <div style='font-size:11px;font-weight:900;color:#e5e7eb;background:{secondary}22;border:1px solid {secondary}55;padding:3px 8px;border-radius:999px;'>CFP #{rank}</div>
+                    </div>
+                    <div class='pf-meta'>{html.escape(record)} • Make {make_pct}</div>
+                    <div style='height:7px;border-radius:999px;background:{secondary}22;margin-top:8px;overflow:hidden;'><div style='width:{bar_pct}%;height:100%;background:{primary};'></div></div>
+                </div>
+            </div>
+        </div>
+        """
 
     left, right = st.columns(2)
 
     with left:
-        st.markdown("<div class='bracket-panel'><div class='bracket-title'>Top 4 Byes</div>", unsafe_allow_html=True)
+        st.markdown("<div class='pf-panel'><div class='pf-title'>Top 4 Byes</div>", unsafe_allow_html=True)
         for s in [1, 2, 3, 4]:
-            st.markdown("<div class='bracket-badge'>", unsafe_allow_html=True)
-            badge(seed_lookup[s])
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(badge(seed_lookup[s]), unsafe_allow_html=True)
+            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     with right:
-        st.markdown("<div class='bracket-panel'><div class='bracket-title'>Projected First Round</div>", unsafe_allow_html=True)
+        st.markdown("<div class='pf-panel'><div class='pf-title'>Projected First Round</div>", unsafe_allow_html=True)
         for a, b in [(5, 12), (6, 11), (7, 10), (8, 9)]:
-            st.markdown("<div class='bracket-badge'>", unsafe_allow_html=True)
-            badge(seed_lookup[a])
-            st.markdown("<div class='bracket-vs'>vs</div>", unsafe_allow_html=True)
-            badge(seed_lookup[b])
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(badge(seed_lookup[a], compact=True), unsafe_allow_html=True)
+            st.markdown("<div class='pf-vs'>vs</div>", unsafe_allow_html=True)
+            st.markdown(badge(seed_lookup[b], compact=True), unsafe_allow_html=True)
+            if (a, b) != (8, 9):
+                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
-
 
 def render_cfp_table(board_df):
     rows_html = []
