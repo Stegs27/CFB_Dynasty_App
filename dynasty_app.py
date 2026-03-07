@@ -929,6 +929,7 @@ def load_data():
             'rec': rec,
             'draft': draft,
             'champs': champs,
+            'ratings': ratings,
         }
     except Exception as e:
         st.error(f"⚠️ Load Error: {e}")
@@ -1326,6 +1327,7 @@ if data:
     rec = data['rec']
     draft = data['draft']
     champs = data['champs']
+    ratings = data['ratings']
 
     model_2041 = build_2041_model_table(r_2041, stats, rec)
     # Recompute the visible QB tier straight from the latest source file so cache/file drift doesn't screw us.
