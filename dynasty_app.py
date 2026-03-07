@@ -60,12 +60,12 @@ TEAM_VISUALS = {
     "UCLA": {"slug": "ucla", "primary": "#2774AE", "secondary": "#FFD100"},
     "TCU": {"slug": "tcu", "primary": "#4D1979", "secondary": "#A3A9AC"},
     "Utah": {"slug": "utah", "primary": "#CC0000", "secondary": "#000000"},
-    "Rapid City": {"slug": "rapid-city", "primary": "#11B5AE", "secondary": "#FF4FA3"},
+    "Rapid City": {"slug": "rapid-city", "primary": "#00B8B8", "secondary": "#FF4FA3"},
     "Panama City": {"slug": "panama-city", "primary": "#FF7A00", "secondary": "#000000"},
-    "Hammond": {"slug": "hammond", "primary": "#1FA34A", "secondary": "#0B3D0B"},
-    "Alabaster": {"slug": "alabaster", "primary": "#D62828", "secondary": "#F4D35E"},
+    "Hammond": {"slug": "hammond", "primary": "#1F8F4E", "secondary": "#0B4F2A"},
+    "Alabaster": {"slug": "alabaster", "primary": "#D72638", "secondary": "#FFD23F"},
     "Death Valley": {"slug": "death-valley", "primary": "#6A0DAD", "secondary": "#000000"},
-    "Gate City": {"slug": "gate-city", "primary": "#FFD100", "secondary": "#000000"},
+    "Gate City": {"slug": "gate-city", "primary": "#FFD23F", "secondary": "#000000"},
 }
 
 TEAM_ALIASES = {
@@ -1442,6 +1442,7 @@ def tier_from_dynasty_score(score):
     return "Upstart"
 
 
+
 def _recent_recruit_window(row, anchor_year=2041, lookback=4):
     year_cols = sorted([int(c) for c in row.index if str(c).isdigit()])
     vals = []
@@ -1605,12 +1606,14 @@ def render_recruiting_table(df):
         """]
         vals = [
             html.escape(str(row.get('Recent Cycle', '—'))),
+            f"{float(row.get('Weighted Avg Rank', 0)):.1f}" if not pd.isna(row.get('Weighted Avg Rank', np.nan)) else '—',
             f"{float(row.get('Heat Index', 0)):.1f}",
             f"{float(row.get('Pipeline Score', 0)):.1f}",
             f"{float(row.get('Speed Recruiter Index', 0)):.1f}",
             f"{float(row.get('Blue Chip %', 0)):.1f}%",
             html.escape(str(row.get('Class Tier', '—'))),
             html.escape(str(row.get('Trajectory', '—'))),
+            html.escape(str(row.get('Recruiting Blurb', '—'))),
         ]
         for disp in vals:
             cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{disp}</td>")
@@ -1622,12 +1625,14 @@ def render_recruiting_table(df):
           <tr style="background:#f8fafc;color:#111827;">
             <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Recruiting Board</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Recent Classes</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Weighted Avg Rank</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Heat Index</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Pipeline Score</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Speed Recruiter</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Blue Chip</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Class Tier</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Trajectory</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Notes</th>
           </tr>
         </thead>
         <tbody>{''.join(rows_html)}</tbody>
@@ -1636,6 +1641,30 @@ def render_recruiting_table(df):
     """
     st.markdown(table_html, unsafe_allow_html=True)
 
+
+def get_current_user_games(model_df):
+    next_games = {
+        'Florida State': 'LSU',
+        'Florida': 'Florida State',
+        'Bowling Green': 'South Carolina',
+        'USF': 'Penn State',
+        'Texas Tech': 'Indiana',
+        'San Jose State': 'Ohio State',
+    }
+    team_to_user = {str(r['TEAM']).strip(): str(r['USER']).strip() for _, r in model_df[['TEAM','USER']].drop_duplicates().iterrows()}
+    rows = []
+    for team, opp in next_games.items():
+        if team not in team_to_user:
+            continue
+        opp_user = team_to_user.get(opp, 'CPU')
+        rows.append({
+            'User': team_to_user[team],
+            'Team': team,
+            'Opponent': opp,
+            'Opponent User': opp_user,
+            'Game Type': 'User Game' if opp_user != 'CPU' else 'CPU Game'
+        })
+    return pd.DataFrame(rows)
 
 
 def get_cfp_rankings_snapshot():
@@ -1921,14 +1950,12 @@ if data:
 
     scenario_df = model_2041.apply(project_loss_scenarios, axis=1)
     model_2041 = pd.concat([model_2041, scenario_df], axis=1)
-    if 'Current Recruiting Score' not in model_2041.columns:
-        model_2041['Current Recruiting Score'] = model_2041.get('Recruit Score', 50.0)
-    if 'Current Blue Chip Ratio' not in model_2041.columns:
-        model_2041['Current Blue Chip Ratio'] = pd.to_numeric(model_2041.get('BCR_Val', 0), errors='coerce').fillna(0) / 100.0
+    recruiting_board = build_recruiting_board(rec, model_2041)
+    current_user_games = get_current_user_games(model_2041)
 
     tabs = st.tabs([
+        "🗞️ Dynasty News",
         "📰 Dynasty War Room",
-        "🗞️ Dynasty News & Headlines",
         "🏆 Who's In?",
         "📺 Season Recap",
         "🔍 Speed Freaks",
@@ -1940,7 +1967,7 @@ if data:
     ])
 
     # --- WAR ROOM ---
-    with tabs[0]:
+    with tabs[1]:
         st.header("📰 Dynasty War Room")
         st.caption("Clean board format restored. Team colors and local logos should render here when the files exist in your repo logos folder.")
 
@@ -1981,8 +2008,8 @@ if data:
         with st.expander('Show raw board data'):
             st.dataframe(board, hide_index=True, use_container_width=True)
 
-    with tabs[1]:
-        st.header("🗞️ Dynasty News & Headlines")
+    with tabs[0]:
+        st.header("🗞️ Dynasty News")
         st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model leans hardest on overall roster quality and raw team speed, then lets CFP position and pedigree finish the damn job.")
         st.info(f"**{most_dangerous['USER']}** owns the highest Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
         st.warning(f"**{collapse_team['USER']}** carries the highest volatility marker. The model sees real downside if things break wrong.")
@@ -2019,6 +2046,13 @@ if data:
         if not rivalry_df.empty:
             top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
             st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
+
+
+        st.markdown("#### This week's current user games")
+        if not current_user_games.empty:
+            st.dataframe(current_user_games, hide_index=True, use_container_width=True)
+        else:
+            st.caption("No current user games loaded from the schedule screenshots yet.")
 
     # --- WHO'S IN? ---
     with tabs[2]:
@@ -2103,72 +2137,37 @@ if data:
             use_container_width=True
         )
 
-
-# --- RECRUITING RANKINGS ---
-with tabs[6]:
-    st.header("🏈 Recruiting Rankings")
-    st.caption("This board blends recent recruiting classes with blue-chip ratio, speed development, and current roster payoff. In other words: who is actually recruiting like a menace instead of just talking about it.")
-
-    recruiting_board = build_recruiting_board(rec, model_2041)
-    render_recruiting_table(recruiting_board)
-
-    if not recruiting_board.empty:
-        w1, w2, w3, w4 = st.columns(4)
-        leader = recruiting_board.iloc[0]
-        pipeline = recruiting_board.sort_values('Pipeline Score', ascending=False).iloc[0]
-        speed = recruiting_board.sort_values('Speed Recruiter Index', ascending=False).iloc[0]
-        fraud = recruiting_board.sort_values('Heat Index', ascending=True).iloc[0]
-        w1.metric("Recruiting King", leader['TEAM'], f"{leader['Heat Index']:.1f} heat")
-        w2.metric("Best Pipeline", pipeline['TEAM'], f"{pipeline['Pipeline Score']:.1f}")
-        w3.metric("Fastest Recruiter", speed['TEAM'], f"{speed['Speed Recruiter Index']:.1f}")
-        w4.metric("Fraud Watch", fraud['TEAM'], f"{fraud['Heat Index']:.1f} heat")
-
-        st.markdown("#### Winners and disasters")
-        c1, c2 = st.columns(2)
-        winners = recruiting_board.sort_values(['Heat Index','Pipeline Score'], ascending=False).head(3)
-        disasters = recruiting_board.sort_values(['Heat Index','Pipeline Score'], ascending=[True, True]).head(2)
-        with c1:
-            for _, rr in winners.iterrows():
-                st.success(rr['Recruiting Blurb'])
-        with c2:
-            for _, rr in disasters.iterrows():
-                st.error(rr['Recruiting Blurb'])
-
-        st.markdown("#### Recruiting lab")
-        lc1, lc2 = st.columns([1.15, 1.35])
-        with lc1:
-            st.plotly_chart(
-                px.scatter(
-                    recruiting_board,
-                    x='Heat Index',
-                    y='Pipeline Score',
-                    size='Speed Recruiter Index',
-                    color='TEAM',
-                    color_discrete_map=team_color_map,
-                    hover_data=['USER','Class Tier','Trajectory','Blue Chip %']
-                ),
-                use_container_width=True
-            )
-        with lc2:
-            spotlight_team = st.selectbox("Recruiting spotlight", recruiting_board['TEAM'].tolist(), key='recruit_spotlight')
+    # --- RECRUITING RANKINGS ---
+    with tabs[6]:
+        st.header("🏈 Recruiting Rankings")
+        st.caption("Heat Index = 101 minus the weighted average of your last four recruiting class ranks. More recent classes count more, so a lower weighted rank becomes a hotter score. Pipeline Score then blends that recruiting heat with blue-chip ratio, current team speed, overall roster quality, improvement trend, and generational freak count.")
+        if recruiting_board.empty:
+            st.info("No recruiting board data could be built from the current recruiting file.")
+        else:
+            render_recruiting_table(recruiting_board)
+            st.markdown("#### Recruiting Spotlight")
+            spotlight_team = st.selectbox("Choose a class to spotlight", recruiting_board['TEAM'].tolist(), key='recruit_spotlight')
             sp = recruiting_board[recruiting_board['TEAM'] == spotlight_team].iloc[0]
-            render_logo(sp['Logo'], width=90)
-            st.markdown(f"### {sp['TEAM']} | {sp['USER']}")
-            st.write(f"**Recent classes:** {sp['Recent Cycle']}")
-            st.write(f"**Class Tier:** {sp['Class Tier']}")
-            st.write(f"**Trajectory:** {sp['Trajectory']}")
-            st.write(f"**Blue Chip Ratio proxy:** {sp['Blue Chip %']:.1f}%")
-            st.write(f"**Current recruiting score:** {sp['Current Recruiting Score']:.1f}")
-            st.info(sp['Recruiting Blurb'])
-            st.caption("Recruiting now matters two ways in this app: it already feeds the model's natty/CFP outlook, and this board shows who is actually turning those classes into scary roster ingredients.")
-
-    with st.expander("Show recruiting board data"):
-        st.dataframe(recruiting_board, hide_index=True, use_container_width=True)
+            lc1, lc2 = st.columns([0.35, 0.65])
+            with lc1:
+                render_logo(sp['Logo'], width=90)
+            with lc2:
+                st.markdown(f"### {sp['TEAM']} | {sp['USER']}")
+                st.write(f"**Recent classes:** {sp['Recent Cycle']}")
+                st.write(f"**Weighted avg rank:** {sp['Weighted Avg Rank'] if not pd.isna(sp['Weighted Avg Rank']) else '—'}")
+                st.write(f"**Heat Index:** {sp['Heat Index']}")
+                st.write(f"**Pipeline Score:** {sp['Pipeline Score']}")
+                st.write(f"**Speed Recruiter Index:** {sp['Speed Recruiter Index']}")
+                st.write(f"**Blue Chip % proxy:** {sp['Blue Chip %']}%")
+                st.write(f"**Class Tier:** {sp['Class Tier']}")
+                st.write(f"**Trajectory:** {sp['Trajectory']}")
+                st.info(sp['Recruiting Blurb'])
+            with st.expander("Show recruiting board data"):
+                st.dataframe(recruiting_board, hide_index=True, use_container_width=True)
 
     # --- H2H MATRIX ---
     with tabs[7]:
         st.header("⚔️ Head-to-Head Matrix")
-
 
         st.subheader("Full H2H Matrix")
         st.dataframe(h2h_df, hide_index=True, use_container_width=True)
