@@ -294,56 +294,88 @@ def format_pct(val, digits=1):
     except Exception:
         return "—"
 
+def normalize_history_team_name(team):
+    t = str(team).strip()
+    lower = t.lower()
+    aliases = {
+        'south florida': 'USF',
+        'usf': 'USF',
+        'texas a&m': 'Texas A&M',
+        'san jose st': 'San Jose State',
+        'bowling green state': 'Bowling Green',
+    }
+    return aliases.get(lower, t)
+
+
+def recruiting_value_means_coached(val):
+    if pd.isna(val):
+        return False
+    s = str(val).strip()
+    if s == '' or s.lower() in {'nan', 'none', 'na', 'n/a', '-', '--', '-*'}:
+        return False
+    return not pd.isna(clean_rank_value(val))
+
+
 def get_program_history_cards(user, ratings_df, champs_df, rec_df):
     user_clean = str(user).strip().title()
     team_years = {}
 
-    # Pull coaching stops from ratings history when available
-    history = ratings_df[ratings_df['USER'].astype(str).str.strip().str.title() == user_clean].copy()
-    if not history.empty and 'YEAR' in history.columns and 'TEAM' in history.columns:
-        history['YEAR'] = pd.to_numeric(history['YEAR'], errors='coerce')
-        for _, r in history.dropna(subset=['YEAR']).iterrows():
-            team = str(r['TEAM']).strip()
-            if team and team.lower() != 'nan':
-                team_years.setdefault(team, set()).add(int(r['YEAR']))
-
-    # Recruiting sheet is the real source of full coaching history
+    # Recruiting is the source of truth for coaching stops and year spans.
     if rec_df is not None and not rec_df.empty and 'USER' in rec_df.columns and 'Teams' in rec_df.columns:
         rec_user = rec_df[rec_df['USER'].astype(str).str.strip().str.title() == user_clean].copy()
         year_cols = [c for c in rec_user.columns if str(c).isdigit()]
         for _, r in rec_user.iterrows():
-            team = str(r['Teams']).strip()
-            if not team or team.lower() == 'nan':
+            team = normalize_history_team_name(r.get('Teams', ''))
+            if not team or str(team).lower() == 'nan':
                 continue
-            for col in year_cols:
-                val = r[col]
-                cleaned = clean_rank_value(val)
-                val_str = str(val).strip()
-                if (not pd.isna(cleaned)) or (val_str not in ['', 'nan', 'None']):
-                    team_years.setdefault(team, set()).add(int(col))
+            active_years = [int(col) for col in year_cols if recruiting_value_means_coached(r.get(col))]
+            if active_years:
+                team_years.setdefault(team, set()).update(active_years)
+
+    # Fallback to ratings only if recruiting has nothing for this user.
+    if not team_years and ratings_df is not None and not ratings_df.empty and 'USER' in ratings_df.columns and 'TEAM' in ratings_df.columns and 'YEAR' in ratings_df.columns:
+        history = ratings_df[ratings_df['USER'].astype(str).str.strip().str.title() == user_clean].copy()
+        history['YEAR'] = pd.to_numeric(history['YEAR'], errors='coerce')
+        for _, r in history.dropna(subset=['YEAR']).iterrows():
+            team = normalize_history_team_name(r.get('TEAM', ''))
+            if team and str(team).lower() != 'nan':
+                team_years.setdefault(team, set()).add(int(r['YEAR']))
 
     if not team_years:
         return []
 
     champs_local = champs_df.copy()
     champs_local['user'] = champs_local['user'].astype(str).str.strip().str.title()
-    champs_local['Team'] = champs_local['Team'].astype(str).str.strip()
+    champs_local['Team'] = champs_local['Team'].astype(str).str.strip().map(normalize_history_team_name)
     champs_local['YEAR'] = pd.to_numeric(champs_local['YEAR'], errors='coerce')
 
     cards = []
     for team, years_set in sorted(team_years.items(), key=lambda kv: min(kv[1]) if kv[1] else 9999):
-        years = sorted([y for y in years_set if pd.notna(y)])
-        team_titles = champs_local[
+        years = sorted(int(y) for y in years_set if pd.notna(y))
+        title_count = int(champs_local[
             (champs_local['user'] == user_clean) &
+            (champs_local['Team'] == team) &
             (champs_local['YEAR'].isin(years))
-        ].copy()
-        # Prefer exact team matches when they exist, but keep same-year user titles as a fallback.
-        exact_titles = team_titles[team_titles['Team'].str.lower() == team.lower()]
-        title_count = int(exact_titles.shape[0] if not exact_titles.empty else team_titles.shape[0])
+        ].shape[0])
+
+        if years:
+            ranges = []
+            start = prev = years[0]
+            for y in years[1:]:
+                if y == prev + 1:
+                    prev = y
+                else:
+                    ranges.append(f"{start}-{prev}" if start != prev else str(start))
+                    start = prev = y
+            ranges.append(f"{start}-{prev}" if start != prev else str(start))
+            years_display = ', '.join(ranges)
+        else:
+            years_display = '—'
+
         cards.append({
             'team': team,
             'logo': get_logo_source(team),
-            'years': f"{years[0]}-{years[-1]}" if years else "—",
+            'years': years_display,
             'titles': title_count,
             'first_year': years[0] if years else 9999,
         })
@@ -352,6 +384,7 @@ def get_program_history_cards(user, ratings_df, champs_df, rec_df):
     for c in cards:
         c.pop('first_year', None)
     return cards
+
 
 def render_history_cards(cards):
     if not cards:
