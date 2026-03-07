@@ -8,6 +8,21 @@ import numpy as np
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
 st.title("🏈 Island Dynasty: The Executive Suite")
 
+st.markdown("""
+<style>
+.block-container {padding-top: 1rem; padding-bottom: 1rem; padding-left: 0.8rem; padding-right: 0.8rem;}
+[data-testid="stHorizontalBlock"] {gap: 0.75rem;}
+.stTabs [data-baseweb="tab-list"] {gap: 0.25rem; flex-wrap: wrap;}
+.stTabs [data-baseweb="tab"] {height: auto; white-space: normal; padding-top: 0.35rem; padding-bottom: 0.35rem;}
+@media (max-width: 768px) {
+  .block-container {padding-left: 0.5rem; padding-right: 0.5rem;}
+  h1 {font-size: 1.5rem !important;}
+  h2 {font-size: 1.2rem !important;}
+  h3 {font-size: 1.05rem !important;}
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 TEAM_VISUALS = {
     "Florida": {"slug": "florida", "primary": "#0021A5"},
@@ -40,6 +55,15 @@ def build_team_color_map(model_df):
     if model_df is None or model_df.empty:
         return {}
     return {str(r["TEAM"]).strip(): get_team_primary_color(r["TEAM"]) for _, r in model_df[["TEAM"]].drop_duplicates().iterrows()}
+
+def render_logo(url, width=52):
+    try:
+        if isinstance(url, str) and url.strip():
+            st.image(url, width=width)
+        else:
+            st.markdown("<div style='font-size:2rem;line-height:1;'>🏈</div>", unsafe_allow_html=True)
+    except Exception:
+        st.markdown("<div style='font-size:2rem;line-height:1;'>🏈</div>", unsafe_allow_html=True)
 
 def ensure_columns(df, defaults):
     for col, default in defaults.items():
@@ -895,15 +919,33 @@ if data:
                 'Program Stock': '➖ Stable'
             }
             model_2041 = ensure_columns(model_2041, board_defaults)
-            board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']
-            board = model_2041[board_cols].copy()
-            board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})
-            st.dataframe(
-                board,
-                hide_index=True,
-                use_container_width=True,
-                column_config={'Logo': st.column_config.ImageColumn('Logo', help='University logo', width='small')}
-            )
+            board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds', 'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock', 'QB Tier']
+            board = model_2041[board_cols].copy().sort_values(['Natty Odds', 'CFP Odds', 'Power Index'], ascending=False)
+
+            for _, r in board.iterrows():
+                team_color = get_team_primary_color(r['TEAM'])
+                c_logo, c_info, c_natty, c_cfp = st.columns([0.7, 1.7, 1.0, 1.0])
+                with c_logo:
+                    render_logo(r['Logo'])
+                with c_info:
+                    rank_txt = 'Unranked' if pd.isna(r['Current CFP Ranking']) else int(r['Current CFP Ranking'])
+                    st.markdown(f"<div style='border-left: 6px solid {team_color}; padding-left: 0.6rem; margin-bottom: 0.35rem;'><div style='font-weight:800; font-size:1.02rem; color:{team_color};'>{r['TEAM']}</div><div style='font-size:0.93rem;'>{r['USER']} | CFP Rank: {rank_txt} | QB: {r['QB Tier']}</div><div style='font-size:0.86rem; opacity:0.88;'>Stock: {r['Program Stock']} | Power Index: {r['Power Index']}</div></div>", unsafe_allow_html=True)
+                with c_natty:
+                    st.metric("Natty Win %", f"{r['Natty Odds']}%")
+                    st.caption(f"Unranked L: {r['Natty if Lose to Unranked']}% | Ranked L: {r['Natty if Lose to Ranked']}%")
+                with c_cfp:
+                    st.metric("CFP %", f"{int(r['CFP Odds'])}%")
+                    st.caption(f"Unranked L: {int(r['CFP if Lose to Unranked'])}% | Ranked L: {int(r['CFP if Lose to Ranked'])}%")
+                st.markdown("---")
+
+            with st.expander("Open compact War Room table"):
+                compact_board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})[[
+                    'USER', 'TEAM', 'CFP Rank', 'QB Tier', 'Power Index', 'Natty Odds', 'CFP Odds',
+                    'Natty if Lose to Unranked', 'Natty if Lose to Ranked',
+                    'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock'
+                ]]
+                st.dataframe(compact_board, hide_index=True, use_container_width=True)
+
 
         with wc2:
             st.subheader("Headlines")
@@ -925,8 +967,12 @@ if data:
                 st.write(f"💀 **QB disaster watch:** {qb_disaster['USER']} is rolling out an **Ass** QB situation. That's the kind of setup that can take a good roster and make it play like it forgot where the fuck the sticks are.")
 
             doug_florida = model_2041[(model_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (model_2041['TEAM'].astype(str).str.strip() == 'Florida')]
-            if not doug_florida.empty and str(doug_florida.iloc[0].get('QB Tier', '')).strip() == 'Ass':
-                st.write("☠️ **Doug/Florida QB update:** Florida's QB room is still ass. The Gators have enough brand power to scare people in the tunnel, then that quarterback strolls out and turns the whole damn thing into a liability test.")
+            if not doug_florida.empty:
+                doug_row = doug_florida.iloc[0]
+                if str(doug_row.get('QB Tier', '')).strip() == 'Ass':
+                    st.write("☠️ **Doug/Florida QB update:** Florida's QB room is still ass. The Gators have enough brand power to scare people in the tunnel, then that quarterback strolls out and turns the whole damn thing into a liability test.")
+                else:
+                    st.write(f"ℹ️ **Doug/Florida QB check:** Latest file currently labels the Florida QB tier as **{doug_row.get('QB Tier', 'Unknown')}**.")
 
             if not rivalry_df.empty:
                 top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
