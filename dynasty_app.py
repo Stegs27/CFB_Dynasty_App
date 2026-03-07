@@ -14,6 +14,8 @@ from pathlib import Path
 st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
 st.title("🏈 Island Dynasty: The Executive Suite")
 
+CURRENT_WEEK_NUMBER = 12
+
 st.markdown("""
 <style>
 .block-container {padding-top: 1rem; padding-bottom: 1rem; padding-left: 0.8rem; padding-right: 0.8rem;}
@@ -1659,6 +1661,7 @@ def format_ranked_team_name(team, rank_map):
     rank = rank_map.get(team)
     return f"#{int(rank)} {team}" if rank is not None and not pd.isna(rank) else team
 
+
 def estimate_game_line(team, opp, model_df, rank_map):
     model_local = model_df.copy()
     lookup = model_local.drop_duplicates('TEAM').set_index('TEAM')
@@ -1675,22 +1678,68 @@ def estimate_game_line(team, opp, model_df, rank_map):
     favored = team if diff > 0 else opp
     return f"{favored} -{line}", favored
 
+
+def get_team_record_display(team, model_df, rankings_df):
+    team = str(team).strip()
+    rank_lookup = rankings_df.drop_duplicates('Team').set_index('Team') if rankings_df is not None and not rankings_df.empty else None
+    if rank_lookup is not None and team in rank_lookup.index:
+        row = rank_lookup.loc[team]
+        if isinstance(row, pd.DataFrame):
+            row = row.iloc[0]
+        return str(row.get('Record', '—'))
+    model_lookup = model_df.drop_duplicates('TEAM').set_index('TEAM') if model_df is not None and not model_df.empty else None
+    if model_lookup is not None and team in model_lookup.index:
+        row = model_lookup.loc[team]
+        if isinstance(row, pd.DataFrame):
+            row = row.iloc[0]
+        w = pd.to_numeric(row.get('Current Record Wins', np.nan), errors='coerce')
+        l = pd.to_numeric(row.get('Current Record Losses', np.nan), errors='coerce')
+        if not pd.isna(w) and not pd.isna(l):
+            return f"{int(w)}-{int(l)}"
+    return '—'
+
+
+def get_user_series_record(user_a, user_b, scores_df):
+    ua = str(user_a).strip().title()
+    ub = str(user_b).strip().title()
+    if ua == ub or ub == 'Cpu' or ua == 'Cpu':
+        return ''
+    vs = scores_df[
+        ((scores_df['V_User_Final'] == ua) & (scores_df['H_User_Final'] == ub)) |
+        ((scores_df['V_User_Final'] == ub) & (scores_df['H_User_Final'] == ua))
+    ].copy()
+    if vs.empty:
+        return f"Series: {ua} and {ub} haven't thrown punches yet."
+    a_wins = len(vs[
+        ((vs['V_User_Final'] == ua) & (vs['V_Pts'] > vs['H_Pts'])) |
+        ((vs['H_User_Final'] == ua) & (vs['H_Pts'] > vs['V_Pts']))
+    ])
+    b_wins = len(vs) - a_wins
+    if a_wins > b_wins:
+        return f"Series: {ua} leads {a_wins}-{b_wins}."
+    if b_wins > a_wins:
+        return f"Series: {ub} leads {b_wins}-{a_wins}."
+    return f"Series: tied {a_wins}-{b_wins}."
+
+
 def get_current_user_games(model_df):
-    next_games = {
-        'Florida State': 'LSU',
-        'Florida': 'Florida State',
-        'Bowling Green': 'South Carolina',
-        'USF': 'Penn State',
-        'Texas Tech': 'Indiana',
-        'San Jose State': 'Ohio State',
-    }
+    weekly_games = [
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida State', 'Opponent': 'LSU'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Bowling Green', 'Opponent': 'South Carolina'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'USF', 'Opponent': 'Penn State'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Texas Tech', 'Opponent': 'Indiana'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'San Jose State', 'Opponent': 'Ohio State'},
+    ]
     team_to_user = {str(r['TEAM']).strip(): str(r['USER']).strip() for _, r in model_df[['TEAM','USER']].drop_duplicates().iterrows()}
     rows = []
-    for team, opp in next_games.items():
+    for g in weekly_games:
+        team = g['Team']
+        opp = g['Opponent']
         if team not in team_to_user:
             continue
         opp_user = team_to_user.get(opp, 'CPU')
         rows.append({
+            'Week': g['Week'],
             'User': team_to_user[team],
             'Team': team,
             'Opponent': opp,
@@ -1700,20 +1749,16 @@ def get_current_user_games(model_df):
     return pd.DataFrame(rows)
 
 
-def render_current_user_games_cards(games_df, model_df):
+
+def render_current_user_games_cards(games_df, model_df, scores_df):
     if games_df is None or games_df.empty:
         st.caption("No current user games loaded from the schedule screenshots yet.")
         return
 
-    rank_map = dict(get_cfp_rankings_snapshot()[['Team', 'Rank']].values)
+    rankings_df = get_cfp_rankings_snapshot()
+    rank_map = dict(rankings_df[['Team', 'Rank']].values)
     cards = []
-    seen = set()
     for _, g in games_df.iterrows():
-        key = tuple(sorted([str(g['Team']), str(g['Opponent'])]))
-        if key in seen:
-            continue
-        seen.add(key)
-
         team = str(g['Team']).strip()
         opp = str(g['Opponent']).strip()
         team_user = str(g['User']).strip()
@@ -1728,15 +1773,25 @@ def render_current_user_games_cards(games_df, model_df):
 
         team_label = format_ranked_team_name(team, rank_map)
         opp_label = format_ranked_team_name(opp, rank_map)
-        line_text, favored = estimate_game_line(team, opp, model_df, rank_map)
+        team_record = get_team_record_display(team, model_df, rankings_df)
+        opp_record = get_team_record_display(opp, model_df, rankings_df)
+
+        favor_text = ''
+        series_text = ''
+        if game_type == 'User Game':
+            line_text, favored = estimate_game_line(team, opp, model_df, rank_map)
+            favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
+            series_text = get_user_series_record(team_user, opp_user, scores_df)
         game_chip = "USER vs USER" if game_type == 'User Game' else "USER vs CPU"
-        favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
+
+        right_meta = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
+        series_html = f"<div style='margin-top:10px;font-size:12px;color:#4b5563;font-weight:700;'>{html.escape(series_text)}</div>" if series_text else ''
 
         card_html = f"""
         <div style="border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
             <div style="font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;">{html.escape(game_chip)}</div>
-            <div style="font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;">{html.escape(favor_text)}</div>
+            {right_meta}
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
             <div style="display:flex;align-items:center;gap:10px;min-width:230px;">
@@ -1744,6 +1799,7 @@ def render_current_user_games_cards(games_df, model_df):
               <div>
                 <div style="font-size:13px;color:#6b7280;">{html.escape(team_user)}</div>
                 <div style="font-size:18px;font-weight:800;color:{team_primary};">{html.escape(team_label)}</div>
+                <div style="font-size:12px;color:#6b7280;">Record: {html.escape(team_record)}</div>
               </div>
             </div>
             <div style="font-size:18px;font-weight:900;color:#111827;">vs</div>
@@ -1751,15 +1807,16 @@ def render_current_user_games_cards(games_df, model_df):
               <div>
                 <div style="font-size:13px;color:#6b7280;text-align:right;">{html.escape(opp_user)}</div>
                 <div style="font-size:18px;font-weight:800;color:{opp_primary};text-align:right;">{html.escape(opp_label)}</div>
+                <div style="font-size:12px;color:#6b7280;text-align:right;">Record: {html.escape(opp_record)}</div>
               </div>
               <div style="width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};">{opp_logo_html}</div>
             </div>
           </div>
+          {series_html}
         </div>
         """
         cards.append(card_html)
     st.markdown("".join(cards), unsafe_allow_html=True)
-
 
 def get_current_recruiting_snapshot():
     rows = [
@@ -2138,8 +2195,8 @@ if data:
 
     with tabs[0]:
         st.header("🗞️ Dynasty News")
-        st.markdown("#### This Week's Current User Games")
-        render_current_user_games_cards(current_user_games, model_2041)
+        st.markdown(f"#### Week {CURRENT_WEEK_NUMBER}'s Games")
+        render_current_user_games_cards(current_user_games, model_2041, scores)
         st.markdown("---")
         st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model leans hardest on overall roster quality and raw team speed, then lets CFP position and pedigree finish the damn job.")
         st.info(f"**{most_dangerous['USER']}** owns the highest Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
