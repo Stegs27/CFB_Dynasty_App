@@ -1739,6 +1739,95 @@ def simulate_cfp_chaos(team_row, scenario, board_df):
     return temp
 
 
+
+
+def generate_coach_profile(user, team_row, stats_df, champs_df, heisman_df, coty_df, rec_df, ratings_df, scores_df):
+    user_clean = str(user).strip().title()
+    team = str(team_row.get('TEAM', 'Unknown Team')).strip()
+    stat_row = stats_df[stats_df['User'] == user_clean]
+    if stat_row.empty:
+        return f"{user_clean} is apparently such a mystery figure that even the database shrugged. Still, somebody put this fool in charge of {team}, so here we are."
+    s = stat_row.iloc[0]
+
+    natties = int(pd.to_numeric(s.get('Natties', 0), errors='coerce') or 0)
+    natty_apps = int(pd.to_numeric(s.get('Natty Apps', 0), errors='coerce') or 0)
+    cfp_wins = int(pd.to_numeric(s.get('CFP Wins', 0), errors='coerce') or 0)
+    cfp_losses = int(pd.to_numeric(s.get('CFP Losses', 0), errors='coerce') or 0)
+    conf_titles = int(pd.to_numeric(s.get('Conf Titles', 0), errors='coerce') or 0)
+    drafted = int(pd.to_numeric(s.get('Drafted', 0), errors='coerce') or 0)
+    first_rounders = int(pd.to_numeric(s.get('1st Rounders', 0), errors='coerce') or 0)
+    career_record = str(s.get('Career Record', s.get('Record', '0-0')) )
+    career_wpct = float(pd.to_numeric(s.get('Career Win %', 50), errors='coerce') or 50)
+
+    heisman_count = 0
+    if heisman_df is not None and not heisman_df.empty:
+        user_cols = [c for c in heisman_df.columns if str(c).strip().lower() == 'user']
+        if user_cols:
+            heisman_count = int((heisman_df[user_cols[0]].astype(str).str.strip().str.title() == user_clean).sum())
+    coty_count = 0
+    if coty_df is not None and not coty_df.empty:
+        user_cols = [c for c in coty_df.columns if str(c).strip().lower() == 'user']
+        if user_cols:
+            coty_count = int((coty_df[user_cols[0]].astype(str).str.strip().str.title() == user_clean).sum())
+
+    stops = get_program_history_cards(user_clean, ratings_df, champs_df, rec_df)
+    stop_count = len(stops)
+    ring_stops = [c['team'] for c in stops if int(c.get('titles', 0)) > 0]
+    ring_stop_text = ', '.join(ring_stops[:3]) if ring_stops else 'nowhere yet'
+
+    score_games = scores_df[(scores_df['V_User_Final'] == user_clean) | (scores_df['H_User_Final'] == user_clean)].copy()
+    if not score_games.empty:
+        score_games['UserMargin'] = np.where(score_games['H_User_Final'] == user_clean, score_games['H_Pts'] - score_games['V_Pts'], score_games['V_Pts'] - score_games['H_Pts'])
+        blowout_wins = int((score_games['UserMargin'] >= 21).sum())
+        one_score_losses = int(((score_games['UserMargin'] < 0) & (score_games['UserMargin'] >= -8)).sum())
+    else:
+        blowout_wins = 0
+        one_score_losses = 0
+
+    upbringing_pool = [
+        f"grew up in a place where the playbook was optional but running your mouth was mandatory",
+        f"came out of a football backwater where every local myth ends with somebody swearing they could've coached better",
+        f"was apparently raised on grainy highlight tapes, bad coffee, and the stubborn belief that fourth-and-short is a personality trait",
+        f"learned the sport in the kind of town where the stadium lights mattered more than church bells",
+        f"was forged in the ancient tradition of overconfidence, clipboard abuse, and absolutely reckless optimism",
+        f"looks like he was raised by film study, pettiness, and one very angry booster"
+    ]
+    accomplishment_pool = [
+        f"The résumé says {career_record} with a {career_wpct:.1f}% career win rate, {natties} natties, {natty_apps} title game trips, and {conf_titles} conference crowns — which is either elite stewardship or a beautifully organized addiction to winning",
+        f"The bastard has stacked {cfp_wins} CFP wins, {drafted} drafted dudes, and {first_rounders} first-rounders, which means his pitch to recruits is basically 'come here and your Sundays get expensive'",
+        f"Across {stop_count} coaching stops, he has left behind {ring_stop_text} and a trail of assistants who probably still flinch at 6 a.m. texts",
+        f"He has {coty_count} coach-of-the-year nods and {heisman_count} Heisman ties in the orbit, so clearly the bullshit has been productive"
+    ]
+    failure_pool = [
+        f"Of course, there are scars: {cfp_losses} CFP losses and {max(natty_apps - natties, 0)} title-game heartbreaks say the big stage has occasionally slapped him in the mouth",
+        f"He's also authored {one_score_losses} one-score losses in the tracked games, which suggests the man's blood pressure should legally qualify as a weather pattern",
+        f"Not every Saturday is genius. Sometimes the whole thing looks like a brilliant plan held together by caffeine and pure spite",
+        f"When it goes bad, it goes bad loudly enough that message boards start writing fan fiction about the buyout"
+    ]
+    style_pool = [
+        f"At {team}, he coaches like every possession insulted his ancestors",
+        f"At {team}, the vibe is half tactician, half neighborhood menace",
+        f"With {team}, he has built the kind of machine that makes opponents feel underdressed for the ass-kicking",
+        f"His current operation at {team} feels like competence with a criminal edge"
+    ]
+
+    # deterministic selection
+    seed = int(hashlib.md5(f"coach|{user_clean}|{team}".encode()).hexdigest(), 16)
+    up = upbringing_pool[seed % len(upbringing_pool)]
+    acc = accomplishment_pool[(seed // 3) % len(accomplishment_pool)]
+    fail = failure_pool[(seed // 5) % len(failure_pool)]
+    style = style_pool[(seed // 7) % len(style_pool)]
+
+    special = ''
+    if natties >= 3:
+        special = f" At this point, {user_clean} isn't building a program so much as hoarding silverware like a raccoon with access to the trophy case."
+    elif natties == 0 and natty_apps == 0:
+        special = f" The title section of the résumé is still suspiciously empty, so for now we're grading on swagger, damage, and blind faith."
+    elif blowout_wins >= 5:
+        special = f" The fun part is that {blowout_wins} tracked wins were by 21+, which means somebody on the headset enjoys stepping on necks after halftime."
+
+    return f"{user_clean} {up}. {acc}. {fail}. {style}.{special}"
+
 data = load_data()
 
 if data:
@@ -1796,6 +1885,16 @@ if data:
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
     ])
+
+    cfp_rankings = get_cfp_rankings_snapshot()
+    cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
+    projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).head(12).copy()
+    projected_field = projected_field.sort_values(['Auto-Bid %', 'Rank'], ascending=[False, True]).reset_index(drop=True)
+    projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
+    seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
+    cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
+    first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).head(4).copy()
+    cfp_make_lookup = cfp_board.set_index('Team')['CFP Make %'].to_dict()
 
     # --- WAR ROOM ---
     with tabs[0]:
@@ -1924,14 +2023,6 @@ if data:
         st.header("🏆 Who's In? | CFP Bubble Watch")
         st.caption("Updated with the CFP ranking screenshots, conference standings screenshots, and the remaining user schedule screenshots you uploaded. This section now bakes in conference-title paths, auto-bid logic, and late-season schedule pressure.")
 
-        cfp_rankings = get_cfp_rankings_snapshot()
-        cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
-        projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).head(12).copy()
-        projected_field = projected_field.sort_values(['Auto-Bid %', 'Rank'], ascending=[False, True]).reset_index(drop=True)
-        projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
-        seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
-        cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
-        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).head(4).copy()
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric('Projected Locks', int((cfp_board['CFP Make %'] >= 92).sum()))
@@ -2089,10 +2180,11 @@ if data:
         row = model_2041[model_2041['USER'] == target].iloc[0]
 
         wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
+        board_cfp_pct = cfp_make_lookup.get(str(row['TEAM']).strip(), float(pd.to_numeric(row.get('CFP Odds', np.nan), errors='coerce') or 0))
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Natty Odds", f"{row['Natty Odds']}%")
-        m2.metric("CFP Odds", f"{row['CFP Odds']}%")
+        m2.metric("CFP Odds", format_pct(board_cfp_pct, 1))
         m3.metric("Projected Wins", row['Projected Wins'])
         m4.metric("Power Index", row['Power Index'])
 
@@ -2110,6 +2202,7 @@ if data:
             st.write(f"**Average Margin:** {avg_margin}")
             st.write(f"**Recruit Score:** {row['Recruit Score']}")
             st.write(f"**Current CFP Ranking:** {int(row['Current CFP Ranking']) if pd.notna(row['Current CFP Ranking']) else 'Unranked'}")
+            st.write(f"**Board Make CFP:** {format_pct(board_cfp_pct, 1)} (matched to the Projected CFP Board)")
             st.write(f"**QB OVR:** {int(row['QB OVR']) if pd.notna(row['QB OVR']) else 'N/A'}")
             st.write(f"**QB Tier:** {row['QB Tier']}")
             st.write(f"**Improvement from prior year:** {row['Improvement']} OVR")
@@ -2123,6 +2216,9 @@ if data:
             st.write(f"**MVP:** {row['⭐ STAR SKILL GUY (Top OVR)']}")
             st.write(f"**Generational Speed?** {row['Star Skill Guy is Generational Speed?']}")
             st.write(generate_mvp_backstory(row))
+            st.markdown("---")
+            st.subheader("Coach Profile")
+            st.write(generate_coach_profile(row['USER'], row, stats, champs, heisman, coty, rec, ratings, scores))
 
         stat_table = pd.DataFrame([
             {'Metric': 'Overall', 'Value': row['OVERALL']},
