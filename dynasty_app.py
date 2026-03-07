@@ -2223,6 +2223,78 @@ def build_cfp_bubble_board(rankings_df, model_df):
     return df.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).reset_index(drop=True)
 
 
+
+def compute_projected_seed_score(board_df):
+    df = board_df.copy()
+    df['Seed Score'] = (
+        df['Committee Score'] * 0.36
+        + (df['Win %'] * 100) * 0.18
+        + df['Resume Score'] * 0.16
+        + df['SOS'] * 0.12
+        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.15) * 0.08
+        + df['Bye %'] * 0.04
+        + df['Auto-Bid %'] * 0.03
+        + df['QB Mod'] * 0.55
+        + np.where(df['OVERALL'] >= 90, 2.5, 0.0)
+        - np.where(df['OVERALL'] <= 84, (85 - df['OVERALL']) * 1.4, 0.0)
+    )
+    return df
+
+def render_playoff_bracket(projected_field):
+    if projected_field.empty or len(projected_field) < 12:
+        st.info("Need 12 projected teams to render the bracket.")
+        return
+
+    seed_lookup = projected_field.set_index('Projected Seed').to_dict('index')
+
+    def badge(team_row):
+        team = str(team_row['Team'])
+        rank = int(team_row['Rank'])
+        record = str(team_row['Record'])
+        logo_uri = image_file_to_data_uri(get_logo_source(team))
+        logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;'/>" if logo_uri else "🏈"
+        primary = get_team_primary_color(team)
+        return f"""
+        <div style='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:white;margin-bottom:8px;'>
+            <div style='font-weight:900;color:#111827;min-width:20px;'>#{int(team_row['Projected Seed'])}</div>
+            <div style='width:30px;text-align:center;'>{logo_html}</div>
+            <div>
+                <div style='font-weight:800;color:{primary};line-height:1.1;'>{html.escape(team)}</div>
+                <div style='font-size:12px;color:#6b7280;'>CFP #{rank} • {html.escape(record)} • Make {format_pct(team_row["CFP Make %"],1)}</div>
+            </div>
+        </div>
+        """
+
+    bye_html = "".join([badge(seed_lookup[s]) for s in [1,2,3,4]])
+    qf_pairs = [(5,12), (6,11), (7,10), (8,9)]
+    matchup_html = ""
+    for a,b in qf_pairs:
+        ta, tb = seed_lookup[a], seed_lookup[b]
+        matchup_html += f"""
+        <div style='padding:10px 12px;border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;margin-bottom:10px;'>
+            <div style='font-size:12px;font-weight:800;color:#6b7280;margin-bottom:8px;'>First Round Matchup</div>
+            {badge(ta)}
+            <div style='text-align:center;font-size:13px;font-weight:900;color:#6b7280;margin:-2px 0 6px 0;'>vs</div>
+            {badge(tb)}
+        </div>
+        """
+
+    st.markdown(
+        f"""
+        <div style='display:grid;grid-template-columns:1fr 1.2fr;gap:14px;align-items:start;'>
+            <div style='padding:12px;border:1px solid #e5e7eb;border-radius:16px;background:linear-gradient(180deg,#eff6ff,#ffffff);'>
+                <div style='font-size:14px;font-weight:900;color:#1f2937;margin-bottom:10px;'>Top 4 Byes</div>
+                {bye_html}
+            </div>
+            <div style='padding:12px;border:1px solid #e5e7eb;border-radius:16px;background:linear-gradient(180deg,#faf5ff,#ffffff);'>
+                <div style='font-size:14px;font-weight:900;color:#1f2937;margin-bottom:10px;'>Projected First Round</div>
+                {matchup_html}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 def render_cfp_table(board_df):
     rows_html = []
     for _, row in board_df.iterrows():
@@ -2472,17 +2544,19 @@ if data:
         cfp_rankings = get_cfp_rankings_snapshot()
         cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
 
-        # Select the projected 12-team field by make odds, but seed the field by committee rank.
-        projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).head(12).copy()
-        projected_field = projected_field.sort_values(['Rank', 'Bye %', 'CFP Make %'], ascending=[True, False, False]).reset_index(drop=True)
+        # Project the field by Make CFP %, then seed the 12-team bracket with a separate seed score.
+        projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Committee Score', 'Rank'], ascending=[False, False, False, True]).head(12).copy()
+        projected_field = compute_projected_seed_score(projected_field)
+        projected_field = projected_field.sort_values(['Seed Score', 'CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, False, True]).reset_index(drop=True)
         projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
 
         # Push the corrected projected seeds back onto the full board so the main table matches the bracket table.
+        cfp_board = compute_projected_seed_score(cfp_board)
         cfp_board['Projected Seed'] = np.nan
         seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
         cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
 
-        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).head(4).copy()
+        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Seed Score', 'Rank'], ascending=[False, False, True]).head(4).copy()
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric('Projected Locks', int((cfp_board['CFP Make %'] >= 92).sum()))
@@ -2495,11 +2569,14 @@ if data:
 
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader('Projected 12-Team Bracket')
+            st.subheader('Projected 12-Team Field')
             st.dataframe(projected_field[['Projected Seed', 'Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
         with c2:
             st.subheader('First Four Out')
             st.dataframe(first_four_out[['Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
+
+        st.subheader('Playoff Bracket')
+        render_playoff_bracket(projected_field)
 
         tier_cols = st.columns(4)
         tier_map = [
