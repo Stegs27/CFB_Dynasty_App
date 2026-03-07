@@ -1654,6 +1654,27 @@ def render_recruiting_table(df):
     st.markdown(table_html, unsafe_allow_html=True)
 
 
+def format_ranked_team_name(team, rank_map):
+    team = str(team).strip()
+    rank = rank_map.get(team)
+    return f"#{int(rank)} {team}" if rank is not None and not pd.isna(rank) else team
+
+def estimate_game_line(team, opp, model_df, rank_map):
+    model_local = model_df.copy()
+    lookup = model_local.drop_duplicates('TEAM').set_index('TEAM')
+    team_pi = float(lookup.loc[team]['Power Index']) if team in lookup.index else 200.0
+    opp_pi = float(lookup.loc[opp]['Power Index']) if opp in lookup.index else 200.0
+    team_rank = rank_map.get(team)
+    opp_rank = rank_map.get(opp)
+    team_rank_boost = max(0, 26 - float(team_rank)) * 0.85 if team_rank is not None and not pd.isna(team_rank) else 0.0
+    opp_rank_boost = max(0, 26 - float(opp_rank)) * 0.85 if opp_rank is not None and not pd.isna(opp_rank) else 0.0
+    diff = (team_pi + team_rank_boost) - (opp_pi + opp_rank_boost)
+    line = round(abs(diff) / 6.8, 1)
+    if abs(diff) < 2.5:
+        return "Pick'em", None
+    favored = team if diff > 0 else opp
+    return f"{favored} -{line}", favored
+
 def get_current_user_games(model_df):
     next_games = {
         'Florida State': 'LSU',
@@ -1679,47 +1700,64 @@ def get_current_user_games(model_df):
     return pd.DataFrame(rows)
 
 
-def render_current_user_games_cards(games_df):
+def render_current_user_games_cards(games_df, model_df):
     if games_df is None or games_df.empty:
         st.caption("No current user games loaded from the schedule screenshots yet.")
         return
 
-    user_games = games_df[games_df['Game Type'] == 'User Game'].copy()
-    if user_games.empty:
-        user_games = games_df.copy()
-
+    rank_map = dict(get_cfp_rankings_snapshot()[['Team', 'Rank']].values)
     cards = []
     seen = set()
-    for _, g in user_games.iterrows():
+    for _, g in games_df.iterrows():
         key = tuple(sorted([str(g['Team']), str(g['Opponent'])]))
         if key in seen:
             continue
         seen.add(key)
-        team = str(g['Team'])
-        opp = str(g['Opponent'])
-        team_user = str(g['User'])
-        opp_user = str(g['Opponent User'])
+
+        team = str(g['Team']).strip()
+        opp = str(g['Opponent']).strip()
+        team_user = str(g['User']).strip()
+        opp_user = str(g['Opponent User']).strip()
+        game_type = str(g.get('Game Type', 'Game'))
         team_primary = get_team_primary_color(team)
         opp_primary = get_team_primary_color(opp)
         team_logo = image_file_to_data_uri(get_logo_source(team))
         opp_logo = image_file_to_data_uri(get_logo_source(opp))
         team_logo_html = f"<img src='{team_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if team_logo else "🏈"
         opp_logo_html = f"<img src='{opp_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if opp_logo else "🏈"
-        cards.append(f"""
-        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:10px;">
+
+        team_label = format_ranked_team_name(team, rank_map)
+        opp_label = format_ranked_team_name(opp, rank_map)
+        line_text, favored = estimate_game_line(team, opp, model_df, rank_map)
+        game_chip = "USER vs USER" if game_type == 'User Game' else "USER vs CPU"
+        favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
+
+        card_html = f"""
+        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;">{html.escape(game_chip)}</div>
+            <div style="font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;">{html.escape(favor_text)}</div>
+          </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:10px;min-width:220px;">
+            <div style="display:flex;align-items:center;gap:10px;min-width:230px;">
               <div style="width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};">{team_logo_html}</div>
-              <div><div style="font-size:13px;color:#6b7280;">{html.escape(team_user)}</div><div style="font-size:18px;font-weight:800;color:{team_primary};">{html.escape(team)}</div></div>
+              <div>
+                <div style="font-size:13px;color:#6b7280;">{html.escape(team_user)}</div>
+                <div style="font-size:18px;font-weight:800;color:{team_primary};">{html.escape(team_label)}</div>
+              </div>
             </div>
             <div style="font-size:18px;font-weight:900;color:#111827;">vs</div>
-            <div style="display:flex;align-items:center;gap:10px;min-width:220px;justify-content:flex-end;">
-              <div><div style="font-size:13px;color:#6b7280;text-align:right;">{html.escape(opp_user)}</div><div style="font-size:18px;font-weight:800;color:{opp_primary};text-align:right;">{html.escape(opp)}</div></div>
+            <div style="display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;">
+              <div>
+                <div style="font-size:13px;color:#6b7280;text-align:right;">{html.escape(opp_user)}</div>
+                <div style="font-size:18px;font-weight:800;color:{opp_primary};text-align:right;">{html.escape(opp_label)}</div>
+              </div>
               <div style="width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};">{opp_logo_html}</div>
             </div>
           </div>
         </div>
-        """)
+        """
+        cards.append(card_html)
     st.markdown("".join(cards), unsafe_allow_html=True)
 
 
@@ -2101,7 +2139,7 @@ if data:
     with tabs[0]:
         st.header("🗞️ Dynasty News")
         st.markdown("#### This Week's Current User Games")
-        render_current_user_games_cards(current_user_games)
+        render_current_user_games_cards(current_user_games, model_2041)
         st.markdown("---")
         st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model leans hardest on overall roster quality and raw team speed, then lets CFP position and pedigree finish the damn job.")
         st.info(f"**{most_dangerous['USER']}** owns the highest Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
