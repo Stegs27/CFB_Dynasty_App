@@ -2245,7 +2245,7 @@ def render_playoff_bracket(projected_field):
         st.info("Need 12 projected teams to render the bracket.")
         return
 
-    seed_lookup = projected_field.set_index('Projected Seed').to_dict('index')
+    seed_lookup = {int(r['Projected Seed']): r.to_dict() for _, r in projected_field.iterrows()}
 
     def badge(team_row):
         team = str(team_row['Team'])
