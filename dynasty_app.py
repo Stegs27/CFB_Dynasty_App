@@ -294,27 +294,63 @@ def format_pct(val, digits=1):
     except Exception:
         return "—"
 
-def get_program_history_cards(user, ratings_df, champs_df):
+def get_program_history_cards(user, ratings_df, champs_df, rec_df):
     user_clean = str(user).strip().title()
+    team_years = {}
+
+    # Pull coaching stops from ratings history when available
     history = ratings_df[ratings_df['USER'].astype(str).str.strip().str.title() == user_clean].copy()
-    if history.empty:
+    if not history.empty and 'YEAR' in history.columns and 'TEAM' in history.columns:
+        history['YEAR'] = pd.to_numeric(history['YEAR'], errors='coerce')
+        for _, r in history.dropna(subset=['YEAR']).iterrows():
+            team = str(r['TEAM']).strip()
+            if team and team.lower() != 'nan':
+                team_years.setdefault(team, set()).add(int(r['YEAR']))
+
+    # Recruiting sheet is the real source of full coaching history
+    if rec_df is not None and not rec_df.empty and 'USER' in rec_df.columns and 'Teams' in rec_df.columns:
+        rec_user = rec_df[rec_df['USER'].astype(str).str.strip().str.title() == user_clean].copy()
+        year_cols = [c for c in rec_user.columns if str(c).isdigit()]
+        for _, r in rec_user.iterrows():
+            team = str(r['Teams']).strip()
+            if not team or team.lower() == 'nan':
+                continue
+            for col in year_cols:
+                val = r[col]
+                cleaned = clean_rank_value(val)
+                val_str = str(val).strip()
+                if (not pd.isna(cleaned)) or (val_str not in ['', 'nan', 'None']):
+                    team_years.setdefault(team, set()).add(int(col))
+
+    if not team_years:
         return []
-    history['YEAR'] = pd.to_numeric(history['YEAR'], errors='coerce')
-    school_rows = history.sort_values('YEAR').drop_duplicates('TEAM', keep='last')
+
+    champs_local = champs_df.copy()
+    champs_local['user'] = champs_local['user'].astype(str).str.strip().str.title()
+    champs_local['Team'] = champs_local['Team'].astype(str).str.strip()
+    champs_local['YEAR'] = pd.to_numeric(champs_local['YEAR'], errors='coerce')
+
     cards = []
-    for _, r in school_rows.iterrows():
-        team = str(r['TEAM']).strip()
-        years = history[history['TEAM'].astype(str).str.strip() == team]['YEAR'].dropna()
-        title_count = champs_df[
-            (champs_df['user'].astype(str).str.strip().str.title() == user_clean) &
-            (champs_df['Team'].astype(str).str.strip() == team)
-        ].shape[0]
+    for team, years_set in sorted(team_years.items(), key=lambda kv: min(kv[1]) if kv[1] else 9999):
+        years = sorted([y for y in years_set if pd.notna(y)])
+        team_titles = champs_local[
+            (champs_local['user'] == user_clean) &
+            (champs_local['YEAR'].isin(years))
+        ].copy()
+        # Prefer exact team matches when they exist, but keep same-year user titles as a fallback.
+        exact_titles = team_titles[team_titles['Team'].str.lower() == team.lower()]
+        title_count = int(exact_titles.shape[0] if not exact_titles.empty else team_titles.shape[0])
         cards.append({
             'team': team,
             'logo': get_logo_source(team),
-            'years': f"{int(years.min())}-{int(years.max())}" if len(years) else "—",
-            'titles': int(title_count)
+            'years': f"{years[0]}-{years[-1]}" if years else "—",
+            'titles': title_count,
+            'first_year': years[0] if years else 9999,
         })
+
+    cards = sorted(cards, key=lambda x: (x.get('first_year', 9999), x['team']))
+    for c in cards:
+        c.pop('first_year', None)
     return cards
 
 def render_history_cards(cards):
@@ -1680,7 +1716,7 @@ if data:
             st.write(f"**SOS:** {row['SOS']} (higher = tougher schedule)")
             st.write(f"**Resume Score:** {row['Resume Score']} (62% current win %, 38% SOS)")
             st.markdown("**Coaching Stops & Rings**")
-            render_history_cards(get_program_history_cards(row['USER'], ratings, champs))
+            render_history_cards(get_program_history_cards(row['USER'], ratings, champs, rec))
 
         with c2:
             st.subheader("MVP Profile")
