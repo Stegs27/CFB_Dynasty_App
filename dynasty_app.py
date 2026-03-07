@@ -559,6 +559,7 @@ def get_recent_recruiting_score(rec_df, user, team=None, current_year=2041, look
 
 
 
+
 def build_2041_model_table(r_2041, stats_df, rec_df):
     df = r_2041.copy()
 
@@ -570,62 +571,90 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     df['Recruit Score'] = df.apply(lambda x: get_recent_recruiting_score(rec_df, x['USER'], x['TEAM']), axis=1)
     df['QB Tier'] = df.apply(qb_label, axis=1)
 
+    # --- schedule strength / resume inputs from latest TeamRatingsHistory ---
+    for col in ['Combined Opponent Wins', 'Combined Opponent Losses', 'Current Record Wins', 'Current Record Losses']:
+        if col not in df.columns:
+            df[col] = 0
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+    df['Opponent Games'] = df['Combined Opponent Wins'] + df['Combined Opponent Losses']
+    df['Current Games'] = df['Current Record Wins'] + df['Current Record Losses']
+
+    df['Opponent Win %'] = np.where(
+        df['Opponent Games'] > 0,
+        (df['Combined Opponent Wins'] / df['Opponent Games']) * 100,
+        50.0
+    )
+    df['Current Win %'] = np.where(
+        df['Current Games'] > 0,
+        (df['Current Record Wins'] / df['Current Games']) * 100,
+        50.0
+    )
+
+    max_opp_games = max(1.0, float(df['Opponent Games'].max()))
+    opp_volume_pct = (df['Opponent Games'] / max_opp_games) * 100
+    df['SOS'] = (df['Opponent Win %'] * 0.78 + opp_volume_pct * 0.22).round(1)
+    df['Resume Score'] = (df['Current Win %'] * 0.62 + df['SOS'] * 0.38).round(1)
+
     def qb_natty_bonus(row):
         if row['QB Tier'] == 'Elite':
-            return 30.0
+            return 34.0
         if row['QB Tier'] == 'Leader':
-            return 18.0
+            return 20.0
         if row['QB Tier'] == 'Average Joe':
-            return -10.0
+            return -12.0
         if row['QB Tier'] == 'Ass':
-            return -26.0
+            return -30.0
         return 0.0
 
-    def qb_playoff_bonus(row):
+    def qb_cfp_bonus(row):
         if row['QB Tier'] == 'Elite':
-            return 22.0
+            return 24.0
         if row['QB Tier'] == 'Leader':
-            return 13.0
+            return 15.0
         if row['QB Tier'] == 'Average Joe':
-            return -8.0
+            return -9.0
         if row['QB Tier'] == 'Ass':
-            return -20.0
+            return -22.0
         return 0.0
 
     def raw_contender_score(row):
         u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
 
         pedigree_bonus = (
-            u_s['Natties'] * 18
-            + u_s['Natty Apps'] * 11
-            + u_s['CFP Wins'] * 3.0
-            + u_s['Conf Titles'] * 1.4
+            u_s['Natties'] * 24
+            + u_s['Natty Apps'] * 15
+            + u_s['CFP Wins'] * 3.2
+            + u_s['Conf Titles'] * 1.5
         )
-        heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 1.2
-        playoff_fail_penalty = u_s['CFP Losses'] * 1.2
+        heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 1.0
+        cfp_fail_penalty = u_s['CFP Losses'] * 1.1
 
         team_speed_component = (
-            row['Team Speed (90+ Speed Guys)'] * 2.7
-            + row['Off Speed (90+ speed)'] * 1.45
-            + row['Def Speed (90+ speed)'] * 1.45
+            row['Team Speed (90+ Speed Guys)'] * 3.0
+            + row['Off Speed (90+ speed)'] * 1.55
+            + row['Def Speed (90+ speed)'] * 1.55
         )
         cfp_bonus = cfp_rank_bonus(row.get('Current CFP Ranking', np.nan))
 
         raw = (
-            row['OVERALL'] * 3.45
-            + row['OFFENSE'] * 0.66
-            + row['DEFENSE'] * 0.66
+            row['OVERALL'] * 3.7
+            + row['OFFENSE'] * 0.68
+            + row['DEFENSE'] * 0.68
             + team_speed_component
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.55
-            + row['Generational (96+ speed or 96+ Acceleration)'] * 6.8
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.65
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 7.2
             + row['BCR_Val'] * 0.52
-            + row['Recruit Score'] * 0.30
-            + row['Career Win %'] * 0.34
-            + cfp_bonus
+            + row['Recruit Score'] * 0.28
+            + row['Career Win %'] * 0.26
+            + row['Current Win %'] * 0.45
+            + row['SOS'] * 0.40
+            + row['Resume Score'] * 0.28
+            + cfp_bonus * 1.15
             + qb_natty_bonus(row)
             + pedigree_bonus
             - heartbreak_penalty
-            - playoff_fail_penalty
+            - cfp_fail_penalty
         )
 
         if row['OVERALL'] < 88:
@@ -637,12 +666,14 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         if row['BCR_Val'] < 35:
             raw -= 6
         if row['Team Speed (90+ Speed Guys)'] < 10:
-            raw -= 5
+            raw -= 6
+        if row['Current Record Losses'] >= 2:
+            raw -= 3.5 * (row['Current Record Losses'] - 1)
         return raw
 
     df['Contender Raw'] = df.apply(raw_contender_score, axis=1)
 
-    temp = max(10.5, df['Contender Raw'].std() * 0.95)
+    temp = max(10.5, df['Contender Raw'].std() * 0.92)
     raw_shift = df['Contender Raw'] - df['Contender Raw'].max()
     exp_scores = np.exp(raw_shift / temp)
     natty_probs = (exp_scores / exp_scores.sum()) * 100
@@ -661,20 +692,22 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     def power_index(row):
         return round(
-            row['OVERALL'] * 2.15
+            row['OVERALL'] * 2.25
             + row['OFFENSE'] * 0.82
             + row['DEFENSE'] * 0.82
-            + row['Team Speed (90+ Speed Guys)'] * 2.0
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.55
-            + row['Generational (96+ speed or 96+ Acceleration)'] * 5.1
+            + row['Team Speed (90+ Speed Guys)'] * 2.1
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.6
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 5.2
             + row['BCR_Val'] * 0.56
-            + row['Recruit Score'] * 0.46
+            + row['Recruit Score'] * 0.44
             + row['Improvement'] * 4.0
-            + row['Career Win %'] * 0.72
-            + cfp_rank_bonus(row.get('Current CFP Ranking', np.nan)) * 0.75
-            + qb_playoff_bonus(row) * 0.9
+            + row['Career Win %'] * 0.60
+            + row['Current Win %'] * 0.50
+            + row['SOS'] * 0.38
+            + cfp_rank_bonus(row.get('Current CFP Ranking', np.nan)) * 0.86
+            + qb_cfp_bonus(row) * 0.95
             + row['Natties'] * 10.5
-            + row['Natty Apps'] * 3.2
+            + row['Natty Apps'] * 3.4
             + row['CFP Wins'] * 1.2
             - row['CFP Losses'] * 1.2,
             1
@@ -706,25 +739,28 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     df['Where is the Speed?'] = df.apply(where_is_the_speed, axis=1)
 
-    playoff_raw = (
-        df['Power Index'] * 0.70
-        + df['OVERALL'] * 1.25
-        + df['Team Speed (90+ Speed Guys)'] * 1.8
-        + df['Off Speed (90+ speed)'] * 0.7
-        + df['Def Speed (90+ speed)'] * 0.7
-        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.2
-        + df['Generational (96+ speed or 96+ Acceleration)'] * 3.0
-        + df['Recruit Score'] * 0.22
-        + df['Career Win %'] * 0.20
-        + df['Current CFP Ranking'].apply(cfp_rank_bonus) * 1.7
-        + df.apply(qb_playoff_bonus, axis=1)
+    cfp_raw = (
+        df['Power Index'] * 0.66
+        + df['OVERALL'] * 1.35
+        + df['Team Speed (90+ Speed Guys)'] * 1.95
+        + df['Off Speed (90+ speed)'] * 0.75
+        + df['Def Speed (90+ speed)'] * 0.75
+        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.25
+        + df['Generational (96+ speed or 96+ Acceleration)'] * 3.1
+        + df['Recruit Score'] * 0.20
+        + df['Career Win %'] * 0.18
+        + df['Current Win %'] * 0.70
+        + df['SOS'] * 0.58
+        + df['Resume Score'] * 0.42
+        + df['Current CFP Ranking'].apply(cfp_rank_bonus) * 1.95
+        + df.apply(qb_cfp_bonus, axis=1)
         + df['Natty Apps'] * 1.9
-        + df['Natties'] * 2.7
+        + df['Natties'] * 2.8
     )
-    playoff_min = playoff_raw.min()
-    playoff_spread = max(1, playoff_raw.max() - playoff_min)
-    df['CFP Odds'] = (18 + ((playoff_raw - playoff_min) / playoff_spread * 62)).round(0).astype(int)
-    df['CFP Odds'] = df['CFP Odds'].clip(lower=14, upper=80)
+    cfp_min = cfp_raw.min()
+    cfp_spread = max(1, cfp_raw.max() - cfp_min)
+    df['CFP Odds'] = (16 + ((cfp_raw - cfp_min) / cfp_spread * 66)).round(0).astype(int)
+    df['CFP Odds'] = df['CFP Odds'].clip(lower=12, upper=82)
 
     power_min = df['Power Index'].min()
     power_max = df['Power Index'].max()
@@ -739,13 +775,14 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         - df['BCR_Val'] * 0.35
         - df['Recruit Score'] * 0.20
         - df['Generational (96+ speed or 96+ Acceleration)'] * 3.0
+        - df['SOS'] * 0.18
+        - df['Current Win %'] * 0.10
         - df['Current CFP Ranking'].apply(cfp_rank_bonus) * 0.25
-        - df.apply(qb_playoff_bonus, axis=1) * 0.4
+        - df.apply(qb_cfp_bonus, axis=1) * 0.4
     ).round(0).astype(int)
     df['Collapse Risk'] = df['Collapse Risk'].clip(lower=8, upper=72)
 
     return df.sort_values(['Power Index', 'Natty Odds'], ascending=False).reset_index(drop=True)
-
 
 
 def project_loss_scenarios(row):
@@ -952,7 +989,7 @@ if data:
             'Program Stock': '➖ Stable'
         }
         model_2041 = ensure_columns(model_2041, board_defaults)
-        board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'CFP Odds',
+        board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'SOS', 'Power Index', 'Natty Odds', 'CFP Odds',
                       'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked',
                       'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock', 'QB Tier']
         board = model_2041[board_cols].copy().sort_values(['Natty Odds', 'CFP Odds', 'Power Index'], ascending=False)
@@ -983,7 +1020,7 @@ if data:
 
         with st.expander("Open compact War Room table"):
             compact_board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})[[
-                'USER', 'TEAM', 'CFP Rank', 'QB Tier', 'Power Index', 'Natty Odds', 'CFP Odds',
+                'USER', 'TEAM', 'CFP Rank', 'SOS', 'QB Tier', 'Power Index', 'Natty Odds', 'CFP Odds',
                 'Natty if Lose to Unranked', 'Natty if Lose to Ranked',
                 'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock'
             ]]
