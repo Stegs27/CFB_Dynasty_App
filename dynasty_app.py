@@ -38,6 +38,12 @@ TEAM_VISUALS = {
     "South Florida": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
     "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2", "secondary": "#E5A823"},
     "Bowling Green": {"slug": "bowling-green", "primary": "#FE5000", "secondary": "#4F2C1D"},
+    "Rapid City": {"slug": "rapid-city", "primary": "#14B8A6", "secondary": "#F472B6"},
+    "Panama City": {"slug": "panama-city", "primary": "#F97316", "secondary": "#000000"},
+    "Hammond": {"slug": "hammond", "primary": "#16A34A", "secondary": "#14532D"},
+    "Alabaster": {"slug": "alabaster", "primary": "#DC2626", "secondary": "#FACC15"},
+    "Death Valley": {"slug": "death-valley", "primary": "#7C3AED", "secondary": "#000000"},
+    "Gate City": {"slug": "gate-city", "primary": "#FACC15", "secondary": "#000000"},
     "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
     "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
     "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
@@ -76,6 +82,12 @@ TEAM_ALIASES = {
     "South Florida": ["usf", "south florida", "south florida bulls"],
     "San Jose State": ["san jose state", "san jose state spartans", "sjsu"],
     "Bowling Green": ["bowling green", "bowling green falcons"],
+    "Rapid City": ["rapid city"],
+    "Panama City": ["panama city"],
+    "Hammond": ["hammond"],
+    "Alabaster": ["alabaster"],
+    "Death Valley": ["death valley"],
+    "Gate City": ["gate city"],
     "Rapid City": ["rapid city"],
     "Panama City": ["panama city"],
     "Hammond": ["hammond"],
@@ -1667,6 +1679,84 @@ def get_current_user_games(model_df):
     return pd.DataFrame(rows)
 
 
+def render_current_user_games_cards(games_df):
+    if games_df is None or games_df.empty:
+        st.caption("No current user games loaded from the schedule screenshots yet.")
+        return
+
+    user_games = games_df[games_df['Game Type'] == 'User Game'].copy()
+    if user_games.empty:
+        user_games = games_df.copy()
+
+    cards = []
+    seen = set()
+    for _, g in user_games.iterrows():
+        key = tuple(sorted([str(g['Team']), str(g['Opponent'])]))
+        if key in seen:
+            continue
+        seen.add(key)
+        team = str(g['Team'])
+        opp = str(g['Opponent'])
+        team_user = str(g['User'])
+        opp_user = str(g['Opponent User'])
+        team_primary = get_team_primary_color(team)
+        opp_primary = get_team_primary_color(opp)
+        team_logo = image_file_to_data_uri(get_logo_source(team))
+        opp_logo = image_file_to_data_uri(get_logo_source(opp))
+        team_logo_html = f"<img src='{team_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if team_logo else "🏈"
+        opp_logo_html = f"<img src='{opp_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if opp_logo else "🏈"
+        cards.append(f"""
+        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;min-width:220px;">
+              <div style="width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};">{team_logo_html}</div>
+              <div><div style="font-size:13px;color:#6b7280;">{html.escape(team_user)}</div><div style="font-size:18px;font-weight:800;color:{team_primary};">{html.escape(team)}</div></div>
+            </div>
+            <div style="font-size:18px;font-weight:900;color:#111827;">vs</div>
+            <div style="display:flex;align-items:center;gap:10px;min-width:220px;justify-content:flex-end;">
+              <div><div style="font-size:13px;color:#6b7280;text-align:right;">{html.escape(opp_user)}</div><div style="font-size:18px;font-weight:800;color:{opp_primary};text-align:right;">{html.escape(opp)}</div></div>
+              <div style="width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};">{opp_logo_html}</div>
+            </div>
+          </div>
+        </div>
+        """)
+    st.markdown("".join(cards), unsafe_allow_html=True)
+
+
+def get_current_recruiting_snapshot():
+    rows = [
+        {'Rank': 1, 'Team': 'Nebraska', 'Total': 18, '5★': 3, '4★': 15, '3★': 0, 'Points': 239.05},
+        {'Rank': 2, 'Team': 'Georgia', 'Total': 16, '5★': 2, '4★': 14, '3★': 0, 'Points': 226.55},
+        {'Rank': 3, 'Team': 'USC', 'Total': 13, '5★': 3, '4★': 9, '3★': 1, 'Points': 211.40},
+        {'Rank': 4, 'Team': 'Miami', 'Total': 15, '5★': 0, '4★': 11, '3★': 4, 'Points': 203.95},
+        {'Rank': 5, 'Team': 'Bowling Green', 'Total': 11, '5★': 4, '4★': 6, '3★': 1, 'Points': 197.90},
+        {'Rank': 6, 'Team': 'Texas A&M', 'Total': 15, '5★': 1, '4★': 11, '3★': 3, 'Points': 190.75},
+        {'Rank': 7, 'Team': 'Texas', 'Total': 15, '5★': 1, '4★': 9, '3★': 5, 'Points': 190.00},
+        {'Rank': 8, 'Team': 'Ohio State', 'Total': 16, '5★': 0, '4★': 11, '3★': 5, 'Points': 184.15},
+        {'Rank': 9, 'Team': 'Florida State', 'Total': 13, '5★': 1, '4★': 8, '3★': 4, 'Points': 175.70},
+        {'Rank': 10, 'Team': 'Rapid City', 'Total': 14, '5★': 0, '4★': 10, '3★': 4, 'Points': 171.75},
+        {'Rank': 11, 'Team': 'Notre Dame', 'Total': 13, '5★': 1, '4★': 7, '3★': 5, 'Points': 168.75},
+        {'Rank': 12, 'Team': 'Alabama', 'Total': 16, '5★': 0, '4★': 8, '3★': 8, 'Points': 166.55},
+        {'Rank': 13, 'Team': 'Tennessee', 'Total': 15, '5★': 0, '4★': 9, '3★': 6, 'Points': 151.80},
+        {'Rank': 14, 'Team': 'San Jose State', 'Total': 9, '5★': 0, '4★': 6, '3★': 3, 'Points': 146.95},
+        {'Rank': 15, 'Team': 'USF', 'Total': 11, '5★': 0, '4★': 6, '3★': 5, 'Points': 139.85},
+        {'Rank': 16, 'Team': 'Oregon', 'Total': 14, '5★': 0, '4★': 6, '3★': 8, 'Points': 138.75},
+        {'Rank': 17, 'Team': 'Clemson', 'Total': 10, '5★': 0, '4★': 7, '3★': 3, 'Points': 137.55},
+        {'Rank': 18, 'Team': 'Texas Tech', 'Total': 11, '5★': 0, '4★': 6, '3★': 5, 'Points': 136.80},
+        {'Rank': 19, 'Team': 'Georgia Tech', 'Total': 12, '5★': 0, '4★': 7, '3★': 5, 'Points': 134.90},
+        {'Rank': 20, 'Team': 'Penn State', 'Total': 12, '5★': 0, '4★': 7, '3★': 5, 'Points': 133.35},
+        {'Rank': 21, 'Team': 'LSU', 'Total': 13, '5★': 0, '4★': 6, '3★': 7, 'Points': 132.55},
+        {'Rank': 22, 'Team': 'Oklahoma', 'Total': 12, '5★': 0, '4★': 6, '3★': 6, 'Points': 130.80},
+        {'Rank': 23, 'Team': 'Michigan', 'Total': 14, '5★': 0, '4★': 6, '3★': 8, 'Points': 129.55},
+        {'Rank': 24, 'Team': 'Florida', 'Total': 10, '5★': 0, '4★': 5, '3★': 5, 'Points': 127.10},
+        {'Rank': 25, 'Team': 'Hammond', 'Total': 11, '5★': 0, '4★': 5, '3★': 6, 'Points': 125.65},
+    ]
+    df = pd.DataFrame(rows)
+    df['Blue Chip Ratio'] = ((df['5★'] + df['4★']) / df['Total']).round(3)
+    df['Logo'] = df['Team'].apply(get_logo_source)
+    return df
+
+
 def get_cfp_rankings_snapshot():
     data = [
         (1, "Bowling Green", 9, 0),
@@ -2010,6 +2100,9 @@ if data:
 
     with tabs[0]:
         st.header("🗞️ Dynasty News")
+        st.markdown("#### This Week's Current User Games")
+        render_current_user_games_cards(current_user_games)
+        st.markdown("---")
         st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model leans hardest on overall roster quality and raw team speed, then lets CFP position and pedigree finish the damn job.")
         st.info(f"**{most_dangerous['USER']}** owns the highest Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
         st.warning(f"**{collapse_team['USER']}** carries the highest volatility marker. The model sees real downside if things break wrong.")
@@ -2046,13 +2139,6 @@ if data:
         if not rivalry_df.empty:
             top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
             st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
-
-
-        st.markdown("#### This week's current user games")
-        if not current_user_games.empty:
-            st.dataframe(current_user_games, hide_index=True, use_container_width=True)
-        else:
-            st.caption("No current user games loaded from the schedule screenshots yet.")
 
     # --- WHO'S IN? ---
     with tabs[2]:
@@ -2140,12 +2226,24 @@ if data:
     # --- RECRUITING RANKINGS ---
     with tabs[6]:
         st.header("🏈 Recruiting Rankings")
-        st.caption("Heat Index = 101 minus the weighted average of your last four recruiting class ranks. More recent classes count more, so a lower weighted rank becomes a hotter score. Pipeline Score then blends that recruiting heat with blue-chip ratio, current team speed, overall roster quality, improvement trend, and generational freak count.")
+        st.caption("Current season screenshot board appears first. Heat Index uses the last four class ranks from recruiting.csv, weighted toward the most recent years: lower weighted average rank = hotter score. Pipeline Score blends that heat with blue-chip ratio, current team speed, overall roster quality, improvement, and freak count.")
+
+        current_recruiting = get_current_recruiting_snapshot()
+        st.subheader("Current Season National Recruiting Snapshot")
+        st.caption("This section is built from the recruiting ranking screenshots currently loaded into the app.")
+        st.dataframe(current_recruiting[['Rank','Team','Total','5★','4★','3★','Points','Blue Chip Ratio']], hide_index=True, use_container_width=True)
+
         if recruiting_board.empty:
             st.info("No recruiting board data could be built from the current recruiting file.")
         else:
+            st.subheader("User Dynasty Recruiting Board")
             render_recruiting_table(recruiting_board)
-            st.markdown("#### Recruiting Spotlight")
+
+            st.subheader("Full Historical Recruiting Table")
+            hist_cols = [c for c in rec.columns if c in ['USER','Teams'] or str(c).isdigit()]
+            st.dataframe(rec[hist_cols], hide_index=True, use_container_width=True)
+
+            st.subheader("Recruiting Spotlight")
             spotlight_team = st.selectbox("Choose a class to spotlight", recruiting_board['TEAM'].tolist(), key='recruit_spotlight')
             sp = recruiting_board[recruiting_board['TEAM'] == spotlight_team].iloc[0]
             lc1, lc2 = st.columns([0.35, 0.65])
@@ -2162,8 +2260,6 @@ if data:
                 st.write(f"**Class Tier:** {sp['Class Tier']}")
                 st.write(f"**Trajectory:** {sp['Trajectory']}")
                 st.info(sp['Recruiting Blurb'])
-            with st.expander("Show recruiting board data"):
-                st.dataframe(recruiting_board, hide_index=True, use_container_width=True)
 
     # --- H2H MATRIX ---
     with tabs[7]:
