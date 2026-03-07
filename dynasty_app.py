@@ -1730,7 +1730,7 @@ def get_current_user_games(model_df):
     """
     weekly_games = [
         {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida State', 'User': 'Doug', 'Opponent': 'LSU', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '4-5', 'Game Type': 'CPU Game'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida', 'User': 'Michael', 'Opponent': 'Oklahoma State', 'Opponent User': 'CPU', 'Team Record': '9-2', 'OPP W-L': '6-4', 'Game Type': 'Completed Game', 'Result': 'Week 12 final shown on schedule screenshot'},
+        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida', 'User': 'Michael', 'Opponent': 'Oklahoma State', 'Opponent User': 'CPU', 'Team Record': '9-2', 'OPP W-L': '6-4', 'Game Type': 'Completed Game', 'Result': 'W 43-31 vs Oklahoma State'},
         {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Bowling Green', 'User': 'Chris', 'Opponent': 'South Carolina', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '2-7', 'Game Type': 'CPU Game'},
         {'Week': CURRENT_WEEK_NUMBER, 'Team': 'USF', 'User': 'Anthony', 'Opponent': 'Penn State', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '9-2', 'Game Type': 'CPU Game'},
         {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Texas Tech', 'User': 'Bubba', 'Opponent': 'BYE', 'Opponent User': '', 'Team Record': '9-1', 'OPP W-L': '', 'Game Type': 'BYE'},
@@ -1793,6 +1793,12 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
         game_chip = 'BYE WEEK' if game_type == 'BYE' else ('FINAL' if game_type == 'Completed Game' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU'))
         right_meta_html = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
         series_html = f"<div style='margin-top:10px;font-size:12px;color:#4b5563;font-weight:700;'>{html.escape(series_text)}</div>" if series_text else ''
+        result_bar_html = ''
+        if game_type == 'Completed Game' and result_text:
+            win_loss = 'W' if result_text.strip().upper().startswith('W') else ('L' if result_text.strip().upper().startswith('L') else 'FINAL')
+            result_color = '#166534' if win_loss == 'W' else ('#991b1b' if win_loss == 'L' else '#1f2937')
+            result_bg = '#dcfce7' if win_loss == 'W' else ('#fee2e2' if win_loss == 'L' else '#e5e7eb')
+            result_bar_html = f"<div style='margin-top:12px;padding:10px 12px;border-radius:12px;background:{result_bg};color:{result_color};font-size:14px;font-weight:900;text-align:center;'>FINAL — {html.escape(result_text)}</div>"
 
         if opp == 'BYE':
             right_block_html = (
@@ -1836,6 +1842,7 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
             f"<div style='font-size:18px;font-weight:900;color:#111827;'>{center_vs}</div>"
             f"{right_block_html}"
             f"</div>"
+            f"{result_bar_html}"
             f"{series_html}"
             f"</div>"
         )
