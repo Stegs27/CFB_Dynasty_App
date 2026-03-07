@@ -653,6 +653,57 @@ def generate_mvp_backstory(row):
 
 
 
+def generate_coach_profile(row, stats_row):
+    user = str(row.get('USER', 'Unknown Coach')).strip()
+    team = str(row.get('TEAM', 'Unknown Team')).strip()
+    natties = int(pd.to_numeric(stats_row.get('Natties', 0), errors='coerce') or 0)
+    natty_apps = int(pd.to_numeric(stats_row.get('Natty Apps', 0), errors='coerce') or 0)
+    cfp_wins = int(pd.to_numeric(stats_row.get('CFP Wins', 0), errors='coerce') or 0)
+    conf_titles = int(pd.to_numeric(stats_row.get('Conf Titles', 0), errors='coerce') or 0)
+    drafted = int(pd.to_numeric(stats_row.get('Drafted', 0), errors='coerce') or 0)
+    win_pct = float(pd.to_numeric(stats_row.get('Career Win %', 50.0), errors='coerce') or 50.0)
+    recruit_score = float(pd.to_numeric(row.get('Recruit Score', 50.0), errors='coerce') or 50.0)
+    bcr = float(pd.to_numeric(row.get('BCR_Val', 0), errors='coerce') or 0.0)
+    speed = float(pd.to_numeric(row.get('Team Speed Score', 0), errors='coerce') or 0.0)
+    qbt = str(row.get('QB Tier', 'Unknown')).strip()
+
+    if natties >= 3:
+        archetype = 'Empire builder'
+    elif natties >= 1 or natty_apps >= 2:
+        archetype = 'Big-game shark'
+    elif win_pct >= 70:
+        archetype = 'Program surgeon'
+    elif recruit_score >= 78 and bcr >= 45:
+        archetype = 'Roster architect'
+    elif speed >= 65:
+        archetype = 'Chaos mechanic'
+    else:
+        archetype = 'Grinder with a whistle'
+
+    tone_lines = [
+        f"{user} runs {team} like every Saturday is a boardroom coup. The vibe is {archetype.lower()}, and the résumé already has {natties} natties, {natty_apps} title appearances, and {cfp_wins} CFP wins hanging off it.",
+        f"{user}'s coaching profile screams {archetype.lower()}. The man has stacked {conf_titles} conference titles, pushed {drafted} players into the league, and built a roster with a {bcr:.1f}% blue-chip ratio.",
+        f"This is {user} in full character: {archetype.lower()}, a {win_pct:.1f}% career winner, and absolutely willing to win ugly if that's what the room calls for."
+    ]
+
+    if qbt == 'Elite':
+        qb_line = 'The elite QB gives him the luxury of calling games like a rich asshole with options.'
+    elif qbt == 'Leader':
+        qb_line = 'The leader-level QB keeps the operation on schedule and cuts down the dumb shit.'
+    elif qbt == 'Average Joe':
+        qb_line = 'The quarterback room is usable, but some Saturdays still feel like the coach is doing extra labor.'
+    elif qbt == 'Ass':
+        qb_line = 'The quarterback situation is ass, which means some of this profile is being held together with spit, rage, and halftime adjustments.'
+    else:
+        qb_line = 'Quarterback uncertainty means the coach still has to keep one hand on the fire extinguisher.'
+
+    build_line = 'The recruiting profile says this program is loading talent the right way.' if recruit_score >= 78 and bcr >= 45 else 'The recruiting pipeline is still uneven, so the coach has to manufacture edges instead of just buying them with talent.'
+    speed_line = 'And the speed profile is nasty enough to let his mistakes survive contact.' if speed >= 65 else 'The speed profile is decent, but not enough to bail out every bad Saturday.'
+
+    idx = int(hashlib.md5(f"coach|{user}|{team}".encode()).hexdigest(), 16) % len(tone_lines)
+    return f"{tone_lines[idx]} {qb_line} {build_line} {speed_line}"
+
+
 def team_speed_to_mph(team_speed_score):
     team_speed_score = float(max(0, team_speed_score))
     # 40 points is the posted 65 MPH speed limit. Above that, the program is officially speeding.
@@ -1128,7 +1179,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.65
             + row['Generational (96+ speed or 96+ Acceleration)'] * 7.2
             + row['BCR_Val'] * 0.52
-            + row['Recruit Score'] * 0.28
+            + row['Recruit Score'] * 0.58
             + row['Career Win %'] * 0.26
             + row['Current Win %'] * 0.45
             + row['SOS'] * 0.40
@@ -1182,7 +1233,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.6
             + row['Generational (96+ speed or 96+ Acceleration)'] * 5.2
             + row['BCR_Val'] * 0.56
-            + row['Recruit Score'] * 0.44
+            + row['Recruit Score'] * 0.50
             + row['Improvement'] * 4.0
             + row['Career Win %'] * 0.60
             + row['Current Win %'] * 0.50
@@ -1230,7 +1281,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Def Speed (90+ speed)'] * 0.75
         + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.25
         + df['Generational (96+ speed or 96+ Acceleration)'] * 3.1
-        + df['Recruit Score'] * 0.20
+        + df['Recruit Score'] * 0.46
         + df['Career Win %'] * 0.18
         + df['Current Win %'] * 0.70
         + df['SOS'] * 0.58
@@ -1256,7 +1307,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         - (df['OVERALL'] - 80) * 2.0
         - df['Improvement'] * 4.5
         - df['BCR_Val'] * 0.35
-        - df['Recruit Score'] * 0.20
+        - df['Recruit Score'] * 0.12
         - df['Generational (96+ speed or 96+ Acceleration)'] * 3.0
         - df['SOS'] * 0.18
         - df['Current Win %'] * 0.10
@@ -1431,9 +1482,7 @@ if data:
         "📺 Season Recap",
         "🔍 Speed Freaks",
         "📊 Team Overview",
-        "🏆 Prestige & Power",
         "⚔️ H2H Matrix",
-        "🏫 Recruiting Momentum",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
     ])
@@ -1519,43 +1568,8 @@ if data:
             top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
             st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
 
-    # --- PRESTIGE & POWER ---
-    with tabs[5]:
-        st.header("🏆 Prestige & Power")
-
-        prestige = stats.copy()
-        prestige['Dynasty Tier'] = prestige['Dynasty Score'].apply(tier_from_dynasty_score)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Dynasty Power Rankings")
-            st.dataframe(
-                prestige.sort_values('Dynasty Score', ascending=False)[['User', 'Dynasty Score', 'Dynasty Tier', 'Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles']],
-                hide_index=True,
-                use_container_width=True
-            )
-
-        with c2:
-            st.subheader("Prestige Board")
-            st.dataframe(
-                prestige.sort_values('HoF Points', ascending=False)[['User', 'HoF Points', 'Record', 'Natties', 'Drafted', '1st Rounders']],
-                hide_index=True,
-                use_container_width=True
-            )
-
-        st.plotly_chart(
-            px.bar(
-                prestige.sort_values('Dynasty Score', ascending=False),
-                x='User',
-                y='Dynasty Score',
-                color='Dynasty Tier',
-                hover_data=['Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', 'Drafted']
-            ),
-            use_container_width=True
-        )
-
     # --- H2H MATRIX ---
-    with tabs[6]:
+    with tabs[5]:
         st.header("⚔️ Head-to-Head Matrix")
 
         st.subheader("Full H2H Matrix")
@@ -1713,6 +1727,7 @@ if data:
             st.write(f"**Improvement from prior year:** {row['Improvement']} OVR")
             st.write(f"**SOS:** {row['SOS']} (higher = tougher schedule)")
             st.write(f"**Resume Score:** {row['Resume Score']} (62% current win %, 38% SOS)")
+            st.caption("Recent recruiting classes are now baked directly into CFP and natty odds through the Recruit Score, so the class pipeline still matters even without a separate recruiting tab.")
             st.markdown("**Coaching Stops & Rings**")
             render_history_cards(get_program_history_cards(row['USER'], ratings, champs, rec))
 
@@ -1721,6 +1736,15 @@ if data:
             st.write(f"**MVP:** {row['⭐ STAR SKILL GUY (Top OVR)']}")
             st.write(f"**Generational Speed?** {row['Star Skill Guy is Generational Speed?']}")
             st.write(generate_mvp_backstory(row))
+
+            coach_stats_row = stats[stats['User'] == target].iloc[0]
+            st.markdown("---")
+            st.subheader("Coach Profile")
+            st.write(generate_coach_profile(row, coach_stats_row))
+            cpa, cpb, cpc = st.columns(3)
+            cpa.metric("Career Win %", f"{coach_stats_row['Career Win %']}%")
+            cpb.metric("Natties", int(coach_stats_row['Natties']))
+            cpc.metric("CFP Wins", int(coach_stats_row['CFP Wins']))
 
         stat_table = pd.DataFrame([
             {'Metric': 'Overall', 'Value': row['OVERALL']},
@@ -1767,7 +1791,9 @@ if data:
         ).reset_index(drop=True)
         talent_board['TEAM SPEED Rank'] = np.arange(1, len(talent_board) + 1)
 
+        fastest_team = talent_board.iloc[0]
         st.subheader("⚡ TEAM SPEED Rankings")
+        st.success(f"Fastest team alive right now: {fastest_team['TEAM']} ({fastest_team['USER']}) at {fastest_team['Speedometer']} MPH. Defensive coordinators should file a complaint.")
         render_speed_freaks_table(talent_board)
 
         for _, r in talent_board.iterrows():
@@ -1798,42 +1824,8 @@ if data:
                 st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
                 st.progress(min(1.0, team_speed / 100.0))
 
-    # --- RECRUITING MOMENTUM ---
-    with tabs[7]:
-        st.header("🏫 Recruiting Momentum")
-
-        year_cols = [c for c in rec.columns if str(c).isdigit()]
-        rec_view = rec.copy()
-
-        recent_cols = [c for c in year_cols if int(c) <= 2041][-4:]
-        rec_view['Recent Avg Rank'] = rec_view[recent_cols].applymap(clean_rank_value).mean(axis=1)
-        rec_view['Momentum Score'] = (101 - rec_view['Recent Avg Rank']).fillna(0).round(1)
-
-        user_momentum = rec_view.groupby('USER', as_index=False).agg({
-            'Recent Avg Rank': 'min',
-            'Momentum Score': 'max'
-        }).sort_values('Momentum Score', ascending=False)
-
-        st.dataframe(user_momentum, hide_index=True, use_container_width=True)
-
-        st.plotly_chart(
-            px.bar(
-                user_momentum,
-                x='USER',
-                y='Momentum Score',
-                color='USER',
-                color_discrete_map=user_color_map,
-                hover_data=['Recent Avg Rank']
-            ),
-            use_container_width=True
-        )
-
-        selected_recruit_user = st.selectbox("Select recruiter", sorted(rec['USER'].unique()), key="recruiting_user")
-        recruit_rows = rec[rec['USER'] == selected_recruit_user].copy()
-        st.dataframe(recruit_rows, hide_index=True, use_container_width=True)
-
     # --- UPSET TRACKER ---
-    with tabs[8]:
+    with tabs[6]:
         st.header("🚨 Upset Tracker")
 
         upset_df = scores.copy()
@@ -1878,7 +1870,7 @@ if data:
             )
 
     # --- GOAT RANKINGS ---
-    with tabs[9]:
+    with tabs[7]:
         st.header("🐐 Dynasty GOAT Rankings")
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
