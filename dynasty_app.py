@@ -960,6 +960,7 @@ if data:
     # --- WAR ROOM ---
     with tabs[0]:
         st.header("📰 Dynasty War Room")
+        st.caption("Cleaner board format restored. Logos will appear once local files exist in the logos folder.")
 
         title_favorite = model_2041.sort_values('Natty Odds', ascending=False).iloc[0]
         most_dangerous = model_2041.sort_values('Power Index', ascending=False).iloc[0]
@@ -989,42 +990,12 @@ if data:
             'Program Stock': '➖ Stable'
         }
         model_2041 = ensure_columns(model_2041, board_defaults)
-        board_cols = ['Logo', 'USER', 'TEAM', 'Current CFP Ranking', 'SOS', 'Power Index', 'Natty Odds', 'CFP Odds',
+        board_cols = ['TEAM', 'USER', 'Current CFP Ranking', 'SOS', 'QB Tier', 'Power Index', 'Natty Odds', 'CFP Odds',
                       'Natty if Lose to Unranked', 'Natty if Lose to Ranked', 'CFP if Lose to Unranked',
-                      'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock', 'QB Tier']
+                      'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']
         board = model_2041[board_cols].copy().sort_values(['Natty Odds', 'CFP Odds', 'Power Index'], ascending=False)
-
-        for _, r in board.iterrows():
-            team_color = get_team_primary_color(r['TEAM'])
-            rank_txt = 'Unranked' if pd.isna(r['Current CFP Ranking']) else int(r['Current CFP Ranking'])
-            st.markdown(f"<div style='height:8px;background:{team_color};border-radius:999px;margin:0.35rem 0 0.65rem 0;'></div>", unsafe_allow_html=True)
-            top = st.columns([1, 2.8, 1.2, 1.2])
-            with top[0]:
-                render_logo(r['Logo'], width=58)
-            with top[1]:
-                st.markdown(f"**{r['TEAM']}**")
-                st.caption(f"{r['USER']} · CFP Rank: {rank_txt} · QB: {r['QB Tier']} · {r['Program Stock']}")
-            with top[2]:
-                st.metric("Natty Win %", f"{r['Natty Odds']}%")
-            with top[3]:
-                st.metric("CFP %", f"{int(r['CFP Odds'])}%")
-            bottom = st.columns(3)
-            with bottom[0]:
-                st.metric("Power Index", f"{r['Power Index']}")
-            with bottom[1]:
-                st.metric("Lose to Unranked", f"N {r['Natty if Lose to Unranked']}% / C {int(r['CFP if Lose to Unranked'])}%")
-            with bottom[2]:
-                st.metric("Lose to Ranked", f"N {r['Natty if Lose to Ranked']}% / C {int(r['CFP if Lose to Ranked'])}%")
-            st.caption(f"Collapse Risk: {r['Collapse Risk']}%")
-            st.markdown("---")
-
-        with st.expander("Open compact War Room table"):
-            compact_board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})[[
-                'USER', 'TEAM', 'CFP Rank', 'SOS', 'QB Tier', 'Power Index', 'Natty Odds', 'CFP Odds',
-                'Natty if Lose to Unranked', 'Natty if Lose to Ranked',
-                'CFP if Lose to Unranked', 'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock'
-            ]]
-            st.dataframe(compact_board, hide_index=True, use_container_width=True)
+        board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})
+        st.dataframe(board, hide_index=True, use_container_width=True)
 
     with tabs[1]:
         st.header("🗞️ Dynasty News & Headlines")
