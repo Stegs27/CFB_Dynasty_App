@@ -2240,60 +2240,47 @@ def compute_projected_seed_score(board_df):
     )
     return df
 
+
 def render_playoff_bracket(projected_field):
     if projected_field.empty or len(projected_field) < 12:
         st.info("Need 12 projected teams to render the bracket.")
         return
 
-    seed_lookup = {int(r['Projected Seed']): r.to_dict() for _, r in projected_field.iterrows()}
+    pf = projected_field.sort_values('Projected Seed').reset_index(drop=True)
+    seed_lookup = {int(r['Projected Seed']): r for _, r in pf.iterrows()}
 
     def badge(team_row):
         team = str(team_row['Team'])
         rank = int(team_row['Rank'])
         record = str(team_row['Record'])
-        logo_uri = image_file_to_data_uri(get_logo_source(team))
-        logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;'/>" if logo_uri else "🏈"
+        make_pct = format_pct(team_row.get('CFP Make %', np.nan), 1)
+        logo_path = get_logo_source(team)
         primary = get_team_primary_color(team)
-        return f"""
-        <div style='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e5e7eb;border-radius:12px;background:white;margin-bottom:8px;'>
-            <div style='font-weight:900;color:#111827;min-width:20px;'>#{int(team_row['Projected Seed'])}</div>
-            <div style='width:30px;text-align:center;'>{logo_html}</div>
-            <div>
-                <div style='font-weight:800;color:{primary};line-height:1.1;'>{html.escape(team)}</div>
-                <div style='font-size:12px;color:#6b7280;'>CFP #{rank} • {html.escape(record)} • Make {format_pct(team_row["CFP Make %"],1)}</div>
-            </div>
-        </div>
-        """
+        c1, c2 = st.columns([0.14, 0.86])
+        with c1:
+            render_logo(logo_path, width=34)
+        with c2:
+            st.markdown(
+                f"<div style='font-weight:900;color:#111827;'>#{int(team_row['Projected Seed'])} {html.escape(team)}</div>"
+                f"<div style='font-size:12px;color:#6b7280;'>CFP #{rank} • {html.escape(record)} • Make {make_pct}</div>",
+                unsafe_allow_html=True
+            )
 
-    bye_html = "".join([badge(seed_lookup[s]) for s in [1,2,3,4]])
-    qf_pairs = [(5,12), (6,11), (7,10), (8,9)]
-    matchup_html = ""
-    for a,b in qf_pairs:
-        ta, tb = seed_lookup[a], seed_lookup[b]
-        matchup_html += f"""
-        <div style='padding:10px 12px;border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;margin-bottom:10px;'>
-            <div style='font-size:12px;font-weight:800;color:#6b7280;margin-bottom:8px;'>First Round Matchup</div>
-            {badge(ta)}
-            <div style='text-align:center;font-size:13px;font-weight:900;color:#6b7280;margin:-2px 0 6px 0;'>vs</div>
-            {badge(tb)}
-        </div>
-        """
+    left, right = st.columns(2)
 
-    st.markdown(
-        f"""
-        <div style='display:grid;grid-template-columns:1fr 1.2fr;gap:14px;align-items:start;'>
-            <div style='padding:12px;border:1px solid #e5e7eb;border-radius:16px;background:linear-gradient(180deg,#eff6ff,#ffffff);'>
-                <div style='font-size:14px;font-weight:900;color:#1f2937;margin-bottom:10px;'>Top 4 Byes</div>
-                {bye_html}
-            </div>
-            <div style='padding:12px;border:1px solid #e5e7eb;border-radius:16px;background:linear-gradient(180deg,#faf5ff,#ffffff);'>
-                <div style='font-size:14px;font-weight:900;color:#1f2937;margin-bottom:10px;'>Projected First Round</div>
-                {matchup_html}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    with left:
+        st.markdown("#### Top 4 Byes")
+        for s in [1, 2, 3, 4]:
+            with st.container(border=True):
+                badge(seed_lookup[s])
+
+    with right:
+        st.markdown("#### Projected First Round")
+        for a, b in [(5, 12), (6, 11), (7, 10), (8, 9)]:
+            with st.container(border=True):
+                badge(seed_lookup[a])
+                st.markdown("<div style='text-align:center;font-size:13px;font-weight:900;color:#6b7280;'>vs</div>", unsafe_allow_html=True)
+                badge(seed_lookup[b])
 
 def render_cfp_table(board_df):
     rows_html = []
@@ -2567,13 +2554,8 @@ if data:
         st.subheader('Projected CFP Field')
         render_cfp_table(cfp_board)
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader('Projected 12-Team Field')
-            st.dataframe(projected_field[['Projected Seed', 'Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
-        with c2:
-            st.subheader('First Four Out')
-            st.dataframe(first_four_out[['Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
+        st.subheader('First Four Out')
+        st.dataframe(first_four_out[['Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
 
         st.subheader('Playoff Bracket')
         render_playoff_bracket(projected_field)
