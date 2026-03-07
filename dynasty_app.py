@@ -1569,7 +1569,7 @@ def build_cfp_bubble_board(rankings_df, model_df):
         return '🪦 Practically Dead'
 
     df['Bubble Tier'] = df.apply(bubble_tier, axis=1)
-    df['Projected Seed'] = np.where(df['Rank'] <= 12, df['Rank'], np.nan)
+    df['Projected Seed'] = np.nan
     return df.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).reset_index(drop=True)
 
 
@@ -1816,9 +1816,17 @@ if data:
         cfp_rankings = get_cfp_rankings_snapshot()
         cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
 
+        # Select the projected 12-team field by make odds, but seed the field by committee rank.
         projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).head(12).copy()
+        projected_field = projected_field.sort_values(['Rank', 'Bye %', 'CFP Make %'], ascending=[True, False, False]).reset_index(drop=True)
         projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
-        first_four_out = cfp_board.sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).iloc[12:16].copy()
+
+        # Push the corrected projected seeds back onto the full board so the main table matches the bracket table.
+        cfp_board['Projected Seed'] = np.nan
+        seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
+        cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
+
+        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).head(4).copy()
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric('Projected Locks', int((cfp_board['CFP Make %'] >= 92).sum()))
