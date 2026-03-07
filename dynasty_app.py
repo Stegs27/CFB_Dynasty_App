@@ -254,7 +254,7 @@ def render_war_room_table(board_df):
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead>
           <tr style="background:#f8fafc;color:#111827;">
-            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Fastest Team</th>
+            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Team</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP Rank</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">SOS</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">QB Tier</th>
@@ -367,7 +367,7 @@ def render_speed_freaks_table(df):
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead>
           <tr style="background:#f8fafc;color:#111827;">
-            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Team</th>
+            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Fastest Team</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Speedometer</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Team Speed Score</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Where is the Speed?</th>
