@@ -478,24 +478,24 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     def qb_natty_bonus(row):
         if row['QB Tier'] == 'Elite':
-            return 18.0
+            return 30.0
         if row['QB Tier'] == 'Leader':
-            return 10.0
+            return 18.0
         if row['QB Tier'] == 'Average Joe':
-            return -8.0
+            return -10.0
         if row['QB Tier'] == 'Ass':
-            return -18.0
+            return -26.0
         return 0.0
 
     def qb_playoff_bonus(row):
         if row['QB Tier'] == 'Elite':
-            return 14.0
+            return 22.0
         if row['QB Tier'] == 'Leader':
-            return 8.0
+            return 13.0
         if row['QB Tier'] == 'Average Joe':
-            return -7.0
+            return -8.0
         if row['QB Tier'] == 'Ass':
-            return -15.0
+            return -20.0
         return 0.0
 
     def raw_contender_score(row):
@@ -511,22 +511,22 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         playoff_fail_penalty = u_s['CFP Losses'] * 1.2
 
         team_speed_component = (
-            row['Team Speed (90+ Speed Guys)'] * 1.9
-            + row['Off Speed (90+ speed)'] * 1.15
-            + row['Def Speed (90+ speed)'] * 1.15
+            row['Team Speed (90+ Speed Guys)'] * 2.7
+            + row['Off Speed (90+ speed)'] * 1.45
+            + row['Def Speed (90+ speed)'] * 1.45
         )
         cfp_bonus = cfp_rank_bonus(row.get('Current CFP Ranking', np.nan))
 
         raw = (
-            row['OVERALL'] * 2.95
-            + row['OFFENSE'] * 0.72
-            + row['DEFENSE'] * 0.72
+            row['OVERALL'] * 3.45
+            + row['OFFENSE'] * 0.66
+            + row['DEFENSE'] * 0.66
             + team_speed_component
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.35
-            + row['Generational (96+ speed or 96+ Acceleration)'] * 6.1
-            + row['BCR_Val'] * 0.58
-            + row['Recruit Score'] * 0.34
-            + row['Career Win %'] * 0.36
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.55
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 6.8
+            + row['BCR_Val'] * 0.52
+            + row['Recruit Score'] * 0.30
+            + row['Career Win %'] * 0.34
             + cfp_bonus
             + qb_natty_bonus(row)
             + pedigree_bonus
@@ -613,17 +613,19 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     df['Where is the Speed?'] = df.apply(where_is_the_speed, axis=1)
 
     playoff_raw = (
-        df['Power Index'] * 0.72
-        + df['OVERALL'] * 1.1
-        + df['Team Speed (90+ Speed Guys)'] * 1.4
-        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.1
-        + df['Generational (96+ speed or 96+ Acceleration)'] * 2.8
-        + df['Recruit Score'] * 0.25
-        + df['Career Win %'] * 0.22
-        + df['Current CFP Ranking'].apply(cfp_rank_bonus) * 1.6
+        df['Power Index'] * 0.70
+        + df['OVERALL'] * 1.25
+        + df['Team Speed (90+ Speed Guys)'] * 1.8
+        + df['Off Speed (90+ speed)'] * 0.7
+        + df['Def Speed (90+ speed)'] * 0.7
+        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.2
+        + df['Generational (96+ speed or 96+ Acceleration)'] * 3.0
+        + df['Recruit Score'] * 0.22
+        + df['Career Win %'] * 0.20
+        + df['Current CFP Ranking'].apply(cfp_rank_bonus) * 1.7
         + df.apply(qb_playoff_bonus, axis=1)
-        + df['Natty Apps'] * 1.8
-        + df['Natties'] * 2.4
+        + df['Natty Apps'] * 1.9
+        + df['Natties'] * 2.7
     )
     playoff_min = playoff_raw.min()
     playoff_spread = max(1, playoff_raw.max() - playoff_min)
@@ -774,14 +776,29 @@ if data:
 
         with wc1:
             st.subheader("War Room Board")
-            board = model_2041[['USER', 'TEAM', 'Power Index', 'Natty Odds', 'Playoff Odds', 'Collapse Risk', 'Program Stock']].copy()
+            board = model_2041[['USER', 'TEAM', 'Current CFP Ranking', 'Power Index', 'Natty Odds', 'Playoff Odds', 'Collapse Risk', 'Program Stock']].copy()
+            board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})
             st.dataframe(board, hide_index=True, use_container_width=True)
 
         with wc2:
             st.subheader("Headlines")
-            st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 thanks to roster quality, recruiting, and postseason pedigree.")
+            st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model now leans hardest on overall roster quality and flat-out team speed, with pedigree finishing the job.")
             st.info(f"**{most_dangerous['USER']}** owns the highest overall Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
             st.warning(f"**{collapse_team['USER']}** carries the highest volatility marker. The model sees real downside if things break wrong.")
+
+            qb_boost_board = model_2041[model_2041['QB Tier'].isin(['Elite', 'Leader'])].sort_values(['Natty Odds', 'Power Index'], ascending=False)
+            if not qb_boost_board.empty:
+                qb_star = qb_boost_board.iloc[0]
+                if qb_star['QB Tier'] == 'Elite':
+                    st.write(f"🧠 **QB headline:** {qb_star['USER']} has an **Elite** quarterback, and that spikes the ceiling like hell. The model treats that shit as a real title accelerator, not fluff.")
+                else:
+                    st.write(f"🧠 **QB headline:** {qb_star['USER']} has a **Leader** at quarterback. Not quite superhero mode, but it's still a damn meaningful bump to playoff and natty odds.")
+
+            qb_disaster_board = model_2041[model_2041['QB Tier'] == 'Ass'].sort_values(['Natty Odds', 'Power Index'], ascending=True)
+            if not qb_disaster_board.empty:
+                qb_disaster = qb_disaster_board.iloc[0]
+                st.write(f"💀 **QB disaster watch:** {qb_disaster['USER']} is rolling out an **Ass** QB situation. That's the kind of setup that can take a good roster and make it play like it forgot where the fuck the sticks are.")
+
             if not rivalry_df.empty:
                 top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
                 st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
