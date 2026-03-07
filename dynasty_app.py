@@ -254,20 +254,20 @@ def render_war_room_table(board_df):
     <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead>
-          <tr style="background:#f8fafc;">
-            <th style="text-align:left;padding:10px 12px;">Team</th>
-            <th style="padding:10px 12px;">CFP Rank</th>
-            <th style="padding:10px 12px;">SOS</th>
-            <th style="padding:10px 12px;">QB Tier</th>
-            <th style="padding:10px 12px;">Power Index</th>
-            <th style="padding:10px 12px;">Natty Odds</th>
-            <th style="padding:10px 12px;">CFP Odds</th>
-            <th style="padding:10px 12px;">Natty if Lose to Unranked</th>
-            <th style="padding:10px 12px;">Natty if Lose to Ranked</th>
-            <th style="padding:10px 12px;">CFP if Lose to Unranked</th>
-            <th style="padding:10px 12px;">CFP if Lose to Ranked</th>
-            <th style="padding:10px 12px;">Collapse Risk</th>
-            <th style="padding:10px 12px;">Program Stock</th>
+          <tr style="background:#f8fafc;color:#111827;">
+            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Team</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP Rank</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">SOS</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">QB Tier</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Power Index</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Natty Odds</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP Odds</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Natty if Lose to Unranked</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Natty if Lose to Ranked</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP if Lose to Unranked</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP if Lose to Ranked</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Collapse Risk</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Program Stock</th>
           </tr>
         </thead>
         <tbody>{''.join(rows_html)}</tbody>
@@ -354,6 +354,137 @@ def get_pop_culture_speed_comp(gens):
 
 
 
+
+def generate_mvp_backstory(row):
+    player = str(row.get('⭐ STAR SKILL GUY (Top OVR)', 'Unknown Weapon')).strip()
+    team = str(row.get('TEAM', 'Unknown Team')).strip()
+    user = str(row.get('USER', 'Unknown User')).strip()
+    generational_flag = str(row.get('Star Skill Guy is Generational Speed?', 'No')).strip().lower()
+    qb_tier = str(row.get('QB Tier', 'Unknown')).strip()
+    off = int(pd.to_numeric(row.get('OFFENSE', 0), errors='coerce') or 0)
+    deff = int(pd.to_numeric(row.get('DEFENSE', 0), errors='coerce') or 0)
+    freaks = int(pd.to_numeric(row.get('Generational (96+ speed or 96+ Acceleration)', 0), errors='coerce') or 0)
+    speed_side = str(row.get('Where is the Speed?', 'Balanced')).strip()
+
+    origin_pool = [
+        "grew up torching grown men in dusty seven-on-seven tournaments and talking shit the whole time",
+        "was a zero-star rumor until one camp clocked him moving like the simulation bugged out",
+        "came from a tiny town where the only two landmarks were a water tower and a scoreboard he kept breaking",
+        "used to return kicks in high school because the coaches were too scared to leave the ball in anyone else's hands",
+        "started as a track kid, then realized defenders hate being embarrassed on national television",
+        "spent an offseason catching tennis balls off a jugs machine because normal drills were too boring",
+        "was the kind of recruit old coaches called 'too flashy' right before he cooked their corners anyway",
+        "got his first nickname because nobody on the scout team could get a clean angle on him",
+        "was allegedly late to practice once and still got there before everybody else",
+        "made his name in backyard games where the only rule was don't let him touch the damn ball",
+        "turned a state title game into a personal mixtape and never looked back",
+        "showed up to camp looking ordinary until the first rep, then all hell broke loose",
+        "learned route running from YouTube, street football, and pure disrespect",
+        "built his confidence by humiliating older cousins who swore they knew how to tackle",
+        "made one recruiting coordinator say, on record, 'that kid moves like a tax write-off waiting to happen'",
+        "got labeled high-maintenance because he expected defensive backs to keep up, which was unrealistic as hell",
+        "came into the program with a chip on his shoulder and enough juice to power the whole damn offense",
+        "used to race the school bus home and, according to local legend, won twice",
+        "was the scouting report that kept assistants awake at 2 a.m. muttering about leverage and pursuit angles",
+        "entered college as a curiosity and became a full-blown problem by the second scrimmage",
+        "was the one prospect every rival board pretended was overrated right up until film day",
+        "grew up in a football family that treated every backyard rep like a televised grudge match",
+        "didn't start talking until game week, then usually backed it up in the first quarter",
+        "made special teams coaches weep happy tears because the first cut looked unfair in real time",
+        "got recruited off a grainy highlight tape that somehow still looked faster than everybody else",
+        "was called raw as hell by scouts, which usually means they had no idea how to guard him"
+    ]
+
+    style_pool = [
+        "Now he plays like a man trying to settle old debts in one cut.",
+        "Now the whole offense tilts toward him because pretending he isn't the main character would be stupid.",
+        "Every touch feels like it could turn into a funeral for pursuit angles.",
+        "He doesn't just stress defenses — he makes them start bullshitting themselves.",
+        "When the ball finds him, the geometry of the field gets real weird real fast.",
+        "The film says explosive. The box score usually says holy shit.",
+        "He plays with the swagger of somebody who has never once doubted the ending.",
+        "The scary part is how casual it looks when he's ruining a game plan.",
+        "He has the body language of a guy who already knows who missed the tackle.",
+        "Even his decoys feel disrespectful.",
+        "You can tell when the stadium notices him, because the defense suddenly starts making business decisions.",
+        "His best trait might be that he turns safe calls into deeply unsafe situations for everybody else.",
+        "The dude has that nasty habit of making good defenders look like unpaid interns.",
+        "He's built for the exact moment a defense starts thinking it finally has the game under control.",
+        "He turns one crease into a police report."
+    ]
+
+    role_pool = {
+        'Offense': [
+            "He's the offensive fuse. Give him daylight and somebody's safeties are getting cussed out on the sideline.",
+            "All that speed lives on offense, so this dude is basically the panic button with shoulder pads.",
+            "This roster's juice is front-loaded on offense, and he's the bastard most likely to cash it in."
+        ],
+        'Defense': [
+            "The defense carries the speed here, so his vibe is less highlight tape and more crime scene investigator.",
+            "On a defense-loaded speed roster, he feels like the enforcer the offense keeps trying to avoid.",
+            "This team's juice lives on defense, and he's usually at the center of the chaos."
+        ],
+        'Off & Def': [
+            "This team has speed everywhere, so he's not carrying the whole circus — he's just the ringmaster.",
+            "Because the roster is juiced on both sides, he gets to play free and mean.",
+            "The speed is everywhere, which somehow makes his role even nastier."
+        ],
+        'Balanced': [
+            "The roster isn't lopsided, which lets him pick his spots and still wreck afternoons.",
+            "This is a balanced build, so he doesn't have to force hero ball to be the scariest guy on the field."
+        ],
+        'Non-Existent': [
+            "The speed around him isn't exactly overflowing, so his job is to manufacture panic the hard way.",
+            "On a roster without much pure track speed, he has to create the fireworks himself."
+        ]
+    }
+
+    gen_pool = [
+        "The generational speed tag means once he hits the second level, the rest is mostly paperwork.",
+        "And yes, the generational speed marker means the pursuit chart is basically decorative.",
+        "If the generational tag is real, then one bad angle turns into six points and some screaming.",
+        "That generational burst means defenders don't really lose — they just run out of road.",
+        "When a guy this good also has generational wheels, you're basically praying for drops and penalties."
+    ]
+
+    non_gen_pool = [
+        "He isn't flagged as generational speed, but that doesn't stop him from playing like a recurring problem.",
+        "No generational speed tag, but he's still a pain in the ass because instincts and timing count too.",
+        "He may not have comic-book wheels, but he clearly knows how to make enough space to be dangerous.",
+        "He's not tagged generational, which just means the damage comes from polish instead of pure lightning."
+    ]
+
+    qb_spice = {
+        'Elite': "With an elite QB in the building, the whole ecosystem around him gets even nastier.",
+        'Leader': "A leader-level QB means the touches are usually on time and the bullshit stays minimal.",
+        'Average Joe': "An Average Joe QB puts a cap on the glamour, so the star often has to do extra dirty work.",
+        'Ass': "Unfortunately, the quarterback situation can still drag this whole opera into the mud if it gets stupid.",
+        'Unknown': "The quarterback picture is murky, so this poor bastard may have to improvise greatness."
+    }
+
+    seed = int(hashlib.md5(f"{user}|{team}|{player}".encode()).hexdigest(), 16)
+    origin = origin_pool[seed % len(origin_pool)]
+    style = style_pool[(seed // 3) % len(style_pool)]
+    role_lines = role_pool.get(speed_side, role_pool['Balanced'])
+    role_line = role_lines[(seed // 5) % len(role_lines)]
+    gen_line = gen_pool[(seed // 7) % len(gen_pool)] if generational_flag == 'yes' else non_gen_pool[(seed // 7) % len(non_gen_pool)]
+    qb_line = qb_spice.get(qb_tier, qb_spice['Unknown'])
+
+    intensity = "He's the kind of player who makes a coordinator look smart and a defender look unemployed."
+    if off >= 88 and generational_flag == 'yes':
+        intensity = "This is the kind of asshole who turns a normal Saturday into a season-defining headache."
+    elif deff >= 88 and speed_side == 'Defense':
+        intensity = "He plays with the energy of somebody who thinks every snap is a personal insult."
+    elif freaks >= 3:
+        intensity = "On a roster already packed with freaks, he still finds a way to feel like the center of the damn storm."
+
+    return (
+        f"{player} at {team} {origin}. {style} {role_line} "
+        f"{gen_line} {qb_line} {intensity}"
+    )
+
+
+
 def team_speed_to_mph(team_speed_score):
     team_speed_score = float(max(0, team_speed_score))
     # 40 points is the posted 65 MPH speed limit. Above that, the program is officially speeding.
@@ -390,18 +521,18 @@ def get_speeding_label(team_speed_score, gens=0):
 
 def get_speed_tier(team_speed_score):
     if team_speed_score >= 92:
-        return "☣️ MULTIVERSE THREAT"
+        return "🛸 WARP-DRIVE CHAOS"
     if team_speed_score >= 82:
-        return "⚡ GOD-TIER VELOCITY"
+        return "⚡ BLACKTOP BURNERS"
     if team_speed_score >= 72:
-        return "🧨 DYNAMITE DEPTH"
+        return "🔥 AFTERBURNER DEPTH"
     if team_speed_score >= 62:
-        return "🚀 SONIC BOOM"
+        return "💨 NITRO NIGHTMARE"
     if team_speed_score >= 52:
-        return "🏎️ ROADRUNNER"
+        return "🏁 OPEN-FIELD OUTLAWS"
     if team_speed_score >= 42:
-        return "🔥 TRACK TEAM ENERGY"
-    return "🐢 GROUND & POUND"
+        return "🎯 STRIKE-FIRST SPEED"
+    return "🧱 MUD-TIRE FOOTBALL"
 
 
 def clean_rank_value(val):
@@ -1129,7 +1260,7 @@ if data:
         "🗞️ Dynasty News & Headlines",
         "📺 Season Recap",
         "🔍 Speed Freaks",
-        "📊 Team Analysis",
+        "📊 Team Overview",
         "🏆 Prestige & Power",
         "⚔️ H2H Matrix",
         "🚀 2041 Scout & Projections",
@@ -1408,9 +1539,9 @@ if data:
             use_container_width=True
         )
 
-    # --- TEAM ANALYSIS ---
+    # --- TEAM OVERVIEW ---
     with tabs[4]:
-        st.header("📊 Speed Analysis")
+        st.header("📊 Team Analysis")
         target = st.selectbox("Select Team", model_2041['USER'].tolist(), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
 
@@ -1424,9 +1555,12 @@ if data:
 
         st.markdown("---")
 
-        c1, c2 = st.columns(2)
+        c1, c2 = st.columns([1.15, 1.85])
         with c1:
-            st.subheader(f"{row['USER']} | {row['TEAM']}")
+            st.subheader("Team Overview")
+            logo_path = get_logo_source(row['TEAM'])
+            render_logo(logo_path, width=110)
+            st.markdown(f"### {row['USER']} | {row['TEAM']}")
             st.write(f"**Program Stock:** {row['Program Stock']}")
             st.write(f"**Current User Record in scores file:** {wins}-{losses}")
             st.write(f"**Average Points Per Game:** {ppg}")
@@ -1436,15 +1570,14 @@ if data:
             st.write(f"**QB OVR:** {int(row['QB OVR']) if pd.notna(row['QB OVR']) else 'N/A'}")
             st.write(f"**QB Tier:** {row['QB Tier']}")
             st.write(f"**Improvement from prior year:** {row['Improvement']} OVR")
+            st.write(f"**SOS:** {row['SOS']}")
+            st.write(f"**Resume Score:** {row['Resume Score']}")
 
         with c2:
-            st.subheader("Star Skill Profile")
-            st.write(f"**Star Skill Player:** {row['⭐ STAR SKILL GUY (Top OVR)']}")
+            st.subheader("MVP Profile")
+            st.write(f"**MVP:** {row['⭐ STAR SKILL GUY (Top OVR)']}")
             st.write(f"**Generational Speed?** {row['Star Skill Guy is Generational Speed?']}")
-            st.write(
-                "This profile blends pure roster power with game-breaking speed. "
-                "If the star player is also a generational athlete, the offense can erase mistakes fast."
-            )
+            st.write(generate_mvp_backstory(row))
 
         stat_table = pd.DataFrame([
             {'Metric': 'Overall', 'Value': row['OVERALL']},
@@ -1458,6 +1591,8 @@ if data:
             {'Metric': 'Where is the Speed?', 'Value': row['Where is the Speed?']},
             {'Metric': 'Speedometer', 'Value': f"{row['Speedometer']} MPH"},
             {'Metric': 'Blue Chip Ratio', 'Value': f"{row['BCR_Val']}%"},
+            {'Metric': 'Current Record', 'Value': f"{int(row['Current Record Wins'])}-{int(row['Current Record Losses'])}" if pd.notna(row['Current Record Wins']) and pd.notna(row['Current Record Losses']) else 'N/A'},
+            {'Metric': 'Opponent Combined Record', 'Value': f"{int(row['Combined Opponent Wins'])}-{int(row['Combined Opponent Losses'])}" if pd.notna(row['Combined Opponent Wins']) and pd.notna(row['Combined Opponent Losses']) else 'N/A'},
         ])
 
         st.subheader("Detailed Team Metrics")
