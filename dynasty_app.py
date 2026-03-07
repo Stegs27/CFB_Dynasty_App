@@ -4,6 +4,9 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 import os
+import re
+import html
+import base64
 from pathlib import Path
 
 # --- PAGE SETUP ---
@@ -27,13 +30,98 @@ st.markdown("""
 
 
 TEAM_VISUALS = {
-    "Florida": {"slug": "florida", "primary": "#0021A5"},
-    "Florida State": {"slug": "florida-state", "primary": "#782F40"},
-    "Texas Tech": {"slug": "texas-tech", "primary": "#CC0000"},
-    "USF": {"slug": "south-florida", "primary": "#006747"},
-    "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2"},
-    "Bowling Green": {"slug": "bowling-green", "primary": "#4F2D7F"},
+    "Florida": {"slug": "florida", "primary": "#0021A5", "secondary": "#FA4616"},
+    "Florida State": {"slug": "florida-state", "primary": "#782F40", "secondary": "#CEB888"},
+    "Texas Tech": {"slug": "texas-tech", "primary": "#CC0000", "secondary": "#000000"},
+    "USF": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
+    "South Florida": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
+    "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2", "secondary": "#E5A823"},
+    "Bowling Green": {"slug": "bowling-green", "primary": "#4F2D7F", "secondary": "#FF7300"},
+    "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
+    "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
+    "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
+    "Michigan": {"slug": "michigan", "primary": "#00274C", "secondary": "#FFCB05"},
+    "Notre Dame": {"slug": "notre-dame", "primary": "#0C2340", "secondary": "#C99700"},
+    "Oregon": {"slug": "oregon", "primary": "#154733", "secondary": "#FEE123"},
+    "Texas": {"slug": "texas", "primary": "#BF5700", "secondary": "#FFFFFF"},
+    "Oklahoma": {"slug": "oklahoma", "primary": "#841617", "secondary": "#FDF9D8"},
+    "Penn State": {"slug": "penn-state", "primary": "#041E42", "secondary": "#FFFFFF"},
+    "LSU": {"slug": "lsu", "primary": "#461D7C", "secondary": "#FDD023"},
+    "Miami": {"slug": "miami", "primary": "#F47321", "secondary": "#005030"},
+    "Clemson": {"slug": "clemson", "primary": "#F56600", "secondary": "#522D80"},
+    "Tennessee": {"slug": "tennessee", "primary": "#FF8200", "secondary": "#FFFFFF"},
+    "USC": {"slug": "southern-california", "primary": "#990000", "secondary": "#FFC72C"},
+    "Ole Miss": {"slug": "ole-miss", "primary": "#CE1126", "secondary": "#14213D"},
+    "Auburn": {"slug": "auburn", "primary": "#0C2340", "secondary": "#E87722"},
+    "Nebraska": {"slug": "nebraska", "primary": "#E41C38", "secondary": "#FFFFFF"},
+    "Wisconsin": {"slug": "wisconsin", "primary": "#C5050C", "secondary": "#FFFFFF"},
+    "Washington": {"slug": "washington", "primary": "#4B2E83", "secondary": "#B7A57A"},
+    "UCLA": {"slug": "ucla", "primary": "#2774AE", "secondary": "#FFD100"},
+    "TCU": {"slug": "tcu", "primary": "#4D1979", "secondary": "#A3A9AC"},
+    "Utah": {"slug": "utah", "primary": "#CC0000", "secondary": "#000000"},
 }
+
+TEAM_ALIASES = {
+    "Florida": ["florida", "florida gators"],
+    "Florida State": ["florida state", "florida state seminoles", "fsu"],
+    "Texas Tech": ["texas tech", "texas tech red raiders"],
+    "USF": ["usf", "south florida", "south florida bulls"],
+    "South Florida": ["usf", "south florida", "south florida bulls"],
+    "San Jose State": ["san jose state", "san jose state spartans", "sjsu"],
+    "Bowling Green": ["bowling green", "bowling green falcons"],
+}
+
+def normalize_key(value):
+    return re.sub(r'[^a-z0-9]+', '', str(value).strip().lower())
+
+def get_team_slug(team):
+    team = str(team).strip()
+    if not team or team.lower() == 'nan':
+        return ""
+    slug = TEAM_VISUALS.get(team, {}).get("slug")
+    if not slug:
+        slug = team.lower().replace("&", "and").replace(".", "").replace("'", "").replace(" ", "-")
+    return slug
+
+def get_team_aliases(team):
+    team = str(team).strip()
+    aliases = TEAM_ALIASES.get(team, [team])
+    aliases = [a for a in aliases if a]
+    slug = get_team_slug(team)
+    if slug:
+        aliases.append(slug.replace("-", " "))
+        aliases.append(slug)
+    aliases.append(team)
+    normalized = []
+    seen = set()
+    for alias in aliases:
+        n = normalize_key(alias)
+        if n and n not in seen:
+            normalized.append(alias)
+            seen.add(n)
+    return normalized
+
+def build_logo_file_index():
+    candidate_dirs = [
+        Path('logos'),
+        Path('/mnt/data/logos'),
+        Path('/mount/src/cfb_dynasty_app/logos'),
+        Path('/mount/src/cfb_dynasty_app/assets/logos'),
+        Path('/mount/src/cfb_dynasty_app'),
+    ]
+    found = {}
+    for d in candidate_dirs:
+        if d.exists():
+            for fp in d.rglob('*'):
+                if fp.is_file() and fp.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp'}:
+                    stem_key = normalize_key(fp.stem)
+                    name_key = normalize_key(fp.name)
+                    for k in {stem_key, name_key}:
+                        if k and k not in found:
+                            found[k] = fp
+    return found
+
+LOGO_FILE_INDEX = build_logo_file_index()
 
 def get_team_slug(team):
     team = str(team).strip()
@@ -49,18 +137,16 @@ def get_team_logo_url(team):
     return f"https://a.espncdn.com/i/teamlogos/ncaa/500/{slug}.png" if slug else ""
 
 def get_local_logo_path(team):
-    slug = get_team_slug(team)
-    if not slug:
-        return ""
-    candidate_dirs = [
-        Path('logos'),
-        Path('/mnt/data/logos'),
-        Path('/mount/src/cfb_dynasty_app/logos'),
-    ]
-    for d in candidate_dirs:
-        for ext in ['png', 'jpg', 'jpeg', 'webp']:
-            fp = d / f'{slug}.{ext}'
-            if fp.exists():
+    aliases = get_team_aliases(team)
+    exact_keys = [normalize_key(a) for a in aliases]
+    for key in exact_keys:
+        if key in LOGO_FILE_INDEX:
+            return str(LOGO_FILE_INDEX[key])
+
+    # fuzzy match: look for alias inside filename or filename inside alias
+    for key, fp in LOGO_FILE_INDEX.items():
+        for alias in exact_keys:
+            if alias and (alias in key or key in alias):
                 return str(fp)
     return ""
 
@@ -72,7 +158,20 @@ def get_logo_source(team):
 
 def get_team_primary_color(team):
     team = str(team).strip()
-    return TEAM_VISUALS.get(team, {}).get("primary", "#1f77b4")
+    if team in TEAM_VISUALS:
+        return TEAM_VISUALS[team].get("primary", "#1f77b4")
+    # fallback: try normalized alias match
+    nteam = normalize_key(team)
+    for name, meta in TEAM_VISUALS.items():
+        if normalize_key(name) == nteam:
+            return meta.get("primary", "#1f77b4")
+    return "#1f77b4"
+
+def get_team_secondary_color(team):
+    team = str(team).strip()
+    if team in TEAM_VISUALS:
+        return TEAM_VISUALS[team].get("secondary", "#ffffff")
+    return "#ffffff"
 
 def build_user_color_map(model_df):
     if model_df is None or model_df.empty:
@@ -84,6 +183,17 @@ def build_team_color_map(model_df):
         return {}
     return {str(r["TEAM"]).strip(): get_team_primary_color(r["TEAM"]) for _, r in model_df[["TEAM"]].drop_duplicates().iterrows()}
 
+def image_file_to_data_uri(path_str):
+    try:
+        if path_str and os.path.exists(path_str):
+            ext = Path(path_str).suffix.lower().replace('.', '') or 'png'
+            with open(path_str, 'rb') as f:
+                encoded = base64.b64encode(f.read()).decode('ascii')
+            return f"data:image/{ext};base64,{encoded}"
+    except Exception:
+        return ""
+    return ""
+
 def render_logo(src, width=56):
     try:
         if isinstance(src, str) and src.strip() and os.path.exists(src):
@@ -92,6 +202,79 @@ def render_logo(src, width=56):
             st.markdown("<div style='font-size:2rem;line-height:1;'>🏈</div>", unsafe_allow_html=True)
     except Exception:
         st.markdown("<div style='font-size:2rem;line-height:1;'>🏈</div>", unsafe_allow_html=True)
+
+def render_war_room_table(board_df):
+    rows_html = []
+    for _, row in board_df.iterrows():
+        team = str(row.get('TEAM', ''))
+        user = str(row.get('USER', ''))
+        primary = get_team_primary_color(team)
+        secondary = get_team_secondary_color(team)
+        logo_path = get_logo_source(team)
+        logo_uri = image_file_to_data_uri(logo_path)
+        logo_html = f"<img src='{logo_uri}' style='width:40px;height:40px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:24px;'>🏈</div>"
+        cells = []
+        team_cell = f"""
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:44px;text-align:center;">{logo_html}</div>
+            <div>
+              <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
+              <div style="font-size:12px;color:#6b7280;">{html.escape(user)}</div>
+            </div>
+          </div>
+        </td>
+        """
+        cells.append(team_cell)
+        for col in ['CFP Rank','SOS','QB Tier','Power Index','Natty Odds','CFP Odds',
+                    'Natty if Lose to Unranked','Natty if Lose to Ranked',
+                    'CFP if Lose to Unranked','CFP if Lose to Ranked',
+                    'Collapse Risk','Program Stock']:
+            val = row.get(col, '')
+            if isinstance(val, float):
+                if col in {'SOS','Power Index'}:
+                    disp = f"{val:.1f}"
+                elif 'Odds' in col:
+                    disp = f"{val:.1f}%" if col == 'Natty Odds' or 'Natty' in col else f"{int(round(val))}%"
+                else:
+                    disp = f"{val:.1f}"
+            else:
+                disp = str(val)
+            if col in {'CFP Odds','CFP if Lose to Unranked','CFP if Lose to Ranked'} and str(disp).replace('%','').replace('.0','').isdigit():
+                disp = f"{disp.replace('.0','')}%"
+            if col == 'CFP Rank' and (pd.isna(val) or str(val).strip() in {'nan',''}):
+                disp = '—'
+            if col == 'Program Stock':
+                disp = html.escape(disp)
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{html.escape(disp)}</td>")
+        row_html = f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}12,transparent 14%);'>{''.join(cells)}</tr>"
+        rows_html.append(row_html)
+
+    table_html = f"""
+    <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#f8fafc;">
+            <th style="text-align:left;padding:10px 12px;">Team</th>
+            <th style="padding:10px 12px;">CFP Rank</th>
+            <th style="padding:10px 12px;">SOS</th>
+            <th style="padding:10px 12px;">QB Tier</th>
+            <th style="padding:10px 12px;">Power Index</th>
+            <th style="padding:10px 12px;">Natty Odds</th>
+            <th style="padding:10px 12px;">CFP Odds</th>
+            <th style="padding:10px 12px;">Natty if Lose to Unranked</th>
+            <th style="padding:10px 12px;">Natty if Lose to Ranked</th>
+            <th style="padding:10px 12px;">CFP if Lose to Unranked</th>
+            <th style="padding:10px 12px;">CFP if Lose to Ranked</th>
+            <th style="padding:10px 12px;">Collapse Risk</th>
+            <th style="padding:10px 12px;">Program Stock</th>
+          </tr>
+        </thead>
+        <tbody>{''.join(rows_html)}</tbody>
+      </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
 
 def ensure_columns(df, defaults):
     for col, default in defaults.items():
@@ -945,7 +1128,7 @@ if data:
         "📰 Dynasty War Room",
         "🗞️ Dynasty News & Headlines",
         "📺 Season Recap",
-        "🔍 Talent Profile",
+        "🔍 Speed Freaks",
         "📊 Team Analysis",
         "🏆 Prestige & Power",
         "⚔️ H2H Matrix",
@@ -960,7 +1143,7 @@ if data:
     # --- WAR ROOM ---
     with tabs[0]:
         st.header("📰 Dynasty War Room")
-        st.caption("Cleaner board format restored. Logos will appear once local files exist in the logos folder.")
+        st.caption("Clean board format restored. Team colors and local logos should render here when the files exist in your repo logos folder.")
 
         title_favorite = model_2041.sort_values('Natty Odds', ascending=False).iloc[0]
         most_dangerous = model_2041.sort_values('Power Index', ascending=False).iloc[0]
@@ -995,7 +1178,9 @@ if data:
                       'CFP if Lose to Ranked', 'Collapse Risk', 'Program Stock']
         board = model_2041[board_cols].copy().sort_values(['Natty Odds', 'CFP Odds', 'Power Index'], ascending=False)
         board = board.rename(columns={'Current CFP Ranking': 'CFP Rank'})
-        st.dataframe(board, hide_index=True, use_container_width=True)
+        render_war_room_table(board)
+        with st.expander('Show raw board data'):
+            st.dataframe(board, hide_index=True, use_container_width=True)
 
     with tabs[1]:
         st.header("🗞️ Dynasty News & Headlines")
@@ -1011,15 +1196,21 @@ if data:
             else:
                 st.write(f"🧠 **QB headline:** {qb_star['USER']} has a **Leader** at quarterback. Not superhero mode, but it's still a damn meaningful bump to CFP and natty odds.")
 
-        doug_source = r_2041[(r_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (r_2041['TEAM'].astype(str).str.strip() == 'Florida')]
+        doug_source = r_2041[(r_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (r_2041['TEAM'].astype(str).str.strip().str.lower() == 'florida')]
+        doug_model = model_2041[(model_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (model_2041['TEAM'].astype(str).str.strip().str.lower() == 'florida')]
+        doug_qb_tier = None
+        doug_qb_flag = False
         if not doug_source.empty:
-            doug_src = doug_source.iloc[0]
+            doug_src = doug_source.iloc[-1]
             doug_qb_flag = yes_no_flag(doug_src.get('Qb is Ass (under 80)', 'No'))
             doug_qb_tier = qb_label(doug_src)
-            if doug_qb_flag or doug_qb_tier == 'Ass':
-                st.error("☠️ **Doug/Florida QB update:** Florida's QB room is ass. The Gators can slap blue-chip makeup on this thing all they want, but that quarterback spot is still one ugly read away from turning the whole damn offense into a fire drill.")
-            else:
-                st.info(f"Doug/Florida QB currently reads as **{doug_qb_tier}** in the latest file.")
+        if not doug_model.empty:
+            doug_qb_tier = str(doug_model.iloc[0].get('QB Tier', doug_qb_tier or 'Unknown'))
+            doug_qb_flag = doug_qb_flag or (doug_qb_tier == 'Ass')
+        if doug_qb_flag or doug_qb_tier == 'Ass':
+            st.error("☠️ **Doug/Florida QB update:** Florida's QB room is ass. The Gators can slap blue-chip makeup on this thing all they want, but that quarterback spot is still one ugly read away from turning the whole damn offense into a fire drill.")
+        elif doug_qb_tier:
+            st.info(f"Doug/Florida QB currently reads as **{doug_qb_tier}** in the latest file.")
 
         qb_disaster_board = model_2041[model_2041['QB Tier'] == 'Ass'].sort_values(['Natty Odds', 'Power Index'], ascending=True)
         if not qb_disaster_board.empty:
@@ -1288,7 +1479,7 @@ if data:
 
     # --- TALENT PROFILE ---
     with tabs[3]:
-        st.header("🔍 The 2041 Freak List")
+        st.header("🔍 2041 Speed Freaks")
         st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
         talent_board = model_2041.copy()
