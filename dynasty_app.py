@@ -37,7 +37,7 @@ TEAM_VISUALS = {
     "USF": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
     "South Florida": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
     "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2", "secondary": "#E5A823"},
-    "Bowling Green": {"slug": "bowling-green", "primary": "#4F2D7F", "secondary": "#FF7300"},
+    "Bowling Green": {"slug": "bowling-green", "primary": "#FE5000", "secondary": "#4F2C1D"},
     "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
     "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
     "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
