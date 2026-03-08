@@ -944,53 +944,48 @@ def render_roster_matchup_tab():
     summ_b = team_summary(roster_b)
 
     metric_rows = [
-        ("Avg OVR",       "Roster Average Overall",  False),
-        ("Top OVR",       "Best Player OVR",          False),
-        ("90+ OVR Count", "Players 90+ OVR",          False),
-        ("Avg SPD",       "Roster Average Speed",     False),
-        ("90+ SPD Count", "Players 90+ Speed",        False),
-        ("Avg AGI",       "Roster Average Agility",   False),
-        ("Avg AWR",       "Roster Average Awareness", False),
+        ("Avg OVR",        "📈 Roster Avg Overall"),
+        ("Top OVR",        "⭐ Best Player OVR"),
+        ("90+ OVR Count",  "💎 Players 90+ OVR"),
+        ("Avg SPD",        "💨 Roster Avg Speed"),
+        ("90+ SPD Count",  "⚡ Players 90+ Speed"),
+        ("Avg AGI",        "🐍 Roster Avg Agility"),
+        ("Avg AWR",        "🧠 Roster Avg Awareness"),
     ]
 
-    rows_html = []
-    for key, label, lower_is_better in metric_rows:
+    # Column headers
+    hdr_a, hdr_mid, hdr_b = st.columns([3, 3, 3])
+    hdr_a.markdown(f"<div style='text-align:center;font-weight:800;color:{color_a};font-size:0.95rem;padding-bottom:4px;'>{team_a}</div>", unsafe_allow_html=True)
+    hdr_mid.markdown("<div style='text-align:center;color:#9ca3af;font-size:0.75rem;padding-bottom:4px;'>METRIC</div>", unsafe_allow_html=True)
+    hdr_b.markdown(f"<div style='text-align:center;font-weight:800;color:{color_b};font-size:0.95rem;padding-bottom:4px;'>{team_b}</div>", unsafe_allow_html=True)
+
+    st.markdown("<hr style='margin:2px 0 8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+
+    for key, label in metric_rows:
         va = summ_a[key]
         vb = summ_b[key]
-        if va > vb:
-            win_a, win_b = True, False
-        elif vb > va:
-            win_a, win_b = False, True
-        else:
-            win_a = win_b = False
+        win_a = va > vb
+        win_b = vb > va
 
-        style_a = f"font-weight:900;color:{color_a};" if win_a else f"color:{color_a};"
-        style_b = f"font-weight:900;color:{color_b};" if win_b else f"color:{color_b};"
-        trophy_a = "🏆 " if win_a else ""
-        trophy_b = " 🏆" if win_b else ""
+        col_a, col_mid, col_b = st.columns([3, 3, 3])
 
-        rows_html.append(f"""
-        <tr>
-          <td style="text-align:right;padding:6px 12px;font-size:1rem;{style_a}">{trophy_a}{va}</td>
-          <td style="text-align:center;padding:6px 8px;color:#9ca3af;font-size:0.8rem;font-weight:600;white-space:nowrap;">{label}</td>
-          <td style="text-align:left;padding:6px 12px;font-size:1rem;{style_b}">{vb}{trophy_b}</td>
-        </tr>
-        """)
+        val_a_str = f"🏆 **{va}**" if win_a else str(va)
+        val_b_str = f"**{vb}** 🏆" if win_b else str(vb)
 
-    st.markdown(f"""
-    <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:12px;margin:0.5rem 0;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:right;padding:8px 12px;color:{color_a};font-size:0.85rem;">{team_a}</th>
-            <th style="text-align:center;padding:8px;color:#6b7280;font-size:0.75rem;">METRIC</th>
-            <th style="text-align:left;padding:8px 12px;color:{color_b};font-size:0.85rem;">{team_b}</th>
-          </tr>
-        </thead>
-        <tbody>{''.join(rows_html)}</tbody>
-      </table>
-    </div>
-    """, unsafe_allow_html=True)
+        col_a.markdown(
+            f"<div style='text-align:center;font-size:1.05rem;color:{color_a};'>{val_a_str}</div>",
+            unsafe_allow_html=True
+        )
+        col_mid.markdown(
+            f"<div style='text-align:center;color:#6b7280;font-size:0.78rem;font-weight:600;'>{label}</div>",
+            unsafe_allow_html=True
+        )
+        col_b.markdown(
+            f"<div style='text-align:center;font-size:1.05rem;color:{color_b};'>{val_b_str}</div>",
+            unsafe_allow_html=True
+        )
+
+    st.markdown("<hr style='margin:8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
 
     # ── RADAR CHART ──────────────────────────────────────────────────────────
     st.markdown("---")
