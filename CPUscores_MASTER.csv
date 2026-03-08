@@ -1,0 +1,67 @@
+YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,Home Rank,Visitor Record,Home Record,Reg Season,Conf Title,Bowl,Natty Game,Status,Source
+2041,1,SMU,Bowling Green,61.0,63.0,,CPU,CPU,,,6-5,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,1,Death Valley,Florida,13.0,41.0,,CPU,CPU,,,3-6,9-2,1,0,0,0,FINAL,Florida schedule screenshot
+2041,1,Georgia Tech,Florida State,10.0,63.0,,CPU,CPU,13.0,,8-1,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,1,Appalachian State,San Jose State,39.0,51.0,,CPU,Mike Stegeman,25.0,,8-1,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,1,Arizona State,Texas Tech,28.0,42.0,,CPU,CPU,,,5-4,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,1,Baylor,USF,20.0,52.0,,CPU,CPU,,,6-5,9-0,1,0,0,0,FINAL,USF schedule screenshot
+2041,2,Bowling Green,Alabaster,49.0,35.0,,CPU,CPU,,10.0,9-0,7-2,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,2,West Virginia,Florida,30.0,49.0,,CPU,CPU,,,6-3,9-2,1,0,0,0,FINAL,Florida schedule screenshot
+2041,2,Maryland,Florida State,16.0,42.0,,CPU,CPU,,,4-5,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,2,USF,NC State,35.0,17.0,,CPU,CPU,,18.0,9-0,8-1,1,0,0,0,FINAL,USF schedule screenshot
+2041,2,Texas Tech,Pittsburgh,52.0,20.0,,CPU,CPU,,,9-1,4-6,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,2,California,San Jose State,17.0,63.0,,CPU,Mike Stegeman,,,3-7,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,3,USF,Alabama,35.0,25.0,,CPU,CPU,,,9-0,5-4,1,0,0,0,FINAL,USF schedule screenshot
+2041,3,West Virginia,Bowling Green,21.0,28.0,,CPU,CPU,,,6-3,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,3,North Carolina,Florida State,55.0,57.0,,CPU,CPU,,,5-4,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,3,Florida,Penn State,42.0,37.0,,CPU,CPU,,16.0,9-2,9-2,1,0,0,0,FINAL,Florida schedule screenshot
+2041,3,Ole Miss,San Jose State,49.0,35.0,,CPU,Mike Stegeman,,,4-6,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,3,LSU,Texas Tech,21.0,55.0,,CPU,CPU,,,4-5,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,4,Florida,Auburn,35.0,21.0,,CPU,CPU,,,5-5,9-2,1,0,0,0,FINAL,Florida schedule screenshot
+2041,4,Notre Dame,Bowling Green,31.0,42.0,,CPU,CPU,23.0,,7-3,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,4,Clemson,Florida State,33.0,36.0,,CPU,CPU,17.0,,8-1,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,4,Iowa,San Jose State,34.0,41.0,,CPU,Mike Stegeman,,,6-4,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,4,Nebraska,USF,21.0,55.0,,CPU,CPU,11.0,,7-2,9-0,1,0,0,0,FINAL,USF schedule screenshot
+2041,4,Texas Tech,Washington,59.0,49.0,,CPU,CPU,,,9-1,6-4,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,5,USF,Ohio State,52.0,38.0,,CPU,CPU,,22.0,9-0,6-3,1,0,0,0,FINAL,USF schedule screenshot
+2041,5,Maryland,San Jose State,34.0,48.0,,CPU,Mike Stegeman,,,4-5,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,5,Florida State,Texas,42.0,34.0,,CPU,CPU,,6.0,9-1,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,6,Bowling Green,Florida,56.0,52.0,,CPU,CPU,,21.0,9-0,9-2,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,6,Ole Miss,Florida State,23.0,35.0,,CPU,CPU,,,4-6,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,6,San Jose State,Illinois,55.0,21.0,,Mike Stegeman,CPU,,,2-7,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,6,Wisconsin,Texas Tech,41.0,44.0,,CPU,CPU,,,5-4,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,6,Oregon,USF,20.0,38.0,,CPU,CPU,19.0,,6-3,9-0,1,0,0,0,FINAL,USF schedule screenshot
+2041,7,Wyoming,Bowling Green,17.0,35.0,,CPU,CPU,,,6-5,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,7,Florida,Tennessee,48.0,31.0,,CPU,CPU,,,9-2,4-5,1,0,0,0,FINAL,Florida schedule screenshot
+2041,7,Iowa,Texas Tech,7.0,59.0,,CPU,CPU,,,6-4,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,8,Florida State,Bowling Green,21.0,52.0,,CPU,CPU,4.0,,9-1,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,8,Florida,LSU,35.0,28.0,,CPU,CPU,,,9-2,4-5,1,0,0,0,FINAL,Florida schedule screenshot
+2041,8,USF,Minnesota,84.0,17.0,,CPU,CPU,,,9-0,5-4,1,0,0,0,FINAL,USF schedule screenshot
+2041,8,San Jose State,Texas Tech,62.0,27.0,,CPU,CPU,2.0,7.0,9-1,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,9,Alabama,Florida,20.0,45.0,,CPU,CPU,,,5-4,9-2,1,0,0,0,FINAL,Florida schedule screenshot
+2041,9,Auburn,Florida State,22.0,50.0,,CPU,CPU,,,5-5,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,9,San Jose State,Indiana,55.0,21.0,,Mike Stegeman,CPU,,,4-6,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,9,Bowling Green,Missouri,44.0,13.0,,CPU,CPU,,,9-0,3-6,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,9,Illinois,Texas Tech,23.0,41.0,,CPU,CPU,,,2-7,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,9,Purdue,USF,14.0,41.0,,CPU,CPU,,,2-8,9-0,1,0,0,0,FINAL,USF schedule screenshot
+2041,10,Georgia,Bowling Green,21.0,49.0,,CPU,CPU,8.0,,8-1,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,10,USF,Michigan State,63.0,20.0,,CPU,CPU,,,9-0,3-6,1,0,0,0,FINAL,USF schedule screenshot
+2041,10,Texas Tech,Penn State,63.0,17.0,,CPU,CPU,,16.0,9-1,9-2,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,10,Michigan,San Jose State,31.0,48.0,,CPU,Mike Stegeman,,,5-4,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,10,Florida,South Carolina,41.0,16.0,,CPU,CPU,,,9-2,2-7,1,0,0,0,FINAL,Florida schedule screenshot
+2041,10,Florida State,Tennessee,52.0,14.0,,CPU,CPU,,,4-5,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,11,Texas,Florida,63.0,42.0,,CPU,CPU,6.0,,9-1,9-2,1,0,0,0,FINAL,Florida schedule screenshot
+2041,11,Nebraska,San Jose State,17.0,31.0,,CPU,Mike Stegeman,11.0,,7-2,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,11,Florida State,Texas A&M,28.0,7.0,,CPU,CPU,,15.0,7-2,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,11,Maryland,Texas Tech,17.0,70.0,,CPU,CPU,,,4-5,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,12,Oklahoma State,Florida,31.0,43.0,,CPU,CPU,,,6-4,9-2,1,0,0,0,FINAL,Florida schedule screenshot
+2041,12,LSU,Florida State,,,,CPU,CPU,,,4-5,9-1,1,0,0,0,SCHEDULED,Florida State schedule screenshot
+2041,12,San Jose State,Ohio State,,,,Mike Stegeman,CPU,,22.0,9-1,6-3,1,0,0,0,SCHEDULED,SJSU schedule screenshot
+2041,12,Bowling Green,South Carolina,,,,CPU,CPU,,,9-0,2-7,1,0,0,0,SCHEDULED,Bowling Green schedule screenshot
+2041,12,Penn State,USF,,,,CPU,CPU,16.0,,9-2,9-0,1,0,0,0,SCHEDULED,USF schedule screenshot
+2041,13,Texas Tech,Indiana,,,,CPU,CPU,,,9-1,4-6,1,0,0,0,SCHEDULED,Texas Tech schedule screenshot
+2041,13,Bowling Green,LSU,,,,CPU,CPU,,,9-0,4-5,1,0,0,0,SCHEDULED,Bowling Green schedule screenshot
+2041,13,San Jose State,USF,,,,CPU,CPU,2.0,,9-1,9-0,1,0,0,0,SCHEDULED,USF schedule screenshot
+2041,14,Oklahoma,Bowling Green,,,,CPU,CPU,12.0,,7-2,9-0,1,0,0,0,SCHEDULED,Bowling Green schedule screenshot
+2041,14,Florida State,Florida,,,,CPU,CPU,4.0,,9-1,9-2,1,0,0,0,SCHEDULED,Florida schedule screenshot
+2041,14,Texas Tech,USF,,,,CPU,CPU,7.0,3.0,9-1,9-0,1,0,0,0,SCHEDULED,Texas Tech schedule screenshot
