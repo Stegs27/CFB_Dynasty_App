@@ -211,6 +211,20 @@ def get_team_secondary_color(team):
         return TEAM_VISUALS[team].get("secondary", "#ffffff")
     return "#ffffff"
 
+
+def hex_to_rgba(hex_color, alpha=0.25):
+    """Convert any hex color (#RGB or #RRGGBB) to an rgba() string safe for Plotly."""
+    try:
+        h = str(hex_color).strip().lstrip("#")
+        if len(h) == 3:
+            h = h[0]*2 + h[1]*2 + h[2]*2
+        if len(h) != 6:
+            return f"rgba(100,100,100,{alpha})"
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+    except Exception:
+        return f"rgba(100,100,100,{alpha})"
+
 def build_user_color_map(model_df):
     if model_df is None or model_df.empty:
         return {}
@@ -992,7 +1006,7 @@ def render_roster_matchup_tab():
         fill="toself",
         name=team_a,
         line=dict(color=color_a, width=2),
-        fillcolor=color_a + "44",
+        fillcolor=hex_to_rgba(color_a, 0.27),
     ))
     fig.add_trace(go.Scatterpolar(
         r=avg_b + [avg_b[0]],
@@ -1000,7 +1014,7 @@ def render_roster_matchup_tab():
         fill="toself",
         name=team_b,
         line=dict(color=color_b, width=2),
-        fillcolor=color_b + "44",
+        fillcolor=hex_to_rgba(color_b, 0.27),
     ))
     fig.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[60, 100], tickfont=dict(size=10))),
@@ -3034,7 +3048,6 @@ if data:
         "⚔️ H2H Matrix",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
-        "🎥 Automation V2",
         "🎯 Roster Matchup",
     ])
 
@@ -3541,12 +3554,9 @@ if data:
         )
 
 
-    # --- AUTOMATION V2 ---
-    with tabs[10]:
-        render_automation_v2_tab(model_2041, rec)
 
     # --- ROSTER MATCHUP ---
-    with tabs[11]:
+    with tabs[10]:
         render_roster_matchup_tab()
 
     if st.sidebar.button("🔄 Refresh Data"):
