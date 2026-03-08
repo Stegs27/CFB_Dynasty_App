@@ -46,6 +46,13 @@ TEAM_VISUALS = {
     "Alabaster": {"slug": "alabaster", "primary": "#DC2626", "secondary": "#FACC15"},
     "Death Valley": {"slug": "death-valley", "primary": "#7C3AED", "secondary": "#000000"},
     "Gate City": {"slug": "gate-city", "primary": "#FACC15", "secondary": "#000000"},
+    "Oklahoma State": {"slug": "oklahoma-state", "primary": "#FF7300", "secondary": "#000000"},
+    "South Carolina": {"slug": "south-carolina", "primary": "#73000A", "secondary": "#000000"},
+    "Appalachian State": {"slug": "app-state", "primary": "#FFCC00", "secondary": "#000000"},
+    "San Diego State": {"slug": "san-diego-state", "primary": "#A6192E", "secondary": "#000000"},
+    "Georgia Tech": {"slug": "georgia-tech", "primary": "#B3A369", "secondary": "#003057"},
+    "NC State": {"slug": "nc-state", "primary": "#CC0000", "secondary": "#000000"},
+    "Texas A&M": {"slug": "texas-am", "primary": "#500000", "secondary": "#FFFFFF"},
     "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
     "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
     "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
@@ -90,12 +97,16 @@ TEAM_ALIASES = {
     "Alabaster": ["alabaster"],
     "Death Valley": ["death valley"],
     "Gate City": ["gate city"],
+    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
+    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
     "Rapid City": ["rapid city"],
     "Panama City": ["panama city"],
     "Hammond": ["hammond"],
     "Alabaster": ["alabaster"],
     "Death Valley": ["death valley"],
     "Gate City": ["gate city"],
+    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
+    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
 }
 
 def normalize_key(value):
@@ -247,7 +258,7 @@ def render_war_room_table(board_df):
             <div style="width:44px;text-align:center;">{logo_html}</div>
             <div>
               <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
-              <div style="font-size:12px;color:#6b7280;">{html.escape(user)}</div>
+              <div style="font-size:12px;color:#cbd5e1;">{html.escape(user)}</div>
             </div>
           </div>
         </td>
@@ -441,7 +452,7 @@ def render_speed_freaks_table(df):
             <div style="width:40px;text-align:center;">{logo_html}</div>
             <div>
               <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
-              <div style="font-size:12px;color:#6b7280;">{html.escape(user)}</div>
+              <div style="font-size:12px;color:#cbd5e1;">{html.escape(user)}</div>
             </div>
           </div>
         </td>
@@ -842,205 +853,6 @@ def get_record_parts(record_str):
         return 0, 0
 
 
-
-
-def load_video_review_assets():
-    base = Path('weekly_out')
-    files = {
-        'summary': base / 'video_import_summary.txt',
-        'standings': base / 'conference_standings_candidates.csv',
-        'schedule': base / 'video_schedule_candidates.csv',
-        'cfp': base / 'cfp_rankings_candidates.csv',
-        'recruiting': base / 'recruiting_candidates.csv',
-    }
-    out = {}
-    out['summary_text'] = files['summary'].read_text(encoding='utf-8', errors='replace') if files['summary'].exists() else ''
-    for key in ['standings', 'schedule', 'cfp', 'recruiting']:
-        try:
-            out[key] = pd.read_csv(files[key]) if files[key].exists() else pd.DataFrame()
-        except Exception:
-            out[key] = pd.DataFrame()
-    return out
-
-
-def render_video_review_table(df, title, preferred_cols=None):
-    st.markdown(f"#### {title}")
-    if df is None or df.empty:
-        st.caption("No data found yet.")
-        return
-    view = df.copy()
-    if preferred_cols:
-        cols = [c for c in preferred_cols if c in view.columns]
-        if cols:
-            view = view[cols]
-    st.dataframe(view, hide_index=True, use_container_width=True)
-
-
-def build_recruiting_momentum(rec_df, model_df):
-    rows = []
-    rec_local = rec_df.copy()
-    rec_local['USER'] = rec_local['USER'].astype(str).str.strip().str.title()
-    if 'Teams' in rec_local.columns:
-        rec_local['Teams'] = rec_local['Teams'].astype(str).str.strip()
-
-    for _, m in model_df[['USER', 'TEAM']].drop_duplicates().iterrows():
-        user = str(m['USER']).strip().title()
-        team = str(m['TEAM']).strip()
-        rows_match = rec_local[(rec_local['USER'] == user) & (rec_local['Teams'].astype(str).str.lower() == team.lower())]
-        if rows_match.empty:
-            rows_match = rec_local[rec_local['USER'] == user]
-        if rows_match.empty:
-            continue
-        row = rows_match.iloc[-1]
-        year_cols = sorted([int(c) for c in row.index if str(c).isdigit()])
-        points = []
-        for y in year_cols:
-            val = clean_rank_value(row.get(str(y)))
-            if not pd.isna(val):
-                points.append((int(y), float(val)))
-        if len(points) < 2:
-            continue
-        recent = points[-5:]
-        start_rank = recent[0][1]
-        end_rank = recent[-1][1]
-        trend = round(start_rank - end_rank, 1)
-        rows.append({
-            'USER': user,
-            'TEAM': team,
-            'Years': ' | '.join([f"{y}:{int(v)}" for y, v in recent]),
-            'Start Rank': start_rank,
-            'Latest Rank': end_rank,
-            'Improvement': trend,
-            'Momentum': 'Heating Up' if trend > 6 else ('Cooling Off' if trend < -6 else 'Stable'),
-            'Logo': get_logo_source(team),
-        })
-    return pd.DataFrame(rows).sort_values(['Improvement', 'Latest Rank'], ascending=[False, True]).reset_index(drop=True) if rows else pd.DataFrame()
-
-
-def build_sos_heatmap_df(model_df):
-    cols = ['USER', 'TEAM', 'SOS', 'Resume Score', 'Current Record Wins', 'Current Record Losses', 'Combined Opponent Wins', 'Combined Opponent Losses']
-    present = [c for c in cols if c in model_df.columns]
-    if not present:
-        return pd.DataFrame()
-    out = model_df[present].copy()
-    out['Record'] = out.apply(
-        lambda r: f"{int(pd.to_numeric(r.get('Current Record Wins', 0), errors='coerce') or 0)}-"
-                  f"{int(pd.to_numeric(r.get('Current Record Losses', 0), errors='coerce') or 0)}",
-        axis=1
-    )
-    out['Opp Record'] = out.apply(
-        lambda r: f"{int(pd.to_numeric(r.get('Combined Opponent Wins', 0), errors='coerce') or 0)}-"
-                  f"{int(pd.to_numeric(r.get('Combined Opponent Losses', 0), errors='coerce') or 0)}",
-        axis=1
-    )
-    return out.sort_values(['SOS', 'Resume Score'], ascending=False).reset_index(drop=True)
-
-
-def build_conference_race_board(standings_df):
-    if standings_df is None or standings_df.empty:
-        return pd.DataFrame()
-    board = standings_df.copy()
-    label_col = 'screen_label' if 'screen_label' in board.columns else board.columns[0]
-    text_col = 'ocr_text' if 'ocr_text' in board.columns else board.columns[-1]
-    board[label_col] = board[label_col].astype(str)
-    board[text_col] = board[text_col].astype(str)
-    grouped = board.groupby(label_col).agg(
-        Candidate_Frames=('frame_index', 'count') if 'frame_index' in board.columns else (text_col, 'count'),
-        Best_Sharpness=('sharpness', 'max') if 'sharpness' in board.columns else (text_col, 'count'),
-        OCR_Sample=(text_col, 'first'),
-    ).reset_index()
-    grouped = grouped.rename(columns={label_col: 'Conference Screen'})
-    return grouped.sort_values(['Candidate_Frames', 'Best_Sharpness'], ascending=[False, False]).reset_index(drop=True)
-
-
-def render_automation_v2_tab(model_df, rec_df):
-    st.header("🎥 Automation V2")
-    st.caption("Video-import review, conference race intake, recruiting momentum, and SOS pressure boards in one place.")
-
-    assets = load_video_review_assets()
-    momentum_df = build_recruiting_momentum(rec_df, model_df)
-    sos_df = build_sos_heatmap_df(model_df)
-    conference_board = build_conference_race_board(assets.get('standings'))
-
-    a1, a2, a3, a4 = st.columns(4)
-    a1.metric("Conference Frames", len(assets.get('standings', pd.DataFrame())))
-    a2.metric("Schedule Frames", len(assets.get('schedule', pd.DataFrame())))
-    a3.metric("CFP Frames", len(assets.get('cfp', pd.DataFrame())))
-    a4.metric("Recruiting Frames", len(assets.get('recruiting', pd.DataFrame())))
-
-    st.subheader("Latest Video Import Summary")
-    if assets.get('summary_text'):
-        st.code(assets['summary_text'], language='text')
-    else:
-        st.info("No video_import_summary.txt found yet in weekly_out.")
-
-    st.markdown("---")
-    st.subheader("Conference Championship Race Intake")
-    if conference_board.empty:
-        st.caption("No conference standings candidates found yet.")
-    else:
-        st.dataframe(conference_board, hide_index=True, use_container_width=True)
-
-    st.markdown("---")
-    left, right = st.columns([1.1, 0.9])
-    with left:
-        st.subheader("Recruiting Momentum")
-        if momentum_df.empty:
-            st.caption("Not enough recruiting history found yet.")
-        else:
-            st.dataframe(momentum_df[['TEAM', 'USER', 'Years', 'Latest Rank', 'Improvement', 'Momentum']], hide_index=True, use_container_width=True)
-            fig = px.bar(
-                momentum_df.head(12),
-                x='TEAM',
-                y='Improvement',
-                color='Momentum',
-                hover_data=['USER', 'Years', 'Latest Rank']
-            )
-            fig.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig, use_container_width=True)
-    with right:
-        st.subheader("SOS Heatmap")
-        if sos_df.empty:
-            st.caption("SOS data unavailable.")
-        else:
-            heat = sos_df[['TEAM', 'SOS', 'Resume Score']].copy()
-            heat['TEAM'] = heat['TEAM'].astype(str)
-            fig_h = px.imshow(
-                heat.set_index('TEAM')[['SOS', 'Resume Score']].round(1),
-                aspect='auto',
-                color_continuous_scale='RdYlGn'
-            )
-            fig_h.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig_h, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("Raw Video Review Feeds")
-    review_tabs = st.tabs(["Conference Standings", "Schedule OCR", "CFP OCR", "Recruiting OCR"])
-    with review_tabs[0]:
-        render_video_review_table(
-            assets.get('standings'),
-            "Conference Standings Candidates",
-            ['screen_label', 'frame_index', 'sharpness', 'ocr_text', 'frame_path']
-        )
-    with review_tabs[1]:
-        render_video_review_table(
-            assets.get('schedule'),
-            "Schedule Candidates",
-            ['screen_label', 'week_detected', 'records_found', 'scores_found', 'header_text', 'frame_path']
-        )
-    with review_tabs[2]:
-        render_video_review_table(
-            assets.get('cfp'),
-            "CFP Ranking Candidates",
-            ['screen_label', 'week_detected', 'header_text', 'frame_path']
-        )
-    with review_tabs[3]:
-        render_video_review_table(
-            assets.get('recruiting'),
-            "Recruiting Candidates",
-            ['screen_label', 'week_detected', 'header_text', 'frame_path']
-        )
-
 def load_data():
     try:
         # LOAD ALL CORE FILES
@@ -1319,6 +1131,69 @@ def get_recent_recruiting_score(rec_df, user, team=None, current_year=2041, look
 
 
 
+def get_ranked_schedule_counts(scores_df, user, rank_map):
+    user = str(user).strip().title()
+    games = scores_df[(scores_df['V_User_Final'] == user) | (scores_df['H_User_Final'] == user)].copy()
+    ranked = 0
+    top10 = 0
+    for _, g in games.iterrows():
+        opp = g['Home_Final'] if g['V_User_Final'] == user else g['Visitor_Final']
+        rank = rank_map.get(str(opp).strip())
+        if rank is not None and not pd.isna(rank):
+            ranked += 1
+            if float(rank) <= 10:
+                top10 += 1
+    return ranked, top10
+
+
+def render_recruiting_snapshot_table(df):
+    rows_html = []
+    for _, row in df.sort_values('Rank').head(25).iterrows():
+        team = str(row.get('Team', ''))
+        primary = get_team_primary_color(team)
+        logo_uri = image_file_to_data_uri(get_logo_source(team))
+        logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:20px;'>🏈</div>"
+        cells = [f"""
+        <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Rank', 0))}</div>
+            <div style="width:38px;text-align:center;">{logo_html}</div>
+            <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
+          </div>
+        </td>
+        """]
+        vals = [
+            str(int(row.get('Total', 0))),
+            str(int(row.get('5★', 0))),
+            str(int(row.get('4★', 0))),
+            str(int(row.get('3★', 0))),
+            f"{float(row.get('Points', 0)):.2f}",
+            f"{float(row.get('Blue Chip Ratio', 0)):.3f}",
+        ]
+        for disp in vals:
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(disp)}</td>")
+        rows_html.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
+    table_html = f"""
+    <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#111827;color:#f8fafc;">
+            <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Top 25 Snapshot</th>
+            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Total</th>
+            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">5★</th>
+            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">4★</th>
+            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">3★</th>
+            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Points</th>
+            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Blue Chip Ratio</th>
+          </tr>
+        </thead>
+        <tbody>{''.join(rows_html)}</tbody>
+      </table>
+    </div>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+
+
 def build_2041_model_table(r_2041, stats_df, rec_df):
     df = r_2041.copy()
 
@@ -1352,8 +1227,21 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     max_opp_games = max(1.0, float(df['Opponent Games'].max()))
     opp_volume_pct = (df['Opponent Games'] / max_opp_games) * 100
-    df['SOS'] = (df['Opponent Win %'] * 0.78 + opp_volume_pct * 0.22).round(1)
-    df['Resume Score'] = (df['Current Win %'] * 0.62 + df['SOS'] * 0.38).round(1)
+    rank_map = dict(get_cfp_rankings_snapshot()[['Team', 'Rank']].values)
+    ranked_counts = df['USER'].apply(lambda u: get_ranked_schedule_counts(scores, u, rank_map))
+    df['Ranked Teams Faced'] = ranked_counts.apply(lambda x: x[0])
+    df['Top 10 Teams Faced'] = ranked_counts.apply(lambda x: x[1])
+    max_ranked = max(1.0, float(df['Ranked Teams Faced'].max()))
+    max_top10 = max(1.0, float(df['Top 10 Teams Faced'].max()))
+    ranked_pct = (df['Ranked Teams Faced'] / max_ranked) * 100
+    top10_pct = (df['Top 10 Teams Faced'] / max_top10) * 100
+    df['SOS'] = (
+        df['Opponent Win %'] * 0.56
+        + opp_volume_pct * 0.14
+        + ranked_pct * 0.18
+        + top10_pct * 0.12
+    ).round(1)
+    df['Resume Score'] = (df['Current Win %'] * 0.58 + df['SOS'] * 0.42).round(1)
 
     def qb_natty_bonus(row):
         if row['QB Tier'] == 'Elite':
@@ -1812,7 +1700,7 @@ def render_recruiting_table(df):
             <div style="width:40px;text-align:center;">{logo_html}</div>
             <div>
               <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
-              <div style="font-size:12px;color:#6b7280;">{html.escape(user)}</div>
+              <div style="font-size:12px;color:#cbd5e1;">{html.escape(user)}</div>
             </div>
           </div>
         </td>
@@ -1954,6 +1842,69 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
 
     rankings_df = get_cfp_rankings_snapshot()
     rank_map = dict(rankings_df[['Team', 'Rank']].values)
+    model_lookup = model_df.drop_duplicates('TEAM').set_index('TEAM') if model_df is not None and not model_df.empty else pd.DataFrame()
+
+    def get_metric(team_name, col, fallback=0.0):
+        if isinstance(model_lookup, pd.DataFrame) and not model_lookup.empty and team_name in model_lookup.index:
+            try:
+                return float(pd.to_numeric(model_lookup.loc[team_name].get(col, fallback), errors='coerce') or fallback)
+            except Exception:
+                return fallback
+        return fallback
+
+    def impact_badge(team_name, opp_name):
+        score = get_metric(team_name, 'CFP Odds') + get_metric(team_name, 'Natty Odds')
+        if opp_name and opp_name != 'BYE':
+            opp_rank = rank_map.get(opp_name)
+            if opp_rank is not None and not pd.isna(opp_rank):
+                score += max(0, 26 - float(opp_rank)) * 1.35
+            score += get_metric(opp_name, 'CFP Odds') * 0.18
+        if score >= 75:
+            return ('CFP IMPACT: HIGH', '#fecaca', '#7f1d1d')
+        if score >= 42:
+            return ('CFP IMPACT: MED', '#fde68a', '#78350f')
+        return ('CFP IMPACT: LOW', '#d1fae5', '#065f46')
+
+    def rivalry_meter_text(user_a, user_b):
+        ua = str(user_a).strip().title()
+        ub = str(user_b).strip().title()
+        if not ua or not ub or ua.lower() == 'cpu' or ub.lower() == 'cpu' or ua == ub:
+            return '', ''
+        vs = scores_df[
+            ((scores_df['V_User_Final'] == ua) & (scores_df['H_User_Final'] == ub)) |
+            ((scores_df['V_User_Final'] == ub) & (scores_df['H_User_Final'] == ua))
+        ].copy()
+        if vs.empty:
+            return 'RIVALRY METER', 'First meeting. Fresh beef.'
+        games = len(vs)
+        margins = pd.to_numeric(vs['Margin'], errors='coerce').dropna()
+        avg_margin = float(margins.mean()) if not margins.empty else 14.0
+        if games >= 6 and avg_margin <= 10:
+            return 'RIVALRY METER: SPICY', f'{games} prior meetings. This one has real scar tissue.'
+        if games >= 3:
+            return 'RIVALRY METER: ACTIVE', f'{games} prior meetings. Enough history for both sides to talk shit.'
+        return 'RIVALRY METER: WARM', f'{games} prior meetings. Not a blood feud yet, but it is getting there.'
+
+    st.markdown("""
+    <style>
+    .dynasty-news-v2-card {
+        border-radius: 18px;
+        padding: 16px 18px;
+        margin-bottom: 14px;
+        background: linear-gradient(145deg, #111827 0%, #1f2937 100%);
+        border: 1px solid #334155;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+    }
+    .dynasty-news-v2-chip {
+        display:inline-block;
+        padding:4px 10px;
+        border-radius:999px;
+        font-size:11px;
+        font-weight:900;
+        letter-spacing:.04em;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     for _, g in games_df.iterrows():
         team = str(g['Team']).strip()
@@ -1963,12 +1914,14 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
         game_type = str(g.get('Game Type', 'Game'))
 
         team_primary = get_team_primary_color(team)
-        opp_primary = get_team_primary_color(opp) if opp != 'BYE' else '#6b7280'
+        team_secondary = get_team_secondary_color(team)
+        opp_primary = get_team_primary_color(opp) if opp != 'BYE' else '#64748b'
+        opp_secondary = get_team_secondary_color(opp) if opp != 'BYE' else '#e5e7eb'
 
         team_logo = image_file_to_data_uri(get_logo_source(team))
         opp_logo = image_file_to_data_uri(get_logo_source(opp)) if opp != 'BYE' else ''
-        team_logo_html = f"<img src='{team_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if team_logo else "🏈"
-        opp_logo_html = f"<img src='{opp_logo}' style='width:40px;height:40px;object-fit:contain;'/>" if opp_logo else ("😴" if opp == 'BYE' else "🏈")
+        team_logo_html = f"<img src='{team_logo}' style='width:44px;height:44px;object-fit:contain;'/>" if team_logo else "🏈"
+        opp_logo_html = f"<img src='{opp_logo}' style='width:44px;height:44px;object-fit:contain;'/>" if opp_logo else ("😴" if opp == 'BYE' else "🏈")
 
         team_label = format_ranked_team_name(team, rank_map)
         opp_label = format_ranked_team_name(opp, rank_map) if opp != 'BYE' else 'BYE'
@@ -1978,71 +1931,98 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
             opp_record = get_team_record_display(opp, model_df, rankings_df)
 
         favor_text = ''
-        series_text = ''
         result_text = str(g.get('Result', '')).strip()
         if game_type == 'User Game':
             line_text, _favored = estimate_game_line(team, opp, model_df, rank_map)
             favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
+
+        series_text = ''
+        rivalry_head = ''
+        rivalry_text = ''
+        if game_type == 'User Game':
             series_text = get_user_series_record(team_user, opp_user, scores_df)
+            rivalry_head, rivalry_text = rivalry_meter_text(team_user, opp_user)
         elif game_type == 'BYE':
-            series_text = f"{team_user or team} is on a bye this week. No game, no opponent, just a chance to heal up and talk a little shit from the couch."
+            rivalry_text = f"{team_user or team} gets a bye. Heal up, self-scout, and enjoy a stress-free Saturday for once."
         elif game_type == 'Completed Game':
-            series_text = result_text or 'Week 12 final shown on the uploaded schedule screenshot.'
+            rivalry_text = result_text or f'Week {CURRENT_WEEK_NUMBER} final shown on the uploaded schedule screenshot.'
+        else:
+            rivalry_text = f"{team_user or team} has a CPU game this week. No fake drama here — just take care of business and don't do anything stupid."
 
         game_chip = 'BYE WEEK' if game_type == 'BYE' else ('FINAL' if game_type == 'Completed Game' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU'))
-        right_meta_html = f"<div style='font-size:12px;font-weight:800;color:#111827;background:#f3f4f6;border-radius:999px;padding:4px 10px;'>{html.escape(favor_text)}</div>" if favor_text else ''
-        series_html = f"<div style='margin-top:10px;font-size:12px;color:#4b5563;font-weight:700;'>{html.escape(series_text)}</div>" if series_text else ''
+        impact_label, impact_bg, impact_fg = impact_badge(team, opp)
+
+        top_row_right = [
+            f"<div class='dynasty-news-v2-chip' style='background:{impact_bg};color:{impact_fg};'>{html.escape(impact_label)}</div>"
+        ]
+        if favor_text:
+            top_row_right.append(f"<div class='dynasty-news-v2-chip' style='background:#dbeafe;color:#1e3a8a;'>{html.escape(favor_text)}</div>")
+
         result_bar_html = ''
         if game_type == 'Completed Game' and result_text:
             win_loss = 'W' if result_text.strip().upper().startswith('W') else ('L' if result_text.strip().upper().startswith('L') else 'FINAL')
-            result_color = '#166534' if win_loss == 'W' else ('#991b1b' if win_loss == 'L' else '#1f2937')
+            result_color = '#166534' if win_loss == 'W' else ('#991b1b' if win_loss == 'L' else '#111827')
             result_bg = '#dcfce7' if win_loss == 'W' else ('#fee2e2' if win_loss == 'L' else '#e5e7eb')
-            result_bar_html = f"<div style='margin-top:12px;padding:10px 12px;border-radius:12px;background:{result_bg};color:{result_color};font-size:14px;font-weight:900;text-align:center;'>FINAL — {html.escape(result_text)}</div>"
+            result_bar_html = f"<div style='margin-top:14px;padding:12px 14px;border-radius:14px;background:{result_bg};color:{result_color};font-size:14px;font-weight:900;text-align:center;border:1px solid rgba(255,255,255,.08);'>FINAL — {html.escape(result_text)}</div>"
+
+        left_block = (
+            f"<div style='display:flex;align-items:center;gap:12px;min-width:230px;'>"
+            f"<div style='width:58px;height:58px;border-radius:14px;background:{team_primary}22;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};box-shadow:0 0 0 1px rgba(255,255,255,.05) inset;'>{team_logo_html}</div>"
+            f"<div>"
+            f"<div style='font-size:12px;color:#9ca3af;font-weight:700;'>{html.escape(team_user)}</div>"
+            f"<div style='font-size:19px;font-weight:900;color:{team_secondary if team_secondary != '#FFFFFF' else '#f8fafc'};'>{html.escape(team_label)}</div>"
+            f"<div style='font-size:12px;color:#cbd5e1;'>Record: {html.escape(team_record)}</div>"
+            f"</div>"
+            f"</div>"
+        )
 
         if opp == 'BYE':
-            right_block_html = (
-                "<div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>"
-                "<div>"
-                "<div style='font-size:13px;color:#6b7280;text-align:right;'>Open date</div>"
-                f"<div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>BYE</div>"
-                "<div style='font-size:12px;color:#6b7280;text-align:right;'>Record: —</div>"
-                "</div>"
-                f"<div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
-                "</div>"
+            right_block = (
+                f"<div style='display:flex;align-items:center;gap:12px;min-width:230px;justify-content:flex-end;'>"
+                f"<div>"
+                f"<div style='font-size:12px;color:#9ca3af;text-align:right;font-weight:700;'>Open date</div>"
+                f"<div style='font-size:19px;font-weight:900;color:#f8fafc;text-align:right;'>BYE</div>"
+                f"<div style='font-size:12px;color:#cbd5e1;text-align:right;'>Record: —</div>"
+                f"</div>"
+                f"<div style='width:58px;height:58px;border-radius:14px;background:{opp_primary}22;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
+                f"</div>"
             )
         else:
-            right_block_html = (
-                "<div style='display:flex;align-items:center;gap:10px;min-width:230px;justify-content:flex-end;'>"
-                "<div>"
-                f"<div style='font-size:13px;color:#6b7280;text-align:right;'>{html.escape(opp_user)}</div>"
-                f"<div style='font-size:18px;font-weight:800;color:{opp_primary};text-align:right;'>{html.escape(opp_label)}</div>"
-                f"<div style='font-size:12px;color:#6b7280;text-align:right;'>Record: {html.escape(opp_record)}</div>"
-                "</div>"
-                f"<div style='width:50px;height:50px;border-radius:12px;background:{opp_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
-                "</div>"
+            right_block = (
+                f"<div style='display:flex;align-items:center;gap:12px;min-width:230px;justify-content:flex-end;'>"
+                f"<div>"
+                f"<div style='font-size:12px;color:#9ca3af;text-align:right;font-weight:700;'>{html.escape(opp_user)}</div>"
+                f"<div style='font-size:19px;font-weight:900;color:{opp_secondary if opp_secondary != '#FFFFFF' else '#f8fafc'};text-align:right;'>{html.escape(opp_label)}</div>"
+                f"<div style='font-size:12px;color:#cbd5e1;text-align:right;'>Record: {html.escape(opp_record)}</div>"
+                f"</div>"
+                f"<div style='width:58px;height:58px;border-radius:14px;background:{opp_primary}22;display:flex;align-items:center;justify-content:center;border:2px solid {opp_primary};'>{opp_logo_html}</div>"
+                f"</div>"
             )
 
-        center_vs = 'vs' if opp != 'BYE' else ''
+        lower_notes = []
+        if series_text:
+            lower_notes.append(f"<div style='font-size:12px;color:#e2e8f0;font-weight:800;'>{html.escape(series_text)}</div>")
+        if rivalry_head or rivalry_text:
+            lower_notes.append(
+                f"<div style='margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);'>"
+                f"<div style='font-size:11px;font-weight:900;letter-spacing:.05em;color:#94a3b8;'>{html.escape(rivalry_head or 'WEEKLY READ')}</div>"
+                f"<div style='font-size:13px;color:#f8fafc;font-weight:700;margin-top:4px;'>{html.escape(rivalry_text)}</div>"
+                f"</div>"
+            )
+
         card_html = (
-            f"<div style='border:1px solid #e5e7eb;border-radius:16px;padding:14px 16px;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:12px;'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;'>"
-            f"<div style='font-size:12px;font-weight:800;color:#6b7280;letter-spacing:.04em;'>{html.escape(game_chip)}</div>"
-            f"{right_meta_html}"
+            f"<div class='dynasty-news-v2-card' style='border-left:6px solid {team_primary};'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;'>"
+            f"<div class='dynasty-news-v2-chip' style='background:rgba(255,255,255,0.08);color:#e5e7eb;'>{html.escape(game_chip)}</div>"
+            f"<div style='display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;'>{''.join(top_row_right)}</div>"
             f"</div>"
-            f"<div style='display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;'>"
-            f"<div style='display:flex;align-items:center;gap:10px;min-width:230px;'>"
-            f"<div style='width:50px;height:50px;border-radius:12px;background:{team_primary}15;display:flex;align-items:center;justify-content:center;border:2px solid {team_primary};'>{team_logo_html}</div>"
-            f"<div>"
-            f"<div style='font-size:13px;color:#6b7280;'>{html.escape(team_user)}</div>"
-            f"<div style='font-size:18px;font-weight:800;color:{team_primary};'>{html.escape(team_label)}</div>"
-            f"<div style='font-size:12px;color:#6b7280;'>Record: {html.escape(team_record)}</div>"
-            f"</div>"
-            f"</div>"
-            f"<div style='font-size:18px;font-weight:900;color:#111827;'>{center_vs}</div>"
-            f"{right_block_html}"
+            f"<div style='display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;'>"
+            f"{left_block}"
+            f"<div style='font-size:17px;font-weight:900;color:#94a3b8;letter-spacing:.08em;'>" + ('VS' if opp != 'BYE' else '—') + "</div>"
+            f"{right_block}"
             f"</div>"
             f"{result_bar_html}"
-            f"{series_html}"
+            f"{''.join(lower_notes)}"
             f"</div>"
         )
         st.markdown(card_html, unsafe_allow_html=True)
@@ -2152,11 +2132,14 @@ def build_cfp_bubble_board(rankings_df, model_df):
                 vals.append(defaults[col])
         df[col] = vals
 
+    df['Games Played'] = df['Wins'] + df['Losses']
+    df['Remaining Games'] = (12 - df['Games Played']).clip(lower=0)
     df['Win %'] = (df['Wins'] / (df['Wins'] + df['Losses'])).round(3)
     df['Committee Score'] = ((26 - df['Rank']) / 25) * 100
     df['Top12 Flag'] = (df['Rank'] <= 12).astype(int)
     df['Top8 Flag'] = (df['Rank'] <= 8).astype(int)
-    df['Loss Penalty'] = np.where(df['Losses'] <= 1, 0, (df['Losses'] - 1) * 8.5)
+    df['Rank Pressure'] = np.where(df['Rank'] <= 12, 0.0, (df['Rank'] - 12) * 2.6)
+    df['Loss Penalty'] = np.where(df['Losses'] <= 1, 0, (df['Losses'] - 1) * 12.0)
 
     qbm = {
         'Elite': 8.0,
@@ -2166,23 +2149,39 @@ def build_cfp_bubble_board(rankings_df, model_df):
         'Unknown': 0.0,
     }
     df['QB Mod'] = df['QB Tier'].map(qbm).fillna(0.0)
+    df['Overall CFP Mod'] = np.select(
+        [df['OVERALL'] <= 80, df['OVERALL'] <= 82, df['OVERALL'] <= 84],
+        [-16.0, -11.0, -6.0],
+        default=0.0
+    )
+    df['Lose Out Penalty'] = (
+        df['Remaining Games'] * 5.0
+        + np.maximum(0, (df['Losses'] + df['Remaining Games']) - 2) * 8.0
+        + np.where(df['Rank'] <= 12, df['Remaining Games'] * 2.5, df['Remaining Games'] * 1.2)
+    )
 
     df['CFP Raw'] = (
-        df['Committee Score'] * 0.42
-        + (df['Win %'] * 100) * 0.21
-        + df['SOS'] * 0.10
-        + df['Resume Score'] * 0.10
-        + df['Recruit Score'] * 0.05
-        + df['Team Speed Score'] * 0.04
-        + df['BCR_Val'] * 0.03
+        df['Committee Score'] * 0.35
+        + (df['Win %'] * 100) * 0.17
+        + df['SOS'] * 0.12
+        + df['Resume Score'] * 0.11
+        + df['Recruit Score'] * 0.04
+        + df['Team Speed Score'] * 0.03
+        + df['BCR_Val'] * 0.02
         + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.05
-        + df['Top12 Flag'] * 7.5
-        + df['Top8 Flag'] * 4.5
+        + df['OVERALL'] * 0.07
+        + df['Top12 Flag'] * 5.2
+        + df['Top8 Flag'] * 2.5
         + df['QB Mod']
+        + df['Overall CFP Mod']
         - df['Loss Penalty']
+        - df['Rank Pressure']
     )
-    df['CFP Make %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 42) / 7.5)) * 100).round(1)
-    df['CFP Make %'] = df['CFP Make %'].clip(lower=1.0, upper=99.0)
+    df['Lose Out Raw'] = df['CFP Raw'] - df['Lose Out Penalty']
+    df['Lose Out CFP %'] = (1 / (1 + np.exp(-(df['Lose Out Raw'] - 43) / 5.8)) * 100).round(1)
+    df['Base CFP %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 46) / 5.8)) * 100).round(1)
+    df['CFP Make %'] = (df['Base CFP %'] * 0.76 + df['Lose Out CFP %'] * 0.24).round(1)
+    df['CFP Make %'] = df['CFP Make %'].clip(lower=1.0, upper=92.5)
 
     # Automatic-bid path estimate: best shot for likely conference champs among highly ranked teams.
     auto_bid_raw = (
@@ -2222,6 +2221,349 @@ def build_cfp_bubble_board(rankings_df, model_df):
     df['Bubble Tier'] = df.apply(bubble_tier, axis=1)
     df['Projected Seed'] = np.nan
     return df.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).reset_index(drop=True)
+
+
+
+def compute_projected_seed_score(board_df):
+    df = board_df.copy()
+    df['Seed Score'] = (
+        df['Committee Score'] * 0.36
+        + (df['Win %'] * 100) * 0.18
+        + df['Resume Score'] * 0.16
+        + df['SOS'] * 0.12
+        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.15) * 0.08
+        + df['Bye %'] * 0.04
+        + df['Auto-Bid %'] * 0.03
+        + df['QB Mod'] * 0.55
+        + np.where(df['OVERALL'] >= 90, 2.5, 0.0)
+        - np.where(df['OVERALL'] <= 84, (85 - df['OVERALL']) * 1.4, 0.0)
+    )
+    return df
+
+
+
+
+def render_playoff_bracket(projected_field):
+    if projected_field is None or projected_field.empty or len(projected_field) < 12:
+        st.info("Need 12 projected teams to render the bracket.")
+        return
+
+    pf = projected_field.copy()
+    pf['Projected Seed'] = pd.to_numeric(pf['Projected Seed'], errors='coerce')
+    pf = pf.dropna(subset=['Projected Seed']).sort_values('Projected Seed').reset_index(drop=True)
+
+    def get_logo_path(team):
+        path = get_logo_source(team)
+        if isinstance(path, str) and path and Path(path).exists():
+            return path
+        return None
+
+    def team_card(row, win_prob=None, bye=False):
+        team = str(row.get('Team', 'Unknown Team'))
+        seed = int(pd.to_numeric(row.get('Projected Seed', 0), errors='coerce') or 0)
+        record = str(row.get('Record', '—'))
+        primary = get_team_primary_color(team)
+        auto_bid = float(pd.to_numeric(row.get('Auto-Bid %', 0), errors='coerce') or 0)
+        logo_path = get_logo_path(team)
+
+        with st.container(border=True):
+            head_left, head_right = st.columns([4, 1])
+            with head_left:
+                info_cols = st.columns([0.8, 1.2, 6])
+                with info_cols[0]:
+                    st.markdown(
+                        f"""
+                        <div style='display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;background:{primary};color:white;font-weight:900;font-size:12px;'>#{seed}</div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                with info_cols[1]:
+                    if logo_path:
+                        st.image(logo_path, width=36)
+                    else:
+                        st.markdown("### 🏈")
+                with info_cols[2]:
+                    st.markdown(
+                        f"<div style='font-size:18px;font-weight:900;color:{primary};line-height:1.15;'>{html.escape(team)}</div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(f"Record: {record}")
+            with head_right:
+                if bye:
+                    st.markdown(
+                        "<div style='margin-top:6px;display:inline-block;padding:4px 8px;border-radius:999px;background:#dcfce7;color:#14532d;font-size:11px;font-weight:800;'>BYE</div>",
+                        unsafe_allow_html=True,
+                    )
+                elif auto_bid >= 55:
+                    st.markdown(
+                        "<div style='margin-top:6px;display:inline-block;padding:4px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;'>AUTO-BID TRACK</div>",
+                        unsafe_allow_html=True,
+                    )
+            if win_prob is not None:
+                st.progress(float(win_prob) / 100.0)
+                st.caption(f"Win probability: {win_prob:.1f}%")
+
+    def matchup(seed_a, seed_b):
+        row_a = pf[pf['Projected Seed'] == seed_a].iloc[0]
+        row_b = pf[pf['Projected Seed'] == seed_b].iloc[0]
+        diff = max(-8, min(8, seed_b - seed_a))
+        p_a = max(18.0, min(82.0, 50 + (diff * 4.5)))
+        p_b = round(100 - p_a, 1)
+        with st.container(border=True):
+            st.markdown(f"#### #{seed_a} vs #{seed_b}")
+            team_card(row_a, p_a)
+            st.markdown("<div style='text-align:center;font-size:12px;font-weight:900;color:#94a3b8;margin:8px 0;'>VS</div>", unsafe_allow_html=True)
+            team_card(row_b, p_b)
+
+    semis = [str(pf[pf['Projected Seed'] == s].iloc[0]['Team']) for s in [1, 2, 3, 4]]
+    st.caption("Projected semifinalists: " + " • ".join(semis))
+
+    left, right = st.columns([1.0, 1.35])
+    with left:
+        st.markdown("#### Top 4 Byes")
+        for seed in [1, 2, 3, 4]:
+            team_card(pf[pf['Projected Seed'] == seed].iloc[0], bye=True)
+            st.markdown("")
+    with right:
+        st.markdown("#### Projected First Round")
+        for a, b in [(5, 12), (6, 11), (7, 10), (8, 9)]:
+            matchup(a, b)
+            st.markdown("")
+
+
+def render_first_four_out(board_df):
+    if board_df is None or board_df.empty:
+        st.caption("No first four out teams available.")
+        return
+
+    def get_logo_path(team):
+        path = get_logo_source(team)
+        if isinstance(path, str) and path and Path(path).exists():
+            return path
+        return None
+
+    for _, row in board_df.iterrows():
+        team = str(row.get('Team', ''))
+        primary = get_team_primary_color(team)
+        record = str(row.get('Record', '—'))
+        make_pct = format_pct(row.get('CFP Make %', np.nan), 1)
+        bye_pct = format_pct(row.get('Bye %', np.nan), 1)
+        rank_raw = pd.to_numeric(row.get('Rank', np.nan), errors='coerce')
+        rank_disp = f"#{int(rank_raw)}" if pd.notna(rank_raw) else '—'
+        logo_path = get_logo_path(team)
+
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([5, 1.3, 1.5, 1.2])
+            with c1:
+                inner = st.columns([0.9, 1.2, 6])
+                with inner[0]:
+                    st.markdown(f"**{rank_disp}**")
+                with inner[1]:
+                    if logo_path:
+                        st.image(logo_path, width=30)
+                    else:
+                        st.markdown("🏈")
+                with inner[2]:
+                    st.markdown(
+                        f"<div style='font-size:16px;font-weight:900;color:{primary};'>{html.escape(team)}</div>",
+                        unsafe_allow_html=True,
+                    )
+            c2.markdown(f"**{record}**")
+            c3.markdown(f"**{make_pct}**")
+            c4.markdown(f"**{bye_pct}**")
+
+
+def load_video_review_assets():
+    base = Path('weekly_out')
+    files = {
+        'summary': base / 'video_import_summary.txt',
+        'standings': base / 'conference_standings_candidates.csv',
+        'schedule': base / 'video_schedule_candidates.csv',
+        'cfp': base / 'cfp_rankings_candidates.csv',
+        'recruiting': base / 'recruiting_candidates.csv',
+    }
+    out = {}
+    out['summary_text'] = files['summary'].read_text(encoding='utf-8', errors='replace') if files['summary'].exists() else ''
+    for key in ['standings', 'schedule', 'cfp', 'recruiting']:
+        try:
+            out[key] = pd.read_csv(files[key]) if files[key].exists() else pd.DataFrame()
+        except Exception:
+            out[key] = pd.DataFrame()
+    return out
+
+
+def render_video_review_table(df, title, preferred_cols=None):
+    st.markdown(f"#### {title}")
+    if df is None or df.empty:
+        st.caption("No data found yet.")
+        return
+    view = df.copy()
+    if preferred_cols:
+        cols = [c for c in preferred_cols if c in view.columns]
+        if cols:
+            view = view[cols]
+    st.dataframe(view, hide_index=True, use_container_width=True)
+
+
+def build_recruiting_momentum(rec_df, model_df):
+    rows = []
+    rec_local = rec_df.copy()
+    rec_local['USER'] = rec_local['USER'].astype(str).str.strip().str.title()
+    if 'Teams' in rec_local.columns:
+        rec_local['Teams'] = rec_local['Teams'].astype(str).str.strip()
+
+    for _, m in model_df[['USER', 'TEAM']].drop_duplicates().iterrows():
+        user = str(m['USER']).strip().title()
+        team = str(m['TEAM']).strip()
+        rows_match = rec_local[(rec_local['USER'] == user) & (rec_local['Teams'].astype(str).str.lower() == team.lower())]
+        if rows_match.empty:
+            rows_match = rec_local[rec_local['USER'] == user]
+        if rows_match.empty:
+            continue
+        row = rows_match.iloc[-1]
+        year_cols = sorted([int(c) for c in row.index if str(c).isdigit()])
+        points = []
+        for y in year_cols:
+            val = clean_rank_value(row.get(str(y)))
+            if not pd.isna(val):
+                points.append((int(y), float(val)))
+        if len(points) < 2:
+            continue
+        recent = points[-5:]
+        start_rank = recent[0][1]
+        end_rank = recent[-1][1]
+        trend = round(start_rank - end_rank, 1)
+        rows.append({
+            'USER': user,
+            'TEAM': team,
+            'Years': ' | '.join([f"{y}:{int(v)}" for y, v in recent]),
+            'Start Rank': start_rank,
+            'Latest Rank': end_rank,
+            'Improvement': trend,
+            'Momentum': 'Heating Up' if trend > 6 else ('Cooling Off' if trend < -6 else 'Stable'),
+            'Logo': get_logo_source(team),
+        })
+    return pd.DataFrame(rows).sort_values(['Improvement', 'Latest Rank'], ascending=[False, True]).reset_index(drop=True) if rows else pd.DataFrame()
+
+
+def build_sos_heatmap_df(model_df):
+    cols = ['USER', 'TEAM', 'SOS', 'Resume Score', 'Current Record Wins', 'Current Record Losses', 'Combined Opponent Wins', 'Combined Opponent Losses']
+    present = [c for c in cols if c in model_df.columns]
+    if not present:
+        return pd.DataFrame()
+    out = model_df[present].copy()
+    out['Record'] = out.apply(
+        lambda r: f"{int(pd.to_numeric(r.get('Current Record Wins', 0), errors='coerce') or 0)}-"
+                  f"{int(pd.to_numeric(r.get('Current Record Losses', 0), errors='coerce') or 0)}",
+        axis=1
+    )
+    out['Opp Record'] = out.apply(
+        lambda r: f"{int(pd.to_numeric(r.get('Combined Opponent Wins', 0), errors='coerce') or 0)}-"
+                  f"{int(pd.to_numeric(r.get('Combined Opponent Losses', 0), errors='coerce') or 0)}",
+        axis=1
+    )
+    return out.sort_values(['SOS', 'Resume Score'], ascending=False).reset_index(drop=True)
+
+
+def build_conference_race_board(standings_df):
+    if standings_df is None or standings_df.empty:
+        return pd.DataFrame()
+    board = standings_df.copy()
+    label_col = 'screen_label' if 'screen_label' in board.columns else board.columns[0]
+    text_col = 'ocr_text' if 'ocr_text' in board.columns else board.columns[-1]
+    board[label_col] = board[label_col].astype(str)
+    board[text_col] = board[text_col].astype(str)
+    grouped = board.groupby(label_col).agg(
+        Candidate_Frames=('frame_index', 'count') if 'frame_index' in board.columns else (text_col, 'count'),
+        Best_Sharpness=('sharpness', 'max') if 'sharpness' in board.columns else (text_col, 'count'),
+        OCR_Sample=(text_col, 'first'),
+    ).reset_index()
+    grouped = grouped.rename(columns={label_col: 'Conference Screen'})
+    return grouped.sort_values(['Candidate_Frames', 'Best_Sharpness'], ascending=[False, False]).reset_index(drop=True)
+
+
+def render_automation_v2_tab(model_df, rec_df):
+    st.header("🎥 Automation V2")
+    st.caption("Video-import review, conference race intake, recruiting momentum, and SOS pressure boards in one place.")
+
+    assets = load_video_review_assets()
+    momentum_df = build_recruiting_momentum(rec_df, model_df)
+    sos_df = build_sos_heatmap_df(model_df)
+    conference_board = build_conference_race_board(assets.get('standings'))
+
+    a1, a2, a3, a4 = st.columns(4)
+    a1.metric("Conference Frames", len(assets.get('standings', pd.DataFrame())))
+    a2.metric("Schedule Frames", len(assets.get('schedule', pd.DataFrame())))
+    a3.metric("CFP Frames", len(assets.get('cfp', pd.DataFrame())))
+    a4.metric("Recruiting Frames", len(assets.get('recruiting', pd.DataFrame())))
+
+    st.subheader("Latest Video Import Summary")
+    if assets.get('summary_text'):
+        st.code(assets['summary_text'], language='text')
+    else:
+        st.info("No video_import_summary.txt found yet in weekly_out.")
+
+    st.markdown("---")
+    st.subheader("Conference Championship Race Intake")
+    if conference_board.empty:
+        st.caption("No conference standings candidates found yet.")
+    else:
+        st.dataframe(conference_board, hide_index=True, use_container_width=True)
+
+    st.markdown("---")
+    left, right = st.columns([1.1, 0.9])
+    with left:
+        st.subheader("Recruiting Momentum")
+        if momentum_df.empty:
+            st.caption("Not enough recruiting history found yet.")
+        else:
+            st.dataframe(momentum_df[['TEAM', 'USER', 'Years', 'Latest Rank', 'Improvement', 'Momentum']], hide_index=True, use_container_width=True)
+            fig = px.bar(
+                momentum_df.head(12),
+                x='TEAM',
+                y='Improvement',
+                color='Momentum',
+                hover_data=['USER', 'Years', 'Latest Rank']
+            )
+            fig.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+    with right:
+        st.subheader("SOS Heatmap")
+        if sos_df.empty:
+            st.caption("SOS data unavailable.")
+        else:
+            heat = sos_df[['TEAM', 'SOS', 'Resume Score']].copy()
+            heat['TEAM'] = heat['TEAM'].astype(str)
+            fig_h = px.imshow(
+                heat.set_index('TEAM')[['SOS', 'Resume Score']].round(1),
+                aspect='auto',
+                color_continuous_scale='RdYlGn'
+            )
+            fig_h.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10))
+            st.plotly_chart(fig_h, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("Raw Video Review Feeds")
+    render_video_review_table(
+        assets.get('standings'),
+        "Conference Standings Candidates",
+        ['screen_label', 'frame_index', 'sharpness', 'ocr_text', 'header_text', 'full_text']
+    )
+    render_video_review_table(
+        assets.get('schedule'),
+        "Schedule Candidates",
+        ['screen_label', 'frame_index', 'sharpness', 'week_detected', 'records_found', 'scores_found', 'header_text', 'middle_text', 'full_text']
+    )
+    render_video_review_table(
+        assets.get('cfp'),
+        "CFP Ranking Candidates",
+        ['screen_label', 'frame_index', 'sharpness', 'week_detected', 'header_text', 'middle_text', 'full_text']
+    )
+    render_video_review_table(
+        assets.get('recruiting'),
+        "Recruiting Candidates",
+        ['screen_label', 'frame_index', 'sharpness', 'week_detected', 'header_text', 'middle_text', 'full_text']
+    )
 
 
 def render_cfp_table(board_df):
@@ -2426,7 +2768,7 @@ if data:
 
     with tabs[0]:
         st.header("🗞️ Dynasty News")
-        st.markdown(f"#### Week {CURRENT_WEEK_NUMBER}'s Games")
+        st.markdown(f"<h3 style='text-align:center;margin-bottom:0.75rem;'>Week {CURRENT_WEEK_NUMBER}'s Games</h3>", unsafe_allow_html=True)
         render_current_user_games_cards(current_user_games, model_2041, scores)
         st.markdown("---")
         st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model leans hardest on overall roster quality and raw team speed, then lets CFP position and pedigree finish the damn job.")
@@ -2474,17 +2816,19 @@ if data:
         cfp_rankings = get_cfp_rankings_snapshot()
         cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
 
-        # Select the projected 12-team field by make odds, but seed the field by committee rank.
-        projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).head(12).copy()
-        projected_field = projected_field.sort_values(['Rank', 'Bye %', 'CFP Make %'], ascending=[True, False, False]).reset_index(drop=True)
+        # Project the field by Make CFP %, then seed the 12-team bracket with a separate seed score.
+        projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Committee Score', 'Rank'], ascending=[False, False, False, True]).head(12).copy()
+        projected_field = compute_projected_seed_score(projected_field)
+        projected_field = projected_field.sort_values(['Seed Score', 'CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, False, True]).reset_index(drop=True)
         projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
 
         # Push the corrected projected seeds back onto the full board so the main table matches the bracket table.
+        cfp_board = compute_projected_seed_score(cfp_board)
         cfp_board['Projected Seed'] = np.nan
         seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
         cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
 
-        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Rank'], ascending=[False, True]).head(4).copy()
+        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Seed Score', 'Rank'], ascending=[False, False, True]).head(4).copy()
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric('Projected Locks', int((cfp_board['CFP Make %'] >= 92).sum()))
@@ -2495,25 +2839,11 @@ if data:
         st.subheader('Projected CFP Field')
         render_cfp_table(cfp_board)
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader('Projected 12-Team Bracket')
-            st.dataframe(projected_field[['Projected Seed', 'Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
-        with c2:
-            st.subheader('First Four Out')
-            st.dataframe(first_four_out[['Rank', 'Team', 'Record', 'CFP Make %', 'Bye %', 'Bubble Tier']], hide_index=True, use_container_width=True)
+        st.subheader('Playoff Bracket')
+        render_playoff_bracket(projected_field)
 
-        tier_cols = st.columns(4)
-        tier_map = [
-            ('🔒 Locks', cfp_board[cfp_board['Bubble Tier'] == '🔒 Lock']['Team'].tolist()),
-            ('✅ In Control', cfp_board[cfp_board['Bubble Tier'] == '✅ In Control']['Team'].tolist()),
-            ('⚠️ Bubble', cfp_board[cfp_board['Bubble Tier'] == '⚠️ Bubble']['Team'].tolist()),
-            ('🔥 Need Chaos', cfp_board[cfp_board['Bubble Tier'].isin(['🔥 Need Chaos', '🪦 Practically Dead'])]['Team'].tolist()),
-        ]
-        for col, (label, teams) in zip(tier_cols, tier_map):
-            with col:
-                st.markdown(f"**{label}**")
-                st.write(', '.join(teams[:8]) if teams else '—')
+        st.subheader('First Four Out')
+        render_first_four_out(first_four_out)
 
         st.subheader('CFP Chaos Simulator')
         sim_team = st.selectbox('Pick a team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
@@ -2535,20 +2865,6 @@ if data:
             st.success(f"That's a résumé steroid shot. A top-12 win would give {sim_team} a real committee argument and bye-path juice.")
         else:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
-
-        st.plotly_chart(
-            px.scatter(
-                cfp_board,
-                x='Rank',
-                y='CFP Make %',
-                size='Bye %',
-                color='Bubble Tier',
-                text='Team',
-                hover_data=['Record', 'SOS', 'Resume Score', 'QB Tier']
-            ).update_xaxes(autorange='reversed'),
-            use_container_width=True
-        )
-
     # --- RECRUITING RANKINGS ---
     with tabs[6]:
         st.header("🏈 Recruiting Rankings")
@@ -2557,7 +2873,7 @@ if data:
         current_recruiting = get_current_recruiting_snapshot()
         st.subheader("Current Season National Recruiting Snapshot")
         st.caption("This section is built from the recruiting ranking screenshots currently loaded into the app.")
-        st.dataframe(current_recruiting[['Rank','Team','Total','5★','4★','3★','Points','Blue Chip Ratio']], hide_index=True, use_container_width=True)
+        render_recruiting_snapshot_table(current_recruiting.head(25))
 
         if recruiting_board.empty:
             st.info("No recruiting board data could be built from the current recruiting file.")
@@ -2909,6 +3225,7 @@ if data:
             ),
             use_container_width=True
         )
+
 
     # --- AUTOMATION V2 ---
     with tabs[10]:
