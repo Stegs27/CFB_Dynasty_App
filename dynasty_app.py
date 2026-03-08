@@ -853,6 +853,319 @@ def get_record_parts(record_str):
         return 0, 0
 
 
+def render_roster_matchup_tab():
+    import plotly.graph_objects as go
+
+    st.header("🎯 Roster Matchup Analyzer")
+    st.caption("Select any two dynasty teams to break down their head-to-head matchup by position group. Who has the athletic edge when these rosters meet on the field?")
+
+    try:
+        roster = pd.read_csv('cfb26_rosters_top30.csv')
+    except Exception as e:
+        st.error(f"Could not load roster data: {e}")
+        return
+
+    teams = sorted(roster['Team'].unique().tolist())
+
+    POS_GROUPS = {
+        "QB":          ["QB"],
+        "Backfield":   ["HB"],
+        "Pass Catchers": ["WR", "TE"],
+        "O-Line":      ["LT", "LG", "C", "RG", "RT"],
+        "D-Line":      ["DT", "LEDG", "REDG"],
+        "Linebackers": ["MIKE", "WILL", "SAM"],
+        "Secondary":   ["CB", "FS", "SS"],
+    }
+
+    ATTRS = ["OVR", "SPD", "ACC", "AGI", "COD", "STR", "AWR"]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        team_a = st.selectbox("🏈 Team A", teams, index=0, key="matchup_team_a")
+    with col2:
+        team_b = st.selectbox("🏈 Team B", teams, index=1, key="matchup_team_b")
+
+    if team_a == team_b:
+        st.warning("Select two different teams to see a comparison.")
+        return
+
+    roster_a = roster[roster['Team'] == team_a].copy()
+    roster_b = roster[roster['Team'] == team_b].copy()
+    color_a  = get_team_primary_color(team_a)
+    color_b  = get_team_primary_color(team_b)
+    sec_a    = get_team_secondary_color(team_a)
+    sec_b    = get_team_secondary_color(team_b)
+
+    # ── TEAM HEADER ─────────────────────────────────────────────────────────
+    h1, hm, h2 = st.columns([5, 1, 5])
+    h1.markdown(
+        f"<h2 style='color:{color_a};text-align:center;margin-bottom:0;'>{team_a}</h2>",
+        unsafe_allow_html=True
+    )
+    hm.markdown(
+        "<h2 style='text-align:center;color:#6b7280;margin-bottom:0;'>vs</h2>",
+        unsafe_allow_html=True
+    )
+    h2.markdown(
+        f"<h2 style='color:{color_b};text-align:center;margin-bottom:0;'>{team_b}</h2>",
+        unsafe_allow_html=True
+    )
+
+    # ── OVERALL SUMMARY METRICS ──────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("📊 Team Athletic Profile")
+
+    def team_summary(df):
+        return {
+            "Avg OVR":      round(df["OVR"].mean(), 1),
+            "Top OVR":      int(df["OVR"].max()),
+            "90+ OVR Count":int((df["OVR"] >= 90).sum()),
+            "Avg SPD":      round(df["SPD"].mean(), 1),
+            "90+ SPD Count":int((df["SPD"] >= 90).sum()),
+            "Avg AGI":      round(df["AGI"].mean(), 1),
+            "Avg AWR":      round(df["AWR"].mean(), 1),
+        }
+
+    summ_a = team_summary(roster_a)
+    summ_b = team_summary(roster_b)
+
+    metric_rows = [
+        ("Avg OVR",       "Roster Average Overall",  False),
+        ("Top OVR",       "Best Player OVR",          False),
+        ("90+ OVR Count", "Players 90+ OVR",          False),
+        ("Avg SPD",       "Roster Average Speed",     False),
+        ("90+ SPD Count", "Players 90+ Speed",        False),
+        ("Avg AGI",       "Roster Average Agility",   False),
+        ("Avg AWR",       "Roster Average Awareness", False),
+    ]
+
+    rows_html = []
+    for key, label, lower_is_better in metric_rows:
+        va = summ_a[key]
+        vb = summ_b[key]
+        if va > vb:
+            win_a, win_b = True, False
+        elif vb > va:
+            win_a, win_b = False, True
+        else:
+            win_a = win_b = False
+
+        style_a = f"font-weight:900;color:{color_a};" if win_a else f"color:{color_a};"
+        style_b = f"font-weight:900;color:{color_b};" if win_b else f"color:{color_b};"
+        trophy_a = "🏆 " if win_a else ""
+        trophy_b = " 🏆" if win_b else ""
+
+        rows_html.append(f"""
+        <tr>
+          <td style="text-align:right;padding:6px 12px;font-size:1rem;{style_a}">{trophy_a}{va}</td>
+          <td style="text-align:center;padding:6px 8px;color:#9ca3af;font-size:0.8rem;font-weight:600;white-space:nowrap;">{label}</td>
+          <td style="text-align:left;padding:6px 12px;font-size:1rem;{style_b}">{vb}{trophy_b}</td>
+        </tr>
+        """)
+
+    st.markdown(f"""
+    <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:12px;margin:0.5rem 0;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:right;padding:8px 12px;color:{color_a};font-size:0.85rem;">{team_a}</th>
+            <th style="text-align:center;padding:8px;color:#6b7280;font-size:0.75rem;">METRIC</th>
+            <th style="text-align:left;padding:8px 12px;color:{color_b};font-size:0.85rem;">{team_b}</th>
+          </tr>
+        </thead>
+        <tbody>{''.join(rows_html)}</tbody>
+      </table>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── RADAR CHART ──────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("🕸️ Attribute Spider Chart")
+
+    avg_a = [round(roster_a[a].mean(), 1) for a in ATTRS]
+    avg_b = [round(roster_b[a].mean(), 1) for a in ATTRS]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=avg_a + [avg_a[0]],
+        theta=ATTRS + [ATTRS[0]],
+        fill="toself",
+        name=team_a,
+        line=dict(color=color_a, width=2),
+        fillcolor=color_a + "44",
+    ))
+    fig.add_trace(go.Scatterpolar(
+        r=avg_b + [avg_b[0]],
+        theta=ATTRS + [ATTRS[0]],
+        fill="toself",
+        name=team_b,
+        line=dict(color=color_b, width=2),
+        fillcolor=color_b + "44",
+    ))
+    fig.update_layout(
+        polar=dict(radialaxis=dict(visible=True, range=[60, 100], tickfont=dict(size=10))),
+        showlegend=True,
+        height=430,
+        margin=dict(t=50, b=50, l=60, r=60),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ── POSITIONAL BATTLE BREAKDOWN ─────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("⚔️ Positional Battle Breakdown")
+    st.caption("Top 3 players per group are used for comparison. Composite score = 70% OVR + 30% Speed.")
+
+    group_results = []
+
+    for group_name, positions in POS_GROUPS.items():
+        grp_a = roster_a[roster_a["Pos"].isin(positions)].nlargest(3, "OVR")
+        grp_b = roster_b[roster_b["Pos"].isin(positions)].nlargest(3, "OVR")
+
+        if grp_a.empty and grp_b.empty:
+            continue
+
+        avg_ovr_a = grp_a["OVR"].mean() if not grp_a.empty else 0
+        avg_ovr_b = grp_b["OVR"].mean() if not grp_b.empty else 0
+        avg_spd_a = grp_a["SPD"].mean() if not grp_a.empty else 0
+        avg_spd_b = grp_b["SPD"].mean() if not grp_b.empty else 0
+
+        score_a = round(avg_ovr_a * 0.70 + avg_spd_a * 0.30, 1)
+        score_b = round(avg_ovr_b * 0.70 + avg_spd_b * 0.30, 1)
+        margin   = abs(score_a - score_b)
+
+        if score_a > score_b:
+            winner_team  = team_a
+            winner_color = color_a
+        else:
+            winner_team  = team_b
+            winner_color = color_b
+
+        if margin < 0.5:
+            badge = "🟰 <span style='color:#9ca3af;'>EVEN</span>"
+        elif margin < 2.0:
+            badge = f"<span style='color:{winner_color};'>SLIGHT EDGE: {html.escape(winner_team)}</span>"
+        elif margin < 4.0:
+            badge = f"<span style='color:{winner_color};font-weight:700;'>EDGE: {html.escape(winner_team)}</span>"
+        else:
+            badge = f"<span style='color:{winner_color};font-weight:900;'>BIG ADVANTAGE: {html.escape(winner_team)} 🔥</span>"
+
+        group_results.append({
+            "group":   group_name,
+            "winner":  winner_team if margin >= 0.5 else "EVEN",
+            "margin":  margin,
+            "score_a": score_a,
+            "score_b": score_b,
+        })
+
+        with st.expander(f"**{group_name}**  —  {badge}", expanded=False):
+            score_c1, score_c2, score_c3 = st.columns([2, 3, 2])
+            score_c1.metric(f"{team_a} Score", score_a)
+            score_c3.metric(f"{team_b} Score", score_b)
+            score_c2.markdown(
+                f"<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>",
+                unsafe_allow_html=True,
+            )
+
+            pa, pb = st.columns(2)
+            disp_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
+            with pa:
+                st.markdown(f"**<span style='color:{color_a};'>{team_a}</span>**", unsafe_allow_html=True)
+                if grp_a.empty:
+                    st.caption("No players at this position.")
+                else:
+                    st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+            with pb:
+                st.markdown(f"**<span style='color:{color_b};'>{team_b}</span>**", unsafe_allow_html=True)
+                if grp_b.empty:
+                    st.caption("No players at this position.")
+                else:
+                    st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+
+    # ── BATTLE SCORECARD ─────────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("🏟️ Battle Scorecard")
+
+    wins_a = sum(1 for r in group_results if r["winner"] == team_a)
+    wins_b = sum(1 for r in group_results if r["winner"] == team_b)
+    ties    = sum(1 for r in group_results if r["winner"] == "EVEN")
+    total   = len(group_results)
+
+    sc1, sc2, sc3 = st.columns(3)
+    sc1.metric(f"{team_a} Group Wins",  wins_a)
+    sc2.metric("Even Matchups",          ties)
+    sc3.metric(f"{team_b} Group Wins",  wins_b)
+
+    # ── SCOUTING REPORT ──────────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("📋 Scouting Report")
+
+    adv_a = sorted([r for r in group_results if r["winner"] == team_a], key=lambda x: x["margin"], reverse=True)
+    adv_b = sorted([r for r in group_results if r["winner"] == team_b], key=lambda x: x["margin"], reverse=True)
+
+    lines = []
+
+    # Positional advantages
+    if adv_a:
+        top_groups = ", ".join([r["group"] for r in adv_a[:2]])
+        lines.append(f"**{team_a}** has the roster advantage at **{top_groups}**{' and ' + str(len(adv_a)-2) + ' more groups' if len(adv_a) > 2 else ''}.")
+    if adv_b:
+        top_groups = ", ".join([r["group"] for r in adv_b[:2]])
+        lines.append(f"**{team_b}** counters with the edge at **{top_groups}**{' and ' + str(len(adv_b)-2) + ' more groups' if len(adv_b) > 2 else ''}.")
+
+    # Speed narrative
+    spd_a = summ_a["90+ SPD Count"]
+    spd_b = summ_b["90+ SPD Count"]
+    if spd_a > spd_b + 1:
+        lines.append(f"The speed gap is real — **{team_a}** has **{spd_a}** players clocked at 90+ SPD vs {team_b}'s **{spd_b}**. That kind of depth wins in space, especially late in games when pursuit angles break down.")
+    elif spd_b > spd_a + 1:
+        lines.append(f"**{team_b}** brings the burners — **{spd_b}** players at 90+ SPD vs {team_a}'s **{spd_a}**. That's a matchup nightmare if you're trying to run the perimeter or play press coverage.")
+    else:
+        lines.append(f"Speed depth is essentially equal — **{spd_a}** vs **{spd_b}** players at 90+ SPD. This game doesn't get decided on raw athleticism; it comes down to execution and game planning.")
+
+    # AWR narrative
+    awr_a = summ_a["Avg AWR"]
+    awr_b = summ_b["Avg AWR"]
+    if abs(awr_a - awr_b) >= 3:
+        smarter = team_a if awr_a > awr_b else team_b
+        smarter_val = max(awr_a, awr_b)
+        lines.append(f"**{smarter}** also has the awareness edge ({smarter_val} avg AWR), which means fewer blown assignments and faster reads. Smart football on top of the athletic advantage is a problem.")
+
+    # Big advantage callout
+    big_adv_a = [r for r in adv_a if r["margin"] >= 4]
+    big_adv_b = [r for r in adv_b if r["margin"] >= 4]
+    if big_adv_a:
+        lines.append(f"The **{', '.join([r['group'] for r in big_adv_a])}** unit for **{team_a}** isn't just better — it's a genuine mismatch. Game-planning around that has to be the top priority for {team_b}'s coaching staff.")
+    if big_adv_b:
+        lines.append(f"**{team_b}** has a dominant edge at **{', '.join([r['group'] for r in big_adv_b])}**. That's the kind of positional advantage that bends entire game plans and keeps coordinators up at night.")
+
+    # Overall verdict
+    if wins_a > wins_b:
+        verdict_team, verdict_color = team_a, color_a
+        verdict_desc = f"wins {wins_a} of {total} positional battles"
+    elif wins_b > wins_a:
+        verdict_team, verdict_color = team_b, color_b
+        verdict_desc = f"wins {wins_b} of {total} positional battles"
+    else:
+        verdict_team  = "Neither team"
+        verdict_color = "#9ca3af"
+        verdict_desc  = "— this matchup is an absolute coin flip on paper"
+
+    for line in lines:
+        st.markdown(line)
+
+    st.markdown(
+        f"""<div style="padding:1rem 1.25rem;border-left:6px solid {verdict_color};
+        background:{verdict_color}18;border-radius:8px;margin-top:1rem;">
+        <strong>Roster Verdict:</strong> <span style="color:{verdict_color};font-size:1.05rem;font-weight:800;">
+        {html.escape(verdict_team)}</span> {verdict_desc}. Paper never plays the game, but this one matters.
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+
 def load_data():
     try:
         # LOAD ALL CORE FILES
@@ -2722,6 +3035,7 @@ if data:
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
         "🎥 Automation V2",
+        "🎯 Roster Matchup",
     ])
 
     # --- WAR ROOM ---
@@ -3230,6 +3544,10 @@ if data:
     # --- AUTOMATION V2 ---
     with tabs[10]:
         render_automation_v2_tab(model_2041, rec)
+
+    # --- ROSTER MATCHUP ---
+    with tabs[11]:
+        render_roster_matchup_tab()
 
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
