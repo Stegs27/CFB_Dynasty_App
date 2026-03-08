@@ -910,18 +910,29 @@ def render_roster_matchup_tab():
     sec_a    = get_team_secondary_color(team_a)
     sec_b    = get_team_secondary_color(team_b)
 
+    logo_uri_a = image_file_to_data_uri(get_logo_source(team_a))
+    logo_uri_b = image_file_to_data_uri(get_logo_source(team_b))
+    logo_html_a = f"<img src='{logo_uri_a}' style='width:72px;height:72px;object-fit:contain;display:block;margin:0 auto 6px auto;'/>" if logo_uri_a else "<div style='font-size:48px;text-align:center;'>🏈</div>"
+    logo_html_b = f"<img src='{logo_uri_b}' style='width:72px;height:72px;object-fit:contain;display:block;margin:0 auto 6px auto;'/>" if logo_uri_b else "<div style='font-size:48px;text-align:center;'>🏈</div>"
+
     # ── TEAM HEADER ─────────────────────────────────────────────────────────
     h1, hm, h2 = st.columns([5, 1, 5])
     h1.markdown(
-        f"<h2 style='color:{color_a};text-align:center;margin-bottom:0;'>{team_a}</h2>",
+        f"""<div style='text-align:center;padding:12px 0;'>
+        {logo_html_a}
+        <span style='color:{color_a};font-size:1.4rem;font-weight:900;'>{team_a}</span>
+        </div>""",
         unsafe_allow_html=True
     )
     hm.markdown(
-        "<h2 style='text-align:center;color:#6b7280;margin-bottom:0;'>vs</h2>",
+        "<div style='text-align:center;padding-top:28px;color:#6b7280;font-size:1.5rem;font-weight:700;'>vs</div>",
         unsafe_allow_html=True
     )
     h2.markdown(
-        f"<h2 style='color:{color_b};text-align:center;margin-bottom:0;'>{team_b}</h2>",
+        f"""<div style='text-align:center;padding:12px 0;'>
+        {logo_html_b}
+        <span style='color:{color_b};font-size:1.4rem;font-weight:900;'>{team_b}</span>
+        </div>""",
         unsafe_allow_html=True
     )
 
@@ -1069,25 +1080,48 @@ def render_roster_matchup_tab():
             "score_b": score_b,
         })
 
-        with st.expander(f"**{group_name}**  —  {badge}", expanded=False):
+        # Plain-text expander label (no HTML allowed in expander title)
+        if margin < 0.5:
+            plain_label = f"{group_name}  —  🟰 EVEN"
+        elif margin < 2.0:
+            plain_label = f"{group_name}  —  Slight Edge: {winner_team}"
+        elif margin < 4.0:
+            plain_label = f"{group_name}  —  Edge: {winner_team} ✅"
+        else:
+            plain_label = f"{group_name}  —  BIG ADVANTAGE: {winner_team} 🔥"
+
+        with st.expander(plain_label, expanded=False):
+            # Styled badge rendered INSIDE where HTML works fine
+            st.markdown(badge, unsafe_allow_html=True)
+
             score_c1, score_c2, score_c3 = st.columns([2, 3, 2])
             score_c1.metric(f"{team_a} Score", score_a)
             score_c3.metric(f"{team_b} Score", score_b)
             score_c2.markdown(
-                f"<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>",
+                "<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>",
                 unsafe_allow_html=True,
             )
 
             pa, pb = st.columns(2)
             disp_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
+
+            sm_logo_a = f"<img src='{logo_uri_a}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_a else "🏈 "
+            sm_logo_b = f"<img src='{logo_uri_b}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_b else "🏈 "
+
             with pa:
-                st.markdown(f"**<span style='color:{color_a};'>{team_a}</span>**", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_a}<span style='color:{color_a};font-weight:800;font-size:0.95rem;'>{team_a}</span></div>",
+                    unsafe_allow_html=True
+                )
                 if grp_a.empty:
                     st.caption("No players at this position.")
                 else:
                     st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
             with pb:
-                st.markdown(f"**<span style='color:{color_b};'>{team_b}</span>**", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_b}<span style='color:{color_b};font-weight:800;font-size:0.95rem;'>{team_b}</span></div>",
+                    unsafe_allow_html=True
+                )
                 if grp_b.empty:
                     st.caption("No players at this position.")
                 else:
@@ -1103,9 +1137,17 @@ def render_roster_matchup_tab():
     total   = len(group_results)
 
     sc1, sc2, sc3 = st.columns(3)
-    sc1.metric(f"{team_a} Group Wins",  wins_a)
-    sc2.metric("Even Matchups",          ties)
-    sc3.metric(f"{team_b} Group Wins",  wins_b)
+    sc1.markdown(
+        f"<div style='text-align:center;'>{logo_html_a}<span style='font-size:0.8rem;color:{color_a};font-weight:700;'>{team_a}</span></div>",
+        unsafe_allow_html=True
+    )
+    sc1.metric("Group Wins", wins_a)
+    sc2.metric("Even Matchups", ties)
+    sc3.markdown(
+        f"<div style='text-align:center;'>{logo_html_b}<span style='font-size:0.8rem;color:{color_b};font-weight:700;'>{team_b}</span></div>",
+        unsafe_allow_html=True
+    )
+    sc3.metric("Group Wins", wins_b)
 
     # ── SCOUTING REPORT ──────────────────────────────────────────────────────
     st.markdown("---")
