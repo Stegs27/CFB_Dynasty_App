@@ -5728,7 +5728,7 @@ if data:
                     _gtype_map[_key] = _gt
 
                 _games_sorted = user_games.sort_values('Margin')
-                _matchups_html = "<div style='display:flex;flex-direction:column;gap:6px;'>"
+                st.markdown("<div style='display:flex;flex-direction:column;gap:6px;'>", unsafe_allow_html=True)
                 for _, _g in _games_sorted.iterrows():
                     _vu2, _hu2 = str(_g['V_User_Final']), str(_g['H_User_Final'])
                     _vt2, _ht2 = str(_g['Visitor_Final']), str(_g['Home_Final'])
@@ -5743,34 +5743,33 @@ if data:
                     _gt_badge = (f"<span style='font-size:0.6rem;padding:2px 6px;background:#1e293b;"
                                  f"color:#94a3b8;border-radius:10px;'>{html.escape(_gt_label)}</span>"
                                  if _gt_label and _gt_label != 'Regular Season' else "")
-                    _matchups_html += f"""
-                    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
+                    _badge_row = (f"<div style='width:100%;display:flex;justify-content:center;margin-top:2px;'>{_gt_badge}</div>"
+                                  if _gt_badge else "")
+                    _card_html = f"""<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
                                 background:#0a1628;border-radius:8px;border:1px solid #1e293b;
                                 flex-wrap:wrap;">
                       <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:120px;">
                         {_vl}
                         <div>
-                          <div style="color:{_vc};font-size:0.8rem;{_vw}
-                                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">{html.escape(_vt2)}</div>
+                          <div style="color:{_vc};font-size:0.8rem;{_vw}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">{html.escape(_vt2)}</div>
                           <div style="font-size:0.62rem;color:#475569;">{html.escape(_vu2)}</div>
                         </div>
                       </div>
                       <div style="text-align:center;min-width:70px;">
-                        <div style="font-weight:900;font-size:1rem;color:#f1f5f9;">{_vp} – {_hp}</div>
-                        <div style="font-size:0.6rem;color:#475569;">±{int(_g['Margin'])}</div>
+                        <div style="font-weight:900;font-size:1rem;color:#f1f5f9;">{_vp} &ndash; {_hp}</div>
+                        <div style="font-size:0.6rem;color:#475569;">&#177;{int(_g['Margin'])}</div>
                       </div>
                       <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;min-width:120px;">
                         <div style="text-align:right;">
-                          <div style="color:{_hc};font-size:0.8rem;{_hw}
-                                      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">{html.escape(_ht2)}</div>
+                          <div style="color:{_hc};font-size:0.8rem;{_hw}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">{html.escape(_ht2)}</div>
                           <div style="font-size:0.62rem;color:#475569;">{html.escape(_hu2)}</div>
                         </div>
                         {_hl}
                       </div>
-                      {"<div style='width:100%;display:flex;justify-content:center;margin-top:2px;'>" + _gt_badge + "</div>" if _gt_badge else ""}
+                      {_badge_row}
                     </div>"""
-                _matchups_html += "</div>"
-                st.markdown(_matchups_html, unsafe_allow_html=True)
+                    st.markdown(_card_html, unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
         # ── ALL GAMES TABLE (collapsible) ─────────────────────────────────────
         st.markdown("---")
