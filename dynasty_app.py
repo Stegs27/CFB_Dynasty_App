@@ -1022,9 +1022,9 @@ def render_roster_matchup_tab():
         for key, label in metric_rows:
             va, vb = summ_a[key], summ_b[key]
             col_a, col_mid, col_b = st.columns([3, 3, 3])
-            col_a.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_a};'>{'🏆 ' if va > vb else ''}**{va}**</div>", unsafe_allow_html=True)
+            col_a.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_a};'>{'🏆 ' if va > vb else ''}<strong>{va}</strong></div>", unsafe_allow_html=True)
             col_mid.markdown(f"<div style='text-align:center;color:#6b7280;font-size:0.78rem;font-weight:600;'>{label}</div>", unsafe_allow_html=True)
-            col_b.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_b};'>**{vb}**{' 🏆' if vb > va else ''}</div>", unsafe_allow_html=True)
+            col_b.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_b};'><strong>{vb}</strong>{' 🏆' if vb > va else ''}</div>", unsafe_allow_html=True)
         st.markdown("<hr style='margin:8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
 
         # Radar
