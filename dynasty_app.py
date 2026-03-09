@@ -4840,18 +4840,18 @@ if data:
             # ── 4. BOWL SEASON STATUS ─────────────────────────────────────
             # General team-health snapshot — no game-specific score callouts
             if 'Current CFP Ranking' in model_2041.columns:
-                _bowl_teams = model_2041[
-                    pd.to_numeric(model_2041['Current CFP Ranking'], errors='coerce').fillna(99) <= 12
-                ].sort_values(by=pd.to_numeric(model_2041['Current CFP Ranking'], errors='coerce'))
+                _bt = model_2041.copy()
+                _bt['_cfp_num'] = pd.to_numeric(_bt['Current CFP Ranking'], errors='coerce')
+                _bowl_teams = _bt[_bt['_cfp_num'].fillna(99) <= 25].sort_values('_cfp_num')
                 if not _bowl_teams.empty:
                     _cfp_list = ", ".join(
-                        f"<strong>{str(r['USER'])}</strong> ({html.escape(str(r['TEAM']))} #{int(pd.to_numeric(r['Current CFP Ranking'], errors='coerce'))})"
+                        f"<strong>{str(r['USER'])}</strong> ({html.escape(str(r['TEAM']))} #{int(r['_cfp_num'])})"
                         for _, r in _bowl_teams.iterrows()
-                        if pd.notna(pd.to_numeric(r['Current CFP Ranking'], errors='coerce'))
+                        if pd.notna(r['_cfp_num'])
                     )
                     if _cfp_list:
                         headlines.append(("🏟️", "CFP Field Watch",
-                            f"User programs in or on the bubble of the 12-team CFP: {_cfp_list}. "
+                            f"Ranked user programs heading into bowl season: {_cfp_list}. "
                             f"Conference champions get priority seeding — top 4 earn first-round byes. "
                             f"Every bowl result reshapes the natty odds."))
 
