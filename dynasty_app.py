@@ -3968,12 +3968,13 @@ if data:
         except Exception:
             _cpu_sos = pd.DataFrame()
 
-        # Normalise user names — Mike Stegeman → Mike
+        # Normalise user names — "Mike Stegeman" → "Mike", "Devin Stegeman" → "Devin"
+        _known_users = {'mike':'Mike','devin':'Devin','josh':'Josh','noah':'Noah','doug':'Doug','nick':'Nick'}
         def _norm_user(u):
             if pd.isna(u): return 'CPU'
             u = str(u).strip()
-            if u.lower().startswith('mike'): return 'Mike'
-            return u
+            first = u.split()[0].lower() if u else ''
+            return _known_users.get(first, u)
 
         if not _cpu_sos.empty:
             _cpu_sos['Vis_User']  = _cpu_sos['Vis_User'].apply(_norm_user)
@@ -4836,94 +4837,23 @@ if data:
                         f"at <strong>#{_no1_rank}</strong> with a {_no1_rec_w}&ndash;{_no1_rec_l} record and "
                         f"{_no1_natty}% natty odds. All ranked user programs: {_rank_list}."))
 
-            # ── 4. CURRENT SEASON GAME RESULTS ───────────────────────────
-            # Pull games from the current dynasty year and generate narratives
-            _curr_yr = CURRENT_YEAR
-            _yr_scores = scores[scores[meta['yr']] == _curr_yr].copy() if not scores.empty else pd.DataFrame()
-
-            if not _yr_scores.empty:
-                # Build per-user bowl record from current year scores
-                _bowl_rec = {}  # user -> [wins, losses]
-                _game_narratives = []
-
-                for _, _gs in _yr_scores.iterrows():
-                    _vu = str(_gs.get('V_User_Final', _gs.get('Vis_User', ''))).strip()
-                    _hu = str(_gs.get('H_User_Final', _gs.get('Home_User', ''))).strip()
-                    _vt = str(_gs.get('Visitor_Final', _gs.get('Visitor', ''))).strip()
-                    _ht = str(_gs.get('Home_Final', _gs.get('Home', ''))).strip()
-                    try:
-                        _vp = int(_gs.get('V_Pts', _gs.get('Vis Score', 0)))
-                        _hp = int(_gs.get('H_Pts', _gs.get('Home Score', 0)))
-                    except (ValueError, TypeError):
-                        continue
-                    _margin = abs(_vp - _hp)
-                    _vis_won = _vp > _hp
-                    _wu = _vu if _vis_won else _hu
-                    _lu = _hu if _vis_won else _vu
-                    _wt = _vt if _vis_won else _ht
-                    _lt = _ht if _vis_won else _vt
-                    _ws = max(_vp, _hp)
-                    _ls = min(_vp, _hp)
-
-                    _bowl_rec.setdefault(_wu, [0, 0])
-                    _bowl_rec.setdefault(_lu, [0, 0])
-                    _bowl_rec[_wu][0] += 1
-                    _bowl_rec[_lu][1] += 1
-                    _game_narratives.append({
-                        'winner_user': _wu, 'loser_user': _lu,
-                        'winner_team': _wt, 'loser_team': _lt,
-                        'winner_pts': _ws, 'loser_pts': _ls, 'margin': _margin,
-                    })
-
-                # Biggest winner this bowl round
-                if _bowl_rec:
-                    _best_user = max(_bowl_rec, key=lambda u: (_bowl_rec[u][0], -_bowl_rec[u][1]))
-                    _bw, _bl = _bowl_rec[_best_user]
-                    _best_team_rows = model_2041[model_2041['USER'] == _best_user]
-                    _best_team = str(_best_team_rows.iloc[0]['TEAM']) if not _best_team_rows.empty else _best_user
-                    if _bw >= 2:
-                        headlines.append(("🔥", f"Bowl Week MVP: {_best_user}",
-                            f"<strong>{_best_user}</strong> ({html.escape(_best_team)}) went "
-                            f"<strong>{_bw}&ndash;{_bl}</strong> this bowl round. "
-                            f"That's the kind of statement run that reshapes the natty picture."))
-                    elif _bw == 1 and _bl == 0:
-                        headlines.append(("✅", f"Bowl Week Win: {_best_user}",
-                            f"<strong>{_best_user}</strong> ({html.escape(_best_team)}) picked up a "
-                            f"bowl week W to stay alive."))
-
-                # Biggest blowout
-                if _game_narratives:
-                    _blowout = max(_game_narratives, key=lambda g: g['margin'])
-                    if _blowout['margin'] >= 20:
-                        headlines.append(("💥", "Blowout of the Round",
-                            f"<strong>{_blowout['winner_user']}</strong> put a beating on "
-                            f"<strong>{_blowout['loser_user']}</strong> — "
-                            f"{html.escape(_blowout['winner_team'])} "
-                            f"{_blowout['winner_pts']}&ndash;{_blowout['loser_pts']} "
-                            f"(margin: {_blowout['margin']}). "
-                            f"{html.escape(_blowout['loser_team'])} never had an answer."))
-
-                # Closest game / thriller
-                _close_games = [g for g in _game_narratives if g['margin'] <= 7]
-                if _close_games:
-                    _thriller = min(_close_games, key=lambda g: g['margin'])
-                    headlines.append(("😰", "Thriller of the Round",
-                        f"<strong>{_thriller['winner_user']}</strong> survived a gut-punch — "
-                        f"{html.escape(_thriller['winner_team'])} "
-                        f"{_thriller['winner_pts']}&ndash;{_thriller['loser_pts']} "
-                        f"over {html.escape(_thriller['loser_team'])} "
-                        f"(margin: {_thriller['margin']}). "
-                        f"<strong>{_thriller['loser_user']}</strong> will feel that one."))
-
-                # Users who went 0-X
-                _eliminated = [u for u, (w, l) in _bowl_rec.items() if w == 0 and l > 0]
-                if _eliminated:
-                    for _eu in _eliminated:
-                        _et_rows = model_2041[model_2041['USER'] == _eu]
-                        _et = str(_et_rows.iloc[0]['TEAM']) if not _et_rows.empty else _eu
-                        headlines.append(("🪦", f"Bracket Chaos: {_eu}",
-                            f"<strong>{_eu}</strong> ({html.escape(_et)}) went 0&ndash;1 this round. "
-                            f"One more loss ends the season."))
+            # ── 4. BOWL SEASON STATUS ─────────────────────────────────────
+            # General team-health snapshot — no game-specific score callouts
+            if 'Current CFP Ranking' in model_2041.columns:
+                _bowl_teams = model_2041[
+                    pd.to_numeric(model_2041['Current CFP Ranking'], errors='coerce').fillna(99) <= 12
+                ].sort_values(by=pd.to_numeric(model_2041['Current CFP Ranking'], errors='coerce'))
+                if not _bowl_teams.empty:
+                    _cfp_list = ", ".join(
+                        f"<strong>{str(r['USER'])}</strong> ({html.escape(str(r['TEAM']))} #{int(pd.to_numeric(r['Current CFP Ranking'], errors='coerce'))})"
+                        for _, r in _bowl_teams.iterrows()
+                        if pd.notna(pd.to_numeric(r['Current CFP Ranking'], errors='coerce'))
+                    )
+                    if _cfp_list:
+                        headlines.append(("🏟️", "CFP Field Watch",
+                            f"User programs in or on the bubble of the 12-team CFP: {_cfp_list}. "
+                            f"Conference champions get priority seeding — top 4 earn first-round byes. "
+                            f"Every bowl result reshapes the natty odds."))
 
             # ── 5. COLLAPSE WATCH ─────────────────────────────────────────
             _cr_user  = str(collapse_row['USER'])
