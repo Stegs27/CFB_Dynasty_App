@@ -1,13 +1,13 @@
-﻿USER,YEAR,TEAM,OVERALL,OFFENSE,DEFENSE,⭐ STAR SKILL GUY (Top OVR),Star Skill Guy is Generational Speed?,Team Speed (90+ Speed Guys),Def Speed (90+ speed),Off Speed (90+ speed),Game Breakers (90+ Speed & 90+ Acceleration),Generational (96+ speed or 96+ Acceleration),Blue Chip Ratio (4 & 5 star recruit ratio on roster),Current CFP Ranking,QB OVR,QB is Elite (90+),QB is Leader (85+),QB is Average Joe (between 80 and 84),Qb is Ass (under 80),Combined Opponent Wins,Combined Opponent Losses,Current Record Wins,Current Record Losses
-Noah,2041,Texas Tech,90,91,89,HB B.J. Henery (JR),Yes,13,7,6,12,2,32%,7,89,No,Yes,No,No,74,50,9,1
-Doug,2041,Florida,87,86,89,HB Kevin McCallister (JR),Yes,9,4,5,6,2,29%,21,78,No,No,No,Yes,80,44,8,2
-Nick,2041,Florida State,89,89,89,WR Joshua Nash (JR),No,15,9,6,10,0,36%,4,88,No,Yes,No,No,75,37,9,1
-Josh,2041,USF,84,84,84,QB Terrelle Bethea (SO),No,15,5,10,13,5,19%,3,95,Yes,Yes,No,No,75,40,9,0
-Mike,2041,San Jose State,73,76,69,WR Gideon Edebali (SR),No,4,1,3,3,1,4%,2,84,No,No,Yes,No,67,46,9,1
-Devin,2041,Bowling Green,89,89,91,HB Carl Isaacs (SR),Yes,10,6,4,8,3,41%,1,91,Yes,Yes,No,No,73,42,9,0
-Noah,2042,Texas Tech,,,,,,,,,,,,,,,,,,,,,
-Doug,2042,Florida,,,,,,,,,,,,,,,,,,,,,
-Nick,2042,Florida State,,,,,,,,,,,,,,,,,,,,,
-Josh,2042,USF,,,,,,,,,,,,,,,,,,,,,
-Mike,2042,San Jose State,,,,,,,,,,,,,,,,,,,,,
-Devin,2042,Bowling Green,,,,,,,,,,,,,,,,,,,,,
+USER,YEAR,TEAM,CONFERENCE,OVERALL,OFFENSE,DEFENSE,⭐ STAR SKILL GUY (Top OVR),Star Skill Guy is Generational Speed?,Team Speed (90+ Speed Guys),Def Speed (90+ speed),Off Speed (90+ speed),Game Breakers (90+ Speed & 90+ Acceleration),Generational (96+ speed or 96+ Acceleration),Blue Chip Ratio (4 & 5 star recruit ratio on roster),Current CFP Ranking,QB OVR,QB is Elite (90+),QB is Leader (85+),QB is Average Joe (between 80 and 84),Qb is Ass (under 80),Combined Opponent Wins,Combined Opponent Losses,Current Record Wins,Current Record Losses
+Noah,2041,Texas Tech,B1G,90.0,91.0,89.0,HB B.J. Henery (JR),Yes,13.0,7.0,6.0,12.0,2.0,32%,7.0,89.0,No,Yes,No,No,74.0,50.0,9.0,1.0
+Doug,2041,Florida,SEC,87.0,86.0,89.0,HB Kevin McCallister (JR),Yes,9.0,4.0,5.0,6.0,2.0,29%,21.0,78.0,No,No,No,Yes,80.0,44.0,8.0,2.0
+Nick,2041,Florida State,SEC,89.0,89.0,89.0,WR Joshua Nash (JR),No,15.0,9.0,6.0,10.0,0.0,36%,4.0,88.0,No,Yes,No,No,75.0,37.0,9.0,1.0
+Josh,2041,USF,B1G,84.0,84.0,84.0,QB Terrelle Bethea (SO),No,15.0,5.0,10.0,13.0,5.0,19%,3.0,95.0,Yes,Yes,No,No,75.0,40.0,9.0,0.0
+Mike,2041,San Jose State,B1G,73.0,76.0,69.0,WR Gideon Edebali (SR),No,4.0,1.0,3.0,3.0,1.0,4%,2.0,84.0,No,No,Yes,No,67.0,46.0,9.0,1.0
+Devin,2041,Bowling Green,SEC,89.0,89.0,91.0,HB Carl Isaacs (SR),Yes,10.0,6.0,4.0,8.0,3.0,41%,1.0,91.0,Yes,Yes,No,No,73.0,42.0,9.0,0.0
+Noah,2042,Texas Tech,B1G,,,,,,,,,,,,,,,,,,,,,
+Doug,2042,Florida,SEC,,,,,,,,,,,,,,,,,,,,,
+Nick,2042,Florida State,SEC,,,,,,,,,,,,,,,,,,,,,
+Josh,2042,USF,B1G,,,,,,,,,,,,,,,,,,,,,
+Mike,2042,San Jose State,B1G,,,,,,,,,,,,,,,,,,,,,
+Devin,2042,Bowling Green,SEC,,,,,,,,,,,,,,,,,,,,,

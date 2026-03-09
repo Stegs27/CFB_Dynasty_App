@@ -1879,8 +1879,40 @@ def render_recruiting_snapshot_table(df):
     st.markdown(table_html, unsafe_allow_html=True)
 
 
+# ── Conference strength tiers ─────────────────────────────────────────────────
+# Calibrated to THIS dynasty's actual conference power — not real-world 2024.
+# Updated by league consensus. Scale: A+=12 down to D+=0.5
+CONF_STRENGTH = {
+    'Big 12':       12.0,  # A+ — co-king of the dynasty
+    'B1G':          12.0,  # A+ — co-king of the dynasty
+    'SEC':          10.0,  # A  — still a murderers row, just a tick behind
+    'ACC':           8.0,  # A- — real teeth, not a pushover
+    'Independents':  6.5,  # B+ — FBS Independents, no conf games to hide in
+    'American':      5.0,  # B
+    'MWC':           4.0,  # B-
+    'Pac-12':        3.0,  # C+
+    'MAC':           2.0,  # C
+    'Sun Belt':      1.0,  # C-
+    'CUSA':          0.5,  # D+
+    'Other':         0.0,
+}
+
+def conf_bonus(conference):
+    return CONF_STRENGTH.get(str(conference).strip(), 0.0)
+
 def build_2041_model_table(r_2041, stats_df, rec_df):
     df = r_2041.copy()
+
+    # Pull conference from TeamRatingsHistory if present
+    if 'CONFERENCE' not in df.columns:
+        try:
+            _rat_conf = pd.read_csv('TeamRatingsHistory.csv')[['TEAM','CONFERENCE']].drop_duplicates('TEAM')
+            df = df.merge(_rat_conf, on='TEAM', how='left')
+        except Exception:
+            pass
+    if 'CONFERENCE' not in df.columns:
+        df['CONFERENCE'] = 'Other'
+    df['CONFERENCE'] = df['CONFERENCE'].fillna('Other')
 
     stats_lookup = stats_df[['User', 'Career Win %', 'Career Record', 'Natties', 'Natty Apps', 'CFP Wins', 'CFP Losses', 'Conf Titles']].copy()
     stats_lookup = stats_lookup.rename(columns={'User': 'USER'})
@@ -2118,6 +2150,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + pedigree_bonus
             - heartbreak_penalty
             - cfp_fail_penalty
+            + conf_bonus(row.get('CONFERENCE', 'Other'))
             # ── intentionally excluded ──
             # Current Win %   — unknown preseason
             # Resume Score    — built from game results
@@ -2162,7 +2195,8 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + qb_cfp_bonus(row) * 0.95
             + row['CFP Wins'] * 1.2
             - row['CFP Losses'] * 1.2
-            + coaching_cred,
+            + coaching_cred
+            + conf_bonus(row.get('CONFERENCE', 'Other')),
             1
         )
 
@@ -2180,6 +2214,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Career Win %'] * 0.18
         + df['SOS'] * 0.58
         + df.apply(qb_cfp_bonus, axis=1)
+        + df['CONFERENCE'].apply(conf_bonus)
     )
     _pre_cfp_min = _pre_cfp_raw.min()
     _pre_cfp_spread = max(1, _pre_cfp_raw.max() - _pre_cfp_min)
@@ -3874,6 +3909,10 @@ if data:
             pi    = row.get('Preseason PI', row.get('Power Index', 0))
             natty = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
             cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
+            _conf = str(row.get('CONFERENCE', ''))
+            _conf_colors = {'SEC': ('#fbbf24','#78350f'), 'B1G': ('#60a5fa','#1e3a5f'), 'ACC': ('#a78bfa','#3b1d6e'), 'Big 12': ('#f97316','#431407')}
+            _cc = _conf_colors.get(_conf, ('#6b7280','#1f2937'))
+            conf_badge = f"<span style='display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};border:1px solid {_cc[0]}44;'>{html.escape(_conf) if _conf else ''}</span>" if _conf and _conf != 'Other' else ''
             qb_tier = row.get('QB Tier', '—')
             icon    = rank_icons[idx] if idx < len(rank_icons) else "▪️"
             label   = rank_labels[idx] if idx < len(rank_labels) else ""
@@ -3894,6 +3933,7 @@ if data:
                 <span style='color:#9ca3af;font-size:0.82rem;margin-left:8px;'>({html.escape(user)})</span>
                 <span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;
                 font-size:0.7rem;font-weight:900;background:{lcolor};color:white;'>{label}</span>
+                {conf_badge}
               </div>
               <div style='text-align:right;min-width:200px;'>
                 <span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
