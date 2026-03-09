@@ -580,7 +580,7 @@ def render_speed_freaks_table(df):
             f"{float(row.get('Team Speed Score', 0)):.1f}",
             html.escape(str(row.get('Where is the Speed?', '—'))),
             str(int(row.get('Team Speed (90+ Speed Guys)', 0))),
-            str(int(row.get('Game Breakers (90+ Speed & 90+ Acceleration)', 0))),
+            str(int(row.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0))),
             str(int(row.get('Generational (96+ speed or 96+ Acceleration)', 0))),
         ]
         for disp in display_vals:
@@ -596,7 +596,7 @@ def render_speed_freaks_table(df):
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Team Speed Score</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Where is the Speed?</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">90+ Speed</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Game Breakers</th>
+            <th style="padding:10px 12px;color:#111827;font-weight:800;">Quad 90</th>
             <th style="padding:10px 12px;color:#111827;font-weight:800;">Gen Freaks</th>
           </tr>
         </thead>
@@ -1725,7 +1725,7 @@ def load_data():
         for num_col in [
             'OVERALL', 'OFFENSE', 'DEFENSE', 'Team Speed (90+ Speed Guys)',
             'Def Speed (90+ speed)', 'Off Speed (90+ speed)',
-            'Game Breakers (90+ Speed & 90+ Acceleration)',
+            'Quad 90 (90+ SPD, ACC, AGI & COD)',
             'Generational (96+ speed or 96+ Acceleration)',
             'Current CFP Ranking', 'QB OVR'
         ]:
@@ -2016,7 +2016,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['OFFENSE'] * 0.68
             + row['DEFENSE'] * 0.68
             + team_speed_component
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.65
+            + row['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 1.65
             + row['Generational (96+ speed or 96+ Acceleration)'] * 7.2
             + row['BCR_Val'] * 0.52
             + row['Recruit Score'] * 0.58
@@ -2141,7 +2141,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['OFFENSE'] * 0.68
             + row['DEFENSE'] * 0.68
             + team_speed_component
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.65
+            + row['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 1.65
             + row['Generational (96+ speed or 96+ Acceleration)'] * 7.2
             + row['BCR_Val'] * 0.52
             + row['Recruit Score'] * 0.58
@@ -2186,7 +2186,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['OFFENSE'] * 0.82
             + row['DEFENSE'] * 0.82
             + row['Team Speed (90+ Speed Guys)'] * 2.1
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.6
+            + row['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 1.6
             + row['Generational (96+ speed or 96+ Acceleration)'] * 5.2
             + row['BCR_Val'] * 0.56
             + row['Recruit Score'] * 0.50
@@ -2209,7 +2209,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Team Speed (90+ Speed Guys)'] * 1.95
         + df['Off Speed (90+ speed)'] * 0.75
         + df['Def Speed (90+ speed)'] * 0.75
-        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.25
+        + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 1.25
         + df['Generational (96+ speed or 96+ Acceleration)'] * 3.1
         + df['Recruit Score'] * 0.46
         + df['Career Win %'] * 0.18
@@ -2233,7 +2233,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['OFFENSE'] * 0.82
             + row['DEFENSE'] * 0.82
             + row['Team Speed (90+ Speed Guys)'] * 2.1
-            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.6
+            + row['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 1.6
             + row['Generational (96+ speed or 96+ Acceleration)'] * 5.2
             + row['BCR_Val'] * 0.56
             + row['Recruit Score'] * 0.50
@@ -2254,8 +2254,9 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         df['Team Speed (90+ Speed Guys)'] * 2.2
         + df['Off Speed (90+ speed)'] * 1.0
         + df['Def Speed (90+ speed)'] * 1.0
-        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.8
-    ) * (1 + df['Generational (96+ speed or 96+ Acceleration)'] * 0.16)
+        + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 2.5
+    ) * (1 + df['Generational (96+ speed or 96+ Acceleration)'] * 0.16
+           + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 0.07)
     df['Team Speed Score'] = df['Team Speed Score'].round(1)
     df['Speedometer'] = df['Team Speed Score'].apply(team_speed_to_mph)
 
@@ -2281,7 +2282,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Team Speed (90+ Speed Guys)'] * 1.95
         + df['Off Speed (90+ speed)'] * 0.75
         + df['Def Speed (90+ speed)'] * 0.75
-        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.25
+        + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 1.25
         + df['Generational (96+ speed or 96+ Acceleration)'] * 3.1
         + df['Recruit Score'] * 0.46
         + df['Career Win %'] * 0.18
@@ -2543,7 +2544,7 @@ def build_recruiting_board(rec_df, model_df, anchor_year=2041):
             + float(m.get('Team Speed Score', 0)) * 0.34
             + float(m.get('Off Speed (90+ speed)', 0)) * 1.0
             + float(m.get('Def Speed (90+ speed)', 0)) * 1.0
-            + float(m.get('Game Breakers (90+ Speed & 90+ Acceleration)', 0)) * 2.0
+            + float(m.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)) * 2.0
             + float(m.get('Generational (96+ speed or 96+ Acceleration)', 0)) * 4.0,
             1
         )
@@ -3919,6 +3920,8 @@ if data:
         # cfb26_rosters_full.csv has a REDSHIRT column (1 = sitting out this year).
         # Players with REDSHIRT=1 are excluded from speed counts.
         # Teams without RS screenshots default to 0 (all active) until updated.
+        # BG, USF, Texas Tech confirmed: they do not redshirt — all freshmen are active.
+        _NO_REDSHIRT_TEAMS = {'Devin', 'Josh', 'Noah'}  # confirmed: never redshirt
         _roster_speed = {}
         try:
             _rfull = pd.read_csv('cfb26_rosters_full.csv')
@@ -3926,7 +3929,6 @@ if data:
             _rfull['ACC']      = pd.to_numeric(_rfull['ACC'],      errors='coerce')
             _rfull['REDSHIRT'] = pd.to_numeric(_rfull.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
             _active = _rfull[_rfull['REDSHIRT'] == 0]
-            # Build user → team map
             _team_to_user = {v: k for k, v in USER_TEAMS.items()}
             for _team, _tdf in _active.groupby('Team'):
                 _u = _team_to_user.get(_team)
@@ -3937,7 +3939,7 @@ if data:
                     'gen_live':        int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum()),
                 }
         except Exception:
-            pass  # Fall back to model_2041 values if roster CSV unavailable
+            pass
 
         _speed_map = {}
         for _, _sr in model_2041.iterrows():
@@ -3956,7 +3958,7 @@ if data:
                 'qb_tier':     str(_sr.get('QB Tier', 'Average Joe')).strip(),
                 'team':        _sr['TEAM'],
                 'conf':        _sr.get('CONFERENCE', 'Other'),
-                'rs_data_confirmed': _u in _roster_speed,  # flag teams w/ screenshot data
+                'rs_data_confirmed': (_u in _roster_speed) or (_u in _NO_REDSHIRT_TEAMS),
             }
 
         _league_avg_speed = sum(v['team_speed'] for v in _speed_map.values()) / max(1, len(_speed_map))
@@ -5588,7 +5590,7 @@ if data:
             {'Metric': 'Off 90+ Speed Players', 'Value': row['Off Speed (90+ speed)']},
             {'Metric': 'Def 90+ Speed Players', 'Value': row['Def Speed (90+ speed)']},
             {'Metric': 'Total Team Speed', 'Value': row['Team Speed (90+ Speed Guys)']},
-            {'Metric': 'Game Breakers', 'Value': row['Game Breakers (90+ Speed & 90+ Acceleration)']},
+            {'Metric': 'Quad 90', 'Value': row['Quad 90 (90+ SPD, ACC, AGI & COD)']},
             {'Metric': 'Generational Talent Count', 'Value': row['Generational (96+ speed or 96+ Acceleration)']},
             {'Metric': 'Where is the Speed?', 'Value': row['Where is the Speed?']},
             {'Metric': 'Speedometer', 'Value': f"{row['Speedometer']} MPH"},
@@ -5601,14 +5603,14 @@ if data:
         st.dataframe(stat_table, hide_index=True, use_container_width=True)
 
         detail_chart = pd.DataFrame({
-            'Category': ['Overall', 'Offense', 'Defense', 'Off Speed', 'Def Speed', 'Game Breakers', 'Generational'],
+            'Category': ['Overall', 'Offense', 'Defense', 'Off Speed', 'Def Speed', 'Quad 90', 'Generational'],
             'Score': [
                 row['OVERALL'],
                 row['OFFENSE'],
                 row['DEFENSE'],
                 row['Off Speed (90+ speed)'],
                 row['Def Speed (90+ speed)'],
-                row['Game Breakers (90+ Speed & 90+ Acceleration)'],
+                row['Quad 90 (90+ SPD, ACC, AGI & COD)'],
                 row['Generational (96+ speed or 96+ Acceleration)']
             ]
         })
@@ -5637,17 +5639,19 @@ if data:
         def _compute_speed_stats(team_df):
             off   = team_df[team_df['Pos'].isin(OFF_POS)]
             defp  = team_df[team_df['Pos'].isin(DEF_POS)]
-            total     = int((team_df['SPD'] >= 90).sum())
-            off_spd   = int((off['SPD']  >= 90).sum())
-            def_spd   = int((defp['SPD'] >= 90).sum())
-            game_brk  = int(((team_df['SPD'] >= 90) & (team_df['ACC'] >= 90)).sum())
-            gen       = int(((team_df['SPD'] >= 96) | (team_df['ACC'] >= 96)).sum())
+            total    = int((team_df['SPD'] >= 90).sum())
+            off_spd  = int((off['SPD']  >= 90).sum())
+            def_spd  = int((defp['SPD'] >= 90).sum())
+            quad_90  = int(
+                ((team_df['SPD'] >= 90) & (team_df['ACC'] >= 90)
+                 & (team_df['AGI'] >= 90) & (team_df['COD'] >= 90)).sum()
+            )
+            gen      = int(((team_df['SPD'] >= 96) | (team_df['ACC'] >= 96)).sum())
             speed_score = round(
-                (total * 2.2 + off_spd * 1.0 + def_spd * 1.0 + game_brk * 1.8)
-                * (1 + gen * 0.16), 1
+                (total * 2.2 + off_spd * 1.0 + def_spd * 1.0 + quad_90 * 2.5)
+                * (1 + gen * 0.16 + quad_90 * 0.07), 1
             )
             speedometer = team_speed_to_mph(speed_score)
-            # Where is the speed?
             if off_spd > 5 and def_spd > 5:
                 where = 'Off & Def'
             elif off_spd > 5:
@@ -5662,7 +5666,7 @@ if data:
                 'team_speed':  total,
                 'off_speed':   off_spd,
                 'def_speed':   def_spd,
-                'game_brk':    game_brk,
+                'quad_90':     quad_90,
                 'gen':         gen,
                 'speed_score': speed_score,
                 'speedometer': speedometer,
@@ -5683,7 +5687,7 @@ if data:
                 talent_board.loc[idx, 'Team Speed (90+ Speed Guys)']              = _s['team_speed']
                 talent_board.loc[idx, 'Off Speed (90+ speed)']                    = _s['off_speed']
                 talent_board.loc[idx, 'Def Speed (90+ speed)']                    = _s['def_speed']
-                talent_board.loc[idx, 'Game Breakers (90+ Speed & 90+ Acceleration)'] = _s['game_brk']
+                talent_board.loc[idx, 'Quad 90 (90+ SPD, ACC, AGI & COD)'] = _s['quad_90']
                 talent_board.loc[idx, 'Generational (96+ speed or 96+ Acceleration)'] = _s['gen']
                 talent_board.loc[idx, 'Team Speed Score']                         = _s['speed_score']
                 talent_board.loc[idx, 'Speedometer']                              = _s['speedometer']
@@ -5728,7 +5732,7 @@ if data:
                     {"label": "👽 Generational Freaks",  "value": str(gens)},
                 ])
                 st.write(get_speeding_label(team_speed, gens))
-                st.write(f"**Game breakers:** {int(r['Game Breakers (90+ Speed & 90+ Acceleration)'])}")
+                st.write(f"**Quad 90:** {int(r['Quad 90 (90+ SPD, ACC, AGI & COD)'])}")
                 st.write(f"**Offense 90+ speed:** {int(r['Off Speed (90+ speed)'])} | **Defense 90+ speed:** {int(r['Def Speed (90+ speed)'])}")
                 st.write(f"**Where is the Speed?** {r['Where is the Speed?']}")
                 st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
