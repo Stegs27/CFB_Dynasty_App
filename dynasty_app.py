@@ -3915,18 +3915,48 @@ if data:
             _cpu_sos['Home Score']   = pd.to_numeric(_cpu_sos['Home Score'],   errors='coerce')
 
         # Speed + QB data from model
+        # ── Live speed counts from roster CSV (REDSHIRT-aware) ──────────────
+        # cfb26_rosters_full.csv has a REDSHIRT column (1 = sitting out this year).
+        # Players with REDSHIRT=1 are excluded from speed counts.
+        # Teams without RS screenshots default to 0 (all active) until updated.
+        _roster_speed = {}
+        try:
+            _rfull = pd.read_csv('cfb26_rosters_full.csv')
+            _rfull['SPD']      = pd.to_numeric(_rfull['SPD'],      errors='coerce')
+            _rfull['ACC']      = pd.to_numeric(_rfull['ACC'],      errors='coerce')
+            _rfull['REDSHIRT'] = pd.to_numeric(_rfull.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
+            _active = _rfull[_rfull['REDSHIRT'] == 0]
+            # Build user → team map
+            _team_to_user = {v: k for k, v in USER_TEAMS.items()}
+            for _team, _tdf in _active.groupby('Team'):
+                _u = _team_to_user.get(_team)
+                if not _u:
+                    continue
+                _roster_speed[_u] = {
+                    'team_speed_live': int((_tdf['SPD'] >= 90).sum()),
+                    'gen_live':        int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum()),
+                }
+        except Exception:
+            pass  # Fall back to model_2041 values if roster CSV unavailable
+
         _speed_map = {}
         for _, _sr in model_2041.iterrows():
-            _speed_map[_sr['USER']] = {
-                'team_speed': float(_sr.get('Team Speed (90+ Speed Guys)', 0) or 0),
-                'off_speed':  float(_sr.get('Off Speed (90+ speed)', 0) or 0),
-                'def_speed':  float(_sr.get('Def Speed (90+ speed)', 0) or 0),
-                'gen':        float(_sr.get('Generational (96+ speed or 96+ Acceleration)', 0) or 0),
-                'overall':    float(_sr.get('OVERALL', 80) or 80),
-                'qb_ovr':     float(_sr.get('QB OVR', 80) or 80),
-                'qb_tier':    str(_sr.get('QB Tier', 'Average Joe')).strip(),
-                'team':       _sr['TEAM'],
-                'conf':       _sr.get('CONFERENCE', 'Other'),
+            _u    = _sr['USER']
+            _live = _roster_speed.get(_u, {})
+            # Prefer live roster count if available, else fall back to TeamRatingsHistory
+            _ts   = _live.get('team_speed_live', float(_sr.get('Team Speed (90+ Speed Guys)', 0) or 0))
+            _gen  = _live.get('gen_live',         float(_sr.get('Generational (96+ speed or 96+ Acceleration)', 0) or 0))
+            _speed_map[_u] = {
+                'team_speed':  float(_ts),
+                'off_speed':   float(_sr.get('Off Speed (90+ speed)', 0) or 0),
+                'def_speed':   float(_sr.get('Def Speed (90+ speed)', 0) or 0),
+                'gen':         float(_gen),
+                'overall':     float(_sr.get('OVERALL', 80) or 80),
+                'qb_ovr':      float(_sr.get('QB OVR', 80) or 80),
+                'qb_tier':     str(_sr.get('QB Tier', 'Average Joe')).strip(),
+                'team':        _sr['TEAM'],
+                'conf':        _sr.get('CONFERENCE', 'Other'),
+                'rs_data_confirmed': _u in _roster_speed,  # flag teams w/ screenshot data
             }
 
         _league_avg_speed = sum(v['team_speed'] for v in _speed_map.values()) / max(1, len(_speed_map))
@@ -4052,6 +4082,7 @@ if data:
                 'QB Tier': spd_info.get('qb_tier', '—'),
                 'QB OVR': int(spd_info.get('qb_ovr', 0)),
                 'Conference': spd_info.get('conf', '—'),
+                '_rs_confirmed': spd_info.get('rs_data_confirmed', False),
             })
         resume_df = pd.DataFrame(resume_rows).sort_values('Adj SOS', ascending=False).reset_index(drop=True)
 
@@ -4098,6 +4129,8 @@ if data:
             hcap_label = f"+{hcap:.1f}" if hcap > 0 else f"{hcap:.1f}"
             spd = row['Team Speed']
             spd_pct = min(100, int(spd / 15 * 100))
+            rs_confirmed = row.get('_rs_confirmed', False)
+            rs_badge = "" if rs_confirmed else "<span style='font-size:0.58rem;padding:1px 4px;background:#292524;color:#a8a29e;border-radius:3px;margin-left:4px;'>RS?</span>"
             # QB badge
             _qt   = str(row.get('QB Tier', '—'))
             _qovr = int(row.get('QB OVR', 0))
@@ -4163,7 +4196,7 @@ if data:
                 <div style='flex:1;background:#111f33;border-radius:3px;height:6px;overflow:hidden;'>
                   <div style='background:{tc};width:{spd_pct}%;height:6px;border-radius:3px;'></div>
                 </div>
-                <span style='color:#94a3b8;font-size:0.72rem;font-weight:700;min-width:24px;text-align:right;'>{spd}</span>
+                <span style='color:#94a3b8;font-size:0.72rem;font-weight:700;min-width:24px;text-align:right;'>{spd}{rs_badge}</span>
               </div>
 
             </div>"""
