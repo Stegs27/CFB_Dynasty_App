@@ -18,15 +18,71 @@ CURRENT_WEEK_NUMBER = 12
 
 st.markdown("""
 <style>
+/* ── BASE ─────────────────────────────────────────────────────────────── */
 .block-container {padding-top: 1rem; padding-bottom: 1rem; padding-left: 0.8rem; padding-right: 0.8rem;}
 [data-testid="stHorizontalBlock"] {gap: 0.75rem;}
-.stTabs [data-baseweb="tab-list"] {gap: 0.25rem; flex-wrap: wrap;}
-.stTabs [data-baseweb="tab"] {height: auto; white-space: normal; padding-top: 0.35rem; padding-bottom: 0.35rem;}
-@media (max-width: 768px) {
-  .block-container {padding-left: 0.5rem; padding-right: 0.5rem;}
+
+/* ── TABS: wrap on small screens ─────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {gap: 0.2rem; flex-wrap: wrap;}
+.stTabs [data-baseweb="tab"] {
+  height: auto; white-space: normal;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+/* ── DATAFRAMES: always scroll horizontally, never overflow ──────────── */
+[data-testid="stDataFrame"] > div {overflow-x: auto !important;}
+.stDataFrame {max-width: 100% !important;}
+
+/* ── METRICS: allow natural wrapping ────────────────────────────────── */
+[data-testid="metric-container"] {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+/* ── MOBILE (<640px) ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .block-container {padding-left: 0.4rem; padding-right: 0.4rem;}
+  h1 {font-size: 1.35rem !important;}
+  h2 {font-size: 1.15rem !important;}
+  h3 {font-size: 1rem !important;}
+
+  /* Stack ALL Streamlit columns vertically on phone */
+  [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+  [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+    width: 100% !important;
+    min-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  /* Tabs font smaller */
+  .stTabs [data-baseweb="tab"] {font-size: 0.72rem; padding: 0.25rem 0.35rem;}
+
+  /* Plotly charts full width */
+  .js-plotly-plot {max-width: 100% !important;}
+
+  /* Expander headers easier to tap */
+  [data-testid="stExpander"] summary {padding: 0.6rem 0.5rem !important;}
+
+  /* Selectbox full width */
+  [data-testid="stSelectbox"] {width: 100% !important;}
+
+  /* Buttons easier to tap */
+  [data-testid="stButton"] button {width: 100%; padding: 0.6rem;}
+
+  /* File uploader full width */
+  [data-testid="stFileUploader"] {width: 100% !important;}
+}
+
+/* ── TABLET (641–1024px) ─────────────────────────────────────────────── */
+@media (min-width: 641px) and (max-width: 1024px) {
   h1 {font-size: 1.5rem !important;}
-  h2 {font-size: 1.2rem !important;}
-  h3 {font-size: 1.05rem !important;}
+  .stTabs [data-baseweb="tab"] {font-size: 0.78rem; padding: 0.28rem 0.45rem;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -344,6 +400,53 @@ def format_pct(val, digits=1):
         return f"{round(num, digits):.{digits}f}%"
     except Exception:
         return "—"
+
+
+def mobile_metrics(metrics, cols_desktop=4):
+    """
+    Render a row of metric cards as a CSS grid.
+    Displays cols_desktop-per-row on desktop, 2-per-row on mobile.
+    metrics: list of dicts with keys: label, value, delta (optional), delta_color (optional: 'normal'|'inverse'|'off')
+    """
+    cards_html = ""
+    for m in metrics:
+        label = html.escape(str(m.get("label", "")))
+        value = html.escape(str(m.get("value", "")))
+        delta = m.get("delta", None)
+        delta_html = ""
+        if delta is not None:
+            delta_str = str(delta)
+            delta_color_mode = m.get("delta_color", "normal")
+            is_positive = delta_str.startswith("+") or (not delta_str.startswith("-") and delta_str not in ["0", "0.0", "0%"])
+            if delta_color_mode == "off":
+                dc = "#9ca3af"
+            elif delta_color_mode == "inverse":
+                dc = "#f87171" if is_positive else "#4ade80"
+            else:
+                dc = "#4ade80" if is_positive else "#f87171"
+            arrow = "▲" if is_positive else "▼"
+            delta_html = f"<div style='font-size:0.72rem;color:{dc};font-weight:600;margin-top:2px;'>{arrow} {html.escape(delta_str)}</div>"
+        cards_html += f"""
+        <div style='background:#1f2937;border:1px solid #374151;border-radius:10px;
+        padding:10px 12px;min-width:0;'>
+          <div style='font-size:0.72rem;color:#9ca3af;font-weight:600;text-transform:uppercase;
+          letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;overflow:hidden;
+          text-overflow:ellipsis;'>{label}</div>
+          <div style='font-size:1.15rem;font-weight:800;color:#f3f4f6;line-height:1.2;'>{value}</div>
+          {delta_html}
+        </div>"""
+    st.markdown(f"""
+    <div style='display:grid;grid-template-columns:repeat({cols_desktop},1fr);gap:8px;margin-bottom:1rem;'>
+      {cards_html}
+    </div>
+    <style>
+    @media(max-width:640px){{
+      div[style*="grid-template-columns:repeat({cols_desktop}"] {{
+        grid-template-columns: repeat(2,1fr) !important;
+      }}
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
 def normalize_history_team_name(team):
     t = str(team).strip()
@@ -1270,13 +1373,14 @@ def render_roster_matchup_tab():
         fig2.update_layout(barmode="group", height=320, margin=dict(t=30, b=30, l=20, r=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         st.plotly_chart(fig2, use_container_width=True)
 
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric(f"{team_a} Redshirts", cb_a["Redshirts"])
-        m2.metric(f"{team_a} Avg Elig", cb_a["Avg Elig"])
-        m3.metric(f"{team_a} Young", cb_a["Young (3-4yr elig)"])
-        m4.metric(f"{team_b} Redshirts", cb_b["Redshirts"])
-        m5.metric(f"{team_b} Avg Elig", cb_b["Avg Elig"])
-        m6.metric(f"{team_b} Young", cb_b["Young (3-4yr elig)"])
+        mobile_metrics([
+            {"label": f"{team_a} Redshirts", "value": str(cb_a["Redshirts"])},
+            {"label": f"{team_a} Avg Elig",  "value": str(cb_a["Avg Elig"])},
+            {"label": f"{team_a} Young",     "value": str(cb_a["Young (3-4yr elig)"])},
+            {"label": f"{team_b} Redshirts", "value": str(cb_b["Redshirts"])},
+            {"label": f"{team_b} Avg Elig",  "value": str(cb_b["Avg Elig"])},
+            {"label": f"{team_b} Young",     "value": str(cb_b["Young (3-4yr elig)"])},
+        ], cols_desktop=6)
 
         st.markdown("---")
         st.markdown("#### 🌟 Top Young Talent (3-4 eligibility years remaining)")
@@ -2906,88 +3010,6 @@ def compute_projected_seed_score(board_df):
 
 
 
-def parse_cfp_bracket_screenshot(image_bytes, media_type="image/png"):
-    """
-    Sends a CFP bracket screenshot to Claude via the Anthropic API.
-    Pulls API key from st.secrets["ANTHROPIC_API_KEY"] or the ANTHROPIC_API_KEY env var.
-    Returns a list of dicts: [{'seed': 1, 'team': 'Florida State', 'record': '12-1'}, ...]
-    sorted by seed 1-12. Returns (None, error_str) on failure.
-    """
-    import json as _json
-    import os as _os
-    import urllib.request as _urlreq
-
-    # ── Resolve API key ───────────────────────────────────────────────────────
-    api_key = None
-    try:
-        api_key = st.secrets.get("ANTHROPIC_API_KEY") or st.secrets.get("anthropic_api_key")
-    except Exception:
-        pass
-    if not api_key:
-        api_key = _os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return None, "No API key found. Add ANTHROPIC_API_KEY to your Streamlit secrets (Settings → Secrets in Streamlit Cloud)."
-
-    try:
-        img_b64 = base64.b64encode(image_bytes).decode('ascii')
-        payload = _json.dumps({
-            "model": "claude-sonnet-4-20250514",
-            "max_tokens": 1000,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {"type": "base64", "media_type": media_type, "data": img_b64}
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            "This is a College Football Playoff bracket screenshot from a CFB video game dynasty. "
-                            "Extract all 12 teams. For each return seed (1-12), team name exactly as shown, and record (W-L). "
-                            "Seeds 1-4 have a first-round bye. "
-                            "Respond ONLY with a valid JSON array, zero markdown, zero explanation. "
-                            'Format: [{"seed":1,"team":"Florida State","record":"12-1"},...]'
-                        )
-                    }
-                ]
-            }]
-        }).encode('utf-8')
-
-        req = _urlreq.Request(
-            "https://api.anthropic.com/v1/messages",
-            data=payload,
-            headers={
-                "Content-Type":    "application/json",
-                "x-api-key":       api_key,
-                "anthropic-version": "2023-06-01",
-            },
-            method="POST"
-        )
-        with _urlreq.urlopen(req, timeout=30) as resp:
-            result = _json.loads(resp.read().decode('utf-8'))
-
-        raw_text = "".join(b.get("text","") for b in result.get("content",[]) if b.get("type")=="text").strip()
-
-        # Strip markdown fences
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
-        raw_text = raw_text.strip().rstrip("`").strip()
-
-        teams = _json.loads(raw_text)
-        out = []
-        for t in teams:
-            seed = int(t.get("seed", 0))
-            name = str(t.get("team", "")).strip()
-            rec  = str(t.get("record", "")).strip()
-            if 1 <= seed <= 12 and name:
-                out.append({"seed": seed, "team": name, "record": rec})
-        out.sort(key=lambda x: x["seed"])
-        return (out, None) if out else (None, "Parsed response had no valid teams.")
-    except Exception as e:
-        return None, str(e)
 
 
 def build_bracket_field_from_screenshot(parsed_teams, cfp_board):
@@ -3312,11 +3334,12 @@ def render_automation_v2_tab(model_df, rec_df):
     sos_df = build_sos_heatmap_df(model_df)
     conference_board = build_conference_race_board(assets.get('standings'))
 
-    a1, a2, a3, a4 = st.columns(4)
-    a1.metric("Conference Frames", len(assets.get('standings', pd.DataFrame())))
-    a2.metric("Schedule Frames", len(assets.get('schedule', pd.DataFrame())))
-    a3.metric("CFP Frames", len(assets.get('cfp', pd.DataFrame())))
-    a4.metric("Recruiting Frames", len(assets.get('recruiting', pd.DataFrame())))
+    mobile_metrics([
+        {"label": "Conference Frames", "value": str(len(assets.get('standings', pd.DataFrame())))},
+        {"label": "Schedule Frames",   "value": str(len(assets.get('schedule', pd.DataFrame())))},
+        {"label": "CFP Frames",        "value": str(len(assets.get('cfp', pd.DataFrame())))},
+        {"label": "Recruiting Frames", "value": str(len(assets.get('recruiting', pd.DataFrame())))},
+    ])
 
     st.subheader("Latest Video Import Summary")
     if assets.get('summary_text'):
@@ -3556,12 +3579,13 @@ if data:
         collapse_team = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
         pipeline_king = stats.sort_values('Drafted', ascending=False).iloc[0]
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Title Favorite", f"{title_favorite['USER']} ({title_favorite['Natty Odds']}%)")
-        c2.metric("Power Index Leader", f"{most_dangerous['USER']}", f"{most_dangerous['Power Index']}")
-        c3.metric("Recruiting King", f"{best_recruiter_user['USER']}", f"{best_recruiter_user['Recruit Score']}")
-        c4.metric("Collapse Watch", collapse_team['USER'], f"{collapse_team['Collapse Risk']}%")
-        c5.metric("NFL Pipeline", pipeline_king['User'], f"{pipeline_king['Drafted']} drafted")
+        mobile_metrics([
+            {"label": "🏆 Title Favorite",    "value": f"{title_favorite['USER']}",        "delta": f"{title_favorite['Natty Odds']}% natty"},
+            {"label": "⚡ Power Index Leader", "value": f"{most_dangerous['USER']}",         "delta": str(most_dangerous['Power Index'])},
+            {"label": "🎯 Recruiting King",    "value": f"{best_recruiter_user['USER']}",    "delta": str(best_recruiter_user['Recruit Score'])},
+            {"label": "💣 Collapse Watch",     "value": f"{collapse_team['USER']}",          "delta": f"{collapse_team['Collapse Risk']}%", "delta_color": "inverse"},
+            {"label": "🏈 NFL Pipeline",       "value": f"{pipeline_king['User']}",          "delta": f"{pipeline_king['Drafted']} drafted"},
+        ], cols_desktop=5)
 
         st.markdown("#### War Room Board")
         board_defaults = {
@@ -4045,11 +4069,12 @@ if data:
 
         first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Seed Score', 'Rank'], ascending=[False, False, True]).head(4).copy()
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric('Projected Locks', int((cfp_board['CFP Make %'] >= 92).sum()))
-        m2.metric('Last Team In', f"#{int(projected_field.iloc[-1]['Rank'])} {projected_field.iloc[-1]['Team']}")
-        m3.metric('First Team Out', f"#{int(first_four_out.iloc[0]['Rank'])} {first_four_out.iloc[0]['Team']}")
-        m4.metric('Best Bye Shot', f"{projected_field.sort_values('Bye %', ascending=False).iloc[0]['Team']} ({format_pct(projected_field['Bye %'].max(),1)})")
+        mobile_metrics([
+            {"label": "🔒 Projected Locks",  "value": str(int((cfp_board['CFP Make %'] >= 92).sum()))},
+            {"label": "📍 Last Team In",      "value": f"#{int(projected_field.iloc[-1]['Rank'])} {projected_field.iloc[-1]['Team']}"},
+            {"label": "😬 First Team Out",    "value": f"#{int(first_four_out.iloc[0]['Rank'])} {first_four_out.iloc[0]['Team']}"},
+            {"label": "🅱️ Best Bye Shot",     "value": f"{projected_field.sort_values('Bye %', ascending=False).iloc[0]['Team']}", "delta": format_pct(projected_field['Bye %'].max(), 1)},
+        ])
 
         st.subheader('Projected CFP Field')
         render_cfp_table(cfp_board)
@@ -4070,10 +4095,10 @@ if data:
                 (11,"USF","10-2"),(12,"San Diego State","12-1"),
             ]
             st.markdown("**Byes (Seeds 1–4)**")
-            bye_cols = st.columns(4)
+            bye_cols = st.columns(2)
             manual_teams = []
             for idx, (seed, def_team, def_rec) in enumerate(MANUAL_SLOTS[:4]):
-                with bye_cols[idx]:
+                with bye_cols[idx % 2]:
                     st.markdown(f"<div style='color:#4ade80;font-weight:800;font-size:0.8rem;'>#{seed} — BYE</div>", unsafe_allow_html=True)
                     t = st.text_input("Team", value=def_team, key=f"manual_team_{seed}", label_visibility="collapsed")
                     r = st.text_input("Record", value=def_rec, key=f"manual_rec_{seed}", label_visibility="collapsed")
@@ -4121,11 +4146,15 @@ if data:
         sim_row = cfp_board[cfp_board['Team'] == sim_team].iloc[0]
         sim_result = simulate_cfp_chaos(sim_row, sim_scenario, cfp_board)
 
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric('Current CFP', format_pct(sim_row['CFP Make %'], 1), delta=f"{sim_result['CFP Make %'] - sim_row['CFP Make %']:+.1f}%")
-        s2.metric('Current Bye', format_pct(sim_row['Bye %'], 1), delta=f"{sim_result['Bye %'] - sim_row['Bye %']:+.1f}%")
-        s3.metric('New Record', sim_result['Record'])
-        s4.metric('Projected Rank', f"#{int(sim_result['Rank'])}", delta=f"{int(sim_row['Rank']) - int(sim_result['Rank']):+d}")
+        mobile_metrics([
+            {"label": "Current CFP %",    "value": format_pct(sim_row['CFP Make %'], 1),
+             "delta": f"{sim_result['CFP Make %'] - sim_row['CFP Make %']:+.1f}%"},
+            {"label": "Current Bye %",    "value": format_pct(sim_row['Bye %'], 1),
+             "delta": f"{sim_result['Bye %'] - sim_row['Bye %']:+.1f}%"},
+            {"label": "New Record",       "value": sim_result['Record'], "delta_color": "off"},
+            {"label": "Projected Rank",   "value": f"#{int(sim_result['Rank'])}",
+             "delta": f"{int(sim_row['Rank']) - int(sim_result['Rank']):+d} spots", "delta_color": "inverse"},
+        ])
 
         if sim_scenario == 'Lose to unranked team':
             st.warning(f"{sim_team} would set fire to a lot of goodwill with an unranked loss. The model treats that as a straight-up committee trust killer.")
@@ -4158,20 +4187,18 @@ if data:
             st.subheader("Recruiting Spotlight")
             spotlight_team = st.selectbox("Choose a class to spotlight", recruiting_board['TEAM'].tolist(), key='recruit_spotlight')
             sp = recruiting_board[recruiting_board['TEAM'] == spotlight_team].iloc[0]
-            lc1, lc2 = st.columns([0.35, 0.65])
-            with lc1:
-                render_logo(sp['Logo'], width=90)
-            with lc2:
-                st.markdown(f"### {sp['TEAM']} | {sp['USER']}")
-                st.write(f"**Recent classes:** {sp['Recent Cycle']}")
-                st.write(f"**Weighted avg rank:** {sp['Weighted Avg Rank'] if not pd.isna(sp['Weighted Avg Rank']) else '—'}")
-                st.write(f"**Heat Index:** {sp['Heat Index']}")
-                st.write(f"**Pipeline Score:** {sp['Pipeline Score']}")
-                st.write(f"**Speed Recruiter Index:** {sp['Speed Recruiter Index']}")
-                st.write(f"**Blue Chip % proxy:** {sp['Blue Chip %']}%")
-                st.write(f"**Class Tier:** {sp['Class Tier']}")
-                st.write(f"**Trajectory:** {sp['Trajectory']}")
-                st.info(sp['Recruiting Blurb'])
+            render_logo(sp['Logo'], width=72)
+            st.markdown(f"### {sp['TEAM']} | {sp['USER']}")
+            mobile_metrics([
+                {"label": "Recent Classes",    "value": str(sp['Recent Cycle'])},
+                {"label": "Weighted Avg Rank", "value": str(sp['Weighted Avg Rank']) if not pd.isna(sp['Weighted Avg Rank']) else "—"},
+                {"label": "Heat Index",        "value": str(sp['Heat Index'])},
+                {"label": "Pipeline Score",    "value": str(sp['Pipeline Score'])},
+                {"label": "Speed Recruiter",   "value": str(sp['Speed Recruiter Index'])},
+                {"label": "Blue Chip %",       "value": f"{sp['Blue Chip %']}%"},
+            ])
+            st.markdown(f"**Class Tier:** {sp['Class Tier']}  \n**Trajectory:** {sp['Trajectory']}")
+            st.info(sp['Recruiting Blurb'])
 
     # --- H2H MATRIX ---
     with tabs[8]:
@@ -4224,29 +4251,33 @@ if data:
         heisman_row = heisman[heisman[meta['h_yr']] == sel_year]
         coty_row = coty[coty[meta['c_yr']] == sel_year]
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if not champ_row.empty:
-                champ_team = champ_row.iloc[0]['Team']
-                champ_user = champ_row.iloc[0]['user']
-                champ_logo = get_logo_source(champ_team)
+        # Season awards - stack cleanly on mobile
+        award_champ = "not found"
+        award_heisman = "not found"
+        award_coty = "not found"
+        champ_logo_path = None
+        if not champ_row.empty:
+            champ_team = champ_row.iloc[0]['Team']
+            champ_user = champ_row.iloc[0]['user']
+            award_champ = f"{champ_team} ({champ_user})"
+            champ_logo_path = get_logo_source(champ_team)
+        if not heisman_row.empty:
+            award_heisman = f"{heisman_row.iloc[0][meta['h_player']]} — {heisman_row.iloc[0][meta['h_school']]}"
+        if not coty_row.empty:
+            award_coty = f"{coty_row.iloc[0][meta['c_coach']]} — {coty_row.iloc[0][meta['c_school']]}"
+
+        aw1, aw2, aw3 = st.columns(3)
+        with aw1:
+            if champ_logo_path:
                 lc1, lc2 = st.columns([0.28, 0.72])
-                with lc1:
-                    render_logo(champ_logo, width=64)
-                with lc2:
-                    st.success(f"🏆 National Champion: {champ_team} ({champ_user})")
+                with lc1: render_logo(champ_logo_path, width=56)
+                with lc2: st.success(f"🏆 **Champion**\n\n{award_champ}")
             else:
-                st.info("🏆 National Champion: not found")
-        with c2:
-            if not heisman_row.empty:
-                st.success(f"🏅 Heisman: {heisman_row.iloc[0][meta['h_player']]} ({heisman_row.iloc[0][meta['h_school']]})")
-            else:
-                st.info("🏅 Heisman: not found")
-        with c3:
-            if not coty_row.empty:
-                st.success(f"👔 COTY: {coty_row.iloc[0][meta['c_coach']]} ({coty_row.iloc[0][meta['c_school']]})")
-            else:
-                st.info("👔 COTY: not found")
+                st.success(f"🏆 **Champion:** {award_champ}")
+        with aw2:
+            st.success(f"🏅 **Heisman:** {award_heisman}")
+        with aw3:
+            st.success(f"👔 **COTY:** {award_coty}")
 
         if not y_data.empty:
             user_games = y_data[
@@ -4307,11 +4338,12 @@ if data:
 
         wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Natty Odds", f"{row['Natty Odds']}%")
-        m2.metric("CFP Odds", f"{row['CFP Odds']}%")
-        m3.metric("Projected Wins", row['Projected Wins'])
-        m4.metric("Power Index", row['Power Index'])
+        mobile_metrics([
+            {"label": "🏆 Natty Odds",    "value": f"{row['Natty Odds']}%"},
+            {"label": "🎯 CFP Odds",       "value": f"{row['CFP Odds']}%"},
+            {"label": "📈 Projected Wins", "value": str(row['Projected Wins'])},
+            {"label": "⚡ Power Index",    "value": str(row['Power Index'])},
+        ])
 
         st.markdown("---")
 
@@ -4346,10 +4378,11 @@ if data:
             st.markdown("---")
             st.subheader("Coach Profile")
             st.write(generate_coach_profile(row, coach_stats_row))
-            cpa, cpb, cpc = st.columns(3)
-            cpa.metric("Career Win %", f"{coach_stats_row['Career Win %']}%")
-            cpb.metric("Natties", int(coach_stats_row['Natties']))
-            cpc.metric("CFP Wins", int(coach_stats_row['CFP Wins']))
+            mobile_metrics([
+                {"label": "🏅 Career Win %", "value": f"{coach_stats_row['Career Win %']}%"},
+                {"label": "🏆 Natties",       "value": str(int(coach_stats_row['Natties']))},
+                {"label": "🎯 CFP Wins",      "value": str(int(coach_stats_row['CFP Wins']))},
+            ], cols_desktop=3)
 
         stat_table = pd.DataFrame([
             {'Metric': 'Overall', 'Value': row['OVERALL']},
@@ -4417,11 +4450,12 @@ if data:
             with st.expander(f"#{int(r['TEAM SPEED Rank'])} {r['USER']} | {r['TEAM']} - {tier}"):
                 st.write(gen_desc)
                 st.write(bonus_desc)
-                s1, s2, s3, s4 = st.columns(4)
-                s1.metric("Speedometer", f"{float(r.get('Speedometer', r.get('Speed Limit MPH', 0)))} MPH")
-                s2.metric("TEAM SPEED Score", f"{team_speed}")
-                s3.metric("90+ Speed Players", int(r['Team Speed (90+ Speed Guys)']))
-                s4.metric("Generational Freaks", gens)
+                mobile_metrics([
+                    {"label": "🚗 Speedometer",         "value": f"{float(r.get('Speedometer', r.get('Speed Limit MPH', 0)))} MPH"},
+                    {"label": "⚡ TEAM SPEED Score",    "value": str(team_speed)},
+                    {"label": "💨 90+ Speed Players",   "value": str(int(r['Team Speed (90+ Speed Guys)']))},
+                    {"label": "👽 Generational Freaks",  "value": str(gens)},
+                ])
                 st.write(get_speeding_label(team_speed, gens))
                 st.write(f"**Game breakers:** {int(r['Game Breakers (90+ Speed & 90+ Acceleration)'])}")
                 st.write(f"**Offense 90+ speed:** {int(r['Off Speed (90+ speed)'])} | **Defense 90+ speed:** {int(r['Def Speed (90+ speed)'])}")
@@ -4479,11 +4513,21 @@ if data:
         st.header("🐐 Dynasty GOAT Rankings")
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
-        st.dataframe(
-            goat[['User', 'GOAT Score', 'Career Record', 'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', '1st Rounders', 'Drafted']],
-            hide_index=True,
-            use_container_width=True
-        )
+        if not goat.empty:
+            top = goat.iloc[0]
+            mobile_metrics([
+                {"label": "👑 GOAT",          "value": str(top['User']),           "delta": f"{top['GOAT Score']} pts"},
+                {"label": "🏆 Most Natties",  "value": str(goat.loc[goat['Natties'].idxmax(), 'User']),  "delta": f"{goat['Natties'].max()} titles"},
+                {"label": "🎯 Best Win %",    "value": str(goat.loc[goat['Career Win %'].idxmax(), 'User']), "delta": f"{goat['Career Win %'].max()}%"},
+                {"label": "🏈 NFL Pipeline",  "value": str(goat.loc[goat['Drafted'].idxmax(), 'User']),   "delta": f"{goat['Drafted'].max()} drafted"},
+            ])
+
+        with st.expander("📊 Full GOAT Table", expanded=True):
+            st.dataframe(
+                goat[['User', 'GOAT Score', 'Career Record', 'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', '1st Rounders', 'Drafted']],
+                hide_index=True,
+                use_container_width=True
+            )
 
         st.plotly_chart(
             px.bar(
