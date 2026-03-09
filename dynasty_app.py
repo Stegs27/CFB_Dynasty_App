@@ -1944,7 +1944,11 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         return 0.0
 
     def raw_contender_score(row):
-        u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
+        _u_s_rows = stats_df[stats_df['User'] == row['USER']]
+        u_s = _u_s_rows.iloc[0] if not _u_s_rows.empty else pd.Series({
+            'Natties': 0, 'Natty Apps': 0, 'CFP Wins': 0, 'Conf Titles': 0,
+            'CFP Losses': 0, 'Career Win %': 0.5
+        })
 
         # Pedigree: first 3 natties = coaching credibility (proven closer).
         # Beyond 3 it stops mattering — you still have to field a team this year.
@@ -2072,7 +2076,8 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     def power_index(row):
         # Coaching credibility: first 2 natties prove you can execute.
         # Beyond that your roster matters more than your trophy case. Hard cap at 2.
-        u_s_pi = stats_df[stats_df['User'] == row['USER']].iloc[0]
+        _u_s_pi_rows = stats_df[stats_df['User'] == row['USER']]
+        u_s_pi = _u_s_pi_rows.iloc[0] if not _u_s_pi_rows.empty else pd.Series({'Natties': 0})
         coaching_cred = min(int(u_s_pi.get('Natties', 0)), 2) * 2.5
         return round(
             row['OVERALL'] * 2.25
@@ -3891,7 +3896,7 @@ if data:
                         'opp': opp, 'location': location, 'difficulty': diff,
                         'pre_rank': pre, 'in_rank': ins,
                         'my_score': my_score, 'opp_score': opp_score,
-                        'status': row['Status'], 'week': int(row['Week'])
+                        'status': row['Status'], 'week': row['Week']
                     })
 
                 ranked_games = team_games.apply(score_game, axis=1).sort_values('difficulty', ascending=False).head(3)
@@ -3901,7 +3906,11 @@ if data:
                     opp_str = str(g['opp'])
                     pre_tag = f"#{int(g['pre_rank'])} preseason" if g['pre_rank'] else "unranked preseason"
                     ins_tag = f" · #{int(g['in_rank'])} in-season" if g['in_rank'] and not pd.isna(g['in_rank']) else ""
-                    week_str = f"Wk {g['week']}"
+                    try:
+                        _wk = g['week']
+                        week_str = f"Wk {int(_wk)}" if str(_wk).isdigit() else str(_wk)
+                    except Exception:
+                        week_str = str(g['week'])
 
                     if str(g['status']).upper() == 'FINAL' and pd.notna(g['my_score']) and pd.notna(g['opp_score']):
                         ms, os_ = int(g['my_score']), int(g['opp_score'])
