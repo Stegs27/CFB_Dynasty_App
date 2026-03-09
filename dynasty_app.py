@@ -3290,12 +3290,12 @@ if data:
         "🏆 Who's In?",
         "📺 Season Recap",
         "🔍 Speed Freaks",
+        "🎯 Roster Matchup",
         "📊 Team Overview",
         "🏈 Recruiting Rankings",
         "⚔️ H2H Matrix",
         "🚨 Upset Tracker",
         "🐐 GOAT Rankings",
-        "🎯 Roster Matchup",
     ])
 
     # --- WAR ROOM ---
@@ -3341,46 +3341,427 @@ if data:
             st.dataframe(board, hide_index=True, use_container_width=True)
 
     with tabs[0]:
+        import os
+
         st.header("🗞️ Dynasty News")
-        st.markdown(f"<h3 style='text-align:center;margin-bottom:0.75rem;'>Week {CURRENT_WEEK_NUMBER}'s Games</h3>", unsafe_allow_html=True)
-        render_current_user_games_cards(current_user_games, model_2041, scores)
+        st.caption("Your season command center. Power rankings, toughest tests, award watch, injury report, and the rivalries that keep everyone up at night.")
+
+        # ── DATA LOADS ───────────────────────────────────────────────────────
+        try:
+            cpu_master = pd.read_csv('CPUscores_MASTER.csv')
+        except Exception:
+            cpu_master = pd.DataFrame()
+
+        try:
+            cfp_hist = pd.read_csv('cfp_rankings_history.csv')
+            last_yr  = cfp_hist['YEAR'].max()
+            last_wk  = cfp_hist[cfp_hist['YEAR'] == last_yr]['WEEK'].max()
+            preseason_rank_map = cfp_hist[
+                (cfp_hist['YEAR'] == last_yr) & (cfp_hist['WEEK'] == last_wk)
+            ].set_index('TEAM')['RANK'].to_dict()
+        except Exception:
+            preseason_rank_map = {}
+
+        USER_TEAMS = {
+            'Mike':  'San Jose State',
+            'Devin': 'Bowling Green',
+            'Josh':  'USF',
+            'Noah':  'Texas Tech',
+            'Doug':  'Florida',
+            'Nick':  'Florida State',
+        }
+
+        RIVALRY_NAMES = {
+            frozenset(["Mike",  "Noah"]):  ("⚡ The Overclocked Bowl",      "Two tech schools. One beef. It's the nerd rivalry nobody asked for and everyone should fear."),
+            frozenset(["Mike",  "Doug"]):  ("🥖 The Sourdough & Swamp Bowl","West Coast vibes vs Florida Man energy. It shouldn't work but it absolutely goes."),
+            frozenset(["Mike",  "Nick"]):  ("🥇 The Gold Rush Classic",     "Gold helmets, West Coast money, Tallahassee attitude. Someone's getting cooked."),
+            frozenset(["Mike",  "Devin"]): ("🦅 The Falcon Punch Bowl",     "SJSU vs Bowling Green. Mountain West chaos meets MAC energy. Low-key unhinged."),
+            frozenset(["Mike",  "Josh"]):  ("🌊 The Bay vs the Bull",       "California cool meets Tampa heat. Somebody's leaving sunburned."),
+            frozenset(["Noah",  "Doug"]):  ("🍖 The Brisket & Gator Tail Showdown","Texas BBQ pit vs Florida swamp cuisine. Bragging rights served with hot sauce."),
+            frozenset(["Noah",  "Nick"]):  ("🤠 The Lone Star vs Garnet Grudge","Red Raiders and Seminoles. They meet in the middle of nowhere and throw haymakers."),
+            frozenset(["Noah",  "Devin"]): ("🏹 The Wreck the Tech Bowl",   "Noah's Raiders vs Devin's Falcons. Low-key nasty every single time."),
+            frozenset(["Noah",  "Josh"]):  ("🍞 The Texas Toast vs Tampa Bowl","Lone Star swagger meets Florida Lightning. The vibe check nobody passes."),
+            frozenset(["Doug",  "Nick"]):  ("🍊 The Florida Man Bowl",      "Both of y'all live in Florida. This is the most unhinged in-state rivalry in dynasty history."),
+            frozenset(["Doug",  "Devin"]): ("🍩 The Swamp Donuts Classic",  "Florida Gators vs Bowling Green Falcons. Doesn't make geographic sense. Still slaps."),
+            frozenset(["Doug",  "Josh"]):  ("⚡ The I-4 Grudge Match",      "Tampa to Gainesville is 2 hours. This rivalry lives rent-free in both their heads."),
+            frozenset(["Nick",  "Devin"]): ("🏈 The Seminole & Falcon Faceoff","Tallahassee prestige vs MAC grit. Blue chips vs chaos. Pick your poison."),
+            frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
+            frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
+        }
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 1 — SEASON POWER RANKINGS
+        # ════════════════════════════════════════════════════════════════════
+        st.subheader("📡 Season Power Rankings")
+        st.caption("Six dynasties. One king. Ranked by composite Power Index, title odds, and CFP probability.")
+
+        power_board = model_2041.copy()
+        for col in ['Power Index', 'Natty Odds', 'CFP Odds']:
+            if col not in power_board.columns:
+                power_board[col] = 0
+        power_board = power_board.sort_values(['Power Index', 'Natty Odds', 'CFP Odds'], ascending=False).reset_index(drop=True)
+
+        rank_icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"]
+        rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
+        rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
+
+        for idx, row in power_board.iterrows():
+            team = str(row.get('TEAM', ''))
+            user = str(row.get('USER', ''))
+            pi   = row.get('Power Index', 0)
+            natty = row.get('Natty Odds', 0)
+            cfp_pct = row.get('CFP Odds', 0)
+            qb_tier = row.get('QB Tier', '—')
+            icon    = rank_icons[idx] if idx < len(rank_icons) else "▪️"
+            label   = rank_labels[idx] if idx < len(rank_labels) else ""
+            lcolor  = rank_colors[idx] if idx < len(rank_colors) else "#374151"
+            tc      = get_team_primary_color(team)
+            logo_uri = image_file_to_data_uri(get_logo_source(team))
+            logo_html = f"<img src='{logo_uri}' style='width:36px;height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if logo_uri else "🏈 "
+
+            qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
+
+            st.markdown(f"""
+            <div style='display:flex;align-items:center;background:linear-gradient(90deg,{tc}18,#1f2937 60%);
+            border-left:4px solid {tc};border-radius:10px;padding:10px 14px;margin-bottom:8px;gap:12px;'>
+              <div style='font-size:1.6rem;min-width:36px;'>{icon}</div>
+              {logo_html}
+              <div style='flex:1;'>
+                <span style='font-size:1.05rem;font-weight:800;color:{tc};'>{html.escape(team)}</span>
+                <span style='color:#9ca3af;font-size:0.82rem;margin-left:8px;'>({html.escape(user)})</span>
+                <span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;
+                font-size:0.7rem;font-weight:900;background:{lcolor};color:white;'>{label}</span>
+              </div>
+              <div style='text-align:right;min-width:200px;'>
+                <span style='font-size:0.8rem;color:#d1d5db;'>PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 <strong style="color:white;">{round(float(natty),1)}%</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP: <strong style="color:white;">{round(float(cfp_pct))}%</strong></span>
+                <span style='display:inline-block;margin-left:12px;padding:2px 7px;border-radius:999px;
+                font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
+              </div>
+            </div>""", unsafe_allow_html=True)
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 2 — DYNASTY HEADLINES
+        # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
-        st.success(f"**{title_favorite['USER']}** has the strongest title case entering 2041 because the model leans hardest on overall roster quality and raw team speed, then lets CFP position and pedigree finish the damn job.")
-        st.info(f"**{most_dangerous['USER']}** owns the highest Power Index, which blends team strength, speed, blue-chip makeup, and dynasty history.")
-        st.warning(f"**{collapse_team['USER']}** carries the highest volatility marker. The model sees real downside if things break wrong.")
+        st.subheader("📰 Dynasty Headlines")
+        st.caption("Auto-generated from model data. These are the stories that matter this season.")
 
-        qb_boost_board = model_2041[model_2041['QB Tier'].isin(['Elite', 'Leader'])].sort_values(['Natty Odds', 'Power Index'], ascending=False)
-        if not qb_boost_board.empty:
-            qb_star = qb_boost_board.iloc[0]
-            if qb_star['QB Tier'] == 'Elite':
-                st.write(f"🧠 **QB headline:** {qb_star['USER']} has an **Elite** quarterback, and that spikes the ceiling like hell. The model treats that shit as a real title accelerator, not fluff.")
+        headlines = []
+
+        if not model_2041.empty:
+            title_fav = model_2041.sort_values('Natty Odds', ascending=False).iloc[0]
+            most_dangerous_team = model_2041.sort_values('Power Index', ascending=False).iloc[0]
+            collapse_team_row = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
+
+            headlines.append(("🏆", "Title Favorite",
+                f"**{title_fav['USER']}** has the strongest title case right now. The model leans hardest on overall roster quality and raw speed — {title_fav['USER']} clears both bars. Everyone else is playing catch-up."))
+
+            headlines.append(("⚡", "Power Index Leader",
+                f"**{most_dangerous_team['USER']}** owns the highest Power Index ({round(float(most_dangerous_team['Power Index']),1)}). That number blends team strength, speed, blue-chip makeup, and dynasty history. It's not a fluke."))
+
+            headlines.append(("💀", "Collapse Watch",
+                f"**{collapse_team_row['USER']}** carries the highest volatility marker ({round(float(collapse_team_row['Collapse Risk']))}% collapse risk). The model sees real downside if things break wrong. One bad week could unravel the whole damn season."))
+
+            qb_elite = model_2041[model_2041['QB Tier'] == 'Elite']
+            qb_ass = model_2041[model_2041['QB Tier'] == 'Ass']
+            if not qb_elite.empty:
+                qe = qb_elite.sort_values('Natty Odds', ascending=False).iloc[0]
+                headlines.append(("🧠", "Elite QB Alert",
+                    f"**{qe['USER']}** is running an **Elite** quarterback. That's a real title accelerator — the model treats it as a genuine ceiling-raiser, not fluff. When your QB is cooking, everything opens up."))
+            if not qb_ass.empty:
+                qa = qb_ass.sort_values('Power Index', ascending=True).iloc[0]
+                headlines.append(("🚨", "QB Disaster Watch",
+                    f"**{qa['USER']}** is rolling out an **Ass** QB situation. A good roster can mask a bad quarterback for about three games before it catches up to you. The clock is ticking."))
+
+            # Recruiting king
+            if 'Recruit Score' in model_2041.columns:
+                rec_king = model_2041.sort_values('Recruit Score', ascending=False).iloc[0]
+                headlines.append(("🎯", "Recruiting King",
+                    f"**{rec_king['USER']}** is winning the recruiting war ({round(float(rec_king['Recruit Score']),1)} recruit score). Future rosters are built in February. This one's already building the dynasty pipeline."))
+
+            # Speed gap
+            if 'Team Speed (90+ Speed Guys)' in model_2041.columns:
+                speed_king = model_2041.sort_values('Team Speed (90+ Speed Guys)', ascending=False).iloc[0]
+                speed_num = int(speed_king.get('Team Speed (90+ Speed Guys)', 0))
+                headlines.append(("💨", "Speed Merchants",
+                    f"**{speed_king['USER']}** leads the league with **{speed_num}** players at 90+ speed. You can scheme around a lot of things. You can't scheme around not being able to catch the other team's guys."))
+
+        for emoji, title, body in headlines:
+            st.markdown(f"""
+            <div style='background:#111827;border:1px solid #374151;border-radius:10px;padding:12px 16px;margin-bottom:8px;'>
+              <span style='font-size:1.1rem;'>{emoji}</span>
+              <strong style='color:#f3f4f6;margin-left:6px;'>{title}:</strong>
+              <span style='color:#d1d5db;font-size:0.9rem;margin-left:4px;'>{body}</span>
+            </div>""", unsafe_allow_html=True)
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 3 — TOUGHEST MATCHUPS
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("💪 Toughest Matchups of the Season")
+        st.caption("Based on preseason rankings + in-season rank at time of game. Results populate as games are played. Scheduled games show as upcoming.")
+
+        if cpu_master.empty:
+            st.info("Load CPUscores_MASTER.csv to see toughest matchup cards.")
+        else:
+            in_season_ranks = get_cfp_rankings_snapshot()
+            in_season_map   = dict(in_season_ranks[['Team', 'Rank']].values) if in_season_ranks is not None and not in_season_ranks.empty else {}
+
+            def get_game_difficulty(opp, opp_rank_col_val):
+                score = 0
+                pre = preseason_rank_map.get(opp)
+                ins = in_season_map.get(opp)
+                if pre: score += max(0, 26 - float(pre)) * 1.5
+                if ins and not pd.isna(ins): score += max(0, 26 - float(ins)) * 1.2
+                return score, pre, ins
+
+            matchup_cols = st.columns(3)
+            col_idx = 0
+
+            for user, team in USER_TEAMS.items():
+                team_mask = (cpu_master['Visitor'] == team) | (cpu_master['Home'] == team)
+                team_games = cpu_master[team_mask].copy()
+                if team_games.empty:
+                    continue
+
+                tc = get_team_primary_color(team)
+                logo_uri = image_file_to_data_uri(get_logo_source(team))
+                logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if logo_uri else "🏈"
+
+                def score_game(row):
+                    is_home = row['Home'] == team
+                    opp = row['Visitor'] if is_home else row['Home']
+                    opp_rank_val = row['Visitor Rank'] if is_home else row['Home Rank']
+                    diff, pre, ins = get_game_difficulty(opp, opp_rank_val)
+                    my_score  = row['Home Score'] if is_home else row['Vis Score']
+                    opp_score = row['Vis Score'] if is_home else row['Home Score']
+                    location  = 'vs' if is_home else '@'
+                    return pd.Series({
+                        'opp': opp, 'location': location, 'difficulty': diff,
+                        'pre_rank': pre, 'in_rank': ins,
+                        'my_score': my_score, 'opp_score': opp_score,
+                        'status': row['Status'], 'week': int(row['Week'])
+                    })
+
+                ranked_games = team_games.apply(score_game, axis=1).sort_values('difficulty', ascending=False).head(3)
+
+                cards_html = ""
+                for _, g in ranked_games.iterrows():
+                    opp_str = str(g['opp'])
+                    pre_tag = f"#{int(g['pre_rank'])} preseason" if g['pre_rank'] else "unranked preseason"
+                    ins_tag = f" · #{int(g['in_rank'])} in-season" if g['in_rank'] and not pd.isna(g['in_rank']) else ""
+                    week_str = f"Wk {g['week']}"
+
+                    if str(g['status']).upper() == 'FINAL' and pd.notna(g['my_score']) and pd.notna(g['opp_score']):
+                        ms, os_ = int(g['my_score']), int(g['opp_score'])
+                        won = ms > os_
+                        result_color = "#22c55e" if won else "#ef4444"
+                        result_label = f"{'W' if won else 'L'} {ms}–{os_}"
+                        status_html = f"<span style='font-weight:900;color:{result_color};'>{result_label}</span>"
+                    elif str(g['status']).upper() == 'SCHEDULED':
+                        status_html = "<span style='color:#f59e0b;font-weight:700;'>UPCOMING ⏳</span>"
+                    else:
+                        status_html = f"<span style='color:#9ca3af;'>{html.escape(str(g['status']))}</span>"
+
+                    diff_label = "🔥🔥🔥" if g['difficulty'] >= 50 else ("🔥🔥" if g['difficulty'] >= 30 else "🔥")
+
+                    cards_html += f"""
+                    <div style='border-left:3px solid {tc};padding:6px 10px;margin-bottom:6px;background:#0f172a;border-radius:6px;'>
+                      <div style='display:flex;justify-content:space-between;align-items:center;'>
+                        <span style='font-weight:700;color:#f3f4f6;font-size:0.88rem;'>{diff_label} {html.escape(g['location'])} {html.escape(opp_str)}</span>
+                        <span style='font-size:0.75rem;color:#9ca3af;'>{week_str}</span>
+                      </div>
+                      <div style='font-size:0.75rem;color:#9ca3af;margin-top:2px;'>{pre_tag}{ins_tag}</div>
+                      <div style='margin-top:4px;'>{status_html}</div>
+                    </div>"""
+
+                with matchup_cols[col_idx % 3]:
+                    st.markdown(f"""
+                    <div style='background:#1f2937;border:1px solid #374151;border-radius:12px;padding:12px;margin-bottom:12px;'>
+                      <div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>
+                        {logo_html}
+                        <span style='color:{tc};font-weight:800;font-size:0.95rem;'>{html.escape(team)}</span>
+                        <span style='color:#9ca3af;font-size:0.78rem;'>({html.escape(user)})</span>
+                      </div>
+                      {cards_html}
+                    </div>""", unsafe_allow_html=True)
+                col_idx += 1
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 4 — AWARD WATCH
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("🏆 Award Watch")
+
+        aw_col1, aw_col2 = st.columns(2)
+
+        with aw_col1:
+            st.markdown("#### 🏅 Heisman History")
+            if heisman is not None and not heisman.empty:
+                user_heisman = heisman[heisman['USER'].isin(USER_TEAMS.keys())].copy()
+                by_user = user_heisman.groupby('USER').size().reset_index(name='Heisman Count').sort_values('Heisman Count', ascending=False)
+                for _, r in by_user.iterrows():
+                    u = r['USER']
+                    count = r['Heisman Count']
+                    winners = user_heisman[user_heisman['USER'] == u][['YEAR','NAME','POS']].sort_values('YEAR', ascending=False)
+                    st.markdown(f"**{u}** — {count} Heisman{'s' if count > 1 else ''}")
+                    for _, w in winners.iterrows():
+                        st.markdown(f"<span style='color:#9ca3af;font-size:0.8rem;'>  {int(w['YEAR'])}: {w['NAME']} ({w['POS']})</span>", unsafe_allow_html=True)
             else:
-                st.write(f"🧠 **QB headline:** {qb_star['USER']} has a **Leader** at quarterback. Not superhero mode, but it's still a damn meaningful bump to CFP and natty odds.")
+                st.caption("No Heisman data loaded.")
 
-        doug_source = r_2041[(r_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (r_2041['TEAM'].astype(str).str.strip().str.lower() == 'florida')]
-        doug_model = model_2041[(model_2041['USER'].astype(str).str.strip().str.title() == 'Doug') & (model_2041['TEAM'].astype(str).str.strip().str.lower() == 'florida')]
-        doug_qb_tier = None
-        doug_qb_flag = False
-        if not doug_source.empty:
-            doug_src = doug_source.iloc[-1]
-            doug_qb_flag = yes_no_flag(doug_src.get('Qb is Ass (under 80)', 'No'))
-            doug_qb_tier = qb_label(doug_src)
-        if not doug_model.empty:
-            doug_qb_tier = str(doug_model.iloc[0].get('QB Tier', doug_qb_tier or 'Unknown'))
-            doug_qb_flag = doug_qb_flag or (doug_qb_tier == 'Ass')
-        if doug_qb_flag or doug_qb_tier == 'Ass':
-            st.error("☠️ **Doug/Florida QB update:** Florida's QB room is ass. The Gators can slap blue-chip makeup on this thing all they want, but that quarterback spot is still one ugly read away from turning the whole damn offense into a fire drill.")
-        elif doug_qb_tier:
-            st.info(f"Doug/Florida QB currently reads as **{doug_qb_tier}** in the latest file.")
+            # Current candidates from roster
+            st.markdown("#### 🌟 2042 Heisman Candidates")
+            st.caption("Top skill position players by OVR from current rosters.")
+            try:
+                roster_for_awards = pd.read_csv('cfb26_rosters_full.csv')
+                skill_pos = ['QB','HB','WR','TE']
+                candidates = roster_for_awards[roster_for_awards['Pos'].isin(skill_pos)].nlargest(6, 'OVR')[['Team','Name','Pos','Year','OVR','SPD']]
+                st.dataframe(candidates.reset_index(drop=True), hide_index=True, use_container_width=True)
+            except Exception:
+                st.caption("Load cfb26_rosters_full.csv to see current candidates.")
 
-        qb_disaster_board = model_2041[model_2041['QB Tier'] == 'Ass'].sort_values(['Natty Odds', 'Power Index'], ascending=True)
-        if not qb_disaster_board.empty:
-            qb_disaster = qb_disaster_board.iloc[0]
-            st.write(f"💀 **QB disaster watch:** {qb_disaster['USER']} is rolling out an **Ass** QB situation. That's the kind of setup that can take a good roster and make it play like it forgot where the fuck the sticks are.")
+        with aw_col2:
+            st.markdown("#### 🎓 Coach of the Year History")
+            if coty is not None and not coty.empty:
+                user_coty = coty[coty['User'].isin(USER_TEAMS.keys())].copy()
+                by_user_coty = user_coty.groupby('User').size().reset_index(name='COTY Count').sort_values('COTY Count', ascending=False)
+                for _, r in by_user_coty.iterrows():
+                    u = r['User']
+                    count = r['COTY Count']
+                    wins = user_coty[user_coty['User'] == u][['Year','Coach','Team']].sort_values('Year', ascending=False)
+                    st.markdown(f"**{u}** — {count} COTY award{'s' if count > 1 else ''}")
+                    for _, w in wins.iterrows():
+                        st.markdown(f"<span style='color:#9ca3af;font-size:0.8rem;'>  {int(w['Year'])}: {w['Coach']} ({w['Team']})</span>", unsafe_allow_html=True)
+                if user_coty.empty:
+                    st.caption("No user COTY wins yet.")
+            else:
+                st.caption("No COTY data loaded.")
 
-        if not rivalry_df.empty:
-            top_rivalry = rivalry_df.sort_values('Rivalry Score', ascending=False).iloc[0]
-            st.write(f"🔥 **Rivalry of the year:** {top_rivalry['Matchup']} — {int(top_rivalry['Games'])} meetings, rivalry score {top_rivalry['Rivalry Score']}.")
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 5 — INJURY REPORT
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("🚑 Injury Report")
+        st.caption("Upload screenshots from each user team's injury screen. Images display below — update throughout the season as the injury list changes.")
+
+        injury_files = st.file_uploader(
+            "Drop injury screenshots here (one or more)",
+            type=["png","jpg","jpeg","webp"],
+            accept_multiple_files=True,
+            key="injury_screenshots",
+            label_visibility="collapsed",
+        )
+
+        if injury_files:
+            inj_cols = st.columns(min(len(injury_files), 3))
+            for i, img_file in enumerate(injury_files):
+                with inj_cols[i % 3]:
+                    label = img_file.name.replace(".png","").replace(".jpg","").replace(".jpeg","").replace(".webp","").replace("_"," ").title()
+                    st.image(img_file, caption=label, use_column_width=True)
+        else:
+            st.markdown("""
+            <div style='background:#111827;border:1px dashed #374151;border-radius:10px;padding:24px;text-align:center;color:#6b7280;font-size:0.88rem;'>
+              📸 No injury screenshots uploaded yet.<br>
+              <span style='font-size:0.8rem;'>Drag and drop images above to populate the injury board.</span>
+            </div>""", unsafe_allow_html=True)
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 6 — RIVALRY SPOTLIGHT
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("⚔️ Rivalry Spotlight")
+        st.caption("Head-to-head history for every user matchup. The best rivalries have scar tissue.")
+
+        rivalry_stats = []
+        user_list = list(USER_TEAMS.keys())
+        for i in range(len(user_list)):
+            for j in range(i + 1, len(user_list)):
+                u1, u2 = user_list[i], user_list[j]
+                matchup_games = scores[
+                    ((scores['Vis_User'] == u1) & (scores['Home_User'] == u2)) |
+                    ((scores['Vis_User'] == u2) & (scores['Home_User'] == u1))
+                ].copy()
+                if matchup_games.empty:
+                    continue
+
+                games_played = len(matchup_games)
+                margins = pd.to_numeric(
+                    abs(pd.to_numeric(matchup_games['Vis Score'], errors='coerce') -
+                        pd.to_numeric(matchup_games['Home Score'], errors='coerce')),
+                    errors='coerce'
+                ).dropna()
+                avg_margin = round(float(margins.mean()), 1) if not margins.empty else 14.0
+
+                u1_wins = int(((matchup_games['Vis_User'] == u1) & (pd.to_numeric(matchup_games['Vis Score'], errors='coerce') > pd.to_numeric(matchup_games['Home Score'], errors='coerce'))).sum() +
+                              ((matchup_games['Home_User'] == u1) & (pd.to_numeric(matchup_games['Home Score'], errors='coerce') > pd.to_numeric(matchup_games['Vis Score'], errors='coerce'))).sum())
+                u2_wins = games_played - u1_wins
+
+                rivalry_key = frozenset([u1, u2])
+                rname, rdesc = RIVALRY_NAMES.get(rivalry_key, (f"{u1} vs {u2}", "Two coaches walk into a stadium..."))
+
+                spice = "🌶️🌶️🌶️" if (games_played >= 5 and avg_margin <= 10) else ("🌶️🌶️" if games_played >= 3 else "🌶️")
+                rivalry_stats.append({
+                    'key': rivalry_key, 'u1': u1, 'u2': u2, 'name': rname, 'desc': rdesc,
+                    'games': games_played, 'avg_margin': avg_margin, 'spice': spice,
+                    'u1_wins': u1_wins, 'u2_wins': u2_wins,
+                    'score': games_played * 3 + max(0, 20 - avg_margin)
+                })
+
+        rivalry_stats.sort(key=lambda x: x['score'], reverse=True)
+
+        if not rivalry_stats:
+            st.caption("No user vs user games found yet. Check back after Week 1.")
+        else:
+            riv_cols = st.columns(2)
+            for idx, riv in enumerate(rivalry_stats):
+                u1, u2 = riv['u1'], riv['u2']
+                t1 = USER_TEAMS.get(u1, u1)
+                t2 = USER_TEAMS.get(u2, u2)
+                c1 = get_team_primary_color(t1)
+                c2 = get_team_primary_color(t2)
+                logo1_uri = image_file_to_data_uri(get_logo_source(t1))
+                logo2_uri = image_file_to_data_uri(get_logo_source(t2))
+                logo1_html = f"<img src='{logo1_uri}' style='width:32px;height:32px;object-fit:contain;'/>" if logo1_uri else "🏈"
+                logo2_html = f"<img src='{logo2_uri}' style='width:32px;height:32px;object-fit:contain;'/>" if logo2_uri else "🏈"
+
+                leader = u1 if riv['u1_wins'] > riv['u2_wins'] else (u2 if riv['u2_wins'] > riv['u1_wins'] else None)
+                leader_color = c1 if leader == u1 else (c2 if leader == u2 else "#9ca3af")
+                series_str = f"{riv['u1_wins']}–{riv['u2_wins']}" if leader else f"{riv['u1_wins']}–{riv['u2_wins']} (EVEN)"
+                lead_str = f"{html.escape(leader)} leads" if leader else "DEAD EVEN 🤝"
+
+                with riv_cols[idx % 2]:
+                    st.markdown(f"""
+                    <div style='background:linear-gradient(135deg,{c1}12,#1f2937 50%,{c2}12);
+                    border:1px solid #374151;border-radius:14px;padding:14px 16px;margin-bottom:12px;'>
+                      <div style='font-size:1.0rem;font-weight:900;color:#f3f4f6;margin-bottom:2px;'>{riv['spice']} {html.escape(riv['name'])}</div>
+                      <div style='font-size:0.78rem;color:#9ca3af;margin-bottom:10px;font-style:italic;'>{html.escape(riv['desc'])}</div>
+                      <div style='display:flex;align-items:center;justify-content:space-between;'>
+                        <div style='display:flex;align-items:center;gap:6px;'>
+                          {logo1_html}
+                          <div>
+                            <div style='color:{c1};font-weight:700;font-size:0.85rem;'>{html.escape(u1)}</div>
+                            <div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(t1)}</div>
+                          </div>
+                        </div>
+                        <div style='text-align:center;padding:0 12px;'>
+                          <div style='font-size:1.2rem;font-weight:900;color:#f3f4f6;'>{series_str}</div>
+                          <div style='font-size:0.7rem;color:{leader_color};font-weight:700;'>{lead_str}</div>
+                          <div style='font-size:0.68rem;color:#6b7280;'>{riv['games']} games · avg margin {riv['avg_margin']} pts</div>
+                        </div>
+                        <div style='display:flex;align-items:center;gap:6px;'>
+                          <div style='text-align:right;'>
+                            <div style='color:{c2};font-weight:700;font-size:0.85rem;'>{html.escape(u2)}</div>
+                            <div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(t2)}</div>
+                          </div>
+                          {logo2_html}
+                        </div>
+                      </div>
+                    </div>""", unsafe_allow_html=True)
+
+
 
     # --- WHO'S IN? ---
     with tabs[2]:
@@ -3440,7 +3821,7 @@ if data:
         else:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
     # --- RECRUITING RANKINGS ---
-    with tabs[6]:
+    with tabs[7]:
         st.header("🏈 Recruiting Rankings")
         st.caption("Current season screenshot board appears first. Heat Index uses the last four class ranks from recruiting.csv, weighted toward the most recent years: lower weighted average rank = hotter score. Pipeline Score blends that heat with blue-chip ratio, current team speed, overall roster quality, improvement, and freak count.")
 
@@ -3478,7 +3859,7 @@ if data:
                 st.info(sp['Recruiting Blurb'])
 
     # --- H2H MATRIX ---
-    with tabs[7]:
+    with tabs[8]:
         st.header("⚔️ Head-to-Head Matrix")
 
         st.subheader("Full H2H Matrix")
@@ -3604,7 +3985,7 @@ if data:
         )
 
     # --- TEAM OVERVIEW ---
-    with tabs[5]:
+    with tabs[6]:
         st.header("📊 Team Analysis")
         target = st.selectbox("Select Team", model_2041['USER'].tolist(), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
@@ -3734,7 +4115,7 @@ if data:
                 st.progress(min(1.0, team_speed / 100.0))
 
     # --- UPSET TRACKER ---
-    with tabs[8]:
+    with tabs[9]:
         st.header("🚨 Upset Tracker")
 
         upset_df = scores.copy()
@@ -3779,7 +4160,7 @@ if data:
             )
 
     # --- GOAT RANKINGS ---
-    with tabs[9]:
+    with tabs[10]:
         st.header("🐐 Dynasty GOAT Rankings")
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
@@ -3803,7 +4184,7 @@ if data:
 
 
     # --- ROSTER MATCHUP ---
-    with tabs[10]:
+    with tabs[5]:
         render_roster_matchup_tab()
 
     if st.sidebar.button("🔄 Refresh Data"):
