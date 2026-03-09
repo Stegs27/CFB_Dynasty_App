@@ -3947,12 +3947,20 @@ if data:
             _final_rank_lookup = {}
 
         def _get_user_games(user):
+            """Return one row per game for this user.
+
+            opp_rank        – rank at game time (NaN if unranked then)
+            opp_final_rank  – rank from end-of-season poll (NaN if never ranked)
+            opp_ranked      – True if ranked AT game time
+            opp_ranked_final– True if ranked at game time OR ended ranked
+            effective_rank  – best available rank: at-game-time first, final fallback
+            """
             if _cpu_sos.empty: return pd.DataFrame()
-            mask = (_cpu_sos['Vis_User'] == user) | (_cpu_sos['Home_User'] == user)
+            mask  = (_cpu_sos['Vis_User'] == user) | (_cpu_sos['Home_User'] == user)
             games = _cpu_sos[mask].copy()
             results = []
             for _, g in games.iterrows():
-                is_vis = g['Vis_User'] == user
+                is_vis    = g['Vis_User'] == user
                 my_score  = g['Vis Score']  if is_vis else g['Home Score']
                 opp_score = g['Home Score'] if is_vis else g['Vis Score']
                 opp_name  = g['Home']       if is_vis else g['Visitor']
@@ -3960,20 +3968,28 @@ if data:
                 my_rank   = g['Visitor Rank'] if is_vis else g['Home Rank']
                 home_away = 'Away' if is_vis else 'Home'
                 week      = str(g['Week'])
-                # Result
                 if pd.isna(my_score) or pd.isna(opp_score):
                     result = 'TBD'
                 elif my_score > opp_score:
                     result = 'W'
                 else:
                     result = 'L'
-                margin = (my_score - opp_score) if result != 'TBD' else None
-                opp_ranked = not pd.isna(opp_rank)
+                margin         = (my_score - opp_score) if result != 'TBD' else None
+                opp_ranked     = not pd.isna(opp_rank)
+                opp_final_rank = _final_rank_lookup.get(str(opp_name).strip())
+                opp_ranked_final = opp_ranked or (opp_final_rank is not None)
+                # Best available rank: at-game-time preferred, final fallback
+                effective_rank = opp_rank if opp_ranked else (float(opp_final_rank) if opp_final_rank else float('nan'))
                 results.append({
-                    'week': week, 'opponent': opp_name, 'opp_rank': opp_rank,
-                    'my_rank': my_rank, 'result': result, 'my_score': my_score,
-                    'opp_score': opp_score, 'margin': margin,
-                    'home_away': home_away, 'opp_ranked': opp_ranked,
+                    'week': week, 'opponent': opp_name,
+                    'opp_rank': opp_rank,
+                    'opp_final_rank': opp_final_rank,
+                    'opp_ranked': opp_ranked,
+                    'opp_ranked_final': opp_ranked_final,
+                    'effective_rank': effective_rank,
+                    'my_rank': my_rank, 'result': result,
+                    'my_score': my_score, 'opp_score': opp_score,
+                    'margin': margin, 'home_away': home_away,
                     'conf_game': int(g.get('Conf Title', 0) or 0) == 1,
                     'bowl': int(g.get('Bowl', 0) or 0) == 1,
                 })
@@ -3982,28 +3998,32 @@ if data:
         def _speed_handicap(user):
             info = _speed_map.get(user, {})
             spd  = info.get('team_speed', _league_avg_speed)
-            # Speed component: slower = positive (harder effective path)
             spd_raw = (_league_avg_speed - spd) * 0.55
-            # QB component: Ass QB amplifies difficulty, Elite QB softens it
             qb_tier = info.get('qb_tier', 'Average Joe')
             qb_ovr  = info.get('qb_ovr', 80)
             qb_base = {'Elite': -4.0, 'Leader': -1.5, 'Average Joe': 1.5, 'Ass': 5.0}.get(qb_tier, 0)
             if qb_tier == 'Elite':
-                qb_base += (qb_ovr - 90) * -0.12   # 95 OVR gets extra -0.6 relief
+                qb_base += (qb_ovr - 90) * -0.12
             elif qb_tier == 'Ass':
-                qb_base += max(0, 80 - qb_ovr) * 0.20  # below 80 punished harder
+                qb_base += max(0, 80 - qb_ovr) * 0.20
             return round(spd_raw + qb_base, 2)
 
         def _sos_score(games_df):
+            """Compute SOS using final-rank-corrected effective_rank.
+
+            Uses opp_ranked_final so teams like BG (ranked at end, not early)
+            are properly credited in ranked wins / avg opp rank.
+            Top-10 check uses effective_rank (best available: at-time or final).
+            """
             if games_df.empty: return 0, 0, 0, 0
-            ranked_wins  = int(((games_df['result']=='W') & games_df['opp_ranked']).sum())
-            top10_wins   = int(((games_df['result']=='W') & (games_df['opp_rank'] <= 10)).sum())
-            ranked_losses = int(((games_df['result']=='L') & games_df['opp_ranked']).sum())
-            comp_games   = games_df[games_df['opp_ranked']]
-            avg_opp_rank = float(comp_games['opp_rank'].mean()) if not comp_games.empty else 99.0
+            ranked_wins   = int(((games_df['result']=='W') & games_df['opp_ranked_final']).sum())
+            top10_wins    = int(((games_df['result']=='W') & (games_df['effective_rank'] <= 10)).sum())
+            ranked_losses = int(((games_df['result']=='L') & games_df['opp_ranked_final']).sum())
+            comp_games    = games_df[games_df['opp_ranked_final']]
+            avg_opp_rank  = float(comp_games['effective_rank'].mean()) if not comp_games.empty else 99.0
             base_sos = (
-                ranked_wins  * 8.5
-                + top10_wins * 4.0
+                ranked_wins   * 8.5
+                + top10_wins  * 4.0
                 - ranked_losses * 1.5
                 + max(0, (25 - avg_opp_rank)) * 0.8
             )
@@ -4035,6 +4055,16 @@ if data:
             })
         resume_df = pd.DataFrame(resume_rows).sort_values('Adj SOS', ascending=False).reset_index(drop=True)
 
+        # Check if preseason rank data exists (WEEK = 0 or 1 from PREVIOUS year)
+        # Next season: capture week-1 rankings so we can diff preseason vs final SOS
+        _has_preseason = False
+        try:
+            _cfp_all = pd.read_csv('cfp_rankings_history.csv')
+            _years   = sorted(_cfp_all['YEAR'].unique())
+            _has_preseason = len(_years) >= 2   # need at least 2 seasons of data
+        except Exception:
+            pass
+
         # ── SECTION 1: TOP METRICS ────────────────────────────────────────────
         _top = resume_df.iloc[0]
         _most_rw = resume_df.sort_values('Ranked Wins', ascending=False).iloc[0]
@@ -4049,8 +4079,11 @@ if data:
 
         # ── SECTION 2: RÉSUMÉ LEADERBOARD ────────────────────────────────────
         st.markdown("---")
-        st.subheader("📋 Schedule Résumé Board")
-        st.caption("Speed-adjusted SOS = Base SOS + Speed Handicap. Slower teams get credit for fighting uphill all season.")
+        st.subheader("📋 Schedule Résumé Board — Final SOS")
+        if _has_preseason:
+            st.caption("🔵 **Final SOS** · Preseason SOS comparison available — see below. Speed-adjusted SOS = Base SOS + Speed Handicap.")
+        else:
+            st.caption("📌 **Final SOS** (ranks corrected to end-of-season poll — opponents like BG that earned their ranking late are properly credited). Preseason SOS unlocks next season once week-1 rankings are captured. Speed-adjusted SOS = Base SOS + Speed Handicap.")
 
         rank_medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"]
         resume_cards = ""
@@ -4411,74 +4444,126 @@ if data:
             st.markdown("---")
             st.subheader("🏟️ Conference Gauntlet")
 
-            # Determine user's conference and conference rivals
-            _conf_groups = {
-                'SEC': {'Nick', 'Devin', 'Doug'},
-                'B1G': {'Noah', 'Josh', 'Mike'},
-            }
             sel_conf_name = _speed_map.get(sel_user, {}).get('conf', '—')
-            _conf_rivals  = _conf_groups.get(sel_conf_name, set()) - {sel_user}
+            sel_team_name = USER_TEAMS.get(sel_user, '')
+            conf_str      = CONF_STRENGTH.get(sel_conf_name, 0)
+            _conf_groups  = {'SEC': {'Nick','Devin','Doug'}, 'B1G': {'Noah','Josh','Mike'}}
+            _conf_rivals_users = _conf_groups.get(sel_conf_name, set()) - {sel_user}
 
-            # Real conf games = user-vs-user same conference + conf champ game
+            # ── Pull real full conf record from conf_standings_2041.csv ───────
+            _from_standings = False
+            conf_w = conf_l = conf_ranked_w = 0
+            avg_conf_rank = None
+            _uvw_games = pd.DataFrame()
+            _conf_st   = pd.DataFrame()
+            try:
+                _conf_st = pd.read_csv('conf_standings_2041.csv')
+                _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
+                _conf_st['USER'] = _conf_st['USER'].fillna('')
+                _team_row = _conf_st[_conf_st['TEAM'] == sel_team_name]
+                if _team_row.empty:
+                    raise ValueError("team not in standings")
+                _tr    = _team_row.iloc[0]
+                conf_w = int(_tr['CONF_W'])
+                conf_l = int(_tr['CONF_L'])
+                _conf_peers = _conf_st[
+                    (_conf_st['CONFERENCE'] == sel_conf_name) &
+                    (_conf_st['TEAM'] != sel_team_name)
+                ].copy()
+                _conf_peers['RANK'] = pd.to_numeric(_conf_peers['RANK'], errors='coerce')
+                conf_opp_ranks_s = _conf_peers['RANK'].dropna()
+                avg_conf_rank = round(float(conf_opp_ranks_s.mean()), 1) if not conf_opp_ranks_s.empty else None
+                _from_standings = True
+            except Exception:
+                pass
+
+            # User-vs-user matchups for detailed card display
             if not sel_games.empty:
-                conf_games = sel_games[
+                _uvw_games = sel_games[
                     sel_games['week'].isin(['Conf Champ']) |
                     sel_games['opponent'].apply(
-                        lambda opp: any(
-                            USER_TEAMS.get(r, '') == opp for r in _conf_rivals
-                        )
+                        lambda opp: any(USER_TEAMS.get(r,'') == opp for r in _conf_rivals_users)
                     )
                 ].copy()
-            else:
-                conf_games = pd.DataFrame()
-
-            conf_w = int((conf_games['result'] == 'W').sum()) if not conf_games.empty else 0
-            conf_l = int((conf_games['result'] == 'L').sum()) if not conf_games.empty else 0
-            conf_ranked_w = int(((conf_games['result'] == 'W') & conf_games['opp_ranked']).sum()) if not conf_games.empty else 0
-            conf_opp_ranks = conf_games['opp_rank'].dropna()
-            avg_conf_rank = round(float(conf_opp_ranks.mean()), 1) if not conf_opp_ranks.empty else None
-            conf_str = CONF_STRENGTH.get(sel_conf_name, 0)
+                conf_ranked_w = int(
+                    ((_uvw_games['result']=='W') & _uvw_games['opp_ranked_final']).sum()
+                ) if not _uvw_games.empty else 0
 
             cg_metrics = [
                 {"label": f"🏟️ {sel_conf_name} Record", "value": f"{conf_w}-{conf_l}", "delta": f"Conf strength: {conf_str}"},
-                {"label": "💪 Conf Ranked Wins", "value": str(conf_ranked_w)},
+                {"label": "💪 Conf Ranked Wins (u-v-u)", "value": str(conf_ranked_w)},
             ]
             if avg_conf_rank:
-                cg_metrics.append({"label": "📊 Avg Conf Opp Rank", "value": f"#{int(avg_conf_rank)}"})
+                cg_metrics.append({"label": "📊 Avg Ranked Conf Opp", "value": f"#{int(avg_conf_rank)}"})
             mobile_metrics(cg_metrics, cols_desktop=3)
 
-            # Show the actual matchups
-            if not conf_games.empty:
-                conf_html = "<div style='display:flex;flex-direction:column;gap:6px;margin-top:10px;'>"
-                for _, cg in conf_games.iterrows():
-                    r = cg['result']
-                    rk = f"#{int(cg['opp_rank'])}" if cg['opp_ranked'] else "Unranked"
-                    mg = f" ({'+' if (cg['margin'] or 0)>0 else ''}{int(cg['margin'])})" if (cg['margin'] is not None and not pd.isna(cg['margin'])) else ""
-                    wk = str(cg['week'])
-                    opp = str(cg['opponent'])
-                    rc = "#22c55e" if r == 'W' else ("#ef4444" if r == 'L' else "#6b7280")
-                    icon = "✅" if r == 'W' else ("❌" if r == 'L' else "⏳")
-                    badge = "<span style='font-size:0.65rem;padding:1px 5px;background:#7c2d12;color:#fed7aa;border-radius:3px;margin-left:6px;font-weight:800;'>CONF CHAMP</span>" if wk == 'Conf Champ' else ""
+            # Full conf standings (all teams, not just user-vs-user)
+            if _from_standings and not _conf_st.empty:
+                _conf_peers_all = _conf_st[
+                    (_conf_st['CONFERENCE'] == sel_conf_name) &
+                    (_conf_st['TEAM'] != sel_team_name)
+                ].copy()
+                _conf_peers_all['RANK'] = pd.to_numeric(_conf_peers_all['RANK'], errors='coerce')
+                _conf_peers_all = _conf_peers_all.sort_values(['CONF_W','W'], ascending=False)
+                if not _conf_peers_all.empty:
+                    st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:10px 0 5px;letter-spacing:.06em;font-weight:700;'>CONFERENCE STANDINGS (full)</div>", unsafe_allow_html=True)
+                    cst_html = "<div style='display:flex;flex-direction:column;gap:3px;'>"
+                    for _, cr in _conf_peers_all.iterrows():
+                        cr_rk   = int(cr['RANK']) if pd.notna(cr['RANK']) else None
+                        cr_user = str(cr['USER']).strip() if str(cr['USER']).strip() not in ('','nan') else None
+                        rk_str  = f"#{cr_rk}" if cr_rk else "—"
+                        rk_col  = "#fbbf24" if cr_rk else "#374151"
+                        user_badge = (
+                            f"<span style='font-size:0.62rem;padding:1px 4px;background:#1e3a5f;"
+                            f"color:#60a5fa;border-radius:3px;margin-left:5px;'>{html.escape(cr_user)}</span>"
+                        ) if cr_user else ""
+                        cst_html += (
+                            f"<div style='display:flex;align-items:center;gap:8px;padding:5px 10px;"
+                            f"background:#0a1628;border-radius:5px;font-size:0.78rem;'>"
+                            f"<span style='color:{rk_col};font-weight:800;min-width:28px;'>{rk_str}</span>"
+                            f"<span style='color:#d1d5db;flex:1;'>{html.escape(str(cr['TEAM']))}{user_badge}</span>"
+                            f"<span style='color:#94a3b8;min-width:36px;text-align:right;'>{int(cr['W'])}-{int(cr['L'])}</span>"
+                            f"<span style='color:#475569;font-size:0.7rem;min-width:52px;text-align:right;'>({int(cr['CONF_W'])}-{int(cr['CONF_L'])} conf)</span>"
+                            f"</div>"
+                        )
+                    cst_html += "</div>"
+                    st.markdown(cst_html, unsafe_allow_html=True)
+
+            # User-vs-user matchup detail
+            if not _uvw_games.empty:
+                st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:12px 0 5px;letter-spacing:.06em;font-weight:700;'>USER-VS-USER MATCHUPS</div>", unsafe_allow_html=True)
+                conf_html = "<div style='display:flex;flex-direction:column;gap:4px;'>"
+                for _, cg in _uvw_games.iterrows():
+                    r    = cg['result']
+                    rk   = f"#{int(cg['effective_rank'])}" if cg['opp_ranked_final'] else "Unranked"
+                    mg   = f" ({'+' if (cg['margin'] or 0)>0 else ''}{int(cg['margin'])})" if (cg['margin'] is not None and not pd.isna(cg['margin'])) else ""
+                    wk   = str(cg['week'])
+                    opp  = str(cg['opponent'])
+                    rc   = "#22c55e" if r=='W' else ("#ef4444" if r=='L' else "#6b7280")
+                    icon = "✅" if r=='W' else ("❌" if r=='L' else "⏳")
+                    cc_badge = "<span style='font-size:0.62rem;padding:1px 5px;background:#7c2d12;color:#fed7aa;border-radius:3px;margin-left:6px;font-weight:800;'>CONF CHAMP</span>" if wk=='Conf Champ' else ""
+                    fin_note = "<span style='font-size:0.62rem;color:#64748b;margin-left:3px;'>▸fin</span>" if (cg['opp_ranked_final'] and not cg['opp_ranked']) else ""
                     conf_html += (
-                        f"<div style='display:flex;align-items:center;gap:10px;padding:8px 12px;"
-                        f"background:#0d1a2e;border-left:3px solid {rc};border-radius:6px;font-size:0.82rem;font-family:monospace;'>"
+                        f"<div style='display:flex;align-items:center;gap:10px;padding:7px 12px;"
+                        f"background:#0d1a2e;border-left:3px solid {rc};border-radius:6px;font-size:0.82rem;'>"
                         f"<span style='color:{rc};font-weight:800;min-width:14px;'>{icon}</span>"
                         f"<span style='color:#94a3b8;min-width:60px;'>{wk}</span>"
-                        f"<span style='color:{rc};font-weight:700;'>{rk}</span>"
+                        f"<span style='color:{rc};font-weight:700;'>{rk}{fin_note}</span>"
                         f"<span style='color:#d1d5db;flex:1;'>{html.escape(opp)}</span>"
                         f"<span style='color:{rc};font-weight:700;'>{r}{mg}</span>"
-                        f"{badge}"
+                        f"{cc_badge}"
                         f"</div>"
                     )
                 conf_html += "</div>"
                 st.markdown(conf_html, unsafe_allow_html=True)
 
             conf_tier_note = {
-                'SEC': "SEC — one of the two murder conferences in this dynasty. User-vs-user games only.",
-                'B1G': "B1G — co-king of the dynasty. Physical, deep, no easy weeks. User-vs-user games only.",
-                'ACC': "ACC — real teeth at the top, softer underbelly.",
-            }.get(sel_conf_name, f"{sel_conf_name} schedule.")
-            st.caption(f"📌 {conf_tier_note} CPU opponents excluded — can't verify their conference.")
+                'SEC': "SEC — 16-team murder conference.",
+                'B1G': "B1G — co-king of the dynasty. 9-game conf schedule.",
+                'ACC': "ACC — top-heavy, real teeth at the top.",
+            }.get(sel_conf_name, f"{sel_conf_name}.")
+            src_note = "Record from conf_standings_2041.csv." if _from_standings else "⚠️ conf_standings_2041.csv not found — user-vs-user fallback only."
+            st.caption(f"📌 {conf_tier_note} {src_note} User-vs-user matchups shown individually.")
 
         else:
             st.info("No schedule data found for this user. Make sure CPUscores_MASTER.csv is up to date.")
