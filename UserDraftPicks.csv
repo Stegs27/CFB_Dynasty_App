@@ -1,7 +1,7 @@
-USER,Guys Sent to NFL,1st Rounders,Conference Titles,Career Wins,Career Losses,CFP Wins,CFP Losses,National Title Appearances
-Devin,44,8,9,216,31,14,9,3
-Nick,87,11,9,200,44,13,11,4
-Josh,90,25,3,202,43,19,8,4
-Mike,87,15,13,246,19,35,9,11
-Noah,59,7,7,203,42,18,11,4
-Doug,32,3,2,171,60,6,4,1
+USER,Guys Sent to NFL,1st Rounders,Conference Titles,Career Wins,Career Losses,CFP Wins,CFP Losses,National Titles,National Title Appearances
+Devin,44,8,9,216,31,14,9,2,3
+Nick,87,11,9,200,44,13,11,0,4
+Josh,90,25,3,202,43,19,8,3,4
+Mike,87,15,13,246,19,35,9,7,11
+Noah,59,7,7,203,42,18,11,2,4
+Doug,32,3,2,171,60,6,4,1,1
