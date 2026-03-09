@@ -3875,9 +3875,10 @@ if data:
                     u = r['USER']
                     count = r['Heisman Count']
                     winners = user_heisman[user_heisman['USER'] == u][['YEAR','NAME','POS']].sort_values('YEAR', ascending=False)
-                    st.markdown(f"**{u}** — {count} Heisman{'s' if count > 1 else ''}")
-                    for _, w in winners.iterrows():
-                        st.markdown(f"<span style='color:#9ca3af;font-size:0.8rem;'>  {int(w['YEAR'])}: {w['NAME']} ({w['POS']})</span>", unsafe_allow_html=True)
+                    trophy = "🏆" if count >= 3 else ("🥇" if count >= 2 else "🏅")
+                    with st.expander(f"{trophy} **{u}** — {count} Heisman{'s' if count > 1 else ''}"):
+                        for _, w in winners.iterrows():
+                            st.markdown(f"<div style='padding:4px 0;color:#e5e7eb;font-size:0.85rem;'><span style='color:#fbbf24;font-weight:700;'>{int(w['YEAR'])}</span> &nbsp;{w['NAME']} <span style='color:#9ca3af;'>({w['POS']})</span></div>", unsafe_allow_html=True)
             else:
                 st.caption("No Heisman data loaded.")
 
@@ -3901,9 +3902,10 @@ if data:
                     u = r['User']
                     count = r['COTY Count']
                     wins = user_coty[user_coty['User'] == u][['Year','Coach','Team']].sort_values('Year', ascending=False)
-                    st.markdown(f"**{u}** — {count} COTY award{'s' if count > 1 else ''}")
-                    for _, w in wins.iterrows():
-                        st.markdown(f"<span style='color:#9ca3af;font-size:0.8rem;'>  {int(w['Year'])}: {w['Coach']} ({w['Team']})</span>", unsafe_allow_html=True)
+                    trophy = "🏆" if count >= 3 else ("🥇" if count >= 2 else "🎓")
+                    with st.expander(f"{trophy} **{u}** — {count} COTY award{'s' if count > 1 else ''}"):
+                        for _, w in wins.iterrows():
+                            st.markdown(f"<div style='padding:4px 0;color:#e5e7eb;font-size:0.85rem;'><span style='color:#34d399;font-weight:700;'>{int(w['Year'])}</span> &nbsp;{w['Coach']} <span style='color:#9ca3af;'>({w['Team']})</span></div>", unsafe_allow_html=True)
                 if user_coty.empty:
                     st.caption("No user COTY wins yet.")
             else:
@@ -3914,28 +3916,11 @@ if data:
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🚑 Injury Report")
-        st.caption("Upload screenshots from each user team's injury screen. Images display below — update throughout the season as the injury list changes.")
-
-        injury_files = st.file_uploader(
-            "Drop injury screenshots here (one or more)",
-            type=["png","jpg","jpeg","webp"],
-            accept_multiple_files=True,
-            key="injury_screenshots",
-            label_visibility="collapsed",
-        )
-
-        if injury_files:
-            inj_cols = st.columns(min(len(injury_files), 3))
-            for i, img_file in enumerate(injury_files):
-                with inj_cols[i % 3]:
-                    label = img_file.name.replace(".png","").replace(".jpg","").replace(".jpeg","").replace(".webp","").replace("_"," ").title()
-                    st.image(img_file, caption=label, use_column_width=True)
-        else:
-            st.markdown("""
-            <div style='background:#111827;border:1px dashed #374151;border-radius:10px;padding:24px;text-align:center;color:#6b7280;font-size:0.88rem;'>
-              📸 No injury screenshots uploaded yet.<br>
-              <span style='font-size:0.8rem;'>Drag and drop images above to populate the injury board.</span>
-            </div>""", unsafe_allow_html=True)
+        st.caption("Drop injury screenshots in the ISPN chat to update this board.")
+        st.markdown("""
+        <div style='background:#111827;border:1px dashed #374151;border-radius:10px;padding:24px;text-align:center;color:#6b7280;font-size:0.88rem;'>
+          📸 Send injury screenshots in chat to update the injury board.
+        </div>""", unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 6 — RIVALRY SPOTLIGHT
