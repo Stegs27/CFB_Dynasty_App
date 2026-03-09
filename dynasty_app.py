@@ -2908,13 +2908,27 @@ def compute_projected_seed_score(board_df):
 
 def parse_cfp_bracket_screenshot(image_bytes, media_type="image/png"):
     """
-    Sends a CFP bracket screenshot to Claude claude-sonnet-4-20250514 via the Anthropic API.
-    Returns a list of dicts: [{'seed': 1, 'team': 'Bowling Green', 'record': '12-0'}, ...]
-    sorted by seed 1-12. Returns None on failure.
+    Sends a CFP bracket screenshot to Claude via the Anthropic API.
+    Pulls API key from st.secrets["ANTHROPIC_API_KEY"] or the ANTHROPIC_API_KEY env var.
+    Returns a list of dicts: [{'seed': 1, 'team': 'Florida State', 'record': '12-1'}, ...]
+    sorted by seed 1-12. Returns (None, error_str) on failure.
     """
     import json as _json
+    import os as _os
+    import urllib.request as _urlreq
+
+    # ── Resolve API key ───────────────────────────────────────────────────────
+    api_key = None
     try:
-        import urllib.request
+        api_key = st.secrets.get("ANTHROPIC_API_KEY") or st.secrets.get("anthropic_api_key")
+    except Exception:
+        pass
+    if not api_key:
+        api_key = _os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return None, "No API key found. Add ANTHROPIC_API_KEY to your Streamlit secrets (Settings → Secrets in Streamlit Cloud)."
+
+    try:
         img_b64 = base64.b64encode(image_bytes).decode('ascii')
         payload = _json.dumps({
             "model": "claude-sonnet-4-20250514",
@@ -2924,54 +2938,45 @@ def parse_cfp_bracket_screenshot(image_bytes, media_type="image/png"):
                 "content": [
                     {
                         "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": img_b64
-                        }
+                        "source": {"type": "base64", "media_type": media_type, "data": img_b64}
                     },
                     {
                         "type": "text",
                         "text": (
-                            "This is a College Football Playoff bracket screenshot from a video game dynasty. "
-                            "Extract all 12 teams in the bracket. For each team return its seed number (1-12), "
-                            "team name exactly as shown, and record (W-L). "
+                            "This is a College Football Playoff bracket screenshot from a CFB video game dynasty. "
+                            "Extract all 12 teams. For each return seed (1-12), team name exactly as shown, and record (W-L). "
                             "Seeds 1-4 have a first-round bye. "
-                            "Respond ONLY with a valid JSON array, no markdown, no explanation. "
-                            'Example: [{"seed": 1, "team": "Bowling Green", "record": "12-0"}, ...]'
+                            "Respond ONLY with a valid JSON array, zero markdown, zero explanation. "
+                            'Format: [{"seed":1,"team":"Florida State","record":"12-1"},...]'
                         )
                     }
                 ]
             }]
         }).encode('utf-8')
 
-        req = urllib.request.Request(
+        req = _urlreq.Request(
             "https://api.anthropic.com/v1/messages",
             data=payload,
             headers={
-                "Content-Type": "application/json",
+                "Content-Type":    "application/json",
+                "x-api-key":       api_key,
                 "anthropic-version": "2023-06-01",
             },
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with _urlreq.urlopen(req, timeout=30) as resp:
             result = _json.loads(resp.read().decode('utf-8'))
 
-        raw_text = ""
-        for block in result.get("content", []):
-            if block.get("type") == "text":
-                raw_text += block.get("text", "")
+        raw_text = "".join(b.get("text","") for b in result.get("content",[]) if b.get("type")=="text").strip()
 
-        # Strip markdown fences if present
-        raw_text = raw_text.strip()
+        # Strip markdown fences
         if raw_text.startswith("```"):
             raw_text = raw_text.split("```")[1]
             if raw_text.startswith("json"):
                 raw_text = raw_text[4:]
-        raw_text = raw_text.strip().rstrip("```").strip()
+        raw_text = raw_text.strip().rstrip("`").strip()
 
         teams = _json.loads(raw_text)
-        # Validate and normalise
         out = []
         for t in teams:
             seed = int(t.get("seed", 0))
@@ -2980,9 +2985,9 @@ def parse_cfp_bracket_screenshot(image_bytes, media_type="image/png"):
             if 1 <= seed <= 12 and name:
                 out.append({"seed": seed, "team": name, "record": rec})
         out.sort(key=lambda x: x["seed"])
-        return out if out else None
+        return (out, None) if out else (None, "Parsed response had no valid teams.")
     except Exception as e:
-        return None
+        return None, str(e)
 
 
 def build_bracket_field_from_screenshot(parsed_teams, cfp_board):
@@ -4059,42 +4064,69 @@ if data:
             label_visibility="visible",
         )
 
-        if bracket_img is not None:
-            # Parse the screenshot via Claude vision API
+        # Manual entry fallback
+        with st.expander("✏️ Enter bracket manually instead", expanded=False):
+            st.caption("Fill in all 12 seeds if the screenshot upload isn't working. Leave blank to skip.")
+            MANUAL_SLOTS = [
+                (1,"Florida State","12-1"),(2,"Texas Tech","12-1"),
+                (3,"Rapid City","12-1"),(4,"Bowling Green","12-1"),
+                (5,"Clemson","12-1"),(6,"Texas A&M","10-2"),
+                (7,"Alabaster","10-3"),(8,"San Jose State","10-4"),
+                (9,"Texas","11-2"),(10,"Georgia Tech","11-2"),
+                (11,"USF","10-2"),(12,"San Diego State","12-1"),
+            ]
+            manual_teams = []
+            for seed, def_team, def_rec in MANUAL_SLOTS:
+                c1, c2, c3 = st.columns([1, 3, 2])
+                c1.markdown(f"**#{seed}**")
+                t = c2.text_input("Team", value=def_team, key=f"manual_team_{seed}", label_visibility="collapsed")
+                r = c3.text_input("Record", value=def_rec, key=f"manual_rec_{seed}", label_visibility="collapsed")
+                if t.strip():
+                    manual_teams.append({"seed": seed, "team": t.strip(), "record": r.strip()})
+            use_manual = st.button("📋 Use Manual Bracket", key="use_manual_bracket")
+
+        # Determine which bracket source to use
+        bracket_field = None
+        bracket_source = None
+
+        if use_manual and len(manual_teams) >= 8:
+            bracket_field = build_bracket_field_from_screenshot(manual_teams, cfp_board)
+            bracket_source = "manual"
+
+        elif bracket_img is not None:
             with st.spinner("🤖 Reading your bracket screenshot..."):
                 img_bytes = bracket_img.read()
                 ext = bracket_img.name.rsplit('.', 1)[-1].lower()
-                media_map = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
-                             'png': 'image/png', 'webp': 'image/webp'}
+                media_map = {'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp'}
                 media_type = media_map.get(ext, 'image/png')
-                parsed_teams = parse_cfp_bracket_screenshot(img_bytes, media_type)
+                parsed_teams, parse_error = parse_cfp_bracket_screenshot(img_bytes, media_type)
 
             if parsed_teams and len(parsed_teams) >= 4:
-                st.success(f"✅ Bracket screenshot parsed — found **{len(parsed_teams)} teams**. Showing official bracket.")
-                col_img, col_gap = st.columns([1, 2])
+                bracket_field = build_bracket_field_from_screenshot(parsed_teams, cfp_board)
+                bracket_source = "screenshot"
+                col_img, _ = st.columns([1, 2])
                 with col_img:
                     st.image(bracket_img, caption="Uploaded bracket", use_column_width=True)
-
-                # Show parsed teams as confirmation table
                 with st.expander("🔍 Parsed teams — verify these look right", expanded=False):
-                    parsed_df = pd.DataFrame(parsed_teams)
-                    parsed_df.columns = ['Seed', 'Team', 'Record']
-                    st.dataframe(parsed_df, hide_index=True, use_container_width=True)
-
-                screenshot_field = build_bracket_field_from_screenshot(parsed_teams, cfp_board)
-                if screenshot_field is not None and not screenshot_field.empty:
-                    render_playoff_bracket(screenshot_field)
-                else:
-                    st.warning("Could not build bracket from parsed data — falling back to projections.")
-                    render_playoff_bracket(projected_field)
+                    st.dataframe(pd.DataFrame(parsed_teams).rename(columns={"seed":"Seed","team":"Team","record":"Record"}),
+                                 hide_index=True, use_container_width=True)
             else:
-                st.warning("⚠️ Couldn't extract a full bracket from that screenshot. Double-check the image shows the full CFP bracket and try again. Falling back to projections.")
-                col_img2, col_gap2 = st.columns([1, 2])
+                col_img2, _ = st.columns([1, 2])
                 with col_img2:
-                    st.image(bracket_img, caption="Your upload (couldn't parse)", use_column_width=True)
-                render_playoff_bracket(projected_field)
+                    st.image(bracket_img, caption="Your upload", use_column_width=True)
+                if parse_error and "No API key" in parse_error:
+                    st.error(f"🔑 **API key missing** — {parse_error}")
+                    st.info("💡 **Workaround:** Use the manual entry form above to enter the bracket directly.")
+                else:
+                    st.warning(f"⚠️ Couldn't fully parse that screenshot ({parse_error or 'unknown error'}). Try the manual entry form above, or re-upload a clearer shot.")
+                bracket_source = "projection"
+
+        if bracket_field is not None and not bracket_field.empty:
+            label = "✅ Showing **official bracket** from screenshot." if bracket_source == "screenshot" else "📋 Showing **manually entered bracket**."
+            st.success(label)
+            render_playoff_bracket(bracket_field)
         else:
-            st.caption("📊 Showing **projected bracket** based on current rankings and model. Upload a bracket screenshot above to override with the official field.")
+            st.caption("📊 Showing **projected bracket** based on current rankings and model. Upload a screenshot or use manual entry above to override.")
             render_playoff_bracket(projected_field)
 
         st.subheader('First Four Out')
