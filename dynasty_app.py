@@ -2906,6 +2906,130 @@ def compute_projected_seed_score(board_df):
 
 
 
+def parse_cfp_bracket_screenshot(image_bytes, media_type="image/png"):
+    """
+    Sends a CFP bracket screenshot to Claude claude-sonnet-4-20250514 via the Anthropic API.
+    Returns a list of dicts: [{'seed': 1, 'team': 'Bowling Green', 'record': '12-0'}, ...]
+    sorted by seed 1-12. Returns None on failure.
+    """
+    import json as _json
+    try:
+        import urllib.request
+        img_b64 = base64.b64encode(image_bytes).decode('ascii')
+        payload = _json.dumps({
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 1000,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": img_b64
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "This is a College Football Playoff bracket screenshot from a video game dynasty. "
+                            "Extract all 12 teams in the bracket. For each team return its seed number (1-12), "
+                            "team name exactly as shown, and record (W-L). "
+                            "Seeds 1-4 have a first-round bye. "
+                            "Respond ONLY with a valid JSON array, no markdown, no explanation. "
+                            'Example: [{"seed": 1, "team": "Bowling Green", "record": "12-0"}, ...]'
+                        )
+                    }
+                ]
+            }]
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = _json.loads(resp.read().decode('utf-8'))
+
+        raw_text = ""
+        for block in result.get("content", []):
+            if block.get("type") == "text":
+                raw_text += block.get("text", "")
+
+        # Strip markdown fences if present
+        raw_text = raw_text.strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```")[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+        raw_text = raw_text.strip().rstrip("```").strip()
+
+        teams = _json.loads(raw_text)
+        # Validate and normalise
+        out = []
+        for t in teams:
+            seed = int(t.get("seed", 0))
+            name = str(t.get("team", "")).strip()
+            rec  = str(t.get("record", "")).strip()
+            if 1 <= seed <= 12 and name:
+                out.append({"seed": seed, "team": name, "record": rec})
+        out.sort(key=lambda x: x["seed"])
+        return out if out else None
+    except Exception as e:
+        return None
+
+
+def build_bracket_field_from_screenshot(parsed_teams, cfp_board):
+    """
+    Converts parsed screenshot teams into a projected_field-style DataFrame
+    that render_playoff_bracket can consume directly.
+    Merges with cfp_board to pull CFP Make %, Bye %, Auto-Bid %, etc.
+    """
+    if not parsed_teams:
+        return None
+    rows = []
+    board_lookup = cfp_board.set_index('Team') if not cfp_board.empty else pd.DataFrame()
+    for t in parsed_teams:
+        seed = t['seed']
+        team = t['team']
+        record = t.get('record', '')
+        wins = losses = 0
+        try:
+            parts = record.split('-')
+            wins, losses = int(parts[0]), int(parts[1])
+        except Exception:
+            pass
+
+        # Pull enriched data from cfp_board if team matches
+        row = {'Team': team, 'Record': record, 'Wins': wins, 'Losses': losses,
+               'Projected Seed': seed, 'Rank': seed,
+               'CFP Make %': 95.0, 'Bye %': (90.0 if seed <= 4 else 5.0),
+               'Auto-Bid %': 80.0, 'Committee Score': max(0, 100 - seed*6),
+               'Win %': wins/(wins+losses) if (wins+losses) > 0 else 0.5}
+
+        # Try fuzzy match to cfp_board for richer data
+        if not board_lookup.empty:
+            for board_team in board_lookup.index:
+                if (normalize_key(team) == normalize_key(board_team) or
+                    normalize_key(team) in normalize_key(board_team) or
+                    normalize_key(board_team) in normalize_key(team)):
+                    br = board_lookup.loc[board_team]
+                    for col in ['CFP Make %','Bye %','Auto-Bid %','Committee Score',
+                                'Rank','QB Tier','SOS','Power Index','OVERALL']:
+                        if col in br.index:
+                            row[col] = br[col]
+                    break
+        rows.append(row)
+
+    return pd.DataFrame(rows).sort_values('Projected Seed').reset_index(drop=True)
+
+
 def render_playoff_bracket(projected_field):
     """
     Mobile-first 12-team CFP bracket.
@@ -3925,8 +4049,53 @@ if data:
         st.subheader('Projected CFP Field')
         render_cfp_table(cfp_board)
 
+        # ── PLAYOFF BRACKET ──────────────────────────────────────────────────
         st.subheader('Playoff Bracket')
-        render_playoff_bracket(projected_field)
+
+        bracket_img = st.file_uploader(
+            "📸 Upload CFP bracket screenshot (optional — uses projections if not provided)",
+            type=["png","jpg","jpeg","webp"],
+            key="cfp_bracket_screenshot",
+            label_visibility="visible",
+        )
+
+        if bracket_img is not None:
+            # Parse the screenshot via Claude vision API
+            with st.spinner("🤖 Reading your bracket screenshot..."):
+                img_bytes = bracket_img.read()
+                ext = bracket_img.name.rsplit('.', 1)[-1].lower()
+                media_map = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                             'png': 'image/png', 'webp': 'image/webp'}
+                media_type = media_map.get(ext, 'image/png')
+                parsed_teams = parse_cfp_bracket_screenshot(img_bytes, media_type)
+
+            if parsed_teams and len(parsed_teams) >= 4:
+                st.success(f"✅ Bracket screenshot parsed — found **{len(parsed_teams)} teams**. Showing official bracket.")
+                col_img, col_gap = st.columns([1, 2])
+                with col_img:
+                    st.image(bracket_img, caption="Uploaded bracket", use_column_width=True)
+
+                # Show parsed teams as confirmation table
+                with st.expander("🔍 Parsed teams — verify these look right", expanded=False):
+                    parsed_df = pd.DataFrame(parsed_teams)
+                    parsed_df.columns = ['Seed', 'Team', 'Record']
+                    st.dataframe(parsed_df, hide_index=True, use_container_width=True)
+
+                screenshot_field = build_bracket_field_from_screenshot(parsed_teams, cfp_board)
+                if screenshot_field is not None and not screenshot_field.empty:
+                    render_playoff_bracket(screenshot_field)
+                else:
+                    st.warning("Could not build bracket from parsed data — falling back to projections.")
+                    render_playoff_bracket(projected_field)
+            else:
+                st.warning("⚠️ Couldn't extract a full bracket from that screenshot. Double-check the image shows the full CFP bracket and try again. Falling back to projections.")
+                col_img2, col_gap2 = st.columns([1, 2])
+                with col_img2:
+                    st.image(bracket_img, caption="Your upload (couldn't parse)", use_column_width=True)
+                render_playoff_bracket(projected_field)
+        else:
+            st.caption("📊 Showing **projected bracket** based on current rankings and model. Upload a bracket screenshot above to override with the official field.")
+            render_playoff_bracket(projected_field)
 
         st.subheader('First Four Out')
         render_first_four_out(first_four_out)
