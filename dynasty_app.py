@@ -4451,11 +4451,12 @@ if data:
                     for _, g in losses_df.iterrows():
                         margin_str = f"{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
                         fin_rk = g.get('_final_rk')
+                        fin_rk_valid = (fin_rk is not None) and not (isinstance(fin_rk, float) and pd.isna(fin_rk))
                         if g['opp_ranked']:
                             rk_str   = f"#{int(g['opp_rank'])}"
                             rk_color = "#fca5a5"
                             badge    = ""
-                        elif fin_rk:
+                        elif fin_rk_valid:
                             rk_str   = f"▸#{int(fin_rk)} fin"
                             rk_color = "#fca5a5"
                             badge    = ""
@@ -5618,7 +5619,79 @@ if data:
         st.header("🔍 2041 Speed Freaks")
         st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
+        # ── Compute all speed metrics live from cfb26_rosters_full.csv ────────
+        OFF_POS = {'QB','HB','FB','WR','TE','LT','LG','C','RG','RT'}
+        DEF_POS = {'LEDG','REDG','DT','MIKE','WILL','SAM','CB','FS','SS'}
+
+        try:
+            _sf_roster = pd.read_csv('cfb26_rosters_full.csv')
+            _sf_roster['SPD'] = pd.to_numeric(_sf_roster['SPD'], errors='coerce')
+            _sf_roster['ACC'] = pd.to_numeric(_sf_roster['ACC'], errors='coerce')
+            _sf_roster['REDSHIRT'] = pd.to_numeric(_sf_roster.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
+            _sf_active = _sf_roster[_sf_roster['REDSHIRT'] == 0].copy()
+            _sf_loaded = True
+        except Exception:
+            _sf_active = pd.DataFrame()
+            _sf_loaded = False
+
+        def _compute_speed_stats(team_df):
+            off   = team_df[team_df['Pos'].isin(OFF_POS)]
+            defp  = team_df[team_df['Pos'].isin(DEF_POS)]
+            total     = int((team_df['SPD'] >= 90).sum())
+            off_spd   = int((off['SPD']  >= 90).sum())
+            def_spd   = int((defp['SPD'] >= 90).sum())
+            game_brk  = int(((team_df['SPD'] >= 90) & (team_df['ACC'] >= 90)).sum())
+            gen       = int(((team_df['SPD'] >= 96) | (team_df['ACC'] >= 96)).sum())
+            speed_score = round(
+                (total * 2.2 + off_spd * 1.0 + def_spd * 1.0 + game_brk * 1.8)
+                * (1 + gen * 0.16), 1
+            )
+            speedometer = team_speed_to_mph(speed_score)
+            # Where is the speed?
+            if off_spd > 5 and def_spd > 5:
+                where = 'Off & Def'
+            elif off_spd > 5:
+                where = 'Offense'
+            elif def_spd > 5:
+                where = 'Defense'
+            elif speedometer < 65:
+                where = 'Non-Existent'
+            else:
+                where = 'Balanced'
+            return {
+                'team_speed':  total,
+                'off_speed':   off_spd,
+                'def_speed':   def_spd,
+                'game_brk':    game_brk,
+                'gen':         gen,
+                'speed_score': speed_score,
+                'speedometer': speedometer,
+                'where':       where,
+            }
+
+        # Build talent_board: start from model_2041, override with live roster stats
         talent_board = model_2041.copy()
+
+        if _sf_loaded and not _sf_active.empty:
+            for _, _mr in talent_board.iterrows():
+                _team = _mr['TEAM']
+                _tdf  = _sf_active[_sf_active['Team'] == _team]
+                if _tdf.empty:
+                    continue
+                _s = _compute_speed_stats(_tdf)
+                idx = talent_board[talent_board['TEAM'] == _team].index
+                talent_board.loc[idx, 'Team Speed (90+ Speed Guys)']              = _s['team_speed']
+                talent_board.loc[idx, 'Off Speed (90+ speed)']                    = _s['off_speed']
+                talent_board.loc[idx, 'Def Speed (90+ speed)']                    = _s['def_speed']
+                talent_board.loc[idx, 'Game Breakers (90+ Speed & 90+ Acceleration)'] = _s['game_brk']
+                talent_board.loc[idx, 'Generational (96+ speed or 96+ Acceleration)'] = _s['gen']
+                talent_board.loc[idx, 'Team Speed Score']                         = _s['speed_score']
+                talent_board.loc[idx, 'Speedometer']                              = _s['speedometer']
+                talent_board.loc[idx, 'Where is the Speed?']                      = _s['where']
+            _speed_src_note = "📡 Speed metrics computed live from **cfb26_rosters_full.csv** (redshirted players excluded)"
+        else:
+            _speed_src_note = "⚠️ Roster CSV unavailable — speed metrics from TeamRatingsHistory.csv"
+
         talent_board = talent_board.sort_values(
             ['Team Speed Score', 'Generational (96+ speed or 96+ Acceleration)', 'Team Speed (90+ Speed Guys)'],
             ascending=False
@@ -5627,7 +5700,9 @@ if data:
 
         fastest_team = talent_board.iloc[0]
         st.subheader("⚡ TEAM SPEED Rankings")
+        st.caption(_speed_src_note)
         st.success(f"Fastest team alive right now: {fastest_team['TEAM']} ({fastest_team['USER']}) at {fastest_team['Speedometer']} MPH. Defensive coordinators should file a complaint.")
+        render_speed_freaks_table(talent_board)
         render_speed_freaks_table(talent_board)
 
         for _, r in talent_board.iterrows():
