@@ -3912,15 +3912,114 @@ if data:
                 st.caption("No COTY data loaded.")
 
         # ════════════════════════════════════════════════════════════════════
-        # SECTION 5 — INJURY REPORT
+        # SECTION 5 — INJURY REPORT  (last updated: Week 12, 2041)
+        # To update: drop new screenshots in the ISPN chat
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🚑 Injury Report")
-        st.caption("Drop injury screenshots in the ISPN chat to update this board.")
-        st.markdown("""
-        <div style='background:#111827;border:1px dashed #374151;border-radius:10px;padding:24px;text-align:center;color:#6b7280;font-size:0.88rem;'>
-          📸 Send injury screenshots in chat to update the injury board.
-        </div>""", unsafe_allow_html=True)
+        st.caption("Last updated: Week 12, 2041. Drop new screenshots in the ISPN chat to refresh.")
+
+        INJURY_DATA = [
+            {
+                "user": "Mike", "team": "San Jose State", "seed": 8,
+                "injuries": [
+                    {"name": "M.Shorter",  "pos": "QB",   "ovr": 85, "injury": "Torn Pectoral",       "weeks": 27, "status": "Injured"},
+                    {"name": "D.Caplan",   "pos": "LT",   "ovr": 86, "injury": "Broken Collarbone",    "weeks": 4,  "status": "Injured"},
+                ]
+            },
+            {
+                "user": "Noah", "team": "Texas Tech", "seed": 2,
+                "injuries": [
+                    {"name": "K.Cota",     "pos": "LT",   "ovr": 82, "injury": "Knee Cartilage Tear",  "weeks": 2,  "status": "Injured"},
+                ]
+            },
+            {
+                "user": "Josh", "team": "USF", "seed": 11,
+                "injuries": [
+                    {"name": "T.Christmas","pos": "RG",   "ovr": 76, "injury": "Dislocated Hip",        "weeks": 4,  "status": "Injured"},
+                ]
+            },
+            {
+                "user": "Devin", "team": "Bowling Green", "seed": 4,
+                "injuries": [
+                    {"name": "B.Franco",   "pos": "DT",   "ovr": 84, "injury": "Torn Pectoral",         "weeks": 24, "status": "Injured"},
+                ]
+            },
+            {
+                "user": "Doug", "team": "Florida", "seed": 24,
+                "injuries": [
+                    {"name": "S.Ivie",     "pos": "LEDG", "ovr": 80, "injury": "Dislocated Hip",         "weeks": 1,  "status": "Injured"},
+                    {"name": "R.Casey",    "pos": "MIKE", "ovr": 87, "injury": "Fractured Shoulder Blade","weeks": 14, "status": "Injured"},
+                ]
+            },
+            {
+                "user": "Nick", "team": "Florida State", "seed": 1,
+                "injuries": [
+                    {"name": "S.Winterswyk","pos": "QB",  "ovr": 80, "injury": "Dislocated Elbow",       "weeks": 3,  "status": "Injured"},
+                    {"name": "J.Fe'esago", "pos": "WR",   "ovr": 90, "injury": "Torn Pectoral",           "weeks": 20, "status": "Injured"},
+                ]
+            },
+        ]
+
+        def injury_severity(weeks):
+            if weeks >= 20: return ("🔴", "#ef4444", "Season-Ending")
+            if weeks >= 8:  return ("🟠", "#f97316", "Long-Term")
+            if weeks >= 3:  return ("🟡", "#eab308", "Mid-Term")
+            return ("🟢", "#22c55e", "Short-Term")
+
+        # Sort by total injured weeks descending so hardest-hit teams lead
+        INJURY_DATA.sort(key=lambda t: sum(p['weeks'] for p in t['injuries']), reverse=True)
+
+        inj_html = "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>"
+        for team_data in INJURY_DATA:
+            team   = team_data['team']
+            user   = team_data['user']
+            seed   = team_data['seed']
+            primary = get_team_primary_color(team)
+            logo_uri = image_file_to_data_uri(get_logo_source(team))
+            logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri else ""
+
+            rows_html = ""
+            for p in team_data['injuries']:
+                dot, color, label = injury_severity(p['weeks'])
+                rows_html += (
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;"
+                    f"padding:6px 8px;border-bottom:1px solid #1f2937;'>"
+                    f"<div>"
+                    f"<span style='font-weight:700;color:#f3f4f6;font-size:0.85rem;'>{html.escape(p['name'])}</span>"
+                    f"<span style='color:#9ca3af;font-size:0.75rem;margin-left:6px;'>{p['pos']} · {p['ovr']} OVR</span><br>"
+                    f"<span style='color:#d1d5db;font-size:0.78rem;'>{html.escape(p['injury'])}</span>"
+                    f"</div>"
+                    f"<div style='text-align:right;white-space:nowrap;'>"
+                    f"<div style='color:{color};font-size:0.72rem;font-weight:700;'>{dot} {label}</div>"
+                    f"<div style='color:#6b7280;font-size:0.7rem;'>{p['weeks']} wks</div>"
+                    f"</div>"
+                    f"</div>"
+                )
+
+            inj_html += (
+                f"<div style='background:#111827;border:1px solid #374151;border-radius:12px;overflow:hidden;'>"
+                f"<div style='background:{primary}22;border-bottom:2px solid {primary};padding:8px 12px;"
+                f"display:flex;align-items:center;'>"
+                f"{logo_html}"
+                f"<div>"
+                f"<div style='font-weight:800;color:#f3f4f6;font-size:0.9rem;'>#{seed} {html.escape(team)}</div>"
+                f"<div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(user)} · {len(team_data['injuries'])} player{'s' if len(team_data['injuries'])>1 else ''} out</div>"
+                f"</div>"
+                f"</div>"
+                f"{rows_html}"
+                f"</div>"
+            )
+        inj_html += "</div>"
+        st.markdown(inj_html, unsafe_allow_html=True)
+
+        # Teams with no reported injuries
+        all_users = set(USER_TEAMS.keys())
+        reported  = {t['user'] for t in INJURY_DATA}
+        healthy   = all_users - reported
+        if healthy:
+            h_names = ", ".join(f"**{u}**" for u in sorted(healthy))
+            st.caption(f"✅ No injuries reported: {h_names}")
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 6 — RIVALRY SPOTLIGHT
