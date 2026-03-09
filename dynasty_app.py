@@ -92,206 +92,80 @@ st.markdown("""
 
 
 TEAM_VISUALS = {
-    # ── User / dynasty teams ─────────────────────────────────────────────────
-    "Bowling Green":    {"slug": "bowling-green",      "primary": "#FE5000", "secondary": "#4F2C1D"},
-    "Florida State":    {"slug": "florida-state",      "primary": "#782F40", "secondary": "#CEB888"},
-    "USF":              {"slug": "south-florida",      "primary": "#006747", "secondary": "#CFC493"},
-    "South Florida":    {"slug": "south-florida",      "primary": "#006747", "secondary": "#CFC493"},
-    "San Jose State":   {"slug": "san-jose-state",     "primary": "#0055A2", "secondary": "#E5A823"},
-    "Texas Tech":       {"slug": "texas-tech",         "primary": "#CC0000", "secondary": "#000000"},
-    "Florida":          {"slug": "florida",            "primary": "#0021A5", "secondary": "#FA4616"},
-    # Custom dynasty franchises
-    "Rapid City":       {"slug": "rapid-city",         "primary": "#00B8B8", "secondary": "#FF4FA3"},
-    "Panama City":      {"slug": "panama-city",        "primary": "#FF7A00", "secondary": "#000000"},
-    "Hammond":          {"slug": "hammond",            "primary": "#1F8F4E", "secondary": "#0B4F2A"},
-    "Alabaster":        {"slug": "alabaster",          "primary": "#D72638", "secondary": "#FFD23F"},
-    "Death Valley":     {"slug": "death-valley",       "primary": "#6A0DAD", "secondary": "#000000"},
-    "Gate City":        {"slug": "gate-city",          "primary": "#FFD23F", "secondary": "#000000"},
-    # ── Power conferences ────────────────────────────────────────────────────
-    "Alabama":          {"slug": "alabama",            "primary": "#9E1B32", "secondary": "#FFFFFF"},
-    "Arkansas":         {"slug": "arkansas",           "primary": "#9D2235", "secondary": "#FFFFFF"},
-    "Auburn":           {"slug": "auburn",             "primary": "#0C2340", "secondary": "#E87722"},
-    "Baylor":           {"slug": "baylor",             "primary": "#154734", "secondary": "#FFB81C"},
-    "Boston College":   {"slug": "boston-college",     "primary": "#8B0000", "secondary": "#B5A36A"},
-    "BYU":              {"slug": "byu",                "primary": "#002E5D", "secondary": "#FFFFFF"},
-    "California":       {"slug": "california",         "primary": "#003262", "secondary": "#FDB515"},
-    "Clemson":          {"slug": "clemson",            "primary": "#F56600", "secondary": "#522D80"},
-    "Colorado":         {"slug": "colorado",           "primary": "#CFB87C", "secondary": "#000000"},
-    "Duke":             {"slug": "duke",               "primary": "#003087", "secondary": "#FFFFFF"},
-    "Georgia":          {"slug": "georgia",            "primary": "#BA0C2F", "secondary": "#000000"},
-    "Georgia Tech":     {"slug": "georgia-tech",       "primary": "#B3A369", "secondary": "#003057"},
-    "Illinois":         {"slug": "illinois",           "primary": "#E84A27", "secondary": "#13294B"},
-    "Indiana":          {"slug": "indiana",            "primary": "#990000", "secondary": "#FFFFFF"},
-    "Iowa":             {"slug": "iowa",               "primary": "#FFCD00", "secondary": "#000000"},
-    "Iowa State":       {"slug": "iowa-state",         "primary": "#C8102E", "secondary": "#F1BE48"},
-    "Kansas":           {"slug": "kansas",             "primary": "#0051A5", "secondary": "#E8000D"},
-    "Kansas State":     {"slug": "kansas-state",       "primary": "#512888", "secondary": "#FFFFFF"},
-    "Kentucky":         {"slug": "kentucky",           "primary": "#0033A0", "secondary": "#FFFFFF"},
-    "LSU":              {"slug": "lsu",                "primary": "#461D7C", "secondary": "#FDD023"},
-    "Louisville":       {"slug": "louisville",         "primary": "#AD0000", "secondary": "#000000"},
-    "Maryland":         {"slug": "maryland",           "primary": "#E03A3E", "secondary": "#FFD520"},
-    "Miami":            {"slug": "miami",              "primary": "#F47321", "secondary": "#005030"},
-    "Miami (OH)":       {"slug": "miami-oh",           "primary": "#C3142D", "secondary": "#FFFFFF"},
-    "Michigan":         {"slug": "michigan",           "primary": "#00274C", "secondary": "#FFCB05"},
-    "Michigan State":   {"slug": "michigan-state",     "primary": "#18453B", "secondary": "#FFFFFF"},
-    "Minnesota":        {"slug": "minnesota",          "primary": "#7A0019", "secondary": "#FFCC33"},
-    "Mississippi State":{"slug": "mississippi-state",  "primary": "#5D1725", "secondary": "#FFFFFF"},
-    "Mississippi St":   {"slug": "mississippi-state",  "primary": "#5D1725", "secondary": "#FFFFFF"},
-    "Missouri":         {"slug": "missouri",           "primary": "#F1B82D", "secondary": "#000000"},
-    "NC State":         {"slug": "nc-state",           "primary": "#CC0000", "secondary": "#000000"},
-    "Nebraska":         {"slug": "nebraska",           "primary": "#E41C38", "secondary": "#FFFFFF"},
-    "North Carolina":   {"slug": "north-carolina",     "primary": "#7BAFD4", "secondary": "#13294B"},
-    "Northwestern":     {"slug": "northwestern",       "primary": "#4E2A84", "secondary": "#FFFFFF"},
-    "Notre Dame":       {"slug": "notre-dame",         "primary": "#0C2340", "secondary": "#C99700"},
-    "Ohio State":       {"slug": "ohio-state",         "primary": "#BB0000", "secondary": "#666666"},
-    "Oklahoma":         {"slug": "oklahoma",           "primary": "#841617", "secondary": "#FDF9D8"},
-    "Oklahoma State":   {"slug": "oklahoma-state",     "primary": "#FF7300", "secondary": "#000000"},
-    "Ole Miss":         {"slug": "ole-miss",           "primary": "#CE1126", "secondary": "#14213D"},
-    "Oregon":           {"slug": "oregon",             "primary": "#154733", "secondary": "#FEE123"},
-    "Oregon State":     {"slug": "oregon-state",       "primary": "#DC4405", "secondary": "#000000"},
-    "Penn State":       {"slug": "penn-state",         "primary": "#041E42", "secondary": "#FFFFFF"},
-    "Pittsburgh":       {"slug": "pittsburgh",         "primary": "#003594", "secondary": "#FFB81C"},
-    "Purdue":           {"slug": "purdue",             "primary": "#CEB888", "secondary": "#000000"},
-    "Rutgers":          {"slug": "rutgers",            "primary": "#CC0033", "secondary": "#FFFFFF"},
-    "SMU":              {"slug": "smu",                "primary": "#0033A0", "secondary": "#C8102E"},
-    "South Carolina":   {"slug": "south-carolina",     "primary": "#73000A", "secondary": "#000000"},
-    "Stanford":         {"slug": "stanford",           "primary": "#8C1515", "secondary": "#FFFFFF"},
-    "Syracuse":         {"slug": "syracuse",           "primary": "#F76900", "secondary": "#FFFFFF"},
-    "TCU":              {"slug": "tcu",                "primary": "#4D1979", "secondary": "#A3A9AC"},
-    "Tennessee":        {"slug": "tennessee",          "primary": "#FF8200", "secondary": "#FFFFFF"},
-    "Texas":            {"slug": "texas",              "primary": "#BF5700", "secondary": "#FFFFFF"},
-    "Texas A&M":        {"slug": "texas-am",           "primary": "#500000", "secondary": "#FFFFFF"},
-    "UCLA":             {"slug": "ucla",               "primary": "#2774AE", "secondary": "#FFD100"},
-    "USC":              {"slug": "southern-california","primary": "#990000", "secondary": "#FFC72C"},
-    "Utah":             {"slug": "utah",               "primary": "#CC0000", "secondary": "#000000"},
-    "Vanderbilt":       {"slug": "vanderbilt",         "primary": "#866D4B", "secondary": "#000000"},
-    "Virginia":         {"slug": "virginia",           "primary": "#232D4B", "secondary": "#F84C1E"},
-    "Virginia Tech":    {"slug": "virginia-tech",      "primary": "#630031", "secondary": "#CF4420"},
-    "Wake Forest":      {"slug": "wake-forest",        "primary": "#9E7E38", "secondary": "#000000"},
-    "Washington":       {"slug": "washington",         "primary": "#4B2E83", "secondary": "#B7A57A"},
-    "Washington St.":   {"slug": "washington-state",   "primary": "#981E32", "secondary": "#5E6A71"},
-    "West Virginia":    {"slug": "west-virginia",      "primary": "#002855", "secondary": "#EAAA00"},
-    "Wisconsin":        {"slug": "wisconsin",          "primary": "#C5050C", "secondary": "#FFFFFF"},
-    # ── Group of 5 / others ──────────────────────────────────────────────────
-    "Air Force":        {"slug": "air-force",          "primary": "#003087", "secondary": "#8A8B8C"},
-    "Akron":            {"slug": "akron",              "primary": "#041E42", "secondary": "#A89968"},
-    "App St.":          {"slug": "app-state",          "primary": "#FFCC00", "secondary": "#000000"},
-    "Appalachian State":{"slug": "app-state",          "primary": "#FFCC00", "secondary": "#000000"},
-    "Arizona":          {"slug": "arizona",            "primary": "#003366", "secondary": "#CC0033"},
-    "Arizona State":    {"slug": "arizona-state",      "primary": "#8C1D40", "secondary": "#FFC627"},
-    "Arkansas State":   {"slug": "arkansas-state",     "primary": "#CC0000", "secondary": "#000000"},
-    "Army":             {"slug": "army",               "primary": "#000000", "secondary": "#D4AF37"},
-    "Ball State":       {"slug": "ball-state",         "primary": "#BA0C2F", "secondary": "#FFFFFF"},
-    "Boise State":      {"slug": "boise-state",        "primary": "#0033A0", "secondary": "#D64309"},
-    "C. Carolina":      {"slug": "coastal-carolina",   "primary": "#006F71", "secondary": "#A27752"},
-    "C. Michigan":      {"slug": "central-michigan",   "primary": "#6A0032", "secondary": "#FFC82E"},
-    "Charlotte":        {"slug": "charlotte",          "primary": "#00703C", "secondary": "#B9975B"},
-    "Cincinnati":       {"slug": "cincinnati",         "primary": "#E00122", "secondary": "#000000"},
-    "Colorado State":   {"slug": "colorado-state",     "primary": "#1E4D2B", "secondary": "#C8C372"},
-    "Delaware":         {"slug": "delaware",           "primary": "#00539F", "secondary": "#FFD200"},
-    "E. Michigan":      {"slug": "eastern-michigan",   "primary": "#006633", "secondary": "#FFFFFF"},
-    "East Carolina":    {"slug": "east-carolina",      "primary": "#592A8A", "secondary": "#FFC82E"},
-    "FIU":              {"slug": "fiu",                "primary": "#081E3F", "secondary": "#B6862C"},
-    "Fresno State":     {"slug": "fresno-state",       "primary": "#CC0000", "secondary": "#003262"},
-    "Ga Southern":      {"slug": "georgia-southern",   "primary": "#041E42", "secondary": "#87CEEB"},
-    "Georgia State":    {"slug": "georgia-state",      "primary": "#0039A6", "secondary": "#CC0000"},
-    "Hawai'i":          {"slug": "hawaii",             "primary": "#024731", "secondary": "#FFFFFF"},
-    "Houston":          {"slug": "houston",            "primary": "#CC0000", "secondary": "#FFFFFF"},
-    "Iowa State":       {"slug": "iowa-state",         "primary": "#C8102E", "secondary": "#F1BE48"},
-    "James Madison":    {"slug": "james-madison",      "primary": "#450084", "secondary": "#CBB677"},
-    "Jax State":        {"slug": "jacksonville-state", "primary": "#CC0000", "secondary": "#000000"},
-    "Kennesaw St.":     {"slug": "kennesaw-state",     "primary": "#FDBB30", "secondary": "#000000"},
-    "Kent State":       {"slug": "kent-state",         "primary": "#002664", "secondary": "#EAAB00"},
-    "Kentucky":         {"slug": "kentucky",           "primary": "#0033A0", "secondary": "#FFFFFF"},
-    "Liberty":          {"slug": "liberty",            "primary": "#002868", "secondary": "#C41230"},
-    "Louisiana":        {"slug": "louisiana",          "primary": "#CE181E", "secondary": "#000000"},
-    "Louisiana Tech":   {"slug": "louisiana-tech",     "primary": "#002F8B", "secondary": "#E31837"},
-    "Marshall":         {"slug": "marshall",           "primary": "#00B140", "secondary": "#000000"},
-    "Maryland":         {"slug": "maryland",           "primary": "#E03A3E", "secondary": "#FFD520"},
-    "Memphis":          {"slug": "memphis",            "primary": "#003087", "secondary": "#898D8D"},
-    "Middle Tennessee": {"slug": "middle-tennessee",   "primary": "#0066CC", "secondary": "#FFFFFF"},
-    "Missouri State":   {"slug": "missouri-state",     "primary": "#6E1C21", "secondary": "#FEBA30"},
-    "Navy":             {"slug": "navy",               "primary": "#00205B", "secondary": "#A39161"},
-    "New Mexico St.":   {"slug": "new-mexico-state",   "primary": "#891515", "secondary": "#FFFFFF"},
-    "North Texas":      {"slug": "north-texas",        "primary": "#00853E", "secondary": "#000000"},
-    "Northwestern":     {"slug": "northwestern",       "primary": "#4E2A84", "secondary": "#FFFFFF"},
-    "Ohio":             {"slug": "ohio",               "primary": "#00694E", "secondary": "#FFFFFF"},
-    "Old Dominion":     {"slug": "old-dominion",       "primary": "#003057", "secondary": "#7AB2DD"},
-    "Rice":             {"slug": "rice",               "primary": "#00205B", "secondary": "#C1A875"},
-    "Sam Houston":      {"slug": "sam-houston",        "primary": "#F77F00", "secondary": "#FFFFFF"},
-    "San Diego State":  {"slug": "san-diego-state",    "primary": "#A6192E", "secondary": "#000000"},
-    "San Diego St.":    {"slug": "san-diego-state",    "primary": "#A6192E", "secondary": "#000000"},
-    "South Alabama":    {"slug": "south-alabama",      "primary": "#00205B", "secondary": "#BA0C2F"},
-    "Southern Miss":    {"slug": "southern-miss",      "primary": "#FFD046", "secondary": "#000000"},
-    "Temple":           {"slug": "temple",             "primary": "#9D2235", "secondary": "#FFFFFF"},
-    "Texas State":      {"slug": "texas-state",        "primary": "#501214", "secondary": "#AC9155"},
-    "Toledo":           {"slug": "toledo",             "primary": "#003E7E", "secondary": "#FFCD00"},
-    "Troy":             {"slug": "troy",               "primary": "#8B2332", "secondary": "#FFFFFF"},
-    "Tulane":           {"slug": "tulane",             "primary": "#006747", "secondary": "#418FDE"},
-    "Tulsa":            {"slug": "tulsa",              "primary": "#002D62", "secondary": "#C8A900"},
-    "UCF":              {"slug": "ucf",                "primary": "#000000", "secondary": "#FFC904"},
-    "UConn":            {"slug": "uconn",              "primary": "#000E2F", "secondary": "#E4002B"},
-    "UL Monroe":        {"slug": "ul-monroe",          "primary": "#800000", "secondary": "#D4AA00"},
-    "UMass":            {"slug": "umass",              "primary": "#881C1C", "secondary": "#FFFFFF"},
-    "UNLV":             {"slug": "unlv",               "primary": "#CF0A2C", "secondary": "#000000"},
-    "UTEP":             {"slug": "utep",               "primary": "#FF6600", "secondary": "#002147"},
-    "UTSA":             {"slug": "texasSanAntonio",    "primary": "#002A5C", "secondary": "#F15A22"},
-    "Utah State":       {"slug": "utah-state",         "primary": "#00263A", "secondary": "#8A8D8F"},
-    "Virginia":         {"slug": "virginia",           "primary": "#232D4B", "secondary": "#F84C1E"},
-    "W. Kentucky":      {"slug": "western-kentucky",   "primary": "#C60C30", "secondary": "#FFFFFF"},
-    "W. Michigan":      {"slug": "western-michigan",   "primary": "#6C4023", "secondary": "#FFFFFF"},
-    "Wyoming":          {"slug": "wyoming",            "primary": "#492F24", "secondary": "#FFC425"},
+    "Florida": {"slug": "florida", "primary": "#0021A5", "secondary": "#FA4616"},
+    "Florida State": {"slug": "florida-state", "primary": "#782F40", "secondary": "#CEB888"},
+    "Texas Tech": {"slug": "texas-tech", "primary": "#CC0000", "secondary": "#000000"},
+    "USF": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
+    "South Florida": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
+    "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2", "secondary": "#E5A823"},
+    "Bowling Green": {"slug": "bowling-green", "primary": "#FE5000", "secondary": "#4F2C1D"},
+    "Rapid City": {"slug": "rapid-city", "primary": "#14B8A6", "secondary": "#F472B6"},
+    "Panama City": {"slug": "panama-city", "primary": "#F97316", "secondary": "#000000"},
+    "Hammond": {"slug": "hammond", "primary": "#16A34A", "secondary": "#14532D"},
+    "Alabaster": {"slug": "alabaster", "primary": "#DC2626", "secondary": "#FACC15"},
+    "Death Valley": {"slug": "death-valley", "primary": "#7C3AED", "secondary": "#000000"},
+    "Gate City": {"slug": "gate-city", "primary": "#FACC15", "secondary": "#000000"},
+    "Oklahoma State": {"slug": "oklahoma-state", "primary": "#FF7300", "secondary": "#000000"},
+    "South Carolina": {"slug": "south-carolina", "primary": "#73000A", "secondary": "#000000"},
+    "Appalachian State": {"slug": "app-state", "primary": "#FFCC00", "secondary": "#000000"},
+    "San Diego State": {"slug": "san-diego-state", "primary": "#A6192E", "secondary": "#000000"},
+    "Georgia Tech": {"slug": "georgia-tech", "primary": "#B3A369", "secondary": "#003057"},
+    "NC State": {"slug": "nc-state", "primary": "#CC0000", "secondary": "#000000"},
+    "Texas A&M": {"slug": "texas-am", "primary": "#500000", "secondary": "#FFFFFF"},
+    "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
+    "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
+    "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
+    "Michigan": {"slug": "michigan", "primary": "#00274C", "secondary": "#FFCB05"},
+    "Notre Dame": {"slug": "notre-dame", "primary": "#0C2340", "secondary": "#C99700"},
+    "Oregon": {"slug": "oregon", "primary": "#154733", "secondary": "#FEE123"},
+    "Texas": {"slug": "texas", "primary": "#BF5700", "secondary": "#FFFFFF"},
+    "Oklahoma": {"slug": "oklahoma", "primary": "#841617", "secondary": "#FDF9D8"},
+    "Penn State": {"slug": "penn-state", "primary": "#041E42", "secondary": "#FFFFFF"},
+    "LSU": {"slug": "lsu", "primary": "#461D7C", "secondary": "#FDD023"},
+    "Miami": {"slug": "miami", "primary": "#F47321", "secondary": "#005030"},
+    "Clemson": {"slug": "clemson", "primary": "#F56600", "secondary": "#522D80"},
+    "Tennessee": {"slug": "tennessee", "primary": "#FF8200", "secondary": "#FFFFFF"},
+    "USC": {"slug": "southern-california", "primary": "#990000", "secondary": "#FFC72C"},
+    "Ole Miss": {"slug": "ole-miss", "primary": "#CE1126", "secondary": "#14213D"},
+    "Auburn": {"slug": "auburn", "primary": "#0C2340", "secondary": "#E87722"},
+    "Nebraska": {"slug": "nebraska", "primary": "#E41C38", "secondary": "#FFFFFF"},
+    "Wisconsin": {"slug": "wisconsin", "primary": "#C5050C", "secondary": "#FFFFFF"},
+    "Washington": {"slug": "washington", "primary": "#4B2E83", "secondary": "#B7A57A"},
+    "UCLA": {"slug": "ucla", "primary": "#2774AE", "secondary": "#FFD100"},
+    "TCU": {"slug": "tcu", "primary": "#4D1979", "secondary": "#A3A9AC"},
+    "Utah": {"slug": "utah", "primary": "#CC0000", "secondary": "#000000"},
+    "Rapid City": {"slug": "rapid-city", "primary": "#00B8B8", "secondary": "#FF4FA3"},
+    "Panama City": {"slug": "panama-city", "primary": "#FF7A00", "secondary": "#000000"},
+    "Hammond": {"slug": "hammond", "primary": "#1F8F4E", "secondary": "#0B4F2A"},
+    "Alabaster": {"slug": "alabaster", "primary": "#D72638", "secondary": "#FFD23F"},
+    "Death Valley": {"slug": "death-valley", "primary": "#6A0DAD", "secondary": "#000000"},
+    "Gate City": {"slug": "gate-city", "primary": "#FFD23F", "secondary": "#000000"},
 }
 
 TEAM_ALIASES = {
-    "Florida":          ["florida", "florida gators"],
-    "Florida State":    ["florida state", "florida state seminoles", "fsu"],
-    "Texas Tech":       ["texas tech", "texas tech red raiders", "ttu"],
-    "USF":              ["usf", "south florida", "south florida bulls"],
-    "South Florida":    ["usf", "south florida", "south florida bulls"],
-    "San Jose State":   ["san jose state", "san jose state spartans", "sjsu"],
-    "Bowling Green":    ["bowling green", "bowling green falcons", "bgsu"],
-    "Rapid City":       ["rapid city"],
-    "Panama City":      ["panama city"],
-    "Hammond":          ["hammond"],
-    "Alabaster":        ["alabaster"],
-    "Death Valley":     ["death valley"],
-    "Gate City":        ["gate city"],
-    "Oklahoma State":   ["oklahoma state", "oklahoma state cowboys", "oklahoma st", "osu"],
-    "South Carolina":   ["south carolina", "south carolina gamecocks", "scar", "sc"],
-    "Appalachian State":["appalachian state", "app state", "app st", "app st.", "appstate"],
-    "App St.":          ["app st", "app st.", "appalachian state", "app state"],
-    "San Diego State":  ["san diego state", "sdsu", "san diego st", "san diego st."],
-    "San Diego St.":    ["san diego state", "sdsu", "san diego st.", "san diego state"],
-    "Georgia Tech":     ["georgia tech", "georgia tech yellow jackets", "gt"],
-    "NC State":         ["nc state", "nc state wolfpack", "ncsu", "north carolina state"],
-    "Texas A&M":        ["texas a&m", "texas am", "tamu", "texas a and m"],
-    "Ole Miss":         ["ole miss", "mississippi", "university of mississippi"],
-    "Michigan State":   ["michigan state", "msu", "michigan st"],
-    "Mississippi State":["mississippi state", "mississippi st", "miss state"],
-    "Mississippi St":   ["mississippi state", "mississippi st", "miss state"],
-    "Miami (OH)":       ["miami oh", "miami (oh)", "miami ohio"],
-    "UTSA":             ["utsa", "texas san antonio", "texassanantonio", "ut san antonio"],
-    "Washington St.":   ["washington state", "washington st", "wsu", "wazzu"],
-    "C. Michigan":      ["central michigan", "c. michigan", "cmu"],
-    "C. Carolina":      ["coastal carolina", "c. carolina", "coastal"],
-    "Ga Southern":      ["georgia southern", "ga southern", "gasouthern"],
-    "Jax State":        ["jacksonville state", "jax state", "jsu"],
-    "Kennesaw St.":     ["kennesaw state", "kennesaw st.", "ksu"],
-    "W. Kentucky":      ["western kentucky", "w. kentucky", "wku"],
-    "W. Michigan":      ["western michigan", "w. michigan", "wmich"],
-    "New Mexico St.":   ["new mexico state", "new mexico st.", "nmsu"],
-    "Middle Tennessee": ["middle tennessee", "mtsu", "middle tenn", "mt"],
-    "Sam Houston":      ["sam houston", "shsu", "sam houston state"],
-    "E. Michigan":      ["eastern michigan", "e. michigan", "emu"],
-    "UL Monroe":        ["ul monroe", "louisiana monroe", "ulm"],
-    "FIU":              ["fiu", "florida international", "florida international university"],
-    "Hawai'i":          ["hawaii", "hawai'i", "university of hawaii"],
-    "Fresno State":     ["fresno state", "fresno st", "fresno"],
-    "Louisiana Tech":   ["louisiana tech", "la tech"],
-    "Louisiana":        ["louisiana", "ul lafayette", "louisiana ragin cajuns", "ragin cajuns"],
-    "Virginia Tech":    ["virginia tech", "vt", "hokies"],
-    "Wake Forest":      ["wake forest", "wfu", "wake"],
+    "Florida": ["florida", "florida gators"],
+    "Florida State": ["florida state", "florida state seminoles", "fsu"],
+    "Texas Tech": ["texas tech", "texas tech red raiders"],
+    "USF": ["usf", "south florida", "south florida bulls"],
+    "South Florida": ["usf", "south florida", "south florida bulls"],
+    "San Jose State": ["san jose state", "san jose state spartans", "sjsu"],
+    "Bowling Green": ["bowling green", "bowling green falcons"],
+    "Rapid City": ["rapid city"],
+    "Panama City": ["panama city"],
+    "Hammond": ["hammond"],
+    "Alabaster": ["alabaster"],
+    "Death Valley": ["death valley"],
+    "Gate City": ["gate city"],
+    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
+    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
+    "Rapid City": ["rapid city"],
+    "Panama City": ["panama city"],
+    "Hammond": ["hammond"],
+    "Alabaster": ["alabaster"],
+    "Death Valley": ["death valley"],
+    "Gate City": ["gate city"],
+    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
+    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
 }
 
 def normalize_key(value):
@@ -3111,164 +2985,135 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
         st.markdown(card_html, unsafe_allow_html=True)
 
 
-def _load_recruiting_csv(filename):
-    """Load a recruiting history CSV. Returns empty DataFrame with standard cols if missing."""
-    _std_cols = ['Year','Rank','Team','User','TotalCommits','FiveStar','FourStar',
-                 'ThreeStar','TwoStar','OneStar','Points']
-    try:
-        df = pd.read_csv(filename)
-        df.columns = [c.strip() for c in df.columns]
-        for c in ['Rank','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Year']:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
-        if 'Points' in df.columns:
-            df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
-        return df
-    except Exception:
-        return pd.DataFrame(columns=_std_cols)
-
-
-def get_hs_recruiting_snapshot(year=None):
-    """
-    Load HS recruiting class from recruiting_high_school_history.csv.
-    If year=None, returns the most recent year available.
-    Falls back to hardcoded 2041 screenshot data if CSV is missing/empty.
-    """
-    df = _load_recruiting_csv('recruiting_high_school_history.csv')
-    if not df.empty and 'Year' in df.columns:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-    if df.empty:
-        # ── Hardcoded fallback from Week 16 2041 screenshots ────────────────
-        rows = [
-            (1,'Nebraska',27,4,22,1,0,0,255.25),(2,'Georgia',26,2,21,3,0,0,244.65),
-            (3,'USC',18,3,11,4,0,0,234.40),(4,'Bowling Green',15,5,9,1,0,0,234.25),
-            (5,'Miami',28,0,16,12,0,0,231.45),(6,'Ohio State',21,0,17,4,0,0,228.30),
-            (7,'Texas Tech',16,3,9,4,0,0,224.90),(8,'San Jose State',17,2,8,7,0,0,218.10),
-            (9,'Penn State',17,0,12,5,0,0,213.20),(10,'Washington',17,2,6,9,0,0,211.70),
-            (11,'Baylor',18,0,9,9,0,0,207.65),(12,'Alabama',14,1,11,2,0,0,206.80),
-            (13,'Florida State',13,0,11,2,0,0,194.20),(14,'Rapid City',14,0,9,5,0,0,193.70),
-            (15,'Hammond',12,0,12,0,0,0,190.40),(16,'Ole Miss',14,1,4,9,0,0,183.35),
-            (17,'LSU',13,0,7,6,0,0,181.40),(18,'Clemson',11,1,8,2,0,0,180.25),
-            (19,'TCU',12,0,8,4,0,0,178.95),(20,'Auburn',14,1,3,10,0,0,178.80),
-            (21,'Iowa',17,0,2,13,2,0,173.25),(22,'Michigan',11,0,8,3,0,0,171.90),
-            (23,'UCLA',14,0,3,11,0,0,169.05),(24,'Oregon',10,1,7,2,0,0,168.80),
-            (25,'Notre Dame',10,1,7,2,0,0,168.80),(26,'Arizona State',11,0,5,6,0,0,159.90),
-            (27,'Oklahoma',9,0,9,0,0,0,158.00),(28,'Wake Forest',16,0,0,11,5,0,153.55),
-            (29,'Texas',10,0,5,5,0,0,151.80),(30,'Panama City',9,0,7,2,0,0,150.95),
-            (31,'North Texas',13,0,0,12,1,0,146.90),(32,'NC State',9,0,5,4,0,0,142.65),
-            (33,'Texas A&M',10,0,3,7,0,0,142.50),(34,'Oklahoma State',10,0,3,7,0,0,142.50),
-            (35,'Colorado',13,0,0,10,3,0,141.85),(36,'Minnesota',16,0,0,7,9,0,140.75),
-            (37,'Marshall',13,0,0,10,2,1,139.80),(38,'Troy',21,0,0,5,16,0,139.55),
-            (39,'Boston College',11,0,1,9,1,0,138.05),(40,'Indiana',12,0,0,10,2,0,137.75),
-            (41,'Fresno State',23,0,0,4,19,0,136.20),(42,'UCF',21,0,0,4,17,0,135.00),
-            (43,'Louisville',12,0,0,9,3,0,134.70),(44,'Tulane',10,0,2,7,1,0,134.55),
-            (45,'Miami (OH)',13,0,0,7,6,0,131.75),(46,'Missouri',11,0,1,7,3,0,131.65),
-            (47,'Southern Miss',14,0,0,6,8,0,131.25),(48,'FIU',14,0,0,6,8,0,131.25),
-            (49,'Cincinnati',16,0,0,5,10,1,131.20),(50,'Memphis',11,0,0,10,0,1,130.35),
-            (51,'Houston',10,0,1,8,1,0,129.60),(52,'California',9,0,2,7,0,0,128.45),
-            (53,'Maryland',8,0,4,4,0,0,128.05),(54,'Kansas',12,0,0,7,5,0,127.65),
-            (55,'Michigan State',18,0,0,3,14,1,126.10),(56,'Florida',7,0,6,1,0,0,125.80),
-            (57,"Hawai'i",17,0,0,3,14,0,125.25),(58,'USF',6,2,4,0,0,0,123.75),
-            (59,'Kentucky',19,0,0,2,17,0,123.45),(60,'Illinois',14,0,0,4,10,0,122.40),
-            (61,'Duke',7,0,6,0,1,0,121.80),(62,'Toledo',10,0,0,8,2,0,121.25),
-            (63,'Temple',10,0,0,8,2,0,121.25),(64,'East Carolina',10,0,0,7,3,0,117.55),
-            (65,'Oregon State',12,0,0,4,8,0,114.80),(66,'Middle Tennessee',11,0,0,5,6,0,114.65),
-            (67,'Virginia',9,0,0,7,2,0,111.45),(68,'Syracuse',14,0,0,2,11,1,111.00),
-            (69,'Utah',9,0,0,6,3,0,107.45),(70,'Tulsa',11,0,0,4,6,1,107.40),
-            (71,'Washington St.',17,0,0,0,14,3,106.60),(72,'Georgia Tech',6,0,4,2,0,0,104.95),
-            (73,'Alabaster',6,0,4,2,0,0,104.95),(74,'Kansas State',8,0,0,7,1,0,104.75),
-            (75,'Arizona',8,0,0,7,1,0,104.75),(76,'C. Michigan',11,0,0,4,5,2,104.35),
-            (77,'Liberty',8,0,0,6,2,0,100.75),(78,'Arkansas State',10,0,0,3,7,0,99.95),
-            (79,'App St.',7,0,0,7,0,0,97.35),(80,'San Diego St.',6,0,2,4,0,0,95.30),
-            (81,'Virginia Tech',6,0,2,3,1,0,91.00),(82,'Gate City',6,0,2,3,1,0,91.00),
-            (83,'North Carolina',6,0,1,5,0,0,90.35),(84,'Rice',6,0,1,5,0,0,90.35),
-            (85,'Death Valley',6,0,1,5,0,0,90.35),(86,'UTSA',10,0,0,1,9,0,90.10),
-            (87,'Vanderbilt',15,0,0,0,8,7,89.05),(88,'Navy',8,0,0,4,3,1,88.20),
-            (89,'BYU',5,1,1,3,0,0,87.40),(90,'Arkansas',5,0,3,2,0,0,87.30),
-            (91,'Colorado State',13,0,0,1,6,6,87.10),(92,'Wisconsin',6,0,2,2,2,0,86.45),
-            (93,'UL Monroe',11,0,0,1,7,3,86.40),(94,'Sam Houston',15,0,0,0,7,8,85.35),
-            (95,'Air Force',7,0,0,4,3,0,84.50),(96,'Louisiana Tech',9,0,0,1,8,0,84.00),
-            (97,'Iowa State',14,0,0,0,7,7,83.85),(98,'Purdue',8,0,0,3,4,1,83.45),
-            (99,'UMass',13,0,0,1,5,7,83.10),(100,'Rutgers',9,0,0,3,3,3,82.80),
-            (101,'Stanford',5,0,2,3,0,0,82.40),(102,'Mississippi St',9,0,0,2,5,2,81.90),
-            (103,'Tennessee',5,0,1,4,0,0,77.45),(104,'UNLV',10,0,0,0,7,3,75.00),
-            (105,'Old Dominion',13,0,0,0,5,8,73.80),(106,'SMU',4,0,3,1,0,0,73.65),
-            (107,'Army',10,0,0,2,2,6,72.10),(108,'Pittsburgh',4,0,2,2,0,0,68.75),
-            (109,'South Carolina',8,0,0,0,7,1,68.60),(110,'Louisiana',7,0,0,2,3,2,66.55),
-            (111,'Delaware',11,0,0,0,4,7,64.85),(112,'Jax State',11,0,0,0,4,7,64.85),
-            (113,'Kennesaw St.',12,0,0,0,3,9,62.45),(114,'James Madison',10,0,0,0,4,6,62.15),
-            (115,'UConn',5,0,0,3,1,1,58.60),(116,'Utah State',12,0,0,0,2,10,57.55),
-            (117,'Georgia State',14,0,0,0,1,13,56.40),(118,'W. Kentucky',8,0,0,0,4,4,55.75),
-            (119,'West Virginia',3,0,2,1,0,0,54.50),(120,'Northwestern',6,0,0,0,5,1,52.60),
-            (121,'Charlotte',12,0,0,0,1,11,52.60),(122,'Missouri State',10,0,0,0,2,8,52.50),
-            (123,'Kent State',10,0,0,0,2,8,52.50),(124,'Akron',11,0,0,0,1,10,50.25),
-            (125,'Texas State',9,0,0,0,2,7,49.45),(126,'Ohio',4,0,0,3,0,1,49.30),
-            (127,'E. Michigan',8,0,0,0,2,6,46.10),(128,'UTEP',9,0,0,0,1,8,44.50),
-            (129,'C. Carolina',5,0,0,0,4,1,43.75),(130,'Ball State',3,0,0,2,1,0,39.65),
-            (131,'Ga Southern',4,0,0,1,2,1,39.45),(132,'W. Michigan',7,0,0,0,1,6,37.45),
-            (133,'South Alabama',5,0,0,0,1,4,29.15),(134,'Boise State',2,0,0,1,1,0,24.90),
-            (135,'New Mexico St.',5,0,0,0,0,5,24.15),(136,'Wyoming',0,0,0,0,0,0,0.00),
-        ]
-        cols = ['Rank','Team','TotalCommits','FiveStar','FourStar','ThreeStar',
-                'TwoStar','OneStar','Points']
-        df = pd.DataFrame(rows, columns=cols)
-        df['Year'] = 2041
-        df['User'] = ''
-    # Standardise user-team mapping for user spotlight
-    _user_team_map = {
-        'Devin': ['Bowling Green','Hammond'],
-        'Mike':  ['San Jose State','Rapid City','Wyoming','Maryland'],
-        'Josh':  ['USF','Georgia','Panama City'],
-        'Noah':  ['Texas Tech','Alabaster'],
-        'Doug':  ['Florida','Death Valley','UTSA'],
-        'Nick':  ['Florida State','Nebraska','Gate City'],
-    }
-    if 'User' not in df.columns or df['User'].isna().all() or (df['User'].astype(str).str.strip() == '').all():
-        df['User'] = ''
-        for usr, teams in _user_team_map.items():
-            df.loc[df['Team'].isin(teams), 'User'] = usr
-    df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-    df['BlueChipRatio'] = df['BlueChipRatio'].round(3)
-    df['Logo'] = df['Team'].apply(get_logo_source)
-    return df.sort_values('Rank').reset_index(drop=True)
-
-
-def get_portal_recruiting_snapshot(year=None):
-    """Load transfer portal class from recruiting_transfer_portal_history.csv."""
-    df = _load_recruiting_csv('recruiting_transfer_portal_history.csv')
-    if not df.empty and 'Year' in df.columns and len(df) > 0:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-        if not df.empty:
-            df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-            df['Logo'] = df['Team'].apply(get_logo_source)
-            return df.sort_values('Rank').reset_index(drop=True)
-    return pd.DataFrame()
-
-
-def get_overall_recruiting_snapshot(year=None):
-    """Load overall recruiting class from recruiting_overall_history.csv. Falls back to HS data."""
-    df = _load_recruiting_csv('recruiting_overall_history.csv')
-    if not df.empty and 'Year' in df.columns and len(df) > 0:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-        if not df.empty:
-            df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-            df['Logo'] = df['Team'].apply(get_logo_source)
-            return df.sort_values('Rank').reset_index(drop=True)
-    return get_hs_recruiting_snapshot(year)  # fallback: overall = HS when portal is empty
-
-
 def get_current_recruiting_snapshot():
-    """Legacy shim used elsewhere in the app — returns top-25 HS snapshot."""
-    df = get_hs_recruiting_snapshot()
-    df = df.rename(columns={
-        'TotalCommits': 'Total', 'FiveStar': '5★', 'FourStar': '4★',
-        'ThreeStar': '3★', 'TwoStar': '2★', 'OneStar': '1★',
-        'BlueChipRatio': 'Blue Chip Ratio',
-    })
-    return df.head(25)
+    rows = [
+        {'Rank': 1, 'Team': 'Nebraska', 'Total': 18, '5★': 3, '4★': 15, '3★': 0, 'Points': 239.05},
+        {'Rank': 2, 'Team': 'Georgia', 'Total': 16, '5★': 2, '4★': 14, '3★': 0, 'Points': 226.55},
+        {'Rank': 3, 'Team': 'USC', 'Total': 13, '5★': 3, '4★': 9, '3★': 1, 'Points': 211.40},
+        {'Rank': 4, 'Team': 'Miami', 'Total': 15, '5★': 0, '4★': 11, '3★': 4, 'Points': 203.95},
+        {'Rank': 5, 'Team': 'Bowling Green', 'Total': 11, '5★': 4, '4★': 6, '3★': 1, 'Points': 197.90},
+        {'Rank': 6, 'Team': 'Texas A&M', 'Total': 15, '5★': 1, '4★': 11, '3★': 3, 'Points': 190.75},
+        {'Rank': 7, 'Team': 'Texas', 'Total': 15, '5★': 1, '4★': 9, '3★': 5, 'Points': 190.00},
+        {'Rank': 8, 'Team': 'Ohio State', 'Total': 16, '5★': 0, '4★': 11, '3★': 5, 'Points': 184.15},
+        {'Rank': 9, 'Team': 'Florida State', 'Total': 13, '5★': 1, '4★': 8, '3★': 4, 'Points': 175.70},
+        {'Rank': 10, 'Team': 'Rapid City', 'Total': 14, '5★': 0, '4★': 10, '3★': 4, 'Points': 171.75},
+        {'Rank': 11, 'Team': 'Notre Dame', 'Total': 13, '5★': 1, '4★': 7, '3★': 5, 'Points': 168.75},
+        {'Rank': 12, 'Team': 'Alabama', 'Total': 16, '5★': 0, '4★': 8, '3★': 8, 'Points': 166.55},
+        {'Rank': 13, 'Team': 'Tennessee', 'Total': 15, '5★': 0, '4★': 9, '3★': 6, 'Points': 151.80},
+        {'Rank': 14, 'Team': 'San Jose State', 'Total': 9, '5★': 0, '4★': 6, '3★': 3, 'Points': 146.95},
+        {'Rank': 15, 'Team': 'USF', 'Total': 11, '5★': 0, '4★': 6, '3★': 5, 'Points': 139.85},
+        {'Rank': 16, 'Team': 'Oregon', 'Total': 14, '5★': 0, '4★': 6, '3★': 8, 'Points': 138.75},
+        {'Rank': 17, 'Team': 'Clemson', 'Total': 10, '5★': 0, '4★': 7, '3★': 3, 'Points': 137.55},
+        {'Rank': 18, 'Team': 'Texas Tech', 'Total': 11, '5★': 0, '4★': 6, '3★': 5, 'Points': 136.80},
+        {'Rank': 19, 'Team': 'Georgia Tech', 'Total': 12, '5★': 0, '4★': 7, '3★': 5, 'Points': 134.90},
+        {'Rank': 20, 'Team': 'Penn State', 'Total': 12, '5★': 0, '4★': 7, '3★': 5, 'Points': 133.35},
+        {'Rank': 21, 'Team': 'LSU', 'Total': 13, '5★': 0, '4★': 6, '3★': 7, 'Points': 132.55},
+        {'Rank': 22, 'Team': 'Oklahoma', 'Total': 12, '5★': 0, '4★': 6, '3★': 6, 'Points': 130.80},
+        {'Rank': 23, 'Team': 'Michigan', 'Total': 14, '5★': 0, '4★': 6, '3★': 8, 'Points': 129.55},
+        {'Rank': 24, 'Team': 'Florida', 'Total': 10, '5★': 0, '4★': 5, '3★': 5, 'Points': 127.10},
+        {'Rank': 25, 'Team': 'Hammond', 'Total': 11, '5★': 0, '4★': 5, '3★': 6, 'Points': 125.65},
+    ]
+    df = pd.DataFrame(rows)
+    df['Blue Chip Ratio'] = ((df['5★'] + df['4★']) / df['Total']).round(3)
+    df['Logo'] = df['Team'].apply(get_logo_source)
+    return df
+
+
+def build_ispn_classics(scores_df, ratings_df):
+    """
+    Returns a DataFrame of the most iconic games in dynasty history.
+    Blends closeness (low margin) + stakes (game type) + upset factor (OVR delta).
+    Each row includes all context needed to render a broadcast-style card.
+    """
+    if scores_df is None or scores_df.empty:
+        return pd.DataFrame()
+
+    # Build team OVR lookup: (team, year) -> OVR
+    _ovr = {}
+    if ratings_df is not None and not ratings_df.empty:
+        for _, _r in ratings_df.iterrows():
+            try:
+                _ovr[(str(_r['TEAM']).strip(), int(_r['YEAR']))] = float(_r.get('OVERALL', 75))
+            except Exception:
+                pass
+
+    def _get_ovr(team, year):
+        t = str(team).strip()
+        v = _ovr.get((t, year))
+        if v is None:
+            v = _ovr.get((t, year - 1))
+        return float(v) if v is not None else 75.0
+
+    rows = []
+    for _, g in scores_df.iterrows():
+        try:
+            yr   = int(g.get('YEAR', 0))
+            vis  = str(g.get('Visitor_Final', g.get('Visitor', ''))).strip()
+            hom  = str(g.get('Home_Final',    g.get('Home', ''))).strip()
+            vpts = int(g.get('V_Pts', g.get('Vis Score', 0)))
+            hpts = int(g.get('H_Pts', g.get('Home Score', 0)))
+            vu   = str(g.get('V_User_Final', g.get('Vis_User', ''))).strip()
+            hu   = str(g.get('H_User_Final', g.get('Home_User', ''))).strip()
+            margin = abs(vpts - hpts)
+            vis_won = vpts > hpts
+            winner      = vis if vis_won else hom
+            loser       = hom if vis_won else vis
+            winner_user = vu  if vis_won else hu
+            loser_user  = hu  if vis_won else vu
+            winner_pts  = vpts if vis_won else hpts
+            loser_pts   = hpts if vis_won else vpts
+
+            # Game type
+            _nat = str(g.get('Natty Game', 'NO')).strip().upper()
+            _cfp = str(g.get('CFP', 'No')).strip().lower()
+            _cft = str(g.get('Conf Title', 'No')).strip().lower()
+            _bwl = str(g.get('Bowl', 'No')).strip().lower()
+            if _nat not in ('NO', '', 'NAN', 'FALSE', 'NO '):
+                gtype = 'National Championship'
+                gtype_weight = 20
+            elif _cfp in ('yes', 'true', '1'):
+                gtype = 'CFP Playoff'
+                gtype_weight = 12
+            elif _cft in ('yes', 'true', '1'):
+                gtype = 'Conf Title'
+                gtype_weight = 8
+            elif _bwl in ('yes', 'true', '1'):
+                gtype = 'Bowl Game'
+                gtype_weight = 4
+            else:
+                gtype = 'Regular Season'
+                gtype_weight = 0
+
+            # OVR delta — positive means underdog won
+            w_ovr = _get_ovr(winner, yr)
+            l_ovr = _get_ovr(loser, yr)
+            ovr_diff = round(l_ovr - w_ovr, 1)   # positive = underdog won
+            is_upset = ovr_diff >= 3.0
+
+            # Classic score: closeness is the main driver, stakes + upset are bonuses
+            closeness = max(0, 35 - margin)       # max 35 for OT thriller
+            classic_score = closeness + gtype_weight + max(0, ovr_diff * 0.6)
+            classic_score = round(classic_score, 1)
+
+            rows.append({
+                'Year': yr, 'Visitor': vis, 'VisPts': vpts,
+                'HomePts': hpts, 'Home': hom,
+                'VisUser': vu, 'HomeUser': hu,
+                'Margin': margin, 'Winner': winner, 'Loser': loser,
+                'WinnerUser': winner_user, 'LoserUser': loser_user,
+                'WinnerPts': winner_pts, 'LoserPts': loser_pts,
+                'WinnerOVR': w_ovr, 'LoserOVR': l_ovr,
+                'OVR_Diff': ovr_diff, 'IsUpset': is_upset,
+                'GameType': gtype, 'ClassicScore': classic_score,
+            })
+        except Exception:
+            continue
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows).sort_values('ClassicScore', ascending=False).reset_index(drop=True)
+    return df
 
 
 def get_cfp_rankings_snapshot():
@@ -4204,7 +4049,7 @@ if data:
         "📊 Team Overview",
         "🏈 Recruiting Rankings",
         "⚔️ H2H Matrix",
-        "🚨 Upset Tracker",
+        "🎬 ISPN Classics",
         "🐐 GOAT Rankings",
     ])
 
@@ -5685,344 +5530,260 @@ if data:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
     # --- RECRUITING RANKINGS ---
     with tabs[7]:
-        st.header("🏈 2041 Recruiting Final Rankings")
-        st.caption("Rankings update automatically when you drop updated CSVs into the repo. "
-                   "Portal tab opens once portal commits are entered.")
+        st.header("🏈 Recruiting Rankings")
+        st.caption("Current season screenshot board appears first. Heat Index uses the last four class ranks from recruiting.csv, weighted toward the most recent years: lower weighted average rank = hotter score. Pipeline Score blends that heat with blue-chip ratio, current team speed, overall roster quality, improvement, and freak count.")
 
-        # ── Load all three boards ─────────────────────────────────────────────
-        _hs_df      = get_hs_recruiting_snapshot()
-        _portal_df  = get_portal_recruiting_snapshot()
-        _overall_df = get_overall_recruiting_snapshot()
+        current_recruiting = get_current_recruiting_snapshot()
+        st.subheader("Current Season National Recruiting Snapshot")
+        st.caption("This section is built from the recruiting ranking screenshots currently loaded into the app.")
+        render_recruiting_snapshot_table(current_recruiting.head(25))
 
-        # ── USER COACHES — 2041 CLASS SNAPSHOT ───────────────────────────────
-        st.subheader("👑 User Coaches — 2041 Class Snapshot")
-        _user_teams_map = {str(r['USER']): str(r['TEAM']) for _, r in model_2041.iterrows()}
-        _hs_by_team = {str(r['Team']): r for _, r in _hs_df.iterrows()}
+        if recruiting_board.empty:
+            st.info("No recruiting board data could be built from the current recruiting file.")
+        else:
+            st.subheader("User Dynasty Recruiting Board")
+            render_recruiting_table(recruiting_board)
 
-        for _usr_s, _tm_s in sorted(_user_teams_map.items()):
-            _tc_s   = get_team_primary_color(_tm_s)
-            _lu_s   = image_file_to_data_uri(get_logo_source(_tm_s))
-            _logo_s = (f"<img src='{_lu_s}' style='width:44px;height:44px;"
-                       f"object-fit:contain;vertical-align:middle;'/>"
-                       if _lu_s else "<span style='font-size:28px;'>🏈</span>")
-            _hr = _hs_by_team.get(_tm_s)
-            if _hr is not None:
-                _rk_s  = int(_hr['Rank'])
-                _tot_s = int(_hr['TotalCommits'])
-                _5s    = int(_hr['FiveStar'])
-                _4s    = int(_hr['FourStar'])
-                _3s    = int(_hr['ThreeStar'])
-                _pts_s = float(_hr['Points'])
-                _bcr_s = float(_hr['BlueChipRatio'])
-                _medal_s = ("🥇" if _rk_s <= 5 else ("🥈" if _rk_s <= 10
-                            else ("🥉" if _rk_s <= 25 else "")))
-                _rk_color_s = ("#fbbf24" if _rk_s <= 5 else
-                               "#60a5fa" if _rk_s <= 15 else
-                               "#94a3b8" if _rk_s <= 40 else "#475569")
-                _bcr_color_s = ("#22c55e" if _bcr_s >= 0.5
-                                else "#fbbf24" if _bcr_s >= 0.25 else "#ef4444")
-                st.markdown(
-                    f"<div style='background:linear-gradient(135deg,{_tc_s}1a,#0f172a);"
-                    f"border:1px solid {_tc_s}44;border-left:5px solid {_tc_s};"
-                    f"border-radius:12px;padding:14px 16px;margin-bottom:10px;'>"
-                    f"<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;'>"
-                    f"{_logo_s}"
-                    f"<div style='flex:1;min-width:140px;'>"
-                    f"<div style='font-size:1rem;font-weight:900;color:{_tc_s};'>"
-                    f"{html.escape(_tm_s)}</div>"
-                    f"<div style='font-size:0.75rem;color:#9ca3af;'>{html.escape(_usr_s)}</div>"
-                    f"</div>"
-                    f"<div style='display:flex;gap:14px;flex-wrap:wrap;align-items:center;'>"
-                    f"<div style='text-align:center;'>"
-                    f"<div style='font-size:1.3rem;font-weight:900;color:{_rk_color_s};'>"
-                    f"{_medal_s}#{_rk_s}</div>"
-                    f"<div style='color:#475569;font-size:0.6rem;'>HS RANK</div></div>"
-                    f"<div style='text-align:center;'>"
-                    f"<div style='font-weight:800;color:#f1f5f9;font-size:1rem;'>{_tot_s}</div>"
-                    f"<div style='color:#475569;font-size:0.6rem;'>COMMITS</div></div>"
-                    f"<div style='text-align:center;'>"
-                    f"<div style='font-weight:800;color:#fbbf24;font-size:1rem;'>"
-                    f"{'⭐'*_5s if _5s else '—'}</div>"
-                    f"<div style='color:#475569;font-size:0.6rem;'>5-STAR</div></div>"
-                    f"<div style='text-align:center;'>"
-                    f"<div style='font-weight:800;color:#60a5fa;font-size:1rem;'>{_4s}</div>"
-                    f"<div style='color:#475569;font-size:0.6rem;'>4-STAR</div></div>"
-                    f"<div style='text-align:center;'>"
-                    f"<div style='font-weight:800;color:#94a3b8;font-size:1rem;'>{_3s}</div>"
-                    f"<div style='color:#475569;font-size:0.6rem;'>3-STAR</div></div>"
-                    f"<div style='text-align:center;'>"
-                    f"<div style='font-weight:800;color:{_bcr_color_s};font-size:1rem;'>"
-                    f"{_bcr_s:.0%}</div>"
-                    f"<div style='color:#475569;font-size:0.6rem;'>BCR</div></div>"
-                    f"<div style='text-align:center;'>"
-                    f"<div style='font-weight:800;color:#34d399;font-size:1rem;'>"
-                    f"{_pts_s:.2f}</div>"
-                    f"<div style='color:#475569;font-size:0.6rem;'>PTS</div></div>"
-                    f"</div></div></div>",
-                    unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    f"<div style='background:#111827;border:1px solid #374151;"
-                    f"border-left:5px solid {_tc_s};border-radius:12px;"
-                    f"padding:12px 16px;margin-bottom:10px;display:flex;"
-                    f"align-items:center;gap:12px;'>"
-                    f"{_logo_s}"
-                    f"<div><div style='font-weight:900;color:{_tc_s};'>"
-                    f"{html.escape(_tm_s)}</div>"
-                    f"<div style='font-size:0.72rem;color:#64748b;'>"
-                    f"{html.escape(_usr_s)} &mdash; class data not in CSV yet"
-                    f"</div></div></div>",
-                    unsafe_allow_html=True
-                )
+            st.subheader("Full Historical Recruiting Table")
+            hist_cols = [c for c in rec.columns if c in ['USER','Teams'] or str(c).isdigit()]
+            st.dataframe(rec[hist_cols], hide_index=True, use_container_width=True)
 
-        # ── COACH RECRUITING HISTORY ──────────────────────────────────────────
-        st.markdown("---")
-        st.subheader("📜 2041 Coach Recruiting History")
-        st.caption("Class rankings by year from recruiting.csv. Green = top 5, Blue = top 15, "
-                   "Yellow = top 40, Red = buried. Lower number = better class.")
-
-        _rec_data  = rec.copy()
-        _year_cols = sorted([c for c in _rec_data.columns
-                             if str(c).isdigit()], key=int)
-
-        for _usr_h, _tm_h in sorted(_user_teams_map.items()):
-            _usr_rows_h = _rec_data[_rec_data['USER'] == _usr_h]
-            if _usr_rows_h.empty:
-                continue
-
-            with st.expander(f"{_tm_h} | {_usr_h} — class history", expanded=False):
-                for _, _ur in _usr_rows_h.iterrows():
-                    # ── Use the ACTUAL past team for logo & color ─────────────
-                    _past_team = str(_ur.get('Teams', _tm_h)).strip()
-                    _tc_h      = get_team_primary_color(_past_team)
-                    _lu_h_uri  = image_file_to_data_uri(get_logo_source(_past_team))
-                    _lu_h_img  = (f"<img src='{_lu_h_uri}' style='width:32px;height:32px;"
-                                  f"object-fit:contain;vertical-align:middle;'/>"
-                                  if _lu_h_uri else
-                                  f"<span style='font-size:20px;color:{_tc_h};'>🏈</span>")
-
-                    _year_vals = []
-                    for _yc in _year_cols:
-                        _v = _ur.get(_yc)
-                        if pd.notna(_v) and str(_v).strip() not in ('', 'nan'):
-                            try:
-                                _year_vals.append({
-                                    'Year': int(_yc), 'Class Rank': int(_v)})
-                            except Exception:
-                                pass
-                    if not _year_vals:
-                        st.write(f"No class data recorded for **{_past_team}**")
-                        continue
-
-                    _hist_df_h = pd.DataFrame(_year_vals).sort_values('Year')
-
-                    # Team banner for this stop
-                    st.markdown(
-                        f"<div style='display:flex;align-items:center;gap:8px;"
-                        f"margin-bottom:8px;padding:8px 12px;background:#0f172a;"
-                        f"border-radius:8px;border-left:4px solid {_tc_h};'>"
-                        f"{_lu_h_img}"
-                        f"<span style='font-weight:900;color:{_tc_h};font-size:0.95rem;'>"
-                        f"{html.escape(_past_team)}</span>"
-                        f"<span style='color:#64748b;font-size:0.75rem;margin-left:4px;'>"
-                        f"{_hist_df_h['Year'].min()}"
-                        f"{'–' + str(_hist_df_h['Year'].max()) if len(_hist_df_h) > 1 else ''}"
-                        f"</span></div>",
-                        unsafe_allow_html=True
-                    )
-
-                    # Year pills — one st.markdown call total for each team stop
-                    _pills = ""
-                    for _, _hrow in _hist_df_h.iterrows():
-                        _yr_v  = int(_hrow['Year'])
-                        _rk_v  = int(_hrow['Class Rank'])
-                        _pc    = ("#22c55e" if _rk_v <= 5 else
-                                  "#60a5fa" if _rk_v <= 15 else
-                                  "#fbbf24" if _rk_v <= 40 else
-                                  "#f87171" if _rk_v > 80 else "#94a3b8")
-                        _pills += (
-                            f"<span style='display:inline-flex;flex-direction:column;"
-                            f"align-items:center;padding:4px 10px;margin:3px;"
-                            f"background:{_pc}22;border:1px solid {_pc}55;"
-                            f"border-radius:8px;min-width:52px;'>"
-                            f"<span style='font-size:0.62rem;color:#64748b;'>{_yr_v}</span>"
-                            f"<span style='font-size:0.95rem;font-weight:900;color:{_pc};'>"
-                            f"#{_rk_v}</span></span>"
-                        )
-                    st.markdown(
-                        f"<div style='display:flex;flex-wrap:wrap;gap:2px;"
-                        f"margin-bottom:10px;'>{_pills}</div>",
-                        unsafe_allow_html=True
-                    )
-                    _best_h = _hist_df_h['Class Rank'].min()
-                    _avg_h  = _hist_df_h['Class Rank'].mean()
-                    st.caption(
-                        f"Best class: #{_best_h} &nbsp;|&nbsp; "
-                        f"Avg rank: #{_avg_h:.1f} over {len(_hist_df_h)} classes")
-
-        st.markdown("---")
-
-        # ── THREE RANKING TABS ────────────────────────────────────────────────
-        _rtab_hs, _rtab_portal, _rtab_overall = st.tabs(
-            ["📚 High School", "🚪 Transfer Portal", "🏆 Overall"])
-
-        # ── HIGH SCHOOL ───────────────────────────────────────────────────────
-        with _rtab_hs:
-            st.subheader("2041 High School Recruiting — All 136 Teams")
-            st.caption("Live from recruiting_high_school_history.csv. "
-                       "Drop updated file in repo and rankings refresh instantly.")
-            _hs_search = st.text_input(
-                "🔍 Filter by team name", key="hs_recruit_search",
-                placeholder="e.g. Texas, Bowling Green…")
-            _hs_show = _hs_df.copy()
-            if _hs_search.strip():
-                _hs_show = _hs_show[
-                    _hs_show['Team'].str.contains(
-                        _hs_search.strip(), case=False, na=False)]
-
-            # Top-10 visual cards
-            st.markdown("**🔝 Top 10 Classes**")
-            for _, _tr in _hs_df.head(10).iterrows():
-                _tc_r = get_team_primary_color(str(_tr['Team']))
-                _lu_r = image_file_to_data_uri(get_logo_source(str(_tr['Team'])))
-                _lu_img_r = (f"<img src='{_lu_r}' style='width:36px;height:36px;"
-                             f"object-fit:contain;'/>"
-                             if _lu_r else "<span style='font-size:22px;'>🏈</span>")
-                _rk_r   = int(_tr['Rank'])
-                _med_r  = ("🥇" if _rk_r == 1 else "🥈" if _rk_r == 2
-                           else "🥉" if _rk_r == 3 else f"#{_rk_r}")
-                _usr_tag = (f" <span style='font-size:0.65rem;padding:1px 6px;"
-                            f"background:{_tc_r}33;color:{_tc_r};"
-                            f"border-radius:999px;'>{html.escape(str(_tr['User']))}</span>"
-                            if str(_tr.get('User', '')).strip() not in ('', 'nan') else "")
-                st.markdown(
-                    f"<div style='background:linear-gradient(90deg,{_tc_r}1a,#0f172a);"
-                    f"border:1px solid {_tc_r}44;border-left:4px solid {_tc_r};"
-                    f"border-radius:10px;padding:10px 14px;margin-bottom:6px;'>"
-                    f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;'>"
-                    f"<span style='font-size:1.1rem;font-weight:900;color:{_tc_r};"
-                    f"min-width:32px;'>{_med_r}</span>"
-                    f"{_lu_img_r}"
-                    f"<div style='flex:1;min-width:110px;'>"
-                    f"<span style='font-weight:900;color:{_tc_r};'>"
-                    f"{html.escape(str(_tr['Team']))}</span>{_usr_tag}</div>"
-                    f"<div style='display:flex;gap:10px;flex-wrap:wrap;font-size:0.82rem;'>"
-                    f"<span style='color:#f1f5f9;font-weight:700;'>"
-                    f"{int(_tr['TotalCommits'])} commits</span>"
-                    f"<span style='color:#fbbf24;'>{int(_tr['FiveStar'])} five&#9733;</span>"
-                    f"<span style='color:#60a5fa;'>{int(_tr['FourStar'])} four&#9733;</span>"
-                    f"<span style='color:#34d399;font-weight:800;'>"
-                    f"{float(_tr['Points']):.2f} pts</span>"
-                    f"<span style='color:#a78bfa;'>"
-                    f"{float(_tr['BlueChipRatio']):.1%} BCR</span>"
-                    f"</div></div></div>",
-                    unsafe_allow_html=True
-                )
-
-            st.markdown("**📋 Full 136-Team Table**")
-            _hs_disp = _hs_show[[
-                'Rank','Team','User','TotalCommits',
-                'FiveStar','FourStar','ThreeStar','TwoStar','Points','BlueChipRatio'
-            ]].rename(columns={
-                'TotalCommits':'Total','FiveStar':'5★','FourStar':'4★',
-                'ThreeStar':'3★','TwoStar':'2★','BlueChipRatio':'BCR'
-            }).copy()
-            st.dataframe(_hs_disp, hide_index=True, use_container_width=True)
-
-        # ── TRANSFER PORTAL ───────────────────────────────────────────────────
-        with _rtab_portal:
-            st.subheader("2041 Transfer Portal — Final Rankings")
-            if _portal_df.empty:
-                st.info("🚪 Portal rankings haven't been entered yet. "
-                        "Add rows to recruiting_transfer_portal_history.csv and "
-                        "this tab will populate automatically.")
-                st.caption("CSV columns: Year, Rank, Team, User, TotalCommits, "
-                           "FiveStar, FourStar, ThreeStar, TwoStar, OneStar, Points")
-            else:
-                _p_disp = _portal_df[[
-                    'Rank','Team','User','TotalCommits',
-                    'FiveStar','FourStar','ThreeStar','Points'
-                ]].rename(columns={
-                    'TotalCommits':'Total','FiveStar':'5★',
-                    'FourStar':'4★','ThreeStar':'3★'
-                })
-                st.dataframe(_p_disp, hide_index=True, use_container_width=True)
-
-        # ── OVERALL ───────────────────────────────────────────────────────────
-        with _rtab_overall:
-            st.subheader("2041 Overall Recruiting — HS + Portal Combined")
-            st.caption("Portal is empty so Overall mirrors High School rankings. "
-                       "Auto-combines once portal CSV is populated.")
-            _ov_disp = _overall_df[[
-                'Rank','Team','User','TotalCommits',
-                'FiveStar','FourStar','ThreeStar','Points','BlueChipRatio'
-            ]].rename(columns={
-                'TotalCommits':'Total','FiveStar':'5★','FourStar':'4★',
-                'ThreeStar':'3★','BlueChipRatio':'BCR'
-            }).copy()
-            st.dataframe(_ov_disp, hide_index=True, use_container_width=True)
-
-            st.markdown("---")
-            st.subheader("User Coaches — Overall Ranking")
-            _ov_user_rows = []
-            _ov_by_team = {str(r['Team']): r for _, r in _overall_df.iterrows()}
-            for _usr_o, _tm_o in sorted(_user_teams_map.items()):
-                _ov_r = _ov_by_team.get(_tm_o)
-                if _ov_r is not None:
-                    _ov_user_rows.append({
-                        'Coach': _usr_o, 'Team': _tm_o,
-                        'Overall Rank': int(_ov_r['Rank']),
-                        'Points': float(_ov_r['Points']),
-                        '5★': int(_ov_r['FiveStar']),
-                        '4★': int(_ov_r['FourStar']),
-                    })
-            if _ov_user_rows:
-                st.dataframe(
-                    pd.DataFrame(_ov_user_rows).sort_values('Overall Rank'),
-                    hide_index=True, use_container_width=True
-                )
+            st.subheader("Recruiting Spotlight")
+            spotlight_team = st.selectbox("Choose a class to spotlight", recruiting_board['TEAM'].tolist(), key='recruit_spotlight')
+            sp = recruiting_board[recruiting_board['TEAM'] == spotlight_team].iloc[0]
+            render_logo(sp['Logo'], width=72)
+            st.markdown(f"### {sp['TEAM']} | {sp['USER']}")
+            mobile_metrics([
+                {"label": "Recent Classes",    "value": str(sp['Recent Cycle'])},
+                {"label": "Weighted Avg Rank", "value": str(sp['Weighted Avg Rank']) if not pd.isna(sp['Weighted Avg Rank']) else "—"},
+                {"label": "Heat Index",        "value": str(sp['Heat Index'])},
+                {"label": "Pipeline Score",    "value": str(sp['Pipeline Score'])},
+                {"label": "Speed Recruiter",   "value": str(sp['Speed Recruiter Index'])},
+                {"label": "Blue Chip %",       "value": f"{sp['Blue Chip %']}%"},
+            ])
+            st.markdown(f"**Class Tier:** {sp['Class Tier']}  \n**Trajectory:** {sp['Trajectory']}")
+            st.info(sp['Recruiting Blurb'])
 
     # --- H2H MATRIX ---
     with tabs[8]:
         st.header("⚔️ Head-to-Head Matrix")
+        st.caption("All-time user vs. user records. Net Edge = wins minus losses. Rivalry Score weights game count and balance.")
 
-        st.subheader("Full H2H Matrix")
-        st.dataframe(h2h_df, hide_index=True, use_container_width=True)
+        # ── FULL GRID — one card per matchup cell ─────────────────────────────
+        st.subheader("📊 All-Time H2H Grid")
 
-        st.subheader("Rivalry Meter")
-        if not rivalry_df.empty:
-            st.dataframe(
-                rivalry_df[['Matchup', 'Games', 'Avg Margin', 'Rivalry Score']].sort_values(['Rivalry Score', 'Games'], ascending=[False, False]),
-                hide_index=True,
-                use_container_width=True
+        # Build sorted user list with current team info for logo + color
+        _h2h_user_info = {}
+        for _, _mr in model_2041.iterrows():
+            _h2h_user_info[str(_mr['USER'])] = {
+                'team': str(_mr['TEAM']),
+                'color': get_team_primary_color(str(_mr['TEAM'])),
+                'logo_uri': image_file_to_data_uri(get_logo_source(str(_mr['TEAM']))),
+            }
+
+        _h2h_users = sorted(all_users)
+
+        # Header row — opponent logos
+        _header_cells = "<td style='padding:6px;'></td>"
+        for _opp in _h2h_users:
+            _opp_info = _h2h_user_info.get(_opp, {})
+            _opp_tc   = _opp_info.get('color', '#6b7280')
+            _opp_lu   = _opp_info.get('logo_uri', '')
+            _logo_tag  = (f"<img src='{_opp_lu}' style='width:28px;height:28px;"
+                          f"object-fit:contain;'/>" if _opp_lu else "🏈")
+            _header_cells += (
+                f"<td style='text-align:center;padding:6px;'>"
+                f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;'>"
+                f"{_logo_tag}"
+                f"<span style='font-size:0.6rem;color:{_opp_tc};font-weight:700;white-space:nowrap;'>"
+                f"{html.escape(_opp)}</span></div></td>"
             )
+
+        # Data rows
+        _data_rows = ""
+        for _usr in _h2h_users:
+            _usr_info = _h2h_user_info.get(_usr, {})
+            _usr_tc   = _usr_info.get('color', '#6b7280')
+            _usr_lu   = _usr_info.get('logo_uri', '')
+            _usr_logo = (f"<img src='{_usr_lu}' style='width:28px;height:28px;"
+                         f"object-fit:contain;'/>" if _usr_lu else "🏈")
+
+            _row_cells = (
+                f"<td style='padding:6px 8px;white-space:nowrap;border-right:1px solid #1e293b;'>"
+                f"<div style='display:flex;align-items:center;gap:6px;'>"
+                f"{_usr_logo}"
+                f"<span style='font-size:0.72rem;font-weight:700;color:{_usr_tc};'>"
+                f"{html.escape(_usr)}</span></div></td>"
+            )
+
+            _usr_h2h_row = h2h_df[h2h_df['User'] == _usr]
+
+            for _opp in _h2h_users:
+                if _usr == _opp:
+                    _row_cells += (
+                        "<td style='text-align:center;padding:6px;"
+                        "background:#1e293b;'>"
+                        "<span style='color:#374151;font-size:1rem;'>&#8212;</span></td>"
+                    )
+                    continue
+                try:
+                    _rec = _usr_h2h_row[_opp].iloc[0] if not _usr_h2h_row.empty else "0-0"
+                    _net = int(h2h_heat.loc[_usr, _opp])
+                    _parts = str(_rec).split('-')
+                    _w = int(_parts[0]) if len(_parts) == 2 else 0
+                    _l = int(_parts[1]) if len(_parts) == 2 else 0
+                except Exception:
+                    _rec, _w, _l, _net = "0-0", 0, 0, 0
+                _cell_bg = ("#0d2b0d" if _net > 0 else
+                            "#2b0d0d" if _net < 0 else "#111827")
+                _rec_color = ("#22c55e" if _net > 0 else
+                              "#f87171" if _net < 0 else "#94a3b8")
+                _net_str = (f"+{_net}" if _net > 0 else
+                            str(_net) if _net < 0 else "Even")
+                _row_cells += (
+                    f"<td style='text-align:center;padding:6px 8px;"
+                    f"background:{_cell_bg};'>"
+                    f"<div style='font-weight:900;font-size:0.82rem;color:{_rec_color};'>"
+                    f"{html.escape(str(_rec))}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>{_net_str}</div>"
+                    f"</td>"
+                )
+            _data_rows += f"<tr style='border-bottom:1px solid #0f172a;'>{_row_cells}</tr>"
+
+        st.markdown(
+            f"<div style='overflow-x:auto;border:1px solid #1e293b;"
+            f"border-radius:12px;background:#0f172a;'>"
+            f"<table style='width:100%;border-collapse:collapse;font-size:13px;'>"
+            f"<thead><tr style='background:#111827;'>{_header_cells}</tr></thead>"
+            f"<tbody>{_data_rows}</tbody></table></div>",
+            unsafe_allow_html=True
+        )
+
+        # ── RIVALRY METER ─────────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("🔥 Rivalry Meter")
+        if not rivalry_df.empty:
+            _sorted_riv = rivalry_df.sort_values(
+                ['Rivalry Score', 'Games'], ascending=[False, False])
+            for _, _rv in _sorted_riv.iterrows():
+                _matchup_parts = str(_rv['Matchup']).split(' vs ')
+                _ua = _matchup_parts[0].strip() if len(_matchup_parts) == 2 else str(_rv['Matchup'])
+                _ub = _matchup_parts[1].strip() if len(_matchup_parts) == 2 else ''
+                _ia = _h2h_user_info.get(_ua, {})
+                _ib = _h2h_user_info.get(_ub, {})
+                _ca = _ia.get('color', '#6b7280')
+                _cb = _ib.get('color', '#6b7280')
+                _la = _ia.get('logo_uri', '')
+                _lb = _ib.get('logo_uri', '')
+                _logo_a = (f"<img src='{_la}' style='width:32px;height:32px;"
+                           f"object-fit:contain;'/>" if _la else "🏈")
+                _logo_b = (f"<img src='{_lb}' style='width:32px;height:32px;"
+                           f"object-fit:contain;'/>" if _lb else "🏈")
+                _wa = int(_rv.get(_ua, 0)) if _ua in _rv else 0
+                _wb = int(_rv.get(_ub, 0)) if _ub in _rv else 0
+                _riv_score = float(_rv.get('Rivalry Score', 0))
+                _avg_margin = float(_rv.get('Avg Margin', 0))
+                _games = int(_rv.get('Games', 0))
+                _heat = ("🔥🔥🔥" if _riv_score >= 25 else
+                         "🔥🔥" if _riv_score >= 15 else "🔥")
+                _bar_pct_a = int((_wa / max(_games, 1)) * 100)
+                _bar_pct_b = 100 - _bar_pct_a
+                st.markdown(
+                    f"<div style='background:#111827;border:1px solid #1e293b;"
+                    f"border-radius:12px;padding:14px 16px;margin-bottom:8px;'>"
+                    f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;"
+                    f"margin-bottom:10px;'>"
+                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:100px;'>"
+                    f"{_logo_a}"
+                    f"<span style='font-weight:900;color:{_ca};font-size:0.9rem;'>"
+                    f"{html.escape(_ua)}</span></div>"
+                    f"<div style='text-align:center;min-width:60px;'>"
+                    f"<div style='font-size:0.65rem;color:#475569;'>{_games} games</div>"
+                    f"<div style='font-size:1.1rem;font-weight:900;color:#f1f5f9;'>"
+                    f"{_wa} &ndash; {_wb}</div>"
+                    f"<div style='font-size:0.65rem;color:#64748b;'>"
+                    f"avg &#177;{_avg_margin:.1f}</div></div>"
+                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;"
+                    f"justify-content:flex-end;min-width:100px;'>"
+                    f"<span style='font-weight:900;color:{_cb};font-size:0.9rem;'>"
+                    f"{html.escape(_ub)}</span>"
+                    f"{_logo_b}</div></div>"
+                    f"<div style='display:flex;align-items:center;gap:8px;'>"
+                    f"<div style='flex:1;background:#0f172a;border-radius:999px;height:6px;overflow:hidden;'>"
+                    f"<div style='width:{_bar_pct_a}%;height:100%;background:{_ca};"
+                    f"border-radius:999px;'></div></div>"
+                    f"<span style='font-size:0.72rem;color:#fbbf24;font-weight:700;white-space:nowrap;'>"
+                    f"{_heat} {_riv_score:.0f} pts</span></div></div>",
+                    unsafe_allow_html=True
+                )
         else:
             st.info("No rivalry data available yet.")
 
-        selected_user = st.selectbox("Select a user for H2H drilldown", all_users, key="h2h_select")
-        drill = []
-        for opp in all_users:
-            if opp == selected_user:
+        # ── 1-on-1 DRILLDOWN ─────────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("🔍 1-on-1 Drilldown")
+        _drill_user = st.selectbox(
+            "Select a coach", _h2h_users, key="h2h_select")
+        _drill_info = _h2h_user_info.get(_drill_user, {})
+        _drill_tc   = _drill_info.get('color', '#6b7280')
+        _drill_lu   = _drill_info.get('logo_uri', '')
+        _drill_logo = (f"<img src='{_drill_lu}' style='width:36px;height:36px;"
+                       f"object-fit:contain;'/>" if _drill_lu else "🏈")
+
+        # Header card for selected coach
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:10px;"
+            f"padding:10px 14px;background:linear-gradient(90deg,{_drill_tc}1a,#0f172a);"
+            f"border:1px solid {_drill_tc}44;border-left:4px solid {_drill_tc};"
+            f"border-radius:10px;margin-bottom:12px;'>"
+            f"{_drill_logo}"
+            f"<span style='font-weight:900;font-size:1rem;color:{_drill_tc};'>"
+            f"{html.escape(_drill_user)}</span>"
+            f"<span style='font-size:0.75rem;color:#64748b;margin-left:4px;'>"
+            f"&mdash; {html.escape(_drill_info.get('team', ''))}</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        _drill_row = h2h_df[h2h_df['User'] == _drill_user]
+        for _opp in sorted(all_users):
+            if _opp == _drill_user:
                 continue
-            matchup = h2h_df[h2h_df['User'] == selected_user][opp].iloc[0]
-            diff = h2h_heat.loc[selected_user, opp]
-            games = 0
-            wins = 0
-            losses = 0
-            if matchup != "-":
-                parts = str(matchup).split('-')
-                if len(parts) == 2:
-                    wins = int(parts[0])
-                    losses = int(parts[1])
-                    games = wins + losses
-            drill.append({
-                'Opponent': opp,
-                'Record': matchup,
-                'Games': games,
-                'Net Edge': diff
-            })
-        st.dataframe(pd.DataFrame(drill).sort_values(['Games', 'Net Edge'], ascending=[False, False]), hide_index=True, use_container_width=True)
+            _opp_info2 = _h2h_user_info.get(_opp, {})
+            _opp_tc2   = _opp_info2.get('color', '#6b7280')
+            _opp_lu2   = _opp_info2.get('logo_uri', '')
+            _opp_logo2 = (f"<img src='{_opp_lu2}' style='width:28px;height:28px;"
+                          f"object-fit:contain;'/>" if _opp_lu2 else "🏈")
+            try:
+                _rec2  = _drill_row[_opp].iloc[0] if not _drill_row.empty else "0-0"
+                _net2  = int(h2h_heat.loc[_drill_user, _opp])
+                _parts2 = str(_rec2).split('-')
+                _w2 = int(_parts2[0]) if len(_parts2) == 2 else 0
+                _l2 = int(_parts2[1]) if len(_parts2) == 2 else 0
+            except Exception:
+                _rec2, _w2, _l2, _net2 = "0-0", 0, 0, 0
+            _net_c2 = ("#22c55e" if _net2 > 0 else
+                       "#f87171" if _net2 < 0 else "#94a3b8")
+            _net_s2 = f"+{_net2}" if _net2 > 0 else str(_net2)
+            _edge_label = ("LEADS" if _net2 > 0 else
+                           "TRAILS" if _net2 < 0 else "EVEN")
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:10px;"
+                f"padding:10px 14px;background:#111827;border:1px solid #1e293b;"
+                f"border-radius:10px;margin-bottom:6px;flex-wrap:wrap;'>"
+                f"<div style='display:flex;align-items:center;gap:6px;flex:1;"
+                f"min-width:100px;'>{_opp_logo2}"
+                f"<span style='font-weight:700;color:{_opp_tc2};'>"
+                f"{html.escape(_opp)}</span></div>"
+                f"<div style='font-weight:900;font-size:1.1rem;color:#f1f5f9;'>"
+                f"{_w2} &ndash; {_l2}</div>"
+                f"<div style='text-align:right;min-width:80px;'>"
+                f"<span style='font-weight:800;color:{_net_c2};font-size:0.8rem;'>"
+                f"{_net_s2} &nbsp;"
+                f"<span style='font-size:0.65rem;'>{_edge_label}</span></span>"
+                f"</div></div>",
+                unsafe_allow_html=True
+            )
 
     # --- SEASON RECAP ---
     with tabs[3]:
@@ -6165,25 +5926,27 @@ if data:
                 _user_rec_rows.append((_w, _u, _team_name, _tc, _lt, _w, _l, _ppg))
 
             _user_rec_rows.sort(key=lambda x: -x[0])
-            _rec_html = "<div style='display:flex;flex-direction:column;gap:6px;margin-bottom:16px;'>"
             for rank_i, (_, _u, _tname, _tc, _lt, _w, _l, _ppg) in enumerate(_user_rec_rows):
-                _rec_html += f"""
-                <div style="display:flex;align-items:center;gap:10px;background:#0a1628;
-                            border-left:4px solid {_tc};border-radius:8px;padding:8px 12px;">
-                  <span style="color:#475569;font-size:0.72rem;min-width:18px;">#{rank_i+1}</span>
-                  {_lt}
-                  <div style="flex:1;min-width:0;">
-                    <div style="font-weight:800;color:{_tc};font-size:0.88rem;
-                                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{html.escape(_tname)}</div>
-                    <div style="font-size:0.65rem;color:#64748b;">{html.escape(_u)}</div>
-                  </div>
-                  <div style="text-align:right;">
-                    <div style="font-weight:900;color:#f1f5f9;font-size:0.95rem;">{_w}–{_l}</div>
-                    <div style="font-size:0.65rem;color:#64748b;">{_ppg} ppg</div>
-                  </div>
-                </div>"""
-            _rec_html += "</div>"
-            st.markdown(_rec_html, unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:10px;"
+                    f"background:#0a1628;border-left:4px solid {_tc};"
+                    f"border-radius:8px;padding:8px 12px;margin-bottom:5px;'>"
+                    f"<span style='color:#475569;font-size:0.72rem;min-width:18px;'>"
+                    f"#{rank_i+1}</span>"
+                    f"{_lt}"
+                    f"<div style='flex:1;min-width:0;'>"
+                    f"<div style='font-weight:800;color:{_tc};font-size:0.88rem;"
+                    f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                    f"{html.escape(_tname)}</div>"
+                    f"<div style='font-size:0.65rem;color:#64748b;'>"
+                    f"{html.escape(_u)}</div></div>"
+                    f"<div style='text-align:right;'>"
+                    f"<div style='font-weight:900;color:#f1f5f9;font-size:0.95rem;'>"
+                    f"{_w}&ndash;{_l}</div>"
+                    f"<div style='font-size:0.65rem;color:#64748b;'>"
+                    f"{_ppg} ppg</div></div></div>",
+                    unsafe_allow_html=True
+                )
 
             # ── GAME OF THE YEAR ──────────────────────────────────────────────
             if not user_games.empty:
@@ -6259,10 +6022,13 @@ if data:
                         f"<span style='font-size:0.6rem;padding:2px 6px;"
                         f"background:#1e293b;color:#94a3b8;border-radius:10px;'>"
                         f"{html.escape(_gt_label)}</span>"
-                        if _gt_label and _gt_label != 'Regular Season' else "")
+                        if _gt_label and _gt_label != 'Regular Season' else ""
+                    )
                     _badge_row = (
-                        f"<div style='width:100%;display:flex;justify-content:center;"
-                        f"margin-top:2px;'>{_gt_badge}</div>" if _gt_badge else "")
+                        f"<div style='width:100%;display:flex;"
+                        f"justify-content:center;margin-top:2px;'>{_gt_badge}</div>"
+                        if _gt_badge else ""
+                    )
                     st.markdown(
                         f"<div style='display:flex;align-items:center;gap:8px;"
                         f"padding:8px 10px;background:#0a1628;border-radius:8px;"
@@ -6279,8 +6045,8 @@ if data:
                         f"{_vp} &ndash; {_hp}</div>"
                         f"<div style='font-size:0.6rem;color:#475569;'>"
                         f"&#177;{int(_g['Margin'])}</div></div>"
-                        f"<div style='display:flex;align-items:center;gap:6px;flex:1;"
-                        f"justify-content:flex-end;min-width:120px;'>"
+                        f"<div style='display:flex;align-items:center;gap:6px;"
+                        f"flex:1;justify-content:flex-end;min-width:120px;'>"
                         f"<div style='text-align:right;'>"
                         f"<div style='color:{_hc};font-size:0.8rem;{_hw}"
                         f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
@@ -6695,82 +6461,305 @@ if data:
             _mh += "</tbody></table></div>"
             st.markdown(_mh, unsafe_allow_html=True)
 
-    # --- UPSET TRACKER ---
+    # --- ISPN CLASSICS ---
     with tabs[9]:
-        st.header("🚨 Upset Tracker")
-
-        upset_df = scores.copy()
-        rating_map = model_2041.set_index('TEAM')['OVERALL'].to_dict()
-        upset_df['Visitor OVR Proxy'] = upset_df['Visitor_Final'].map(rating_map)
-        upset_df['Home OVR Proxy'] = upset_df['Home_Final'].map(rating_map)
-
-        upset_df['Expected Winner'] = np.where(
-            upset_df['Home OVR Proxy'].fillna(-999) >= upset_df['Visitor OVR Proxy'].fillna(-999),
-            upset_df['Home_Final'],
-            upset_df['Visitor_Final']
-        )
-        upset_df['Actual Winner'] = upset_df['Winner_Team']
-        upset_df['Underdog Delta'] = np.where(
-            upset_df['Actual Winner'] == upset_df['Home_Final'],
-            upset_df['Visitor OVR Proxy'].fillna(upset_df['Home OVR Proxy']) - upset_df['Home OVR Proxy'].fillna(upset_df['Visitor OVR Proxy']),
-            upset_df['Home OVR Proxy'].fillna(upset_df['Visitor OVR Proxy']) - upset_df['Visitor OVR Proxy'].fillna(upset_df['Home OVR Proxy'])
+        st.header("🎬 ISPN Classics")
+        st.caption(
+            "The most iconic games in dynasty history — ranked by closeness, "
+            "stakes, and upset factor. Margin drives the score; natties, CFP games, "
+            "and big upsets push it higher."
         )
 
-        upset_df = upset_df[upset_df['Actual Winner'] != upset_df['Expected Winner']].copy()
-        upset_df['Upset Score'] = (upset_df['Underdog Delta'].abs().fillna(0) + upset_df['Margin']).round(1)
-        upset_df = upset_df.sort_values('Upset Score', ascending=False)
+        _classics_df = build_ispn_classics(scores, ratings)
 
-        if upset_df.empty:
-            st.info("No upsets were detected with the current proxy model.")
+        if _classics_df.empty:
+            st.info("No game data available yet.")
         else:
-            st.dataframe(
-                upset_df[['YEAR', 'Visitor_Final', 'V_Pts', 'H_Pts', 'Home_Final', 'Actual Winner', 'Expected Winner', 'Upset Score']],
-                hide_index=True,
-                use_container_width=True
-            )
+            # ── Sub-tabs: ALL / UPSETS / CLOSEST ─────────────────────────────
+            _ctab_all, _ctab_upsets, _ctab_close = st.tabs(
+                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games"])
 
-            st.plotly_chart(
-                px.bar(
-                    upset_df.head(15),
-                    x='Actual Winner',
-                    y='Upset Score',
-                    color='YEAR',
-                    hover_data=['Visitor_Final', 'Home_Final', 'Expected Winner']
-                ),
-                use_container_width=True
-            )
+            def _render_classic_card(row, rank_num):
+                """Render a single broadcast-style game card. One st.markdown call."""
+                _wc  = get_team_primary_color(str(row['Winner']))
+                _lc  = get_team_primary_color(str(row['Loser']))
+                _wlu = image_file_to_data_uri(get_logo_source(str(row['Winner'])))
+                _llu = image_file_to_data_uri(get_logo_source(str(row['Loser'])))
+                _w_img = (f"<img src='{_wlu}' style='width:40px;height:40px;"
+                          f"object-fit:contain;'/>" if _wlu else "🏈")
+                _l_img = (f"<img src='{_llu}' style='width:40px;height:40px;"
+                          f"object-fit:contain;'/>" if _llu else "🏈")
+
+                # Game type badge color
+                _gt = str(row['GameType'])
+                _gt_bg = ("#7c3aed" if 'Championship' in _gt else
+                          "#0369a1" if 'CFP' in _gt else
+                          "#166534" if 'Conf' in _gt else
+                          "#92400e" if 'Bowl' in _gt else "#1e293b")
+                _gt_color = "#e9d5ff" if 'Championship' in _gt else "#bfdbfe" if 'CFP' in _gt else "#bbf7d0" if 'Conf' in _gt else "#fde68a" if 'Bowl' in _gt else "#94a3b8"
+
+                # Upset badge
+                _upset_badge = ""
+                if row['IsUpset']:
+                    _diff = float(row['OVR_Diff'])
+                    _upset_badge = (
+                        f"<span style='padding:2px 8px;background:#7f1d1d;"
+                        f"color:#fca5a5;font-size:0.62rem;font-weight:800;"
+                        f"border-radius:999px;white-space:nowrap;'>"
+                        f"&#9888; UPSET +{_diff:.1f} OVR</span>"
+                    )
+
+                # Closeness pill
+                _margin = int(row['Margin'])
+                _close_label = ("2OT THRILLER" if _margin <= 1 else
+                                "OT WAR" if _margin <= 3 else
+                                "NAIL-BITER" if _margin <= 7 else
+                                "CLOSE CALL" if _margin <= 14 else "")
+                _close_badge = ""
+                if _close_label:
+                    _close_badge = (
+                        f"<span style='padding:2px 8px;background:#1c1917;"
+                        f"color:#fbbf24;font-size:0.62rem;font-weight:800;"
+                        f"border-radius:999px;white-space:nowrap;border:1px solid #78350f;'>"
+                        f"&#128293; {_close_label}</span>"
+                    )
+
+                _rank_str = f"#{rank_num}"
+                _score_str = f"{int(row['WinnerPts'])} &ndash; {int(row['LoserPts'])}"
+                _classic_score = float(row['ClassicScore'])
+
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg,#0f172a,#111827);"
+                    f"border:1px solid #1e293b;border-radius:14px;"
+                    f"padding:14px 16px;margin-bottom:10px;'>"
+                    # top row: rank + type badge + badges
+                    f"<div style='display:flex;align-items:center;gap:8px;"
+                    f"flex-wrap:wrap;margin-bottom:10px;'>"
+                    f"<span style='font-size:0.75rem;font-weight:900;color:#475569;"
+                    f"min-width:26px;'>{_rank_str}</span>"
+                    f"<span style='padding:2px 8px;background:{_gt_bg};"
+                    f"color:{_gt_color};font-size:0.62rem;font-weight:700;"
+                    f"border-radius:999px;white-space:nowrap;'>{html.escape(_gt)}</span>"
+                    f"<span style='font-size:0.62rem;color:#475569;'>"
+                    f"{int(row['Year'])}</span>"
+                    f"{_upset_badge}{_close_badge}"
+                    f"<span style='margin-left:auto;font-size:0.65rem;color:#374151;"
+                    f"font-weight:700;'>&#9733; {_classic_score:.0f} pts</span>"
+                    f"</div>"
+                    # score row: winner side | score | loser side
+                    f"<div style='display:flex;align-items:center;"
+                    f"gap:10px;flex-wrap:wrap;'>"
+                    # winner
+                    f"<div style='display:flex;align-items:center;gap:8px;"
+                    f"flex:1;min-width:110px;'>"
+                    f"{_w_img}"
+                    f"<div>"
+                    f"<div style='font-weight:900;color:{_wc};font-size:0.9rem;"
+                    f"line-height:1.1;'>{html.escape(str(row['Winner']))}</div>"
+                    f"<div style='font-size:0.65rem;color:#64748b;'>"
+                    f"{html.escape(str(row['WinnerUser']))}</div>"
+                    f"</div></div>"
+                    # score center
+                    f"<div style='text-align:center;min-width:70px;'>"
+                    f"<div style='font-size:1.4rem;font-weight:900;color:#f1f5f9;"
+                    f"letter-spacing:-0.5px;'>{_score_str}</div>"
+                    f"<div style='font-size:0.6rem;color:#475569;'>"
+                    f"&#177;{_margin}</div>"
+                    f"</div>"
+                    # loser
+                    f"<div style='display:flex;align-items:center;gap:8px;"
+                    f"flex:1;justify-content:flex-end;min-width:110px;'>"
+                    f"<div style='text-align:right;'>"
+                    f"<div style='font-weight:700;color:{_lc};font-size:0.9rem;"
+                    f"opacity:0.65;line-height:1.1;'>"
+                    f"{html.escape(str(row['Loser']))}</div>"
+                    f"<div style='font-size:0.65rem;color:#64748b;'>"
+                    f"{html.escape(str(row['LoserUser']))}</div>"
+                    f"</div>"
+                    f"{_l_img}"
+                    f"</div></div></div>",
+                    unsafe_allow_html=True
+                )
+
+            # TOP CLASSICS
+            with _ctab_all:
+                st.caption("Ranked by Classic Score = closeness + stakes + upset factor.")
+                _top25 = _classics_df.head(25)
+                for _ci, (_idx, _crow) in enumerate(_top25.iterrows(), 1):
+                    _render_classic_card(_crow, _ci)
+
+            # BIGGEST UPSETS
+            with _ctab_upsets:
+                st.caption("Games where the lower-rated team pulled off the W. Ranked by OVR gap.")
+                _upsets = _classics_df[_classics_df['IsUpset']].sort_values(
+                    'OVR_Diff', ascending=False).head(20)
+                if _upsets.empty:
+                    st.info("No upset data detected with current ratings proxy.")
+                else:
+                    for _ci, (_idx, _crow) in enumerate(_upsets.iterrows(), 1):
+                        _render_classic_card(_crow, _ci)
+
+            # CLOSEST GAMES
+            with _ctab_close:
+                st.caption("The absolute gut-punchers — decided by a single score or less.")
+                _close = _classics_df.sort_values('Margin').head(20)
+                for _ci, (_idx, _crow) in enumerate(_close.iterrows(), 1):
+                    _render_classic_card(_crow, _ci)
 
     # --- GOAT RANKINGS ---
     with tabs[10]:
         st.header("🐐 Dynasty GOAT Rankings")
+        st.caption("Who built the best dynasty? HoF Points weight natties, CFP appearances, conf titles, and NFL pipeline. Lower coaching tenure gets no extra credit — earn it on the field.")
+
         goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
 
-        if not goat.empty:
-            top = goat.iloc[0]
+        if goat.empty:
+            st.info("No dynasty stats available yet.")
+        else:
+            # ── TOP-LINE HERO METRICS ─────────────────────────────────────────
             mobile_metrics([
-                {"label": "👑 GOAT",          "value": str(top['User']),           "delta": f"{top['GOAT Score']} pts"},
-                {"label": "🏆 Most Natties",  "value": str(goat.loc[goat['Natties'].idxmax(), 'User']),  "delta": f"{goat['Natties'].max()} titles"},
-                {"label": "🎯 Best Win %",    "value": str(goat.loc[goat['Career Win %'].idxmax(), 'User']), "delta": f"{goat['Career Win %'].max()}%"},
-                {"label": "🏈 NFL Pipeline",  "value": str(goat.loc[goat['Drafted'].idxmax(), 'User']),   "delta": f"{goat['Drafted'].max()} drafted"},
+                {"label": "👑 Current GOAT",     "value": str(goat.iloc[0]['User']),
+                 "delta": f"{goat.iloc[0]['GOAT Score']} pts"},
+                {"label": "🏆 Most Natties",
+                 "value": str(goat.loc[goat['Natties'].idxmax(), 'User']),
+                 "delta": f"{int(goat['Natties'].max())} titles"},
+                {"label": "🎯 Best Win %",
+                 "value": str(goat.loc[goat['Career Win %'].idxmax(), 'User']),
+                 "delta": f"{goat['Career Win %'].max()}%"},
+                {"label": "🏈 NFL Pipeline",
+                 "value": str(goat.loc[goat['Drafted'].idxmax(), 'User']),
+                 "delta": f"{int(goat['Drafted'].max())} drafted"},
             ])
 
-        with st.expander("📊 Full GOAT Table", expanded=True):
-            st.dataframe(
-                goat[['User', 'GOAT Score', 'Career Record', 'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', '1st Rounders', 'Drafted']],
-                hide_index=True,
-                use_container_width=True
-            )
+            st.markdown("---")
 
-        st.plotly_chart(
-            px.bar(
+            # ── PODIUM CARDS — top 3 ──────────────────────────────────────────
+            _podium_labels = ["🥇", "🥈", "🥉"]
+            _podium_colors = ["#f59e0b", "#9ca3af", "#b45309"]
+
+            for _gi, _grow in goat.head(3).iterrows():
+                _gu   = str(_grow['User'])
+                _info = {}
+                for _, _mr in model_2041.iterrows():
+                    if str(_mr['USER']) == _gu:
+                        _info = {'team': str(_mr['TEAM'])}
+                        break
+                _tm = _info.get('team', '')
+                _tc = get_team_primary_color(_tm)
+                _lu = image_file_to_data_uri(get_logo_source(_tm))
+                _logo = (f"<img src='{_lu}' style='width:44px;height:44px;"
+                         f"object-fit:contain;'/>" if _lu else "🏈")
+                _medal = _podium_labels[_gi] if _gi < 3 else f"#{_gi+1}"
+                _pod_c = _podium_colors[_gi] if _gi < 3 else _tc
+                _natties = int(_grow.get('Natties', 0))
+                _goat_s  = int(_grow.get('GOAT Score', 0))
+                _hof_s   = int(_grow.get('HoF Points', 0))
+                _rec     = str(_grow.get('Career Record', '—'))
+                _win_pct = float(_grow.get('Career Win %', 0))
+                _cfpw    = int(_grow.get('CFP Wins', 0))
+                _conf    = int(_grow.get('Conf Titles', 0))
+                _nfl     = int(_grow.get('Drafted', 0))
+
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg,{_pod_c}15,#0f172a);"
+                    f"border:1px solid {_pod_c}44;border-left:5px solid {_pod_c};"
+                    f"border-radius:14px;padding:16px 18px;margin-bottom:10px;'>"
+                    # top row
+                    f"<div style='display:flex;align-items:center;gap:12px;"
+                    f"flex-wrap:wrap;margin-bottom:12px;'>"
+                    f"<span style='font-size:1.6rem;'>{_medal}</span>"
+                    f"{_logo}"
+                    f"<div style='flex:1;min-width:100px;'>"
+                    f"<div style='font-size:1rem;font-weight:900;color:{_tc};'>"
+                    f"{html.escape(_gu)}</div>"
+                    f"<div style='font-size:0.72rem;color:#64748b;'>"
+                    f"{html.escape(_tm)}</div>"
+                    f"</div>"
+                    f"<div style='text-align:right;'>"
+                    f"<div style='font-size:1.2rem;font-weight:900;color:{_pod_c};'>"
+                    f"{_goat_s} pts</div>"
+                    f"<div style='font-size:0.62rem;color:#475569;'>GOAT Score</div>"
+                    f"</div></div>"
+                    # stat chips
+                    f"<div style='display:flex;flex-wrap:wrap;gap:8px;'>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#fbbf24;'>"
+                    f"{_natties}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>NATTIES</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#f1f5f9;'>"
+                    f"{_rec}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>RECORD</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#34d399;'>"
+                    f"{_win_pct:.0f}%</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>WIN %</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#60a5fa;'>"
+                    f"{_cfpw}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>CFP W</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#a78bfa;'>"
+                    f"{_conf}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>CONF &#9733;</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#fb923c;'>"
+                    f"{_nfl}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>NFL DRAFTED</div>"
+                    f"</div>"
+                    f"</div></div>",
+                    unsafe_allow_html=True
+                )
+
+            # ── FULL LEADERBOARD TABLE ────────────────────────────────────────
+            st.markdown("---")
+            with st.expander("📊 Full GOAT Table", expanded=False):
+                _goat_cols = [c for c in [
+                    'User', 'GOAT Score', 'HoF Points', 'Career Record',
+                    'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins',
+                    'CFP Losses', 'Conf Titles', '1st Rounders', 'Drafted'
+                ] if c in goat.columns]
+                st.dataframe(
+                    goat[_goat_cols].reset_index(drop=True),
+                    hide_index=True, use_container_width=True
+                )
+
+            # ── BAR CHART ─────────────────────────────────────────────────────
+            _bar_colors = {
+                str(r['User']): get_team_primary_color(
+                    str(model_2041[model_2041['USER'] == str(r['User'])]['TEAM'].iloc[0])
+                    if not model_2041[model_2041['USER'] == str(r['User'])].empty else ''
+                )
+                for _, r in goat.iterrows()
+            }
+            _fig_goat = px.bar(
                 goat,
-                x="User",
-                y="GOAT Score",
+                x="User", y="GOAT Score",
                 color="User",
-                hover_data=['Natties', 'Natty Apps', 'CFP Wins', 'Conf Titles', '1st Rounders', 'Drafted']
-            ),
-            use_container_width=True
-        )
+                color_discrete_map=_bar_colors,
+                hover_data=[c for c in ['Natties', 'Natty Apps', 'CFP Wins',
+                                         'Conf Titles', '1st Rounders', 'Drafted']
+                            if c in goat.columns],
+                template="plotly_dark",
+            )
+            _fig_goat.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                showlegend=False,
+                margin=dict(l=0, r=0, t=20, b=0),
+            )
+            st.plotly_chart(_fig_goat, use_container_width=True)
 
 
 
