@@ -3972,13 +3972,46 @@ if data:
                 st.caption("No Heisman data loaded.")
 
             # Current candidates from roster
-            st.markdown("#### 🌟 2042 Heisman Candidates")
+            st.markdown("#### 🌟 2041 Heisman Candidates")
             st.caption("Top skill position players by OVR from current rosters.")
             try:
                 roster_for_awards = pd.read_csv('cfb26_rosters_full.csv')
                 skill_pos = ['QB','HB','WR','TE']
-                candidates = roster_for_awards[roster_for_awards['Pos'].isin(skill_pos)].nlargest(6, 'OVR')[['Team','Name','Pos','Year','OVR','SPD']]
-                st.dataframe(candidates.reset_index(drop=True), hide_index=True, use_container_width=True)
+                candidates = roster_for_awards[roster_for_awards['Pos'].isin(skill_pos)].nlargest(6, 'OVR')[['Team','Name','Pos','Year','OVR','SPD']].reset_index(drop=True)
+
+                rows_html = ""
+                for _, c in candidates.iterrows():
+                    c_team  = str(c.get('Team', ''))
+                    c_name  = str(c.get('Name', ''))
+                    c_pos   = str(c.get('Pos', ''))
+                    c_yr    = str(c.get('Year', ''))
+                    c_ovr   = int(c.get('OVR', 0))
+                    c_spd   = int(c.get('SPD', 0))
+                    c_color = get_team_primary_color(c_team)
+                    c_logo  = image_file_to_data_uri(get_logo_source(c_team))
+                    logo_img = f"<img src='{c_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if c_logo else "🏈 "
+                    ovr_color = "#22c55e" if c_ovr >= 90 else ("#f59e0b" if c_ovr >= 85 else "#d1d5db")
+                    rows_html += (
+                        f"<div style='display:flex;align-items:center;justify-content:space-between;"
+                        f"padding:6px 8px;border-bottom:1px solid #1f2937;'>"
+                        f"<div style='display:flex;align-items:center;'>"
+                        f"{logo_img}"
+                        f"<div>"
+                        f"<span style='font-weight:700;color:#f3f4f6;font-size:0.85rem;'>{html.escape(c_name)}</span>"
+                        f"<span style='color:#9ca3af;font-size:0.75rem;margin-left:5px;'>{c_pos} · {c_yr}</span><br>"
+                        f"<span style='color:{c_color};font-size:0.75rem;'>{html.escape(c_team)}</span>"
+                        f"</div></div>"
+                        f"<div style='text-align:right;'>"
+                        f"<span style='font-weight:900;color:{ovr_color};font-size:0.9rem;'>{c_ovr}</span>"
+                        f"<span style='color:#6b7280;font-size:0.72rem;margin-left:4px;'>OVR</span><br>"
+                        f"<span style='color:#60a5fa;font-size:0.75rem;'>⚡{c_spd} SPD</span>"
+                        f"</div></div>"
+                    )
+                st.markdown(
+                    f"<div style='background:#111827;border:1px solid #374151;border-radius:10px;overflow:hidden;'>"
+                    f"{rows_html}</div>",
+                    unsafe_allow_html=True
+                )
             except Exception:
                 st.caption("Load cfb26_rosters_full.csv to see current candidates.")
 
