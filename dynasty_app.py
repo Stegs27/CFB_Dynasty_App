@@ -3268,11 +3268,7 @@ def build_bracket_field_from_screenshot(parsed_teams, cfp_board):
 
 
 def render_playoff_bracket(projected_field):
-    """
-    Mobile-first 12-team CFP bracket.
-    Single-column layout stacks cleanly on any screen width.
-    Byes section → First Round section, clear visual hierarchy.
-    """
+    """Visual SVG bracket for 12-team CFP playoff with connector lines."""
     if projected_field is None or projected_field.empty or len(projected_field) < 12:
         st.info("Need 12 projected teams to render the bracket.")
         return
@@ -3285,102 +3281,170 @@ def render_playoff_bracket(projected_field):
         rows = pf[pf['Projected Seed'] == seed]
         return rows.iloc[0] if not rows.empty else None
 
-    def team_pill(row, badge=None, badge_color="#22c55e"):
-        """Compact single-line team card: seed bubble + logo + name + record + badge."""
-        if row is None:
-            return "<div style='color:#6b7280;font-style:italic;'>TBD</div>"
-        team   = str(row.get('Team', 'Unknown'))
-        seed   = int(pd.to_numeric(row.get('Projected Seed', 0), errors='coerce') or 0)
-        record = str(row.get('Record', '—'))
+    def wp(sa, sb):
+        diff = max(-8, min(8, sb - sa))
+        return round(max(18, min(82, 50 + diff * 4.5)))
+
+    SW, SH, GAP = 188, 44, 8
+    R1X, QFX, SFX, NX = 8, 238, 468, 698
+    NW = 220
+    W, H = 938, 692
+
+    Q1C, Q2C, Q3C, Q4C = 87, 260, 433, 606
+    SF1C = (Q1C + Q2C) // 2
+    SF2C = (Q3C + Q4C) // 2
+    NC = H // 2
+
+    def ya_yb(c):
+        y = c - SH - GAP // 2 - SH // 2
+        return y, y + SH + GAP
+
+    def sc(y): return y + SH // 2
+    def mc(ya, yb): return (sc(ya) + sc(yb)) // 2
+
+    M1 = (R1X + SW + QFX) // 2
+    M2 = (QFX + SW + SFX) // 2
+    M3 = (SFX + SW + NX) // 2
+
+    r1g1 = ya_yb(Q1C); r1g4 = ya_yb(Q2C)
+    r1g2 = ya_yb(Q3C); r1g3 = ya_yb(Q4C)
+    qf1  = ya_yb(Q1C); qf4  = ya_yb(Q2C)
+    qf2  = ya_yb(Q3C); qf3  = ya_yb(Q4C)
+    sf1  = ya_yb(SF1C); sf2 = ya_yb(SF2C)
+    nat  = ya_yb(NC)
+
+    LC = "#2d4060"; GC = "#fbbf24"
+
+    def pth(pts, color=None):
+        c = color or LC
+        d = "M{},{}".format(pts[0][0], pts[0][1])
+        for i in range(1, len(pts)):
+            px, py = pts[i-1]; cx, cy = pts[i]
+            d += " H{}".format(cx) if py == cy else (" V{}".format(cy) if px == cx else " H{} V{}".format(cx, cy))
+        return '<path d="{}" stroke="{}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'.format(d, c)
+
+    re = R1X + SW; qe = QFX + SW; se = SFX + SW
+    P = [
+        pth([(re, mc(*r1g1)), (M1, mc(*r1g1)), (M1, sc(qf1[1])), (QFX, sc(qf1[1]))]),
+        pth([(re, mc(*r1g4)), (M1, mc(*r1g4)), (M1, sc(qf4[1])), (QFX, sc(qf4[1]))]),
+        pth([(re, mc(*r1g2)), (M1, mc(*r1g2)), (M1, sc(qf2[1])), (QFX, sc(qf2[1]))]),
+        pth([(re, mc(*r1g3)), (M1, mc(*r1g3)), (M1, sc(qf3[1])), (QFX, sc(qf3[1]))]),
+        pth([(qe, mc(*qf1)), (M2, mc(*qf1)), (M2, sc(sf1[0])), (SFX, sc(sf1[0]))]),
+        pth([(qe, mc(*qf4)), (M2, mc(*qf4)), (M2, sc(sf1[1])), (SFX, sc(sf1[1]))]),
+        pth([(qe, mc(*qf2)), (M2, mc(*qf2)), (M2, sc(sf2[0])), (SFX, sc(sf2[0]))]),
+        pth([(qe, mc(*qf3)), (M2, mc(*qf3)), (M2, sc(sf2[1])), (SFX, sc(sf2[1]))]),
+        pth([(se, mc(*sf1)), (M3, mc(*sf1)), (M3, sc(nat[0])), (NX, sc(nat[0]))], GC),
+        pth([(se, mc(*sf2)), (M3, mc(*sf2)), (M3, sc(nat[1])), (NX, sc(nat[1]))], GC),
+    ]
+    conn_svg = "\n".join(P)
+
+    def slot_svg(x, y, seed, row, bye=False, proj=False, tbd_lines=None, w=SW):
+        if tbd_lines:
+            l1, l2 = tbd_lines
+            return (
+                '<rect x="{}" y="{}" width="{}" height="{}" rx="6" fill="#0d1829" stroke="#1e3a5f" stroke-width="1"/>'.format(x, y, w, SH) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="#374151" font-size="10" font-family="monospace">{}</text>'.format(x+w//2, y+17, html.escape(l1)) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="#1e3a5f" font-size="10" font-family="monospace">{}</text>'.format(x+w//2, y+32, html.escape(l2))
+            )
+        if row is None: return ""
+        team    = str(row.get("Team", ""))
+        record  = str(row.get("Record", ""))
         primary = get_team_primary_color(team)
         logo_uri = image_file_to_data_uri(get_logo_source(team))
-        logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if logo_uri else "🏈"
-        badge_html = f"<span style='display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:{badge_color};color:white;font-size:0.68rem;font-weight:800;'>{badge}</span>" if badge else ""
-        return f"""
-        <div style='display:flex;align-items:center;gap:8px;padding:8px 10px;background:#111827;border-radius:8px;border:1px solid #374151;'>
-          <div style='display:flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:50%;
-          background:{primary};color:white;font-weight:900;font-size:0.72rem;'>#{seed}</div>
-          {logo_html}
-          <div style='flex:1;overflow:hidden;'>
-            <div style='font-weight:800;font-size:0.88rem;color:{primary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(team)}</div>
-            <div style='font-size:0.72rem;color:#9ca3af;'>{record}</div>
-          </div>
-          {badge_html}
-        </div>"""
+        name = (team[:19] + "\u2026") if len(team) > 19 else team
+        fill_op = "12" if proj else "1c"
+        opacity = "99" if proj else "ff"
+        clip_id = "lc{}".format(abs(hash(team + str(y))) % 99999)
+        logo_svg = ""; name_x = x + 42
+        if logo_uri:
+            logo_svg = (
+                '<defs><clipPath id="{0}"><rect x="{1}" y="{2}" width="28" height="28" rx="4"/></clipPath></defs>'.format(clip_id, x+35, y+8) +
+                '<image href="{}" x="{}" y="{}" width="28" height="28" clip-path="url(#{})" opacity="0.9"/>'.format(logo_uri, x+35, y+8, clip_id)
+            )
+            name_x = x + 70
+        bye_svg = ""
+        if bye:
+            bye_svg = (
+                '<rect x="{}" y="{}" width="36" height="15" rx="7" fill="#14532d"/>'.format(x+w-44, y+14) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="#4ade80" font-size="9" font-weight="bold" font-family="monospace">BYE</text>'.format(x+w-26, y+25)
+            )
+        proj_svg = ""
+        if proj:
+            proj_svg = (
+                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#1e3a5f"/>'.format(x+w-50, y+14) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="bold" font-family="monospace">PROJ</text>'.format(x+w-28, y+25)
+            )
+        return (
+            '<rect x="{}" y="{}" width="{}" height="{}" rx="6" fill="{}{}" stroke="{}55" stroke-width="1"/>'.format(x, y, w, SH, primary, fill_op, primary) +
+            '<rect x="{}" y="{}" width="4" height="{}" rx="3" fill="{}{}"/>'.format(x, y, SH, primary, opacity) +
+            '<circle cx="{}" cy="{}" r="13" fill="{}{}"/>'.format(x+20, y+SH//2, primary, opacity) +
+            '<text x="{}" y="{}" text-anchor="middle" fill="white" font-size="11" font-weight="bold" font-family="monospace">#{}</text>'.format(x+20, y+SH//2+5, seed) +
+            logo_svg +
+            '<text x="{}" y="{}" fill="{}" font-size="12" font-weight="bold" font-family="monospace">{}</text>'.format(name_x, y+18, primary, html.escape(name)) +
+            '<text x="{}" y="{}" fill="#6b7280" font-size="10" font-family="monospace">{}</text>'.format(name_x, y+34, html.escape(record)) +
+            bye_svg + proj_svg
+        )
 
-    def win_prob(seed_a, seed_b):
-        diff = max(-8, min(8, seed_b - seed_a))
-        p_a  = round(max(18.0, min(82.0, 50 + diff * 4.5)), 1)
-        return p_a, round(100 - p_a, 1)
+    def wplabel(sa, sb, ya, yb, x, w=SW):
+        p = wp(sa, sb); my = mc(ya, yb)
+        return (
+            '<rect x="{}" y="{}" width="{}" height="18" rx="5" fill="#060e1a"/>'.format(x+22, my-9, w-44) +
+            '<text x="{}" y="{}" text-anchor="middle" fill="#475569" font-size="9.5" font-family="monospace">#{}: {}%  ·  #{}: {}%</text>'.format(x+w//2, my+4, sa, p, sb, 100-p)
+        )
 
-    def prob_bar(p, color):
-        return f"""
-        <div style='height:4px;border-radius:2px;background:#1f2937;margin:4px 0 6px 0;'>
-          <div style='width:{p}%;height:4px;border-radius:2px;background:{color};'></div>
-        </div>
-        <div style='font-size:0.7rem;color:#9ca3af;text-align:right;'>Win prob: <strong style='color:white;'>{p}%</strong></div>"""
+    def rlbl(x, w, txt, color="#334155"):
+        return '<text x="{}" y="18" text-anchor="middle" fill="{}" font-size="9" font-weight="bold" letter-spacing="1.5" font-family="monospace">{}</text>'.format(x+w//2, color, txt)
 
-    # ── BYE SEEDS (1-4) ──────────────────────────────────────────────────────
-    st.markdown("""
-    <div style='background:linear-gradient(90deg,#14532d22,#1f2937);border:1px solid #166534;
-    border-radius:10px;padding:8px 14px;margin-bottom:12px;'>
-      <span style='color:#4ade80;font-weight:900;font-size:0.85rem;'>🟢 FIRST-ROUND BYES — SEEDS 1–4</span>
-    </div>""", unsafe_allow_html=True)
+    hdr = rlbl(R1X,SW,"FIRST ROUND") + rlbl(QFX,SW,"QUARTERFINALS") + rlbl(SFX,SW,"SEMIFINALS") + rlbl(NX,NW,"NATIONAL CHAMPIONSHIP",GC)
 
-    bye_html = "<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;'>"
-    for seed in [1, 2, 3, 4]:
-        row = get_row(seed)
-        bye_html += team_pill(row, badge="BYE", badge_color="#166534")
-    bye_html += "</div>"
-    st.markdown(bye_html, unsafe_allow_html=True)
+    def track(x, w):
+        return '<rect x="{}" y="26" width="{}" height="{}" rx="8" fill="#0a1628" stroke="#111f33" stroke-width="1"/>'.format(x, w, H-36)
 
-    # ── FIRST ROUND MATCHUPS (seeds 5-12) ────────────────────────────────────
-    st.markdown("""
-    <div style='background:linear-gradient(90deg,#1e3a5f22,#1f2937);border:1px solid #1e40af;
-    border-radius:10px;padding:8px 14px;margin-bottom:12px;'>
-      <span style='color:#60a5fa;font-weight:900;font-size:0.85rem;'>🏈 FIRST ROUND MATCHUPS</span>
-    </div>""", unsafe_allow_html=True)
+    tracks = track(R1X,SW) + track(QFX,SW) + track(SFX,SW) + track(NX,NW)
 
-    matchups = [(5, 12), (6, 11), (7, 10), (8, 9)]
-    for seed_a, seed_b in matchups:
-        row_a = get_row(seed_a)
-        row_b = get_row(seed_b)
-        if row_a is None or row_b is None:
-            continue
-        p_a, p_b = win_prob(seed_a, seed_b)
-        c_a = get_team_primary_color(str(row_a.get('Team', '')))
-        c_b = get_team_primary_color(str(row_b.get('Team', '')))
+    rows = {s: get_row(s) for s in range(1, 13)}
+    wp1=wp(8,9); wp4=wp(5,12); wp2=wp(7,10); wp3=wp(6,11)
+    qf1_opp = 8 if wp1>50 else 9
+    qf4_opp = 5 if wp4>50 else 12
+    qf2_opp = 7 if wp2>50 else 10
+    qf3_opp = 6 if wp3>50 else 11
 
-        st.markdown(f"""
-        <div style='background:#1f2937;border:1px solid #374151;border-radius:12px;
-        padding:12px;margin-bottom:10px;'>
-          <div style='font-size:0.72rem;font-weight:700;color:#6b7280;
-          text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;'>
-            #{seed_a} vs #{seed_b}
-          </div>
-          {team_pill(row_a)}
-          {prob_bar(p_a, c_a)}
-          <div style='text-align:center;font-size:0.72rem;font-weight:900;
-          color:#4b5563;margin:4px 0;'>VS</div>
-          {team_pill(row_b)}
-          {prob_bar(p_b, c_b)}
-        </div>""", unsafe_allow_html=True)
+    S = ""
+    S += slot_svg(R1X,r1g1[0],8,rows[8])  + slot_svg(R1X,r1g1[1],9,rows[9])
+    S += slot_svg(R1X,r1g4[0],5,rows[5])  + slot_svg(R1X,r1g4[1],12,rows[12])
+    S += slot_svg(R1X,r1g2[0],7,rows[7])  + slot_svg(R1X,r1g2[1],10,rows[10])
+    S += slot_svg(R1X,r1g3[0],6,rows[6])  + slot_svg(R1X,r1g3[1],11,rows[11])
+    S += wplabel(8,9,*r1g1,R1X) + wplabel(5,12,*r1g4,R1X)
+    S += wplabel(7,10,*r1g2,R1X) + wplabel(6,11,*r1g3,R1X)
 
-    # ── PROJECTED SEMIFINALS ─────────────────────────────────────────────────
-    st.markdown("""
-    <div style='background:linear-gradient(90deg,#4c1d9522,#1f2937);border:1px solid #6d28d9;
-    border-radius:10px;padding:8px 14px;margin-top:4px;'>
-      <span style='color:#a78bfa;font-weight:900;font-size:0.85rem;'>🏆 PROJECTED SEMIFINALISTS</span><br>
-      <span style='color:#6b7280;font-size:0.78rem;'>Seeds 1-4 + winners of first round</span>
-    </div>""", unsafe_allow_html=True)
-    semi_names = []
-    for seed in [1, 2, 3, 4]:
-        r = get_row(seed)
-        if r is not None:
-            semi_names.append(f"#{seed} {r['Team']}")
-    if semi_names:
-        for name in semi_names:
-            st.markdown(f"<div style='padding:4px 14px;color:#d1d5db;font-size:0.82rem;'>• {html.escape(name)}</div>", unsafe_allow_html=True)
+    S += slot_svg(QFX,qf1[0],1,rows[1],bye=True)
+    S += slot_svg(QFX,qf1[1],qf1_opp,rows[qf1_opp],proj=True)
+    S += slot_svg(QFX,qf4[0],4,rows[4],bye=True)
+    S += slot_svg(QFX,qf4[1],qf4_opp,rows[qf4_opp],proj=True)
+    S += slot_svg(QFX,qf2[0],2,rows[2],bye=True)
+    S += slot_svg(QFX,qf2[1],qf2_opp,rows[qf2_opp],proj=True)
+    S += slot_svg(QFX,qf3[0],3,rows[3],bye=True)
+    S += slot_svg(QFX,qf3[1],qf3_opp,rows[qf3_opp],proj=True)
+
+    S += slot_svg(SFX,sf1[0],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #1 Bracket"))
+    S += slot_svg(SFX,sf1[1],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #4 Bracket"))
+    S += slot_svg(SFX,sf2[0],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #2 Bracket"))
+    S += slot_svg(SFX,sf2[1],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #3 Bracket"))
+    S += slot_svg(NX,nat[0],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 1"),w=NW)
+    S += slot_svg(NX,nat[1],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 2"),w=NW)
+
+    divider = '<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#1a2a3a" stroke-width="1" stroke-dasharray="4,8"/>'.format(SFX-10, NC, NX+NW+10, NC)
+
+    svg = (
+        "<div style=\"overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border-radius:12px;background:#060e1a;padding:8px;\">"
+        + '<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" xmlns="http://www.w3.org/2000/svg" style="display:block;min-width:{W}px;">'.format(W=W, H=H)
+        + '<rect width="{}" height="{}" fill="#060e1a"/>'.format(W, H)
+        + tracks + hdr + conn_svg + divider + S
+        + "</svg></div>"
+    )
+
+    st.markdown(svg, unsafe_allow_html=True)
+    st.caption("\U0001f7e6 PROJ = projected R1 winner  ·  QF/SF/Natty update once bracket is locked in")
 
 
 
