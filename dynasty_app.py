@@ -1767,6 +1767,7 @@ def load_data():
             'rivalry_df': rivalry_df,
             'coty': coty,
             'heisman': heisman,
+            'heisman_fin': heisman_fin,
             'rec': rec,
             'draft': draft,
             'champs': champs,
@@ -3588,6 +3589,7 @@ if data:
     rivalry_df = data['rivalry_df']
     coty = data['coty']
     heisman = data['heisman']
+    heisman_fin = data.get('heisman_fin', None)
     rec = data['rec']
     draft = data['draft']
     champs = data['champs']
