@@ -14,7 +14,9 @@ from pathlib import Path
 st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", page_icon="🏈")
 st.title("📺 ISPN College Football Gameday")
 
-CURRENT_WEEK_NUMBER = 12
+CURRENT_WEEK_NUMBER = 16   # Bowl Week 1 (post-season)
+IS_BOWL_WEEK       = True
+BOWL_ROUND         = 1    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
 
 st.markdown("""
 <style>
@@ -1944,14 +1946,19 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     def raw_contender_score(row):
         u_s = stats_df[stats_df['User'] == row['USER']].iloc[0]
 
+        # Pedigree: first 3 natties = coaching credibility (proven closer).
+        # Beyond 3 it stops mattering — you still have to field a team this year.
+        # Old formula gave 7-title coaches 168 pts before a single roster stat counted.
+        # Hard cap prevents dynasty history from drowning out current team quality.
+        natty_cred    = min(int(u_s.get('Natties', 0)), 3)
         pedigree_bonus = (
-            u_s['Natties'] * 24
-            + u_s['Natty Apps'] * 15
-            + u_s['CFP Wins'] * 3.2
-            + u_s['Conf Titles'] * 1.5
+            natty_cred * 8
+            + min(int(u_s.get('Natty Apps', 0)), 4) * 4
+            + u_s['CFP Wins'] * 2.0
+            + u_s['Conf Titles'] * 0.8
         )
-        heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 1.0
-        cfp_fail_penalty = u_s['CFP Losses'] * 1.1
+        heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 0.5
+        cfp_fail_penalty = u_s['CFP Losses'] * 0.8
 
         team_speed_component = (
             row['Team Speed (90+ Speed Guys)'] * 3.0
@@ -1992,6 +1999,55 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             raw -= 6
         if row['Current Record Losses'] >= 2:
             raw -= 3.5 * (row['Current Record Losses'] - 1)
+
+        # ── INJURY PENALTY ──────────────────────────────────────────────────────
+        # Injuries that affect Bowl Week 1 eligibility (weeks remaining > 0 at bowl time).
+        # Week penalties are relative to current bowl round.
+        # QB down = brutal. Skill/OL = moderate. DL = small.
+        INJURY_IMPACT = {
+            # (team_name): [(pos, ovr, weeks_remaining, status)]
+            'San Jose State': [
+                ('QB',   85, 27, 'Injured'),   # Shorter — out all bowls
+                ('LT',   86,  4, 'Injured'),   # Caplan — out Bowl 1
+            ],
+            'Texas Tech': [
+                ('LT',   82,  2, 'Injured'),   # Cota — back for Bowl 2
+            ],
+            'USF': [
+                ('RG',   76,  4, 'Injured'),   # Christmas — out Bowl 1
+            ],
+            'Bowling Green': [
+                ('DT',   84, 24, 'Injured'),   # Franco — out all bowls
+            ],
+            'Florida': [
+                ('LEDG', 80,  1, 'Injured'),   # Ivie — likely back Bowl 1
+                ('MIKE', 87, 14, 'Injured'),   # Casey — out Bowl 1
+            ],
+            'Florida State': [
+                ('QB',   80,  3, 'Injured'),   # Winterswyk — back Bowl 1
+                ('WR',   90, 20, 'Injured'),   # Fe'esago — out all bowls
+            ],
+        }
+
+        team_name = row.get('TEAM', '')
+        injuries  = INJURY_IMPACT.get(team_name, [])
+        inj_penalty = 0.0
+        for pos, ovr, weeks, status in injuries:
+            if status != 'Injured' or weeks <= 0:
+                continue
+            ovr_mult = (ovr - 75) / 20.0  # scale: 75 OVR=0.0, 95 OVR=1.0
+            ovr_mult = max(0.1, min(1.0, ovr_mult))
+            if pos in ('QB',):
+                base = 38.0 if weeks >= 8 else (18.0 if weeks >= 3 else 8.0)
+            elif pos in ('WR', 'HB', 'TE'):
+                base = 14.0 if weeks >= 8 else (8.0 if weeks >= 3 else 3.0)
+            elif pos in ('LT', 'RT', 'LG', 'RG', 'C', 'MIKE', 'LEDG', 'REDG'):
+                base = 10.0 if weeks >= 8 else (5.0 if weeks >= 3 else 2.0)
+            else:  # DT, DE, CB, S, etc.
+                base = 6.0 if weeks >= 8 else (3.0 if weeks >= 3 else 1.0)
+            inj_penalty += base * ovr_mult
+
+        raw -= inj_penalty
         return raw
 
     df['Contender Raw'] = df.apply(raw_contender_score, axis=1)
@@ -2014,6 +2070,10 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     df['Program Stock'] = df.apply(stock_label, axis=1)
 
     def power_index(row):
+        # Coaching credibility: first 2 natties prove you can execute.
+        # Beyond that your roster matters more than your trophy case. Hard cap at 2.
+        u_s_pi = stats_df[stats_df['User'] == row['USER']].iloc[0]
+        coaching_cred = min(int(u_s_pi.get('Natties', 0)), 2) * 2.5
         return round(
             row['OVERALL'] * 2.25
             + row['OFFENSE'] * 0.82
@@ -2029,10 +2089,9 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['SOS'] * 0.38
             + cfp_rank_bonus(row.get('Current CFP Ranking', np.nan)) * 0.86
             + qb_cfp_bonus(row) * 0.95
-            + row['Natties'] * 10.5
-            + row['Natty Apps'] * 3.4
             + row['CFP Wins'] * 1.2
-            - row['CFP Losses'] * 1.2,
+            - row['CFP Losses'] * 1.2
+            + coaching_cred,
             1
         )
 
@@ -3719,36 +3778,57 @@ if data:
 
         headlines = []
 
+        # ── Injury-aware bowl context ─────────────────────────────────────────
+        BOWL_INJURY_NOTES = {
+            'San Jose State': ('QB M.Shorter out 27 weeks — backup goes into Bowl 1', 'critical'),
+            'Florida State':  ('WR J.Feesago out 20 weeks, bye in Bowl 1 but gone for the semis run', 'major'),
+            'Bowling Green':  ('DT B.Franco out 24 weeks — pass rush depleted for the whole bowl run', 'major'),
+            'Florida':        ('LB R.Casey out 14 weeks — defense shorthanded in Bowl 1', 'moderate'),
+            'USF':            ('RG T.Christmas out 4 weeks — OL depth tested in Bowl 1', 'minor'),
+            'Texas Tech':     ('LT K.Cota out 2 weeks — likely back for Bowl 2', 'minor'),
+        }
+        inj_colors = {'critical': '#ef4444', 'major': '#f97316', 'moderate': '#eab308', 'minor': '#6b7280'}
+
         if not model_2041.empty:
             title_fav = model_2041.sort_values('Natty Odds', ascending=False).iloc[0]
             most_dangerous_team = model_2041.sort_values('Power Index', ascending=False).iloc[0]
             collapse_team_row = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
 
-            headlines.append(("🏆", "Title Favorite",
-                f"<strong>{title_fav['USER']}</strong> has the strongest title case right now. The model leans hardest on overall roster quality and raw speed — {title_fav['USER']} clears both bars. Everyone else is playing catch-up."))
+            headlines.append(("🏆", "Bowl Week 1 Title Favorite",
+                f"<strong>{title_fav['USER']}</strong> enters the bowls with the strongest title case. The model now runs on current roster quality, OVR, and speed — dynasty pedigree is a small multiplier, not a vote. {title_fav['USER']} earns this slot based on what's on the field <em>today</em>."))
 
             headlines.append(("⚡", "Power Index Leader",
-                f"<strong>{most_dangerous_team['USER']}</strong> owns the highest Power Index ({round(float(most_dangerous_team['Power Index']),1)}). That number blends team strength, speed, blue-chip makeup, and dynasty history. It's not a fluke."))
+                f"<strong>{most_dangerous_team['USER']}</strong> owns the highest Power Index ({round(float(most_dangerous_team['Power Index']),1)}). This number reflects actual team strength — OVR, speed, blue-chip makeup, QB play, recruiting. 7 titles won't carry a 73 OVR team up this list anymore."))
 
             headlines.append(("💀", "Collapse Watch",
-                f"<strong>{collapse_team_row['USER']}</strong> carries the highest volatility marker ({round(float(collapse_team_row['Collapse Risk']))}% collapse risk). The model sees real downside if things break wrong. One bad week could unravel the whole damn season."))
+                f"<strong>{collapse_team_row['USER']}</strong> carries the highest volatility marker ({round(float(collapse_team_row['Collapse Risk']))}% collapse risk). The model sees real downside if things break wrong."))
+
+            # Injury impact headline — biggest bowl injury
+            critical_inj = [(t, note, sev) for t, (note, sev) in BOWL_INJURY_NOTES.items()
+                            if sev in ('critical', 'major')]
+            if critical_inj:
+                inj_team, inj_note, inj_sev = critical_inj[0]
+                inj_user = next((u for u, t in USER_TEAMS.items() if t == inj_team), inj_team)
+                inj_col = inj_colors[inj_sev]
+                headlines.append(("🚑", "Bowl Week Injury Report",
+                    f"<strong>{inj_user}</strong>'s team takes the biggest health hit heading into the playoffs: <span style='color:{inj_col};'>{inj_note}</span>. The injury model knocks their title odds down accordingly. You can't win it all if your key guys are in street clothes."))
 
             qb_elite = model_2041[model_2041['QB Tier'] == 'Elite']
             qb_ass = model_2041[model_2041['QB Tier'] == 'Ass']
             if not qb_elite.empty:
                 qe = qb_elite.sort_values('Natty Odds', ascending=False).iloc[0]
                 headlines.append(("🧠", "Elite QB Alert",
-                    f"<strong>{qe['USER']}</strong> is running an <strong>Elite</strong> quarterback. That's a real title accelerator — the model treats it as a genuine ceiling-raiser, not fluff. When your QB is cooking, everything opens up."))
+                    f"<strong>{qe['USER']}</strong> is running an <strong>Elite</strong> quarterback heading into bowl season. That's a real title accelerator. When your QB is cooking, everything opens up."))
             if not qb_ass.empty:
                 qa = qb_ass.sort_values('Power Index', ascending=True).iloc[0]
                 headlines.append(("🚨", "QB Disaster Watch",
-                    f"<strong>{qa['USER']}</strong> is rolling out an <strong>Ass</strong> QB situation. A good roster can mask a bad quarterback for about three games before it catches up to you. The clock is ticking."))
+                    f"<strong>{qa['USER']}</strong> is rolling out an <strong>Ass</strong> QB situation in bowl season. A good roster can mask a bad quarterback for about three games before it catches up to you."))
 
             # Recruiting king
             if 'Recruit Score' in model_2041.columns:
                 rec_king = model_2041.sort_values('Recruit Score', ascending=False).iloc[0]
                 headlines.append(("🎯", "Recruiting King",
-                    f"<strong>{rec_king['USER']}</strong> is winning the recruiting war ({round(float(rec_king['Recruit Score']),1)} recruit score). Future rosters are built in February. This one's already building the dynasty pipeline."))
+                    f"<strong>{rec_king['USER']}</strong> is winning the recruiting war ({round(float(rec_king['Recruit Score']),1)} recruit score). The pipeline that wins the natty in 2043 starts with who you're landing right now."))
 
             # Speed gap
             if 'Team Speed (90+ Speed Guys)' in model_2041.columns:
@@ -3912,12 +3992,12 @@ if data:
                 st.caption("No COTY data loaded.")
 
         # ════════════════════════════════════════════════════════════════════
-        # SECTION 5 — INJURY REPORT  (last updated: Week 12, 2041)
+        # SECTION 5 — INJURY REPORT  (last updated: Bowl Week 1, 2041)
         # To update: drop new screenshots in the ISPN chat
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🚑 Injury Report")
-        st.caption("Last updated: Week 12, 2041. Drop new screenshots in the ISPN chat to refresh.")
+        st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
 
         INJURY_DATA = [
             {
