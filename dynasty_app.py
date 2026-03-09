@@ -4057,16 +4057,10 @@ if data:
         # ── PLAYOFF BRACKET ──────────────────────────────────────────────────
         st.subheader('Playoff Bracket')
 
-        bracket_img = st.file_uploader(
-            "📸 Upload CFP bracket screenshot (optional — uses projections if not provided)",
-            type=["png","jpg","jpeg","webp"],
-            key="cfp_bracket_screenshot",
-            label_visibility="visible",
-        )
+        st.info("📸 **To use the official bracket:** drop a screenshot in the ISPN chat, get the seeds back, then enter them below.")
 
-        # Manual entry fallback
-        with st.expander("✏️ Enter bracket manually instead", expanded=False):
-            st.caption("Fill in all 12 seeds if the screenshot upload isn't working. Leave blank to skip.")
+        with st.expander("✏️ Enter Official CFP Bracket", expanded=False):
+            st.caption("Seed #1–4 get first-round byes. Leave teams blank to fall back to projections.")
             MANUAL_SLOTS = [
                 (1,"Florida State","12-1"),(2,"Texas Tech","12-1"),
                 (3,"Rapid City","12-1"),(4,"Bowling Green","12-1"),
@@ -4075,58 +4069,47 @@ if data:
                 (9,"Texas","11-2"),(10,"Georgia Tech","11-2"),
                 (11,"USF","10-2"),(12,"San Diego State","12-1"),
             ]
+            st.markdown("**Byes (Seeds 1–4)**")
+            bye_cols = st.columns(4)
             manual_teams = []
-            for seed, def_team, def_rec in MANUAL_SLOTS:
-                c1, c2, c3 = st.columns([1, 3, 2])
-                c1.markdown(f"**#{seed}**")
-                t = c2.text_input("Team", value=def_team, key=f"manual_team_{seed}", label_visibility="collapsed")
-                r = c3.text_input("Record", value=def_rec, key=f"manual_rec_{seed}", label_visibility="collapsed")
-                if t.strip():
-                    manual_teams.append({"seed": seed, "team": t.strip(), "record": r.strip()})
-            use_manual = st.button("📋 Use Manual Bracket", key="use_manual_bracket")
+            for idx, (seed, def_team, def_rec) in enumerate(MANUAL_SLOTS[:4]):
+                with bye_cols[idx]:
+                    st.markdown(f"<div style='color:#4ade80;font-weight:800;font-size:0.8rem;'>#{seed} — BYE</div>", unsafe_allow_html=True)
+                    t = st.text_input("Team", value=def_team, key=f"manual_team_{seed}", label_visibility="collapsed")
+                    r = st.text_input("Record", value=def_rec, key=f"manual_rec_{seed}", label_visibility="collapsed")
+                    if t.strip():
+                        manual_teams.append({"seed": seed, "team": t.strip(), "record": r.strip()})
 
-        # Determine which bracket source to use
+            st.markdown("**First Round (Seeds 5–12)**")
+            fr_matchups = [(5,12),(6,11),(7,10),(8,9)]
+            slot_map = {s: (t, r) for s, t, r in MANUAL_SLOTS}
+            for seed_a, seed_b in fr_matchups:
+                mc1, mc2, mc3 = st.columns([5, 1, 5])
+                with mc1:
+                    def_a_t, def_a_r = slot_map[seed_a]
+                    st.markdown(f"<div style='color:#60a5fa;font-weight:700;font-size:0.78rem;'>#{seed_a}</div>", unsafe_allow_html=True)
+                    ta = st.text_input("Team", value=def_a_t, key=f"manual_team_{seed_a}", label_visibility="collapsed")
+                    ra = st.text_input("Record", value=def_a_r, key=f"manual_rec_{seed_a}", label_visibility="collapsed")
+                    if ta.strip(): manual_teams.append({"seed": seed_a, "team": ta.strip(), "record": ra.strip()})
+                mc2.markdown("<div style='text-align:center;padding-top:1.4rem;color:#6b7280;font-weight:700;'>vs</div>", unsafe_allow_html=True)
+                with mc3:
+                    def_b_t, def_b_r = slot_map[seed_b]
+                    st.markdown(f"<div style='color:#60a5fa;font-weight:700;font-size:0.78rem;'>#{seed_b}</div>", unsafe_allow_html=True)
+                    tb = st.text_input("Team", value=def_b_t, key=f"manual_team_{seed_b}", label_visibility="collapsed")
+                    rb = st.text_input("Record", value=def_b_r, key=f"manual_rec_{seed_b}", label_visibility="collapsed")
+                    if tb.strip(): manual_teams.append({"seed": seed_b, "team": tb.strip(), "record": rb.strip()})
+
+            use_manual = st.button("📋 Lock In Official Bracket", key="use_manual_bracket", type="primary")
+
         bracket_field = None
-        bracket_source = None
-
         if use_manual and len(manual_teams) >= 8:
             bracket_field = build_bracket_field_from_screenshot(manual_teams, cfp_board)
-            bracket_source = "manual"
-
-        elif bracket_img is not None:
-            with st.spinner("🤖 Reading your bracket screenshot..."):
-                img_bytes = bracket_img.read()
-                ext = bracket_img.name.rsplit('.', 1)[-1].lower()
-                media_map = {'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','webp':'image/webp'}
-                media_type = media_map.get(ext, 'image/png')
-                parsed_teams, parse_error = parse_cfp_bracket_screenshot(img_bytes, media_type)
-
-            if parsed_teams and len(parsed_teams) >= 4:
-                bracket_field = build_bracket_field_from_screenshot(parsed_teams, cfp_board)
-                bracket_source = "screenshot"
-                col_img, _ = st.columns([1, 2])
-                with col_img:
-                    st.image(bracket_img, caption="Uploaded bracket", use_column_width=True)
-                with st.expander("🔍 Parsed teams — verify these look right", expanded=False):
-                    st.dataframe(pd.DataFrame(parsed_teams).rename(columns={"seed":"Seed","team":"Team","record":"Record"}),
-                                 hide_index=True, use_container_width=True)
-            else:
-                col_img2, _ = st.columns([1, 2])
-                with col_img2:
-                    st.image(bracket_img, caption="Your upload", use_column_width=True)
-                if parse_error and "No API key" in parse_error:
-                    st.error(f"🔑 **API key missing** — {parse_error}")
-                    st.info("💡 **Workaround:** Use the manual entry form above to enter the bracket directly.")
-                else:
-                    st.warning(f"⚠️ Couldn't fully parse that screenshot ({parse_error or 'unknown error'}). Try the manual entry form above, or re-upload a clearer shot.")
-                bracket_source = "projection"
 
         if bracket_field is not None and not bracket_field.empty:
-            label = "✅ Showing **official bracket** from screenshot." if bracket_source == "screenshot" else "📋 Showing **manually entered bracket**."
-            st.success(label)
+            st.success("📋 Showing **official bracket** from manual entry.")
             render_playoff_bracket(bracket_field)
         else:
-            st.caption("📊 Showing **projected bracket** based on current rankings and model. Upload a screenshot or use manual entry above to override.")
+            st.caption("📊 Showing **projected bracket** — enter the official field above once the CFP announces.")
             render_playoff_bracket(projected_field)
 
         st.subheader('First Four Out')
