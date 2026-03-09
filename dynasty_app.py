@@ -2148,8 +2148,7 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Resume Score'] * 0.42
         + df['Current CFP Ranking'].apply(cfp_rank_bonus) * 1.95
         + df.apply(qb_cfp_bonus, axis=1)
-        + df['Natty Apps'] * 1.9
-        + df['Natties'] * 2.8
+        # Natties/NattyApps removed — consistent with Power Index & Natty Odds fix
     )
     cfp_min = cfp_raw.min()
     cfp_spread = max(1, cfp_raw.max() - cfp_min)
@@ -3624,6 +3623,23 @@ if data:
     recruiting_board = build_recruiting_board(rec, model_2041)
     current_user_games = get_current_user_games(model_2041)
 
+    # ── Build cfp_board early so Power Rankings can use real CFP Make % ───────
+    try:
+        _cfp_rankings_early = get_cfp_rankings_snapshot()
+        _cfp_board_early = build_cfp_bubble_board(_cfp_rankings_early, model_2041)
+        # Merge CFP Make % back into model_2041 for user teams
+        if not _cfp_board_early.empty and 'CFP Make %' in _cfp_board_early.columns:
+            _cfp_lookup = _cfp_board_early[['Team','CFP Make %']].copy()
+            _cfp_lookup = _cfp_lookup.rename(columns={'Team': 'TEAM'})
+            model_2041 = model_2041.merge(_cfp_lookup, on='TEAM', how='left')
+            # Fill non-matched teams with CFP Odds as fallback
+            if 'CFP Make %' not in model_2041.columns:
+                model_2041['CFP Make %'] = model_2041['CFP Odds']
+            else:
+                model_2041['CFP Make %'] = model_2041['CFP Make %'].fillna(model_2041['CFP Odds'])
+    except Exception:
+        model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
+
     tabs = st.tabs([
         "🗞️ Dynasty News",
         "📰 Dynasty War Room",
@@ -3776,7 +3792,7 @@ if data:
               <div style='text-align:right;min-width:200px;'>
                 <span style='font-size:0.8rem;color:#d1d5db;'>PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
                 <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 <strong style="color:white;">{round(float(natty),1)}%</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP: <strong style="color:white;">{round(float(cfp_pct))}%</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP: <strong style="color:white;">{round(float(row.get("CFP Make %", cfp_pct)),1)}%</strong></span>
                 <span style='display:inline-block;margin-left:12px;padding:2px 7px;border-radius:999px;
                 font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
               </div>
