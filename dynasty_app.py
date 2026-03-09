@@ -4911,7 +4911,7 @@ if data:
                 headlines.append(("🎯", "Recruiting King",
                     f"<strong>{_rk_user}</strong> ({html.escape(_rk_team)}) is winning the "
                     f"recruiting war ({_rk_score} recruit score). "
-                    f"The roster that wins the natty in {_curr_yr + 2} starts with "
+                    f"The roster that wins the natty in {CURRENT_YEAR + 2} starts with "
                     f"who you're landing right now."))
 
             # ── 9. SPEED MERCHANTS ────────────────────────────────────────
