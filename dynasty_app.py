@@ -3876,6 +3876,31 @@ if data:
     qb_source = r_2041[['USER', 'TEAM']].copy()
     qb_source['QB Tier'] = r_2041.apply(qb_label, axis=1)
     model_2041 = model_2041.merge(qb_source, on=['USER', 'TEAM'], how='left')
+
+    # ── Enrich model_2041 with QB CSV data (QBprofileData + QB_power_rankingsData) ──
+    try:
+        _qb_enrich = pd.read_csv('QBprofileData.csv')
+        _qb_enrich['User'] = _qb_enrich['User'].astype(str).str.strip().str.title()
+        _qb_cols = ['User', 'Player', 'Archetype', 'OVR', 'Class', 'StarRating',
+                    'Height', 'Weight', 'Hometown', 'Pipeline', 'Mentals', 'Physicals']
+        _qb_enrich = _qb_enrich[[c for c in _qb_cols if c in _qb_enrich.columns]].copy()
+        _qb_enrich = _qb_enrich.rename(columns={
+            'User': 'USER', 'Player': 'QB_Player', 'Archetype': 'QB_Archetype',
+            'OVR': 'QB_OVR_CSV', 'Class': 'QB_Class', 'StarRating': 'QB_Stars',
+            'Height': 'QB_Height', 'Weight': 'QB_Weight', 'Hometown': 'QB_Hometown',
+            'Pipeline': 'QB_Pipeline', 'Mentals': 'QB_Mentals', 'Physicals': 'QB_Physicals',
+        })
+        model_2041 = model_2041.merge(_qb_enrich, on='USER', how='left')
+    except Exception:
+        pass
+    try:
+        _qb_ranks = pd.read_csv('QB_power_rankingsData.csv')
+        _qb_ranks['User'] = _qb_ranks['User'].astype(str).str.strip().str.title()
+        _qb_ranks = _qb_ranks[['User', 'Rank']].rename(columns={'User': 'USER', 'Rank': 'QB_Dynasty_Rank'})
+        model_2041 = model_2041.merge(_qb_ranks, on='USER', how='left')
+    except Exception:
+        pass
+
     model_2041['Logo'] = model_2041['TEAM'].apply(get_logo_source)
     user_color_map = build_user_color_map(model_2041)
     team_color_map = build_team_color_map(model_2041)
@@ -5728,7 +5753,6 @@ if data:
                     _gtype_map[_key] = _gt
 
                 _games_sorted = user_games.sort_values('Margin')
-                st.markdown("<div style='display:flex;flex-direction:column;gap:6px;'>", unsafe_allow_html=True)
                 for _, _g in _games_sorted.iterrows():
                     _vu2, _hu2 = str(_g['V_User_Final']), str(_g['H_User_Final'])
                     _vt2, _ht2 = str(_g['Visitor_Final']), str(_g['Home_Final'])
@@ -5745,31 +5769,29 @@ if data:
                                  if _gt_label and _gt_label != 'Regular Season' else "")
                     _badge_row = (f"<div style='width:100%;display:flex;justify-content:center;margin-top:2px;'>{_gt_badge}</div>"
                                   if _gt_badge else "")
-                    _card_html = f"""<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
-                                background:#0a1628;border-radius:8px;border:1px solid #1e293b;
-                                flex-wrap:wrap;">
-                      <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:120px;">
-                        {_vl}
-                        <div>
-                          <div style="color:{_vc};font-size:0.8rem;{_vw}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">{html.escape(_vt2)}</div>
-                          <div style="font-size:0.62rem;color:#475569;">{html.escape(_vu2)}</div>
-                        </div>
-                      </div>
-                      <div style="text-align:center;min-width:70px;">
-                        <div style="font-weight:900;font-size:1rem;color:#f1f5f9;">{_vp} &ndash; {_hp}</div>
-                        <div style="font-size:0.6rem;color:#475569;">&#177;{int(_g['Margin'])}</div>
-                      </div>
-                      <div style="display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;min-width:120px;">
-                        <div style="text-align:right;">
-                          <div style="color:{_hc};font-size:0.8rem;{_hw}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;">{html.escape(_ht2)}</div>
-                          <div style="font-size:0.62rem;color:#475569;">{html.escape(_hu2)}</div>
-                        </div>
-                        {_hl}
-                      </div>
-                      {_badge_row}
-                    </div>"""
-                    st.markdown(_card_html, unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div style='display:flex;align-items:center;gap:8px;padding:8px 10px;"
+                        f"background:#0a1628;border-radius:8px;border:1px solid #1e293b;"
+                        f"flex-wrap:wrap;margin-bottom:6px;'>"
+                        f"<div style='display:flex;align-items:center;gap:6px;flex:1;min-width:120px;'>"
+                        f"{_vl}"
+                        f"<div>"
+                        f"<div style='color:{_vc};font-size:0.8rem;{_vw}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;'>{html.escape(_vt2)}</div>"
+                        f"<div style='font-size:0.62rem;color:#475569;'>{html.escape(_vu2)}</div>"
+                        f"</div></div>"
+                        f"<div style='text-align:center;min-width:70px;'>"
+                        f"<div style='font-weight:900;font-size:1rem;color:#f1f5f9;'>{_vp} &ndash; {_hp}</div>"
+                        f"<div style='font-size:0.6rem;color:#475569;'>&#177;{int(_g['Margin'])}</div>"
+                        f"</div>"
+                        f"<div style='display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;min-width:120px;'>"
+                        f"<div style='text-align:right;'>"
+                        f"<div style='color:{_hc};font-size:0.8rem;{_hw}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;'>{html.escape(_ht2)}</div>"
+                        f"<div style='font-size:0.62rem;color:#475569;'>{html.escape(_hu2)}</div>"
+                        f"</div>{_hl}</div>"
+                        f"{_badge_row}"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
 
         # ── ALL GAMES TABLE (collapsible) ─────────────────────────────────────
         st.markdown("---")
@@ -5783,89 +5805,236 @@ if data:
     # --- TEAM OVERVIEW ---
     with tabs[6]:
         st.header("📊 Team Analysis")
-        target = st.selectbox("Select Team", model_2041['USER'].tolist(), key="team_analysis_user")
-        row = model_2041[model_2041['USER'] == target].iloc[0]
+        st.caption("Full program dossier — odds match Dynasty News preseason model. QB data from uploaded CSVs.")
 
+        target = st.selectbox("Select Team", sorted(model_2041['USER'].tolist()), key="team_analysis_user")
+        row = model_2041[model_2041['USER'] == target].iloc[0]
         wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
 
+        # Pull QB data directly from model_2041 (enriched at load time)
+        _qb_player   = str(row.get('QB_Player', ''))
+        _qb_arch_m   = str(row.get('QB_Archetype', ''))
+        _qb_ovr_csv  = pd.to_numeric(row.get('QB_OVR_CSV', row.get('QB OVR', 0)), errors='coerce')
+        _qb_class_m  = str(row.get('QB_Class', ''))
+        _qb_stars_m  = int(pd.to_numeric(row.get('QB_Stars', 0), errors='coerce') or 0)
+        _qb_ht_m     = str(row.get('QB_Height', ''))
+        _qb_wt_m     = str(row.get('QB_Weight', ''))
+        _qb_home_m   = str(row.get('QB_Hometown', ''))
+        _qb_pipe_m   = str(row.get('QB_Pipeline', ''))
+        _qb_ment_m   = str(row.get('QB_Mentals', ''))
+        _qb_phys_m   = str(row.get('QB_Physicals', ''))
+        _qb_drank    = row.get('QB_Dynasty_Rank', None)
+        _has_qb_csv  = bool(_qb_player and _qb_player not in ('', 'nan', 'None'))
+
+        # Use Preseason odds (same source as Dynasty News tab)
+        _natty_val = float(pd.to_numeric(row.get('Preseason Natty Odds', row.get('Natty Odds', 0)), errors='coerce') or 0)
+        _cfp_val   = float(pd.to_numeric(row.get('Preseason CFP %',     row.get('CFP Odds',   0)), errors='coerce') or 0)
+        _pi_val    = float(pd.to_numeric(row.get('Preseason PI',        row.get('Power Index', 0)), errors='coerce') or 0)
+        _proj_wins = row.get('Projected Wins', '—')
+        _cfp_make_val = float(pd.to_numeric(row.get('CFP Make %', row.get('CFP Odds', 0)), errors='coerce') or 0)
+
+        # Top metrics strip
         mobile_metrics([
-            {"label": "🏆 Natty Odds",    "value": f"{row['Natty Odds']}%"},
-            {"label": "🎯 CFP Odds",       "value": f"{row['CFP Odds']}%"},
-            {"label": "📈 Projected Wins", "value": str(row['Projected Wins'])},
-            {"label": "⚡ Power Index",    "value": str(row['Power Index'])},
+            {"label": "🏆 Natty Odds",    "value": f"{_natty_val:.1f}%"},
+            {"label": "🎯 CFP Make %",    "value": f"{_cfp_make_val:.1f}%"},
+            {"label": "⚡ Preseason PI",  "value": str(_pi_val)},
+            {"label": "📈 Proj Wins",     "value": str(_proj_wins)},
         ])
 
         st.markdown("---")
 
-        c1, c2 = st.columns([1.15, 1.85])
+        # ── SECTION 1: Team Identity card + Coaching History ─────────────────
+        _team_name  = str(row['TEAM'])
+        _tc         = get_team_primary_color(_team_name)
+        _logo_uri   = image_file_to_data_uri(get_logo_source(_team_name))
+        _logo_img   = (f"<img src='{_logo_uri}' style='width:64px;height:64px;object-fit:contain;'/>"
+                       if _logo_uri else "<span style='font-size:40px;'>🏈</span>")
+        _cfp_rank_disp = (f"#{int(row['Current CFP Ranking'])}"
+                          if pd.notna(row.get('Current CFP Ranking')) else "NR")
+        _stock  = str(row.get('Program Stock', '—'))
+        _record_disp = (f"{int(row['Current Record Wins'])}-{int(row['Current Record Losses'])}"
+                        if pd.notna(row.get('Current Record Wins')) and pd.notna(row.get('Current Record Losses'))
+                        else f"{wins}-{losses}")
+        _conf   = str(row.get('CONFERENCE', ''))
+        _conf_colors = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}
+        _cc = _conf_colors.get(_conf, ('#6b7280','#1f2937'))
+
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,{_tc}22,#0f172a);border:1px solid {_tc}44;"
+            f"border-left:5px solid {_tc};border-radius:14px;padding:16px 18px;margin-bottom:12px;'>"
+            f"<div style='display:flex;align-items:center;gap:14px;flex-wrap:wrap;'>"
+            f"{_logo_img}"
+            f"<div style='flex:1;min-width:160px;'>"
+            f"<div style='font-size:1.2rem;font-weight:900;color:{_tc};'>{html.escape(_team_name)}</div>"
+            f"<div style='font-size:0.78rem;color:#9ca3af;margin-top:2px;'>{html.escape(target)}"
+            f"<span style='display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;"
+            f"font-size:0.65rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};border:1px solid {_cc[0]}44;'>"
+            f"{html.escape(_conf)}</span></div>"
+            f"</div>"
+            f"<div style='display:flex;gap:12px;flex-wrap:wrap;'>"
+            f"<div style='text-align:center;'><div style='font-weight:900;color:#f1f5f9;font-size:1.1rem;'>{_record_disp}</div><div style='color:#475569;font-size:0.65rem;'>RECORD</div></div>"
+            f"<div style='text-align:center;'><div style='font-weight:900;color:#fbbf24;font-size:1.1rem;'>{_cfp_rank_disp}</div><div style='color:#475569;font-size:0.65rem;'>CFP RK</div></div>"
+            f"<div style='text-align:center;'><div style='font-weight:900;color:#34d399;font-size:1.1rem;'>{html.escape(_stock)}</div><div style='color:#475569;font-size:0.65rem;'>STOCK</div></div>"
+            f"</div></div></div>",
+            unsafe_allow_html=True
+        )
+
+        # ── SECTION 2: QB Profile card ────────────────────────────────────────
+        st.subheader("🎯 QB Profile")
+        _qb_tier    = str(row.get('QB Tier', '—'))
+        _qb_ovr_raw = int(pd.to_numeric(_qb_ovr_csv if pd.notna(_qb_ovr_csv) else row.get('QB OVR', 0), errors='coerce') or 0)
+
+        if _has_qb_csv:
+            _star_str   = '⭐' * min(_qb_stars_m, 5) if _qb_stars_m > 0 else ''
+            _tier_colors = {'Elite':('#22c55e','#0d2010'),'Leader':('#60a5fa','#0d1829'),'Average Joe':('#fbbf24','#1c1400'),'Ass':('#ef4444','#200808')}
+            _qtc = _tier_colors.get(_qb_tier, ('#6b7280','#1f2937'))
+            _ovr_color = "#22c55e" if _qb_ovr_raw >= 90 else ("#60a5fa" if _qb_ovr_raw >= 86 else ("#fbbf24" if _qb_ovr_raw >= 80 else "#f87171"))
+            _rank_badge = (f"<span style='padding:2px 7px;border-radius:999px;font-size:0.68rem;font-weight:700;"
+                           f"background:#1e293b;color:#94a3b8;'>#{int(_qb_drank)} QB in dynasty</span>"
+                           if pd.notna(_qb_drank) else "")
+
+            def _trait_chips(trait_str, accent):
+                chips = ""
+                for t in [x.strip() for x in str(trait_str).split(';') if x.strip() and x.strip() not in ('', 'None', 'nan')]:
+                    chips += (f"<span style='display:inline-block;padding:2px 8px;margin:2px;border-radius:999px;"
+                              f"font-size:0.65rem;font-weight:700;background:{accent}22;color:{accent};"
+                              f"border:1px solid {accent}44;'>{html.escape(t)}</span>")
+                return chips or f"<span style='color:#475569;font-size:0.72rem;'>None</span>"
+
+            st.markdown(
+                f"<div style='background:linear-gradient(135deg,{_tc}18,#0f172a);border:1px solid {_tc}33;"
+                f"border-radius:12px;padding:14px 16px;margin-bottom:8px;'>"
+                f"<div style='display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;'>"
+                f"<div style='min-width:140px;flex:1;'>"
+                f"<div style='font-size:1.05rem;font-weight:900;color:#f1f5f9;'>{html.escape(_qb_player)}</div>"
+                f"<div style='font-size:0.72rem;color:#9ca3af;margin-top:2px;'>{html.escape(_qb_class_m)}"
+                + (f" &middot; {html.escape(_qb_ht_m)} / {html.escape(str(_qb_wt_m))} lbs" if _qb_ht_m and _qb_ht_m != 'nan' else "") +
+                f"</div>"
+                f"<div style='font-size:0.72rem;color:#64748b;'>"
+                + (f"{html.escape(_qb_home_m)} &middot; {html.escape(_qb_pipe_m)}" if _qb_home_m and _qb_home_m != 'nan' else "") +
+                f"</div>"
+                f"<div style='margin-top:6px;'><span style='font-size:0.7rem;color:#fbbf24;'>{_star_str}</span></div>"
+                f"</div>"
+                f"<div style='display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;'>"
+                f"<div style='font-size:1.8rem;font-weight:900;color:{_ovr_color};line-height:1;'>{_qb_ovr_raw}"
+                f"<span style='font-size:0.65rem;color:#475569;margin-left:3px;'>OVR</span></div>"
+                f"<span style='padding:3px 10px;border-radius:999px;font-size:0.7rem;font-weight:800;"
+                f"background:{_qtc[1]};color:{_qtc[0]};border:1px solid {_qtc[0]}44;'>{html.escape(_qb_tier)}</span>"
+                f"{_rank_badge}"
+                f"</div></div>"
+                f"<div style='margin-top:10px;border-top:1px solid #1e293b;padding-top:10px;'>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;font-weight:700;margin-bottom:4px;'>ARCHETYPE &mdash; {html.escape(_qb_arch_m)}</div>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;font-weight:700;margin-bottom:4px;'>MENTALS</div>"
+                f"<div style='margin-bottom:8px;'>{_trait_chips(_qb_ment_m, '#60a5fa')}</div>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;font-weight:700;margin-bottom:4px;'>PHYSICALS</div>"
+                f"<div>{_trait_chips(_qb_phys_m, '#34d399')}</div>"
+                f"</div></div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.info(f"QB: {_qb_tier} tier · {_qb_ovr_raw} OVR — add QBprofileData.csv and QB_power_rankingsData.csv to the repo for the full scouting card.")
+
+        st.markdown("---")
+
+        # ── SECTION 3: Two-column content (MVP + Coach) ───────────────────────
+        c1, c2 = st.columns(2)
         with c1:
-            st.subheader("Team Overview")
-            logo_path = get_logo_source(row['TEAM'])
-            render_logo(logo_path, width=110)
-            st.markdown(f"### {row['USER']} | {row['TEAM']}")
-            st.write(f"**Program Stock:** {row['Program Stock']}")
-            st.write(f"**Current User Record in scores file:** {wins}-{losses}")
-            st.write(f"**Average Points Per Game:** {ppg}")
-            st.write(f"**Average Margin:** {avg_margin}")
-            st.write(f"**Recruit Score:** {row['Recruit Score']}")
-            st.write(f"**Current CFP Ranking:** {int(row['Current CFP Ranking']) if pd.notna(row['Current CFP Ranking']) else 'Unranked'}")
-            st.write(f"**QB OVR:** {int(row['QB OVR']) if pd.notna(row['QB OVR']) else 'N/A'}")
-            st.write(f"**QB Tier:** {row['QB Tier']}")
-            st.write(f"**Improvement from prior year:** {row['Improvement']} OVR")
-            st.write(f"**SOS:** {row['SOS']} (higher = tougher schedule)")
-            st.write(f"**Resume Score:** {row['Resume Score']} (62% current win %, 38% SOS)")
-            st.caption("Recent recruiting classes are now baked directly into CFP and natty odds through the Recruit Score, so the class pipeline still matters even without a separate recruiting tab.")
+            st.subheader("⭐ MVP Profile")
+            _mvp_name = str(row.get('⭐ STAR SKILL GUY (Top OVR)', '—'))
+            _mvp_gen  = str(row.get('Star Skill Guy is Generational Speed?', '—'))
+            _mvp_color = "#fbbf24" if str(_mvp_gen).lower() in ('yes','true','1') else "#94a3b8"
+            st.markdown(
+                f"<div style='background:#111827;border:1px solid #374151;border-radius:10px;padding:12px 14px;margin-bottom:8px;'>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.07em;font-weight:700;margin-bottom:4px;'>TOP SKILL GUY</div>"
+                f"<div style='font-weight:900;color:#f1f5f9;font-size:1rem;'>{html.escape(_mvp_name)}</div>"
+                f"<div style='margin-top:4px;'><span style='font-size:0.72rem;font-weight:700;color:{_mvp_color};'>"
+                f"{'⚡ Generational Speed' if str(_mvp_gen).lower() in ('yes','true','1') else 'Standard athlete'}</span></div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+            st.write(generate_mvp_backstory(row))
+
+            # Quick stat chips
+            _bcr    = float(pd.to_numeric(row.get('BCR_Val', 0), errors='coerce') or 0)
+            _spd    = int(pd.to_numeric(row.get('Team Speed (90+ Speed Guys)', 0), errors='coerce') or 0)
+            _gen    = int(pd.to_numeric(row.get('Generational (96+ speed or 96+ Acceleration)', 0), errors='coerce') or 0)
+            _q90    = int(pd.to_numeric(row.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0), errors='coerce') or 0)
+            _rec_sc = float(pd.to_numeric(row.get('Recruit Score', 0), errors='coerce') or 0)
+            _imp    = float(pd.to_numeric(row.get('Improvement', 0), errors='coerce') or 0)
+            mobile_metrics([
+                {"label": "💎 BCR",        "value": f"{_bcr:.0f}%"},
+                {"label": "⚡ 90+ SPD",    "value": str(_spd)},
+                {"label": "👽 Gen Freaks", "value": str(_gen)},
+                {"label": "🔷 Quad 90",   "value": str(_q90)},
+            ], cols_desktop=4)
+
+        with c2:
+            coach_stats_row = stats[stats['User'] == target].iloc[0] if not stats[stats['User'] == target].empty else pd.Series()
+            st.subheader("👔 Coach Profile")
+            st.write(generate_coach_profile(row, coach_stats_row))
+            if not coach_stats_row.empty:
+                mobile_metrics([
+                    {"label": "🏅 Career Win %", "value": f"{coach_stats_row.get('Career Win %', '—')}%"},
+                    {"label": "🏆 Natties",       "value": str(int(coach_stats_row.get('Natties', 0)))},
+                    {"label": "🎯 CFP Wins",      "value": str(int(coach_stats_row.get('CFP Wins', 0)))},
+                    {"label": "📈 Recruit Score", "value": f"{_rec_sc:.0f}"},
+                ], cols_desktop=4)
             st.markdown("**Coaching Stops & Rings**")
             render_history_cards(get_program_history_cards(row['USER'], ratings, champs, rec))
 
-        with c2:
-            st.subheader("MVP Profile")
-            st.write(f"**MVP:** {row['⭐ STAR SKILL GUY (Top OVR)']}")
-            st.write(f"**Generational Speed?** {row['Star Skill Guy is Generational Speed?']}")
-            st.write(generate_mvp_backstory(row))
+        st.markdown("---")
 
-            coach_stats_row = stats[stats['User'] == target].iloc[0]
-            st.markdown("---")
-            st.subheader("Coach Profile")
-            st.write(generate_coach_profile(row, coach_stats_row))
-            mobile_metrics([
-                {"label": "🏅 Career Win %", "value": f"{coach_stats_row['Career Win %']}%"},
-                {"label": "🏆 Natties",       "value": str(int(coach_stats_row['Natties']))},
-                {"label": "🎯 CFP Wins",      "value": str(int(coach_stats_row['CFP Wins']))},
-            ], cols_desktop=3)
+        # ── SECTION 4: Detailed Metrics table + Chart ─────────────────────────
+        st.subheader("📋 Detailed Team Metrics")
+
+        _ovr_val  = float(pd.to_numeric(row.get('OVERALL', 0), errors='coerce') or 0)
+        _off_val  = float(pd.to_numeric(row.get('OFFENSE', 0), errors='coerce') or 0)
+        _def_val  = float(pd.to_numeric(row.get('DEFENSE', 0), errors='coerce') or 0)
+        _sos_val  = float(pd.to_numeric(row.get('SOS', 0), errors='coerce') or 0)
+        _res_val  = float(pd.to_numeric(row.get('Resume Score', 0), errors='coerce') or 0)
+        _spd_val  = str(row.get('Speedometer', '—'))
+        _offspd   = int(pd.to_numeric(row.get('Off Speed (90+ speed)', 0), errors='coerce') or 0)
+        _defspd   = int(pd.to_numeric(row.get('Def Speed (90+ speed)', 0), errors='coerce') or 0)
+        _where_spd= str(row.get('Where is the Speed?', '—'))
+        _opp_rec  = (f"{int(row['Combined Opponent Wins'])}-{int(row['Combined Opponent Losses'])}"
+                     if pd.notna(row.get('Combined Opponent Wins')) and pd.notna(row.get('Combined Opponent Losses'))
+                     else 'N/A')
 
         stat_table = pd.DataFrame([
-            {'Metric': 'Overall', 'Value': row['OVERALL']},
-            {'Metric': 'Offense', 'Value': row['OFFENSE']},
-            {'Metric': 'Defense', 'Value': row['DEFENSE']},
-            {'Metric': 'Off 90+ Speed Players', 'Value': row['Off Speed (90+ speed)']},
-            {'Metric': 'Def 90+ Speed Players', 'Value': row['Def Speed (90+ speed)']},
-            {'Metric': 'Total Team Speed', 'Value': row['Team Speed (90+ Speed Guys)']},
-            {'Metric': 'Quad 90', 'Value': row['Quad 90 (90+ SPD, ACC, AGI & COD)']},
-            {'Metric': 'Generational Talent Count', 'Value': row['Generational (96+ speed or 96+ Acceleration)']},
-            {'Metric': 'Where is the Speed?', 'Value': row['Where is the Speed?']},
-            {'Metric': 'Speedometer', 'Value': f"{row['Speedometer']} MPH"},
-            {'Metric': 'Blue Chip Ratio', 'Value': f"{row['BCR_Val']}%"},
-            {'Metric': 'Current Record', 'Value': f"{int(row['Current Record Wins'])}-{int(row['Current Record Losses'])}" if pd.notna(row['Current Record Wins']) and pd.notna(row['Current Record Losses']) else 'N/A'},
-            {'Metric': 'Opponent Combined Record', 'Value': f"{int(row['Combined Opponent Wins'])}-{int(row['Combined Opponent Losses'])}" if pd.notna(row['Combined Opponent Wins']) and pd.notna(row['Combined Opponent Losses']) else 'N/A'},
+            {'Metric': 'Overall OVR',         'Value': _ovr_val},
+            {'Metric': 'Offense',             'Value': _off_val},
+            {'Metric': 'Defense',             'Value': _def_val},
+            {'Metric': 'Preseason Natty Odds','Value': f"{_natty_val:.1f}%"},
+            {'Metric': 'CFP Make %',          'Value': f"{_cfp_make_val:.1f}%"},
+            {'Metric': 'Preseason PI',        'Value': _pi_val},
+            {'Metric': 'SOS',                 'Value': f"{_sos_val:.1f}"},
+            {'Metric': 'Resume Score',        'Value': f"{_res_val:.1f}"},
+            {'Metric': 'Recruit Score',       'Value': f"{_rec_sc:.1f}"},
+            {'Metric': 'YoY Improvement',     'Value': f"{_imp:+.1f} OVR"},
+            {'Metric': 'Off 90+ Speed',       'Value': _offspd},
+            {'Metric': 'Def 90+ Speed',       'Value': _defspd},
+            {'Metric': 'Total Team Speed',    'Value': _spd},
+            {'Metric': 'Quad 90',             'Value': _q90},
+            {'Metric': 'Generational Count',  'Value': _gen},
+            {'Metric': 'Where is the Speed?', 'Value': _where_spd},
+            {'Metric': 'Speedometer',         'Value': f"{_spd_val} MPH"},
+            {'Metric': 'Blue Chip Ratio',     'Value': f"{_bcr:.0f}%"},
+            {'Metric': 'Opponent Record',     'Value': _opp_rec},
+            {'Metric': 'PPG',                 'Value': ppg},
+            {'Metric': 'Avg Margin',          'Value': avg_margin},
         ])
-
-        st.subheader("Detailed Team Metrics")
         st.dataframe(stat_table, hide_index=True, use_container_width=True)
 
         detail_chart = pd.DataFrame({
             'Category': ['Overall', 'Offense', 'Defense', 'Off Speed', 'Def Speed', 'Quad 90', 'Generational'],
-            'Score': [
-                row['OVERALL'],
-                row['OFFENSE'],
-                row['DEFENSE'],
-                row['Off Speed (90+ speed)'],
-                row['Def Speed (90+ speed)'],
-                row['Quad 90 (90+ SPD, ACC, AGI & COD)'],
-                row['Generational (96+ speed or 96+ Acceleration)']
-            ]
+            'Score': [_ovr_val, _off_val, _def_val, _offspd, _defspd, _q90, _gen]
         })
-        st.plotly_chart(px.bar(detail_chart, x='Category', y='Score', text='Score'), use_container_width=True)
+        st.plotly_chart(
+            px.bar(detail_chart, x='Category', y='Score', text='Score',
+                   color_discrete_sequence=[_tc]),
+            use_container_width=True
+        )
+        st.caption("Natty Odds and CFP Make % use the preseason model — same numbers shown in Dynasty News.")
 
     # --- TALENT PROFILE ---
     with tabs[4]:
