@@ -15,6 +15,7 @@ st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", pa
 st.title("📺 ISPN College Football Gameday")
 
 CURRENT_WEEK_NUMBER = 16   # Bowl Week 1 (post-season)
+CURRENT_YEAR        = 2041  # Active dynasty season — increment each new year
 IS_BOWL_WEEK       = True
 BOWL_ROUND         = 1    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
 
@@ -4496,7 +4497,7 @@ if data:
         # ── PLAYOFF BRACKET ──────────────────────────────────────────────────
         st.subheader('Playoff Bracket')
 
-        st.info("📸 **To use the official bracket:** drop a screenshot in the ISPN chat, get the seeds back, then enter them below.")
+        st.info("📸 **To use the official bracket:** enter the seeds below and hit Lock In. It stays saved for the rest of this season — no re-entry needed each visit.")
 
         with st.expander("✏️ Enter Official CFP Bracket", expanded=False):
             st.caption("Seed #1–4 get first-round byes. Leave teams blank to fall back to projections.")
@@ -4540,12 +4541,58 @@ if data:
 
             use_manual = st.button("📋 Lock In Official Bracket", key="use_manual_bracket", type="primary")
 
-        bracket_field = None
+        # ── BRACKET PERSISTENCE (CSV-backed) ────────────────────────────────
+        # Reads/writes official_bracket.csv in the repo root.
+        # Survives server restarts. Keyed by CURRENT_YEAR — auto-clears next season.
+        _BRACKET_CSV = 'official_bracket.csv'
+
+        def load_saved_bracket(year):
+            try:
+                _b = pd.read_csv(_BRACKET_CSV)
+                _b = _b[_b['YEAR'] == year]
+                if len(_b) >= 8:
+                    return [{'seed': int(r['SEED']), 'team': str(r['TEAM']), 'record': str(r['RECORD'])}
+                            for _, r in _b.iterrows()]
+            except Exception:
+                pass
+            return None
+
+        def save_official_bracket(year, teams):
+            try:
+                # Load existing, drop this year, append new
+                try:
+                    _existing = pd.read_csv(_BRACKET_CSV)
+                    _existing = _existing[_existing['YEAR'] != year]
+                except Exception:
+                    _existing = pd.DataFrame(columns=['YEAR','SEED','TEAM','RECORD'])
+                _new_rows = pd.DataFrame([
+                    {'YEAR': year, 'SEED': t['seed'], 'TEAM': t['team'], 'RECORD': t['record']}
+                    for t in teams
+                ])
+                _out = pd.concat([_existing, _new_rows], ignore_index=True).sort_values(['YEAR','SEED'])
+                _out.to_csv(_BRACKET_CSV, index=False)
+                return True
+            except Exception as e:
+                st.warning(f"⚠️ Couldn't save bracket to CSV: {e}")
+                return False
+
         if use_manual and len(manual_teams) >= 8:
-            bracket_field = build_bracket_field_from_screenshot(manual_teams, cfp_board)
+            if save_official_bracket(CURRENT_YEAR, manual_teams):
+                st.session_state[f"official_bracket_{CURRENT_YEAR}"] = manual_teams
+
+        # Try session_state first (fast), fall back to CSV (survives restarts)
+        _saved_teams = st.session_state.get(f"official_bracket_{CURRENT_YEAR}")
+        if not _saved_teams:
+            _saved_teams = load_saved_bracket(CURRENT_YEAR)
+            if _saved_teams:
+                st.session_state[f"official_bracket_{CURRENT_YEAR}"] = _saved_teams
+
+        bracket_field = None
+        if _saved_teams:
+            bracket_field = build_bracket_field_from_screenshot(_saved_teams, cfp_board)
 
         if bracket_field is not None and not bracket_field.empty:
-            st.success("📋 Showing **official bracket** from manual entry.")
+            st.success("📋 Showing **official bracket** — saved to repo. Persists across sessions. Re-enter above to update.")
             render_playoff_bracket(bracket_field)
         else:
             st.caption("📊 Showing **projected bracket** — enter the official field above once the CFP announces.")
