@@ -11,8 +11,8 @@ import hashlib
 from pathlib import Path
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="Island Dynasty HQ", layout="wide", page_icon="🏈")
-st.title("🏈 Island Dynasty: The Executive Suite")
+st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", page_icon="🏈")
+st.title("📺 ISPN College Football Gameday")
 
 CURRENT_WEEK_NUMBER = 12
 
@@ -3456,37 +3456,37 @@ if data:
             collapse_team_row = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
 
             headlines.append(("🏆", "Title Favorite",
-                f"**{title_fav['USER']}** has the strongest title case right now. The model leans hardest on overall roster quality and raw speed — {title_fav['USER']} clears both bars. Everyone else is playing catch-up."))
+                f"<strong>{title_fav['USER']}</strong> has the strongest title case right now. The model leans hardest on overall roster quality and raw speed — {title_fav['USER']} clears both bars. Everyone else is playing catch-up."))
 
             headlines.append(("⚡", "Power Index Leader",
-                f"**{most_dangerous_team['USER']}** owns the highest Power Index ({round(float(most_dangerous_team['Power Index']),1)}). That number blends team strength, speed, blue-chip makeup, and dynasty history. It's not a fluke."))
+                f"<strong>{most_dangerous_team['USER']}</strong> owns the highest Power Index ({round(float(most_dangerous_team['Power Index']),1)}). That number blends team strength, speed, blue-chip makeup, and dynasty history. It's not a fluke."))
 
             headlines.append(("💀", "Collapse Watch",
-                f"**{collapse_team_row['USER']}** carries the highest volatility marker ({round(float(collapse_team_row['Collapse Risk']))}% collapse risk). The model sees real downside if things break wrong. One bad week could unravel the whole damn season."))
+                f"<strong>{collapse_team_row['USER']}</strong> carries the highest volatility marker ({round(float(collapse_team_row['Collapse Risk']))}% collapse risk). The model sees real downside if things break wrong. One bad week could unravel the whole damn season."))
 
             qb_elite = model_2041[model_2041['QB Tier'] == 'Elite']
             qb_ass = model_2041[model_2041['QB Tier'] == 'Ass']
             if not qb_elite.empty:
                 qe = qb_elite.sort_values('Natty Odds', ascending=False).iloc[0]
                 headlines.append(("🧠", "Elite QB Alert",
-                    f"**{qe['USER']}** is running an **Elite** quarterback. That's a real title accelerator — the model treats it as a genuine ceiling-raiser, not fluff. When your QB is cooking, everything opens up."))
+                    f"<strong>{qe['USER']}</strong> is running an <strong>Elite</strong> quarterback. That's a real title accelerator — the model treats it as a genuine ceiling-raiser, not fluff. When your QB is cooking, everything opens up."))
             if not qb_ass.empty:
                 qa = qb_ass.sort_values('Power Index', ascending=True).iloc[0]
                 headlines.append(("🚨", "QB Disaster Watch",
-                    f"**{qa['USER']}** is rolling out an **Ass** QB situation. A good roster can mask a bad quarterback for about three games before it catches up to you. The clock is ticking."))
+                    f"<strong>{qa['USER']}</strong> is rolling out an <strong>Ass</strong> QB situation. A good roster can mask a bad quarterback for about three games before it catches up to you. The clock is ticking."))
 
             # Recruiting king
             if 'Recruit Score' in model_2041.columns:
                 rec_king = model_2041.sort_values('Recruit Score', ascending=False).iloc[0]
                 headlines.append(("🎯", "Recruiting King",
-                    f"**{rec_king['USER']}** is winning the recruiting war ({round(float(rec_king['Recruit Score']),1)} recruit score). Future rosters are built in February. This one's already building the dynasty pipeline."))
+                    f"<strong>{rec_king['USER']}</strong> is winning the recruiting war ({round(float(rec_king['Recruit Score']),1)} recruit score). Future rosters are built in February. This one's already building the dynasty pipeline."))
 
             # Speed gap
             if 'Team Speed (90+ Speed Guys)' in model_2041.columns:
                 speed_king = model_2041.sort_values('Team Speed (90+ Speed Guys)', ascending=False).iloc[0]
                 speed_num = int(speed_king.get('Team Speed (90+ Speed Guys)', 0))
                 headlines.append(("💨", "Speed Merchants",
-                    f"**{speed_king['USER']}** leads the league with **{speed_num}** players at 90+ speed. You can scheme around a lot of things. You can't scheme around not being able to catch the other team's guys."))
+                    f"<strong>{speed_king['USER']}</strong> leads the league with <strong>{speed_num}</strong> players at 90+ speed. You can scheme around a lot of things. You can't scheme around not being able to catch the other team's guys."))
 
         for emoji, title, body in headlines:
             st.markdown(f"""
