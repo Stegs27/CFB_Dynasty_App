@@ -1540,6 +1540,12 @@ def load_data():
         draft = pd.read_csv('UserDraftPicks.csv')
         ratings = pd.read_csv('TeamRatingsHistory.csv')
         heisman = pd.read_csv('Heisman_History.csv')
+        try:
+            heisman_fin = pd.read_csv('Heisman_Finalists.csv')
+            heisman_fin['USER'] = safe_title_series(heisman_fin['USER'])
+            heisman_fin['TEAM'] = heisman_fin['TEAM'].astype(str).str.strip()
+        except Exception:
+            heisman_fin = None
         coty = pd.read_csv('COTY.csv')
 
         # STANDARDIZE MAJOR TEXT FIELDS
@@ -3967,8 +3973,48 @@ if data:
                     trophy = "🏆" if count >= 3 else ("🥇" if count >= 2 else "🏅")
                     with st.expander(f"{trophy} **{u}** — {count} Heisman{'s' if count > 1 else ''}"):
                         for _, w in winners.iterrows():
-                            st.markdown(f"<div style='padding:4px 0;color:#e5e7eb;font-size:0.85rem;'><span style='color:#fbbf24;font-weight:700;'>{int(w['YEAR'])}</span> &nbsp;{w['NAME']} <span style='color:#9ca3af;'>({w['POS']})</span></div>", unsafe_allow_html=True)
-            else:
+                            yr = int(w['YEAR'])
+                            # Check if finalists exist for this year — show runner-up placings
+                            fin_note = ""
+                            if heisman_fin is not None:
+                                fin_rows = heisman_fin[
+                                    (heisman_fin['YEAR'] == yr) &
+                                    (heisman_fin['USER'].isin(USER_TEAMS.keys())) &
+                                    (heisman_fin['FINISH'] > 1)
+                                ]
+                                if not fin_rows.empty:
+                                    runner_ups = ", ".join(
+                                        f"{r2['NAME']} (#{int(r2['FINISH'])})"
+                                        for _, r2 in fin_rows.iterrows()
+                                    )
+                                    fin_note = f"<span style='color:#6b7280;font-size:0.72rem;'> · Also: {runner_ups}</span>"
+                            st.markdown(
+                                f"<div style='padding:4px 0;color:#e5e7eb;font-size:0.85rem;'>"
+                                f"<span style='color:#fbbf24;font-weight:700;'>{yr}</span>"
+                                f"&nbsp;{w['NAME']} <span style='color:#9ca3af;'>({w['POS']})</span>"
+                                f"{fin_note}</div>",
+                                unsafe_allow_html=True
+                            )
+
+            # Finalist callout — users who finished top-5 but didn't win
+            if heisman_fin is not None and not heisman_fin.empty:
+                runner_df = heisman_fin[
+                    (heisman_fin['USER'].isin(USER_TEAMS.keys())) &
+                    (heisman_fin['WINNER'] == 'No')
+                ].copy()
+                if not runner_df.empty:
+                    st.markdown("<div style='margin-top:8px;padding:6px 10px;background:#1f2937;border-left:3px solid #f59e0b;border-radius:6px;'>", unsafe_allow_html=True)
+                    st.markdown("<span style='color:#f59e0b;font-size:0.78rem;font-weight:700;'>🥈 FINALIST APPEARANCES (no win)</span>", unsafe_allow_html=True)
+                    for _, rf in runner_df.sort_values(['USER','YEAR']).iterrows():
+                        st.markdown(
+                            f"<div style='font-size:0.78rem;color:#d1d5db;padding:2px 0;'>"
+                            f"<span style='color:#9ca3af;'>{int(rf['YEAR'])}</span>"
+                            f" &nbsp;<strong>{rf['USER']}</strong> — {rf['NAME']} ({rf['POS']}, {rf['TEAM']}) "
+                            f"<span style='color:#6b7280;'>#{int(rf['FINISH'])} overall</span></div>",
+                            unsafe_allow_html=True
+                        )
+                    st.markdown("</div>", unsafe_allow_html=True)
+            if heisman is None or heisman.empty:
                 st.caption("No Heisman data loaded.")
 
             # Current candidates from roster
