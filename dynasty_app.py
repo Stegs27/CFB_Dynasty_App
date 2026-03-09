@@ -867,30 +867,34 @@ def get_record_parts(record_str):
         return 0, 0
 
 
+
 def render_roster_matchup_tab():
     import plotly.graph_objects as go
 
     st.header("🎯 Roster Matchup Analyzer")
-    st.caption("Select any two dynasty teams to break down their head-to-head matchup by position group. Who has the athletic edge when these rosters meet on the field?")
+    st.caption("Full depth charts, positional battles, injury resilience, redshirt-aware eligibility, and future value pipeline analysis.")
 
     try:
-        roster = pd.read_csv('cfb26_rosters_top30.csv')
-    except Exception as e:
-        st.error(f"Could not load roster data: {e}")
-        return
+        roster = pd.read_csv('cfb26_rosters_full.csv')
+    except Exception:
+        try:
+            roster = pd.read_csv('cfb26_rosters_top30.csv')
+            st.info("ℹ️ Using top-30 roster data. Upload cfb26_rosters_full.csv for full depth analysis.")
+        except Exception as e2:
+            st.error(f"Could not load roster data: {e2}")
+            return
 
     teams = sorted(roster['Team'].unique().tolist())
 
     POS_GROUPS = {
-        "QB":          ["QB"],
-        "Backfield":   ["HB"],
+        "QB":            ["QB"],
+        "Backfield":     ["HB", "FB"],
         "Pass Catchers": ["WR", "TE"],
-        "O-Line":      ["LT", "LG", "C", "RG", "RT"],
-        "D-Line":      ["DT", "LEDG", "REDG"],
-        "Linebackers": ["MIKE", "WILL", "SAM"],
-        "Secondary":   ["CB", "FS", "SS"],
+        "O-Line":        ["LT", "LG", "C", "RG", "RT"],
+        "D-Line":        ["DT", "LEDG", "REDG"],
+        "Linebackers":   ["MIKE", "WILL", "SAM"],
+        "Secondary":     ["CB", "FS", "SS"],
     }
-
     ATTRS = ["OVR", "SPD", "ACC", "AGI", "COD", "STR", "AWR"]
 
     col1, col2 = st.columns(2)
@@ -907,314 +911,496 @@ def render_roster_matchup_tab():
     roster_b = roster[roster['Team'] == team_b].copy()
     color_a  = get_team_primary_color(team_a)
     color_b  = get_team_primary_color(team_b)
-    sec_a    = get_team_secondary_color(team_a)
-    sec_b    = get_team_secondary_color(team_b)
 
-    logo_uri_a = image_file_to_data_uri(get_logo_source(team_a))
-    logo_uri_b = image_file_to_data_uri(get_logo_source(team_b))
+    logo_uri_a  = image_file_to_data_uri(get_logo_source(team_a))
+    logo_uri_b  = image_file_to_data_uri(get_logo_source(team_b))
     logo_html_a = f"<img src='{logo_uri_a}' style='width:72px;height:72px;object-fit:contain;display:block;margin:0 auto 6px auto;'/>" if logo_uri_a else "<div style='font-size:48px;text-align:center;'>🏈</div>"
     logo_html_b = f"<img src='{logo_uri_b}' style='width:72px;height:72px;object-fit:contain;display:block;margin:0 auto 6px auto;'/>" if logo_uri_b else "<div style='font-size:48px;text-align:center;'>🏈</div>"
 
-    # ── TEAM HEADER ─────────────────────────────────────────────────────────
+    # ── YEAR / REDSHIRT HELPERS ──────────────────────────────────────────────
+    def parse_year_info(yr_str):
+        """
+        Returns (base_class, is_redshirt, yrs_in_program, eligibility_remaining)
+        Eligibility: FR=4, SO=3, JR=2, SR=1  |  RS adds 1 yr in program, not eligibility
+        FR(RS)  = in program 2 yrs, 4 eligibility yrs left (hasn't burned one yet)
+        SO(RS)  = in program 3 yrs, 3 eligibility yrs left
+        JR(RS)  = in program 4 yrs, 2 eligibility yrs left
+        SR(RS)  = in program 5 yrs, 1 eligibility yr  left (grad year)
+        """
+        s = str(yr_str).upper().strip()
+        is_rs = "(RS)" in s
+        base = s.replace("(RS)", "").strip()
+        elig_map = {"FR": 4, "SO": 3, "JR": 2, "SR": 1}
+        prog_map  = {"FR": 1, "SO": 2, "JR": 3, "SR": 4}
+        elig = elig_map.get(base, 2)
+        prog = prog_map.get(base, 2) + (1 if is_rs else 0)
+        label_map = {"FR": "Freshman", "SO": "Sophomore", "JR": "Junior", "SR": "Senior"}
+        label = label_map.get(base, "Unknown")
+        return label, is_rs, prog, elig
+
+    def enrich_roster(df):
+        df = df.copy()
+        parsed = df['Year'].apply(parse_year_info)
+        df['YrClass']   = parsed.apply(lambda x: x[0])
+        df['IsRS']      = parsed.apply(lambda x: x[1])
+        df['YrsInProg'] = parsed.apply(lambda x: x[2])
+        df['EligLeft']  = parsed.apply(lambda x: x[3])
+
+        # Future Value Score:
+        # OVR at current age weighted by years remaining + athleticism upside
+        # Athletes with high SPD/ACC/AGI but moderate OVR = high ceiling (they just need reps)
+        # Formula: OVR * 0.55 + AthlScore * 0.25 + EligLeft * 3.0
+        # AthlScore = avg of SPD, ACC, AGI, COD
+        df['AthlScore'] = (df['SPD'] + df['ACC'] + df['AGI'] + df['COD']) / 4.0
+        df['FV'] = (df['OVR'] * 0.55 + df['AthlScore'] * 0.25 + df['EligLeft'] * 3.0).round(1)
+
+        # Ceiling flag: young + high athleticism but OVR not yet caught up
+        df['HighCeiling'] = (df['EligLeft'] >= 3) & (df['AthlScore'] >= 82) & (df['OVR'] < 85)
+
+        # Experience tag for display
+        def exp_tag(row):
+            rs_tag = " 🔄" if row['IsRS'] else ""
+            return f"{row['YrClass']}{rs_tag} ({row['EligLeft']}yr left)"
+        df['ExpTag'] = df.apply(exp_tag, axis=1)
+
+        return df
+
+    roster_a = enrich_roster(roster_a)
+    roster_b = enrich_roster(roster_b)
+
+    # ── TEAM HEADER ──────────────────────────────────────────────────────────
     h1, hm, h2 = st.columns([5, 1, 5])
-    h1.markdown(
-        f"""<div style='text-align:center;padding:12px 0;'>
-        {logo_html_a}
-        <span style='color:{color_a};font-size:1.4rem;font-weight:900;'>{team_a}</span>
-        </div>""",
-        unsafe_allow_html=True
-    )
-    hm.markdown(
-        "<div style='text-align:center;padding-top:28px;color:#6b7280;font-size:1.5rem;font-weight:700;'>vs</div>",
-        unsafe_allow_html=True
-    )
-    h2.markdown(
-        f"""<div style='text-align:center;padding:12px 0;'>
-        {logo_html_b}
-        <span style='color:{color_b};font-size:1.4rem;font-weight:900;'>{team_b}</span>
-        </div>""",
-        unsafe_allow_html=True
-    )
+    h1.markdown(f"<div style='text-align:center;padding:12px 0;'>{logo_html_a}<span style='color:{color_a};font-size:1.4rem;font-weight:900;'>{team_a}</span></div>", unsafe_allow_html=True)
+    hm.markdown("<div style='text-align:center;padding-top:28px;color:#6b7280;font-size:1.5rem;font-weight:700;'>vs</div>", unsafe_allow_html=True)
+    h2.markdown(f"<div style='text-align:center;padding:12px 0;'>{logo_html_b}<span style='color:{color_b};font-size:1.4rem;font-weight:900;'>{team_b}</span></div>", unsafe_allow_html=True)
 
-    # ── OVERALL SUMMARY METRICS ──────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("📊 Team Athletic Profile")
+    # ── MAIN TABS ────────────────────────────────────────────────────────────
+    tab_overview, tab_depth, tab_resilience, tab_class, tab_pipeline = st.tabs([
+        "📊 Athletic Profile",
+        "📋 Depth Chart",
+        "🩺 Injury Resilience",
+        "🎓 Roster Composition",
+        "🚀 Future Value",
+    ])
 
-    def team_summary(df):
-        return {
-            "Avg OVR":      round(df["OVR"].mean(), 1),
-            "Top OVR":      int(df["OVR"].max()),
-            "90+ OVR Count":int((df["OVR"] >= 90).sum()),
-            "Avg SPD":      round(df["SPD"].mean(), 1),
-            "90+ SPD Count":int((df["SPD"] >= 90).sum()),
-            "Avg AGI":      round(df["AGI"].mean(), 1),
-            "Avg AWR":      round(df["AWR"].mean(), 1),
+    # ════════════════════════════════════════════════════════════════════════
+    # TAB 1 — ATHLETIC PROFILE
+    # ════════════════════════════════════════════════════════════════════════
+    with tab_overview:
+        st.subheader("📊 Team Athletic Profile")
+
+        def team_summary(df):
+            return {
+                "Avg OVR":       round(df["OVR"].mean(), 1),
+                "Top OVR":       int(df["OVR"].max()),
+                "90+ OVR Count": int((df["OVR"] >= 90).sum()),
+                "Avg SPD":       round(df["SPD"].mean(), 1),
+                "90+ SPD Count": int((df["SPD"] >= 90).sum()),
+                "Avg AGI":       round(df["AGI"].mean(), 1),
+                "Avg AWR":       round(df["AWR"].mean(), 1),
+                "Roster Size":   len(df),
+            }
+
+        summ_a = team_summary(roster_a)
+        summ_b = team_summary(roster_b)
+
+        metric_rows = [
+            ("Roster Size",    "👥 Total Roster Size"),
+            ("Avg OVR",        "📈 Roster Avg Overall"),
+            ("Top OVR",        "⭐ Best Player OVR"),
+            ("90+ OVR Count",  "💎 Players 90+ OVR"),
+            ("Avg SPD",        "💨 Roster Avg Speed"),
+            ("90+ SPD Count",  "⚡ Players 90+ Speed"),
+            ("Avg AGI",        "🐍 Roster Avg Agility"),
+            ("Avg AWR",        "🧠 Roster Avg Awareness"),
+        ]
+        hdr_a, hdr_mid, hdr_b = st.columns([3, 3, 3])
+        hdr_a.markdown(f"<div style='text-align:center;font-weight:800;color:{color_a};font-size:0.95rem;padding-bottom:4px;'>{team_a}</div>", unsafe_allow_html=True)
+        hdr_mid.markdown("<div style='text-align:center;color:#9ca3af;font-size:0.75rem;padding-bottom:4px;'>METRIC</div>", unsafe_allow_html=True)
+        hdr_b.markdown(f"<div style='text-align:center;font-weight:800;color:{color_b};font-size:0.95rem;padding-bottom:4px;'>{team_b}</div>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:2px 0 8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+        for key, label in metric_rows:
+            va, vb = summ_a[key], summ_b[key]
+            col_a, col_mid, col_b = st.columns([3, 3, 3])
+            col_a.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_a};'>{'🏆 ' if va > vb else ''}**{va}**</div>", unsafe_allow_html=True)
+            col_mid.markdown(f"<div style='text-align:center;color:#6b7280;font-size:0.78rem;font-weight:600;'>{label}</div>", unsafe_allow_html=True)
+            col_b.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_b};'>**{vb}**{' 🏆' if vb > va else ''}</div>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+
+        # Radar
+        st.subheader("🕸️ Attribute Spider Chart")
+        avg_a = [round(roster_a[a].mean(), 1) for a in ATTRS]
+        avg_b = [round(roster_b[a].mean(), 1) for a in ATTRS]
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(r=avg_a+[avg_a[0]], theta=ATTRS+[ATTRS[0]], fill="toself", name=team_a, line=dict(color=color_a, width=2), fillcolor=hex_to_rgba(color_a, 0.27)))
+        fig.add_trace(go.Scatterpolar(r=avg_b+[avg_b[0]], theta=ATTRS+[ATTRS[0]], fill="toself", name=team_b, line=dict(color=color_b, width=2), fillcolor=hex_to_rgba(color_b, 0.27)))
+        fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[60, 100], tickfont=dict(size=10))), showlegend=True, height=430, margin=dict(t=50, b=50, l=60, r=60), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5))
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Positional battles
+        st.markdown("---")
+        st.subheader("⚔️ Positional Battle Breakdown")
+        st.caption("Top 3 players per group. Composite score = 70% OVR + 30% Speed.")
+        group_results = []
+        for group_name, positions in POS_GROUPS.items():
+            grp_a = roster_a[roster_a["Pos"].isin(positions)].nlargest(3, "OVR")
+            grp_b = roster_b[roster_b["Pos"].isin(positions)].nlargest(3, "OVR")
+            if grp_a.empty and grp_b.empty:
+                continue
+            score_a = round((grp_a["OVR"].mean() if not grp_a.empty else 0) * 0.70 + (grp_a["SPD"].mean() if not grp_a.empty else 0) * 0.30, 1)
+            score_b = round((grp_b["OVR"].mean() if not grp_b.empty else 0) * 0.70 + (grp_b["SPD"].mean() if not grp_b.empty else 0) * 0.30, 1)
+            margin = abs(score_a - score_b)
+            winner_team  = team_a if score_a >= score_b else team_b
+            winner_color = color_a if score_a >= score_b else color_b
+            group_results.append({"group": group_name, "winner": winner_team if margin >= 0.5 else "EVEN", "margin": margin, "score_a": score_a, "score_b": score_b})
+            if margin < 0.5:    plain_label = f"{group_name}  --  = EVEN"
+            elif margin < 2.0:  plain_label = f"{group_name}  --  Slight Edge: {winner_team}"
+            elif margin < 4.0:  plain_label = f"{group_name}  --  Edge: {winner_team} ✅"
+            else:               plain_label = f"{group_name}  --  BIG ADVANTAGE: {winner_team} 🔥"
+            with st.expander(plain_label, expanded=False):
+                if margin < 0.5:
+                    st.markdown("🟰 <span style='color:#9ca3af;'>EVEN</span>", unsafe_allow_html=True)
+                else:
+                    badge_weight = "900" if margin >= 4.0 else ("700" if margin >= 2.0 else "400")
+                    st.markdown(f"<span style='color:{winner_color};font-weight:{badge_weight};'>{'BIG ADVANTAGE' if margin >= 4.0 else ('EDGE' if margin >= 2.0 else 'SLIGHT EDGE')}: {html.escape(winner_team)}{' 🔥' if margin >= 4.0 else ''}</span>", unsafe_allow_html=True)
+                sc1, sc2, sc3 = st.columns([2, 3, 2])
+                sc1.metric(f"{team_a} Score", score_a)
+                sc3.metric(f"{team_b} Score", score_b)
+                sc2.markdown("<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>", unsafe_allow_html=True)
+                pa, pb = st.columns(2)
+                disp_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
+                sm_logo_a = f"<img src='{logo_uri_a}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_a else "🏈 "
+                sm_logo_b = f"<img src='{logo_uri_b}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_b else "🏈 "
+                with pa:
+                    st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_a}<span style='color:{color_a};font-weight:800;font-size:0.95rem;'>{team_a}</span></div>", unsafe_allow_html=True)
+                    st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True) if not grp_a.empty else st.caption("No players.")
+                with pb:
+                    st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_b}<span style='color:{color_b};font-weight:800;font-size:0.95rem;'>{team_b}</span></div>", unsafe_allow_html=True)
+                    st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True) if not grp_b.empty else st.caption("No players.")
+
+        # Scorecard
+        st.markdown("---")
+        st.subheader("🏟️ Battle Scorecard")
+        wins_a = sum(1 for r in group_results if r["winner"] == team_a)
+        wins_b = sum(1 for r in group_results if r["winner"] == team_b)
+        ties   = sum(1 for r in group_results if r["winner"] == "EVEN")
+        total  = len(group_results)
+        sc1, sc2, sc3 = st.columns(3)
+        sc1.markdown(f"<div style='text-align:center;'>{logo_html_a}<span style='font-size:0.8rem;color:{color_a};font-weight:700;'>{team_a}</span></div>", unsafe_allow_html=True)
+        sc1.metric("Group Wins", wins_a)
+        sc2.metric("Even Matchups", ties)
+        sc3.markdown(f"<div style='text-align:center;'>{logo_html_b}<span style='font-size:0.8rem;color:{color_b};font-weight:700;'>{team_b}</span></div>", unsafe_allow_html=True)
+        sc3.metric("Group Wins", wins_b)
+
+        # Scouting report
+        st.markdown("---")
+        st.subheader("📋 Scouting Report")
+        adv_a = sorted([r for r in group_results if r["winner"] == team_a], key=lambda x: x["margin"], reverse=True)
+        adv_b = sorted([r for r in group_results if r["winner"] == team_b], key=lambda x: x["margin"], reverse=True)
+        lines = []
+        if adv_a:
+            lines.append(f"**{team_a}** has the roster advantage at **{', '.join([r['group'] for r in adv_a[:2]])}**{' and ' + str(len(adv_a)-2) + ' more groups' if len(adv_a) > 2 else ''}.")
+        if adv_b:
+            lines.append(f"**{team_b}** counters with the edge at **{', '.join([r['group'] for r in adv_b[:2]])}**{' and ' + str(len(adv_b)-2) + ' more groups' if len(adv_b) > 2 else ''}.")
+        spd_a, spd_b = summ_a["90+ SPD Count"], summ_b["90+ SPD Count"]
+        if spd_a > spd_b + 1:
+            lines.append(f"The speed gap is real -- **{team_a}** has **{spd_a}** players at 90+ SPD vs {team_b}'s **{spd_b}**.")
+        elif spd_b > spd_a + 1:
+            lines.append(f"**{team_b}** brings the burners -- **{spd_b}** players at 90+ SPD vs {team_a}'s **{spd_a}**.")
+        else:
+            lines.append(f"Speed depth is essentially equal -- **{spd_a}** vs **{spd_b}** players at 90+ SPD.")
+        awr_a, awr_b = summ_a["Avg AWR"], summ_b["Avg AWR"]
+        if abs(awr_a - awr_b) >= 3:
+            smarter = team_a if awr_a > awr_b else team_b
+            lines.append(f"**{smarter}** has the awareness edge ({max(awr_a, awr_b)} avg AWR) -- fewer blown assignments, faster reads.")
+        for r in [r for r in adv_a if r["margin"] >= 4]:
+            lines.append(f"The **{r['group']}** unit for **{team_a}** is a genuine mismatch.")
+        for r in [r for r in adv_b if r["margin"] >= 4]:
+            lines.append(f"**{team_b}** has a dominant edge at **{r['group']}**.")
+        if wins_a > wins_b:
+            verdict_team, verdict_color, verdict_desc = team_a, color_a, f"wins {wins_a} of {total} positional battles"
+        elif wins_b > wins_a:
+            verdict_team, verdict_color, verdict_desc = team_b, color_b, f"wins {wins_b} of {total} positional battles"
+        else:
+            verdict_team, verdict_color, verdict_desc = "Neither team", "#9ca3af", "-- this matchup is an absolute coin flip on paper"
+        for line in lines:
+            st.markdown(line)
+        st.markdown(f"""<div style="padding:1rem 1.25rem;border-left:6px solid {verdict_color};background:{verdict_color}18;border-radius:8px;margin-top:1rem;"><strong>Roster Verdict:</strong> <span style="color:{verdict_color};font-size:1.05rem;font-weight:800;">{html.escape(verdict_team)}</span> {verdict_desc}. Paper never plays the game, but this one matters.</div>""", unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════════════════
+    # TAB 2 -- DEPTH CHART
+    # ════════════════════════════════════════════════════════════════════════
+    with tab_depth:
+        st.subheader("📋 Full Depth Chart Comparison")
+        st.caption("True 2-deep by position. 🔄 = redshirt. EligLeft = eligibility years remaining.")
+        ALL_POSITIONS = {
+            "Quarterback": ["QB"], "Halfback": ["HB", "FB"], "Wide Receiver": ["WR"],
+            "Tight End": ["TE"], "Left Tackle": ["LT"], "Left Guard": ["LG"],
+            "Center": ["C"], "Right Guard": ["RG"], "Right Tackle": ["RT"],
+            "Defensive Tackle": ["DT"], "Left Edge": ["LEDG"], "Right Edge": ["REDG"],
+            "MIKE LB": ["MIKE"], "WILL LB": ["WILL"], "SAM LB": ["SAM"],
+            "Cornerback": ["CB"], "Free Safety": ["FS"], "Strong Safety": ["SS"],
         }
+        for pos_label, pos_codes in ALL_POSITIONS.items():
+            grp_a = roster_a[roster_a["Pos"].isin(pos_codes)].sort_values("OVR", ascending=False).reset_index(drop=True)
+            grp_b = roster_b[roster_b["Pos"].isin(pos_codes)].sort_values("OVR", ascending=False).reset_index(drop=True)
 
-    summ_a = team_summary(roster_a)
-    summ_b = team_summary(roster_b)
+            def fmt_player(df, idx):
+                if len(df) > idx:
+                    r = df.iloc[idx]
+                    rs_tag = " 🔄" if r['IsRS'] else ""
+                    return f"{r['Name']}{rs_tag} ({r['EligLeft']}yr) | {int(r['OVR'])} OVR / {int(r['SPD'])} SPD"
+                return "—"
 
-    metric_rows = [
-        ("Avg OVR",        "📈 Roster Avg Overall"),
-        ("Top OVR",        "⭐ Best Player OVR"),
-        ("90+ OVR Count",  "💎 Players 90+ OVR"),
-        ("Avg SPD",        "💨 Roster Avg Speed"),
-        ("90+ SPD Count",  "⚡ Players 90+ Speed"),
-        ("Avg AGI",        "🐍 Roster Avg Agility"),
-        ("Avg AWR",        "🧠 Roster Avg Awareness"),
-    ]
+            st_a, bk_a = fmt_player(grp_a, 0), fmt_player(grp_a, 1)
+            st_b, bk_b = fmt_player(grp_b, 0), fmt_player(grp_b, 1)
+            ovr_a = grp_a.iloc[0]["OVR"] if len(grp_a) > 0 else 0
+            ovr_b = grp_b.iloc[0]["OVR"] if len(grp_b) > 0 else 0
+            edge = "A" if ovr_a > ovr_b + 1 else ("B" if ovr_b > ovr_a + 1 else "=")
+            if edge == "A":   edge_html = f"<span style='color:{color_a};font-weight:700;font-size:0.75rem;'>▶ {team_a}</span>"
+            elif edge == "B": edge_html = f"<span style='color:{color_b};font-weight:700;font-size:0.75rem;'>{team_b} ◀</span>"
+            else:             edge_html = "<span style='color:#9ca3af;font-size:0.75rem;'>EVEN</span>"
 
-    # Column headers
-    hdr_a, hdr_mid, hdr_b = st.columns([3, 3, 3])
-    hdr_a.markdown(f"<div style='text-align:center;font-weight:800;color:{color_a};font-size:0.95rem;padding-bottom:4px;'>{team_a}</div>", unsafe_allow_html=True)
-    hdr_mid.markdown("<div style='text-align:center;color:#9ca3af;font-size:0.75rem;padding-bottom:4px;'>METRIC</div>", unsafe_allow_html=True)
-    hdr_b.markdown(f"<div style='text-align:center;font-weight:800;color:{color_b};font-size:0.95rem;padding-bottom:4px;'>{team_b}</div>", unsafe_allow_html=True)
+            with st.expander(f"**{pos_label}**  |  {('▶ ' + team_a) if edge == 'A' else ((team_b + ' ◀') if edge == 'B' else 'Even')}", expanded=False):
+                ca, cm, cb = st.columns([5, 2, 5])
+                with ca:
+                    st.markdown(f"<span style='color:{color_a};font-weight:700;font-size:0.85rem;'>{team_a}</span>", unsafe_allow_html=True)
+                    st.markdown(f"**Starter:** {st_a}")
+                    st.markdown(f"<span style='color:#9ca3af;font-size:0.8rem;'>Backup: {bk_a}</span>", unsafe_allow_html=True)
+                with cm:
+                    st.markdown(f"<div style='text-align:center;padding-top:1.2rem;'>{edge_html}</div>", unsafe_allow_html=True)
+                with cb:
+                    st.markdown(f"<span style='color:{color_b};font-weight:700;font-size:0.85rem;'>{team_b}</span>", unsafe_allow_html=True)
+                    st.markdown(f"**Starter:** {st_b}")
+                    st.markdown(f"<span style='color:#9ca3af;font-size:0.8rem;'>Backup: {bk_b}</span>", unsafe_allow_html=True)
 
-    st.markdown("<hr style='margin:2px 0 8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+    # ════════════════════════════════════════════════════════════════════════
+    # TAB 3 -- INJURY RESILIENCE
+    # ════════════════════════════════════════════════════════════════════════
+    with tab_resilience:
+        st.subheader("🩺 Injury Resilience Score")
+        st.caption("Score drop when each group's best player is removed. 🟢 Solid depth  🟡 Some risk  🔴 One injury from disaster.")
 
-    for key, label in metric_rows:
-        va = summ_a[key]
-        vb = summ_b[key]
-        win_a = va > vb
-        win_b = vb > va
+        def resilience_score(df, positions):
+            grp = df[df["Pos"].isin(positions)].nlargest(5, "OVR")
+            if grp.empty:
+                return 0, 0, None
+            with_star   = grp["OVR"].mean() * 0.70 + grp["SPD"].mean() * 0.30
+            star_row    = grp.iloc[0]
+            without     = grp.iloc[1:]
+            without_star = (without["OVR"].mean() * 0.70 + without["SPD"].mean() * 0.30) if not without.empty else 0
+            drop = round(with_star - without_star, 1)
+            rs_tag = " 🔄" if star_row['IsRS'] else ""
+            elig_tag = f"({int(star_row['EligLeft'])}yr left)"
+            return round(with_star, 1), drop, f"{star_row['Name']}{rs_tag} {elig_tag} | {int(star_row['OVR'])} OVR"
 
-        col_a, col_mid, col_b = st.columns([3, 3, 3])
+        hdr_cols = st.columns([3, 2, 2, 1, 2, 2])
+        for col, label in zip(hdr_cols, ["Position Group", f"{team_a} Star", f"{team_a} Drop", "vs", f"{team_b} Star", f"{team_b} Drop"]):
+            col.markdown(f"**{label}**")
+        st.markdown("---")
 
-        val_a_str = f"🏆 **{va}**" if win_a else str(va)
-        val_b_str = f"**{vb}** 🏆" if win_b else str(vb)
+        total_drop_a, total_drop_b = 0, 0
+        for group_name, positions in POS_GROUPS.items():
+            w_a, drop_a, star_a = resilience_score(roster_a, positions)
+            w_b, drop_b, star_b = resilience_score(roster_b, positions)
+            total_drop_a += drop_a
+            total_drop_b += drop_b
+            dc_a = "#ef4444" if drop_a >= 5 else ("#f59e0b" if drop_a >= 2.5 else "#22c55e")
+            dc_b = "#ef4444" if drop_b >= 5 else ("#f59e0b" if drop_b >= 2.5 else "#22c55e")
+            row_cols = st.columns([3, 2, 2, 1, 2, 2])
+            row_cols[0].markdown(f"**{group_name}**")
+            row_cols[1].markdown(f"<span style='font-size:0.78rem;color:#d1d5db;'>{star_a or '--'}</span>", unsafe_allow_html=True)
+            row_cols[2].markdown(f"<span style='color:{dc_a};font-weight:700;'>-{drop_a}</span>", unsafe_allow_html=True)
+            row_cols[3].markdown("<div style='text-align:center;color:#6b7280;'>|</div>", unsafe_allow_html=True)
+            row_cols[4].markdown(f"<span style='font-size:0.78rem;color:#d1d5db;'>{star_b or '--'}</span>", unsafe_allow_html=True)
+            row_cols[5].markdown(f"<span style='color:{dc_b};font-weight:700;'>-{drop_b}</span>", unsafe_allow_html=True)
 
-        col_a.markdown(
-            f"<div style='text-align:center;font-size:1.05rem;color:{color_a};'>{val_a_str}</div>",
-            unsafe_allow_html=True
+        st.markdown("---")
+        r1, r2, r3 = st.columns([3, 1, 3])
+        with r1:
+            st.markdown(f"<div style='text-align:center;'>{logo_html_a}</div>", unsafe_allow_html=True)
+            st.metric(f"{team_a} Total Fragility", f"-{round(total_drop_a, 1)}", help="Lower = more resilient")
+        with r3:
+            st.markdown(f"<div style='text-align:center;'>{logo_html_b}</div>", unsafe_allow_html=True)
+            st.metric(f"{team_b} Total Fragility", f"-{round(total_drop_b, 1)}", help="Lower = more resilient")
+        more_fragile  = team_a if total_drop_a > total_drop_b else team_b
+        more_resilient = team_b if total_drop_a > total_drop_b else team_a
+        res_color = color_a if total_drop_a > total_drop_b else color_b
+        st.markdown(f"""<div style="padding:0.8rem 1.25rem;border-left:5px solid {res_color};background:{res_color}15;border-radius:8px;margin-top:0.8rem;font-size:0.9rem;"><strong>{html.escape(more_fragile)}</strong> is more depth-dependent. <strong>{html.escape(more_resilient)}</strong> has the more resilient roster if stars go down.</div>""", unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════════════════
+    # TAB 4 -- ROSTER COMPOSITION
+    # ════════════════════════════════════════════════════════════════════════
+    with tab_class:
+        st.subheader("🎓 Roster Composition Breakdown")
+        st.caption("Class distribution with redshirt-aware eligibility. 🔄 = currently redshirting.")
+
+        def class_breakdown(df):
+            total = len(df)
+            rs_count   = int(df['IsRS'].sum())
+            elig_avg   = round(df['EligLeft'].mean(), 1)
+            young      = int((df['EligLeft'] >= 3).sum())
+            veteran    = int((df['EligLeft'] <= 2).sum())
+            class_counts = df['YrClass'].value_counts()
+            return {
+                "Freshmen": class_counts.get("Freshman", 0),
+                "Sophomores": class_counts.get("Sophomore", 0),
+                "Juniors": class_counts.get("Junior", 0),
+                "Seniors": class_counts.get("Senior", 0),
+                "Total": total,
+                "Redshirts": rs_count,
+                "Avg Elig": elig_avg,
+                "Young (3-4yr elig)": young,
+                "Veteran (1-2yr elig)": veteran,
+            }
+
+        cb_a = class_breakdown(roster_a)
+        cb_b = class_breakdown(roster_b)
+
+        classes = ["Freshmen", "Sophomores", "Juniors", "Seniors"]
+        fig2 = go.Figure()
+        fig2.add_trace(go.Bar(name=team_a, x=classes, y=[cb_a[c] for c in classes], marker_color=color_a, opacity=0.85))
+        fig2.add_trace(go.Bar(name=team_b, x=classes, y=[cb_b[c] for c in classes], marker_color=color_b, opacity=0.85))
+        fig2.update_layout(barmode="group", height=320, margin=dict(t=30, b=30, l=20, r=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig2, use_container_width=True)
+
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
+        m1.metric(f"{team_a} Redshirts", cb_a["Redshirts"])
+        m2.metric(f"{team_a} Avg Elig", cb_a["Avg Elig"])
+        m3.metric(f"{team_a} Young", cb_a["Young (3-4yr elig)"])
+        m4.metric(f"{team_b} Redshirts", cb_b["Redshirts"])
+        m5.metric(f"{team_b} Avg Elig", cb_b["Avg Elig"])
+        m6.metric(f"{team_b} Young", cb_b["Young (3-4yr elig)"])
+
+        st.markdown("---")
+        st.markdown("#### 🌟 Top Young Talent (3-4 eligibility years remaining)")
+        young_cols = ["Name", "Pos", "ExpTag", "OVR", "SPD", "FV"]
+        young_a = roster_a[roster_a["EligLeft"] >= 3].nlargest(8, "OVR")[young_cols].reset_index(drop=True)
+        young_b = roster_b[roster_b["EligLeft"] >= 3].nlargest(8, "OVR")[young_cols].reset_index(drop=True)
+        yc1, yc2 = st.columns(2)
+        with yc1:
+            st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a}</span>", unsafe_allow_html=True)
+            st.dataframe(young_a.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True)
+        with yc2:
+            st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b}</span>", unsafe_allow_html=True)
+            st.dataframe(young_b.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True)
+
+        st.markdown("#### 🏆 Senior Leaders (final year)")
+        vets_a = roster_a[roster_a["EligLeft"] == 1].nlargest(6, "OVR")[["Name", "Pos", "ExpTag", "OVR", "SPD", "AWR"]].reset_index(drop=True)
+        vets_b = roster_b[roster_b["EligLeft"] == 1].nlargest(6, "OVR")[["Name", "Pos", "ExpTag", "OVR", "SPD", "AWR"]].reset_index(drop=True)
+        vc1, vc2 = st.columns(2)
+        with vc1:
+            st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a}</span>", unsafe_allow_html=True)
+            st.dataframe(vets_a.rename(columns={"ExpTag": "Status"}), hide_index=True, use_container_width=True) if not vets_a.empty else st.caption("No seniors.")
+        with vc2:
+            st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b}</span>", unsafe_allow_html=True)
+            st.dataframe(vets_b.rename(columns={"ExpTag": "Status"}), hide_index=True, use_container_width=True) if not vets_b.empty else st.caption("No seniors.")
+
+        # Redshirt breakdown
+        st.markdown("---")
+        st.markdown("#### 🔄 Redshirt Inventory")
+        st.caption("Redshirts = players who gained a year in the program without burning eligibility. These players have more development than their class label suggests.")
+        rs_a = roster_a[roster_a['IsRS']].sort_values("OVR", ascending=False)[["Name", "Pos", "ExpTag", "OVR", "SPD", "FV"]].reset_index(drop=True)
+        rs_b = roster_b[roster_b['IsRS']].sort_values("OVR", ascending=False)[["Name", "Pos", "ExpTag", "OVR", "SPD", "FV"]].reset_index(drop=True)
+        rc1, rc2 = st.columns(2)
+        with rc1:
+            st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a} — {len(rs_a)} redshirts</span>", unsafe_allow_html=True)
+            st.dataframe(rs_a.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True) if not rs_a.empty else st.caption("No redshirts.")
+        with rc2:
+            st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b} — {len(rs_b)} redshirts</span>", unsafe_allow_html=True)
+            st.dataframe(rs_b.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True) if not rs_b.empty else st.caption("No redshirts.")
+
+    # ════════════════════════════════════════════════════════════════════════
+    # TAB 5 -- FUTURE VALUE / PIPELINE
+    # ════════════════════════════════════════════════════════════════════════
+    with tab_pipeline:
+        st.subheader("🚀 Future Value & Pipeline Analysis")
+        st.caption("Future Value (FV) = OVR x 0.55 + Athleticism x 0.25 + Eligibility Years x 3.0. High FV + low OVR = high-ceiling athlete who hasn't peaked yet. 🌠 = High Ceiling flag (young + 82+ athleticism + sub-85 OVR).")
+
+        # FV scatter plot: OVR vs FV, bubble size = SPD
+        fv_cols = ["Name", "Pos", "ExpTag", "OVR", "SPD", "AthlScore", "EligLeft", "FV", "HighCeiling"]
+
+        fig3 = go.Figure()
+        for df, color, name in [(roster_a, color_a, team_a), (roster_b, color_b, team_b)]:
+            ceiling_mask = df["HighCeiling"]
+            # Regular players
+            reg = df[~ceiling_mask]
+            fig3.add_trace(go.Scatter(
+                x=reg["OVR"], y=reg["FV"],
+                mode="markers",
+                name=name,
+                marker=dict(color=color, size=reg["SPD"].apply(lambda s: max(6, int((s-60)/3))), opacity=0.65, line=dict(width=0)),
+                text=reg.apply(lambda r: f"{r['Name']} ({r['Pos']}) | {int(r['EligLeft'])}yr left | FV:{r['FV']}", axis=1),
+                hoverinfo="text",
+            ))
+            # High ceiling players
+            ceil_players = df[ceiling_mask]
+            if not ceil_players.empty:
+                fig3.add_trace(go.Scatter(
+                    x=ceil_players["OVR"], y=ceil_players["FV"],
+                    mode="markers+text",
+                    name=f"{name} 🌠 High Ceiling",
+                    marker=dict(color=color, size=14, symbol="star", line=dict(width=1.5, color="white")),
+                    text=ceil_players["Name"],
+                    textposition="top center",
+                    textfont=dict(size=9, color=color),
+                    hovertext=ceil_players.apply(lambda r: f"{r['Name']} ({r['Pos']}) | {int(r['EligLeft'])}yr left | FV:{r['FV']}", axis=1),
+                    hoverinfo="text",
+                ))
+
+        fig3.update_layout(
+            xaxis_title="Current OVR", yaxis_title="Future Value Score",
+            height=460, margin=dict(t=40, b=40, l=40, r=40),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(gridcolor="#374151"), yaxis=dict(gridcolor="#374151"),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
         )
-        col_mid.markdown(
-            f"<div style='text-align:center;color:#6b7280;font-size:0.78rem;font-weight:600;'>{label}</div>",
-            unsafe_allow_html=True
-        )
-        col_b.markdown(
-            f"<div style='text-align:center;font-size:1.05rem;color:{color_b};'>{val_b_str}</div>",
-            unsafe_allow_html=True
-        )
+        st.plotly_chart(fig3, use_container_width=True)
+        st.caption("Bubble size = Speed rating. Stars (🌠) = High Ceiling players. Upper-left quadrant = low OVR but high future value -- the gems.")
 
-    st.markdown("<hr style='margin:8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+        # Top 10 FV players each team
+        st.markdown("---")
+        st.markdown("#### 🏆 Top 10 Future Value Players")
+        fv_disp = ["Name", "Pos", "ExpTag", "OVR", "SPD", "AthlScore", "EligLeft", "FV", "HighCeiling"]
+        top_fv_a = roster_a.nlargest(10, "FV")[fv_disp].reset_index(drop=True)
+        top_fv_b = roster_b.nlargest(10, "FV")[fv_disp].reset_index(drop=True)
+        top_fv_a["HighCeiling"] = top_fv_a["HighCeiling"].apply(lambda x: "🌠" if x else "")
+        top_fv_b["HighCeiling"] = top_fv_b["HighCeiling"].apply(lambda x: "🌠" if x else "")
+        fv1, fv2 = st.columns(2)
+        with fv1:
+            st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a}</span>", unsafe_allow_html=True)
+            st.dataframe(top_fv_a.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig", "HighCeiling": "🌠"}), hide_index=True, use_container_width=True)
+        with fv2:
+            st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b}</span>", unsafe_allow_html=True)
+            st.dataframe(top_fv_b.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig", "HighCeiling": "🌠"}), hide_index=True, use_container_width=True)
 
-    # ── RADAR CHART ──────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("🕸️ Attribute Spider Chart")
+        # High ceiling sleepers specifically
+        st.markdown("---")
+        st.markdown("#### 🌠 High Ceiling Sleepers")
+        st.caption("Young athletes (3-4yr eligibility) with elite athleticism (82+ avg SPD/ACC/AGI/COD) but current OVR still under 85. These are the breakout candidates.")
+        sleepers_a = roster_a[roster_a["HighCeiling"]].sort_values("FV", ascending=False)[["Name", "Pos", "ExpTag", "OVR", "SPD", "AthlScore", "EligLeft", "FV"]].reset_index(drop=True)
+        sleepers_b = roster_b[roster_b["HighCeiling"]].sort_values("FV", ascending=False)[["Name", "Pos", "ExpTag", "OVR", "SPD", "AthlScore", "EligLeft", "FV"]].reset_index(drop=True)
+        sl1, sl2 = st.columns(2)
+        with sl1:
+            st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a} — {len(sleepers_a)} sleepers</span>", unsafe_allow_html=True)
+            st.dataframe(sleepers_a.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig"}), hide_index=True, use_container_width=True) if not sleepers_a.empty else st.caption("No high-ceiling sleepers found.")
+        with sl2:
+            st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b} — {len(sleepers_b)} sleepers</span>", unsafe_allow_html=True)
+            st.dataframe(sleepers_b.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig"}), hide_index=True, use_container_width=True) if not sleepers_b.empty else st.caption("No high-ceiling sleepers found.")
 
-    avg_a = [round(roster_a[a].mean(), 1) for a in ATTRS]
-    avg_b = [round(roster_b[a].mean(), 1) for a in ATTRS]
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(
-        r=avg_a + [avg_a[0]],
-        theta=ATTRS + [ATTRS[0]],
-        fill="toself",
-        name=team_a,
-        line=dict(color=color_a, width=2),
-        fillcolor=hex_to_rgba(color_a, 0.27),
-    ))
-    fig.add_trace(go.Scatterpolar(
-        r=avg_b + [avg_b[0]],
-        theta=ATTRS + [ATTRS[0]],
-        fill="toself",
-        name=team_b,
-        line=dict(color=color_b, width=2),
-        fillcolor=hex_to_rgba(color_b, 0.27),
-    ))
-    fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[60, 100], tickfont=dict(size=10))),
-        showlegend=True,
-        height=430,
-        margin=dict(t=50, b=50, l=60, r=60),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5),
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # ── POSITIONAL BATTLE BREAKDOWN ─────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("⚔️ Positional Battle Breakdown")
-    st.caption("Top 3 players per group are used for comparison. Composite score = 70% OVR + 30% Speed.")
-
-    group_results = []
-
-    for group_name, positions in POS_GROUPS.items():
-        grp_a = roster_a[roster_a["Pos"].isin(positions)].nlargest(3, "OVR")
-        grp_b = roster_b[roster_b["Pos"].isin(positions)].nlargest(3, "OVR")
-
-        if grp_a.empty and grp_b.empty:
-            continue
-
-        avg_ovr_a = grp_a["OVR"].mean() if not grp_a.empty else 0
-        avg_ovr_b = grp_b["OVR"].mean() if not grp_b.empty else 0
-        avg_spd_a = grp_a["SPD"].mean() if not grp_a.empty else 0
-        avg_spd_b = grp_b["SPD"].mean() if not grp_b.empty else 0
-
-        score_a = round(avg_ovr_a * 0.70 + avg_spd_a * 0.30, 1)
-        score_b = round(avg_ovr_b * 0.70 + avg_spd_b * 0.30, 1)
-        margin   = abs(score_a - score_b)
-
-        if score_a > score_b:
-            winner_team  = team_a
-            winner_color = color_a
-        else:
-            winner_team  = team_b
-            winner_color = color_b
-
-        if margin < 0.5:
-            badge = "🟰 <span style='color:#9ca3af;'>EVEN</span>"
-        elif margin < 2.0:
-            badge = f"<span style='color:{winner_color};'>SLIGHT EDGE: {html.escape(winner_team)}</span>"
-        elif margin < 4.0:
-            badge = f"<span style='color:{winner_color};font-weight:700;'>EDGE: {html.escape(winner_team)}</span>"
-        else:
-            badge = f"<span style='color:{winner_color};font-weight:900;'>BIG ADVANTAGE: {html.escape(winner_team)} 🔥</span>"
-
-        group_results.append({
-            "group":   group_name,
-            "winner":  winner_team if margin >= 0.5 else "EVEN",
-            "margin":  margin,
-            "score_a": score_a,
-            "score_b": score_b,
-        })
-
-        # Plain-text expander label (no HTML allowed in expander title)
-        if margin < 0.5:
-            plain_label = f"{group_name}  —  🟰 EVEN"
-        elif margin < 2.0:
-            plain_label = f"{group_name}  —  Slight Edge: {winner_team}"
-        elif margin < 4.0:
-            plain_label = f"{group_name}  —  Edge: {winner_team} ✅"
-        else:
-            plain_label = f"{group_name}  —  BIG ADVANTAGE: {winner_team} 🔥"
-
-        with st.expander(plain_label, expanded=False):
-            # Styled badge rendered INSIDE where HTML works fine
-            st.markdown(badge, unsafe_allow_html=True)
-
-            score_c1, score_c2, score_c3 = st.columns([2, 3, 2])
-            score_c1.metric(f"{team_a} Score", score_a)
-            score_c3.metric(f"{team_b} Score", score_b)
-            score_c2.markdown(
-                "<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>",
-                unsafe_allow_html=True,
-            )
-
-            pa, pb = st.columns(2)
-            disp_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
-
-            sm_logo_a = f"<img src='{logo_uri_a}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_a else "🏈 "
-            sm_logo_b = f"<img src='{logo_uri_b}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_b else "🏈 "
-
-            with pa:
-                st.markdown(
-                    f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_a}<span style='color:{color_a};font-weight:800;font-size:0.95rem;'>{team_a}</span></div>",
-                    unsafe_allow_html=True
-                )
-                if grp_a.empty:
-                    st.caption("No players at this position.")
-                else:
-                    st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
-            with pb:
-                st.markdown(
-                    f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_b}<span style='color:{color_b};font-weight:800;font-size:0.95rem;'>{team_b}</span></div>",
-                    unsafe_allow_html=True
-                )
-                if grp_b.empty:
-                    st.caption("No players at this position.")
-                else:
-                    st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
-
-    # ── BATTLE SCORECARD ─────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("🏟️ Battle Scorecard")
-
-    wins_a = sum(1 for r in group_results if r["winner"] == team_a)
-    wins_b = sum(1 for r in group_results if r["winner"] == team_b)
-    ties    = sum(1 for r in group_results if r["winner"] == "EVEN")
-    total   = len(group_results)
-
-    sc1, sc2, sc3 = st.columns(3)
-    sc1.markdown(
-        f"<div style='text-align:center;'>{logo_html_a}<span style='font-size:0.8rem;color:{color_a};font-weight:700;'>{team_a}</span></div>",
-        unsafe_allow_html=True
-    )
-    sc1.metric("Group Wins", wins_a)
-    sc2.metric("Even Matchups", ties)
-    sc3.markdown(
-        f"<div style='text-align:center;'>{logo_html_b}<span style='font-size:0.8rem;color:{color_b};font-weight:700;'>{team_b}</span></div>",
-        unsafe_allow_html=True
-    )
-    sc3.metric("Group Wins", wins_b)
-
-    # ── SCOUTING REPORT ──────────────────────────────────────────────────────
-    st.markdown("---")
-    st.subheader("📋 Scouting Report")
-
-    adv_a = sorted([r for r in group_results if r["winner"] == team_a], key=lambda x: x["margin"], reverse=True)
-    adv_b = sorted([r for r in group_results if r["winner"] == team_b], key=lambda x: x["margin"], reverse=True)
-
-    lines = []
-
-    # Positional advantages
-    if adv_a:
-        top_groups = ", ".join([r["group"] for r in adv_a[:2]])
-        lines.append(f"**{team_a}** has the roster advantage at **{top_groups}**{' and ' + str(len(adv_a)-2) + ' more groups' if len(adv_a) > 2 else ''}.")
-    if adv_b:
-        top_groups = ", ".join([r["group"] for r in adv_b[:2]])
-        lines.append(f"**{team_b}** counters with the edge at **{top_groups}**{' and ' + str(len(adv_b)-2) + ' more groups' if len(adv_b) > 2 else ''}.")
-
-    # Speed narrative
-    spd_a = summ_a["90+ SPD Count"]
-    spd_b = summ_b["90+ SPD Count"]
-    if spd_a > spd_b + 1:
-        lines.append(f"The speed gap is real — **{team_a}** has **{spd_a}** players clocked at 90+ SPD vs {team_b}'s **{spd_b}**. That kind of depth wins in space, especially late in games when pursuit angles break down.")
-    elif spd_b > spd_a + 1:
-        lines.append(f"**{team_b}** brings the burners — **{spd_b}** players at 90+ SPD vs {team_a}'s **{spd_a}**. That's a matchup nightmare if you're trying to run the perimeter or play press coverage.")
-    else:
-        lines.append(f"Speed depth is essentially equal — **{spd_a}** vs **{spd_b}** players at 90+ SPD. This game doesn't get decided on raw athleticism; it comes down to execution and game planning.")
-
-    # AWR narrative
-    awr_a = summ_a["Avg AWR"]
-    awr_b = summ_b["Avg AWR"]
-    if abs(awr_a - awr_b) >= 3:
-        smarter = team_a if awr_a > awr_b else team_b
-        smarter_val = max(awr_a, awr_b)
-        lines.append(f"**{smarter}** also has the awareness edge ({smarter_val} avg AWR), which means fewer blown assignments and faster reads. Smart football on top of the athletic advantage is a problem.")
-
-    # Big advantage callout
-    big_adv_a = [r for r in adv_a if r["margin"] >= 4]
-    big_adv_b = [r for r in adv_b if r["margin"] >= 4]
-    if big_adv_a:
-        lines.append(f"The **{', '.join([r['group'] for r in big_adv_a])}** unit for **{team_a}** isn't just better — it's a genuine mismatch. Game-planning around that has to be the top priority for {team_b}'s coaching staff.")
-    if big_adv_b:
-        lines.append(f"**{team_b}** has a dominant edge at **{', '.join([r['group'] for r in big_adv_b])}**. That's the kind of positional advantage that bends entire game plans and keeps coordinators up at night.")
-
-    # Overall verdict
-    if wins_a > wins_b:
-        verdict_team, verdict_color = team_a, color_a
-        verdict_desc = f"wins {wins_a} of {total} positional battles"
-    elif wins_b > wins_a:
-        verdict_team, verdict_color = team_b, color_b
-        verdict_desc = f"wins {wins_b} of {total} positional battles"
-    else:
-        verdict_team  = "Neither team"
-        verdict_color = "#9ca3af"
-        verdict_desc  = "— this matchup is an absolute coin flip on paper"
-
-    for line in lines:
-        st.markdown(line)
-
-    st.markdown(
-        f"""<div style="padding:1rem 1.25rem;border-left:6px solid {verdict_color};
-        background:{verdict_color}18;border-radius:8px;margin-top:1rem;">
-        <strong>Roster Verdict:</strong> <span style="color:{verdict_color};font-size:1.05rem;font-weight:800;">
-        {html.escape(verdict_team)}</span> {verdict_desc}. Paper never plays the game, but this one matters.
-        </div>""",
-        unsafe_allow_html=True,
-    )
+        # Pipeline summary
+        st.markdown("---")
+        avg_fv_a = round(roster_a["FV"].mean(), 1)
+        avg_fv_b = round(roster_b["FV"].mean(), 1)
+        ceiling_a = int(roster_a["HighCeiling"].sum())
+        ceiling_b = int(roster_b["HighCeiling"].sum())
+        better_pipeline = team_a if avg_fv_a > avg_fv_b else team_b
+        pipeline_color  = color_a if avg_fv_a > avg_fv_b else color_b
+        st.markdown(f"""<div style="padding:0.9rem 1.25rem;border-left:6px solid {pipeline_color};background:{pipeline_color}15;border-radius:8px;font-size:0.92rem;">
+        <strong>Pipeline Verdict:</strong> <span style="color:{pipeline_color};font-weight:800;">{html.escape(better_pipeline)}</span> has the stronger future value roster
+        (avg FV: <strong>{avg_fv_a}</strong> vs <strong>{avg_fv_b}</strong>). High-ceiling sleepers: <strong style="color:{color_a};">{team_a} {ceiling_a}</strong> vs <strong style="color:{color_b};">{team_b} {ceiling_b}</strong>.
+        The team with more sleepers is one progression cycle away from a significant talent jump.
+        </div>""", unsafe_allow_html=True)
 
 
 def load_data():
