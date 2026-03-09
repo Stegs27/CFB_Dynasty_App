@@ -3846,6 +3846,33 @@ if data:
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
 
+    USER_TEAMS = {
+        'Mike':  'San Jose State',
+        'Devin': 'Bowling Green',
+        'Josh':  'USF',
+        'Noah':  'Texas Tech',
+        'Doug':  'Florida',
+        'Nick':  'Florida State',
+    }
+
+    RIVALRY_NAMES = {
+        frozenset(["Mike",  "Noah"]):  ("⚡ The Overclocked Bowl",      "Two tech schools. One beef. It's the nerd rivalry nobody asked for and everyone should fear."),
+        frozenset(["Mike",  "Doug"]):  ("🥖 The Sourdough & Swamp Bowl","West Coast vibes vs Florida Man energy. It shouldn't work but it absolutely goes."),
+        frozenset(["Mike",  "Nick"]):  ("🥇 The Gold Rush Classic",     "Gold helmets, West Coast money, Tallahassee attitude. Someone's getting cooked."),
+        frozenset(["Mike",  "Devin"]): ("🦅 The Falcon Punch Bowl",     "SJSU vs Bowling Green. Mountain West chaos meets MAC energy. Low-key unhinged."),
+        frozenset(["Mike",  "Josh"]):  ("🌊 The Bay vs the Bull",       "California cool meets Tampa heat. Somebody's leaving sunburned."),
+        frozenset(["Noah",  "Doug"]):  ("🍖 The Brisket & Gator Tail Showdown","Texas BBQ pit vs Florida swamp cuisine. Bragging rights served with hot sauce."),
+        frozenset(["Noah",  "Nick"]):  ("🤠 The Lone Star vs Garnet Grudge","Red Raiders and Seminoles. They meet in the middle of nowhere and throw haymakers."),
+        frozenset(["Noah",  "Devin"]): ("🏹 The Wreck the Tech Bowl",   "Noah's Raiders vs Devin's Falcons. Low-key nasty every single time."),
+        frozenset(["Noah",  "Josh"]):  ("🍞 The Texas Toast vs Tampa Bowl","Lone Star swagger meets Florida Lightning. The vibe check nobody passes."),
+        frozenset(["Doug",  "Nick"]):  ("🍊 The Florida Man Bowl",      "Both of y'all live in Florida. This is the most unhinged in-state rivalry in dynasty history."),
+        frozenset(["Doug",  "Devin"]): ("🍩 The Swamp Donuts Classic",  "Florida Gators vs Bowling Green Falcons. Doesn't make geographic sense. Still slaps."),
+        frozenset(["Doug",  "Josh"]):  ("⚡ The I-4 Grudge Match",      "Tampa to Gainesville is 2 hours. This rivalry lives rent-free in both their heads."),
+        frozenset(["Nick",  "Devin"]): ("🏈 The Seminole & Falcon Faceoff","Tallahassee prestige vs MAC grit. Blue chips vs chaos. Pick your poison."),
+        frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
+        frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
+    }
+
     tabs = st.tabs([
         "🗞️ Dynasty News",
         "📐 SOS & True Path",
@@ -3887,7 +3914,7 @@ if data:
             _cpu_sos['Vis Score']    = pd.to_numeric(_cpu_sos['Vis Score'],    errors='coerce')
             _cpu_sos['Home Score']   = pd.to_numeric(_cpu_sos['Home Score'],   errors='coerce')
 
-        # Speed data from model
+        # Speed + QB data from model
         _speed_map = {}
         for _, _sr in model_2041.iterrows():
             _speed_map[_sr['USER']] = {
@@ -3896,6 +3923,8 @@ if data:
                 'def_speed':  float(_sr.get('Def Speed (90+ speed)', 0) or 0),
                 'gen':        float(_sr.get('Generational (96+ speed or 96+ Acceleration)', 0) or 0),
                 'overall':    float(_sr.get('OVERALL', 80) or 80),
+                'qb_ovr':     float(_sr.get('QB OVR', 80) or 80),
+                'qb_tier':    str(_sr.get('QB Tier', 'Average Joe')).strip(),
                 'team':       _sr['TEAM'],
                 'conf':       _sr.get('CONFERENCE', 'Other'),
             }
@@ -3936,11 +3965,19 @@ if data:
             return pd.DataFrame(results)
 
         def _speed_handicap(user):
-            spd = _speed_map.get(user, {}).get('team_speed', _league_avg_speed)
-            # Below avg speed = positive handicap (schedule feels harder)
-            # Above avg speed = small negative (speed advantage)
-            raw = (_league_avg_speed - spd) * 0.55
-            return round(raw, 2)
+            info = _speed_map.get(user, {})
+            spd  = info.get('team_speed', _league_avg_speed)
+            # Speed component: slower = positive (harder effective path)
+            spd_raw = (_league_avg_speed - spd) * 0.55
+            # QB component: Ass QB amplifies difficulty, Elite QB softens it
+            qb_tier = info.get('qb_tier', 'Average Joe')
+            qb_ovr  = info.get('qb_ovr', 80)
+            qb_base = {'Elite': -4.0, 'Leader': -1.5, 'Average Joe': 1.5, 'Ass': 5.0}.get(qb_tier, 0)
+            if qb_tier == 'Elite':
+                qb_base += (qb_ovr - 90) * -0.12   # 95 OVR gets extra -0.6 relief
+            elif qb_tier == 'Ass':
+                qb_base += max(0, 80 - qb_ovr) * 0.20  # below 80 punished harder
+            return round(spd_raw + qb_base, 2)
 
         def _sos_score(games_df):
             if games_df.empty: return 0, 0, 0, 0
@@ -3977,6 +4014,8 @@ if data:
                 '_handicap': handicap,
                 'Adj SOS': adj_sos,
                 'Team Speed': int(spd_info.get('team_speed', 0)),
+                'QB Tier': spd_info.get('qb_tier', '—'),
+                'QB OVR': int(spd_info.get('qb_ovr', 0)),
                 'Conference': spd_info.get('conf', '—'),
             })
         resume_df = pd.DataFrame(resume_rows).sort_values('Adj SOS', ascending=False).reset_index(drop=True)
@@ -4010,6 +4049,7 @@ if data:
           <th style='padding:10px 12px;text-align:center;'>TOP-10 W</th>
           <th style='padding:10px 12px;text-align:center;'>AVG OPP RK</th>
           <th style='padding:10px 12px;text-align:center;'>SPEED GUYS</th>
+          <th style='padding:10px 12px;text-align:center;'>QB</th>
           <th style='padding:10px 12px;text-align:center;'>HANDICAP</th>
           <th style='padding:10px 12px;text-align:center;'>ADJ SOS</th>
         </tr></thead><tbody>"""
@@ -4026,6 +4066,15 @@ if data:
             spd = row['Team Speed']
             spd_bar = f"<div style='display:inline-flex;align-items:center;gap:5px;'><div style='background:#1e293b;border-radius:3px;width:52px;height:8px;overflow:hidden;'><div style='background:{tc};width:{min(100,int(spd/15*100))}%;height:8px;border-radius:3px;'></div></div><span style='color:#94a3b8;font-size:0.72rem;'>{spd}</span></div>"
             adj_color = "#22c55e" if row['Adj SOS'] >= resume_df['Adj SOS'].median() else "#f97316"
+            # QB badge
+            _qt = str(row.get('QB Tier', '—'))
+            _qovr = int(row.get('QB OVR', 0))
+            _qt_style = {'Elite':('#22c55e','#0d2010'), 'Leader':('#60a5fa','#0d1829'), 'Average Joe':('#fbbf24','#1c1400'), 'Ass':('#ef4444','#200808')}
+            _qtc = _qt_style.get(_qt, ('#6b7280','#1f2937'))
+            qb_cell = (f"<div style='display:flex;flex-direction:column;align-items:center;gap:1px;'>"
+                       f"<span style='padding:2px 5px;border-radius:4px;font-size:0.65rem;font-weight:800;"
+                       f"background:{_qtc[1]};color:{_qtc[0]};white-space:nowrap;'>{html.escape(_qt)}</span>"
+                       f"<span style='color:#475569;font-size:0.68rem;'>{_qovr} OVR</span></div>")
             # Conf badge
             cconf = str(row['Conference'])
             conf_colors = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}
@@ -4045,6 +4094,7 @@ if data:
               <td style='padding:10px 12px;text-align:center;color:{"#fbbf24" if row["Top-10 Wins"]>=2 else "#f3f4f6"};font-weight:{"800" if row["Top-10 Wins"]>=2 else "400"};'>{row['Top-10 Wins']}</td>
               <td style='padding:10px 12px;text-align:center;color:#94a3b8;'>{avg_opp_disp}</td>
               <td style='padding:10px 12px;text-align:center;'>{spd_bar}</td>
+              <td style='padding:10px 12px;text-align:center;'>{qb_cell}</td>
               <td style='padding:10px 12px;text-align:center;color:{hcap_color};font-weight:700;'>{row['Speed Handicap']}</td>
               <td style='padding:10px 12px;text-align:center;color:{adj_color};font-weight:800;font-size:0.95rem;'>{row['Adj SOS']}</td>
             </tr>"""
@@ -4065,9 +4115,18 @@ if data:
         sel_handicap = _speed_handicap(sel_user)
 
         if not sel_games.empty:
-            # Speed context banner
+            # Speed + QB context banner
+            sel_qb_tier = _speed_map.get(sel_user, {}).get('qb_tier', 'Average Joe')
+            sel_qb_ovr  = int(_speed_map.get(sel_user, {}).get('qb_ovr', 80))
             spd_tier = "Elite 🔥" if sel_speed >= 13 else ("Above Avg ⚡" if sel_speed >= 10 else ("Below Avg ⚠️" if sel_speed >= 7 else "Slow 🐢"))
-            spd_msg  = "Speed advantage softens tough matchups." if sel_speed >= 10 else f"Limited speed (+{sel_handicap:.1f} handicap) means no margin for error against fast opponents."
+            _qb_notes = {
+                'Elite':       f"Elite QB ({sel_qb_ovr} OVR) — bails you out when the schedule gets nasty.",
+                'Leader':      f"Leader QB ({sel_qb_ovr} OVR) — solid, won't lose you games you should win.",
+                'Average Joe': f"Average Joe QB ({sel_qb_ovr} OVR) — adds +1.5 to difficulty. Can't paper over mediocre.",
+                'Ass':         f"💀 Ass QB ({sel_qb_ovr} OVR) — adds +5.0 to effective difficulty. This whole season is a knife fight.",
+            }
+            qb_note = _qb_notes.get(sel_qb_tier, "")
+            spd_msg = ("Speed advantage softens tough matchups. " if sel_speed >= 10 else f"Limited speed means no margin for error. ") + qb_note
             st.markdown(
                 f"<div style='background:#0d1a2e;border-left:4px solid {sel_color};border-radius:8px;padding:10px 14px;margin-bottom:12px;'>"
                 f"<span style='color:{sel_color};font-weight:800;'>{html.escape(sel_team)}</span> "
@@ -4229,33 +4288,6 @@ if data:
             ].set_index('TEAM')['RANK'].to_dict()
         except Exception:
             preseason_rank_map = {}
-
-        USER_TEAMS = {
-            'Mike':  'San Jose State',
-            'Devin': 'Bowling Green',
-            'Josh':  'USF',
-            'Noah':  'Texas Tech',
-            'Doug':  'Florida',
-            'Nick':  'Florida State',
-        }
-
-        RIVALRY_NAMES = {
-            frozenset(["Mike",  "Noah"]):  ("⚡ The Overclocked Bowl",      "Two tech schools. One beef. It's the nerd rivalry nobody asked for and everyone should fear."),
-            frozenset(["Mike",  "Doug"]):  ("🥖 The Sourdough & Swamp Bowl","West Coast vibes vs Florida Man energy. It shouldn't work but it absolutely goes."),
-            frozenset(["Mike",  "Nick"]):  ("🥇 The Gold Rush Classic",     "Gold helmets, West Coast money, Tallahassee attitude. Someone's getting cooked."),
-            frozenset(["Mike",  "Devin"]): ("🦅 The Falcon Punch Bowl",     "SJSU vs Bowling Green. Mountain West chaos meets MAC energy. Low-key unhinged."),
-            frozenset(["Mike",  "Josh"]):  ("🌊 The Bay vs the Bull",       "California cool meets Tampa heat. Somebody's leaving sunburned."),
-            frozenset(["Noah",  "Doug"]):  ("🍖 The Brisket & Gator Tail Showdown","Texas BBQ pit vs Florida swamp cuisine. Bragging rights served with hot sauce."),
-            frozenset(["Noah",  "Nick"]):  ("🤠 The Lone Star vs Garnet Grudge","Red Raiders and Seminoles. They meet in the middle of nowhere and throw haymakers."),
-            frozenset(["Noah",  "Devin"]): ("🏹 The Wreck the Tech Bowl",   "Noah's Raiders vs Devin's Falcons. Low-key nasty every single time."),
-            frozenset(["Noah",  "Josh"]):  ("🍞 The Texas Toast vs Tampa Bowl","Lone Star swagger meets Florida Lightning. The vibe check nobody passes."),
-            frozenset(["Doug",  "Nick"]):  ("🍊 The Florida Man Bowl",      "Both of y'all live in Florida. This is the most unhinged in-state rivalry in dynasty history."),
-            frozenset(["Doug",  "Devin"]): ("🍩 The Swamp Donuts Classic",  "Florida Gators vs Bowling Green Falcons. Doesn't make geographic sense. Still slaps."),
-            frozenset(["Doug",  "Josh"]):  ("⚡ The I-4 Grudge Match",      "Tampa to Gainesville is 2 hours. This rivalry lives rent-free in both their heads."),
-            frozenset(["Nick",  "Devin"]): ("🏈 The Seminole & Falcon Faceoff","Tallahassee prestige vs MAC grit. Blue chips vs chaos. Pick your poison."),
-            frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
-            frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
-        }
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 1 — SEASON POWER RANKINGS
