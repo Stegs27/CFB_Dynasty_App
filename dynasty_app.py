@@ -404,9 +404,8 @@ def format_pct(val, digits=1):
 
 def mobile_metrics(metrics, cols_desktop=4):
     """
-    Render a row of metric cards as a CSS grid.
-    Displays cols_desktop-per-row on desktop, 2-per-row on mobile.
-    metrics: list of dicts with keys: label, value, delta (optional), delta_color (optional: 'normal'|'inverse'|'off')
+    Render a row of metric cards as a responsive CSS grid.
+    Uses auto-fit so it naturally reflows to 2-per-row on small screens.
     """
     cards_html = ""
     for m in metrics:
@@ -424,29 +423,28 @@ def mobile_metrics(metrics, cols_desktop=4):
                 dc = "#f87171" if is_positive else "#4ade80"
             else:
                 dc = "#4ade80" if is_positive else "#f87171"
-            arrow = "▲" if is_positive else "▼"
+            arrow = "&#9650;" if is_positive else "&#9660;"
             delta_html = f"<div style='font-size:0.72rem;color:{dc};font-weight:600;margin-top:2px;'>{arrow} {html.escape(delta_str)}</div>"
-        cards_html += f"""
-        <div style='background:#1f2937;border:1px solid #374151;border-radius:10px;
-        padding:10px 12px;min-width:0;'>
-          <div style='font-size:0.72rem;color:#9ca3af;font-weight:600;text-transform:uppercase;
-          letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;overflow:hidden;
-          text-overflow:ellipsis;'>{label}</div>
-          <div style='font-size:1.15rem;font-weight:800;color:#f3f4f6;line-height:1.2;'>{value}</div>
-          {delta_html}
-        </div>"""
-    st.markdown(f"""
-    <div style='display:grid;grid-template-columns:repeat({cols_desktop},1fr);gap:8px;margin-bottom:1rem;'>
-      {cards_html}
-    </div>
-    <style>
-    @media(max-width:640px){{
-      div[style*="grid-template-columns:repeat({cols_desktop}"] {{
-        grid-template-columns: repeat(2,1fr) !important;
-      }}
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+        cards_html += (
+            "<div style='background:#1f2937;border:1px solid #374151;border-radius:10px;"
+            "padding:10px 12px;min-width:0;'>"
+            f"<div style='font-size:0.72rem;color:#9ca3af;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;overflow:hidden;"
+            f"text-overflow:ellipsis;'>{label}</div>"
+            f"<div style='font-size:1.15rem;font-weight:800;color:#f3f4f6;line-height:1.2;'>{value}</div>"
+            f"{delta_html}"
+            "</div>"
+        )
+    # auto-fit with minmax: naturally goes 2-per-row on mobile, cols_desktop-per-row on wide screens
+    min_card = "140px"
+    grid_html = (
+        f"<div style='display:grid;"
+        f"grid-template-columns:repeat(auto-fit,minmax({min_card},1fr));"
+        f"gap:8px;margin-bottom:1rem;'>"
+        f"{cards_html}"
+        f"</div>"
+    )
+    st.markdown(grid_html, unsafe_allow_html=True)
 
 def normalize_history_team_name(team):
     t = str(team).strip()
