@@ -2637,6 +2637,37 @@ def get_current_recruiting_snapshot():
 
 
 def get_cfp_rankings_snapshot():
+    """
+    Always pulls from cfp_rankings_history.csv using the most recent YEAR+WEEK.
+    Falls back to hardcoded Week 9 data only if the file is missing or empty.
+    Update cfp_rankings_history.csv each week and this auto-updates everywhere:
+    Who's In?, Power Rankings, Toughest Matchups, game line estimates, etc.
+    """
+    try:
+        hist = pd.read_csv('cfp_rankings_history.csv')
+        if not hist.empty and 'YEAR' in hist.columns and 'WEEK' in hist.columns:
+            latest_year = hist['YEAR'].max()
+            latest_week = hist.loc[hist['YEAR'] == latest_year, 'WEEK'].max()
+            snap = hist[(hist['YEAR'] == latest_year) & (hist['WEEK'] == latest_week)].copy()
+            if not snap.empty:
+                snap = snap.rename(columns={'RANK': 'Rank', 'TEAM': 'Team', 'RECORD': 'Record'})
+                snap['Rank'] = pd.to_numeric(snap['Rank'], errors='coerce')
+                snap = snap.dropna(subset=['Rank']).sort_values('Rank').reset_index(drop=True)
+                # Parse wins/losses from Record column (e.g. "9-1")
+                def parse_wl(rec):
+                    try:
+                        parts = str(rec).split('-')
+                        return int(parts[0]), int(parts[1])
+                    except Exception:
+                        return 0, 0
+                snap['Wins']   = snap['Record'].apply(lambda r: parse_wl(r)[0])
+                snap['Losses'] = snap['Record'].apply(lambda r: parse_wl(r)[1])
+                snap['Logo']   = snap['Team'].apply(get_logo_source)
+                return snap[['Rank', 'Team', 'Wins', 'Losses', 'Record', 'Logo']]
+    except Exception:
+        pass
+
+    # ── FALLBACK: hardcoded Week 9 snapshot (used only if CSV missing) ────
     data = [
         (1, "Bowling Green", 9, 0),
         (2, "San Jose State", 9, 1),
@@ -3767,6 +3798,19 @@ if data:
     with tabs[2]:
         st.header("🏆 Who's In? | CFP Bubble Watch")
         st.caption("Built from your uploaded CFP ranking screenshots, then sharpened with this app's SOS, resume, QB, recruiting, and roster-strength model. Current CFP standards are assumed: five highest-ranked conference champs get in, plus seven at-larges, with the top four seeds earning byes.")
+
+        # ── DATA FRESHNESS BANNER ────────────────────────────────────────────
+        try:
+            _cfp_hist_check = pd.read_csv('cfp_rankings_history.csv')
+            if not _cfp_hist_check.empty:
+                _ly = _cfp_hist_check['YEAR'].max()
+                _lw = _cfp_hist_check.loc[_cfp_hist_check['YEAR'] == _ly, 'WEEK'].max()
+                _snap_size = len(_cfp_hist_check[(_cfp_hist_check['YEAR'] == _ly) & (_cfp_hist_check['WEEK'] == _lw)])
+                st.success(f"📡 **Live data** — showing Week {int(_lw)}, {int(_ly)} rankings ({_snap_size} teams). Update `cfp_rankings_history.csv` each week to keep this current.")
+            else:
+                st.warning("⚠️ `cfp_rankings_history.csv` is empty — showing fallback hardcoded rankings. Add rows to the CSV to go live.")
+        except Exception:
+            st.warning("⚠️ `cfp_rankings_history.csv` not found — showing fallback hardcoded Week 9 rankings. Push the CSV to your repo to go live.")
 
         cfp_rankings = get_cfp_rankings_snapshot()
         cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
