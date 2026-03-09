@@ -1073,10 +1073,16 @@ def render_roster_matchup_tab():
                 sm_logo_b = f"<img src='{logo_uri_b}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_b else "🏈 "
                 with pa:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_a}<span style='color:{color_a};font-weight:800;font-size:0.95rem;'>{team_a}</span></div>", unsafe_allow_html=True)
-                    st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True) if not grp_a.empty else st.caption("No players.")
+                    if not grp_a.empty:
+                        st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+                    else:
+                        st.caption("No players.")
                 with pb:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_b}<span style='color:{color_b};font-weight:800;font-size:0.95rem;'>{team_b}</span></div>", unsafe_allow_html=True)
-                    st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True) if not grp_b.empty else st.caption("No players.")
+                    if not grp_b.empty:
+                        st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+                    else:
+                        st.caption("No players.")
 
         # Scorecard
         st.markdown("---")
@@ -1291,10 +1297,16 @@ def render_roster_matchup_tab():
         vc1, vc2 = st.columns(2)
         with vc1:
             st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a}</span>", unsafe_allow_html=True)
-            st.dataframe(vets_a.rename(columns={"ExpTag": "Status"}), hide_index=True, use_container_width=True) if not vets_a.empty else st.caption("No seniors.")
+            if not vets_a.empty:
+                st.dataframe(vets_a.rename(columns={"ExpTag": "Status"}), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No seniors.")
         with vc2:
             st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b}</span>", unsafe_allow_html=True)
-            st.dataframe(vets_b.rename(columns={"ExpTag": "Status"}), hide_index=True, use_container_width=True) if not vets_b.empty else st.caption("No seniors.")
+            if not vets_b.empty:
+                st.dataframe(vets_b.rename(columns={"ExpTag": "Status"}), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No seniors.")
 
         # Redshirt breakdown
         st.markdown("---")
@@ -1305,10 +1317,16 @@ def render_roster_matchup_tab():
         rc1, rc2 = st.columns(2)
         with rc1:
             st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a} — {len(rs_a)} redshirts</span>", unsafe_allow_html=True)
-            st.dataframe(rs_a.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True) if not rs_a.empty else st.caption("No redshirts.")
+            if not rs_a.empty:
+                st.dataframe(rs_a.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No redshirts.")
         with rc2:
             st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b} — {len(rs_b)} redshirts</span>", unsafe_allow_html=True)
-            st.dataframe(rs_b.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True) if not rs_b.empty else st.caption("No redshirts.")
+            if not rs_b.empty:
+                st.dataframe(rs_b.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No redshirts.")
 
     # ════════════════════════════════════════════════════════════════════════
     # TAB 5 -- FUTURE VALUE / PIPELINE
@@ -1383,10 +1401,16 @@ def render_roster_matchup_tab():
         sl1, sl2 = st.columns(2)
         with sl1:
             st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a} — {len(sleepers_a)} sleepers</span>", unsafe_allow_html=True)
-            st.dataframe(sleepers_a.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig"}), hide_index=True, use_container_width=True) if not sleepers_a.empty else st.caption("No high-ceiling sleepers found.")
+            if not sleepers_a.empty:
+                st.dataframe(sleepers_a.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig"}), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No high-ceiling sleepers found.")
         with sl2:
             st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b} — {len(sleepers_b)} sleepers</span>", unsafe_allow_html=True)
-            st.dataframe(sleepers_b.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig"}), hide_index=True, use_container_width=True) if not sleepers_b.empty else st.caption("No high-ceiling sleepers found.")
+            if not sleepers_b.empty:
+                st.dataframe(sleepers_b.rename(columns={"ExpTag": "Status", "AthlScore": "Athl", "EligLeft": "Elig"}), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No high-ceiling sleepers found.")
 
         # Pipeline summary
         st.markdown("---")
