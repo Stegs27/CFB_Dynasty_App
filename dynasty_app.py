@@ -5545,43 +5545,62 @@ if data:
 
         # ── AWARDS BANNER ─────────────────────────────────────────────────────
         award_champ   = "TBD"
-        award_heisman = "TBD"
-        award_coty    = "TBD"
         champ_team    = champ_user = ""
+        heisman_player = heisman_team = heisman_user = ""
+        coty_coach     = coty_team   = coty_user    = ""
+
         if not champ_row.empty:
             champ_team = champ_row.iloc[0]['Team']
             champ_user = str(champ_row.iloc[0]['user'])
-            award_champ = f"{champ_team}"
+            award_champ = champ_team
         if not heisman_row.empty:
-            award_heisman = f"{heisman_row.iloc[0][meta['h_player']]} — {heisman_row.iloc[0][meta['h_school']]}"
+            heisman_player = str(heisman_row.iloc[0][meta['h_player']])
+            heisman_team   = str(heisman_row.iloc[0][meta['h_school']])
+            heisman_user   = str(heisman_row.iloc[0].get('USER', heisman_row.iloc[0].get('User', '')))
         if not coty_row.empty:
-            award_coty = f"{coty_row.iloc[0][meta['c_coach']]} — {coty_row.iloc[0][meta['c_school']]}"
+            coty_coach = str(coty_row.iloc[0][meta['c_coach']])
+            coty_team  = str(coty_row.iloc[0][meta['c_school']])
+            coty_user  = str(coty_row.iloc[0].get('User', coty_row.iloc[0].get('USER', '')))
 
-        _champ_logo_uri  = image_file_to_data_uri(get_logo_source(champ_team)) if champ_team else None
-        _champ_color     = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
-        _champ_logo_tag  = (f"<img src='{_champ_logo_uri}' style='width:52px;height:52px;object-fit:contain;'/>"
-                            if _champ_logo_uri else "🏆")
+        def _award_logo_tag(team, size=48):
+            uri = image_file_to_data_uri(get_logo_source(team)) if team else None
+            if uri:
+                return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;'/>"
+            return f"<span style='font-size:{int(size*0.55)}px;'>🏈</span>"
 
-        awards_html = f"""
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px;">
-          <div style="background:linear-gradient(135deg,{_champ_color}22,#0f172a);border:1px solid {_champ_color}66;
-                      border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
-            {_champ_logo_tag}
-            <div>
-              <div style="font-size:0.62rem;color:#94a3b8;letter-spacing:.08em;font-weight:700;">🏆 CHAMPION</div>
-              <div style="font-weight:900;color:{_champ_color};font-size:0.95rem;line-height:1.25;">{html.escape(award_champ)}</div>
-              <div style="font-size:0.7rem;color:#64748b;">{html.escape(champ_user)}</div>
-            </div>
-          </div>
-          <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:14px 16px;">
-            <div style="font-size:0.62rem;color:#94a3b8;letter-spacing:.08em;font-weight:700;margin-bottom:4px;">🏅 HEISMAN</div>
-            <div style="font-weight:700;color:#f1f5f9;font-size:0.88rem;">{html.escape(award_heisman)}</div>
-          </div>
-          <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:14px 16px;">
-            <div style="font-size:0.62rem;color:#94a3b8;letter-spacing:.08em;font-weight:700;margin-bottom:4px;">👔 COACH OF THE YEAR</div>
-            <div style="font-weight:700;color:#f1f5f9;font-size:0.88rem;">{html.escape(award_coty)}</div>
-          </div>
-        </div>"""
+        _champ_color = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
+        _heis_color  = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
+        _coty_color  = get_team_primary_color(coty_team) if coty_team else '#34d399'
+
+        def _award_card(accent, logo_tag, badge, line1, line2, line3=''):
+            sub = f"<div style='font-size:0.68rem;color:#64748b;margin-top:1px;'>{html.escape(line3)}</div>" if line3 else ''
+            return (
+                f"<div style='background:linear-gradient(135deg,{accent}22,#0f172a);"
+                f"border:1px solid {accent}55;border-radius:12px;padding:14px 16px;"
+                f"display:flex;align-items:center;gap:12px;'>"
+                f"{logo_tag}"
+                f"<div style='min-width:0;'>"
+                f"<div style='font-size:0.6rem;color:#94a3b8;letter-spacing:.08em;font-weight:700;margin-bottom:3px;'>{badge}</div>"
+                f"<div style='font-weight:900;color:{accent};font-size:0.92rem;line-height:1.25;"
+                f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(line1)}</div>"
+                f"<div style='font-size:0.72rem;color:#94a3b8;margin-top:1px;'>{html.escape(line2)}</div>"
+                f"{sub}"
+                f"</div></div>"
+            )
+
+        awards_html = (
+            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));"
+            "gap:10px;margin-bottom:16px;'>"
+            + _award_card(_champ_color, _award_logo_tag(champ_team, 52),
+                          "🏆 CHAMPION", award_champ or "TBD", champ_user)
+            + _award_card(_heis_color, _award_logo_tag(heisman_team, 52),
+                          "🏅 HEISMAN", heisman_player or "TBD",
+                          heisman_team, heisman_user)
+            + _award_card(_coty_color, _award_logo_tag(coty_team, 52),
+                          "👔 COACH OF THE YEAR", coty_coach or "TBD",
+                          coty_team, coty_user)
+            + "</div>"
+        )
         st.markdown(awards_html, unsafe_allow_html=True)
 
         if not y_data.empty:
