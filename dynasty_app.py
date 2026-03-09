@@ -1722,6 +1722,14 @@ def load_data():
         r_2041 = normalize_yes_no_columns(r_2041, yes_no_cols)
         r_2040 = normalize_yes_no_columns(r_2040, yes_no_cols)
 
+        # Rename legacy column name from TeamRatingsHistory.csv before any processing
+        _gb_old = 'Game Breakers (90+ Speed & 90+ Acceleration)'
+        _gb_new = 'Quad 90 (90+ SPD, ACC, AGI & COD)'
+        if _gb_old in r_2041.columns:
+            r_2041 = r_2041.rename(columns={_gb_old: _gb_new})
+        if _gb_old in r_2040.columns:
+            r_2040 = r_2040.rename(columns={_gb_old: _gb_new})
+
         for num_col in [
             'OVERALL', 'OFFENSE', 'DEFENSE', 'Team Speed (90+ Speed Guys)',
             'Def Speed (90+ speed)', 'Off Speed (90+ speed)',
@@ -1903,6 +1911,17 @@ def conf_bonus(conference):
 
 def build_2041_model_table(r_2041, stats_df, rec_df):
     df = r_2041.copy()
+
+    # TeamRatingsHistory.csv still uses the old column name — alias it to the new one.
+    # The live roster computation will overwrite these values for the Speed Freaks tab,
+    # but we need the column to exist under the new name throughout the model build.
+    _old_gb = 'Game Breakers (90+ Speed & 90+ Acceleration)'
+    _new_q90 = 'Quad 90 (90+ SPD, ACC, AGI & COD)'
+    if _old_gb in df.columns and _new_q90 not in df.columns:
+        df = df.rename(columns={_old_gb: _new_q90})
+    if _new_q90 not in df.columns:
+        df[_new_q90] = 0
+    df[_new_q90] = pd.to_numeric(df[_new_q90], errors='coerce').fillna(0)
 
     # Pull conference from TeamRatingsHistory if present
     if 'CONFERENCE' not in df.columns:
