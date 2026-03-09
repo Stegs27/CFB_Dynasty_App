@@ -4037,69 +4037,90 @@ if data:
         st.subheader("📋 Schedule Résumé Board")
         st.caption("Speed-adjusted SOS = Base SOS + Speed Handicap. Slower teams get credit for fighting uphill all season.")
 
-        resume_html = """
-        <div style='overflow-x:auto;border:1px solid #1e293b;border-radius:12px;background:#0a1628;'>
-        <table style='width:100%;border-collapse:collapse;font-size:0.83rem;font-family:monospace;'>
-        <thead><tr style='background:#111f33;color:#94a3b8;font-size:0.72rem;letter-spacing:.08em;'>
-          <th style='padding:10px 12px;text-align:left;'>RANK</th>
-          <th style='padding:10px 12px;text-align:left;'>USER / TEAM</th>
-          <th style='padding:10px 12px;text-align:center;'>CONF</th>
-          <th style='padding:10px 12px;text-align:center;'>REC</th>
-          <th style='padding:10px 12px;text-align:center;'>RANKED W</th>
-          <th style='padding:10px 12px;text-align:center;'>TOP-10 W</th>
-          <th style='padding:10px 12px;text-align:center;'>AVG OPP RK</th>
-          <th style='padding:10px 12px;text-align:center;'>SPEED GUYS</th>
-          <th style='padding:10px 12px;text-align:center;'>QB</th>
-          <th style='padding:10px 12px;text-align:center;'>HANDICAP</th>
-          <th style='padding:10px 12px;text-align:center;'>ADJ SOS</th>
-        </tr></thead><tbody>"""
-
         rank_medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"]
+        resume_cards = ""
         for i, row in resume_df.iterrows():
-            tc = get_team_primary_color(row['Team'])
+            tc       = get_team_primary_color(row['Team'])
             logo_uri = image_file_to_data_uri(get_logo_source(row['Team']))
-            logo_html = f"<img src='{logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri else ""
-            medal = rank_medals[i] if i < len(rank_medals) else str(i+1)
-            hcap  = float(row['_handicap'])
-            hcap_color = "#f97316" if hcap > 1 else ("#fbbf24" if hcap > 0 else "#22c55e")
-            # Speed bar
+            logo_img = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;vertical-align:middle;'/>" if logo_uri else "🏈"
+            medal    = rank_medals[i] if i < len(rank_medals) else str(i+1)
+            hcap     = float(row['_handicap'])
+            hcap_color = "#ef4444" if hcap > 4 else ("#f97316" if hcap > 1 else ("#fbbf24" if hcap > 0 else "#22c55e"))
+            adj_color  = "#22c55e" if row['Adj SOS'] >= resume_df['Adj SOS'].median() else "#f97316"
+            hcap_label = f"+{hcap:.1f}" if hcap > 0 else f"{hcap:.1f}"
             spd = row['Team Speed']
-            spd_bar = f"<div style='display:inline-flex;align-items:center;gap:5px;'><div style='background:#1e293b;border-radius:3px;width:52px;height:8px;overflow:hidden;'><div style='background:{tc};width:{min(100,int(spd/15*100))}%;height:8px;border-radius:3px;'></div></div><span style='color:#94a3b8;font-size:0.72rem;'>{spd}</span></div>"
-            adj_color = "#22c55e" if row['Adj SOS'] >= resume_df['Adj SOS'].median() else "#f97316"
+            spd_pct = min(100, int(spd / 15 * 100))
             # QB badge
-            _qt = str(row.get('QB Tier', '—'))
+            _qt   = str(row.get('QB Tier', '—'))
             _qovr = int(row.get('QB OVR', 0))
-            _qt_style = {'Elite':('#22c55e','#0d2010'), 'Leader':('#60a5fa','#0d1829'), 'Average Joe':('#fbbf24','#1c1400'), 'Ass':('#ef4444','#200808')}
-            _qtc = _qt_style.get(_qt, ('#6b7280','#1f2937'))
-            qb_cell = (f"<div style='display:flex;flex-direction:column;align-items:center;gap:1px;'>"
-                       f"<span style='padding:2px 5px;border-radius:4px;font-size:0.65rem;font-weight:800;"
-                       f"background:{_qtc[1]};color:{_qtc[0]};white-space:nowrap;'>{html.escape(_qt)}</span>"
-                       f"<span style='color:#475569;font-size:0.68rem;'>{_qovr} OVR</span></div>")
+            _qt_style = {'Elite':('#22c55e','#0d2010'),'Leader':('#60a5fa','#0d1829'),'Average Joe':('#fbbf24','#1c1400'),'Ass':('#ef4444','#200808')}
+            _qtc  = _qt_style.get(_qt, ('#6b7280','#1f2937'))
             # Conf badge
             cconf = str(row['Conference'])
             conf_colors = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}
             cc = conf_colors.get(cconf, ('#6b7280','#1f2937'))
-            conf_badge = f"<span style='padding:2px 6px;border-radius:999px;font-size:0.68rem;font-weight:800;background:{cc[1]};color:{cc[0]};border:1px solid {cc[0]}44;'>{html.escape(cconf)}</span>"
             avg_opp_disp = f"#{int(row['Avg Opp Rank'])}" if row['Avg Opp Rank'] != '—' else '—'
-            resume_html += f"""
-            <tr style='border-top:1px solid #1e293b;background:{"#0d1a2e" if i%2==0 else "#0a1628"}'>
-              <td style='padding:10px 12px;color:#94a3b8;'>{medal}</td>
-              <td style='padding:10px 12px;'>
-                {logo_html}<span style='color:{tc};font-weight:800;'>{html.escape(row['Team'])}</span>
-                <span style='color:#475569;font-size:0.75rem;margin-left:6px;'>({html.escape(row['User'])})</span>
-              </td>
-              <td style='padding:10px 12px;text-align:center;'>{conf_badge}</td>
-              <td style='padding:10px 12px;text-align:center;color:white;font-weight:700;'>{row['Record']}</td>
-              <td style='padding:10px 12px;text-align:center;color:{"#22c55e" if row["Ranked Wins"]>=3 else "#f3f4f6"};font-weight:{"800" if row["Ranked Wins"]>=3 else "400"};'>{row['Ranked Wins']}</td>
-              <td style='padding:10px 12px;text-align:center;color:{"#fbbf24" if row["Top-10 Wins"]>=2 else "#f3f4f6"};font-weight:{"800" if row["Top-10 Wins"]>=2 else "400"};'>{row['Top-10 Wins']}</td>
-              <td style='padding:10px 12px;text-align:center;color:#94a3b8;'>{avg_opp_disp}</td>
-              <td style='padding:10px 12px;text-align:center;'>{spd_bar}</td>
-              <td style='padding:10px 12px;text-align:center;'>{qb_cell}</td>
-              <td style='padding:10px 12px;text-align:center;color:{hcap_color};font-weight:700;'>{row['Speed Handicap']}</td>
-              <td style='padding:10px 12px;text-align:center;color:{adj_color};font-weight:800;font-size:0.95rem;'>{row['Adj SOS']}</td>
-            </tr>"""
-        resume_html += "</tbody></table></div>"
-        st.markdown(resume_html, unsafe_allow_html=True)
+            rw_color = "#22c55e" if row['Ranked Wins'] >= 3 else ("#fbbf24" if row['Ranked Wins'] >= 1 else "#475569")
+            t10_color = "#fbbf24" if row['Top-10 Wins'] >= 2 else ("#94a3b8" if row['Top-10 Wins'] >= 1 else "#475569")
+
+            resume_cards += f"""
+            <div style='background:#0a1628;border:1px solid #1e293b;border-left:4px solid {tc};
+            border-radius:10px;padding:12px 14px;margin-bottom:8px;'>
+
+              <!-- Row 1: rank + logo + name + record + adj SOS -->
+              <div style='display:flex;align-items:center;gap:10px;margin-bottom:10px;'>
+                <span style='font-size:1.2rem;min-width:28px;'>{medal}</span>
+                {logo_img}
+                <div style='flex:1;min-width:0;'>
+                  <div style='color:{tc};font-weight:900;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(row['Team'])}</div>
+                  <div style='display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap;'>
+                    <span style='color:#475569;font-size:0.72rem;'>({html.escape(row['User'])})</span>
+                    <span style='padding:1px 6px;border-radius:999px;font-size:0.65rem;font-weight:800;background:{cc[1]};color:{cc[0]};border:1px solid {cc[0]}44;'>{html.escape(cconf)}</span>
+                  </div>
+                </div>
+                <div style='text-align:right;flex-shrink:0;'>
+                  <div style='color:white;font-weight:800;font-size:0.95rem;'>{row['Record']}</div>
+                  <div style='color:{adj_color};font-weight:900;font-size:1.1rem;'>{row['Adj SOS']}</div>
+                  <div style='color:#475569;font-size:0.62rem;'>Adj SOS</div>
+                </div>
+              </div>
+
+              <!-- Row 2: stat pills -->
+              <div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;'>
+                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
+                  <div style='color:{rw_color};font-weight:800;font-size:0.9rem;'>{row['Ranked Wins']}</div>
+                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>RANKED W</div>
+                </div>
+                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
+                  <div style='color:{t10_color};font-weight:800;font-size:0.9rem;'>{row['Top-10 Wins']}</div>
+                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>TOP-10 W</div>
+                </div>
+                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
+                  <div style='color:#94a3b8;font-weight:700;font-size:0.9rem;'>{avg_opp_disp}</div>
+                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>AVG OPP RK</div>
+                </div>
+                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
+                  <div style='color:{hcap_color};font-weight:800;font-size:0.9rem;'>{hcap_label}</div>
+                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>HANDICAP</div>
+                </div>
+                <div style='background:{_qtc[1]};border-radius:6px;padding:5px 9px;text-align:center;border:1px solid {_qtc[0]}33;'>
+                  <div style='color:{_qtc[0]};font-weight:800;font-size:0.82rem;white-space:nowrap;'>{html.escape(_qt)}</div>
+                  <div style='color:{_qtc[0]}99;font-size:0.62rem;letter-spacing:.05em;'>{_qovr} OVR QB</div>
+                </div>
+              </div>
+
+              <!-- Row 3: speed bar -->
+              <div style='display:flex;align-items:center;gap:8px;'>
+                <span style='color:#475569;font-size:0.68rem;letter-spacing:.05em;white-space:nowrap;'>SPEED</span>
+                <div style='flex:1;background:#111f33;border-radius:3px;height:6px;overflow:hidden;'>
+                  <div style='background:{tc};width:{spd_pct}%;height:6px;border-radius:3px;'></div>
+                </div>
+                <span style='color:#94a3b8;font-size:0.72rem;font-weight:700;min-width:24px;text-align:right;'>{spd}</span>
+              </div>
+
+            </div>"""
+
+        st.markdown(resume_cards, unsafe_allow_html=True)
 
         st.caption("⚠️ Speed Handicap: slower teams (+) face tougher effective difficulty — faster teams can mask roster weaknesses with athleticism. Positive = harder path.")
 
@@ -4331,38 +4352,75 @@ if data:
             # ── SECTION 5: CONFERENCE GAUNTLET ───────────────────────────────
             st.markdown("---")
             st.subheader("🏟️ Conference Gauntlet")
-            conf_games = sel_games[
-                (sel_games['conf_game'] == True) |
-                (sel_games['week'].isin(['Conf Champ']))
-            ].copy() if not sel_games.empty else pd.DataFrame()
 
-            # Fallback: any game vs a user in same conf (user vs user same conf)
-            if conf_games.empty and not sel_games.empty:
-                # use all regular season games as proxy
-                conf_games = sel_games[~sel_games['bowl']].copy()
+            # Determine user's conference and conference rivals
+            _conf_groups = {
+                'SEC': {'Nick', 'Devin', 'Doug'},
+                'B1G': {'Noah', 'Josh', 'Mike'},
+            }
+            sel_conf_name = _speed_map.get(sel_user, {}).get('conf', '—')
+            _conf_rivals  = _conf_groups.get(sel_conf_name, set()) - {sel_user}
+
+            # Real conf games = user-vs-user same conference + conf champ game
+            if not sel_games.empty:
+                conf_games = sel_games[
+                    sel_games['week'].isin(['Conf Champ']) |
+                    sel_games['opponent'].apply(
+                        lambda opp: any(
+                            USER_TEAMS.get(r, '') == opp for r in _conf_rivals
+                        )
+                    )
+                ].copy()
+            else:
+                conf_games = pd.DataFrame()
 
             conf_w = int((conf_games['result'] == 'W').sum()) if not conf_games.empty else 0
             conf_l = int((conf_games['result'] == 'L').sum()) if not conf_games.empty else 0
             conf_ranked_w = int(((conf_games['result'] == 'W') & conf_games['opp_ranked']).sum()) if not conf_games.empty else 0
             conf_opp_ranks = conf_games['opp_rank'].dropna()
             avg_conf_rank = round(float(conf_opp_ranks.mean()), 1) if not conf_opp_ranks.empty else None
-            conf_name = _speed_map.get(sel_user, {}).get('conf', '—')
-            conf_str  = CONF_STRENGTH.get(conf_name, 0)
+            conf_str = CONF_STRENGTH.get(sel_conf_name, 0)
 
             cg_metrics = [
-                {"label": f"🏟️ Conf ({conf_name})", "value": f"{conf_w}-{conf_l}", "delta": f"Strength tier: {conf_str}"},
-                {"label": "💪 Conf Ranked Wins",      "value": str(conf_ranked_w)},
+                {"label": f"🏟️ {sel_conf_name} Record", "value": f"{conf_w}-{conf_l}", "delta": f"Conf strength: {conf_str}"},
+                {"label": "💪 Conf Ranked Wins", "value": str(conf_ranked_w)},
             ]
             if avg_conf_rank:
                 cg_metrics.append({"label": "📊 Avg Conf Opp Rank", "value": f"#{int(avg_conf_rank)}"})
             mobile_metrics(cg_metrics, cols_desktop=3)
 
+            # Show the actual matchups
+            if not conf_games.empty:
+                conf_html = "<div style='display:flex;flex-direction:column;gap:6px;margin-top:10px;'>"
+                for _, cg in conf_games.iterrows():
+                    r = cg['result']
+                    rk = f"#{int(cg['opp_rank'])}" if cg['opp_ranked'] else "Unranked"
+                    mg = f" ({'+' if (cg['margin'] or 0)>0 else ''}{int(cg['margin'])})" if (cg['margin'] is not None and not pd.isna(cg['margin'])) else ""
+                    wk = str(cg['week'])
+                    opp = str(cg['opponent'])
+                    rc = "#22c55e" if r == 'W' else ("#ef4444" if r == 'L' else "#6b7280")
+                    icon = "✅" if r == 'W' else ("❌" if r == 'L' else "⏳")
+                    badge = "<span style='font-size:0.65rem;padding:1px 5px;background:#7c2d12;color:#fed7aa;border-radius:3px;margin-left:6px;font-weight:800;'>CONF CHAMP</span>" if wk == 'Conf Champ' else ""
+                    conf_html += (
+                        f"<div style='display:flex;align-items:center;gap:10px;padding:8px 12px;"
+                        f"background:#0d1a2e;border-left:3px solid {rc};border-radius:6px;font-size:0.82rem;font-family:monospace;'>"
+                        f"<span style='color:{rc};font-weight:800;min-width:14px;'>{icon}</span>"
+                        f"<span style='color:#94a3b8;min-width:60px;'>{wk}</span>"
+                        f"<span style='color:{rc};font-weight:700;'>{rk}</span>"
+                        f"<span style='color:#d1d5db;flex:1;'>{html.escape(opp)}</span>"
+                        f"<span style='color:{rc};font-weight:700;'>{r}{mg}</span>"
+                        f"{badge}"
+                        f"</div>"
+                    )
+                conf_html += "</div>"
+                st.markdown(conf_html, unsafe_allow_html=True)
+
             conf_tier_note = {
-                'SEC': "SEC schedule — one of the two murder conferences in this dynasty. Every week is a minefield.",
-                'B1G': "B1G schedule — co-king of the dynasty. Physical, deep, no easy weeks.",
-                'ACC': "ACC schedule — real teeth at the top, softer underbelly. Still respectable.",
-            }.get(conf_name, f"{conf_name} schedule.")
-            st.caption(conf_tier_note)
+                'SEC': "SEC — one of the two murder conferences in this dynasty. User-vs-user games only.",
+                'B1G': "B1G — co-king of the dynasty. Physical, deep, no easy weeks. User-vs-user games only.",
+                'ACC': "ACC — real teeth at the top, softer underbelly.",
+            }.get(sel_conf_name, f"{sel_conf_name} schedule.")
+            st.caption(f"📌 {conf_tier_note} CPU opponents excluded — can't verify their conference.")
 
         else:
             st.info("No schedule data found for this user. Make sure CPUscores_MASTER.csv is up to date.")
