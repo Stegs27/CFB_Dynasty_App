@@ -5726,36 +5726,222 @@ if data:
         st.caption(_speed_src_note)
         st.success(f"Fastest team alive right now: {fastest_team['TEAM']} ({fastest_team['USER']}) at {fastest_team['Speedometer']} MPH. Defensive coordinators should file a complaint.")
         render_speed_freaks_table(talent_board)
-        render_speed_freaks_table(talent_board)
 
+        # ── TEAM EXPANDERS ────────────────────────────────────────────────────
+        st.markdown("---")
         for _, r in talent_board.iterrows():
-            gens = int(r['Generational (96+ speed or 96+ Acceleration)'])
+            gens       = int(r['Generational (96+ speed or 96+ Acceleration)'])
+            q90_cnt    = int(r['Quad 90 (90+ SPD, ACC, AGI & COD)'])
             team_speed = float(r.get('Team Speed Score', 0))
-            tier = get_speed_tier(team_speed)
-            gen_desc = get_pop_culture_speed_comp(gens)
-
+            tier       = get_speed_tier(team_speed)
+            gen_desc   = get_pop_culture_speed_comp(gens)
             if gens == 0:
-                bonus_desc = "No multiplier bonus here. This is a depth-and-discipline operation."
+                bonus_desc = "No multiplier bonus. This is a depth-and-discipline operation."
             elif gens == 1:
-                bonus_desc = "One generational freak means the whole scouting report bends around a single superhero."
+                bonus_desc = "One generational freak — the whole scouting report bends around a single superhero."
             else:
                 bonus_desc = f"{gens} generational freaks means the speed depth gets turbocharged. This many cheat codes can vault a roster several spots higher than raw depth alone."
 
-            with st.expander(f"#{int(r['TEAM SPEED Rank'])} {r['USER']} | {r['TEAM']} - {tier}"):
+            with st.expander(f"#{int(r['TEAM SPEED Rank'])} {r['USER']} | {r['TEAM']} — {tier}"):
                 st.write(gen_desc)
                 st.write(bonus_desc)
                 mobile_metrics([
-                    {"label": "🚗 Speedometer",         "value": f"{float(r.get('Speedometer', r.get('Speed Limit MPH', 0)))} MPH"},
-                    {"label": "⚡ TEAM SPEED Score",    "value": str(team_speed)},
-                    {"label": "💨 90+ Speed Players",   "value": str(int(r['Team Speed (90+ Speed Guys)']))},
-                    {"label": "👽 Generational Freaks",  "value": str(gens)},
-                ])
+                    {"label": "🚗 Speedometer",        "value": f"{float(r.get('Speedometer',0)):.1f} MPH"},
+                    {"label": "⚡ TEAM SPEED Score",   "value": str(team_speed)},
+                    {"label": "💨 90+ Speed Guys",     "value": str(int(r['Team Speed (90+ Speed Guys)']))},
+                    {"label": "👽 Gen Freaks",          "value": str(gens)},
+                    {"label": "🔷 Quad 90",            "value": str(q90_cnt)},
+                    {"label": "⚔️ Off / Def Speed",    "value": f"{int(r['Off Speed (90+ speed)'])} / {int(r['Def Speed (90+ speed)'])}"},
+                ], cols_desktop=3)
                 st.write(get_speeding_label(team_speed, gens))
-                st.write(f"**Quad 90:** {int(r['Quad 90 (90+ SPD, ACC, AGI & COD)'])}")
-                st.write(f"**Offense 90+ speed:** {int(r['Off Speed (90+ speed)'])} | **Defense 90+ speed:** {int(r['Def Speed (90+ speed)'])}")
-                st.write(f"**Where is the Speed?** {r['Where is the Speed?']}")
-                st.write(f"**Blue Chip Ratio:** {int(r['BCR_Val'])}%")
+                st.write(f"**Where is the Speed?** {r['Where is the Speed?']}  |  **Blue Chip Ratio:** {int(r['BCR_Val'])}%")
                 st.progress(min(1.0, team_speed / 100.0))
+
+                # Quad 90 player roster for this team
+                if _sf_loaded:
+                    _t_active = _sf_active[_sf_active['Team'] == r['TEAM']].copy()
+                    _t_active[['SPD','ACC','AGI','COD']] = _t_active[['SPD','ACC','AGI','COD']].apply(pd.to_numeric, errors='coerce')
+                    _q90_players = _t_active[
+                        (_t_active['SPD']>=90)&(_t_active['ACC']>=90)&
+                        (_t_active['AGI']>=90)&(_t_active['COD']>=90)
+                    ].sort_values('SPD', ascending=False)
+                    _gen_players = _t_active[
+                        (_t_active['SPD']>=96)|(_t_active['ACC']>=96)
+                    ].sort_values('SPD', ascending=False)
+                    if not _q90_players.empty:
+                        st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:8px 0 4px;letter-spacing:.06em;font-weight:700;'>🔷 QUAD 90 ATHLETES</div>", unsafe_allow_html=True)
+                        _q_html = "<div style='display:flex;flex-wrap:wrap;gap:5px;'>"
+                        for _, _p in _q90_players.iterrows():
+                            _q_html += (
+                                f"<div style='background:#0a1628;border:1px solid #1e3a8a;border-radius:6px;"
+                                f"padding:5px 9px;font-size:0.75rem;'>"
+                                f"<span style='color:#60a5fa;font-weight:800;'>{html.escape(str(_p['Name']))}</span>"
+                                f"<span style='color:#475569;margin:0 4px;'>{html.escape(str(_p['Pos']))}</span>"
+                                f"<span style='color:#94a3b8;font-size:0.68rem;'>"
+                                f"S{int(_p['SPD'])} A{int(_p['ACC'])} G{int(_p['AGI'])} C{int(_p['COD'])}"
+                                f"</span></div>"
+                            )
+                        _q_html += "</div>"
+                        st.markdown(_q_html, unsafe_allow_html=True)
+                    if not _gen_players.empty:
+                        st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:8px 0 4px;letter-spacing:.06em;font-weight:700;'>👽 GENERATIONAL FREAKS (96+ SPD or ACC)</div>", unsafe_allow_html=True)
+                        _g_html = "<div style='display:flex;flex-wrap:wrap;gap:5px;'>"
+                        for _, _p in _gen_players.iterrows():
+                            _hi = "#f59e0b" if pd.to_numeric(_p['SPD'],errors='coerce') >= 96 else "#a78bfa"
+                            _g_html += (
+                                f"<div style='background:#0d1a2e;border:1px solid {_hi}44;border-radius:6px;"
+                                f"padding:5px 9px;font-size:0.75rem;'>"
+                                f"<span style='color:{_hi};font-weight:800;'>{html.escape(str(_p['Name']))}</span>"
+                                f"<span style='color:#475569;margin:0 4px;'>{html.escape(str(_p['Pos']))}</span>"
+                                f"<span style='color:#94a3b8;font-size:0.68rem;'>"
+                                f"S{int(_p['SPD'])} A{int(_p['ACC'])}"
+                                f"</span></div>"
+                            )
+                        _g_html += "</div>"
+                        st.markdown(_g_html, unsafe_allow_html=True)
+
+        # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
+        st.markdown("---")
+        st.subheader("🏃 Fastest Players in the League")
+        st.caption("Top 20 by SPD across all active rosters. The guys who make coordinators sweat at 2am.")
+        if _sf_loaded and not _sf_active.empty:
+            _all_active = _sf_active.copy()
+            _all_active[['SPD','ACC','AGI','COD','OVR']] = _all_active[['SPD','ACC','AGI','COD','OVR']].apply(pd.to_numeric, errors='coerce')
+            _top_speed = _all_active.nlargest(20, 'SPD').reset_index(drop=True)
+            _spd_html = "<div style='display:flex;flex-direction:column;gap:4px;'>"
+            for _i, _p in _top_speed.iterrows():
+                _tc = get_team_primary_color(_p['Team'])
+                _logo_uri = image_file_to_data_uri(get_logo_source(_p['Team']))
+                _logo = f"<img src='{_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if _logo_uri else ""
+                _is_q90 = (pd.notna(_p['SPD']) and _p['SPD']>=90 and pd.notna(_p['ACC']) and _p['ACC']>=90
+                           and pd.notna(_p['AGI']) and _p['AGI']>=90 and pd.notna(_p['COD']) and _p['COD']>=90)
+                _is_gen = (pd.notna(_p['SPD']) and _p['SPD']>=96) or (pd.notna(_p['ACC']) and _p['ACC']>=96)
+                _badges = ""
+                if _is_gen:  _badges += "<span style='font-size:0.6rem;padding:1px 4px;background:#78350f;color:#fbbf24;border-radius:3px;margin-left:4px;'>👽GEN</span>"
+                if _is_q90:  _badges += "<span style='font-size:0.6rem;padding:1px 4px;background:#1e3a8a;color:#60a5fa;border-radius:3px;margin-left:4px;'>🔷Q90</span>"
+                _spd_html += (
+                    f"<div style='display:flex;align-items:center;gap:8px;padding:6px 10px;"
+                    f"background:#0a1628;border-left:3px solid {_tc};border-radius:5px;font-size:0.8rem;'>"
+                    f"<span style='color:#475569;min-width:20px;font-size:0.72rem;'>#{_i+1}</span>"
+                    f"{_logo}"
+                    f"<span style='color:{_tc};font-weight:800;min-width:80px;'>{html.escape(str(_p['Name']))}</span>"
+                    f"<span style='color:#64748b;font-size:0.7rem;min-width:38px;'>{html.escape(str(_p['Pos']))} · {html.escape(str(_p['Year']))}</span>"
+                    f"<span style='color:#fbbf24;font-weight:900;min-width:28px;'>S{int(_p['SPD'])}</span>"
+                    f"<span style='color:#94a3b8;font-size:0.72rem;'>A{int(_p['ACC'])} G{int(_p['AGI'])} C{int(_p['COD'])}</span>"
+                    f"{_badges}"
+                    f"<span style='color:#475569;font-size:0.68rem;margin-left:auto;'>{html.escape(str(_p['Team']))}</span>"
+                    f"</div>"
+                )
+            _spd_html += "</div>"
+            st.markdown(_spd_html, unsafe_allow_html=True)
+
+        # ── SECTION 3: POSITIONAL SPEED DEPTH ────────────────────────────────
+        st.markdown("---")
+        st.subheader("📊 Positional Speed Depth")
+        st.caption("Where each team's 90+ speed actually lives — WR room, DB room, or the backfield.")
+        if _sf_loaded and not _sf_active.empty:
+            _POS_GROUPS = {
+                'WR Room':   ['WR'],
+                'Backfield': ['HB','FB','QB'],
+                'DB Room':   ['CB','FS','SS'],
+                'Linebackers':['MIKE','WILL','SAM'],
+                'D-Line':    ['LEDG','REDG','DT'],
+                'O-Line':    ['LT','LG','C','RG','RT'],
+                'TE/ST':     ['TE','K','P'],
+            }
+            _pos_rows = []
+            for _team, _tdf in _sf_active.groupby('Team'):
+                _u = {v:k for k,v in USER_TEAMS.items()}.get(_team, '')
+                if not _u: continue
+                _tdf2 = _tdf.copy()
+                _tdf2['SPD'] = pd.to_numeric(_tdf2['SPD'], errors='coerce')
+                _row = {'User': _u, 'Team': _team}
+                for _grp, _pos_list in _POS_GROUPS.items():
+                    _grp_df = _tdf2[_tdf2['Pos'].isin(_pos_list)]
+                    _row[_grp] = int((_grp_df['SPD'] >= 90).sum())
+                _pos_rows.append(_row)
+            _pos_df = pd.DataFrame(_pos_rows).set_index('User')
+
+            # Render as a styled HTML grid
+            _pos_html = "<div style='overflow-x:auto;'><table style='width:100%;border-collapse:collapse;font-size:0.8rem;'>"
+            _pos_html += "<thead><tr style='background:#0a1628;'>"
+            _pos_html += "<th style='padding:7px 10px;text-align:left;color:#64748b;'>Team</th>"
+            for _grp in _POS_GROUPS:
+                _pos_html += f"<th style='padding:7px 8px;text-align:center;color:#64748b;'>{html.escape(_grp)}</th>"
+            _pos_html += "</tr></thead><tbody>"
+            for _u, _pr in _pos_df.iterrows():
+                _tc = get_team_primary_color(_pr['Team'])
+                _logo_uri = image_file_to_data_uri(get_logo_source(_pr['Team']))
+                _logo = f"<img src='{_logo_uri}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:5px;'/>" if _logo_uri else ""
+                _pos_html += f"<tr style='border-bottom:1px solid #1e293b;'>"
+                _pos_html += f"<td style='padding:7px 10px;white-space:nowrap;'>{_logo}<span style='color:{_tc};font-weight:800;'>{html.escape(str(_pr['Team']))}</span><span style='color:#475569;font-size:0.7rem;margin-left:5px;'>({html.escape(_u)})</span></td>"
+                for _grp in _POS_GROUPS:
+                    _val = int(_pr.get(_grp, 0))
+                    _col = "#22c55e" if _val >= 3 else ("#fbbf24" if _val >= 1 else "#374151")
+                    _pos_html += f"<td style='padding:7px 8px;text-align:center;color:{_col};font-weight:{'800' if _val >= 1 else '400'};'>{_val if _val > 0 else '—'}</td>"
+                _pos_html += "</tr>"
+            _pos_html += "</tbody></table></div>"
+            st.markdown(_pos_html, unsafe_allow_html=True)
+
+        # ── SECTION 4: HEAD-TO-HEAD SPEED MATCHUP ────────────────────────────
+        st.markdown("---")
+        st.subheader("⚔️ Speed Matchup Comparison")
+        st.caption("Pick two teams and see their full speed profiles side by side.")
+        _user_list = sorted(USER_TEAMS.keys())
+        _hth_col1, _hth_col2 = st.columns(2)
+        with _hth_col1:
+            _team_a_user = st.selectbox("Team A", _user_list, index=0, key="sf_team_a")
+        with _hth_col2:
+            _team_b_user = st.selectbox("Team B", _user_list, index=1, key="sf_team_b")
+
+        if _sf_loaded and _team_a_user != _team_b_user:
+            _ta_name = USER_TEAMS[_team_a_user]
+            _tb_name = USER_TEAMS[_team_b_user]
+            _ta_df = _sf_active[_sf_active['Team']==_ta_name].copy()
+            _tb_df = _sf_active[_sf_active['Team']==_tb_name].copy()
+            for _d in [_ta_df, _tb_df]:
+                _d[['SPD','ACC','AGI','COD','OVR']] = _d[['SPD','ACC','AGI','COD','OVR']].apply(pd.to_numeric, errors='coerce')
+            _sa = _compute_speed_stats(_ta_df)
+            _sb = _compute_speed_stats(_tb_df)
+            _tc_a = get_team_primary_color(_ta_name)
+            _tc_b = get_team_primary_color(_tb_name)
+
+            _matchup_metrics = [
+                ('Speedometer', f"{_sa['speedometer']} MPH", f"{_sb['speedometer']} MPH"),
+                ('Speed Score', str(_sa['speed_score']), str(_sb['speed_score'])),
+                ('90+ SPD Guys', str(_sa['team_speed']), str(_sb['team_speed'])),
+                ('Quad 90', str(_sa['quad_90']), str(_sb['quad_90'])),
+                ('Gen Freaks', str(_sa['gen']), str(_sb['gen'])),
+                ('Off Speed', str(_sa['off_speed']), str(_sb['off_speed'])),
+                ('Def Speed', str(_sa['def_speed']), str(_sb['def_speed'])),
+                ('Where', _sa['where'], _sb['where']),
+            ]
+            _mh = (
+                f"<div style='overflow-x:auto;'>"
+                f"<table style='width:100%;border-collapse:collapse;font-size:0.82rem;'>"
+                f"<thead><tr style='background:#0a1628;'>"
+                f"<th style='padding:8px 12px;text-align:center;color:{_tc_a};'>{html.escape(_ta_name)}</th>"
+                f"<th style='padding:8px 10px;text-align:center;color:#475569;font-size:0.7rem;'></th>"
+                f"<th style='padding:8px 12px;text-align:center;color:{_tc_b};'>{html.escape(_tb_name)}</th>"
+                f"</tr></thead><tbody>"
+            )
+            for _label, _va, _vb in _matchup_metrics:
+                # Try to determine winner numerically
+                try:
+                    _na, _nb = float(str(_va).split()[0]), float(str(_vb).split()[0])
+                    _ca = "#22c55e" if _na > _nb else ("#ef4444" if _na < _nb else "#94a3b8")
+                    _cb = "#22c55e" if _nb > _na else ("#ef4444" if _nb < _na else "#94a3b8")
+                except Exception:
+                    _ca = _cb = "#94a3b8"
+                _mh += (
+                    f"<tr style='border-bottom:1px solid #1e293b;'>"
+                    f"<td style='padding:7px 12px;text-align:center;color:{_ca};font-weight:800;'>{html.escape(_va)}</td>"
+                    f"<td style='padding:7px 10px;text-align:center;color:#475569;font-size:0.7rem;white-space:nowrap;'>{html.escape(_label)}</td>"
+                    f"<td style='padding:7px 12px;text-align:center;color:{_cb};font-weight:800;'>{html.escape(_vb)}</td>"
+                    f"</tr>"
+                )
+            _mh += "</tbody></table></div>"
+            st.markdown(_mh, unsafe_allow_html=True)
 
     # --- UPSET TRACKER ---
     with tabs[9]:
