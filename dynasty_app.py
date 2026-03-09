@@ -2080,6 +2080,112 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     df['Program Stock'] = df.apply(stock_label, axis=1)
 
+    # ── PRESEASON VERSIONS (Dynasty News only) ────────────────────────────────
+    # Uses only inputs known before the season starts — no win%, no CFP rank,
+    # no resume, no current losses, no injuries. Pure roster + history.
+    def preseason_contender_score(row):
+        _u_s_rows = stats_df[stats_df['User'] == row['USER']]
+        u_s = _u_s_rows.iloc[0] if not _u_s_rows.empty else pd.Series({
+            'Natties': 0, 'Natty Apps': 0, 'CFP Wins': 0, 'Conf Titles': 0,
+            'CFP Losses': 0, 'Career Win %': 0.5
+        })
+        natty_cred = min(int(u_s.get('Natties', 0)), 3)
+        pedigree_bonus = (
+            natty_cred * 8
+            + min(int(u_s.get('Natty Apps', 0)), 4) * 4
+            + u_s['CFP Wins'] * 2.0
+            + u_s['Conf Titles'] * 0.8
+        )
+        heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 0.5
+        cfp_fail_penalty = u_s['CFP Losses'] * 0.8
+        team_speed_component = (
+            row['Team Speed (90+ Speed Guys)'] * 3.0
+            + row['Off Speed (90+ speed)'] * 1.55
+            + row['Def Speed (90+ speed)'] * 1.55
+        )
+        raw = (
+            row['OVERALL'] * 3.7
+            + row['OFFENSE'] * 0.68
+            + row['DEFENSE'] * 0.68
+            + team_speed_component
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.65
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 7.2
+            + row['BCR_Val'] * 0.52
+            + row['Recruit Score'] * 0.58
+            + row['Career Win %'] * 0.26
+            + row['SOS'] * 0.40
+            + qb_natty_bonus(row)
+            + pedigree_bonus
+            - heartbreak_penalty
+            - cfp_fail_penalty
+            # ── intentionally excluded ──
+            # Current Win %   — unknown preseason
+            # Resume Score    — built from game results
+            # CFP Rank bonus  — doesn't exist preseason
+            # Current losses  — unknown preseason
+            # Injury penalty  — happened during season
+        )
+        if row['OVERALL'] < 88:
+            raw -= 24
+        if row['OFFENSE'] < 85:
+            raw -= 6
+        if row['DEFENSE'] < 85:
+            raw -= 6
+        if row['BCR_Val'] < 35:
+            raw -= 6
+        if row['Team Speed (90+ Speed Guys)'] < 10:
+            raw -= 6
+        return raw
+
+    _pre_raw = df.apply(preseason_contender_score, axis=1)
+    _pre_temp = max(10.5, _pre_raw.std() * 0.92)
+    _pre_shift = _pre_raw - _pre_raw.max()
+    _pre_exp = np.exp(_pre_shift / _pre_temp)
+    df['Preseason Natty Odds'] = (_pre_exp / _pre_exp.sum() * 100).round(1)
+
+    def preseason_power_index(row):
+        _u_s_pi_rows = stats_df[stats_df['User'] == row['USER']]
+        u_s_pi = _u_s_pi_rows.iloc[0] if not _u_s_pi_rows.empty else pd.Series({'Natties': 0})
+        coaching_cred = min(int(u_s_pi.get('Natties', 0)), 2) * 2.5
+        return round(
+            row['OVERALL'] * 2.25
+            + row['OFFENSE'] * 0.82
+            + row['DEFENSE'] * 0.82
+            + row['Team Speed (90+ Speed Guys)'] * 2.1
+            + row['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.6
+            + row['Generational (96+ speed or 96+ Acceleration)'] * 5.2
+            + row['BCR_Val'] * 0.56
+            + row['Recruit Score'] * 0.50
+            + row['Improvement'] * 4.0
+            + row['Career Win %'] * 0.60
+            + row['SOS'] * 0.38
+            + qb_cfp_bonus(row) * 0.95
+            + row['CFP Wins'] * 1.2
+            - row['CFP Losses'] * 1.2
+            + coaching_cred,
+            1
+        )
+
+    df['Preseason PI'] = df.apply(preseason_power_index, axis=1)
+
+    _pre_cfp_raw = (
+        df['Preseason PI'] * 0.66
+        + df['OVERALL'] * 1.35
+        + df['Team Speed (90+ Speed Guys)'] * 1.95
+        + df['Off Speed (90+ speed)'] * 0.75
+        + df['Def Speed (90+ speed)'] * 0.75
+        + df['Game Breakers (90+ Speed & 90+ Acceleration)'] * 1.25
+        + df['Generational (96+ speed or 96+ Acceleration)'] * 3.1
+        + df['Recruit Score'] * 0.46
+        + df['Career Win %'] * 0.18
+        + df['SOS'] * 0.58
+        + df.apply(qb_cfp_bonus, axis=1)
+    )
+    _pre_cfp_min = _pre_cfp_raw.min()
+    _pre_cfp_spread = max(1, _pre_cfp_raw.max() - _pre_cfp_min)
+    df['Preseason CFP %'] = (16 + ((_pre_cfp_raw - _pre_cfp_min) / _pre_cfp_spread * 66)).round(1)
+    df['Preseason CFP %'] = df['Preseason CFP %'].clip(lower=12, upper=82)
+
     def power_index(row):
         # Coaching credibility: first 2 natties prove you can execute.
         # Beyond that your roster matters more than your trophy case. Hard cap at 2.
@@ -3749,14 +3855,14 @@ if data:
         # ════════════════════════════════════════════════════════════════════
         # SECTION 1 — SEASON POWER RANKINGS
         # ════════════════════════════════════════════════════════════════════
-        st.subheader("📡 Season Power Rankings")
-        st.caption("Six dynasties. One king. Ranked by composite Power Index, title odds, and CFP probability.")
+        st.subheader("📡 Preseason Power Rankings")
+        st.caption("Preseason projections only — ranked on roster strength, speed, recruiting, QB tier, and coaching pedigree. No in-season results, injuries, or CFP rankings baked in.")
 
         power_board = model_2041.copy()
-        for col in ['Power Index', 'Natty Odds', 'CFP Odds']:
+        for col in ['Preseason PI', 'Preseason Natty Odds', 'Preseason CFP %', 'Power Index', 'Natty Odds', 'CFP Odds']:
             if col not in power_board.columns:
                 power_board[col] = 0
-        power_board = power_board.sort_values(['Power Index', 'Natty Odds', 'CFP Odds'], ascending=False).reset_index(drop=True)
+        power_board = power_board.sort_values(['Preseason PI', 'Preseason Natty Odds'], ascending=False).reset_index(drop=True)
 
         rank_icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"]
         rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
@@ -3765,9 +3871,9 @@ if data:
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
             user = str(row.get('USER', ''))
-            pi   = row.get('Power Index', 0)
-            natty = row.get('Natty Odds', 0)
-            cfp_pct = row.get('CFP Odds', 0)
+            pi    = row.get('Preseason PI', row.get('Power Index', 0))
+            natty = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
+            cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
             qb_tier = row.get('QB Tier', '—')
             icon    = rank_icons[idx] if idx < len(rank_icons) else "▪️"
             label   = rank_labels[idx] if idx < len(rank_labels) else ""
@@ -3790,9 +3896,9 @@ if data:
                 font-size:0.7rem;font-weight:900;background:{lcolor};color:white;'>{label}</span>
               </div>
               <div style='text-align:right;min-width:200px;'>
-                <span style='font-size:0.8rem;color:#d1d5db;'>PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
                 <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 <strong style="color:white;">{round(float(natty),1)}%</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP: <strong style="color:white;">{round(float(row.get("CFP Make %", cfp_pct)),1)}%</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>Pre-CFP: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong></span>
                 <span style='display:inline-block;margin-left:12px;padding:2px 7px;border-radius:999px;
                 font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
               </div>
@@ -3819,15 +3925,15 @@ if data:
         inj_colors = {'critical': '#ef4444', 'major': '#f97316', 'moderate': '#eab308', 'minor': '#6b7280'}
 
         if not model_2041.empty:
-            title_fav = model_2041.sort_values('Natty Odds', ascending=False).iloc[0]
-            most_dangerous_team = model_2041.sort_values('Power Index', ascending=False).iloc[0]
+            title_fav = model_2041.sort_values('Preseason Natty Odds', ascending=False).iloc[0] if 'Preseason Natty Odds' in model_2041.columns else model_2041.sort_values('Natty Odds', ascending=False).iloc[0]
+            most_dangerous_team = model_2041.sort_values('Preseason PI', ascending=False).iloc[0] if 'Preseason PI' in model_2041.columns else model_2041.sort_values('Power Index', ascending=False).iloc[0]
             collapse_team_row = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
 
             headlines.append(("🏆", "Bowl Week 1 Title Favorite",
                 f"<strong>{title_fav['USER']}</strong> enters the bowls with the strongest title case. The model now runs on current roster quality, OVR, and speed — dynasty pedigree is a small multiplier, not a vote. {title_fav['USER']} earns this slot based on what's on the field <em>today</em>."))
 
             headlines.append(("⚡", "Power Index Leader",
-                f"<strong>{most_dangerous_team['USER']}</strong> owns the highest Power Index ({round(float(most_dangerous_team['Power Index']),1)}). This number reflects actual team strength — OVR, speed, blue-chip makeup, QB play, recruiting. 7 titles won't carry a 73 OVR team up this list anymore."))
+                f"<strong>{most_dangerous_team['USER']}</strong> owns the highest Preseason Power Index ({round(float(most_dangerous_team.get('Preseason PI', most_dangerous_team.get('Power Index', 0))),1)}). Preseason rankings are pure roster — OVR, speed, blue-chip makeup, QB play, recruiting. No wins. No injuries. No in-season noise."))
 
             headlines.append(("💀", "Collapse Watch",
                 f"<strong>{collapse_team_row['USER']}</strong> carries the highest volatility marker ({round(float(collapse_team_row['Collapse Risk']))}% collapse risk). The model sees real downside if things break wrong."))
