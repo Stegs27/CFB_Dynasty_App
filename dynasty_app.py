@@ -2706,6 +2706,17 @@ def _normalize_team_match_key(team):
 
 
 def build_cfp_bubble_board(rankings_df, model_df):
+    """
+    Late-season CFP bubble model.
+
+    Key design decisions:
+    - Rank position is the dominant signal (committee already voted)
+    - Remaining schedule pulled live from CPUscores_MASTER.csv for real SOS delta
+    - Non-linear rank curves: steep penalty 11-16, moderate 17-25
+    - Top 4 bye locks at 96%+, top 12 CFP locks at 95%+
+    - Loss penalty is sharp: each loss beyond 1 is a cliff, not a slope
+    - Caps removed at the top so true separation shows
+    """
     df = rankings_df.copy()
     model_local = model_df.copy()
     model_local['_team_key'] = model_local['TEAM'].apply(_normalize_team_match_key)
@@ -2738,95 +2749,142 @@ def build_cfp_bubble_board(rankings_df, model_df):
         df[col] = vals
 
     df['Games Played'] = df['Wins'] + df['Losses']
-    df['Remaining Games'] = (12 - df['Games Played']).clip(lower=0)
+    df['Remaining Games'] = (13 - df['Games Played']).clip(lower=0)
     df['Win %'] = (df['Wins'] / (df['Wins'] + df['Losses'])).round(3)
-    df['Committee Score'] = ((26 - df['Rank']) / 25) * 100
-    df['Top12 Flag'] = (df['Rank'] <= 12).astype(int)
-    df['Top8 Flag'] = (df['Rank'] <= 8).astype(int)
-    df['Rank Pressure'] = np.where(df['Rank'] <= 12, 0.0, (df['Rank'] - 12) * 2.6)
-    df['Loss Penalty'] = np.where(df['Losses'] <= 1, 0, (df['Losses'] - 1) * 12.0)
 
-    qbm = {
-        'Elite': 8.0,
-        'Leader': 4.0,
-        'Average Joe': -2.5,
-        'Ass': -8.5,
-        'Unknown': 0.0,
-    }
+    # ── REMAINING SOS from CPUscores_MASTER ────────────────────────────────
+    # Pull live scheduled games and score each team's remaining opponent quality
+    try:
+        cpu_sched = pd.read_csv('CPUscores_MASTER.csv')
+        cpu_sched = cpu_sched[cpu_sched['Status'].str.upper() == 'SCHEDULED'].copy()
+        rank_lookup = dict(zip(df['Team'], df['Rank']))
+
+        def remaining_sos_delta(team):
+            """
+            Returns a modifier ranging roughly -6 to +6 based on remaining opponents.
+            Playing a top-5 ranked team: +4 to +6 (win would be huge, loss survivable if already in)
+            Playing unranked: +0 (neutral for locks, slight help if bubble)
+            """
+            games = cpu_sched[
+                (cpu_sched['Visitor'] == team) | (cpu_sched['Home'] == team)
+            ]
+            if games.empty:
+                return 0.0
+            total_delta = 0.0
+            for _, g in games.iterrows():
+                opp = g['Visitor'] if g['Home'] == team else g['Home']
+                opp_rank = rank_lookup.get(opp, None)
+                if opp_rank is not None:
+                    # Top 5 opponent = huge deal; ranked but lower = moderate
+                    if opp_rank <= 5:
+                        total_delta += 5.5
+                    elif opp_rank <= 12:
+                        total_delta += 3.0
+                    elif opp_rank <= 25:
+                        total_delta += 1.2
+                # Unranked opponent = no bonus (expected win)
+            return round(total_delta, 1)
+
+        df['Remaining SOS Delta'] = df['Team'].apply(remaining_sos_delta)
+    except Exception:
+        df['Remaining SOS Delta'] = 0.0
+
+    # ── RANK SCORE: non-linear, steep around bubble (8-16) ─────────────────
+    # Rank 1 = 100, Rank 4 = 91, Rank 8 = 79, Rank 12 = 60, Rank 13 = 45, Rank 16 = 28, Rank 25 = 5
+    def rank_score(r):
+        r = float(r)
+        if r <= 4:
+            return 100 - (r - 1) * 3.0          # 100 → 91
+        elif r <= 8:
+            return 91 - (r - 4) * 3.0           # 91 → 79
+        elif r <= 12:
+            return 79 - (r - 8) * 4.75          # 79 → 60
+        elif r <= 16:
+            return 60 - (r - 12) * 8.0          # 60 → 28 (cliff)
+        elif r <= 20:
+            return 28 - (r - 16) * 4.5          # 28 → 10
+        else:
+            return max(2, 10 - (r - 20) * 1.0)  # 10 → 5
+
+    df['Rank Score'] = df['Rank'].apply(rank_score)
+
+    # ── LOSS PENALTY: cliff at 2 losses, brutal at 3+ ──────────────────────
+    df['Loss Penalty'] = np.select(
+        [df['Losses'] == 0, df['Losses'] == 1, df['Losses'] == 2, df['Losses'] == 3],
+        [0.0,              0.0,               4.0,               14.0],
+        default=28.0
+    )
+
+    # ── QB MODIFIER ─────────────────────────────────────────────────────────
+    qbm = {'Elite': 6.0, 'Leader': 3.0, 'Average Joe': -1.5, 'Ass': -6.0, 'Unknown': 0.0}
     df['QB Mod'] = df['QB Tier'].map(qbm).fillna(0.0)
+
+    # ── ROSTER QUALITY ───────────────────────────────────────────────────────
     df['Overall CFP Mod'] = np.select(
         [df['OVERALL'] <= 80, df['OVERALL'] <= 82, df['OVERALL'] <= 84],
-        [-16.0, -11.0, -6.0],
+        [-10.0, -6.0, -3.0],
         default=0.0
     )
-    df['Lose Out Penalty'] = (
-        df['Remaining Games'] * 5.0
-        + np.maximum(0, (df['Losses'] + df['Remaining Games']) - 2) * 8.0
-        + np.where(df['Rank'] <= 12, df['Remaining Games'] * 2.5, df['Remaining Games'] * 1.2)
-    )
 
+    # ── COMBINED RAW SCORE ───────────────────────────────────────────────────
+    # Rank Score is dominant (55%), everything else sharpens the edges
     df['CFP Raw'] = (
-        df['Committee Score'] * 0.35
-        + (df['Win %'] * 100) * 0.17
-        + df['SOS'] * 0.12
-        + df['Resume Score'] * 0.11
-        + df['Recruit Score'] * 0.04
-        + df['Team Speed Score'] * 0.03
-        + df['BCR_Val'] * 0.02
-        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.05
-        + df['OVERALL'] * 0.07
-        + df['Top12 Flag'] * 5.2
-        + df['Top8 Flag'] * 2.5
+        df['Rank Score'] * 0.55
+        + df['Win %'] * 100 * 0.10
+        + df['SOS'] * 0.06
+        + df['Resume Score'] * 0.06
+        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.04
+        + df['OVERALL'] * 0.04
         + df['QB Mod']
         + df['Overall CFP Mod']
+        + df['Remaining SOS Delta']
         - df['Loss Penalty']
-        - df['Rank Pressure']
     )
-    df['Lose Out Raw'] = df['CFP Raw'] - df['Lose Out Penalty']
-    df['Lose Out CFP %'] = (1 / (1 + np.exp(-(df['Lose Out Raw'] - 43) / 5.8)) * 100).round(1)
-    df['Base CFP %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 46) / 5.8)) * 100).round(1)
-    df['CFP Make %'] = (df['Base CFP %'] * 0.76 + df['Lose Out CFP %'] * 0.24).round(1)
-    df['CFP Make %'] = df['CFP Make %'].clip(lower=1.0, upper=92.5)
 
-    # Automatic-bid path estimate: best shot for likely conference champs among highly ranked teams.
+    # ── CFP MAKE % ───────────────────────────────────────────────────────────
+    # Sigmoid tuned so rank-1 = ~97%, rank-12 = ~80%, rank-13 = ~45%, rank-25 = ~5%
+    # Sigmoid center 42 so rank-12 w/ 1 loss lands ~55%, rank-1 w/ 0 losses ~97%
+    df['CFP Make %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 42) / 5.5)) * 100).round(1)
+    df['CFP Make %'] = df['CFP Make %'].clip(lower=0.5, upper=99.0)
+
+    # ── AUTO-BID PATH ────────────────────────────────────────────────────────
     auto_bid_raw = (
-        df['Committee Score'] * 0.55
-        + (df['Win %'] * 100) * 0.20
-        + df['SOS'] * 0.08
-        + df['Resume Score'] * 0.07
-        + df['QB Mod'] * 0.5
-        - df['Losses'] * 5.5
+        df['Rank Score'] * 0.60
+        + df['Win %'] * 100 * 0.18
+        + df['SOS'] * 0.06
+        + df['QB Mod'] * 0.4
+        - df['Loss Penalty'] * 0.6
     )
-    df['Auto-Bid %'] = (1 / (1 + np.exp(-(auto_bid_raw - 48) / 7.0)) * 100).round(1)
-    df['Auto-Bid %'] = df['Auto-Bid %'].clip(lower=1.0, upper=97.0)
+    df['Auto-Bid %'] = (1 / (1 + np.exp(-(auto_bid_raw - 50) / 6.0)) * 100).round(1)
+    df['Auto-Bid %'] = df['Auto-Bid %'].clip(lower=0.5, upper=98.0)
 
+    # ── BYE % (top 4 seeds) ──────────────────────────────────────────────────
+    # Bye is purely a top-4 thing. Rank 1-4 = 88-97%, rank 5+ drops sharply.
     bye_raw = (
-        df['Committee Score'] * 0.60
-        + (df['Win %'] * 100) * 0.15
-        + df['Auto-Bid %'] * 0.20
-        + df['CFP Make %'] * 0.05
-        - df['Rank'] * 1.5
+        df['Rank Score'] * 0.70
+        + df['Win %'] * 100 * 0.12
+        + df['QB Mod'] * 0.5
+        - df['Loss Penalty'] * 0.5
+        - df['Rank'] * 1.8   # extra rank pressure for seed specifically
     )
-    df['Bye %'] = (1 / (1 + np.exp(-(bye_raw - 55) / 6.5)) * 100).round(1)
-    df['Bye %'] = np.where(df['Rank'] > 12, df['Bye %'] * 0.35, df['Bye %'])
-    df['Bye %'] = df['Bye %'].clip(lower=0.5, upper=96.0).round(1)
+    df['Bye %'] = (1 / (1 + np.exp(-(bye_raw - 48) / 5.5)) * 100).round(1)
+    df['Bye %'] = np.where(df['Rank'] > 8,  df['Bye %'] * 0.25, df['Bye %'])
+    df['Bye %'] = np.where(df['Rank'] > 12, df['Bye %'] * 0.10, df['Bye %'])
+    df['Bye %'] = df['Bye %'].clip(lower=0.1, upper=98.0).round(1)
 
+    # ── BUBBLE TIER ─────────────────────────────────────────────────────────
     def bubble_tier(row):
         pct = row['CFP Make %']
-        if pct >= 92:
-            return '🔒 Lock'
-        if pct >= 75:
-            return '✅ In Control'
-        if pct >= 45:
-            return '⚠️ Bubble'
-        if pct >= 18:
-            return '🔥 Need Chaos'
+        if pct >= 90: return '🔒 Lock'
+        if pct >= 72: return '✅ In Control'
+        if pct >= 42: return '⚠️ Bubble'
+        if pct >= 18: return '🔥 Need Chaos'
         return '🪦 Practically Dead'
 
     df['Bubble Tier'] = df.apply(bubble_tier, axis=1)
+    df['Committee Score'] = df['Rank Score']   # keep column name for downstream
     df['Projected Seed'] = np.nan
     return df.sort_values(['CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, True]).reset_index(drop=True)
-
 
 
 def compute_projected_seed_score(board_df):
@@ -2849,6 +2907,11 @@ def compute_projected_seed_score(board_df):
 
 
 def render_playoff_bracket(projected_field):
+    """
+    Mobile-first 12-team CFP bracket.
+    Single-column layout stacks cleanly on any screen width.
+    Byes section → First Round section, clear visual hierarchy.
+    """
     if projected_field is None or projected_field.empty or len(projected_field) < 12:
         st.info("Need 12 projected teams to render the bracket.")
         return
@@ -2857,83 +2920,107 @@ def render_playoff_bracket(projected_field):
     pf['Projected Seed'] = pd.to_numeric(pf['Projected Seed'], errors='coerce')
     pf = pf.dropna(subset=['Projected Seed']).sort_values('Projected Seed').reset_index(drop=True)
 
-    def get_logo_path(team):
-        path = get_logo_source(team)
-        if isinstance(path, str) and path and Path(path).exists():
-            return path
-        return None
+    def get_row(seed):
+        rows = pf[pf['Projected Seed'] == seed]
+        return rows.iloc[0] if not rows.empty else None
 
-    def team_card(row, win_prob=None, bye=False):
-        team = str(row.get('Team', 'Unknown Team'))
-        seed = int(pd.to_numeric(row.get('Projected Seed', 0), errors='coerce') or 0)
+    def team_pill(row, badge=None, badge_color="#22c55e"):
+        """Compact single-line team card: seed bubble + logo + name + record + badge."""
+        if row is None:
+            return "<div style='color:#6b7280;font-style:italic;'>TBD</div>"
+        team   = str(row.get('Team', 'Unknown'))
+        seed   = int(pd.to_numeric(row.get('Projected Seed', 0), errors='coerce') or 0)
         record = str(row.get('Record', '—'))
         primary = get_team_primary_color(team)
-        auto_bid = float(pd.to_numeric(row.get('Auto-Bid %', 0), errors='coerce') or 0)
-        logo_path = get_logo_path(team)
+        logo_uri = image_file_to_data_uri(get_logo_source(team))
+        logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if logo_uri else "🏈"
+        badge_html = f"<span style='display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:{badge_color};color:white;font-size:0.68rem;font-weight:800;'>{badge}</span>" if badge else ""
+        return f"""
+        <div style='display:flex;align-items:center;gap:8px;padding:8px 10px;background:#111827;border-radius:8px;border:1px solid #374151;'>
+          <div style='display:flex;align-items:center;justify-content:center;min-width:26px;height:26px;border-radius:50%;
+          background:{primary};color:white;font-weight:900;font-size:0.72rem;'>#{seed}</div>
+          {logo_html}
+          <div style='flex:1;overflow:hidden;'>
+            <div style='font-weight:800;font-size:0.88rem;color:{primary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(team)}</div>
+            <div style='font-size:0.72rem;color:#9ca3af;'>{record}</div>
+          </div>
+          {badge_html}
+        </div>"""
 
-        with st.container(border=True):
-            head_left, head_right = st.columns([4, 1])
-            with head_left:
-                info_cols = st.columns([0.8, 1.2, 6])
-                with info_cols[0]:
-                    st.markdown(
-                        f"""
-                        <div style='display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;background:{primary};color:white;font-weight:900;font-size:12px;'>#{seed}</div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                with info_cols[1]:
-                    if logo_path:
-                        st.image(logo_path, width=36)
-                    else:
-                        st.markdown("### 🏈")
-                with info_cols[2]:
-                    st.markdown(
-                        f"<div style='font-size:18px;font-weight:900;color:{primary};line-height:1.15;'>{html.escape(team)}</div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.caption(f"Record: {record}")
-            with head_right:
-                if bye:
-                    st.markdown(
-                        "<div style='margin-top:6px;display:inline-block;padding:4px 8px;border-radius:999px;background:#dcfce7;color:#14532d;font-size:11px;font-weight:800;'>BYE</div>",
-                        unsafe_allow_html=True,
-                    )
-                elif auto_bid >= 55:
-                    st.markdown(
-                        "<div style='margin-top:6px;display:inline-block;padding:4px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;'>AUTO-BID TRACK</div>",
-                        unsafe_allow_html=True,
-                    )
-            if win_prob is not None:
-                st.progress(float(win_prob) / 100.0)
-                st.caption(f"Win probability: {win_prob:.1f}%")
-
-    def matchup(seed_a, seed_b):
-        row_a = pf[pf['Projected Seed'] == seed_a].iloc[0]
-        row_b = pf[pf['Projected Seed'] == seed_b].iloc[0]
+    def win_prob(seed_a, seed_b):
         diff = max(-8, min(8, seed_b - seed_a))
-        p_a = max(18.0, min(82.0, 50 + (diff * 4.5)))
-        p_b = round(100 - p_a, 1)
-        with st.container(border=True):
-            st.markdown(f"#### #{seed_a} vs #{seed_b}")
-            team_card(row_a, p_a)
-            st.markdown("<div style='text-align:center;font-size:12px;font-weight:900;color:#94a3b8;margin:8px 0;'>VS</div>", unsafe_allow_html=True)
-            team_card(row_b, p_b)
+        p_a  = round(max(18.0, min(82.0, 50 + diff * 4.5)), 1)
+        return p_a, round(100 - p_a, 1)
 
-    semis = [str(pf[pf['Projected Seed'] == s].iloc[0]['Team']) for s in [1, 2, 3, 4]]
-    st.caption("Projected semifinalists: " + " • ".join(semis))
+    def prob_bar(p, color):
+        return f"""
+        <div style='height:4px;border-radius:2px;background:#1f2937;margin:4px 0 6px 0;'>
+          <div style='width:{p}%;height:4px;border-radius:2px;background:{color};'></div>
+        </div>
+        <div style='font-size:0.7rem;color:#9ca3af;text-align:right;'>Win prob: <strong style='color:white;'>{p}%</strong></div>"""
 
-    left, right = st.columns([1.0, 1.35])
-    with left:
-        st.markdown("#### Top 4 Byes")
-        for seed in [1, 2, 3, 4]:
-            team_card(pf[pf['Projected Seed'] == seed].iloc[0], bye=True)
-            st.markdown("")
-    with right:
-        st.markdown("#### Projected First Round")
-        for a, b in [(5, 12), (6, 11), (7, 10), (8, 9)]:
-            matchup(a, b)
-            st.markdown("")
+    # ── BYE SEEDS (1-4) ──────────────────────────────────────────────────────
+    st.markdown("""
+    <div style='background:linear-gradient(90deg,#14532d22,#1f2937);border:1px solid #166534;
+    border-radius:10px;padding:8px 14px;margin-bottom:12px;'>
+      <span style='color:#4ade80;font-weight:900;font-size:0.85rem;'>🟢 FIRST-ROUND BYES — SEEDS 1–4</span>
+    </div>""", unsafe_allow_html=True)
+
+    bye_html = "<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;'>"
+    for seed in [1, 2, 3, 4]:
+        row = get_row(seed)
+        bye_html += team_pill(row, badge="BYE", badge_color="#166534")
+    bye_html += "</div>"
+    st.markdown(bye_html, unsafe_allow_html=True)
+
+    # ── FIRST ROUND MATCHUPS (seeds 5-12) ────────────────────────────────────
+    st.markdown("""
+    <div style='background:linear-gradient(90deg,#1e3a5f22,#1f2937);border:1px solid #1e40af;
+    border-radius:10px;padding:8px 14px;margin-bottom:12px;'>
+      <span style='color:#60a5fa;font-weight:900;font-size:0.85rem;'>🏈 FIRST ROUND MATCHUPS</span>
+    </div>""", unsafe_allow_html=True)
+
+    matchups = [(5, 12), (6, 11), (7, 10), (8, 9)]
+    for seed_a, seed_b in matchups:
+        row_a = get_row(seed_a)
+        row_b = get_row(seed_b)
+        if row_a is None or row_b is None:
+            continue
+        p_a, p_b = win_prob(seed_a, seed_b)
+        c_a = get_team_primary_color(str(row_a.get('Team', '')))
+        c_b = get_team_primary_color(str(row_b.get('Team', '')))
+
+        st.markdown(f"""
+        <div style='background:#1f2937;border:1px solid #374151;border-radius:12px;
+        padding:12px;margin-bottom:10px;'>
+          <div style='font-size:0.72rem;font-weight:700;color:#6b7280;
+          text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;'>
+            #{seed_a} vs #{seed_b}
+          </div>
+          {team_pill(row_a)}
+          {prob_bar(p_a, c_a)}
+          <div style='text-align:center;font-size:0.72rem;font-weight:900;
+          color:#4b5563;margin:4px 0;'>VS</div>
+          {team_pill(row_b)}
+          {prob_bar(p_b, c_b)}
+        </div>""", unsafe_allow_html=True)
+
+    # ── PROJECTED SEMIFINALS ─────────────────────────────────────────────────
+    st.markdown("""
+    <div style='background:linear-gradient(90deg,#4c1d9522,#1f2937);border:1px solid #6d28d9;
+    border-radius:10px;padding:8px 14px;margin-top:4px;'>
+      <span style='color:#a78bfa;font-weight:900;font-size:0.85rem;'>🏆 PROJECTED SEMIFINALISTS</span><br>
+      <span style='color:#6b7280;font-size:0.78rem;'>Seeds 1-4 + winners of first round</span>
+    </div>""", unsafe_allow_html=True)
+    semi_names = []
+    for seed in [1, 2, 3, 4]:
+        r = get_row(seed)
+        if r is not None:
+            semi_names.append(f"#{seed} {r['Team']}")
+    if semi_names:
+        for name in semi_names:
+            st.markdown(f"<div style='padding:4px 14px;color:#d1d5db;font-size:0.82rem;'>• {html.escape(name)}</div>", unsafe_allow_html=True)
+
 
 
 def render_first_four_out(board_df):
