@@ -3931,6 +3931,21 @@ if data:
 
         _league_avg_speed = sum(v['team_speed'] for v in _speed_map.values()) / max(1, len(_speed_map))
 
+        # Final-season rank lookup — display fallback when at-game rank is NaN
+        # e.g. BG was unranked early but ended the season #4 nationally.
+        try:
+            _cfp_final = pd.read_csv('cfp_rankings_history.csv')
+            _cfp_yr    = _cfp_final['YEAR'].max()
+            _cfp_wk    = _cfp_final[_cfp_final['YEAR'] == _cfp_yr]['WEEK'].max()
+            _cfp_snap  = _cfp_final[
+                (_cfp_final['YEAR'] == _cfp_yr) & (_cfp_final['WEEK'] == _cfp_wk)
+            ]
+            _final_rank_lookup = dict(
+                zip(_cfp_snap['TEAM'].str.strip(), _cfp_snap['RANK'].astype(int))
+            )
+        except Exception:
+            _final_rank_lookup = {}
+
         def _get_user_games(user):
             if _cpu_sos.empty: return pd.DataFrame()
             mask = (_cpu_sos['Vis_User'] == user) | (_cpu_sos['Home_User'] == user)
@@ -4268,17 +4283,36 @@ if data:
                 for _, g in wk_games.iterrows():
                     r = g['result']
                     ranked = g['opp_ranked']
-                    opp_rk = f"#{int(g['opp_rank'])}" if ranked else ""
-                    opp    = str(g['opponent'])[:14]
+                    opp_name_full = str(g['opponent'])
+                    # Final-rank fallback: opponent was unranked at game time but
+                    # ended the season ranked (e.g. BG was #4 at season end)
+                    final_rk = _final_rank_lookup.get(opp_name_full)
+                    if ranked:
+                        opp_rk_label  = f"#{int(g['opp_rank'])}"
+                        opp_rk_suffix = ""
+                    elif final_rk:
+                        opp_rk_label  = f"▸#{final_rk}"   # ended ranked
+                        opp_rk_suffix = " fin"
+                    else:
+                        opp_rk_label  = ""
+                        opp_rk_suffix = ""
+                    opp    = opp_name_full[:14]
                     margin = f" {'+' if (g['margin'] or 0)>0 else ''}{int(g['margin'])}" if (g['margin'] is not None and not pd.isna(g['margin'])) else ""
                     if r == 'W' and ranked:
                         bg, txt, border = "#14532d", "#4ade80", "#22c55e"
+                        icon = "✅"
+                    elif r == 'W' and final_rk:
+                        # Win vs team that ended ranked — treat as quality win, slightly dimmer green
+                        bg, txt, border = "#0f3320", "#34d399", "#10b981"
                         icon = "✅"
                     elif r == 'W':
                         bg, txt, border = "#1e3a5f", "#93c5fd", "#3b82f6"
                         icon = "✓"
                     elif r == 'L' and ranked:
                         bg, txt, border = "#7f1d1d", "#fca5a5", "#ef4444"
+                        icon = "💀"
+                    elif r == 'L' and final_rk:
+                        bg, txt, border = "#5c1a1a", "#fca5a5", "#dc2626"
                         icon = "💀"
                     elif r == 'L':
                         bg, txt, border = "#3b1f1f", "#f87171", "#dc2626"
@@ -4291,14 +4325,14 @@ if data:
                         f"<div style='background:{bg};border:1px solid {border};border-radius:8px;"
                         f"padding:7px 10px;min-width:90px;cursor:default;'>"
                         f"<div style='font-size:0.65rem;color:#475569;margin-bottom:2px;'>{wk_label} · {g['home_away']}</div>"
-                        f"<div style='font-size:0.78rem;font-weight:800;color:{txt};'>{icon} {opp_rk}</div>"
+                        f"<div style='font-size:0.78rem;font-weight:800;color:{txt};'>{icon} {opp_rk_label}</div>"
                         f"<div style='font-size:0.7rem;color:{txt}99;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;'>{html.escape(opp)}</div>"
                         f"<div style='font-size:0.7rem;color:{txt}cc;font-weight:700;'>{r}{margin}</div>"
                         f"</div>"
                     )
             chips_html += "</div>"
             st.markdown(chips_html, unsafe_allow_html=True)
-            st.caption("🟩 Win vs ranked  ·  🟦 Win vs unranked  ·  🟥 Loss vs ranked  ·  ◼ Loss vs unranked  ·  ⏳ Pending")
+            st.caption("🟩 Win vs ranked at game time  ·  🟩 ▸ Win vs team that ended ranked  ·  🟦 Win vs unranked  ·  🟥 Loss vs ranked  ·  ◼ Loss vs unranked  ·  ⏳ Pending")
 
             # ── SECTION 4: QUALITY WIN / STRENGTH OF LOSS BREAKDOWN ──────────
             st.markdown("---")
@@ -4306,14 +4340,19 @@ if data:
 
             wins_df   = sel_games[sel_games['result'] == 'W'].copy()
             losses_df = sel_games[sel_games['result'] == 'L'].copy()
+            # Include wins vs teams that ended ranked as quality wins too
+            wins_df['_final_rk'] = wins_df['opponent'].apply(lambda o: _final_rank_lookup.get(str(o)))
+            losses_df['_final_rk'] = losses_df['opponent'].apply(lambda o: _final_rank_lookup.get(str(o)))
             ranked_wins_df  = wins_df[wins_df['opp_ranked']].sort_values('opp_rank')
+            fin_rank_wins_df = wins_df[~wins_df['opp_ranked'] & wins_df['_final_rk'].notna()].sort_values('_final_rk')
             ranked_loss_df  = losses_df[losses_df['opp_ranked']].sort_values('opp_rank')
             unrank_loss_df  = losses_df[~losses_df['opp_ranked']]
 
+            total_quality_wins = len(ranked_wins_df) + len(fin_rank_wins_df)
             qw_col, ql_col = st.columns(2)
             with qw_col:
-                st.markdown(f"<div style='font-weight:800;color:#4ade80;margin-bottom:8px;'>✅ Ranked Wins ({len(ranked_wins_df)})</div>", unsafe_allow_html=True)
-                if ranked_wins_df.empty:
+                st.markdown(f"<div style='font-weight:800;color:#4ade80;margin-bottom:8px;'>✅ Quality Wins ({total_quality_wins})</div>", unsafe_allow_html=True)
+                if ranked_wins_df.empty and fin_rank_wins_df.empty:
                     st.caption("No ranked wins yet.")
                 else:
                     for _, g in ranked_wins_df.iterrows():
@@ -4326,6 +4365,17 @@ if data:
                             f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']}</span>"
                             f"</div>", unsafe_allow_html=True
                         )
+                    for _, g in fin_rank_wins_df.iterrows():
+                        margin_str = f"+{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
+                        fr = int(g['_final_rk'])
+                        st.markdown(
+                            f"<div style='padding:5px 8px;margin-bottom:4px;background:#0a1f12;border-left:3px solid #10b981;border-radius:5px;font-size:0.8rem;'>"
+                            f"<span style='color:#34d399;font-weight:800;'>▸#{fr} fin</span> "
+                            f"<span style='color:#d1d5db;'>{html.escape(str(g['opponent']))}</span> "
+                            f"<span style='color:#10b981;font-weight:700;'>{margin_str}</span>"
+                            f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']} · unranked at game time</span>"
+                            f"</div>", unsafe_allow_html=True
+                        )
 
             with ql_col:
                 st.markdown(f"<div style='font-weight:800;color:#f87171;margin-bottom:8px;'>💀 Losses ({len(losses_df)})</div>", unsafe_allow_html=True)
@@ -4334,11 +4384,19 @@ if data:
                 else:
                     for _, g in losses_df.iterrows():
                         margin_str = f"{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
-                        rk_str = f"#{int(g['opp_rank'])}" if g['opp_ranked'] else "Unranked"
-                        rk_color = "#fca5a5" if g['opp_ranked'] else "#f97316"
-                        badge = ""
-                        if not g['opp_ranked']:
-                            badge = "<span style='margin-left:6px;padding:1px 5px;background:#7c2d12;color:#fed7aa;font-size:0.65rem;border-radius:4px;font-weight:800;'>BAD L</span>"
+                        fin_rk = g.get('_final_rk')
+                        if g['opp_ranked']:
+                            rk_str   = f"#{int(g['opp_rank'])}"
+                            rk_color = "#fca5a5"
+                            badge    = ""
+                        elif fin_rk:
+                            rk_str   = f"▸#{int(fin_rk)} fin"
+                            rk_color = "#fca5a5"
+                            badge    = ""
+                        else:
+                            rk_str   = "Unranked"
+                            rk_color = "#f97316"
+                            badge    = "<span style='margin-left:6px;padding:1px 5px;background:#7c2d12;color:#fed7aa;font-size:0.65rem;border-radius:4px;font-weight:800;'>BAD L</span>"
                         st.markdown(
                             f"<div style='padding:5px 8px;margin-bottom:4px;background:#200d0d;border-left:3px solid #ef4444;border-radius:5px;font-size:0.8rem;'>"
                             f"<span style='color:{rk_color};font-weight:800;'>{rk_str}</span> "
