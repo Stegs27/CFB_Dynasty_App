@@ -4103,6 +4103,106 @@ if data:
 
         st.caption("⚠️ Speed Handicap: slower teams (+) face tougher effective difficulty — faster teams can mask roster weaknesses with athleticism. Positive = harder path.")
 
+        # ── SECTION 2b: HARDEST PATH NARRATIVE ───────────────────────────────
+        st.markdown("---")
+        st.subheader("🪖 Who Had the Hardest Path?")
+        st.caption("Ranked by adjusted difficulty — a 9-1 season against ranked opponents with a bad QB and no speed is NOT the same as 9-1 against nobodies.")
+
+        # Sort by _handicap descending = hardest path first
+        hardest_df = resume_df.sort_values('_handicap', ascending=False).reset_index(drop=True)
+        path_icons = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"]
+
+        for idx, hr in hardest_df.iterrows():
+            huser    = hr['User']
+            hteam    = hr['Team']
+            hcolor   = get_team_primary_color(hteam)
+            logo_uri = image_file_to_data_uri(get_logo_source(hteam))
+            logo_img = f"<img src='{logo_uri}' style='width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if logo_uri else ""
+            hcap     = float(hr['_handicap'])
+            hspd     = hr['Team Speed']
+            hqb      = str(hr.get('QB Tier', '—'))
+            hqbovr   = int(hr.get('QB OVR', 0))
+            hrw      = hr['Ranked Wins']
+            ht10     = hr['Top-10 Wins']
+            hrec     = hr['Record']
+            hconf    = str(hr.get('Conference', '—'))
+            hadjos   = hr['Adj SOS']
+
+            # Build the difficulty narrative sentence
+            parts = []
+            if hcap >= 5:
+                parts.append(f"catastrophic QB situation ({hqb}, {hqbovr} OVR)")
+            elif hcap >= 2:
+                parts.append(f"below-avg QB ({hqb}, {hqbovr} OVR) dragging them down")
+            elif hcap <= -4:
+                parts.append(f"elite QB ({hqbovr} OVR) softening the blow")
+            else:
+                parts.append(f"{hqb} QB ({hqbovr} OVR)")
+
+            if hspd <= 5:
+                parts.append(f"almost no team speed ({hspd} guys)")
+            elif hspd <= 8:
+                parts.append(f"limited speed ({hspd} guys)")
+            elif hspd >= 13:
+                parts.append(f"elite team speed ({hspd} guys)")
+            else:
+                parts.append(f"average speed ({hspd} guys)")
+
+            conf_ctx = {'SEC': "in the murder conference (SEC)", 'B1G': "in the other murder conference (B1G)", 'ACC': "in the ACC"}.get(hconf, f"in the {hconf}")
+            parts.append(f"competing {conf_ctx}")
+
+            if hrw >= 4:
+                parts.append(f"still racked up {hrw} ranked wins")
+            elif hrw >= 2:
+                parts.append(f"managed {hrw} ranked wins anyway")
+            elif hrw == 0:
+                parts.append("zero ranked wins on the résumé")
+            else:
+                parts.append(f"only {hrw} ranked win to show for it")
+
+            # Join narrative
+            if len(parts) >= 3:
+                narrative = f"{parts[0].capitalize()}, {parts[1]}, {parts[2]} — {parts[3]}."
+            else:
+                narrative = ". ".join(p.capitalize() for p in parts) + "."
+
+            # Difficulty bar (0–10 scale, handicap capped at ±10)
+            bar_pct = min(100, max(0, int((hcap + 6) / 16 * 100)))
+            bar_color = "#ef4444" if hcap > 4 else ("#f97316" if hcap > 1 else ("#fbbf24" if hcap > -1 else "#22c55e"))
+            hcap_label = f"+{hcap:.1f}" if hcap > 0 else f"{hcap:.1f}"
+            rank_icon = path_icons[idx] if idx < len(path_icons) else str(idx+1)
+
+            # Conf badge colors
+            _cc = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),'ACC':('#a78bfa','#3b1d6e')}.get(hconf, ('#6b7280','#1f2937'))
+            conf_badge = f"<span style='padding:2px 6px;border-radius:999px;font-size:0.68rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};border:1px solid {_cc[0]}44;'>{html.escape(hconf)}</span>"
+
+            st.markdown(f"""
+            <div style='background:#0a1628;border:1px solid #1e293b;border-left:4px solid {hcolor};border-radius:10px;padding:14px 16px;margin-bottom:10px;'>
+              <div style='display:flex;align-items:center;gap:10px;margin-bottom:10px;'>
+                <span style='font-size:1.4rem;'>{rank_icon}</span>
+                {logo_img}
+                <div style='flex:1;'>
+                  <span style='color:{hcolor};font-weight:900;font-size:1rem;'>{html.escape(hteam)}</span>
+                  <span style='color:#475569;font-size:0.8rem;margin-left:8px;'>({html.escape(huser)})</span>
+                  <span style='margin-left:8px;'>{conf_badge}</span>
+                </div>
+                <div style='text-align:right;'>
+                  <div style='color:white;font-weight:800;font-size:0.9rem;'>{hrec}</div>
+                  <div style='color:#475569;font-size:0.72rem;'>{hrw} ranked W · {ht10} top-10 W</div>
+                </div>
+              </div>
+              <div style='margin-bottom:8px;'>
+                <div style='display:flex;justify-content:space-between;margin-bottom:4px;'>
+                  <span style='font-size:0.72rem;color:#475569;font-family:monospace;letter-spacing:.05em;'>PATH DIFFICULTY</span>
+                  <span style='font-size:0.78rem;color:{bar_color};font-weight:800;font-family:monospace;'>{hcap_label} handicap · Adj SOS {hadjos}</span>
+                </div>
+                <div style='background:#111f33;border-radius:4px;height:8px;overflow:hidden;'>
+                  <div style='background:{bar_color};width:{bar_pct}%;height:8px;border-radius:4px;'></div>
+                </div>
+              </div>
+              <div style='color:#94a3b8;font-size:0.82rem;line-height:1.5;'>{narrative}</div>
+            </div>""", unsafe_allow_html=True)
+
         # ── SECTION 3: WEEK-BY-WEEK TIMELINE ─────────────────────────────────
         st.markdown("---")
         st.subheader("📅 Week-by-Week Schedule")
@@ -4149,7 +4249,7 @@ if data:
                     ranked = g['opp_ranked']
                     opp_rk = f"#{int(g['opp_rank'])}" if ranked else ""
                     opp    = str(g['opponent'])[:14]
-                    margin = f" {'+' if (g['margin'] or 0)>0 else ''}{int(g['margin'])}" if g['margin'] is not None else ""
+                    margin = f" {'+' if (g['margin'] or 0)>0 else ''}{int(g['margin'])}" if (g['margin'] is not None and not pd.isna(g['margin'])) else ""
                     if r == 'W' and ranked:
                         bg, txt, border = "#14532d", "#4ade80", "#22c55e"
                         icon = "✅"
@@ -4196,7 +4296,7 @@ if data:
                     st.caption("No ranked wins yet.")
                 else:
                     for _, g in ranked_wins_df.iterrows():
-                        margin_str = f"+{int(g['margin'])}" if g['margin'] else ""
+                        margin_str = f"+{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
                         st.markdown(
                             f"<div style='padding:5px 8px;margin-bottom:4px;background:#0d2010;border-left:3px solid #22c55e;border-radius:5px;font-size:0.8rem;'>"
                             f"<span style='color:#4ade80;font-weight:800;'>#{int(g['opp_rank'])}</span> "
@@ -4212,7 +4312,7 @@ if data:
                     st.caption("No losses — dynasty.")
                 else:
                     for _, g in losses_df.iterrows():
-                        margin_str = f"{int(g['margin'])}" if g['margin'] else ""
+                        margin_str = f"{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
                         rk_str = f"#{int(g['opp_rank'])}" if g['opp_ranked'] else "Unranked"
                         rk_color = "#fca5a5" if g['opp_ranked'] else "#f97316"
                         badge = ""
