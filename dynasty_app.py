@@ -4560,31 +4560,31 @@ else:
     )
 
 # ── TABS START ───────────────────────────────────────────────────────
-        tabs = st.tabs([
-        "🗞️ Dynasty News",
-        "📐 SOS & True Path",
-        "🏆 Who's In?",
-        "📺 Season Recap",
-        "🔍 Speed Freaks",
-        "🎯 Roster Matchup",
-        "📊 Team Overview",
-        "🏈 Recruiting Rankings",
-        "⚔️ H2H Matrix",
-        "🎬 ISPN Classics",
-        "🐐 GOAT Rankings",
-    ])
+tabs = st.tabs([
+    "🗞️ Dynasty News",
+    "📐 SOS & True Path",
+    "🏆 Who's In?",
+    "📺 Season Recap",
+    "🔍 Speed Freaks",
+    "🎯 Roster Matchup",
+    "📊 Team Overview",
+    "🏈 Recruiting Rankings",
+    "⚔️ H2H Matrix",
+    "🎬 ISPN Classics",
+    "🐐 GOAT Rankings",
+])
 
-    # --- SOS & TRUE PATH ---
-        with tabs[1]:
-        st.header("📐 SOS & True Path")
-        st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, week-by-week breakdown, and quality wins. Slower teams fight harder for every W.")
+# --- SOS & TRUE PATH ---
+with tabs[1]:
+    st.header("📐 SOS & True Path")
+    st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, week-by-week breakdown, and quality wins. Slower teams fight harder for every W.")
 
-        try:
-            _cpu_sos = pd.read_csv('CPUscores_MASTER.csv')
-            _cpu_sos['YEAR'] = pd.to_numeric(_cpu_sos['YEAR'], errors='coerce')
-            _cpu_sos = _cpu_sos[_cpu_sos['YEAR'] == CURRENT_YEAR].copy()
-        except Exception:
-            _cpu_sos = pd.DataFrame()
+    try:
+        _cpu_sos = pd.read_csv('CPUscores_MASTER.csv')
+        _cpu_sos['YEAR'] = pd.to_numeric(_cpu_sos['YEAR'], errors='coerce')
+        _cpu_sos = _cpu_sos[_cpu_sos['YEAR'] == CURRENT_YEAR].copy()
+    except Exception:
+        _cpu_sos = pd.DataFrame()
 
         # Normalise user names — "Mike Stegeman" → "Mike", "Devin Stegeman" → "Devin"
         _known_users = {'mike':'Mike','devin':'Devin','josh':'Josh','noah':'Noah','doug':'Doug','nick':'Nick'}
