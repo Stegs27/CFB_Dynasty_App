@@ -5395,31 +5395,82 @@ if data:
                     f"That clock is ticking."))
 
             # ── 8. RECRUITING KING ────────────────────────────────────────
+        try:
+            # LIVE RECRUITING OVERRIDE
+            _live_rec_df = get_overall_recruiting_snapshot()
+            if not _live_rec_df.empty:
+                _live_rec_king = _live_rec_df.sort_values('Rank').iloc[0]
+                _rk_team = str(_live_rec_king['Team'])
+                _rk_user = str(_live_rec_king.get('User', ''))
+                # Find user from model_2041 if missing
+                if not _rk_user or _rk_user.lower() in ('nan', ''):
+                    _u_match = model_2041[model_2041['TEAM'] == _rk_team]
+                    _rk_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else 'CPU'
+                
+                _rk_pts = round(float(_live_rec_king.get('Points', 0)), 2)
+                headlines.append(("🎯", "Recruiting King",
+                                  f"<strong>{_rk_user}</strong> ({html.escape(_rk_team)}) is winning the "
+                                  f"recruiting war with the #1 overall class ({_rk_pts} pts). "
+                                  f"The roster that wins the natty in {CURRENT_YEAR + 2} starts with "
+                                  f"who you're landing right now."))
+            else:
+                raise Exception("Fallback to static")
+        except Exception:
             if 'Recruit Score' in model_2041.columns:
                 _rk = model_2041.sort_values('Recruit Score', ascending=False).iloc[0]
                 _rk_user = str(_rk['USER'])
                 _rk_team = str(_rk['TEAM'])
                 _rk_score = round(float(_rk['Recruit Score']), 1)
                 headlines.append(("🎯", "Recruiting King",
-                    f"<strong>{_rk_user}</strong> ({html.escape(_rk_team)}) is winning the "
-                    f"recruiting war ({_rk_score} recruit score). "
-                    f"The roster that wins the natty in {CURRENT_YEAR + 2} starts with "
-                    f"who you're landing right now."))
+                                  f"<strong>{_rk_user}</strong> ({html.escape(_rk_team)}) is winning the "
+                                  f"recruiting war ({_rk_score} recruit score). "
+                                  f"The roster that wins the natty in {CURRENT_YEAR + 2} starts with "
+                                  f"who you're landing right now."))
 
-            # ── 9. SPEED MERCHANTS ────────────────────────────────────────
+        # ── 9. SPEED MERCHANTS ────────────────────────────────────────
+        try:
+            # LIVE SPEED OVERRIDE
+            _sf_roster = pd.read_csv('cfb26_rosters_full.csv')
+            _sf_roster['SPD'] = pd.to_numeric(_sf_roster['SPD'], errors='coerce')
+            _sf_roster['ACC'] = pd.to_numeric(_sf_roster['ACC'], errors='coerce')
+            _sf_roster['REDSHIRT'] = pd.to_numeric(_sf_roster.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
+            _sf_active = _sf_roster[_sf_roster['REDSHIRT'] == 0]
+            
+            _team_speeds = []
+            for _t in model_2041['TEAM'].unique():
+                _tdf = _sf_active[_sf_active['Team'] == _t]
+                _s90 = int((_tdf['SPD'] >= 90).sum())
+                _gen = int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum())
+                _team_speeds.append({'TEAM': _t, 'S90': _s90, 'GEN': _gen})
+            
+            _live_speed_df = pd.DataFrame(_team_speeds).sort_values(['S90', 'GEN'], ascending=False)
+            _sk = _live_speed_df.iloc[0]
+            _sk_team = str(_sk['TEAM'])
+            _sk_user = str(model_2041[model_2041['TEAM'] == _sk_team]['USER'].iloc[0])
+            _sk_num = int(_sk['S90'])
+            _sk_gen = int(_sk['GEN'])
+            _gen_note = (f" including <strong>{_sk_gen} generational freak"
+                         f"{'s' if _sk_gen != 1 else ''}</strong>") if _sk_gen > 0 else ""
+            
+            headlines.append(("💨", "Speed Merchants",
+                              f"<strong>{_sk_user}</strong> ({html.escape(_sk_team)}) leads with "
+                              f"<strong>{_sk_num}</strong> active players at 90+ speed{_gen_note}. "
+                              f"You can scheme around a lot of things. "
+                              f"You can't scheme around not being able to catch the other team's guys."))
+        except Exception:
             if 'Team Speed (90+ Speed Guys)' in model_2041.columns:
                 _sk = model_2041.sort_values('Team Speed (90+ Speed Guys)', ascending=False).iloc[0]
-                _sk_user  = str(_sk['USER'])
-                _sk_team  = str(_sk['TEAM'])
-                _sk_num   = int(_sk.get('Team Speed (90+ Speed Guys)', 0))
-                _sk_gen   = int(_sk.get('Generational (96+ speed or 96+ Acceleration)', 0))
+                _sk_user = str(_sk['USER'])
+                _sk_team = str(_sk['TEAM'])
+                _sk_num = int(_sk.get('Team Speed (90+ Speed Guys)', 0))
+                _sk_gen = int(_sk.get('Generational (96+ speed or 96+ Acceleration)', 0))
                 _gen_note = (f" including <strong>{_sk_gen} generational freak"
                              f"{'s' if _sk_gen != 1 else ''}</strong>") if _sk_gen > 0 else ""
                 headlines.append(("💨", "Speed Merchants",
-                    f"<strong>{_sk_user}</strong> ({html.escape(_sk_team)}) leads with "
-                    f"<strong>{_sk_num}</strong> players at 90+ speed{_gen_note}. "
-                    f"You can scheme around a lot of things. "
-                    f"You can't scheme around not being able to catch the other team's guys."))
+                                  f"<strong>{_sk_user}</strong> ({html.escape(_sk_team)}) leads with "
+                                  f"<strong>{_sk_num}</strong> players at 90+ speed{_gen_note}. "
+                                  f"You can scheme around a lot of things. "
+                                  f"You can't scheme around not being able to catch the other team's guys."))
 
         # ── Render all headlines ──────────────────────────────────────────
         for _hl_emoji, _hl_title, _hl_body in headlines:
