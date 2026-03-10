@@ -4417,6 +4417,69 @@ if data:
         frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
         frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
     }
+# ════════════════════════════════════════════════════════════════════
+# DYNAMIC MAIN HEADER (Replaces st.header and the gray blurb)
+# ════════════════════════════════════════════════════════════════════
+st.header("📰 Dynasty News")
+
+# 1. Headline Logic
+top_headline = "Your home for league rankings, playoff races, and Heisman watch."
+badge_text = "TOP STORY"
+is_gold = False
+
+try:
+    # PRIORITY 1: Check for CFP Results
+    if os.path.exists('CFPbracketresults.csv'):
+        _b_df = pd.read_csv('CFPbracketresults.csv')
+        _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)]
+        if not _cy_games.empty:
+            _last_game = _cy_games.iloc[-1]
+            top_headline = f"🏆 CFP UPDATE: {_last_game['WINNER']} defeats {_last_game['LOSER']}!"
+            badge_text = "FINAL SCORE"
+            is_gold = True
+    
+    # PRIORITY 2: Heisman Frontrunner (if no CFP games yet)
+    # Note: Ensure power_board is defined before this block
+    if not is_gold and 'Heisman Player' in power_board.columns:
+        frontrunner = power_board.iloc[0]
+        p_name = str(frontrunner.get('Heisman Player', 'TBD'))
+        p_stats = str(frontrunner.get('Heisman Stats', 'Evaluating...'))
+        if p_name not in ['TBD', 'nan', 'None']:
+            top_headline = f"HEISMAN WATCH: {p_name} — {p_stats}"
+            badge_text = "HEISMAN"
+            is_gold = True
+except:
+    pass
+
+# 2. Render Header Sub-Headline
+if is_gold:
+    st.markdown(f"""
+        <style>
+        @keyframes subtle-pulse {{
+            0% {{ opacity: 0.8; transform: scale(1); }}
+            50% {{ opacity: 1; transform: scale(1.03); }}
+            100% {{ opacity: 0.8; transform: scale(1); }}
+        }}
+        .top-story-badge {{
+            display: inline-block; background: #f59e0b; color: #451a03; 
+            padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; 
+            font-weight: 900; margin-right: 10px; vertical-align: middle;
+            animation: subtle-pulse 3s infinite ease-in-out;
+            letter-spacing: 1px;
+        }}
+        </style>
+        <div style="margin-bottom: 30px; margin-top: -15px;">
+            <div class="top-story-badge">{badge_text}</div>
+            <span style="color: #fbbf24; font-size: 0.95rem; font-weight: 700; vertical-align: middle;">
+                {top_headline.upper()}
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    # Standard Gray Blurb (Dynamic)
+    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -15px; margin-bottom: 30px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
+
+st.divider()
 
     tabs = st.tabs([
         "🗞️ Dynasty News",
@@ -5152,69 +5215,8 @@ if data:
     with tabs[0]:
         import os
 
-# ════════════════════════════════════════════════════════════════════
-# DYNAMIC MAIN HEADER (Replaces st.header and the gray blurb)
-# ════════════════════════════════════════════════════════════════════
-st.header("📰 Dynasty News")
-
-# 1. Headline Logic
-top_headline = "Your home for league rankings, playoff races, and Heisman watch."
-badge_text = "TOP STORY"
-is_gold = False
-
-try:
-    # PRIORITY 1: Check for CFP Results
-    if os.path.exists('CFPbracketresults.csv'):
-        _b_df = pd.read_csv('CFPbracketresults.csv')
-        _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)]
-        if not _cy_games.empty:
-            _last_game = _cy_games.iloc[-1]
-            top_headline = f"🏆 CFP UPDATE: {_last_game['WINNER']} defeats {_last_game['LOSER']}!"
-            badge_text = "FINAL SCORE"
-            is_gold = True
-    
-    # PRIORITY 2: Heisman Frontrunner (if no CFP games yet)
-    # Note: Ensure power_board is defined before this block
-    if not is_gold and 'Heisman Player' in power_board.columns:
-        frontrunner = power_board.iloc[0]
-        p_name = str(frontrunner.get('Heisman Player', 'TBD'))
-        p_stats = str(frontrunner.get('Heisman Stats', 'Evaluating...'))
-        if p_name not in ['TBD', 'nan', 'None']:
-            top_headline = f"HEISMAN WATCH: {p_name} — {p_stats}"
-            badge_text = "HEISMAN"
-            is_gold = True
-except:
-    pass
-
-# 2. Render Header Sub-Headline
-if is_gold:
-    st.markdown(f"""
-        <style>
-        @keyframes subtle-pulse {{
-            0% {{ opacity: 0.8; transform: scale(1); }}
-            50% {{ opacity: 1; transform: scale(1.03); }}
-            100% {{ opacity: 0.8; transform: scale(1); }}
-        }}
-        .top-story-badge {{
-            display: inline-block; background: #f59e0b; color: #451a03; 
-            padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; 
-            font-weight: 900; margin-right: 10px; vertical-align: middle;
-            animation: subtle-pulse 3s infinite ease-in-out;
-            letter-spacing: 1px;
-        }}
-        </style>
-        <div style="margin-bottom: 30px; margin-top: -15px;">
-            <div class="top-story-badge">{badge_text}</div>
-            <span style="color: #fbbf24; font-size: 0.95rem; font-weight: 700; vertical-align: middle;">
-                {top_headline.upper()}
-            </span>
-        </div>
-    """, unsafe_allow_html=True)
-else:
-    # Standard Gray Blurb (Dynamic)
-    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -15px; margin-bottom: 30px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
-
-st.divider()
+        st.header("🗞️ Dynasty News")
+        st.caption("Your season command center. Power rankings, toughest tests, award watch, injury report, and the rivalries that keep everyone up at night.")
 
         # ── DATA LOADS ───────────────────────────────────────────────────────
         try:
