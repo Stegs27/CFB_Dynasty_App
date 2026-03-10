@@ -2759,6 +2759,16 @@ def get_live_team_stats(team, model_df=None, rankings_df=None, current_year=None
     except Exception:
         cpu = pd.DataFrame()
 
+    def _completed_games(df, vcol, hcol, vscol, hscol, scol):
+        g = df.copy()
+        g['_vpts'] = pd.to_numeric(g[vscol], errors='coerce') if vscol in g.columns else np.nan
+        g['_hpts'] = pd.to_numeric(g[hscol], errors='coerce') if hscol in g.columns else np.nan
+        g = g[g['_vpts'].notna() & g['_hpts'].notna()].copy()
+        if scol and scol in g.columns:
+            status = g[scol].astype(str).str.upper()
+            g = g[(status.str.contains('FINAL')) | (status.str.contains('COMPLETE')) | (status.str.contains('PLAYED')) | (~status.str.contains('SCHEDULED'))]
+        return g
+
     if not cpu.empty:
         vcol = smart_col(cpu, ['Visitor', 'Away', 'Vis Team'])
         hcol = smart_col(cpu, ['Home', 'Home Team'])
@@ -2768,28 +2778,42 @@ def get_live_team_stats(team, model_df=None, rankings_df=None, current_year=None
         scol = smart_col(cpu, ['Status', 'Game Status'])
         if current_year is not None and ycol and ycol in cpu.columns:
             cpu = cpu[pd.to_numeric(cpu[ycol], errors='coerce') == int(current_year)].copy()
-        if vcol and hcol and vcol in cpu.columns and hcol in cpu.columns:
-            games = cpu[(cpu[vcol].astype(str).str.strip() == team) | (cpu[hcol].astype(str).str.strip() == team)].copy()
-            if not games.empty and vscol and hscol and vscol in games.columns and hscol in games.columns:
-                games['_vpts'] = pd.to_numeric(games[vscol], errors='coerce')
-                games['_hpts'] = pd.to_numeric(games[hscol], errors='coerce')
-                completed = games[games['_vpts'].notna() & games['_hpts'].notna()].copy()
-                if scol and scol in completed.columns:
-                    status = completed[scol].astype(str).str.upper()
-                    completed = completed[(status.str.contains('FINAL')) | (status.str.contains('COMPLETE')) | (status.str.contains('PLAYED')) | (~status.str.contains('SCHEDULED'))]
-                if not completed.empty:
-                    completed['_pf'] = np.where(completed[vcol].astype(str).str.strip() == team, completed['_vpts'], completed['_hpts'])
-                    completed['_pa'] = np.where(completed[vcol].astype(str).str.strip() == team, completed['_hpts'], completed['_vpts'])
-                    out['wins'] = int((completed['_pf'] > completed['_pa']).sum())
-                    out['losses'] = int((completed['_pf'] < completed['_pa']).sum())
-                    out['record'] = f"{out['wins']}-{out['losses']}"
-                    out['ppg'] = round(float(completed['_pf'].mean()), 1)
-                    out['avg_margin'] = round(float((completed['_pf'] - completed['_pa']).mean()), 1)
-                # Opponent record summary from rankings/model
+        if vcol and hcol and vscol and hscol and all(c in cpu.columns for c in [vcol, hcol, vscol, hscol]):
+            cpu[vcol] = cpu[vcol].astype(str).str.strip()
+            cpu[hcol] = cpu[hcol].astype(str).str.strip()
+            completed_all = _completed_games(cpu, vcol, hcol, vscol, hscol, scol)
+
+            # Build live per-team record map directly from CPU results.
+            record_map = {}
+            for _, g in completed_all.iterrows():
+                vt = str(g[vcol]).strip(); ht = str(g[hcol]).strip()
+                vp = float(g['_vpts']); hp = float(g['_hpts'])
+                for t in (vt, ht):
+                    if t and t.lower() != 'nan':
+                        record_map.setdefault(t, {'w': 0, 'l': 0})
+                if vp > hp:
+                    record_map[vt]['w'] += 1
+                    record_map[ht]['l'] += 1
+                elif hp > vp:
+                    record_map[ht]['w'] += 1
+                    record_map[vt]['l'] += 1
+
+            games = cpu[(cpu[vcol] == team) | (cpu[hcol] == team)].copy()
+            completed = completed_all[(completed_all[vcol] == team) | (completed_all[hcol] == team)].copy()
+            if not completed.empty:
+                completed['_pf'] = np.where(completed[vcol] == team, completed['_vpts'], completed['_hpts'])
+                completed['_pa'] = np.where(completed[vcol] == team, completed['_hpts'], completed['_vpts'])
+                out['wins'] = int((completed['_pf'] > completed['_pa']).sum())
+                out['losses'] = int((completed['_pf'] < completed['_pa']).sum())
+                out['record'] = f"{out['wins']}-{out['losses']}"
+                out['ppg'] = round(float(completed['_pf'].mean()), 1)
+                out['avg_margin'] = round(float((completed['_pf'] - completed['_pa']).mean()), 1)
+
+                # Opponent record should reflect completed opponents actually played so far.
                 opps = []
-                for _, g in games.iterrows():
+                for _, g in completed.iterrows():
                     opp = str(g[hcol]).strip() if str(g[vcol]).strip() == team else str(g[vcol]).strip()
-                    if opp and opp != 'nan':
+                    if opp and opp.lower() != 'nan':
                         opps.append(opp)
                 if opps:
                     wins_total = losses_total = 0
@@ -2797,20 +2821,27 @@ def get_live_team_stats(team, model_df=None, rankings_df=None, current_year=None
                     rlookup = rankings_df.drop_duplicates('Team').set_index('Team') if rankings_df is not None and not rankings_df.empty else None
                     mlookup = model_df.drop_duplicates('TEAM').set_index('TEAM') if model_df is not None and not model_df.empty else None
                     for opp in opps:
-                        if rlookup is not None and opp in rlookup.index:
+                        if opp in record_map:
+                            w = record_map[opp]['w']
+                            l = record_map[opp]['l']
+                        elif rlookup is not None and opp in rlookup.index:
                             rr = rlookup.loc[opp]
-                            if isinstance(rr, pd.DataFrame): rr = rr.iloc[0]
+                            if isinstance(rr, pd.DataFrame):
+                                rr = rr.iloc[0]
                             w = pd.to_numeric(rr.get('Wins', np.nan), errors='coerce')
                             l = pd.to_numeric(rr.get('Losses', np.nan), errors='coerce')
                         elif mlookup is not None and opp in mlookup.index:
                             rr = mlookup.loc[opp]
-                            if isinstance(rr, pd.DataFrame): rr = rr.iloc[0]
+                            if isinstance(rr, pd.DataFrame):
+                                rr = rr.iloc[0]
                             w = pd.to_numeric(rr.get('Current Record Wins', np.nan), errors='coerce')
                             l = pd.to_numeric(rr.get('Current Record Losses', np.nan), errors='coerce')
                         else:
                             w = l = np.nan
                         if pd.notna(w) and pd.notna(l):
-                            wins_total += int(w); losses_total += int(l); found += 1
+                            wins_total += int(w)
+                            losses_total += int(l)
+                            found += 1
                     if found:
                         out['opp_record'] = f"{wins_total}-{losses_total}"
     if out['record'] == '—':
@@ -6845,8 +6876,13 @@ if data:
         _logo_uri   = image_file_to_data_uri(get_logo_source(_ta_team))
         _logo_img   = (f"<img src='{_logo_uri}' style='width:60px;height:60px;object-fit:contain;'/>"
                        if _logo_uri else "<span style='font-size:36px;'>🏈</span>")
-        _cfp_rank_d = (f"#{int(row['Current CFP Ranking'])}"
-                       if pd.notna(row.get('Current CFP Ranking')) else "NR")
+        _rankings_lookup = get_cfp_rankings_snapshot()
+        _rank_match = _rankings_lookup[_rankings_lookup['Team'].astype(str).str.strip() == _ta_team] if _rankings_lookup is not None and not _rankings_lookup.empty else pd.DataFrame()
+        if not _rank_match.empty:
+            _cfp_rank_d = f"#{int(pd.to_numeric(_rank_match.iloc[0].get('Rank', np.nan), errors='coerce'))}"
+        else:
+            _cfp_rank_d = (f"#{int(row['Current CFP Ranking'])}"
+                           if pd.notna(row.get('Current CFP Ranking')) else "NR")
         _stock      = str(row.get('Program Stock', '—'))
         _conf       = str(row.get('CONFERENCE', ''))
         _record_d   = _live_team_stats['record'] if _live_team_stats.get('record', '—') != '—' else (f"{wins}-{losses}" if wins or losses else '—')
