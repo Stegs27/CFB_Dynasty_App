@@ -5600,7 +5600,7 @@ if data:
                                   f"You can scheme around a lot of things. "
                                   f"You can't scheme around not being able to catch the other team's guys."))
 
-                 # ── [ADDED] HTML CARD RENDERER WITH HOVER GLOW ────────────────────
+                 # ── [ADDED] HTML CARD RENDERER WITH HOVER GLOW & USER FALLBACK ────
         st.markdown("<br>", unsafe_allow_html=True) 
         
         # Inject the CSS animation block for the cards
@@ -5626,12 +5626,25 @@ if data:
         """, unsafe_allow_html=True)
 
         for _hl_emoji, _hl_title, _hl_body in headlines:
-            # Find the exact team name from the dataframe to trigger your local logos
             _team_name = ""
+            _body_lower = _hl_body.lower()
+            
+            # 1. Try to find the team name (cleaning up spaces to catch mismatches like Recruiting King)
             for _t in model_2041['TEAM'].unique():
-                if f"({html.escape(_t)}" in _hl_body or f"({_t}" in _hl_body:
+                _t_clean = str(_t).strip().lower()
+                if f"({_t_clean})" in _body_lower or f"({html.escape(str(_t)).strip().lower()})" in _body_lower:
                     _team_name = _t
                     break
+            
+            # 2. [ADDED] User Fallback: If no team was found, look for the user's name to map their team!
+            if not _team_name:
+                for _, _row in model_2041.iterrows():
+                    _u = str(_row['USER']).strip()
+                    if _u and _u.lower() not in ['nan', 'cpu', 'none', '']:
+                        # Look for the user's name wrapped in the bold tags that the headlines use
+                        if f"<strong>{_u.lower()}</strong>" in _body_lower or f" {_u.lower()} " in _body_lower or _body_lower.startswith(f"{_u.lower()}"):
+                            _team_name = str(_row['TEAM'])
+                            break
             
             # Fetch the logo using the app's native asset pipeline
             _logo_uri = image_file_to_data_uri(get_logo_source(_team_name)) if _team_name else ""
