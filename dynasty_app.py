@@ -4416,7 +4416,7 @@ if data:
         frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
         frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
     }
-    
+
 # ════════════════════════════════════════════════════════════════════
 # DYNAMIC GLOBAL HEADER (Ultra-Stable Version)
 # ════════════════════════════════════════════════════════════════════
