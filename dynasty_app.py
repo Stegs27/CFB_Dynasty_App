@@ -7435,6 +7435,75 @@ if data:
             fig_team.update_yaxes(fixedrange=True)
             st.plotly_chart(fig_team, use_container_width=True, config={'displayModeBar': False})
 
+            if not _team_ap.empty:
+                _summary_df = _team_ap.copy()
+                _summary_df['SpeedRank'] = _summary_df['SPD'].rank(method='min', ascending=False).astype(int)
+                _summary_df['MoveRank'] = _summary_df['Maneuverability'].rank(method='min', ascending=False).astype(int)
+                _summary_df['OverallRank'] = ((_summary_df['SpeedRank'] + _summary_df['MoveRank']) / 2.0).rank(method='min').astype(int)
+
+                _speed_median = float(_summary_df['SPD'].median())
+                _move_median = float(_summary_df['Maneuverability'].median())
+
+                def _team_ap_phrase(_row):
+                    _spd = float(_row['SPD'])
+                    _mov = float(_row['Maneuverability'])
+                    _speed_edge = _spd - _speed_median
+                    _move_edge = _mov - _move_median
+
+                    if _row['SpeedRank'] == 1 and _row['MoveRank'] == 1:
+                        return "the most explosive and twitchiest athlete group in the dynasty right now"
+                    if _speed_edge >= 1.0 and _move_edge >= 1.0:
+                        return "a rare blend of top-end burst and clean change-of-direction"
+                    if _speed_edge >= 1.0 and _move_edge <= -0.5:
+                        return "a straight-line speed group that wins with juice more than wiggle"
+                    if _move_edge >= 1.0 and _speed_edge <= -0.5:
+                        return "a fluid, space-friendly group that changes direction better than it flat-out runs"
+                    if _speed_edge >= 0.5 and _move_edge >= 0.5:
+                        return "one of the more complete athlete groups with no obvious weakness"
+                    if _speed_edge <= -1.0 and _move_edge <= -1.0:
+                        return "the least dynamic athlete pool on the chart and the one most in need of an infusion of juice"
+                    if _speed_edge <= -0.5 and _move_edge >= 0.5:
+                        return "more slippery than fast, built to win in traffic rather than by pure separation"
+                    if _speed_edge >= 0.5 and _move_edge <= -0.5:
+                        return "built around chase speed and range more than stop-start looseness"
+                    return "a pretty balanced athlete group that sits in the middle of the six-team pack"
+
+                def _team_ap_strengths(_team_name, _src_df):
+                    _tdf = _src_df[_src_df['Team'] == _team_name].copy()
+                    if _tdf.empty:
+                        return "No eligible athlete-position data found."
+                    _tdf['PosLabel'] = _tdf['Pos'].replace({'HB': 'RB', 'FS': 'Safety', 'SS': 'Safety', 'MIKE': 'LB', 'WILL': 'LB', 'SAM': 'LB', 'LOLB': 'LB', 'MLB': 'LB', 'ROLB': 'LB', 'OLB': 'LB'})
+                    _grp = _tdf.groupby('PosLabel', as_index=False)[['SPD', 'Maneuverability']].mean()
+                    _grp['Composite'] = (_grp['SPD'] + _grp['Maneuverability']) / 2.0
+                    _best = _grp.sort_values(['Composite', 'SPD', 'Maneuverability'], ascending=False).iloc[0]
+                    return f"Best athlete room: {_best['PosLabel']} (SPD {_best['SPD']:.1f}, MAN {_best['Maneuverability']:.1f})."
+
+                st.markdown("<div style='margin-top:0.4rem;'></div>", unsafe_allow_html=True)
+                st.caption("Team-by-team read on the chart. Generated from the same athlete-pool averages shown above.")
+
+                for _, _row in _summary_df.sort_values(['OverallRank', 'SPD'], ascending=[True, False]).iterrows():
+                    _team = _row['Team']
+                    _user = _row['User']
+                    _tc = get_team_primary_color(_team)
+                    _logo_uri = image_file_to_data_uri(get_logo_source(_team))
+                    _logo_html = f"<img src='{_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _logo_uri else ""
+                    _headline = (
+                        f"<div style='display:flex;align-items:center;gap:8px;'>"
+                        f"{_logo_html}"
+                        f"<span style='color:{_tc};font-weight:800;'>{html.escape(str(_team))}</span>"
+                        f"<span style='color:#64748b;font-size:0.78rem;'>({html.escape(str(_user))})</span>"
+                        f"<span style='color:#94a3b8;font-size:0.76rem;margin-left:auto;'>Speed #{int(_row['SpeedRank'])} · Maneuverability #{int(_row['MoveRank'])}</span>"
+                        f"</div>"
+                    )
+                    with st.expander(_team, expanded=False):
+                        st.markdown(_headline, unsafe_allow_html=True)
+                        st.markdown(
+                            f"<div style='padding:0.15rem 0 0.25rem 0;color:#cbd5e1;font-size:0.95rem;'>"
+                            f"{html.escape(str(_team))} sits at <span style='color:#f8fafc;font-weight:800;'>SPD {_row['SPD']:.1f}</span> and <span style='color:#f8fafc;font-weight:800;'>MAN {_row['Maneuverability']:.1f}</span>, making it {html.escape(_team_ap_phrase(_row))}. {html.escape(_team_ap_strengths(_team, _team_ap_src))}"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
+
             def _plot_pos_scatter(df, title):
                 if df.empty:
                     _empty_fig = go.Figure()
