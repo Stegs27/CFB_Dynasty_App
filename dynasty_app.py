@@ -5170,10 +5170,10 @@ if data:
         except Exception:
             preseason_rank_map = {}
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC MAIN HEADER (Logo & Spacing Fix)
+# DYNAMIC MAIN HEADER (Zero Indentation - Flush Left)
 # ════════════════════════════════════════════════════════════════════
 def get_logo_url(team_name):
-    # This pulls from your GitHub repo using the TEAM_VISUALS slug
+    # Pulls the team slug from the dictionary you have around line 100
     slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
     return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
 
@@ -5218,7 +5218,7 @@ try:
             is_gold = True
             h_logo = get_logo_url(frontrunner['TEAM'])
             logo_html = f'<div style="text-align:center; margin-bottom:10px;"><img src="{h_logo}" style="width:60px; height:60px; object-fit:contain;"></div>'
-except:
+except Exception as e:
     pass
 
 # 3. RENDER HEADLINE
@@ -5247,10 +5247,7 @@ if is_gold:
         </div>
     """, unsafe_allow_html=True)
 else:
-    # Standard Gray fallback with tight margins
     st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -30px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
-
-# No divider here to keep the tabs high up
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 1 — SEASON POWER RANKINGS
