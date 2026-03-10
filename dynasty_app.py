@@ -4545,7 +4545,7 @@ if is_gold:
             letter-spacing: 1px;
         }}
         </style>
-        <div style="margin-top:-35px; margin-bottom:5px; text-align:center;">
+        <div style="margin-top:-0px; margin-bottom:12px; text-align:center;">
             {logo_html}
             <div class="top-story-badge">{badge_text}</div>
             <div style="color:#fbbf24; font-size:1.1rem; font-weight:800; letter-spacing:0.5px;">
@@ -4555,7 +4555,7 @@ if is_gold:
     """, unsafe_allow_html=True)
 else:
     st.markdown(
-        f"<p style='color:#9ca3af; font-size:0.9rem; margin-top:-35px; margin-bottom:10px; text-align:center;'>{top_headline}</p>",
+        f"<p style='color:#9ca3af; font-size:0.9rem; margin-top:-35px; margin-bottom:12px; text-align:center;'>{top_headline}</p>",
         unsafe_allow_html=True
     )
 
