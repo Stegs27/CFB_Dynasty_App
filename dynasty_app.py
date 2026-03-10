@@ -5177,7 +5177,7 @@ if data:
         st.subheader("📡 Preseason Power Rankings")
         st.caption("Preseason projections only — ranked on roster strength, speed, recruiting, QB tier, and coaching pedigree.")
 
-        # 1. Define and Sort the Power Board
+        # 1. Initialize Defaults and Load Data
         power_board = model_2041.copy()
         for col in ['Preseason PI', 'Preseason Natty Odds', 'Preseason CFP %', 'Power Index', 'Natty Odds', 'CFP Odds']:
             if col not in power_board.columns:
@@ -5185,27 +5185,48 @@ if data:
         
         power_board = power_board.sort_values(['Preseason PI', 'Preseason Natty Odds'], ascending=False).reset_index(drop=True)
 
-        # 2. [ADDED] Elimination Logic for Live Odds
-        _elim_teams = set()
-        _bracket_teams = set()
-        _bracket_active = False
-        try:
-            _b_df = pd.read_csv('CFPbracketresults.csv')
-            _cy_bracket = _b_df[_b_df['YEAR'] == CURRENT_YEAR]
-            if not _cy_bracket.empty:
-                _bracket_active = True
-                _bracket_teams.update(_cy_bracket['TEAM1'].dropna().astype(str).str.strip().str.lower())
-                _bracket_teams.update(_cy_bracket['TEAM2'].dropna().astype(str).str.strip().str.lower())
-                _comp_df = _cy_bracket[pd.to_numeric(_cy_bracket['COMPLETED'], errors='coerce') == 1]
-                _elim_teams.update(_comp_df['LOSER'].dropna().astype(str).str.strip().str.lower())
-        except Exception:
-            pass
+        # 2. Initialize Bracket Variables (Prevents NameError)
+        official_cfp_teams = []
+        eliminated_teams = []
+        defending_champ = ""
+        csv_error = False
 
-        # 3. Render the Cards
+        # 3. Load Bracket Logic
+        try:
+            if os.path.exists('CFPbracketresults.csv'):
+                _b_df = pd.read_csv('CFPbracketresults.csv')
+                
+                # Find Defending Champ
+                _prev_year = CURRENT_YEAR - 1
+                _last_year_bracket = _b_df[_b_df['YEAR'] == _prev_year]
+                if not _last_year_bracket.empty and 'WINNER' in _last_year_bracket.columns:
+                    _dc_raw = _last_year_bracket[_last_year_bracket['WINNER'].notna()]['WINNER'].iloc[-1]
+                    defending_champ = str(_dc_raw).strip().lower()
+
+                # Get Current Year Status
+                _cy_bracket = _b_df[_b_df['YEAR'] == CURRENT_YEAR]
+                if not _cy_bracket.empty:
+                    t1 = _cy_bracket['TEAM1'].dropna().unique().tolist()
+                    t2 = _cy_bracket['TEAM2'].dropna().unique().tolist()
+                    official_cfp_teams = [str(t).strip().lower() for t in (t1 + t2)]
+                    
+                    if 'LOSER' in _cy_bracket.columns:
+                        eliminated_teams = [str(t).strip().lower() for t in _cy_bracket['LOSER'].dropna().unique().tolist()]
+            else:
+                csv_error = "Bracket CSV file missing."
+        except Exception as e:
+            csv_error = str(e)
+
+        # Admin Warning (Only shows if there's an issue with the file)
+        if csv_error:
+            st.error(f"⚠️ **Bracket Data Error:** {csv_error}. Card status logic may be disabled.")
+
+        # 4. Define UI Constants
         rank_icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"]
         rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
         rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
-        # --- [2] START THE TEAM LOOP ---
+
+        # 5. Render the Cards
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
             user = str(row.get('USER', ''))
@@ -5247,7 +5268,7 @@ if data:
                     card_opacity = "0.8" if is_defending_champ else "0.6"
                     live_natty, live_cfp = 0.0, 0.0
 
-            label = rank_labels[idx] if idx < len(rank_labels) else ""
+            label = rank_labels[idx] if idx < len(rank_labels) else "UNRANKED"
             lcolor = rank_colors[idx] if idx < len(rank_colors) else "#374151"
             if label.upper() == "KING": label = "TITLE FAVORITE"
                 
@@ -5259,8 +5280,7 @@ if data:
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
             icon = rank_icons[idx] if idx < len(rank_icons) else "▪️"
 
-            # --- [3] RENDER INDIVIDUAL CARD ---
-            # Using a cleaner string join to prevent Python indentation from breaking the HTML
+            # Render HTML Card
             card_html = (
                 f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
                 f"border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:8px; gap:12px; flex-wrap:wrap;'>"
@@ -5280,6 +5300,27 @@ if data:
                 f"</div></div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
+
+        # 6. Last Updated Footer with Pulse
+        import os
+        from datetime import datetime
+        try:
+            mtime = os.path.getmtime('cfp_rankings_history.csv') 
+            last_updated = datetime.fromtimestamp(mtime).strftime('%B %d, %Y at %I:%M %p')
+            footer_html = (
+                f"<style>@keyframes pulse-blue {{ 0% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }} "
+                f"70% {{ transform: scale(1); box-shadow: 0 0 0 6px rgba(96, 165, 250, 0); }} "
+                f"100% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }} }} "
+                f".pulse-dot {{ display: inline-block; width: 8px; height: 8px; background: #60a5fa; "
+                f"border-radius: 50%; margin-right: 8px; vertical-align: middle; animation: pulse-blue 2s infinite; }}</style>"
+                f"<div style='text-align:center; margin-top:30px; padding:20px; border-top:1px solid #374151;'>"
+                f"<div class='pulse-dot'></div>"
+                f"<span style='color:#9ca3af; font-size:0.8rem; letter-spacing:1px; font-weight:600;'>"
+                f"LIVE SYSTEM STATUS: <span style='color:#60a5fa;'>UPDATED {last_updated.upper()}</span></span></div>"
+            )
+            st.markdown(footer_html, unsafe_allow_html=True)
+        except:
+            pass
 
 
         # ════════════════════════════════════════════════════════════════════
