@@ -6060,46 +6060,34 @@ if data:
                 _secondary = get_team_secondary_color(_team)
                 _logo_uri = image_file_to_data_uri(get_logo_source(_team))
                 _logo_html = f"<img src='{_logo_uri}' alt='{html.escape(_team)} logo'/>" if _logo_uri else "<span style='font-size:28px;'>🏈</span>"
-                _cards_html.append(f"""<div class='recruit-user-card' style='border-left:5px solid {_primary};'>
-                  <div class='recruit-user-top'>
-                    <div class='recruit-user-logo-wrap' style='box-shadow:inset 0 0 0 1px {_primary}33;'>
-                      {_logo_html}
-                    </div>
-                    <div style='min-width:0;'>
-                      <div class='recruit-user-coach'>{html.escape(_coach)}</div>
-                      <div class='recruit-user-team' style='color:{_primary};'>{html.escape(_team)}</div>
-                      <div class='recruit-user-rankline'>Overall {_fmt_rank(_r['Overall Rank'])} · HS {_fmt_rank(_r['HS Rank'])} · Portal {_fmt_rank(_r['Portal Rank'])}</div>
-                    </div>
-                  </div>
-
-                  <div class='recruit-user-metrics'>
-                    <div class='recruit-user-metric'>
-                      <div class='recruit-user-metric-value'>{_fmt_points(_r['Overall Points'])}</div>
-                      <div class='recruit-user-metric-label'>Overall Pts</div>
-                    </div>
-                    <div class='recruit-user-metric'>
-                      <div class='recruit-user-metric-value'>{int(_r['Total Commits'])}</div>
-                      <div class='recruit-user-metric-label'>Commits</div>
-                    </div>
-                    <div class='recruit-user-metric'>
-                      <div class='recruit-user-metric-value'>{float(_r['Blue Chip %']):.1f}%</div>
-                      <div class='recruit-user-metric-label'>Blue Chip</div>
-                    </div>
-                  </div>
-
-                  <div class='recruit-user-bottom'>
-                    <div class='recruit-user-chip'>5★ {int(_r['5★'])}</div>
-                    <div class='recruit-user-chip'>4★ {int(_r['4★'])}</div>
-                    <div class='recruit-user-chip'>3★ {int(_r['3★'])}</div>
-                    <div class='recruit-user-chip'>HS {_fmt_points(_r['HS Points'])}</div>
-                  </div>
-
-                  <div class='recruit-user-footer'>
-                    <span>Portal Pts: <strong style='color:{_secondary if _secondary != '#FFFFFF' else '#f8fafc'};'>{_fmt_points(_r['Portal Points'])}</strong></span>
-                    <span>Class Year: <strong>{recruit_year}</strong></span>
-                  </div>
-                </div>
-""")
+                _card_html = (
+                    f"<div class='recruit-user-card' style='border-left:5px solid {_primary};'>"
+                    f"<div class='recruit-user-top'>"
+                    f"<div class='recruit-user-logo-wrap' style='box-shadow:inset 0 0 0 1px {_primary}33;'>{_logo_html}</div>"
+                    f"<div style='min-width:0;'>"
+                    f"<div class='recruit-user-coach'>{html.escape(_coach)}</div>"
+                    f"<div class='recruit-user-team' style='color:{_primary};'>{html.escape(_team)}</div>"
+                    f"<div class='recruit-user-rankline'>Overall {_fmt_rank(_r['Overall Rank'])} · HS {_fmt_rank(_r['HS Rank'])} · Portal {_fmt_rank(_r['Portal Rank'])}</div>"
+                    f"</div>"
+                    f"</div>"
+                    f"<div class='recruit-user-metrics'>"
+                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{_fmt_points(_r['Overall Points'])}</div><div class='recruit-user-metric-label'>Overall Pts</div></div>"
+                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{int(_r['Total Commits'])}</div><div class='recruit-user-metric-label'>Commits</div></div>"
+                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{float(_r['Blue Chip %']):.1f}%</div><div class='recruit-user-metric-label'>Blue Chip</div></div>"
+                    f"</div>"
+                    f"<div class='recruit-user-bottom'>"
+                    f"<div class='recruit-user-chip'>5★ {int(_r['5★'])}</div>"
+                    f"<div class='recruit-user-chip'>4★ {int(_r['4★'])}</div>"
+                    f"<div class='recruit-user-chip'>3★ {int(_r['3★'])}</div>"
+                    f"<div class='recruit-user-chip'>HS {_fmt_points(_r['HS Points'])}</div>"
+                    f"</div>"
+                    f"<div class='recruit-user-footer'>"
+                    f"<span>Portal Pts: <strong style='color:{_secondary if _secondary != '#FFFFFF' else '#f8fafc'};'>{_fmt_points(_r['Portal Points'])}</strong></span>"
+                    f"<span>Class Year: <strong>{recruit_year}</strong></span>"
+                    f"</div>"
+                    f"</div>"
+                )
+                _cards_html.append(_card_html)
 
             _cards_html.append("</div>")
             st.markdown(''.join(_cards_html), unsafe_allow_html=True)
