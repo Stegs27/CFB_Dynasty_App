@@ -1,22 +1,6 @@
 
 import streamlit as st
 import pandas as pd
-
-def normalize_recruiting_df(df):
-    if df is None or getattr(df, "empty", True):
-        return df
-    rename_map = {
-        "TotalCommits": "Total",
-        "5★": "FiveStar",
-        "4★": "FourStar",
-        "3★": "ThreeStar",
-        "Overall Points": "Points",
-    }
-    for old, new in rename_map.items():
-        if old in df.columns and new not in df.columns:
-            df[new] = df[old]
-    return df
-
 import plotly.express as px
 import numpy as np
 import os
@@ -5820,9 +5804,8 @@ if data:
         st.caption("Final class rankings — all 136 FBS programs. Drop updated CSVs into the repo and rankings refresh automatically.")
 
         # ── Load data ─────────────────────────────────────────────────────────
-        _hs_df     = normalize_recruiting_df(get_hs_recruiting_snapshot(CURRENT_YEAR))
-        _portal_df = normalize_recruiting_df(get_portal_recruiting_snapshot(CURRENT_YEAR))
-        _overall_df = normalize_recruiting_df(get_overall_recruiting_snapshot(CURRENT_YEAR))
+        _hs_df     = get_hs_recruiting_2040_final()
+        _portal_df = get_portal_recruiting_2040_final()
 
         # Overall = HS points + Portal points (portal 0 for now)
         _overall_df = _hs_df.copy()
@@ -5842,16 +5825,17 @@ if data:
                        if _lu_uri else "<span style='font-size:28px;'>🏈</span>")
             _hr = _hs_lookup.get(_tm)
             if _hr is not None:
-                _rk  = int(_hr['Rank'])
-                # stabilized recruiting column lookup
-                _tot = int(_hr.get('Total', _hr.get('TotalCommits', 0)))
-                _5s  = int(_hr.get('FiveStar', _hr.get('5★', 0)))
-                _4s  = int(_hr.get('FourStar', _hr.get('4★', 0)))
-                _3s  = int(_hr.get('ThreeStar', _hr.get('3★', 0)))
-                _pts = float(_hr.get('Points', _hr.get('Overall Points', 0)))
-                _rk_color = ("#ffcc00" if _rk <= 5 else "#cbd5e1" if _rk <= 15 else "#94a3b8" if _rk <= 40 else "#475569")
-                _medal = "🥇 " if _rk == 1 else "🥈 " if _rk == 2 else "🥉 " if _rk == 3 else ""
-                _bcr = (_5s + _4s) / _tot if _tot > 0 else 0
+                _rk    = int(_hr['Rank'])
+                _tot   = int(_hr['Total'])
+                _5s    = int(_hr['5s'])
+                _4s    = int(_hr['4s'])
+                _3s    = int(_hr['3s'])
+                _pts   = float(_hr['Points'])
+                _bcr   = float(_hr['Blue Chip Ratio'])
+                _medal = "🥇" if _rk <= 5 else ("🥈" if _rk <= 10 else ("🥉" if _rk <= 25 else ""))
+                _rk_color = ("#fbbf24" if _rk <= 5 else
+                             "#60a5fa" if _rk <= 15 else
+                             "#94a3b8" if _rk <= 40 else "#475569")
                 _bcr_color = "#22c55e" if _bcr >= 0.5 else ("#fbbf24" if _bcr >= 0.25 else "#ef4444")
                 st.markdown(
                     f"<div style='background:linear-gradient(135deg,{_tc_u}1a,#0f172a);"
@@ -7027,6 +7011,144 @@ if data:
                             )
                         _g_html += "</div>"
                         st.markdown(_g_html, unsafe_allow_html=True)
+
+
+        # ── SECTION 1b: ATHLETIC PROFILE CHARTS ──────────────────────────────
+        st.markdown("---")
+        st.subheader("⚡ Speed Freaks Athletic Profiles")
+        st.caption("Overall team Speed vs Maneuverability chart above. Below it, the player-type views are split into Skill Positions and Defensive Profiles.")
+
+        if _sf_loaded and not _sf_active.empty:
+            _ap = _sf_active.copy()
+            for _col in ['SPD', 'ACC', 'AGI', 'COD', 'STR', 'OVR']:
+                if _col in _ap.columns:
+                    _ap[_col] = pd.to_numeric(_ap[_col], errors='coerce')
+
+            _ap['Maneuverability'] = _ap[['AGI', 'COD']].mean(axis=1)
+            _ap['Velocity'] = _ap['SPD']
+
+            _skill_pos = {'QB', 'HB', 'FB', 'WR', 'TE'}
+            _trench_pos = {'LEDG', 'REDG', 'DT'}
+            _cb_pos = {'CB'}
+            _safety_pos = {'FS', 'SS'}
+            _lb_pos = {'MIKE', 'WILL', 'SAM'}
+
+            _current_user_teams = set(model_2041['TEAM'].astype(str).str.strip().tolist())
+            _team_ap = _ap[_ap['Team'].astype(str).isin(_current_user_teams)].copy()
+
+            def _profile_summary(df, pos_set, label, min_players=1):
+                _d = df[df['Pos'].isin(pos_set)].copy()
+                if _d.empty:
+                    return pd.DataFrame(columns=['Team', 'Profile', 'Velocity', 'Maneuverability', 'Power', 'Players'])
+                _rows = []
+                for _tm, _grp in _d.groupby('Team'):
+                    _grp = _grp.dropna(subset=['Velocity', 'Maneuverability'])
+                    if len(_grp) < min_players:
+                        continue
+                    _rows.append({
+                        'Team': str(_tm),
+                        'Profile': label,
+                        'Velocity': round(float(_grp['Velocity'].mean()), 2),
+                        'Maneuverability': round(float(_grp['Maneuverability'].mean()), 2),
+                        'Power': round(float(pd.to_numeric(_grp.get('STR', 0), errors='coerce').fillna(0).mean()), 2),
+                        'Players': int(len(_grp))
+                    })
+                return pd.DataFrame(_rows)
+
+            _overview_frames = [
+                _profile_summary(_team_ap, _skill_pos, 'Skill'),
+                _profile_summary(_team_ap, _trench_pos | _cb_pos | _safety_pos | _lb_pos, 'Defense')
+            ]
+            _overview_df = pd.concat([_f for _f in _overview_frames if not _f.empty], ignore_index=True) if any(not _f.empty for _f in _overview_frames) else pd.DataFrame()
+
+            if not _overview_df.empty:
+                _fig_overview = px.scatter(
+                    _overview_df,
+                    x='Maneuverability',
+                    y='Velocity',
+                    color='Profile',
+                    hover_name='Team',
+                    hover_data={'Players': True, 'Power': True, 'Maneuverability': ':.1f', 'Velocity': ':.1f'},
+                    text='Team',
+                    title='Overall Speed vs Maneuverability — User Teams'
+                )
+                _fig_overview.update_traces(textposition='top center', marker=dict(size=14, opacity=0.85))
+                _fig_overview.update_layout(height=560, margin=dict(l=20, r=20, t=60, b=20))
+                st.plotly_chart(_fig_overview, use_container_width=True)
+            else:
+                st.info("No athletic profile data available yet for current user teams.")
+
+            with st.expander("🏈 Skill Positions", expanded=False):
+                _skill_tabs = st.tabs(["🏈 Skill Map", "🏃 QB", "⚡ RB", "📡 WR", "🎯 TE"])
+
+                _skill_map_df = _team_ap[_team_ap['Pos'].isin(_skill_pos)].copy()
+                _skill_map_df['Group'] = _skill_map_df['Pos'].replace({'HB': 'RB', 'FB': 'RB'})
+                _skill_map_df = _skill_map_df[_skill_map_df['Group'].isin(['QB', 'RB', 'WR', 'TE'])]
+
+                with _skill_tabs[0]:
+                    if not _skill_map_df.empty:
+                        _skill_summary = []
+                        for (_tm, _grp_name), _grp in _skill_map_df.groupby(['Team', 'Group']):
+                            _skill_summary.append({
+                                'Team': str(_tm),
+                                'Group': str(_grp_name),
+                                'Velocity': round(float(_grp['Velocity'].mean()), 2),
+                                'Maneuverability': round(float(_grp['Maneuverability'].mean()), 2),
+                                'Players': int(len(_grp))
+                            })
+                        _skill_summary = pd.DataFrame(_skill_summary)
+                        if not _skill_summary.empty:
+                            _fig_skill = px.scatter(
+                                _skill_summary,
+                                x='Maneuverability',
+                                y='Velocity',
+                                color='Group',
+                                hover_name='Team',
+                                text='Team',
+                                hover_data={'Players': True, 'Maneuverability': ':.1f', 'Velocity': ':.1f'},
+                                title='Skill Map'
+                            )
+                            _fig_skill.update_traces(textposition='top center', marker=dict(size=13, opacity=0.82))
+                            _fig_skill.update_layout(height=560, margin=dict(l=20, r=20, t=60, b=20))
+                            st.plotly_chart(_fig_skill, use_container_width=True)
+                        else:
+                            st.caption("No skill-position athletic data available.")
+                    else:
+                        st.caption("No skill-position athletic data available.")
+
+                def _render_group_profile(tab, pos_set, title):
+                    with tab:
+                        _df = _profile_summary(_team_ap, pos_set, title)
+                        if _df.empty:
+                            st.caption(f"No {title} data available.")
+                        else:
+                            _fig = px.scatter(
+                                _df,
+                                x='Maneuverability',
+                                y='Velocity',
+                                hover_name='Team',
+                                text='Team',
+                                hover_data={'Players': True, 'Power': True, 'Maneuverability': ':.1f', 'Velocity': ':.1f'},
+                                title=f'{title} — Velocity vs Maneuverability'
+                            )
+                            _fig.update_traces(textposition='top center', marker=dict(size=14, opacity=0.85))
+                            _fig.update_layout(height=540, margin=dict(l=20, r=20, t=60, b=20))
+                            st.plotly_chart(_fig, use_container_width=True)
+                            st.dataframe(_df.sort_values(['Velocity', 'Maneuverability'], ascending=False), hide_index=True, use_container_width=True)
+
+                _render_group_profile(_skill_tabs[1], {'QB'}, 'QB')
+                _render_group_profile(_skill_tabs[2], {'HB', 'FB'}, 'RB')
+                _render_group_profile(_skill_tabs[3], {'WR'}, 'WR')
+                _render_group_profile(_skill_tabs[4], {'TE'}, 'TE')
+
+            with st.expander("🛡 Defensive Profiles", expanded=False):
+                _def_tabs = st.tabs(["🧱 Trench", "🎯 CB", "🧠 Safety", "💥 LB"])
+                _render_group_profile(_def_tabs[0], _trench_pos, 'Trench')
+                _render_group_profile(_def_tabs[1], _cb_pos, 'CB')
+                _render_group_profile(_def_tabs[2], _safety_pos, 'Safety')
+                _render_group_profile(_def_tabs[3], _lb_pos, 'LB')
+        else:
+            st.info("Athletic profile views need cfb26_rosters_full.csv loaded with active roster data.")
 
         # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
         st.markdown("---")
