@@ -4416,12 +4416,16 @@ if data:
         frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
         frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
     }
+    
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Sits ABOVE all tabs)
+# DYNAMIC GLOBAL HEADER (Ultra-Stable Version)
 # ════════════════════════════════════════════════════════════════════
 def get_logo_url(team_name):
-    slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
-    return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
+    try:
+        slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
+        return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
+    except Exception:
+        return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
 
 st.header("📰 Dynasty News")
 
@@ -4431,51 +4435,144 @@ is_gold = False
 logo_html = ""
 
 try:
+    # 1. CFP BRACKET RESULTS (top priority)
     if os.path.exists('CFPbracketresults.csv'):
         _b_df = pd.read_csv('CFPbracketresults.csv')
-        _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)]
-        if not _cy_games.empty:
-            _last = _cy_games.iloc[-1]
-            win_logo = get_logo_url(_last['WINNER'])
-            loss_logo = get_logo_url(_last['LOSER'])
-            top_headline = f"{_last['WINNER']} {int(_last['WIN_SCORE'])} - {int(_last['LOSS_SCORE'])} {_last['LOSER']}"
-            badge_text = "FINAL SCORE"
-            is_gold = True
-            logo_html = f"""
-                <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 10px;">
-                    <img src="{win_logo}" style="width:50px; height:50px; object-fit:contain;">
-                    <span style="color:#9ca3af; font-weight:900; font-size:1.4rem;">VS</span>
-                    <img src="{loss_logo}" style="width:50px; height:50px; object-fit:contain;">
-                </div>
-            """
-    
-    if not is_gold and 'Heisman Player' in model_2041.columns:
-        frontrunner = model_2041.sort_values('Power Index', ascending=False).iloc[0]
-        p_name = str(frontrunner.get('Heisman Player', 'TBD'))
-        p_stats = str(frontrunner.get('Heisman Stats', 'Evaluating...'))
-        if p_name not in ['TBD', 'nan', 'None']:
-            top_headline = f"{p_name} — {p_stats}"
-            badge_text = "HEISMAN WATCH"
-            is_gold = True
-            h_logo = get_logo_url(frontrunner['TEAM'])
-            logo_html = f'<div style="text-align:center; margin-bottom:10px;"><img src="{h_logo}" style="width:60px; height:60px; object-fit:contain;"></div>'
-except:
+
+        if not _b_df.empty:
+            _b_df['YEAR'] = pd.to_numeric(_b_df.get('YEAR'), errors='coerce')
+            if 'COMPLETED' in _b_df.columns:
+                _b_df['COMPLETED'] = pd.to_numeric(_b_df.get('COMPLETED'), errors='coerce').fillna(0).astype(int)
+            else:
+                _b_df['COMPLETED'] = 0
+
+            # Sort so the latest completed playoff game for the current year is used
+            _round_order = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
+            _b_df['_round_sort'] = _b_df.get('ROUND', '').map(_round_order).fillna(0)
+
+            _cy_games = _b_df[
+                (_b_df['YEAR'] == CURRENT_YEAR) &
+                (_b_df['COMPLETED'] == 1)
+            ].copy()
+
+            if not _cy_games.empty:
+                _cy_games = _cy_games.sort_values(['_round_sort', 'GAME_ID'])
+                _last = _cy_games.iloc[-1]
+
+                _t1 = str(_last.get('TEAM1', ''))
+                _t2 = str(_last.get('TEAM2', ''))
+                _w = str(_last.get('WINNER', ''))
+                _l = str(_last.get('LOSER', ''))
+
+                _s1 = pd.to_numeric(pd.Series([_last.get('TEAM1_SCORE', None)]), errors='coerce').iloc[0]
+                _s2 = pd.to_numeric(pd.Series([_last.get('TEAM2_SCORE', None)]), errors='coerce').iloc[0]
+
+                if _w and _w != 'nan' and _l and _l != 'nan' and pd.notna(_s1) and pd.notna(_s2):
+                    if _w == _t1:
+                        win_score, loss_score = int(_s1), int(_s2)
+                    elif _w == _t2:
+                        win_score, loss_score = int(_s2), int(_s1)
+                    else:
+                        # Fallback if winner doesn't match team names exactly
+                        if _s1 >= _s2:
+                            win_score, loss_score = int(_s1), int(_s2)
+                            if not _w or _w == 'nan':
+                                _w = _t1
+                            if not _l or _l == 'nan':
+                                _l = _t2
+                        else:
+                            win_score, loss_score = int(_s2), int(_s1)
+                            if not _w or _w == 'nan':
+                                _w = _t2
+                            if not _l or _l == 'nan':
+                                _l = _t1
+
+                    win_logo = get_logo_url(_w)
+                    loss_logo = get_logo_url(_l)
+
+                    top_headline = f"{_w} {win_score} - {loss_score} {_l}"
+                    badge_text = "FINAL SCORE"
+                    is_gold = True
+                    logo_html = f"""
+                        <div style="display:flex; justify-content:center; align-items:center; gap:20px; margin-bottom:10px;">
+                            <img src="{win_logo}" style="width:50px; height:50px; object-fit:contain;">
+                            <span style="color:#94a3b8; font-weight:900; font-size:1.4rem;">VS</span>
+                            <img src="{loss_logo}" style="width:50px; height:50px; object-fit:contain;">
+                        </div>
+                    """
+
+    # 2. HEISMAN WATCH (fallback)
+    if not is_gold and os.path.exists('cfp_rankings_history.csv'):
+        _h_df = pd.read_csv('cfp_rankings_history.csv')
+
+        if not _h_df.empty and 'Heisman Player' in _h_df.columns:
+            _front = _h_df.iloc[0]
+            p_name = str(_front.get('Heisman Player', '')).strip()
+
+            if p_name and p_name.lower() not in ['tbd', 'nan', 'none']:
+                top_headline = f"{p_name} — {_front.get('Heisman Stats', '')}"
+                badge_text = "HEISMAN WATCH"
+                is_gold = True
+                h_logo = get_logo_url(_front.get('TEAM', ''))
+                logo_html = (
+                    f'<div style="text-align:center; margin-bottom:10px;">'
+                    f'<img src="{h_logo}" style="width:60px; height:60px; object-fit:contain;">'
+                    f'</div>'
+                )
+
+except Exception:
     pass
 
+# RENDER
 if is_gold:
     st.markdown(f"""
         <style>
-        @keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
-        .top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
+        @keyframes subtle-pulse {{
+            0% {{ opacity: 0.8; transform: scale(1); }}
+            50% {{ opacity: 1; transform: scale(1.03); }}
+            100% {{ opacity: 0.8; transform: scale(1); }}
+        }}
+        .top-story-badge {{
+            display: inline-block;
+            background: #f59e0b;
+            color: #451a03;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 900;
+            margin-bottom: 8px;
+            animation: subtle-pulse 3s infinite ease-in-out;
+            letter-spacing: 1px;
+        }}
         </style>
-        <div style="margin-top: -35px; margin-bottom: 5px; text-align: center;">
+        <div style="margin-top:-35px; margin-bottom:5px; text-align:center;">
             {logo_html}
             <div class="top-story-badge">{badge_text}</div>
-            <div style="color: #fbbf24; font-size: 1.1rem; font-weight: 800; letter-spacing: 0.5px;">{top_headline.upper()}</div>
+            <div style="color:#fbbf24; font-size:1.1rem; font-weight:800; letter-spacing:0.5px;">
+                {top_headline.upper()}
+            </div>
         </div>
     """, unsafe_allow_html=True)
 else:
-    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -35px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='color:#9ca3af; font-size:0.9rem; margin-top:-35px; margin-bottom:10px; text-align:center;'>{top_headline}</p>",
+        unsafe_allow_html=True
+    )
+
+# ── TABS START ───────────────────────────────────────────────────────
+tabs = st.tabs([
+    "🗞️ Dynasty News",
+    "📐 SOS & True Path",
+    "🏆 Who's In?",
+    "📺 Season Recap",
+    "🔍 Speed Freaks",
+    "🎯 Roster Matchup",
+    "📊 Team Overview",
+    "🏈 Recruiting Rankings",
+    "⚔️ H2H Matrix",
+    "🎬 ISPN Classics",
+    "🐐 GOAT Rankings",
+])
 
     tabs = st.tabs([
         "🗞️ Dynasty News",
