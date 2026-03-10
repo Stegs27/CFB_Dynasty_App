@@ -5293,6 +5293,51 @@ if data:
                               f"a <strong>{_tf_natty}%</strong> chance to win it all. "
                               f"At {_tf_ovr} OVR{_tf_cfp_str}, this roster has the juice to "
                               f"survive the 12-team gauntlet."))
+                              
+            # ── [ADDED] CHOKE JOB OVERRIDE ──────────────────────────────
+            try:
+                _choke_res = pd.read_csv('CFPbracketresults.csv')
+                _comp_col_c = next((c for c in _choke_res.columns if c.strip().upper() == 'COMPLETED'), None)
+                if _comp_col_c:
+                    _choke_res = _choke_res[pd.to_numeric(_choke_res[_comp_col_c], errors='coerce').fillna(0).astype(int) == 1]
+                
+                _t1_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM1', 'AWAY', 'VISITOR']), 'TEAM1')
+                _t2_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM2', 'HOME']), 'TEAM2')
+                _s1_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM1_SCORE', 'AWAY SCORE', 'VIS SCORE']), 'TEAM1_SCORE')
+                _s2_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM2_SCORE', 'HOME SCORE']), 'TEAM2_SCORE')
+                _rnd_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['ROUND', 'WEEK']), 'ROUND')
+
+                for _, _cg in _choke_res.iterrows():
+                    _c_t1 = str(_cg[_t1_col_c]).strip()
+                    _c_t2 = str(_cg[_t2_col_c]).strip()
+                    _c_s1 = int(float(_cg[_s1_col_c]))
+                    _c_s2 = int(float(_cg[_s2_col_c]))
+                    
+                    _choked = False
+                    _choke_opp = ""
+                    _choke_score_str = ""
+                    _choke_rnd = str(_cg.get(_rnd_col_c, 'the playoffs')).strip()
+                    
+                    if _c_t1 == _tf_team and _c_s1 < _c_s2:
+                        _choked = True
+                        _choke_opp = _c_t2
+                        _choke_score_str = f"{_c_s2}-{_c_s1}"
+                    elif _c_t2 == _tf_team and _c_s2 < _c_s1:
+                        _choked = True
+                        _choke_opp = _c_t1
+                        _choke_score_str = f"{_c_s1}-{_c_s2}"
+                        
+                    if _choked:
+                        # Intercept and overwrite the Title Favorite headline
+                        headlines[-1] = ("🤡", "Generational Choke Job", 
+                                         f"<strong>{_tf_user}</strong> ({html.escape(_tf_team)}) was the model's National Title Favorite with "
+                                         f"<strong>{_tf_natty}% odds</strong>, but they just absolutely choked it away. "
+                                         f"They got sent packing by {html.escape(_choke_opp)} {_choke_score_str} in {_choke_rnd}. "
+                                         f"Hang the banner for winning the simulation, because they aren't winning it on the field.")
+                        break
+            except Exception:
+                pass
+            # ────────────────────────────────────────────────────────────
 
             # ── 2. POWER INDEX LEADER ─────────────────────────────────────
             _pi_user = str(pi_leader['USER'])
