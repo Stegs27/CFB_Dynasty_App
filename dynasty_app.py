@@ -5374,12 +5374,10 @@ if data:
                                       f"at CFP #1 ({_no1_rec_w}-{_no1_rec_l}), despite only having {_no1_natty}% title odds. "
                                       f"The resume is doing the heavy lifting."))
 
-              # ── 4. BOWL SEASON STATUS ─────────────────────────────────────
+                          # ── 4. BOWL SEASON STATUS ─────────────────────────────────────
             try:
-                # Attempt to pull the latest completed bracket game
                 _cfp_res = pd.read_csv('CFPbracketresults.csv')
                 
-                # Find dynamic columns for compatibility
                 _comp_col = next((c for c in _cfp_res.columns if c.strip().upper() == 'COMPLETED'), None)
                 if _comp_col:
                     _cfp_res = _cfp_res[pd.to_numeric(_cfp_res[_comp_col], errors='coerce').fillna(0).astype(int) == 1]
@@ -5390,39 +5388,44 @@ if data:
                 _s2_col = next((c for c in _cfp_res.columns if c.strip().upper() in ['TEAM2_SCORE', 'HOME SCORE']), 'TEAM2_SCORE')
                 _rnd_col = next((c for c in _cfp_res.columns if c.strip().upper() in ['ROUND', 'WEEK']), 'ROUND')
 
-                # Filter down to games involving at least one active user
                 _user_teams_list = model_2041['TEAM'].unique()
-                _cfp_user_games = _cfp_res[
-                    _cfp_res[_t1_col].isin(_user_teams_list) | 
-                    _cfp_res[_t2_col].isin(_user_teams_list)
-                ].copy()
+                _headline_text = None
 
-                if not _cfp_user_games.empty:
-                    _latest_game = _cfp_user_games.iloc[-1]
-                    _t1 = str(_latest_game[_t1_col]).strip()
-                    _t2 = str(_latest_game[_t2_col]).strip()
-                    _s1 = int(float(_latest_game[_s1_col]))
-                    _s2 = int(float(_latest_game[_s2_col]))
-                    _round = str(_latest_game.get(_rnd_col, 'the playoffs')).strip()
+                # Read from bottom to top to guarantee we grab the MOST RECENT valid game
+                for _, _cg in _cfp_res.iloc[::-1].iterrows():
+                    _c_t1 = str(_cg[_t1_col]).strip()
+                    _c_t2 = str(_cg[_t2_col]).strip()
                     
-                    _winner = _t1 if _s1 > _s2 else _t2
-                    _loser = _t2 if _s1 > _s2 else _t1
-                    _win_score = _s1 if _s1 > _s2 else _s2
-                    _lose_score = _s2 if _s1 > _s2 else _s1
-                    
-                    _w_user_df = model_2041[model_2041['TEAM'] == _winner]
-                    _w_user = str(_w_user_df.iloc[0]['USER']) if not _w_user_df.empty else 'CPU'
-                    
-                    _l_user_df = model_2041[model_2041['TEAM'] == _loser]
-                    _l_user = str(_l_user_df.iloc[0]['USER']) if not _l_user_df.empty else 'CPU'
-                    
-                    _winner_str = f"<strong>{_w_user}</strong> ({html.escape(_winner)})" if _w_user != 'CPU' else html.escape(_winner)
-                    _loser_str = f"<strong>{_l_user}</strong> ({html.escape(_loser)})" if _l_user != 'CPU' else html.escape(_loser)
-                    
-                    _headline_text = f"The bracket is active. {_winner_str} just took down " \
-                                     f"{_loser_str} {_win_score}-{_lose_score} " \
-                                     f"in {_round}. Surviving and advancing is all that matters now."
-                    
+                    if _c_t1 in _user_teams_list or _c_t2 in _user_teams_list:
+                        _c_s1 = int(float(_cg[_s1_col]))
+                        _c_s2 = int(float(_cg[_s2_col]))
+                        
+                        # Skip if it's a 0-0 tie (an unplayed game mistakenly flagged as completed)
+                        if _c_s1 == 0 and _c_s2 == 0:
+                            continue
+                            
+                        _round = str(_cg.get(_rnd_col, 'the playoffs')).strip()
+                        
+                        _winner = _c_t1 if _c_s1 > _c_s2 else _c_t2
+                        _loser = _c_t2 if _c_s1 > _c_s2 else _c_t1
+                        _win_score = _c_s1 if _c_s1 > _c_s2 else _c_s2
+                        _lose_score = _c_s2 if _c_s1 > _c_s2 else _c_s1
+                        
+                        _w_user_df = model_2041[model_2041['TEAM'] == _winner]
+                        _w_user = str(_w_user_df.iloc[0]['USER']) if not _w_user_df.empty else 'CPU'
+                        
+                        _l_user_df = model_2041[model_2041['TEAM'] == _loser]
+                        _l_user = str(_l_user_df.iloc[0]['USER']) if not _l_user_df.empty else 'CPU'
+                        
+                        _winner_str = f"<strong>{_w_user}</strong> ({html.escape(_winner)})" if _w_user != 'CPU' else html.escape(_winner)
+                        _loser_str = f"<strong>{_l_user}</strong> ({html.escape(_loser)})" if _l_user != 'CPU' else html.escape(_loser)
+                        
+                        _headline_text = f"The bracket is active. {_winner_str} just took down " \
+                                         f"{_loser_str} {_win_score}-{_lose_score} " \
+                                         f"in {_round}. Surviving and advancing is all that matters now."
+                        break # We found the newest actual game, break the loop
+
+                if _headline_text:
                     headlines.append(("🏟️", "Playoff Picture", _headline_text))
                 else:
                     raise Exception("No user games completed in bracket")
@@ -5437,8 +5440,14 @@ if data:
                     _status_notes = []
                     for _, _btr in _bowl_teams.head(4).iterrows():  # Top 4 ranked users
                         _bu = str(_btr['USER'])
-                        _
-
+                        _br = int(_btr['_cfp_num'])
+                        _bw, _bl = _get_live_record(str(_btr['TEAM']), int(_btr.get('Current Record Wins', 0)), int(_btr.get('Current Record Losses', 0)))
+                        _status_notes.append(f"#{_br} {_bu} ({_bw}-{_bl})")
+                    
+                    if _status_notes:
+                        headlines.append(("🏟️", "Playoff Picture",
+                                          f"The top of the bracket is locked in. "
+                                          f"{', '.join(_status_notes)} are currently dictating the pace of the postseason."))
 
             # ── 5. COLLAPSE WATCH ─────────────────────────────────────────
             _cr_user  = str(collapse_row['USER'])
