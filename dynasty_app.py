@@ -5176,36 +5176,36 @@ if data:
         # SECTION 1 — SEASON POWER RANKINGS
         # ════════════════════════════════════════════════════════════════════
         st.subheader("📡 Preseason Power Rankings")
-        st.caption("Preseason projections only — ranked on roster strength, speed, recruiting, QB tier, and coaching pedigree. No in-season results, injuries, or CFP rankings baked in.")
+        st.caption("Preseason projections only — ranked on roster strength, speed, recruiting, QB tier, and coaching pedigree.")
 
-        # ── [ADDED] ELIMINATION LOGIC FOR LIVE ODDS ────────────────────────
+        # 1. Define and Sort the Power Board
+        power_board = model_2041.copy()
+        for col in ['Preseason PI', 'Preseason Natty Odds', 'Preseason CFP %', 'Power Index', 'Natty Odds', 'CFP Odds']:
+            if col not in power_board.columns:
+                power_board[col] = 0
+        
+        power_board = power_board.sort_values(['Preseason PI', 'Preseason Natty Odds'], ascending=False).reset_index(drop=True)
+
+        # 2. [ADDED] Elimination Logic for Live Odds
         _elim_teams = set()
         _bracket_teams = set()
         _bracket_active = False
         try:
             _b_df = pd.read_csv('CFPbracketresults.csv')
-            _comp_col = next((c for c in _b_df.columns if c.strip().upper() == 'COMPLETED'), None)
-            _b_df_comp = _b_df[pd.to_numeric(_b_df[_comp_col], errors='coerce').fillna(0).astype(int) == 1] if _comp_col else _b_df
-            _loser_col = next((c for c in _b_df.columns if c.strip().upper() == 'LOSER'), 'LOSER')
-            _t1_col = next((c for c in _b_df.columns if c.strip().upper() in ['TEAM1', 'AWAY', 'VISITOR']), 'TEAM1')
-            _t2_col = next((c for c in _b_df.columns if c.strip().upper() in ['TEAM2', 'HOME']), 'TEAM2')
-            _year_col = next((c for c in _b_df.columns if c.strip().upper() == 'YEAR'), 'YEAR')
-            
-            # Check if the bracket has started for the current active year
-            if _year_col in _b_df.columns:
-                _cy_bracket = _b_df[_b_df[_year_col] == CURRENT_YEAR]
-                _cy_comp = _b_df_comp[_b_df_comp[_year_col] == CURRENT_YEAR]
-                
-                if not _cy_bracket.empty:
-                    _bracket_active = True
-                    _bracket_teams.update(_cy_bracket[_t1_col].dropna().astype(str).str.strip().str.lower())
-                    _bracket_teams.update(_cy_bracket[_t2_col].dropna().astype(str).str.strip().str.lower())
-                    
-                if not _cy_comp.empty:
-                    _elim_teams.update(_cy_comp[_loser_col].dropna().astype(str).str.strip().str.lower())
+            _cy_bracket = _b_df[_b_df['YEAR'] == CURRENT_YEAR]
+            if not _cy_bracket.empty:
+                _bracket_active = True
+                _bracket_teams.update(_cy_bracket['TEAM1'].dropna().astype(str).str.strip().str.lower())
+                _bracket_teams.update(_cy_bracket['TEAM2'].dropna().astype(str).str.strip().str.lower())
+                _comp_df = _cy_bracket[pd.to_numeric(_cy_bracket['COMPLETED'], errors='coerce') == 1]
+                _elim_teams.update(_comp_df['LOSER'].dropna().astype(str).str.strip().str.lower())
         except Exception:
             pass
-        # ───────────────────────────────────────────────────────────────────
+
+        # 3. Render the Cards
+        rank_icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"]
+        rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
+        rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
 
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
@@ -5214,22 +5214,24 @@ if data:
             natty = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
             cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
             
-            # [ADDED] Extract live current odds and apply elimination zeroing
+            # Live Odds Extraction
             live_natty = float(row.get('Natty Odds', 0))
             live_cfp = float(row.get('CFP Odds', 0))
             
+            # Elimination Zeroing
             _team_clean = team.strip().lower()
             if _bracket_active:
                 if _team_clean in _elim_teams:
-                    live_natty = 0.0  # Team lost a playoff game
+                    live_natty = 0.0
                 elif _team_clean not in _bracket_teams:
-                    live_natty = 0.0  # Team missed the 12-team bracket entirely
-                    live_cfp = 0.0    # Team missed the 12-team bracket entirely
+                    live_natty = 0.0
+                    live_cfp = 0.0
             
             _conf = str(row.get('CONFERENCE', ''))
             _conf_colors = {'SEC': ('#fbbf24','#78350f'), 'B1G': ('#60a5fa','#1e3a5f'), 'ACC': ('#a78bfa','#3b1d6e'), 'Big 12': ('#f97316','#431407')}
             _cc = _conf_colors.get(_conf, ('#6b7280','#1f2937'))
             conf_badge = f"<span style='display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};border:1px solid {_cc[0]}44;'>{html.escape(_conf) if _conf else ''}</span>" if _conf and _conf != 'Other' else ''
+            
             qb_tier = row.get('QB Tier', '—')
             icon    = rank_icons[idx] if idx < len(rank_icons) else "▪️"
             label   = rank_labels[idx] if idx < len(rank_labels) else ""
@@ -5237,7 +5239,6 @@ if data:
             tc      = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
             logo_html = f"<img src='{logo_uri}' style='width:36px;height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if logo_uri else "🏈 "
-
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
 
             st.markdown(f"""
