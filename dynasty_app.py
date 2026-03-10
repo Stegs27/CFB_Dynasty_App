@@ -5168,7 +5168,7 @@ if data:
                 (cfp_hist['YEAR'] == last_yr) & (cfp_hist['WEEK'] == last_wk)
             ].set_index('TEAM')['RANK'].to_dict()
         except Exception:
-            preseason_rank_map = {}
+            preseason_rank_map = {})
 # ════════════════════════════════════════════════════════════════════
 # DYNAMIC MAIN HEADER (Zero Indentation - Flush Left)
 # ════════════════════════════════════════════════════════════════════
