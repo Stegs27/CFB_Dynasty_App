@@ -7366,19 +7366,36 @@ if data:
 
             def _plot_pos_scatter(df, title):
                 if df.empty: return None
-                # Filter out players with low OVR to keep the chart readable, or top 100
-                plot_df = df.nlargest(100, 'OVR')
-                cmap = {t: get_team_primary_color(t) for t in plot_df['Team'].unique()}
+                
+                pos_mapping = {
+                    'QB': 'QB', 'HB': 'RB', 'FB': 'RB', 
+                    'WR': 'WR', 'TE': 'TE',
+                    'DT': 'Trench', 'LEDG': 'Trench', 'REDG': 'Trench',
+                    'CB': 'CB', 'FS': 'Safety', 'SS': 'Safety',
+                    'MIKE': 'LB', 'WILL': 'LB', 'SAM': 'LB'
+                }
+                
+                df_grouped = df.copy()
+                df_grouped['PosGroup'] = df_grouped['Pos'].map(lambda x: pos_mapping.get(x, x))
+                
+                plot_df = df_grouped.groupby(['Team', 'PosGroup'], as_index=False).agg({
+                    'SPD': 'mean', 'Maneuverability': 'mean', 'OVR': 'mean', 'ACC': 'mean'
+                })
+                
+                plot_df['HoverName'] = plot_df['Team'] + " (" + plot_df['PosGroup'] + ")"
+                plot_df['SPD'] = plot_df['SPD'].round(1)
+                plot_df['Maneuverability'] = plot_df['Maneuverability'].round(1)
+                plot_df['OVR'] = plot_df['OVR'].round(1)
+                plot_df['ACC'] = plot_df['ACC'].round(1)
                 
                 fig = px.scatter(
                     plot_df, x='SPD', y='Maneuverability', 
-                    hover_name='Name',
-                    hover_data=['Pos', 'OVR', 'ACC', 'Team'],
+                    hover_name='HoverName',
+                    hover_data={'SPD': True, 'Maneuverability': True, 'OVR': True, 'ACC': True, 'HoverName': False},
                     template="plotly_dark", title=title
                 )
                 fig.update_traces(marker=dict(color='rgba(0,0,0,0)')) # Hide dots
                 
-                # Add a logo for each player
                 for _, r in plot_df.iterrows():
                     _logo_uri = image_file_to_data_uri(get_logo_source(r['Team']))
                     if _logo_uri:
@@ -7387,12 +7404,12 @@ if data:
                                 source=_logo_uri,
                                 xref="x", yref="y",
                                 x=r['SPD'], y=r['Maneuverability'],
-                                sizex=0.6, sizey=0.6,
+                                sizex=0.8, sizey=0.8,
                                 xanchor="center", yanchor="middle"
                             )
                         )
                     else:
-                        fig.add_annotation(x=r['SPD'], y=r['Maneuverability'], text=r['Team'], showarrow=False)
+                        fig.add_annotation(x=r['SPD'], y=r['Maneuverability'], text=r['HoverName'], showarrow=False)
 
                 fig.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20), showlegend=False)
                 return fig
