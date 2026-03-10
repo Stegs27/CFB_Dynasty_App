@@ -5173,7 +5173,7 @@ if data:
 # DYNAMIC MAIN HEADER (Zero Indentation - Flush Left)
 # ════════════════════════════════════════════════════════════════════
 def get_logo_url(team_name):
-    # Pulls the team slug from the dictionary you have around line 100
+    # This pulls from your GitHub repo using the TEAM_VISUALS slug
     slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
     return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
 
@@ -5247,6 +5247,7 @@ if is_gold:
         </div>
     """, unsafe_allow_html=True)
 else:
+    # Standard Gray fallback with tight margins
     st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -30px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════════════════════
