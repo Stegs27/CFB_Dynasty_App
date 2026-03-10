@@ -89,88 +89,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ════════════════════════════════════════════════════════════════════
-# DYNAMIC MAIN HEADER (Logo & Spacing Fix)
-# ════════════════════════════════════════════════════════════════════
-def get_logo_url(team_name):
-    # Matches your existing logic for fetching slugs from TEAM_VISUALS
-    slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
-    return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
-
-st.header("📰 Dynasty News")
-
-top_headline = "Your home for league rankings, playoff races, and Heisman watch."
-badge_text = "TOP STORY"
-is_gold = False
-logo_html = ""
-
-try:
-    # PRIORITY 1: Check for CFP Results
-    if os.path.exists('CFPbracketresults.csv'):
-        _b_df = pd.read_csv('CFPbracketresults.csv')
-        _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)]
-        if not _cy_games.empty:
-            _last = _cy_games.iloc[-1]
-            win_logo = get_logo_url(_last['WINNER'])
-            loss_logo = get_logo_url(_last['LOSER'])
-            
-            top_headline = f"{_last['WINNER']} {int(_last['WIN_SCORE'])} - {int(_last['LOSS_SCORE'])} {_last['LOSER']}"
-            badge_text = "FINAL SCORE"
-            is_gold = True
-            # Create side-by-side logo HTML
-            logo_html = f"""
-                <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 5px;">
-                    <img src="{win_logo}" style="width:40px; height:40px; object-fit:contain;">
-                    <span style="color:#9ca3af; font-weight:900; font-size:1.2rem;">VS</span>
-                    <img src="{loss_logo}" style="width:40px; height:40px; object-fit:contain;">
-                </div>
-            """
-    
-    # PRIORITY 2: Heisman Frontrunner
-    if not is_gold and 'Heisman Player' in model_2041.columns:
-        frontrunner = model_2041.sort_values('Power Index', ascending=False).iloc[0]
-        p_name = str(frontrunner.get('Heisman Player', 'TBD'))
-        p_stats = str(frontrunner.get('Heisman Stats', 'Evaluating...'))
-        if p_name not in ['TBD', 'nan', 'None']:
-            top_headline = f"{p_name} — {p_stats}"
-            badge_text = "HEISMAN WATCH"
-            is_gold = True
-            h_logo = get_logo_url(frontrunner['TEAM'])
-            logo_html = f'<div style="text-align:center; margin-bottom:5px;"><img src="{h_logo}" style="width:50px; height:50px; object-fit:contain;"></div>'
-except:
-    pass
-
-# 2. Render Header with tight spacing
-if is_gold:
-    st.markdown(f"""
-        <style>
-        @keyframes subtle-pulse {{
-            0% {{ opacity: 0.8; transform: scale(1); }}
-            50% {{ opacity: 1; transform: scale(1.03); }}
-            100% {{ opacity: 0.8; transform: scale(1); }}
-        }}
-        .top-story-badge {{
-            display: inline-block; background: #f59e0b; color: #451a03; 
-            padding: 1px 6px; border-radius: 4px; font-size: 0.6rem; 
-            font-weight: 900; margin-bottom: 8px;
-            animation: subtle-pulse 3s infinite ease-in-out;
-            letter-spacing: 1px;
-        }}
-        </style>
-        <div style="margin-top: -25px; margin-bottom: 5px; text-align: center;">
-            {logo_html}
-            <div class="top-story-badge">{badge_text}</div>
-            <div style="color: #fbbf24; font-size: 1rem; font-weight: 800; letter-spacing: 0.5px;">
-                {top_headline.upper()}
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -25px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
-
-# No divider here to keep space tight before tabs
-
-
 TEAM_VISUALS = {
     "Florida": {"slug": "florida", "primary": "#0021A5", "secondary": "#FA4616"},
     "Florida State": {"slug": "florida-state", "primary": "#782F40", "secondary": "#CEB888"},
@@ -5251,6 +5169,88 @@ if data:
             ].set_index('TEAM')['RANK'].to_dict()
         except Exception:
             preseason_rank_map = {}
+# ════════════════════════════════════════════════════════════════════
+# DYNAMIC MAIN HEADER (Logo & Spacing Fix)
+# ════════════════════════════════════════════════════════════════════
+def get_logo_url(team_name):
+    # This pulls from your GitHub repo using the TEAM_VISUALS slug
+    slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
+    return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
+
+st.header("📰 Dynasty News")
+
+top_headline = "Your home for league rankings, playoff races, and Heisman watch."
+badge_text = "TOP STORY"
+is_gold = False
+logo_html = ""
+
+try:
+    # 1. CHECK CFP RESULTS (PRIORITY)
+    if os.path.exists('CFPbracketresults.csv'):
+        _b_df = pd.read_csv('CFPbracketresults.csv')
+        _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)]
+        if not _cy_games.empty:
+            _last = _cy_games.iloc[-1]
+            win_logo = get_logo_url(_last['WINNER'])
+            loss_logo = get_logo_url(_last['LOSER'])
+            
+            top_headline = f"{_last['WINNER']} {int(_last['WIN_SCORE'])} - {int(_last['LOSS_SCORE'])} {_last['LOSER']}"
+            badge_text = "FINAL SCORE"
+            is_gold = True
+            logo_html = f"""
+                <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 10px;">
+                    <img src="{win_logo}" style="width:50px; height:50px; object-fit:contain;">
+                    <span style="color:#9ca3af; font-weight:900; font-size:1.4rem;">VS</span>
+                    <img src="{loss_logo}" style="width:50px; height:50px; object-fit:contain;">
+                </div>
+            """
+    
+    # 2. CHECK HEISMAN (IF NO CFP)
+    if not is_gold and 'Heisman Player' in model_2041.columns:
+        # Sort by Power Index to find the #1 team's star
+        frontrunner = model_2041.sort_values('Power Index', ascending=False).iloc[0]
+        p_name = str(frontrunner.get('Heisman Player', 'TBD'))
+        p_stats = str(frontrunner.get('Heisman Stats', 'Evaluating...'))
+        
+        if p_name not in ['TBD', 'nan', 'None']:
+            top_headline = f"{p_name} — {p_stats}"
+            badge_text = "HEISMAN WATCH"
+            is_gold = True
+            h_logo = get_logo_url(frontrunner['TEAM'])
+            logo_html = f'<div style="text-align:center; margin-bottom:10px;"><img src="{h_logo}" style="width:60px; height:60px; object-fit:contain;"></div>'
+except:
+    pass
+
+# 3. RENDER HEADLINE
+if is_gold:
+    st.markdown(f"""
+        <style>
+        @keyframes subtle-pulse {{
+            0% {{ opacity: 0.8; transform: scale(1); }}
+            50% {{ opacity: 1; transform: scale(1.03); }}
+            100% {{ opacity: 0.8; transform: scale(1); }}
+        }}
+        .top-story-badge {{
+            display: inline-block; background: #f59e0b; color: #451a03; 
+            padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; 
+            font-weight: 900; margin-bottom: 8px;
+            animation: subtle-pulse 3s infinite ease-in-out;
+            letter-spacing: 1px;
+        }}
+        </style>
+        <div style="margin-top: -30px; margin-bottom: 0px; text-align: center;">
+            {logo_html}
+            <div class="top-story-badge">{badge_text}</div>
+            <div style="color: #fbbf24; font-size: 1.1rem; font-weight: 800; letter-spacing: 0.5px;">
+                {top_headline.upper()}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    # Standard Gray fallback with tight margins
+    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -30px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
+
+# No divider here to keep the tabs high up
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 1 — SEASON POWER RANKINGS
