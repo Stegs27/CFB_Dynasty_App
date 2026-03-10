@@ -33,16 +33,22 @@ st.markdown("""
         padding-bottom: 2rem;
     }
 
-    /* 3. CENTER HEADERS: This targets st.title, st.header, and st.subheader */
+    /* 3. CENTER HEADERS & SUBTEXT */
     h1, h2, h3 {
         text-align: center !important;
         width: 100%;
     }
     
-    /* Centering the caption text under headers if you use st.caption */
+    /* Centers st.caption text */
     .stCaption {
         text-align: center !important;
         display: block;
+        width: 100%;
+    }
+
+    /* Centers standard text/paragraphs directly under headers if not using st.caption */
+    h1 + p, h2 + p, h3 + p, .stMarkdown p {
+        text-align: center !important;
     }
 
     /* 4. MOBILE OPTIMIZATION */
