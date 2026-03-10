@@ -5205,31 +5205,6 @@ if data:
         rank_icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"]
         rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
         rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
-        # --- [1] PRE-LOOP LOGIC: GET BRACKET DATA & DEFENDING CHAMP ---
-        official_cfp_teams = []
-        eliminated_teams = []
-        defending_champ = ""
-        try:
-            _b_df = pd.read_csv('CFPbracketresults.csv')
-            
-            # Find Defending Champ (Winner from CURRENT_YEAR - 1)
-            _prev_year = CURRENT_YEAR - 1
-            _last_year_bracket = _b_df[_b_df['YEAR'] == _prev_year]
-            if not _last_year_bracket.empty and 'WINNER' in _last_year_bracket.columns:
-                _dc_raw = _last_year_bracket[_last_year_bracket['WINNER'].notna()]['WINNER'].iloc[-1]
-                defending_champ = str(_dc_raw).strip().lower()
-
-            # Get Current Year Bracket Status
-            _cy_bracket = _b_df[_b_df['YEAR'] == CURRENT_YEAR]
-            if not _cy_bracket.empty:
-                t1 = _cy_bracket['TEAM1'].dropna().unique().tolist()
-                t2 = _cy_bracket['TEAM2'].dropna().unique().tolist()
-                official_cfp_teams = [str(t).strip().lower() for t in (t1 + t2)]
-                if 'LOSER' in _cy_bracket.columns:
-                    eliminated_teams = [str(t).strip().lower() for t in _cy_bracket['LOSER'].dropna().unique().tolist()]
-        except:
-            pass
-
         # --- [2] START THE TEAM LOOP ---
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
@@ -5240,11 +5215,9 @@ if data:
             live_natty = float(row.get('Natty Odds', 0))
             live_cfp = float(row.get('CFP Odds', 0))
             
-            # Rank Indicator
             curr_rank = idx + 1
             rank_badge = f"<span style='color:#60a5fa; font-size:0.75rem; font-weight:800; margin-left:6px; background:#60a5fa15; border:1px solid #60a5fa44; padding:1px 6px; border-radius:4px;'>RANK #{curr_rank}</span>"
             
-            # Logic Flags
             _team_clean = team.strip().lower()
             is_official = _team_clean in official_cfp_teams
             is_eliminated = _team_clean in eliminated_teams
@@ -5253,12 +5226,10 @@ if data:
             official_badge, defending_badge, card_glow, bw_style = "", "", "", ""
             card_opacity = "1.0"
 
-            # Defending Champ Setup
             if is_defending_champ:
                 defending_badge = f"<span style='display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#fbbf24;color:#78350f;border:1px solid #78350f;'>🛡️ DEFENDING CHAMP</span>"
                 card_opacity = "0.9"
 
-            # Bracket Status Styling
             if len(official_cfp_teams) > 0:
                 if is_official:
                     if is_eliminated:
@@ -5276,7 +5247,6 @@ if data:
                     card_opacity = "0.8" if is_defending_champ else "0.6"
                     live_natty, live_cfp = 0.0, 0.0
 
-            # UI Labels
             label = rank_labels[idx] if idx < len(rank_labels) else ""
             lcolor = rank_colors[idx] if idx < len(rank_colors) else "#374151"
             if label.upper() == "KING": label = "TITLE FAVORITE"
@@ -5290,61 +5260,26 @@ if data:
             icon = rank_icons[idx] if idx < len(rank_icons) else "▪️"
 
             # --- [3] RENDER INDIVIDUAL CARD ---
-            st.markdown(f"""
-            <div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%);
-            border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:8px; gap:12px; flex-wrap:wrap;'>
-              
-              <div style='font-size:1.6rem; min-width:36px; {bw_style}'>{icon}</div>
-              
-              {logo_html}
-              
-              <div style='flex:1; min-width:200px; {bw_style}'>
-                <span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else "#9ca3af"};'>{html.escape(team)}</span>
-                <span style='color:#9ca3af; font-size:0.82rem; margin-left:4px;'>({html.escape(user)})</span>
-                {rank_badge}
-                <div style="margin-top:4px;">
-                    <span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:900; background:{lcolor if not bw_style else "#4b5563"}; color:white;'>{label}</span>
-                    {official_badge}
-                    {defending_badge}
-                </div>
-              </div>
-              
-              <div style='text-align:right; {bw_style}'>
-                <span style='font-size:0.8rem; color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span><br>
-                <span style='font-size:0.8rem; color:#d1d5db;'>🏆 Pre: <strong style="color:white;">{round(float(natty),1)}%</strong> | Live: <strong style="color:#22c55e;">{round(float(live_natty),1)}%</strong></span><br>
-                <span style='font-size:0.8rem; color:#d1d5db;'>CFP Pre: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong> | Live: <strong style="color:#3b82f6;">{round(float(live_cfp),1)}%</strong></span>
-                <div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>
-              </div>
-            </div>""", unsafe_allow_html=True)
-
-        # --- [4] FOOTER WITH LIVE PULSE ---
-        import os
-        from datetime import datetime
-        try:
-            mtime = os.path.getmtime('cfp_rankings_history.csv') 
-            last_updated = datetime.fromtimestamp(mtime).strftime('%B %d, %Y at %I:%M %p')
-            st.markdown(f"""
-                <style>
-                @keyframes pulse-blue {{
-                    0% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }}
-                    70% {{ transform: scale(1); box-shadow: 0 0 0 6px rgba(96, 165, 250, 0); }}
-                    100% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }}
-                }}
-                .pulse-dot {{
-                    display: inline-block; width: 8px; height: 8px; background: #60a5fa; 
-                    border-radius: 50%; margin-right: 8px; vertical-align: middle;
-                    animation: pulse-blue 2s infinite;
-                }}
-                </style>
-                <div style='text-align:center; margin-top:30px; padding:20px; border-top:1px solid #374151;'>
-                    <div class='pulse-dot'></div>
-                    <span style='color:#9ca3af; font-size:0.8rem; letter-spacing:1px; font-weight:600;'>
-                        LIVE SYSTEM STATUS: <span style='color:#60a5fa;'>UPDATED {last_updated.upper()}</span>
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
-        except:
-            pass
+            # Using a cleaner string join to prevent Python indentation from breaking the HTML
+            card_html = (
+                f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
+                f"border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:8px; gap:12px; flex-wrap:wrap;'>"
+                f"<div style='font-size:1.6rem; min-width:36px; {bw_style}'>{icon}</div>"
+                f"{logo_html}"
+                f"<div style='flex:1; min-width:200px; {bw_style}'>"
+                f"<span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else '#9ca3af'};'>{html.escape(team)}</span> "
+                f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span> {rank_badge}"
+                f"<div style='margin-top:4px;'>"
+                f"<span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:900; background:{lcolor if not bw_style else '#4b5563'}; color:white;'>{label}</span>"
+                f" {official_badge} {defending_badge}</div></div>"
+                f"<div style='text-align:right; {bw_style}'>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(float(pi),1)}</strong></span><br>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 Pre: <strong style='color:white;'>{round(float(natty),1)}%</strong> | Live: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong></span><br>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>CFP Pre: <strong style='color:white;'>{round(float(cfp_pct),1)}%</strong> | Live: <strong style='color:#3b82f6;'>{round(float(live_cfp),1)}%</strong></span>"
+                f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
+                f"</div></div>"
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
 
 
         # ════════════════════════════════════════════════════════════════════
