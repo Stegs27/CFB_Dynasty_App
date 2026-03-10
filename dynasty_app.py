@@ -5804,8 +5804,9 @@ if data:
         st.caption("Final class rankings — all 136 FBS programs. Drop updated CSVs into the repo and rankings refresh automatically.")
 
         # ── Load data ─────────────────────────────────────────────────────────
-        _hs_df     = get_hs_recruiting_2040_final()
-        _portal_df = get_portal_recruiting_2040_final()
+        _hs_df     = get_hs_recruiting_snapshot(CURRENT_YEAR)
+        _portal_df = get_portal_recruiting_snapshot(CURRENT_YEAR)
+        _overall_df = get_overall_recruiting_snapshot(CURRENT_YEAR)
 
         # Overall = HS points + Portal points (portal 0 for now)
         _overall_df = _hs_df.copy()
@@ -7152,7 +7153,63 @@ if data:
 
         # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
         st.markdown("---")
-        st.subheader("🏃 Fastest Players in the League")
+        st.subheader("🏃 
+        # ⚡ Speed Freaks Athletic Profiles
+        st.markdown("### ⚡ Speed Freaks Athletic Profiles")
+
+        try:
+            roster_df = pd.read_csv("cfb26_rosters_full.csv")
+        except:
+            roster_df = pd.DataFrame()
+
+        if not roster_df.empty:
+
+            roster_df['Maneuver'] = roster_df[['AGI','ACC','COD']].mean(axis=1)
+
+            team_chart = roster_df.groupby('Team').agg(
+                Speed=('SPD','mean'),
+                Maneuver=('Maneuver','mean')
+            ).reset_index()
+
+            import plotly.express as px
+            fig = px.scatter(
+                team_chart,
+                x='Speed',
+                y='Maneuver',
+                hover_name='Team',
+                title="Team Speed vs Maneuverability"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            with st.expander("🏈 Skill Positions"):
+                tabs_skill = st.tabs(["Skill Map","QB","RB","WR","TE"])
+                pos_map = {'QB':'QB','RB':'HB','WR':'WR','TE':'TE'}
+
+                for i,(label,pos) in enumerate(pos_map.items()):
+                    with tabs_skill[i+1]:
+                        df = roster_df[roster_df['Pos']==pos].sort_values('SPD',ascending=False).head(25)
+                        st.dataframe(df[['Name','Team','SPD','ACC','AGI','COD','OVR']])
+
+                with tabs_skill[0]:
+                    df = roster_df[roster_df['Pos'].isin(['HB','WR','TE','QB'])]
+                    fig = px.scatter(df,x='SPD',y='AGI',color='Pos',hover_name='Name')
+                    st.plotly_chart(fig,use_container_width=True)
+
+            with st.expander("🛡 Defensive Profiles"):
+                tabs_def = st.tabs(["Trench","CB","Safety","LB"])
+                pos_map = {
+                    "Trench":['DT','DE'],
+                    "CB":['CB'],
+                    "Safety":['FS','SS'],
+                    "LB":['MLB','OLB']
+                }
+
+                for i,(label,plist) in enumerate(pos_map.items()):
+                    with tabs_def[i]:
+                        df = roster_df[roster_df['Pos'].isin(plist)].sort_values('SPD',ascending=False).head(25)
+                        st.dataframe(df[['Name','Team','Pos','SPD','ACC','AGI','COD','OVR']])
+
+        # Fastest Players in the League")
         st.caption("Top 20 by SPD across all active rosters. The guys who make coordinators sweat at 2am.")
         if _sf_loaded and not _sf_active.empty:
             _all_active = _sf_active.copy()
