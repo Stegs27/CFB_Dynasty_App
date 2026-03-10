@@ -5546,7 +5546,7 @@ if data:
                                   f"You can scheme around a lot of things. "
                                   f"You can't scheme around not being able to catch the other team's guys."))
 
-                # ── [ADDED] HTML CARD RENDERER WITH HOVER GLOW ────────────────────
+                 # ── [ADDED] HTML CARD RENDERER WITH HOVER GLOW ────────────────────
         st.markdown("<br>", unsafe_allow_html=True) 
         
         # Inject the CSS animation block for the cards
@@ -5583,20 +5583,20 @@ if data:
             _logo_uri = image_file_to_data_uri(get_logo_source(_team_name)) if _team_name else ""
             _img_html = f"<img src='{_logo_uri}' width='55' style='margin-right: 15px; border-radius: 5px; object-fit: contain;'>" if _logo_uri else ""
             
-            _card_html = f"""
-            <div class="headline-card">
-                {_img_html}
-                <div>
-                    <h4 style="margin: 0; padding-bottom: 5px; font-size: 1.1rem; color: #ffffff;">
-                        {_hl_emoji} {_hl_title}
-                    </h4>
-                    <p style="margin: 0; font-size: 0.9rem; color: #cccccc; line-height: 1.4;">
-                        {_hl_body}
-                    </p>
-                </div>
-            </div>
-            """
+            # Use no indentation inside the HTML string to prevent Markdown code blocks
+            _card_html = f"""<div class="headline-card">
+{_img_html}
+<div>
+<h4 style="margin: 0; padding-bottom: 5px; font-size: 1.1rem; color: #ffffff;">
+{_hl_emoji} {_hl_title}
+</h4>
+<p style="margin: 0; font-size: 0.9rem; color: #cccccc; line-height: 1.4;">
+{_hl_body}
+</p>
+</div>
+</div>"""
             st.markdown(_card_html, unsafe_allow_html=True)
+
 # ════════════════════════════════════════════════════════════════════
         # SECTION 3 — TOUGHEST MATCHUPS
         # ════════════════════════════════════════════════════════════════════
