@@ -7336,13 +7336,31 @@ if data:
 
             fig_team = px.scatter(
                 _team_ap, x='SPD', y='Maneuverability', 
-                color='Team', text='Team', size='OVR',
+                hover_name='Team',
                 hover_data=['User', 'OVR'],
                 title="Overall Speed vs Maneuverability (User Team Averages)",
-                color_discrete_map=_color_map,
                 template="plotly_dark"
             )
-            fig_team.update_traces(textposition='top center', marker=dict(line=dict(width=1, color='white')))
+            
+            # Make the default dots invisible so we can replace them with logos
+            fig_team.update_traces(marker=dict(color='rgba(0,0,0,0)'))
+            
+            # Inject logos onto the coordinates
+            for i, row in _team_ap.iterrows():
+                _logo_uri = image_file_to_data_uri(get_logo_source(row['Team']))
+                if _logo_uri:
+                    fig_team.add_layout_image(
+                        dict(
+                            source=_logo_uri,
+                            xref="x", yref="y",
+                            x=row['SPD'], y=row['Maneuverability'],
+                            sizex=0.8, sizey=0.8,
+                            xanchor="center", yanchor="middle"
+                        )
+                    )
+                else:
+                    fig_team.add_annotation(x=row['SPD'], y=row['Maneuverability'], text=row['Team'], showarrow=False)
+
             fig_team.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20), showlegend=False)
             st.plotly_chart(fig_team, use_container_width=True)
 
@@ -7351,15 +7369,32 @@ if data:
                 # Filter out players with low OVR to keep the chart readable, or top 100
                 plot_df = df.nlargest(100, 'OVR')
                 cmap = {t: get_team_primary_color(t) for t in plot_df['Team'].unique()}
+                
                 fig = px.scatter(
                     plot_df, x='SPD', y='Maneuverability', 
-                    color='Team', hover_name='Name',
-                    hover_data=['Pos', 'OVR', 'ACC'], size='OVR',
-                    color_discrete_map=cmap,
+                    hover_name='Name',
+                    hover_data=['Pos', 'OVR', 'ACC', 'Team'],
                     template="plotly_dark", title=title
                 )
-                fig.update_traces(marker=dict(line=dict(width=0.5, color='white'), opacity=0.85))
-                fig.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20))
+                fig.update_traces(marker=dict(color='rgba(0,0,0,0)')) # Hide dots
+                
+                # Add a logo for each player
+                for _, r in plot_df.iterrows():
+                    _logo_uri = image_file_to_data_uri(get_logo_source(r['Team']))
+                    if _logo_uri:
+                        fig.add_layout_image(
+                            dict(
+                                source=_logo_uri,
+                                xref="x", yref="y",
+                                x=r['SPD'], y=r['Maneuverability'],
+                                sizex=0.6, sizey=0.6,
+                                xanchor="center", yanchor="middle"
+                            )
+                        )
+                    else:
+                        fig.add_annotation(x=r['SPD'], y=r['Maneuverability'], text=r['Team'], showarrow=False)
+
+                fig.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20), showlegend=False)
                 return fig
 
             # User teams only for positional scatter to prevent CPU clutter
