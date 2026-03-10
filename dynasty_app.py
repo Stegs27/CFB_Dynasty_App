@@ -7386,9 +7386,10 @@ if data:
             _u_map = {v:k for k,v in USER_TEAMS.items()}
             _ap_df['User'] = _ap_df['Team'].map(lambda x: _u_map.get(x, 'CPU'))
             
-            # Overall Team Chart (Averages for User Teams, speed-athlete positions only)
-            _skill_pos = ['QB', 'HB', 'WR', 'TE', 'CB', 'FS', 'SS', 'LOLB', 'MLB', 'ROLB', 'OLB']
-            _team_ap_src = _ap_df[(_ap_df['User'] != 'CPU') & (_ap_df['Pos'].isin(_skill_pos))].copy()
+            # Overall Team Chart (Averages for User Teams)
+            # Use the broader athlete pool only: QB, HB, WR, TE, CB, FS, SS, linebackers (no FB)
+            _overall_athlete_pos = ['QB', 'HB', 'WR', 'TE', 'CB', 'FS', 'SS', 'MIKE', 'WILL', 'SAM', 'LOLB', 'MLB', 'ROLB', 'OLB']
+            _team_ap_src = _ap_df[(_ap_df['User'] != 'CPU') & (_ap_df['Pos'].isin(_overall_athlete_pos))].copy()
             _team_ap = _team_ap_src.groupby('Team', as_index=False)[['SPD', 'Maneuverability', 'OVR']].mean()
             _team_ap['User'] = _team_ap['Team'].map(_u_map)
             _team_ap['OVR'] = _team_ap['OVR'].round(1)
@@ -7435,7 +7436,25 @@ if data:
             st.plotly_chart(fig_team, use_container_width=True, config={'displayModeBar': False})
 
             def _plot_pos_scatter(df, title):
-                if df.empty: return None
+                if df.empty:
+                    _empty_fig = go.Figure()
+                    _empty_fig.update_layout(
+                        template='plotly_dark',
+                        title=title,
+                        height=400,
+                        margin=dict(t=30, b=10, l=10, r=10),
+                        showlegend=False,
+                        dragmode=False,
+                        annotations=[dict(
+                            text='No eligible players found',
+                            x=0.5, y=0.5, xref='paper', yref='paper',
+                            showarrow=False,
+                            font=dict(size=14, color='#94a3b8')
+                        )]
+                    )
+                    _empty_fig.update_xaxes(visible=False, fixedrange=True)
+                    _empty_fig.update_yaxes(visible=False, fixedrange=True)
+                    return _empty_fig
                 
                 # Map detailed positions to broader groups for cleaner grouping
                 pos_mapping = {
@@ -7457,7 +7476,25 @@ if data:
                     limit = limits.get(fpos, 999) # Allow all Trench players to map dynamically
                     filtered_dfs.append(group.nlargest(limit, 'OVR'))
                 
-                if not filtered_dfs: return None
+                if not filtered_dfs:
+                    _empty_fig = go.Figure()
+                    _empty_fig.update_layout(
+                        template='plotly_dark',
+                        title=title,
+                        height=400,
+                        margin=dict(t=30, b=10, l=10, r=10),
+                        showlegend=False,
+                        dragmode=False,
+                        annotations=[dict(
+                            text='No eligible players found',
+                            x=0.5, y=0.5, xref='paper', yref='paper',
+                            showarrow=False,
+                            font=dict(size=14, color='#94a3b8')
+                        )]
+                    )
+                    _empty_fig.update_xaxes(visible=False, fixedrange=True)
+                    _empty_fig.update_yaxes(visible=False, fixedrange=True)
+                    return _empty_fig
                 df_limited = pd.concat(filtered_dfs)
                 
                 # Final mapping for display (Group FS and SS into Safety)
@@ -7512,6 +7549,7 @@ if data:
 
             with st.expander("🏈 Skill Positions Athletic Profiles", expanded=False):
                 spt1, spt2, spt3, spt4, spt5 = st.tabs(["🗺️ Skill Map", "🎯 QB", "🏃 RB", "👐 WR", "🧱 TE"])
+                _skill_pos = ['QB', 'HB', 'FB', 'WR', 'TE']
                 _skill_df = _user_ap_df[_user_ap_df['Pos'].isin(_skill_pos)]
                 
                 with spt1: st.plotly_chart(_plot_pos_scatter(_skill_df, "All Skill Positions"), use_container_width=True, key="scatter_all_skills", config={'displayModeBar': False})
