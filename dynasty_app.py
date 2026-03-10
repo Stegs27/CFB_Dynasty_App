@@ -5211,9 +5211,6 @@ else:
     with tabs[0]:
         import os
 
-        st.header("🗞️ Dynasty News")
-        st.caption("Your season command center. Power rankings, toughest tests, award watch, injury report, and the rivalries that keep everyone up at night.")
-
 
         try:
             cpu_master = pd.read_csv('CPUscores_MASTER.csv')
