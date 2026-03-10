@@ -7384,7 +7384,96 @@ if data:
                 with dpt2: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos']=='CB'], "Cornerbacks"), use_container_width=True)
                 with dpt3: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['FS', 'SS'])], "Safeties"), use_container_width=True)
                 with dpt4: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['MIKE', 'WILL', 'SAM'])], "Linebackers"), use_container_width=True)
+# ── SECTION 1.5: ATHLETIC PROFILES (SPEED VS MANEUVERABILITY) ────────
+        st.markdown("---")
+        st.subheader("⚡ Speed Freaks Athletic Profiles")
+        st.caption("Visualizing raw athletic traits across the league. Speed (straight-line) vs Maneuverability (Agility & Change of Direction).")
 
+        if _sf_loaded and not _sf_active.empty:
+            _ap_df = _sf_active.copy()
+            _ap_df[['SPD','ACC','AGI','COD','OVR']] = _ap_df[['SPD','ACC','AGI','COD','OVR']].apply(pd.to_numeric, errors='coerce')
+            _ap_df = _ap_df.dropna(subset=['SPD', 'AGI', 'COD', 'OVR'])
+            _ap_df['Maneuverability'] = ((_ap_df['AGI'] + _ap_df['COD']) / 2.0).round(1)
+
+            # Map users
+            _u_map = {v:k for k,v in USER_TEAMS.items()}
+            _ap_df['User'] = _ap_df['Team'].map(lambda x: _u_map.get(x, 'CPU'))
+            
+            # Overall Team Chart (Averages for User Teams)
+            _team_ap = _ap_df[_ap_df['User'] != 'CPU'].groupby('Team', as_index=False)[['SPD', 'Maneuverability', 'OVR']].mean()
+            _team_ap['User'] = _team_ap['Team'].map(_u_map)
+            _team_ap['OVR'] = _team_ap['OVR'].round(1)
+            _team_ap['SPD'] = _team_ap['SPD'].round(1)
+
+            # Plotly scatter setup
+            fig_team = px.scatter(
+                _team_ap, x='SPD', y='Maneuverability', 
+                hover_name='Team',
+                hover_data=['User', 'OVR'],
+                title="Overall Speed vs Maneuverability (User Team Averages)",
+                template="plotly_dark"
+            )
+            
+            # Make the default dots invisible so we can replace them with logos
+            fig_team.update_traces(marker=dict(color='rgba(0,0,0,0)'))
+            
+            # Inject logos onto the coordinates
+            for i, row in _team_ap.iterrows():
+                _logo_uri = image_file_to_data_uri(get_logo_source(row['Team']))
+                if _logo_uri:
+                    fig_team.add_layout_image(
+                        dict(
+                            source=_logo_uri,
+                            xref="x", yref="y",
+                            x=row['SPD'], y=row['Maneuverability'],
+                            sizex=0.8, sizey=0.8,
+                            xanchor="center", yanchor="middle"
+                        )
+                    )
+                else:
+                    # Fallback text if a logo fails to load
+                    fig_team.add_annotation(x=row['SPD'], y=row['Maneuverability'], text=row['Team'], showarrow=False)
+
+            fig_team.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20), showlegend=False)
+            st.plotly_chart(fig_team, use_container_width=True)
+
+            def _plot_pos_scatter(df, title):
+                if df.empty: return None
+                plot_df = df.nlargest(100, 'OVR')
+                cmap = {t: get_team_primary_color(t) for t in plot_df['Team'].unique()}
+                fig = px.scatter(
+                    plot_df, x='SPD', y='Maneuverability', 
+                    color='Team', hover_name='Name',
+                    hover_data=['Pos', 'OVR', 'ACC'], size='OVR',
+                    color_discrete_map=cmap,
+                    template="plotly_dark", title=title
+                )
+                fig.update_traces(marker=dict(line=dict(width=0.5, color='white'), opacity=0.85))
+                fig.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20))
+                return fig
+
+            # User teams only for positional scatter to prevent CPU clutter
+            _user_ap_df = _ap_df[_ap_df['User'] != 'CPU'].copy()
+
+            with st.expander("🏈 Skill Positions Athletic Profiles", expanded=False):
+                spt1, spt2, spt3, spt4, spt5 = st.tabs(["🗺️ Skill Map", "🎯 QB", "🏃 RB", "👐 WR", "🧱 TE"])
+                _skill_pos = ['QB', 'HB', 'FB', 'WR', 'TE']
+                _skill_df = _user_ap_df[_user_ap_df['Pos'].isin(_skill_pos)]
+                
+                with spt1: st.plotly_chart(_plot_pos_scatter(_skill_df, "All Skill Positions"), use_container_width=True)
+                with spt2: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='QB'], "Quarterbacks"), use_container_width=True)
+                with spt3: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos'].isin(['HB', 'FB'])], "Running Backs"), use_container_width=True)
+                with spt4: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='WR'], "Wide Receivers"), use_container_width=True)
+                with spt5: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='TE'], "Tight Ends"), use_container_width=True)
+
+            with st.expander("🛡️ Defensive Profiles", expanded=False):
+                dpt1, dpt2, dpt3, dpt4 = st.tabs(["🧱 Trench (DL/EDGE)", "🏝️ CB", "🔒 Safety", "💥 LB"])
+                _def_df = _user_ap_df[~_user_ap_df['Pos'].isin(_skill_pos + ['K', 'P', 'LT', 'LG', 'C', 'RG', 'RT'])]
+                
+                with dpt1: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['DT', 'LEDG', 'REDG'])], "Defensive Line & EDGE"), use_container_width=True)
+                with dpt2: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos']=='CB'], "Cornerbacks"), use_container_width=True)
+                with dpt3: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['FS', 'SS'])], "Safeties"), use_container_width=True)
+                with dpt4: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['MIKE', 'WILL', 'SAM'])], "Linebackers"), use_container_width=True)
         # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
         st.markdown("---")
         st.subheader("🏃 Fastest Players in the League")
