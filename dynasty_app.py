@@ -14,10 +14,10 @@ from pathlib import Path
 st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", page_icon="🏈")
 st.title("📺 ISPN College Football Gameday")
 
-CURRENT_WEEK_NUMBER = 16   # Bowl Week 1 (post-season)
+CURRENT_WEEK_NUMBER = 19   # Semifinal Week
 CURRENT_YEAR        = 2041  # Active dynasty season — increment each new year
 IS_BOWL_WEEK       = True
-BOWL_ROUND         = 1    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
+BOWL_ROUND         = 2    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
 
 st.markdown("""
 <style>
@@ -5016,12 +5016,12 @@ if data:
 
         # ── Hardcoded injury notes (update each bowl week) ────────────────
         BOWL_INJURY_NOTES = {
-            'San Jose State': ('QB M.Shorter out 27 weeks — backup goes into Bowl 1', 'critical'),
-            'Florida State':  ('WR J.Feesago out 20 weeks — gone for the semis run', 'major'),
-            'Bowling Green':  ('DT B.Franco out 24 weeks — pass rush depleted for the whole bowl run', 'major'),
-            'Florida':        ('LB R.Casey out 14 weeks — defense shorthanded', 'moderate'),
-            'USF':            ('RG T.Christmas out 4 weeks — OL depth tested', 'minor'),
-            'Texas Tech':     ('LT K.Cota out 2 weeks — likely back for Bowl 2', 'minor'),
+            'San Jose State': ('QB M.Shorter out 27 weeks — missed entire bowl run', 'critical'),
+            'Florida State':  ('WR J.Feesago out 20 weeks — out for the national championship', 'major'),
+            'Bowling Green':  ('DT B.Franco out 24 weeks — was depleted all bowl run (eliminated in QF)', 'major'),
+            'Florida':        ('LB R.Casey out 14 weeks — defense shorthanded in bowl loss', 'moderate'),
+            'USF':            ('RG T.Christmas out 4 weeks — OL depth tested heading into SF vs TTU', 'minor'),
+            'Texas Tech':     ('LT K.Cota out 2 weeks — back for the semifinals', 'minor'),
         }
         _inj_colors = {'critical': '#ef4444', 'major': '#f97316', 'moderate': '#eab308', 'minor': '#6b7280'}
 
@@ -5423,7 +5423,7 @@ if data:
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🚑 Injury Report")
-        st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
+        st.caption("Last updated: Semifinal Week, 2041. Drop new screenshots in the ISPN chat to refresh.")
 
         INJURY_DATA = [
             {
@@ -7036,6 +7036,59 @@ if data:
                             )
                         _g_html += "</div>"
                         st.markdown(_g_html, unsafe_allow_html=True)
+
+        # ── SECTION 1b: ATHLETIC PROFILE CHARTS ──────────────────────────────
+        st.markdown("---")
+        st.subheader("📊 2041 Athletic Profiles")
+        st.caption("Speed vs Maneuverability scatter plots built from user team starters + 1 reserve. "
+                   "Velocity = avg SPD of position group. Maneuverability = avg (AGI+COD)/2.")
+
+        # Overall team overview
+        _ap_overview_path = 'dynasty_athletic_profile_logos.png'
+        try:
+            import os as _os
+            if _os.path.exists(_ap_overview_path):
+                st.image(_ap_overview_path, use_container_width=True)
+        except Exception:
+            pass
+
+        # Skill positions + Trench in two expanders
+        with st.expander("🏈 Skill Position Profiles", expanded=False):
+            _skill_tabs = st.tabs(["🏈 Skill Map", "🏃 QB", "⚡ RB", "📡 WR", "🎯 TE"])
+            _skill_images = [
+                ('skill_position_speed_power_map.png', '🏈 Overall Skill Position Speed & Power Map'),
+                ('Quarterbacks_athletic_profile.png',  '🏈 QBs — Velocity vs Maneuverability'),
+                ('Running_Backs_athletic_profile.png', '⚡ Running Backs — Velocity vs Maneuverability'),
+                ('Wide_Receivers_athletic_profile.png','📡 Wide Receivers — Velocity vs Maneuverability'),
+                ('Tight_Ends_athletic_profile.png',    '🎯 Tight Ends — Velocity vs Maneuverability'),
+            ]
+            for _stab, (_img_path, _cap) in zip(_skill_tabs, _skill_images):
+                with _stab:
+                    try:
+                        if _os.path.exists(_img_path):
+                            st.image(_img_path, caption=_cap, use_container_width=True)
+                        else:
+                            st.caption(f"Image not found: {_img_path}")
+                    except Exception:
+                        pass
+
+        with st.expander("🛡️ Defensive Profiles", expanded=False):
+            _def_tabs = st.tabs(["🏰 Trench", "🔒 CB", "🛡️ Safety", "💥 LB"])
+            _def_images = [
+                ('trench_battle_map.png',              '🏰 Trench Battle Map — OL vs DL Power (STR + OVR)'),
+                ('Cornerbacks_athletic_profile.png',   '🔒 Cornerbacks — Velocity vs Maneuverability'),
+                ('Safeties_athletic_profile.png',      '🛡️ Safeties — Velocity vs Maneuverability'),
+                ('Linebackers_athletic_profile.png',   '💥 Linebackers — Velocity vs Maneuverability'),
+            ]
+            for _dtab, (_img_path, _cap) in zip(_def_tabs, _def_images):
+                with _dtab:
+                    try:
+                        if _os.path.exists(_img_path):
+                            st.image(_img_path, caption=_cap, use_container_width=True)
+                        else:
+                            st.caption(f"Image not found: {_img_path}")
+                    except Exception:
+                        pass
 
         # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
         st.markdown("---")
