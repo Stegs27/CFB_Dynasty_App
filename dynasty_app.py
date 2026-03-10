@@ -12,7 +12,6 @@ from pathlib import Path
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", page_icon="🏈")
-st.title("📺 ISPN College Football Gameday")
 
 CURRENT_WEEK_NUMBER = 16   # Bowl Week 1 (post-season)
 CURRENT_YEAR        = 2041  # Active dynasty season — increment each new year
@@ -20,75 +19,35 @@ IS_BOWL_WEEK       = True
 BOWL_ROUND         = 1    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
 
 st.markdown("""
-<style>
-/* ── BASE ─────────────────────────────────────────────────────────────── */
-.block-container {padding-top: 1rem; padding-bottom: 1rem; padding-left: 0.8rem; padding-right: 0.8rem;}
-[data-testid="stHorizontalBlock"] {gap: 0.75rem;}
+    <style>
+    /* 1. Hide the top decoration bars */
+    .stDeployButton {display:none;}
+    [data-testid="stDecoration"] {display:none;}
+    
+    /* 2. THE CONTAINER: This controls the "Tablet" width and page spacing */
+    .main .block-container {
+        max-width: 1200px;     /* Limits width so it looks like a clean dashboard */
+        padding-top: 2rem;    /* Space at the very top since we removed the header */
+        padding-right: 1rem;
+        padding-left: 1rem;
+        padding-bottom: 2rem;
+    }
 
-/* ── TABS: wrap on small screens ─────────────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] {gap: 0.2rem; flex-wrap: wrap;}
-.stTabs [data-baseweb="tab"] {
-  height: auto; white-space: normal;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.82rem;
-}
+    /* 3. MOBILE OPTIMIZATION: Ensures it fits perfectly on phones */
+    @media (max-width: 768px) {
+        .main .block-container {
+            padding-top: 1rem;
+            padding-right: 0.5rem;
+            padding-left: 0.5rem;
+        }
+    }
 
-/* ── DATAFRAMES: always scroll horizontally, never overflow ──────────── */
-[data-testid="stDataFrame"] > div {overflow-x: auto !important;}
-.stDataFrame {max-width: 100% !important;}
-
-/* ── METRICS: allow natural wrapping ────────────────────────────────── */
-[data-testid="metric-container"] {
-  background: #1f2937;
-  border: 1px solid #374151;
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-/* ── MOBILE (<640px) ─────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .block-container {padding-left: 0.4rem; padding-right: 0.4rem;}
-  h1 {font-size: 1.35rem !important;}
-  h2 {font-size: 1.15rem !important;}
-  h3 {font-size: 1rem !important;}
-
-  /* Stack ALL Streamlit columns vertically on phone */
-  [data-testid="stHorizontalBlock"] {
-    flex-direction: column !important;
-    gap: 0.5rem !important;
-  }
-  [data-testid="stHorizontalBlock"] > [data-testid="column"] {
-    width: 100% !important;
-    min-width: 100% !important;
-    flex: 1 1 100% !important;
-  }
-
-  /* Tabs font smaller */
-  .stTabs [data-baseweb="tab"] {font-size: 0.72rem; padding: 0.25rem 0.35rem;}
-
-  /* Plotly charts full width */
-  .js-plotly-plot {max-width: 100% !important;}
-
-  /* Expander headers easier to tap */
-  [data-testid="stExpander"] summary {padding: 0.6rem 0.5rem !important;}
-
-  /* Selectbox full width */
-  [data-testid="stSelectbox"] {width: 100% !important;}
-
-  /* Buttons easier to tap */
-  [data-testid="stButton"] button {width: 100%; padding: 0.6rem;}
-
-  /* File uploader full width */
-  [data-testid="stFileUploader"] {width: 100% !important;}
-}
-
-/* ── TABLET (641–1024px) ─────────────────────────────────────────────── */
-@media (min-width: 641px) and (max-width: 1024px) {
-  h1 {font-size: 1.5rem !important;}
-  .stTabs [data-baseweb="tab"] {font-size: 0.78rem; padding: 0.28rem 0.45rem;}
-}
-</style>
-""", unsafe_allow_html=True)
+    /* 4. CLEANUP: Hides the default Streamlit footer and menu */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {background: transparent;}
+    </style>
+    """, unsafe_allow_html=True)
 
 
 TEAM_VISUALS = {
