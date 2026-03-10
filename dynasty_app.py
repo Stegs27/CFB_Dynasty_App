@@ -3559,12 +3559,193 @@ def build_bracket_field_from_screenshot(parsed_teams, cfp_board):
     return pd.DataFrame(rows).sort_values('Projected Seed').reset_index(drop=True)
 
 
-def render_playoff_bracket(projected_field):
+def resolve_playoff_bracket_results(bracket_field, year):
+    """Resolve actual CFP bracket winners from CPUscores_MASTER.csv for a locked bracket.
+    Matches completed games by the official 12-team field and advances winners round by round.
+    Returns a dict of actual game winners/participants that render_playoff_bracket can display.
+    """
+    result = {
+        'r1_winners': {}, 'qf_winners': {}, 'sf_winners': {},
+        'qf_slots': {}, 'sf_slots': {}, 'nat_slots': {}
+    }
+    try:
+        if bracket_field is None or bracket_field.empty:
+            return result
+
+        games = pd.DataFrame()
+        week_col = None
+
+        # Preferred source: explicit CFP bracket results CSV
+        try:
+            cfp_res = pd.read_csv('CFPbracketresults.csv')
+            if not cfp_res.empty:
+                year_col = smart_col(cfp_res, ['YEAR', 'Year'])
+                team1_col = smart_col(cfp_res, ['TEAM1', 'Team1', 'Away', 'Visitor'])
+                team2_col = smart_col(cfp_res, ['TEAM2', 'Team2', 'Home'])
+                score1_col = smart_col(cfp_res, ['TEAM1_SCORE', 'Team1 Score', 'Away Score', 'Vis Score'])
+                score2_col = smart_col(cfp_res, ['TEAM2_SCORE', 'Team2 Score', 'Home Score'])
+                week_col = smart_col(cfp_res, ['ROUND', 'Week', 'WEEK', 'GAME_ID'])
+                completed_col = smart_col(cfp_res, ['COMPLETED', 'Completed'])
+                if all([year_col, team1_col, team2_col, score1_col, score2_col]):
+                    games = cfp_res.copy()
+                    games[year_col] = pd.to_numeric(games[year_col], errors='coerce')
+                    games = games[games[year_col] == int(year)].copy()
+                    if completed_col and completed_col in games.columns:
+                        games = games[pd.to_numeric(games[completed_col], errors='coerce').fillna(0).astype(int) == 1].copy()
+                    games['_away_team'] = games[team1_col].astype(str).str.strip()
+                    games['_home_team'] = games[team2_col].astype(str).str.strip()
+                    games['_away_norm'] = games['_away_team'].apply(normalize_key)
+                    games['_home_norm'] = games['_home_team'].apply(normalize_key)
+                    games['_away_score'] = pd.to_numeric(games[score1_col], errors='coerce')
+                    games['_home_score'] = pd.to_numeric(games[score2_col], errors='coerce')
+                    games = games.dropna(subset=['_away_score', '_home_score']).copy()
+        except Exception:
+            games = pd.DataFrame()
+
+        # Fallback source: CPUscores_MASTER.csv
+        if games.empty:
+            try:
+                cpu = pd.read_csv('CPUscores_MASTER.csv')
+                if cpu.empty:
+                    return result
+                year_col = smart_col(cpu, ['YEAR', 'Year'])
+                away_team_col = smart_col(cpu, ['Visitor', 'Away', 'Away Team', 'VISITOR', 'AWAY'])
+                home_team_col = smart_col(cpu, ['Home', 'Home Team', 'HOME'])
+                away_score_col = smart_col(cpu, ['Vis Score', 'Visitor Score', 'Away Score', 'Vis_Score', 'Away_Score', 'Visitor_Score'])
+                home_score_col = smart_col(cpu, ['Home Score', 'Home_Score', 'HomeScore'])
+                week_col = smart_col(cpu, ['WEEK', 'Week'])
+                if not all([year_col, away_team_col, home_team_col, away_score_col, home_score_col]):
+                    return result
+                games = cpu.copy()
+                games[year_col] = pd.to_numeric(games[year_col], errors='coerce')
+                games = games[games[year_col] == int(year)].copy()
+                if games.empty:
+                    return result
+                games['_away_team'] = games[away_team_col].astype(str).str.strip()
+                games['_home_team'] = games[home_team_col].astype(str).str.strip()
+                games['_away_norm'] = games['_away_team'].apply(normalize_key)
+                games['_home_norm'] = games['_home_team'].apply(normalize_key)
+                games['_away_score'] = pd.to_numeric(games[away_score_col], errors='coerce')
+                games['_home_score'] = pd.to_numeric(games[home_score_col], errors='coerce')
+                games = games.dropna(subset=['_away_score', '_home_score']).copy()
+            except Exception:
+                return result
+
+        if games.empty:
+            return result
+
+        if week_col and week_col in games.columns:
+            def _week_ord(v):
+                s = str(v).strip().lower()
+                import re as _re
+                m = _re.search(r'(\d+)', s)
+                if 'national' in s or 'champ' in s or 'natty' in s or 'ncg' in s:
+                    return 240
+                if 'semi' in s or s == 'sf' or 'bowl week 2' in s or 'bowlweek2' in s:
+                    return 230
+                if 'quarter' in s or s == 'qf':
+                    return 220
+                if 'first round' in s or 'round 1' in s or s == 'r1':
+                    return 210
+                if 'playoff' in s or 'bowl week 1' in s or 'bowlweek1' in s:
+                    return 205
+                if 'conf' in s and 'champ' in s:
+                    return 199
+                return int(m.group(1)) if m else -1
+            games['_week_ord'] = games[week_col].apply(_week_ord)
+            games = games.sort_values(['_week_ord']).reset_index(drop=True)
+        else:
+            games = games.reset_index(drop=True)
+
+        pf = bracket_field.copy()
+        pf['Projected Seed'] = pd.to_numeric(pf['Projected Seed'], errors='coerce')
+        pf = pf.dropna(subset=['Projected Seed']).sort_values('Projected Seed').reset_index(drop=True)
+        pf['_norm'] = pf['Team'].astype(str).apply(normalize_key)
+        row_by_seed = {int(r['Projected Seed']): r for _, r in pf.iterrows()}
+        row_by_norm = {str(r['_norm']): r for _, r in pf.iterrows()}
+        field_norms = set(row_by_norm.keys())
+        games = games[games['_away_norm'].isin(field_norms) & games['_home_norm'].isin(field_norms)].copy()
+        if games.empty:
+            return result
+
+        def _winner_row(g):
+            if float(g['_home_score']) == float(g['_away_score']):
+                return None
+            win_norm = g['_home_norm'] if float(g['_home_score']) > float(g['_away_score']) else g['_away_norm']
+            return row_by_norm.get(win_norm)
+
+        def _find_game(norm_a, norm_b):
+            if not norm_a or not norm_b:
+                return None
+            mask = ((games['_away_norm'] == norm_a) & (games['_home_norm'] == norm_b)) | ((games['_away_norm'] == norm_b) & (games['_home_norm'] == norm_a))
+            hits = games[mask]
+            if hits.empty:
+                return None
+            return hits.iloc[-1]
+
+        def _seed_norm(seed):
+            r = row_by_seed.get(seed)
+            return str(r['_norm']) if r is not None else None
+
+        # First round
+        r1_map = {1: (8, 9), 4: (5, 12), 2: (7, 10), 3: (6, 11)}
+        for bracket_seed, (sa, sb) in r1_map.items():
+            g = _find_game(_seed_norm(sa), _seed_norm(sb))
+            if g is not None:
+                wr = _winner_row(g)
+                if wr is not None:
+                    result['r1_winners'][bracket_seed] = wr
+                    result['qf_slots'][bracket_seed] = wr
+
+        # Quarterfinals
+        for bracket_seed, bye_seed in [(1, 1), (4, 4), (2, 2), (3, 3)]:
+            opp = result['qf_slots'].get(bracket_seed)
+            if opp is None:
+                continue
+            g = _find_game(_seed_norm(bye_seed), str(opp['_norm']))
+            if g is not None:
+                wr = _winner_row(g)
+                if wr is not None:
+                    result['qf_winners'][bracket_seed] = wr
+
+        # Semifinals participants / winners
+        sf_pairs = {
+            1: (result['qf_winners'].get(1), result['qf_winners'].get(4)),
+            2: (result['qf_winners'].get(2), result['qf_winners'].get(3)),
+        }
+        for sf_idx, pair in sf_pairs.items():
+            a, b = pair
+            if a is None or b is None:
+                continue
+            result['sf_slots'][sf_idx] = pair
+            g = _find_game(str(a['_norm']), str(b['_norm']))
+            if g is not None:
+                wr = _winner_row(g)
+                if wr is not None:
+                    result['sf_winners'][sf_idx] = wr
+
+        # National title participants / winner
+        nat_a = result['sf_winners'].get(1)
+        nat_b = result['sf_winners'].get(2)
+        if nat_a is not None and nat_b is not None:
+            result['nat_slots'] = {1: nat_a, 2: nat_b}
+            g = _find_game(str(nat_a['_norm']), str(nat_b['_norm']))
+            if g is not None:
+                wr = _winner_row(g)
+                if wr is not None:
+                    result['nat_winner'] = wr
+        return result
+    except Exception:
+        return result
+
+
+def render_playoff_bracket(projected_field, actual_results=None):
     """Visual SVG bracket for 12-team CFP playoff with connector lines."""
     if projected_field is None or projected_field.empty or len(projected_field) < 12:
         st.info("Need 12 projected teams to render the bracket.")
         return
 
+    actual_results = actual_results or {}
     pf = projected_field.copy()
     pf['Projected Seed'] = pd.to_numeric(pf['Projected Seed'], errors='coerce')
     pf = pf.dropna(subset=['Projected Seed']).sort_values('Projected Seed').reset_index(drop=True)
@@ -3630,7 +3811,7 @@ def render_playoff_bracket(projected_field):
     ]
     conn_svg = "\n".join(P)
 
-    def slot_svg(x, y, seed, row, bye=False, proj=False, tbd_lines=None, w=SW):
+    def slot_svg(x, y, seed, row, bye=False, proj=False, actual=False, tbd_lines=None, w=SW):
         if tbd_lines:
             l1, l2 = tbd_lines
             return (
@@ -3643,9 +3824,9 @@ def render_playoff_bracket(projected_field):
         record  = str(row.get("Record", ""))
         primary = get_team_primary_color(team)
         logo_uri = image_file_to_data_uri(get_logo_source(team))
-        name = (team[:19] + "\u2026") if len(team) > 19 else team
-        fill_op = "12" if proj else "1c"
-        opacity = "99" if proj else "ff"
+        name = (team[:19] + "…") if len(team) > 19 else team
+        fill_op = "18" if actual else ("12" if proj else "1c")
+        opacity = "bb" if actual else ("99" if proj else "ff")
         clip_id = "lc{}".format(abs(hash(team + str(y))) % 99999)
         logo_svg = ""; name_x = x + 42
         if logo_uri:
@@ -3660,11 +3841,16 @@ def render_playoff_bracket(projected_field):
                 '<rect x="{}" y="{}" width="36" height="15" rx="7" fill="#14532d"/>'.format(x+w-44, y+14) +
                 '<text x="{}" y="{}" text-anchor="middle" fill="#4ade80" font-size="9" font-weight="bold" font-family="monospace">BYE</text>'.format(x+w-26, y+25)
             )
-        proj_svg = ""
+        status_svg = ""
         if proj:
-            proj_svg = (
+            status_svg = (
                 '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#1e3a5f"/>'.format(x+w-50, y+14) +
                 '<text x="{}" y="{}" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="bold" font-family="monospace">PROJ</text>'.format(x+w-28, y+25)
+            )
+        elif actual:
+            status_svg = (
+                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#14532d"/>'.format(x+w-50, y+14) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="#86efac" font-size="8" font-weight="bold" font-family="monospace">FINAL</text>'.format(x+w-28, y+25)
             )
         return (
             '<rect x="{}" y="{}" width="{}" height="{}" rx="6" fill="{}{}" stroke="{}55" stroke-width="1"/>'.format(x, y, w, SH, primary, fill_op, primary) +
@@ -3674,7 +3860,7 @@ def render_playoff_bracket(projected_field):
             logo_svg +
             '<text x="{}" y="{}" fill="{}" font-size="12" font-weight="bold" font-family="monospace">{}</text>'.format(name_x, y+18, primary, html.escape(name)) +
             '<text x="{}" y="{}" fill="#6b7280" font-size="10" font-family="monospace">{}</text>'.format(name_x, y+34, html.escape(record)) +
-            bye_svg + proj_svg
+            bye_svg + status_svg
         )
 
     def wplabel(sa, sb, ya, yb, x, w=SW):
@@ -3696,39 +3882,73 @@ def render_playoff_bracket(projected_field):
 
     rows = {s: get_row(s) for s in range(1, 13)}
     wp1=wp(8,9); wp4=wp(5,12); wp2=wp(7,10); wp3=wp(6,11)
-    qf1_opp = 8 if wp1>50 else 9
-    qf4_opp = 5 if wp4>50 else 12
-    qf2_opp = 7 if wp2>50 else 10
-    qf3_opp = 6 if wp3>50 else 11
+    qf1_opp = actual_results.get('qf_slots', {}).get(1, rows[8] if wp1>50 else rows[9])
+    qf4_opp = actual_results.get('qf_slots', {}).get(4, rows[5] if wp4>50 else rows[12])
+    qf2_opp = actual_results.get('qf_slots', {}).get(2, rows[7] if wp2>50 else rows[10])
+    qf3_opp = actual_results.get('qf_slots', {}).get(3, rows[6] if wp3>50 else rows[11])
 
     S = ""
     S += slot_svg(R1X,r1g1[0],8,rows[8])  + slot_svg(R1X,r1g1[1],9,rows[9])
     S += slot_svg(R1X,r1g4[0],5,rows[5])  + slot_svg(R1X,r1g4[1],12,rows[12])
     S += slot_svg(R1X,r1g2[0],7,rows[7])  + slot_svg(R1X,r1g2[1],10,rows[10])
     S += slot_svg(R1X,r1g3[0],6,rows[6])  + slot_svg(R1X,r1g3[1],11,rows[11])
-    S += wplabel(8,9,*r1g1,R1X) + wplabel(5,12,*r1g4,R1X)
-    S += wplabel(7,10,*r1g2,R1X) + wplabel(6,11,*r1g3,R1X)
+    if actual_results.get('r1_winners'):
+        pass
+    else:
+        S += wplabel(8,9,*r1g1,R1X) + wplabel(5,12,*r1g4,R1X)
+        S += wplabel(7,10,*r1g2,R1X) + wplabel(6,11,*r1g3,R1X)
 
     S += slot_svg(QFX,qf1[0],1,rows[1],bye=True)
-    S += slot_svg(QFX,qf1[1],qf1_opp,rows[qf1_opp],proj=True)
+    S += slot_svg(QFX,qf1[1],str(qf1_opp.get('Projected Seed', '?')) if qf1_opp is not None else '?', qf1_opp, actual=(1 in actual_results.get('r1_winners', {})), proj=not (1 in actual_results.get('r1_winners', {})))
     S += slot_svg(QFX,qf4[0],4,rows[4],bye=True)
-    S += slot_svg(QFX,qf4[1],qf4_opp,rows[qf4_opp],proj=True)
+    S += slot_svg(QFX,qf4[1],str(qf4_opp.get('Projected Seed', '?')) if qf4_opp is not None else '?', qf4_opp, actual=(4 in actual_results.get('r1_winners', {})), proj=not (4 in actual_results.get('r1_winners', {})))
     S += slot_svg(QFX,qf2[0],2,rows[2],bye=True)
-    S += slot_svg(QFX,qf2[1],qf2_opp,rows[qf2_opp],proj=True)
+    S += slot_svg(QFX,qf2[1],str(qf2_opp.get('Projected Seed', '?')) if qf2_opp is not None else '?', qf2_opp, actual=(2 in actual_results.get('r1_winners', {})), proj=not (2 in actual_results.get('r1_winners', {})))
     S += slot_svg(QFX,qf3[0],3,rows[3],bye=True)
-    S += slot_svg(QFX,qf3[1],qf3_opp,rows[qf3_opp],proj=True)
+    S += slot_svg(QFX,qf3[1],str(qf3_opp.get('Projected Seed', '?')) if qf3_opp is not None else '?', qf3_opp, actual=(3 in actual_results.get('r1_winners', {})), proj=not (3 in actual_results.get('r1_winners', {})))
 
-    S += slot_svg(SFX,sf1[0],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #1 Bracket"))
-    S += slot_svg(SFX,sf1[1],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #4 Bracket"))
-    S += slot_svg(SFX,sf2[0],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #2 Bracket"))
-    S += slot_svg(SFX,sf2[1],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #3 Bracket"))
-    S += slot_svg(NX,nat[0],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 1"),w=NW)
-    S += slot_svg(NX,nat[1],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 2"),w=NW)
+    sf1_top = actual_results.get('qf_winners', {}).get(1)
+    sf1_bot = actual_results.get('qf_winners', {}).get(4)
+    sf2_top = actual_results.get('qf_winners', {}).get(2)
+    sf2_bot = actual_results.get('qf_winners', {}).get(3)
+    nat_top = actual_results.get('sf_winners', {}).get(1)
+    nat_bot = actual_results.get('sf_winners', {}).get(2)
+    nat_winner = actual_results.get('nat_winner')
+
+    if sf1_top is not None:
+        S += slot_svg(SFX,sf1[0],str(sf1_top.get('Projected Seed', '?')),sf1_top,actual=True)
+    else:
+        S += slot_svg(SFX,sf1[0],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #1 Bracket"))
+    if sf1_bot is not None:
+        S += slot_svg(SFX,sf1[1],str(sf1_bot.get('Projected Seed', '?')),sf1_bot,actual=True)
+    else:
+        S += slot_svg(SFX,sf1[1],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #4 Bracket"))
+    if sf2_top is not None:
+        S += slot_svg(SFX,sf2[0],str(sf2_top.get('Projected Seed', '?')),sf2_top,actual=True)
+    else:
+        S += slot_svg(SFX,sf2[0],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #2 Bracket"))
+    if sf2_bot is not None:
+        S += slot_svg(SFX,sf2[1],str(sf2_bot.get('Projected Seed', '?')),sf2_bot,actual=True)
+    else:
+        S += slot_svg(SFX,sf2[1],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #3 Bracket"))
+
+    if nat_top is not None:
+        S += slot_svg(NX,nat[0],str(nat_top.get('Projected Seed', '?')),nat_top,actual=True,w=NW)
+    else:
+        S += slot_svg(NX,nat[0],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 1"),w=NW)
+    if nat_bot is not None:
+        S += slot_svg(NX,nat[1],str(nat_bot.get('Projected Seed', '?')),nat_bot,actual=True,w=NW)
+    else:
+        S += slot_svg(NX,nat[1],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 2"),w=NW)
+
+    if nat_winner is not None:
+        champ_y = max(38, nat[0][0] - 56)
+        S += slot_svg(NX, champ_y, str(nat_winner.get('Projected Seed', '?')), nat_winner, actual=True, w=NW)
 
     divider = '<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#1a2a3a" stroke-width="1" stroke-dasharray="4,8"/>'.format(SFX-10, NC, NX+NW+10, NC)
 
     svg = (
-        "<div style=\"overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border-radius:12px;background:#060e1a;padding:8px;\">"
+        '<div style="overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border-radius:12px;background:#060e1a;padding:8px;">'
         + '<svg viewBox="0 0 {W} {H}" width="{W}" height="{H}" xmlns="http://www.w3.org/2000/svg" style="display:block;min-width:{W}px;">'.format(W=W, H=H)
         + '<rect width="{}" height="{}" fill="#060e1a"/>'.format(W, H)
         + tracks + hdr + conn_svg + divider + S
@@ -3736,7 +3956,12 @@ def render_playoff_bracket(projected_field):
     )
 
     st.markdown(svg, unsafe_allow_html=True)
-    st.caption("\U0001f7e6 PROJ = projected R1 winner  ·  QF/SF/Natty update once bracket is locked in")
+    if actual_results.get('nat_winner'):
+        st.caption("🟩 FINAL = actual playoff advancement from CPUscores_MASTER.csv · bracket locked to official seeds")
+    elif actual_results.get('r1_winners') or actual_results.get('qf_winners') or actual_results.get('sf_winners'):
+        st.caption("🟩 FINAL = actual playoff advancement from CPUscores_MASTER.csv · remaining open rounds stay projected/placeholders")
+    else:
+        st.caption("🟦 PROJ = projected R1 winner · lock the bracket and post playoff scores to CPUscores_MASTER.csv to auto-advance rounds")
 
 
 
@@ -5765,8 +5990,9 @@ if data:
             bracket_field = build_bracket_field_from_screenshot(_saved_teams, cfp_board)
 
         if bracket_field is not None and not bracket_field.empty:
+            actual_bracket = resolve_playoff_bracket_results(bracket_field, CURRENT_YEAR)
             st.success("📋 Showing **official bracket** — saved to repo. Persists across sessions. Re-enter above to update.")
-            render_playoff_bracket(bracket_field)
+            render_playoff_bracket(bracket_field, actual_results=actual_bracket)
         else:
             st.caption("📊 Showing **projected bracket** — enter the official field above once the CFP announces.")
             render_playoff_bracket(projected_field)
