@@ -7361,8 +7361,16 @@ if data:
                 else:
                     fig_team.add_annotation(x=row['SPD'], y=row['Maneuverability'], text=row['Team'], showarrow=False)
 
-            fig_team.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20), showlegend=False)
-            st.plotly_chart(fig_team, use_container_width=True)
+            fig_team.update_layout(
+                height=400, 
+                margin=dict(t=30, b=10, l=10, r=10), 
+                showlegend=False, 
+                dragmode=False,
+                title_font=dict(size=14)
+            )
+            fig_team.update_xaxes(fixedrange=True)
+            fig_team.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_team, use_container_width=True, config={'displayModeBar': False})
 
             def _plot_pos_scatter(df, title):
                 if df.empty: return None
@@ -7411,7 +7419,15 @@ if data:
                     else:
                         fig.add_annotation(x=r['SPD'], y=r['Maneuverability'], text=r['HoverName'], showarrow=False)
 
-                fig.update_layout(height=450, margin=dict(t=40, b=20, l=20, r=20), showlegend=False)
+                fig.update_layout(
+                    height=400, 
+                    margin=dict(t=30, b=10, l=10, r=10), 
+                    showlegend=False, 
+                    dragmode=False,
+                    title_font=dict(size=14)
+                )
+                fig.update_xaxes(fixedrange=True)
+                fig.update_yaxes(fixedrange=True)
                 return fig
 
             # User teams only for positional scatter to prevent CPU clutter
@@ -7422,20 +7438,20 @@ if data:
                 _skill_pos = ['QB', 'HB', 'FB', 'WR', 'TE']
                 _skill_df = _user_ap_df[_user_ap_df['Pos'].isin(_skill_pos)]
                 
-                with spt1: st.plotly_chart(_plot_pos_scatter(_skill_df, "All Skill Positions"), use_container_width=True, key="scatter_all_skills")
-                with spt2: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='QB'], "Quarterbacks"), use_container_width=True, key="scatter_qb")
-                with spt3: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos'].isin(['HB', 'FB'])], "Running Backs"), use_container_width=True, key="scatter_rb")
-                with spt4: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='WR'], "Wide Receivers"), use_container_width=True, key="scatter_wr")
-                with spt5: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='TE'], "Tight Ends"), use_container_width=True, key="scatter_te")
+                with spt1: st.plotly_chart(_plot_pos_scatter(_skill_df, "All Skill Positions"), use_container_width=True, key="scatter_all_skills", config={'displayModeBar': False})
+                with spt2: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='QB'], "Quarterbacks"), use_container_width=True, key="scatter_qb", config={'displayModeBar': False})
+                with spt3: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos'].isin(['HB', 'FB'])], "Running Backs"), use_container_width=True, key="scatter_rb", config={'displayModeBar': False})
+                with spt4: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='WR'], "Wide Receivers"), use_container_width=True, key="scatter_wr", config={'displayModeBar': False})
+                with spt5: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='TE'], "Tight Ends"), use_container_width=True, key="scatter_te", config={'displayModeBar': False})
 
             with st.expander("🛡️ Defensive Profiles", expanded=False):
                 dpt1, dpt2, dpt3, dpt4 = st.tabs(["🧱 Trench (DL/EDGE)", "🏝️ CB", "🔒 Safety", "💥 LB"])
                 _def_df = _user_ap_df[~_user_ap_df['Pos'].isin(_skill_pos + ['K', 'P', 'LT', 'LG', 'C', 'RG', 'RT'])]
                 
-                with dpt1: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['DT', 'LEDG', 'REDG'])], "Defensive Line & EDGE"), use_container_width=True, key="scatter_dl")
-                with dpt2: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos']=='CB'], "Cornerbacks"), use_container_width=True, key="scatter_cb")
-                with dpt3: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['FS', 'SS'])], "Safeties"), use_container_width=True, key="scatter_safety")
-                with dpt4: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['MIKE', 'WILL', 'SAM'])], "Linebackers"), use_container_width=True, key="scatter_lb")
+                with dpt1: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['DT', 'LEDG', 'REDG'])], "Defensive Line & EDGE"), use_container_width=True, key="scatter_dl", config={'displayModeBar': False})
+                with dpt2: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos']=='CB'], "Cornerbacks"), use_container_width=True, key="scatter_cb", config={'displayModeBar': False})
+                with dpt3: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['FS', 'SS'])], "Safeties"), use_container_width=True, key="scatter_safety", config={'displayModeBar': False})
+                with dpt4: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['MIKE', 'WILL', 'SAM'])], "Linebackers"), use_container_width=True, key="scatter_lb", config={'displayModeBar': False})
 
         # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
         st.markdown("---")
