@@ -1,6 +1,22 @@
 
 import streamlit as st
 import pandas as pd
+
+def normalize_recruiting_df(df):
+    if df is None or getattr(df, "empty", True):
+        return df
+    rename_map = {
+        "TotalCommits": "Total",
+        "5★": "FiveStar",
+        "4★": "FourStar",
+        "3★": "ThreeStar",
+        "Overall Points": "Points",
+    }
+    for old, new in rename_map.items():
+        if old in df.columns and new not in df.columns:
+            df[new] = df[old]
+    return df
+
 import plotly.express as px
 import numpy as np
 import os
@@ -5804,9 +5820,9 @@ if data:
         st.caption("Final class rankings — all 136 FBS programs. Drop updated CSVs into the repo and rankings refresh automatically.")
 
         # ── Load data ─────────────────────────────────────────────────────────
-        _hs_df     = get_hs_recruiting_snapshot(CURRENT_YEAR)
-        _portal_df = get_portal_recruiting_snapshot(CURRENT_YEAR)
-        _overall_df = get_overall_recruiting_snapshot(CURRENT_YEAR)
+        _hs_df     = normalize_recruiting_df(get_hs_recruiting_snapshot(CURRENT_YEAR))
+        _portal_df = normalize_recruiting_df(get_portal_recruiting_snapshot(CURRENT_YEAR))
+        _overall_df = normalize_recruiting_df(get_overall_recruiting_snapshot(CURRENT_YEAR))
 
         # Overall = HS points + Portal points (portal 0 for now)
         _overall_df = _hs_df.copy()
