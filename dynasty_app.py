@@ -7386,8 +7386,10 @@ if data:
             _u_map = {v:k for k,v in USER_TEAMS.items()}
             _ap_df['User'] = _ap_df['Team'].map(lambda x: _u_map.get(x, 'CPU'))
             
-            # Overall Team Chart (Averages for User Teams)
-            _team_ap = _ap_df[_ap_df['User'] != 'CPU'].groupby('Team', as_index=False)[['SPD', 'Maneuverability', 'OVR']].mean()
+            # Overall Team Chart (Averages for User Teams, speed-athlete positions only)
+            _skill_pos = ['QB', 'HB', 'WR', 'TE', 'CB', 'FS', 'SS', 'LOLB', 'MLB', 'ROLB', 'OLB']
+            _team_ap_src = _ap_df[(_ap_df['User'] != 'CPU') & (_ap_df['Pos'].isin(_skill_pos))].copy()
+            _team_ap = _team_ap_src.groupby('Team', as_index=False)[['SPD', 'Maneuverability', 'OVR']].mean()
             _team_ap['User'] = _team_ap['Team'].map(_u_map)
             _team_ap['OVR'] = _team_ap['OVR'].round(1)
             _team_ap['SPD'] = _team_ap['SPD'].round(1)
@@ -7510,7 +7512,6 @@ if data:
 
             with st.expander("🏈 Skill Positions Athletic Profiles", expanded=False):
                 spt1, spt2, spt3, spt4, spt5 = st.tabs(["🗺️ Skill Map", "🎯 QB", "🏃 RB", "👐 WR", "🧱 TE"])
-                _skill_pos = ['QB', 'HB', 'FB', 'WR', 'TE']
                 _skill_df = _user_ap_df[_user_ap_df['Pos'].isin(_skill_pos)]
                 
                 with spt1: st.plotly_chart(_plot_pos_scatter(_skill_df, "All Skill Positions"), use_container_width=True, key="scatter_all_skills", config={'displayModeBar': False})
