@@ -5827,16 +5827,12 @@ if data:
             _hr = _hs_lookup.get(_tm)
             if _hr is not None:
                 _rk    = int(_hr['Rank'])
-                
-            # stabilized recruiting column lookup
-            _tot = int(_hr.get('Total', _hr.get('TotalCommits', 0)))
-            _f5  = int(_hr.get('FiveStar', _hr.get('5★', 0)))
-            _f4  = int(_hr.get('FourStar', _hr.get('4★', 0)))
-            _f3  = int(_hr.get('ThreeStar', _hr.get('3★', 0)))
-            _pts = float(_hr.get('Points', _hr.get('Overall Points', 0)))
-                _medal = "🥇" if _rk <= 5 else ("🥈" if _rk <= 10 else ("🥉" if _rk <= 25 else ""))
-                _rk_color = ("#fbbf24" if _rk <= 5 else
-                             "#60a5fa" if _rk <= 15 else
+        # stabilized recruiting column lookup
+        _tot = int(_hr.get('Total', _hr.get('TotalCommits', 0)))
+        _f5  = int(_hr.get('FiveStar', _hr.get('5★', 0)))
+        _f4  = int(_hr.get('FourStar', _hr.get('4★', 0)))
+        _f3  = int(_hr.get('ThreeStar', _hr.get('3★', 0)))
+        _pts = float(_hr.get('Points', _hr.get('Overall Points', 0)))
                              "#94a3b8" if _rk <= 40 else "#475569")
                 _bcr_color = "#22c55e" if _bcr >= 0.5 else ("#fbbf24" if _bcr >= 0.25 else "#ef4444")
                 st.markdown(
