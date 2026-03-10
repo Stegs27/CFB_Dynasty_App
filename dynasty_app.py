@@ -5147,6 +5147,7 @@ if data:
 
         else:
             st.info("No schedule data found for this user. Make sure CPUscores_MASTER.csv is up to date.")
+
     with tabs[0]:
         # ════════════════════════════════════════════════════════════════════
         # DYNAMIC MAIN HEADER (Replaces static header & caption)
@@ -5210,8 +5211,6 @@ if data:
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -30px; margin-bottom: 15px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
-
-        # ── DATA LOADS ───────────────────────────────────────────────────────
 
         try:
             cpu_master = pd.read_csv('CPUscores_MASTER.csv')
