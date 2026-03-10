@@ -5194,6 +5194,11 @@ if data:
             pi    = row.get('Preseason PI', row.get('Power Index', 0))
             natty = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
             cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
+            
+            # [ADDED] Extract live current odds
+            live_natty = row.get('Natty Odds', 0)
+            live_cfp = row.get('CFP Odds', 0)
+            
             _conf = str(row.get('CONFERENCE', ''))
             _conf_colors = {'SEC': ('#fbbf24','#78350f'), 'B1G': ('#60a5fa','#1e3a5f'), 'ACC': ('#a78bfa','#3b1d6e'), 'Big 12': ('#f97316','#431407')}
             _cc = _conf_colors.get(_conf, ('#6b7280','#1f2937'))
@@ -5210,20 +5215,20 @@ if data:
 
             st.markdown(f"""
             <div style='display:flex;align-items:center;background:linear-gradient(90deg,{tc}18,#1f2937 60%);
-            border-left:4px solid {tc};border-radius:10px;padding:10px 14px;margin-bottom:8px;gap:12px;'>
+            border-left:4px solid {tc};border-radius:10px;padding:10px 14px;margin-bottom:8px;gap:12px;flex-wrap:wrap;'>
               <div style='font-size:1.6rem;min-width:36px;'>{icon}</div>
               {logo_html}
-              <div style='flex:1;'>
+              <div style='flex:1;min-width:200px;'>
                 <span style='font-size:1.05rem;font-weight:800;color:{tc};'>{html.escape(team)}</span>
                 <span style='color:#9ca3af;font-size:0.82rem;margin-left:8px;'>({html.escape(user)})</span>
                 <span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;
                 font-size:0.7rem;font-weight:900;background:{lcolor};color:white;'>{label}</span>
                 {conf_badge}
               </div>
-              <div style='text-align:right;min-width:200px;'>
+              <div style='text-align:right;'>
                 <span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 <strong style="color:white;">{round(float(natty),1)}%</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>Pre-CFP: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 Pre: <strong style="color:white;">{round(float(natty),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#22c55e;">{round(float(live_natty),1)}%</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP Pre: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#3b82f6;">{round(float(live_cfp),1)}%</strong></span>
                 <span style='display:inline-block;margin-left:12px;padding:2px 7px;border-radius:999px;
                 font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
               </div>
