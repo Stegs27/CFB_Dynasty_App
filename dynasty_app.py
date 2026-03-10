@@ -5212,12 +5212,10 @@ if data:
             _b_df = pd.read_csv('CFPbracketresults.csv')
             _cy_bracket = _b_df[_b_df['YEAR'] == CURRENT_YEAR]
             if not _cy_bracket.empty:
-                # 1. Get everyone in the bracket
                 t1 = _cy_bracket['TEAM1'].dropna().unique().tolist()
                 t2 = _cy_bracket['TEAM2'].dropna().unique().tolist()
                 official_cfp_teams = [str(t).strip().lower() for t in (t1 + t2)]
                 
-                # 2. Get everyone who has lost a game (Eliminated)
                 if 'LOSER' in _cy_bracket.columns:
                     eliminated_teams = [str(t).strip().lower() for t in _cy_bracket['LOSER'].dropna().unique().tolist()]
         except:
@@ -5231,11 +5229,10 @@ if data:
             natty = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
             cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
             
-            # Live Odds Extraction
             live_natty = float(row.get('Natty Odds', 0))
             live_cfp = float(row.get('CFP Odds', 0))
             
-            # --- [3] THE "ZERO OUT" LOGIC (ELIMINATION CHECK) ---
+            # --- [3] ELIMINATION & BADGE LOGIC ---
             _team_clean = team.strip().lower()
             is_official = _team_clean in official_cfp_teams
             is_eliminated = _team_clean in eliminated_teams
@@ -5245,39 +5242,37 @@ if data:
 
             if len(official_cfp_teams) > 0:
                 if is_official:
-                    # They are in the field
                     card_glow = "box-shadow: 0px 0px 15px rgba(5, 150, 105, 0.4); border: 1px solid #059669;"
                     official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#059669;color:white;border:1px solid #059669;'>🔒 OFFICIAL FIELD</span>"
                     
                     if is_eliminated:
-                        # They made the field but LOST a playoff game
                         live_natty = 0.0
-                        live_cfp = 100.0 # They still "made" the CFP historically
-                        official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#9ca3af;color:white;border:1px solid #9ca3af;'>❌ ELIMINATED</span>"
-                        card_glow = "border: 1px solid #4b5563;" # Dim the glow if they lost
+                        live_cfp = 100.0 
+                        official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#4b5563;color:white;border:1px solid #4b5563;'>❌ ELIMINATED</span>"
+                        card_glow = "border: 1px solid #4b5563;" 
                     else:
-                        live_cfp = 100.0 # Still alive in the bracket
+                        live_cfp = 100.0 
                 else:
-                    # They didn't make the 12-team field at all
                     live_natty = 0.0
                     live_cfp = 0.0
                     official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#dc2626;color:white;border:1px solid #dc2626;'>❌ OUT</span>"
 
-            # --- [4] REST OF UI LOGIC ---
-            _conf = str(row.get('CONFERENCE', ''))
-            _conf_colors = {'SEC': ('#fbbf24','#78350f'), 'B1G': ('#60a5fa','#1e3a5f'), 'ACC': ('#a78bfa','#3b1d6e'), 'Big 12': ('#f97316','#431407')}
-            _cc = _conf_colors.get(_conf, ('#6b7280','#1f2937'))
-            conf_badge = f"<span style='display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};border:1px solid {_cc[0]}44;'>{html.escape(_conf) if _conf else ''}</span>" if _conf and _conf != 'Other' else ''
-            
+            # --- [4] UI STYLE & LABEL UPDATES ---
             qb_tier = row.get('QB Tier', '—')
             icon    = rank_icons[idx] if idx < len(rank_icons) else "▪️"
             label   = rank_labels[idx] if idx < len(rank_labels) else ""
             lcolor  = rank_colors[idx] if idx < len(rank_colors) else "#374151"
+            
+            # UPDATE: Change "KING" to "TITLE FAVORITE"
+            if label.upper() == "KING":
+                label = "TITLE FAVORITE"
+                
             tc      = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
             logo_html = f"<img src='{logo_uri}' style='width:36px;height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if logo_uri else "🏈 "
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
 
+            # --- [5] RENDER THE FINAL CARD ---
             st.markdown(f"""
             <div style='display:flex;align-items:center;background:linear-gradient(90deg,{tc}18,#1f2937 60%);
             border-left:4px solid {tc}; {card_glow} border-radius:10px; padding:10px 14px; margin-bottom:8px; gap:12px; flex-wrap:wrap;'>
@@ -5289,7 +5284,6 @@ if data:
                 <div style="margin-top:4px;">
                     <span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:900; background:{lcolor}; color:white;'>{label}</span>
                     {official_badge}
-                    {conf_badge}
                 </div>
               </div>
               <div style='text-align:right;'>
