@@ -27,7 +27,7 @@ st.markdown("""
     /* 2. THE CONTAINER - RAISED UP */
     .main .block-container {
         max-width: 1200px;
-        padding-top: 0.5rem;   /* <--- Changed from 2rem to 0.5rem to raise page */
+        padding-top: 0rem;   /* <--- Changed from 2rem to 0rem to raise page */
         padding-right: 1rem;
         padding-left: 1rem;
         padding-bottom: 2rem;
