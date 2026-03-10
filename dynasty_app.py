@@ -5930,130 +5930,128 @@ if data:
                 except Exception:
                     return '0.00'
 
-            _cards_html = ["""
-            <style>
-            .recruit-user-grid {
-                display:grid;
-                grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-                gap:12px;
-                margin:8px 0 4px 0;
-            }
-            .recruit-user-card {
-                border-radius:16px;
-                padding:14px;
-                background:linear-gradient(145deg,#0f172a 0%,#1e293b 100%);
-                border:1px solid rgba(148,163,184,.22);
-                box-shadow:0 8px 22px rgba(0,0,0,.18);
-                min-width:0;
-            }
-            .recruit-user-top {
-                display:flex;
-                align-items:center;
-                gap:12px;
-                margin-bottom:12px;
-            }
-            .recruit-user-logo-wrap {
-                width:58px;
-                height:58px;
-                border-radius:14px;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                flex-shrink:0;
-                background:rgba(255,255,255,.04);
-                border:1px solid rgba(255,255,255,.08);
-            }
-            .recruit-user-logo-wrap img {
-                width:44px;
-                height:44px;
-                object-fit:contain;
-            }
-            .recruit-user-coach {
-                font-size:.75rem;
-                font-weight:800;
-                color:#94a3b8;
-                letter-spacing:.04em;
-                text-transform:uppercase;
-            }
-            .recruit-user-team {
-                font-size:1.05rem;
-                font-weight:900;
-                line-height:1.1;
-            }
-            .recruit-user-rankline {
-                font-size:.78rem;
-                color:#cbd5e1;
-                margin-top:3px;
-            }
-            .recruit-user-metrics {
-                display:grid;
-                grid-template-columns:repeat(3,minmax(0,1fr));
-                gap:8px;
-                margin-bottom:10px;
-            }
-            .recruit-user-metric {
-                background:rgba(15,23,42,.85);
-                border:1px solid rgba(51,65,85,.9);
-                border-radius:10px;
-                padding:8px 8px 7px 8px;
-                text-align:center;
-                min-width:0;
-            }
-            .recruit-user-metric-value {
-                font-size:1rem;
-                font-weight:900;
-                color:#f8fafc;
-                line-height:1.1;
-                white-space:nowrap;
-                overflow:hidden;
-                text-overflow:ellipsis;
-            }
-            .recruit-user-metric-label {
-                font-size:.63rem;
-                color:#94a3b8;
-                font-weight:700;
-                letter-spacing:.04em;
-                text-transform:uppercase;
-                margin-top:3px;
-            }
-            .recruit-user-bottom {
-                display:grid;
-                grid-template-columns:repeat(4,minmax(0,1fr));
-                gap:8px;
-                margin-bottom:10px;
-            }
-            .recruit-user-chip {
-                background:rgba(255,255,255,.04);
-                border:1px solid rgba(148,163,184,.18);
-                border-radius:999px;
-                padding:5px 8px;
-                text-align:center;
-                font-size:.73rem;
-                color:#e2e8f0;
-                font-weight:800;
-                white-space:nowrap;
-                overflow:hidden;
-                text-overflow:ellipsis;
-            }
-            .recruit-user-footer {
-                font-size:.76rem;
-                color:#cbd5e1;
-                display:flex;
-                justify-content:space-between;
-                gap:8px;
-                flex-wrap:wrap;
-            }
-            @media (max-width: 640px) {
-                .recruit-user-grid { grid-template-columns:1fr; gap:10px; }
-                .recruit-user-card { padding:12px; }
-                .recruit-user-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
-                .recruit-user-bottom { grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
-                .recruit-user-metric-value { font-size:.92rem; }
-                .recruit-user-chip { font-size:.68rem; padding:5px 6px; }
-            }
-            </style>
-            <div class='recruit-user-grid'>
-            """]
+            _cards_html = ["""<style>
+.recruit-user-grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    gap:12px;
+    margin:8px 0 4px 0;
+}
+.recruit-user-card {
+    border-radius:16px;
+    padding:14px;
+    background:linear-gradient(145deg,#0f172a 0%,#1e293b 100%);
+    border:1px solid rgba(148,163,184,.22);
+    box-shadow:0 8px 22px rgba(0,0,0,.18);
+    min-width:0;
+}
+.recruit-user-top {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:12px;
+}
+.recruit-user-logo-wrap {
+    width:58px;
+    height:58px;
+    border-radius:14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.08);
+}
+.recruit-user-logo-wrap img {
+    width:44px;
+    height:44px;
+    object-fit:contain;
+}
+.recruit-user-coach {
+    font-size:.75rem;
+    font-weight:800;
+    color:#94a3b8;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+}
+.recruit-user-team {
+    font-size:1.05rem;
+    font-weight:900;
+    line-height:1.1;
+}
+.recruit-user-rankline {
+    font-size:.78rem;
+    color:#cbd5e1;
+    margin-top:3px;
+}
+.recruit-user-metrics {
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+    margin-bottom:10px;
+}
+.recruit-user-metric {
+    background:rgba(15,23,42,.85);
+    border:1px solid rgba(51,65,85,.9);
+    border-radius:10px;
+    padding:8px 8px 7px 8px;
+    text-align:center;
+    min-width:0;
+}
+.recruit-user-metric-value {
+    font-size:1rem;
+    font-weight:900;
+    color:#f8fafc;
+    line-height:1.1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.recruit-user-metric-label {
+    font-size:.63rem;
+    color:#94a3b8;
+    font-weight:700;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    margin-top:3px;
+}
+.recruit-user-bottom {
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:8px;
+    margin-bottom:10px;
+}
+.recruit-user-chip {
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(148,163,184,.18);
+    border-radius:999px;
+    padding:5px 8px;
+    text-align:center;
+    font-size:.73rem;
+    color:#e2e8f0;
+    font-weight:800;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.recruit-user-footer {
+    font-size:.76rem;
+    color:#cbd5e1;
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    flex-wrap:wrap;
+}
+@media (max-width: 640px) {
+    .recruit-user-grid { grid-template-columns:1fr; gap:10px; }
+    .recruit-user-card { padding:12px; }
+    .recruit-user-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+    .recruit-user-bottom { grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+    .recruit-user-metric-value { font-size:.92rem; }
+    .recruit-user-chip { font-size:.68rem; padding:5px 6px; }
+}
+</style>
+<div class='recruit-user-grid'>"""]
 
             for _, _r in _user_df.iterrows():
                 _team = str(_r['Team']).strip()
@@ -6062,8 +6060,7 @@ if data:
                 _secondary = get_team_secondary_color(_team)
                 _logo_uri = image_file_to_data_uri(get_logo_source(_team))
                 _logo_html = f"<img src='{_logo_uri}' alt='{html.escape(_team)} logo'/>" if _logo_uri else "<span style='font-size:28px;'>🏈</span>"
-                _cards_html.append(f"""
-                <div class='recruit-user-card' style='border-left:5px solid {_primary};'>
+                _cards_html.append(f"""<div class='recruit-user-card' style='border-left:5px solid {_primary};'>
                   <div class='recruit-user-top'>
                     <div class='recruit-user-logo-wrap' style='box-shadow:inset 0 0 0 1px {_primary}33;'>
                       {_logo_html}
@@ -6102,7 +6099,7 @@ if data:
                     <span>Class Year: <strong>{recruit_year}</strong></span>
                   </div>
                 </div>
-                """)
+""")
 
             _cards_html.append("</div>")
             st.markdown(''.join(_cards_html), unsafe_allow_html=True)
