@@ -4560,7 +4560,7 @@ else:
     )
 
 # ── TABS START ───────────────────────────────────────────────────────
- tabs = st.tabs([
+        tabs = st.tabs([
         "🗞️ Dynasty News",
         "📐 SOS & True Path",
         "🏆 Who's In?",
