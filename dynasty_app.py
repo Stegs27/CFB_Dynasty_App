@@ -5250,7 +5250,7 @@ if data:
         }
         _inj_colors = {'critical': '#ef4444', 'major': '#f97316', 'moderate': '#eab308', 'minor': '#6b7280'}
 
-                headlines = []
+         headlines = []
         if not model_2041.empty:
             # ── LIVE OVERRIDES FOR HEADLINES ──────────────────────────
             try:
