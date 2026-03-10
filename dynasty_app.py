@@ -5883,10 +5883,7 @@ if data:
 
         for _df in (_hs_df, _portal_df, _overall_df):
             if not _df.empty:
-                _df['User'] = _df.apply(
-                    lambda r: _team_to_user.get(str(r['Team']).strip(), str(r.get('User', '')).strip()),
-                    axis=1
-                )
+                _df['User'] = _df['Team'].astype(str).str.strip().map(_team_to_user).fillna('')
 
         _hs_lookup = {str(r['Team']).strip(): r for _, r in _hs_df.iterrows()}
         _portal_lookup = {str(r['Team']).strip(): r for _, r in _portal_df.iterrows()}
@@ -6672,7 +6669,11 @@ if data:
 
         target = st.selectbox("Select Team", sorted(model_2041['USER'].tolist()), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
-        wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
+        _live_team_stats = get_live_team_stats(_ta_team, model_2041, get_cfp_rankings_snapshot(), CURRENT_YEAR)
+        wins = int(_live_team_stats['wins']) if pd.notna(_live_team_stats['wins']) else 0
+        losses = int(_live_team_stats['losses']) if pd.notna(_live_team_stats['losses']) else 0
+        ppg = _live_team_stats['ppg'] if pd.notna(_live_team_stats['ppg']) else get_team_schedule_summary(scores, target)[2]
+        avg_margin = _live_team_stats['avg_margin'] if pd.notna(_live_team_stats['avg_margin']) else get_team_schedule_summary(scores, target)[3]
 
         # ── Live speed stats from roster CSV (same logic as Speed Freaks tab) ──
         _ta_team     = str(row['TEAM'])
@@ -6751,9 +6752,7 @@ if data:
                        if pd.notna(row.get('Current CFP Ranking')) else "NR")
         _stock      = str(row.get('Program Stock', '—'))
         _conf       = str(row.get('CONFERENCE', ''))
-        _record_d   = (f"{int(row['Current Record Wins'])}-{int(row['Current Record Losses'])}"
-                       if pd.notna(row.get('Current Record Wins')) and pd.notna(row.get('Current Record Losses'))
-                       else f"{wins}-{losses}")
+        _record_d   = _live_team_stats['record'] if _live_team_stats.get('record', '—') != '—' else (f"{wins}-{losses}" if wins or losses else '—')
         _cc = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),
                'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}.get(_conf, ('#6b7280','#1f2937'))
 
@@ -6926,9 +6925,7 @@ if data:
         # ── Detailed metrics table + bar chart ────────────────────────────────
         st.subheader("📋 Detailed Team Metrics")
         _where_spd = str(row.get('Where is the Speed?', '—'))
-        _opp_rec   = (f"{int(row['Combined Opponent Wins'])}-{int(row['Combined Opponent Losses'])}"
-                      if pd.notna(row.get('Combined Opponent Wins'))
-                      and pd.notna(row.get('Combined Opponent Losses')) else 'N/A')
+        _opp_rec   = _live_team_stats.get('opp_record', 'N/A')
 
         stat_table = pd.DataFrame([
             {'Metric': 'Overall OVR',          'Value': _ovr_val},
@@ -6950,8 +6947,8 @@ if data:
             {'Metric': 'Speedometer (live)',    'Value': f"{_live_mph} MPH"},
             {'Metric': 'Blue Chip Ratio',       'Value': f"{_bcr:.0f}%"},
             {'Metric': 'Opponent Record',       'Value': _opp_rec},
-            {'Metric': 'PPG',                   'Value': ppg},
-            {'Metric': 'Avg Margin',            'Value': avg_margin},
+            {'Metric': 'PPG',                   'Value': round(float(ppg),1) if pd.notna(ppg) else 'N/A'},
+            {'Metric': 'Avg Margin',            'Value': round(float(avg_margin),1) if pd.notna(avg_margin) else 'N/A'},
         ])
         st.dataframe(stat_table, hide_index=True, use_container_width=True)
 
