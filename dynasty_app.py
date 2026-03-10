@@ -24,10 +24,10 @@ st.markdown("""
     .stDeployButton {display:none;}
     [data-testid="stDecoration"] {display:none;}
     
-    /* 2. THE CONTAINER */
+    /* 2. THE CONTAINER - RAISED UP */
     .main .block-container {
         max-width: 1200px;
-        padding-top: 2rem;
+        padding-top: 0.5rem;   /* <--- Changed from 2rem to 0.5rem to raise page */
         padding-right: 1rem;
         padding-left: 1rem;
         padding-bottom: 2rem;
@@ -37,16 +37,15 @@ st.markdown("""
     h1, h2, h3 {
         text-align: center !important;
         width: 100%;
+        margin-top: 0rem !important; /* Removes extra space above the first header */
     }
     
-    /* Centers st.caption text */
     .stCaption {
         text-align: center !important;
         display: block;
         width: 100%;
     }
 
-    /* Centers standard text/paragraphs directly under headers if not using st.caption */
     h1 + p, h2 + p, h3 + p, .stMarkdown p {
         text-align: center !important;
     }
@@ -54,7 +53,7 @@ st.markdown("""
     /* 4. MOBILE OPTIMIZATION */
     @media (max-width: 768px) {
         .main .block-container {
-            padding-top: 1rem;
+            padding-top: 0rem; /* Flush to top on mobile */
         }
     }
 
