@@ -5218,14 +5218,24 @@ if data:
             live_natty = float(row.get('Natty Odds', 0))
             live_cfp = float(row.get('CFP Odds', 0))
             
-            # Elimination Zeroing
+            # --- IMPROVED ELIMINATION ZEROING ---
             _team_clean = team.strip().lower()
+            
             if _bracket_active:
+                # 1. If they lost a game in the bracket (found in LOSER column)
                 if _team_clean in _elim_teams:
                     live_natty = 0.0
+                    live_cfp = 0.0
+                
+                # 2. If they were never selected for the 12-team bracket
                 elif _team_clean not in _bracket_teams:
                     live_natty = 0.0
                     live_cfp = 0.0
+                
+                # 3. If they are IN the bracket and NOT yet eliminated
+                else:
+                    # Keep live_natty as-is from model, but force CFP to 100% (they made it)
+                    live_cfp = 100.0
             
             _conf = str(row.get('CONFERENCE', ''))
             _conf_colors = {'SEC': ('#fbbf24','#78350f'), 'B1G': ('#60a5fa','#1e3a5f'), 'ACC': ('#a78bfa','#3b1d6e'), 'Big 12': ('#f97316','#431407')}
