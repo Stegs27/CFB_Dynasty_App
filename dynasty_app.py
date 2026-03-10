@@ -20,46 +20,72 @@ BOWL_ROUND         = 1    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
 
 st.markdown("""
     <style>
-    /* 1. Hide the top decoration bars */
+    /* 1. HIDE DEFAULT STREAMLIT ELEMENTS */
     .stDeployButton {display:none;}
     [data-testid="stDecoration"] {display:none;}
-    
-    /* 2. THE CONTAINER - RAISED UP */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {background: transparent;}
+
+    /* 2. THE MAIN CONTAINER - RAISED UP & RESPONSIVE */
     .main .block-container {
         max-width: 1200px;
-        padding-top: 0rem;   /* <--- Changed from 2rem to 0rem to raise page */
+        padding-top: 0rem;   /* Raised page up */
         padding-right: 1rem;
         padding-left: 1rem;
         padding-bottom: 2rem;
     }
 
-    /* 3. CENTER HEADERS & SUBTEXT */
+    /* 3. CENTER ALL HEADERS & SUBTEXT */
     h1, h2, h3 {
         text-align: center !important;
         width: 100%;
-        margin-top: 0rem !important; /* Removes extra space above the first header */
+        margin-top: 0rem !important;
     }
     
+    /* Targets st.caption */
     .stCaption {
         text-align: center !important;
         display: block;
         width: 100%;
     }
 
+    /* Targets markdown paragraphs following headers */
     h1 + p, h2 + p, h3 + p, .stMarkdown p {
         text-align: center !important;
     }
 
-    /* 4. MOBILE OPTIMIZATION */
-    @media (max-width: 768px) {
-        .main .block-container {
-            padding-top: 0rem; /* Flush to top on mobile */
-        }
+    /* 4. SWIPEABLE TABS FOR MOBILE/TABLETS */
+    div[data-testid="stTabList"] {
+        display: flex;
+        overflow-x: auto;         /* Allows horizontal swipe */
+        white-space: nowrap;      /* Keeps tabs on one line */
+        scrollbar-width: none;    /* Hides scrollbar (Firefox) */
+        -ms-overflow-style: none; /* Hides scrollbar (Edge) */
+        gap: 8px;
+        padding-bottom: 5px;
     }
 
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {background: transparent;}
+    div[data-testid="stTabList"]::-webkit-scrollbar {
+        display: none;            /* Hides scrollbar (Chrome/Safari) */
+    }
+
+    /* Makes tab buttons easier to tap on touchscreens */
+    button[data-testid="stBaseButton-tertiary"] {
+        flex: 0 0 auto;
+        padding: 10px 15px;
+    }
+
+    /* 5. MOBILE OPTIMIZATION */
+    @media (max-width: 768px) {
+        .main .block-container {
+            padding-top: 0rem; 
+            padding-right: 0.5rem;
+            padding-left: 0.5rem;
+        }
+        h1 { font-size: 1.8rem !important; }
+        h2 { font-size: 1.5rem !important; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
