@@ -4554,9 +4554,8 @@ if is_gold:
         </div>
     """, unsafe_allow_html=True)
 else:
-    # Standard Gray fallback if no gold data is found
+    # Fallback if no specific gold data is found
     st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -30px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
-
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
