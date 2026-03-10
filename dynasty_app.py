@@ -24,25 +24,34 @@ st.markdown("""
     .stDeployButton {display:none;}
     [data-testid="stDecoration"] {display:none;}
     
-    /* 2. THE CONTAINER: This controls the "Tablet" width and page spacing */
+    /* 2. THE CONTAINER */
     .main .block-container {
-        max-width: 1200px;     /* Limits width so it looks like a clean dashboard */
-        padding-top: 2rem;    /* Space at the very top since we removed the header */
+        max-width: 1200px;
+        padding-top: 2rem;
         padding-right: 1rem;
         padding-left: 1rem;
         padding-bottom: 2rem;
     }
 
-    /* 3. MOBILE OPTIMIZATION: Ensures it fits perfectly on phones */
+    /* 3. CENTER HEADERS: This targets st.title, st.header, and st.subheader */
+    h1, h2, h3 {
+        text-align: center !important;
+        width: 100%;
+    }
+    
+    /* Centering the caption text under headers if you use st.caption */
+    .stCaption {
+        text-align: center !important;
+        display: block;
+    }
+
+    /* 4. MOBILE OPTIMIZATION */
     @media (max-width: 768px) {
         .main .block-container {
             padding-top: 1rem;
-            padding-right: 0.5rem;
-            padding-left: 0.5rem;
         }
     }
 
-    /* 4. CLEANUP: Hides the default Streamlit footer and menu */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {background: transparent;}
