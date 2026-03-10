@@ -5188,7 +5188,7 @@ if data:
         rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
         rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
 
-        for idx, row in power_board.iterrows():
+                for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
             user = str(row.get('USER', ''))
             pi    = row.get('Preseason PI', row.get('Power Index', 0))
