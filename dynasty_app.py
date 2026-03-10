@@ -90,14 +90,19 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC MAIN HEADER (Place this at the very top of your main script)
+# DYNAMIC MAIN HEADER (Logo & Spacing Fix)
 # ════════════════════════════════════════════════════════════════════
+def get_logo_url(team_name):
+    # Matches your existing logic for fetching slugs from TEAM_VISUALS
+    slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
+    return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
+
 st.header("📰 Dynasty News")
 
-# 1. Headline Logic
 top_headline = "Your home for league rankings, playoff races, and Heisman watch."
 badge_text = "TOP STORY"
 is_gold = False
+logo_html = ""
 
 try:
     # PRIORITY 1: Check for CFP Results
@@ -105,26 +110,37 @@ try:
         _b_df = pd.read_csv('CFPbracketresults.csv')
         _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)]
         if not _cy_games.empty:
-            _last_game = _cy_games.iloc[-1]
-            top_headline = f"🏆 CFP UPDATE: {_last_game['WINNER']} defeats {_last_game['LOSER']}!"
+            _last = _cy_games.iloc[-1]
+            win_logo = get_logo_url(_last['WINNER'])
+            loss_logo = get_logo_url(_last['LOSER'])
+            
+            top_headline = f"{_last['WINNER']} {int(_last['WIN_SCORE'])} - {int(_last['LOSS_SCORE'])} {_last['LOSER']}"
             badge_text = "FINAL SCORE"
             is_gold = True
+            # Create side-by-side logo HTML
+            logo_html = f"""
+                <div style="display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 5px;">
+                    <img src="{win_logo}" style="width:40px; height:40px; object-fit:contain;">
+                    <span style="color:#9ca3af; font-weight:900; font-size:1.2rem;">VS</span>
+                    <img src="{loss_logo}" style="width:40px; height:40px; object-fit:contain;">
+                </div>
+            """
     
     # PRIORITY 2: Heisman Frontrunner
-    # Requires model_2041 to be loaded. Move this block after data loading if needed.
     if not is_gold and 'Heisman Player' in model_2041.columns:
-        # Get team with highest Power Index
         frontrunner = model_2041.sort_values('Power Index', ascending=False).iloc[0]
         p_name = str(frontrunner.get('Heisman Player', 'TBD'))
         p_stats = str(frontrunner.get('Heisman Stats', 'Evaluating...'))
         if p_name not in ['TBD', 'nan', 'None']:
-            top_headline = f"HEISMAN WATCH: {p_name} — {p_stats}"
-            badge_text = "HEISMAN"
+            top_headline = f"{p_name} — {p_stats}"
+            badge_text = "HEISMAN WATCH"
             is_gold = True
+            h_logo = get_logo_url(frontrunner['TEAM'])
+            logo_html = f'<div style="text-align:center; margin-bottom:5px;"><img src="{h_logo}" style="width:50px; height:50px; object-fit:contain;"></div>'
 except:
     pass
 
-# 2. Render Header Sub-Headline
+# 2. Render Header with tight spacing
 if is_gold:
     st.markdown(f"""
         <style>
@@ -135,24 +151,24 @@ if is_gold:
         }}
         .top-story-badge {{
             display: inline-block; background: #f59e0b; color: #451a03; 
-            padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; 
-            font-weight: 900; margin-right: 10px; vertical-align: middle;
+            padding: 1px 6px; border-radius: 4px; font-size: 0.6rem; 
+            font-weight: 900; margin-bottom: 8px;
             animation: subtle-pulse 3s infinite ease-in-out;
             letter-spacing: 1px;
         }}
         </style>
-        <div style="margin-bottom: 30px; margin-top: -15px; text-align: center;">
+        <div style="margin-top: -25px; margin-bottom: 5px; text-align: center;">
+            {logo_html}
             <div class="top-story-badge">{badge_text}</div>
-            <span style="color: #fbbf24; font-size: 0.95rem; font-weight: 700; vertical-align: middle;">
+            <div style="color: #fbbf24; font-size: 1rem; font-weight: 800; letter-spacing: 0.5px;">
                 {top_headline.upper()}
-            </span>
+            </div>
         </div>
     """, unsafe_allow_html=True)
 else:
-    # Standard Gray Blurb
-    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -15px; margin-bottom: 30px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -25px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
 
-st.divider()
+# No divider here to keep space tight before tabs
 
 
 TEAM_VISUALS = {
