@@ -5546,20 +5546,58 @@ if data:
                                   f"You can scheme around a lot of things. "
                                   f"You can't scheme around not being able to catch the other team's guys."))
 
-        # ── Render all headlines ──────────────────────────────────────────
-        for _hl_emoji, _hl_title, _hl_body in headlines:
-            st.markdown(
-                f"<div style='background:#111827;border:1px solid #374151;"
-                f"border-radius:10px;padding:12px 16px;margin-bottom:8px;'>"
-                f"<span style='font-size:1.1rem;'>{_hl_emoji}</span>"
-                f"<strong style='color:#f3f4f6;margin-left:6px;'>"
-                f"{html.escape(_hl_title)}:</strong>"
-                f"<span style='color:#d1d5db;font-size:0.9rem;margin-left:4px;'>"
-                f"{_hl_body}</span></div>",
-                unsafe_allow_html=True
-            )
+                # ── [ADDED] HTML CARD RENDERER WITH HOVER GLOW ────────────────────
+        st.markdown("<br>", unsafe_allow_html=True) 
+        
+        # Inject the CSS animation block for the cards
+        st.markdown("""
+        <style>
+        .headline-card {
+            display: flex;
+            align-items: center;
+            background-color: rgba(30, 30, 30, 0.6);
+            border-left: 5px solid #ff4b4b;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        .headline-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(255, 75, 75, 0.25);
+            background-color: rgba(40, 40, 40, 0.8);
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
-        # ════════════════════════════════════════════════════════════════════
+        for _hl_emoji, _hl_title, _hl_body in headlines:
+            # Find the exact team name from the dataframe to trigger your local logos
+            _team_name = ""
+            for _t in model_2041['TEAM'].unique():
+                if f"({html.escape(_t)}" in _hl_body or f"({_t}" in _hl_body:
+                    _team_name = _t
+                    break
+            
+            # Fetch the logo using the app's native asset pipeline
+            _logo_uri = image_file_to_data_uri(get_logo_source(_team_name)) if _team_name else ""
+            _img_html = f"<img src='{_logo_uri}' width='55' style='margin-right: 15px; border-radius: 5px; object-fit: contain;'>" if _logo_uri else ""
+            
+            _card_html = f"""
+            <div class="headline-card">
+                {_img_html}
+                <div>
+                    <h4 style="margin: 0; padding-bottom: 5px; font-size: 1.1rem; color: #ffffff;">
+                        {_hl_emoji} {_hl_title}
+                    </h4>
+                    <p style="margin: 0; font-size: 0.9rem; color: #cccccc; line-height: 1.4;">
+                        {_hl_body}
+                    </p>
+                </div>
+            </div>
+            """
+            st.markdown(_card_html, unsafe_allow_html=True)
+ ════════════════════════════════════════════════════════════════════
         # SECTION 3 — TOUGHEST MATCHUPS
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
