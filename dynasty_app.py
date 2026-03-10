@@ -5475,12 +5475,17 @@ if data:
                                   f"The roster that wins the natty in {CURRENT_YEAR + 2} starts with "
                                   f"who you're landing right now."))
 
-        # ── 9. SPEED MERCHANTS ────────────────────────────────────────
+            # ── 9. SPEED MERCHANTS ────────────────────────────────────────
         try:
             # LIVE SPEED OVERRIDE
             _sf_roster = pd.read_csv('cfb26_rosters_full.csv')
             _sf_roster['SPD'] = pd.to_numeric(_sf_roster['SPD'], errors='coerce')
             _sf_roster['ACC'] = pd.to_numeric(_sf_roster['ACC'], errors='coerce')
+            
+            # [ADDED] Load AGI and COD for the 4-Quad metric
+            _sf_roster['AGI'] = pd.to_numeric(_sf_roster.get('AGI', pd.Series(dtype=float)), errors='coerce')
+            _sf_roster['COD'] = pd.to_numeric(_sf_roster.get('COD', pd.Series(dtype=float)), errors='coerce')
+            
             _sf_roster['REDSHIRT'] = pd.to_numeric(_sf_roster.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
             _sf_active = _sf_roster[_sf_roster['REDSHIRT'] == 0]
             
@@ -5489,7 +5494,11 @@ if data:
                 _tdf = _sf_active[_sf_active['Team'] == _t]
                 _s90 = int((_tdf['SPD'] >= 90).sum())
                 _gen = int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum())
-                _team_speeds.append({'TEAM': _t, 'S90': _s90, 'GEN': _gen})
+                
+                # [ADDED] Calculate 4-Quad (90+ SPD, ACC, AGI, COD)
+                _quad = int(((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 90) & (_tdf['AGI'] >= 90) & (_tdf['COD'] >= 90)).sum())
+                
+                _team_speeds.append({'TEAM': _t, 'S90': _s90, 'GEN': _gen, 'QUAD': _quad})
             
             _live_speed_df = pd.DataFrame(_team_speeds).sort_values(['S90', 'GEN'], ascending=False)
             _sk = _live_speed_df.iloc[0]
@@ -5497,12 +5506,19 @@ if data:
             _sk_user = str(model_2041[model_2041['TEAM'] == _sk_team]['USER'].iloc[0])
             _sk_num = int(_sk['S90'])
             _sk_gen = int(_sk['GEN'])
+            _sk_quad = int(_sk['QUAD'])  # [ADDED] Extract Quad count
+            
             _gen_note = (f" including <strong>{_sk_gen} generational freak"
                          f"{'s' if _sk_gen != 1 else ''}</strong>") if _sk_gen > 0 else ""
             
+            # [ADDED] Format the 4-Quad note string
+            _quad_note = (f" and <strong>{_sk_quad} 4-Quad athlete"
+                          f"{'s' if _sk_quad != 1 else ''}</strong>") if _sk_quad > 0 else ""
+            
+            # [ADDED] Inject {_quad_note} into the headline string
             headlines.append(("💨", "Speed Merchants",
                               f"<strong>{_sk_user}</strong> ({html.escape(_sk_team)}) leads with "
-                              f"<strong>{_sk_num}</strong> active players at 90+ speed{_gen_note}. "
+                              f"<strong>{_sk_num}</strong> active players at 90+ speed{_gen_note}{_quad_note}. "
                               f"You can scheme around a lot of things. "
                               f"You can't scheme around not being able to catch the other team's guys."))
         except Exception:
@@ -5512,11 +5528,21 @@ if data:
                 _sk_team = str(_sk['TEAM'])
                 _sk_num = int(_sk.get('Team Speed (90+ Speed Guys)', 0))
                 _sk_gen = int(_sk.get('Generational (96+ speed or 96+ Acceleration)', 0))
+                
+                # [ADDED] Fallback logic for static data
+                _sk_quad = int(_sk.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0))
+                
                 _gen_note = (f" including <strong>{_sk_gen} generational freak"
                              f"{'s' if _sk_gen != 1 else ''}</strong>") if _sk_gen > 0 else ""
+                
+                # [ADDED] Fallback note string
+                _quad_note = (f" and <strong>{_sk_quad} 4-Quad athlete"
+                              f"{'s' if _sk_quad != 1 else ''}</strong>") if _sk_quad > 0 else ""
+                
+                # [ADDED] Inject {_quad_note} into the fallback headline string
                 headlines.append(("💨", "Speed Merchants",
                                   f"<strong>{_sk_user}</strong> ({html.escape(_sk_team)}) leads with "
-                                  f"<strong>{_sk_num}</strong> players at 90+ speed{_gen_note}. "
+                                  f"<strong>{_sk_num}</strong> players at 90+ speed{_gen_note}{_quad_note}. "
                                   f"You can scheme around a lot of things. "
                                   f"You can't scheme around not being able to catch the other team's guys."))
 
