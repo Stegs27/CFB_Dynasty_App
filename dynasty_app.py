@@ -5250,87 +5250,102 @@ if data:
         }
         _inj_colors = {'critical': '#ef4444', 'major': '#f97316', 'moderate': '#eab308', 'minor': '#6b7280'}
 
-        headlines = []
-
+                headlines = []
         if not model_2041.empty:
+            # ── LIVE OVERRIDES FOR HEADLINES ──────────────────────────
+            try:
+                _live_cfp_df = get_cfp_rankings_snapshot()
+                _live_cfp_map = _live_cfp_df.set_index('Team')
+                def _get_live_record(t_name, fw, fl):
+                    if t_name in _live_cfp_map.index:
+                        return int(_live_cfp_map.loc[t_name, 'Wins']), int(_live_cfp_map.loc[t_name, 'Losses'])
+                    return fw, fl
+                def _get_live_rank(t_name, f_rank):
+                    if t_name in _live_cfp_map.index:
+                        return int(_live_cfp_map.loc[t_name, 'Rank'])
+                    return f_rank
+            except Exception:
+                def _get_live_record(t_name, fw, fl): return fw, fl
+                def _get_live_rank(t_name, f_rank): return f_rank
+            # ──────────────────────────────────────────────────────────────────
 
             # ── 1. LIVE TITLE FAVORITE — use Natty Odds, not Preseason ─────
             _natty_col = 'Natty Odds' if 'Natty Odds' in model_2041.columns else 'Preseason Natty Odds'
-            _pi_col    = 'Power Index' if 'Power Index' in model_2041.columns else 'Preseason PI'
-            _cfp_col   = 'CFP Odds'   if 'CFP Odds'    in model_2041.columns else 'Preseason CFP %'
+            _pi_col = 'Power Index' if 'Power Index' in model_2041.columns else 'Preseason PI'
+            _cfp_col = 'CFP Odds' if 'CFP Odds' in model_2041.columns else 'Preseason CFP %'
 
-            title_fav      = model_2041.sort_values(_natty_col, ascending=False).iloc[0]
-            pi_leader      = model_2041.sort_values(_pi_col,    ascending=False).iloc[0]
-            collapse_row   = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
+            title_fav = model_2041.sort_values(_natty_col, ascending=False).iloc[0]
+            pi_leader = model_2041.sort_values(_pi_col, ascending=False).iloc[0]
+            collapse_row = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
 
-            _tf_user  = str(title_fav['USER'])
-            _tf_team  = str(title_fav['TEAM'])
+            _tf_user = str(title_fav['USER'])
+            _tf_team = str(title_fav['TEAM'])
             _tf_natty = round(float(title_fav[_natty_col]), 1)
-            _tf_ovr   = int(title_fav.get('OVERALL', 0))
-            _tf_cfp   = int(title_fav.get('Current CFP Ranking', 99)) if pd.notna(title_fav.get('Current CFP Ranking')) else None
+            _tf_ovr = int(title_fav.get('OVERALL', 0))
+            
+            # Use live rank instead of static CSV rank
+            _tf_cfp_raw = title_fav.get('Current CFP Ranking', 99)
+            _tf_cfp = _get_live_rank(_tf_team, int(_tf_cfp_raw) if pd.notna(_tf_cfp_raw) else 99)
             _tf_cfp_str = f" (CFP #{_tf_cfp})" if _tf_cfp and _tf_cfp <= 25 else ""
-            headlines.append(("🏆", "Title Favorite",
-                f"<strong>{_tf_user}</strong> ({html.escape(_tf_team)}{_tf_cfp_str}) leads the model with "
-                f"<strong>{_tf_natty}% natty odds</strong> and a {_tf_ovr} OVR roster. "
-                f"This number is live — it reflects current record, CFP rank, injuries, and schedule résumé, "
-                f"not preseason projections."))
 
-            # ── 2. LIVE POWER INDEX LEADER ────────────────────────────────
-            _pi_user  = str(pi_leader['USER'])
-            _pi_team  = str(pi_leader['TEAM'])
-            _pi_val   = round(float(pi_leader[_pi_col]), 1)
-            _pi_ovr   = int(pi_leader.get('OVERALL', 0))
-            _pi_rec_w = int(pi_leader.get('Current Record Wins', 0))
-            _pi_rec_l = int(pi_leader.get('Current Record Losses', 0))
-            headlines.append(("⚡", "Power Index Leader",
-                f"<strong>{_pi_user}</strong> ({html.escape(_pi_team)}, "
-                f"{_pi_rec_w}&ndash;{_pi_rec_l}) owns the highest live Power Index "
-                f"(<strong>{_pi_val}</strong>). The PI blends OVR, speed, recruiting, "
-                f"CFP rank, current win%, and schedule strength — no preseason assumptions."))
+            headlines.append(("🏆", "National Title Favorite",
+                              f"<strong>{_tf_user}</strong> ({html.escape(_tf_team)}) leads the model with "
+                              f"a <strong>{_tf_natty}%</strong> chance to win it all. "
+                              f"At {_tf_ovr} OVR{_tf_cfp_str}, this roster has the juice to "
+                              f"survive the 12-team gauntlet."))
+
+            # ── 2. POWER INDEX LEADER ─────────────────────────────────────
+            _pi_user = str(pi_leader['USER'])
+            _pi_team = str(pi_leader['TEAM'])
+            _pi_val = round(float(pi_leader[_pi_col]), 1)
+            _pi_ovr = int(pi_leader.get('OVERALL', 0))
+            
+            # Use live record instead of static CSV record
+            _pi_rec_w, _pi_rec_l = _get_live_record(_pi_team, int(pi_leader.get('Current Record Wins', 0)), int(pi_leader.get('Current Record Losses', 0)))
+            _pi_rec_str = f" ({_pi_rec_w}-{_pi_rec_l})" if _pi_rec_w or _pi_rec_l else ""
+
+            if _pi_user != _tf_user:
+                headlines.append(("💪", "Power Index Alpha",
+                                  f"While {_tf_user} has the highest title odds, <strong>{_pi_user}</strong> "
+                                  f"({html.escape(_pi_team)}) sits at #1 in the Power Index ({_pi_val}){_pi_rec_str}. "
+                                  f"This is the most dangerous team on a neutral field right now."))
 
             # ── 3. CFP #1 CALLOUT ─────────────────────────────────────────
-            if 'Current CFP Ranking' in model_2041.columns:
-                _cfp_ranked = model_2041[pd.to_numeric(
-                    model_2041['Current CFP Ranking'], errors='coerce').notna()].copy()
-                _cfp_ranked['_cfp_num'] = pd.to_numeric(
-                    _cfp_ranked['Current CFP Ranking'], errors='coerce')
-                _cfp_ranked = _cfp_ranked[_cfp_ranked['_cfp_num'] <= 25]
-                if not _cfp_ranked.empty:
-                    _no1 = _cfp_ranked.sort_values('_cfp_num').iloc[0]
-                    _no1_user = str(_no1['USER'])
-                    _no1_team = str(_no1['TEAM'])
-                    _no1_rank = int(_no1['_cfp_num'])
-                    _no1_rec_w = int(_no1.get('Current Record Wins', 0))
-                    _no1_rec_l = int(_no1.get('Current Record Losses', 0))
-                    _no1_natty = round(float(_no1.get(_natty_col, 0)), 1)
-                    # Count how many user teams are ranked
-                    _n_ranked = len(_cfp_ranked)
-                    _rank_list = ", ".join(
-                        f"{str(r['USER'])} (#{int(r['_cfp_num'])})"
-                        for _, r in _cfp_ranked.sort_values('_cfp_num').iterrows()
-                    )
-                    headlines.append(("📡", f"CFP #{_no1_rank}: {_no1_user}",
-                        f"<strong>{_no1_user}</strong> ({html.escape(_no1_team)}) is the top-ranked user program "
-                        f"at <strong>#{_no1_rank}</strong> with a {_no1_rec_w}&ndash;{_no1_rec_l} record and "
-                        f"{_no1_natty}% natty odds. All ranked user programs: {_rank_list}."))
+            _cfp_ranked = model_2041.copy()
+            _cfp_ranked['_cfp_num'] = _cfp_ranked['TEAM'].apply(lambda t: _get_live_rank(t, 99))
+            _cfp_ranked = _cfp_ranked[_cfp_ranked['_cfp_num'] <= 25]
+
+            if not _cfp_ranked.empty:
+                _no1 = _cfp_ranked.sort_values('_cfp_num').iloc[0]
+                _no1_user = str(_no1['USER'])
+                _no1_team = str(_no1['TEAM'])
+                _no1_rank = int(_no1['_cfp_num'])
+                _no1_rec_w, _no1_rec_l = _get_live_record(_no1_team, int(_no1.get('Current Record Wins', 0)), int(_no1.get('Current Record Losses', 0)))
+                _no1_natty = round(float(_no1.get(_natty_col, 0)), 1)
+                
+                if _no1_rank == 1 and _no1_user not in [_tf_user, _pi_user]:
+                    headlines.append(("🥇", "Committee's Darling",
+                                      f"<strong>{_no1_user}</strong> ({html.escape(_no1_team)}) is sitting pretty "
+                                      f"at CFP #1 ({_no1_rec_w}-{_no1_rec_l}), despite only having {_no1_natty}% title odds. "
+                                      f"The resume is doing the heavy lifting."))
 
             # ── 4. BOWL SEASON STATUS ─────────────────────────────────────
-            # General team-health snapshot — no game-specific score callouts
-            if 'Current CFP Ranking' in model_2041.columns:
-                _bt = model_2041.copy()
-                _bt['_cfp_num'] = pd.to_numeric(_bt['Current CFP Ranking'], errors='coerce')
-                _bowl_teams = _bt[_bt['_cfp_num'].fillna(99) <= 25].sort_values('_cfp_num')
-                if not _bowl_teams.empty:
-                    _cfp_list = ", ".join(
-                        f"<strong>{str(r['USER'])}</strong> ({html.escape(str(r['TEAM']))} #{int(r['_cfp_num'])})"
-                        for _, r in _bowl_teams.iterrows()
-                        if pd.notna(r['_cfp_num'])
-                    )
-                    if _cfp_list:
-                        headlines.append(("🏟️", "CFP Field Watch",
-                            f"Ranked user programs heading into bowl season: {_cfp_list}. "
-                            f"Conference champions get priority seeding — top 4 earn first-round byes. "
-                            f"Every bowl result reshapes the natty odds."))
+            _bt = model_2041.copy()
+            _bt['_cfp_num'] = _bt['TEAM'].apply(lambda t: _get_live_rank(t, 99))
+            _bowl_teams = _bt[_bt['_cfp_num'].fillna(99) <= 25].sort_values('_cfp_num')
+            
+            if not _bowl_teams.empty:
+                _status_notes = []
+                for _, _btr in _bowl_teams.head(4).iterrows():  # Top 4 ranked users
+                    _bu = str(_btr['USER'])
+                    _br = int(_btr['_cfp_num'])
+                    _bw, _bl = _get_live_record(str(_btr['TEAM']), int(_btr.get('Current Record Wins', 0)), int(_btr.get('Current Record Losses', 0)))
+                    _status_notes.append(f"#{_br} {_bu} ({_bw}-{_bl})")
+                
+                if _status_notes:
+                    headlines.append(("🏟️", "Playoff Picture",
+                                      f"The top of the bracket is locked in. "
+                                      f"{', '.join(_status_notes)} are currently dictating the pace of the postseason."))
 
             # ── 5. COLLAPSE WATCH ─────────────────────────────────────────
             _cr_user  = str(collapse_row['USER'])
