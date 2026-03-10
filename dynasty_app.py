@@ -5206,6 +5206,19 @@ if data:
         rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
         rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
 
+        # --- [1] PRE-LOOP LOGIC: GET OFFICIAL LIST FROM CSV ---
+        official_cfp_teams = []
+        try:
+            _b_df = pd.read_csv('CFPbracketresults.csv')
+            _cy_bracket = _b_df[_b_df['YEAR'] == CURRENT_YEAR]
+            if not _cy_bracket.empty:
+                t1 = _cy_bracket['TEAM1'].dropna().unique().tolist()
+                t2 = _cy_bracket['TEAM2'].dropna().unique().tolist()
+                official_cfp_teams = [str(t).strip().lower() for t in (t1 + t2)]
+        except:
+            pass
+
+        # --- [2] START THE MERGED LOOP ---
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
             user = str(row.get('USER', ''))
@@ -5217,30 +5230,31 @@ if data:
             live_natty = float(row.get('Natty Odds', 0))
             live_cfp = float(row.get('CFP Odds', 0))
             
-            # --- IMPROVED ELIMINATION ZEROING ---
+            # --- OFFICIAL LOCK & ELIMINATION LOGIC ---
             _team_clean = team.strip().lower()
+            is_official = _team_clean in official_cfp_teams
+            official_badge = ""
+            card_glow = "" # Default: No Glow
             
-            if _bracket_active:
-                # 1. If they lost a game in the bracket (found in LOSER column)
-                if _team_clean in _elim_teams:
-                    live_natty = 0.0
-                    live_cfp = 0.0
-                
-                # 2. If they were never selected for the 12-team bracket
-                elif _team_clean not in _bracket_teams:
-                    live_natty = 0.0
-                    live_cfp = 0.0
-                
-                # 3. If they are IN the bracket and NOT yet eliminated
+            if len(official_cfp_teams) > 0:
+                if is_official:
+                    # Green Glow and Official Badge
+                    card_glow = "box-shadow: 0px 0px 15px rgba(5, 150, 105, 0.4); border: 1px solid #059669;"
+                    official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#059669;color:white;border:1px solid #059669;'>🔒 OFFICIAL FIELD</span>"
+                    live_cfp = 100.0 # Force 100% since they made it
                 else:
-                    # Keep live_natty as-is from model, but force CFP to 100% (they made it)
-                    live_cfp = 100.0
-            
+                    # Red Out Badge and Zero Odds
+                    official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#dc2626;color:white;border:1px solid #dc2626;'>❌ OUT</span>"
+                    live_natty = 0.0
+                    live_cfp = 0.0
+
+            # Conference Badge Logic
             _conf = str(row.get('CONFERENCE', ''))
             _conf_colors = {'SEC': ('#fbbf24','#78350f'), 'B1G': ('#60a5fa','#1e3a5f'), 'ACC': ('#a78bfa','#3b1d6e'), 'Big 12': ('#f97316','#431407')}
             _cc = _conf_colors.get(_conf, ('#6b7280','#1f2937'))
             conf_badge = f"<span style='display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};border:1px solid {_cc[0]}44;'>{html.escape(_conf) if _conf else ''}</span>" if _conf and _conf != 'Other' else ''
             
+            # Tier & Style Logic
             qb_tier = row.get('QB Tier', '—')
             icon    = rank_icons[idx] if idx < len(rank_icons) else "▪️"
             label   = rank_labels[idx] if idx < len(rank_labels) else ""
@@ -5250,24 +5264,26 @@ if data:
             logo_html = f"<img src='{logo_uri}' style='width:36px;height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if logo_uri else "🏈 "
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
 
+            # --- RENDER THE MERGED CARD ---
             st.markdown(f"""
             <div style='display:flex;align-items:center;background:linear-gradient(90deg,{tc}18,#1f2937 60%);
-            border-left:4px solid {tc};border-radius:10px;padding:10px 14px;margin-bottom:8px;gap:12px;flex-wrap:wrap;'>
-              <div style='font-size:1.6rem;min-width:36px;'>{icon}</div>
+            border-left:4px solid {tc}; {card_glow} border-radius:10px; padding:10px 14px; margin-bottom:8px; gap:12px; flex-wrap:wrap;'>
+              <div style='font-size:1.6rem; min-width:36px;'>{icon}</div>
               {logo_html}
-              <div style='flex:1;min-width:200px;'>
-                <span style='font-size:1.05rem;font-weight:800;color:{tc};'>{html.escape(team)}</span>
-                <span style='color:#9ca3af;font-size:0.82rem;margin-left:8px;'>({html.escape(user)})</span>
-                <span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;
-                font-size:0.7rem;font-weight:900;background:{lcolor};color:white;'>{label}</span>
-                {conf_badge}
+              <div style='flex:1; min-width:200px;'>
+                <span style='font-size:1.05rem; font-weight:800; color:{tc};'>{html.escape(team)}</span>
+                <span style='color:#9ca3af; font-size:0.82rem; margin-left:8px;'>({html.escape(user)})</span>
+                <div style="margin-top:4px;">
+                    <span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:900; background:{lcolor}; color:white;'>{label}</span>
+                    {official_badge}
+                    {conf_badge}
+                </div>
               </div>
               <div style='text-align:right;'>
-                <span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 Pre: <strong style="color:white;">{round(float(natty),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#22c55e;">{round(float(live_natty),1)}%</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP Pre: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#3b82f6;">{round(float(live_cfp),1)}%</strong></span>
-                <span style='display:inline-block;margin-left:12px;padding:2px 7px;border-radius:999px;
-                font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
+                <span style='font-size:0.8rem; color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
+                <span style='font-size:0.8rem; color:#d1d5db; margin-left:14px;'>🏆 Pre: <strong style="color:white;">{round(float(natty),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#22c55e;">{round(float(live_natty),1)}%</strong></span>
+                <span style='font-size:0.8rem; color:#d1d5db; margin-left:14px;'>CFP Pre: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#3b82f6;">{round(float(live_cfp),1)}%</strong></span>
+                <span style='display:inline-block; margin-left:12px; padding:2px 7px; border-radius:999px; font-size:0.72rem; font-weight:700; background:{qb_chip_color}33; color:{qb_chip_color}; border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
               </div>
             </div>""", unsafe_allow_html=True)
 
