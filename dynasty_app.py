@@ -6844,11 +6844,72 @@ if data:
     # --- TEAM OVERVIEW ---
     with tabs[6]:
         st.header("📊 Team Analysis")
-        st.caption("Live speed metrics from roster CSV. Odds match Dynasty News preseason model.")
+        st.caption("Live speed metrics from roster CSV. Team card record comes from CPUscores_MASTER.csv and CFP rank comes from cfp_rankings_history.csv. Odds match Dynasty News preseason model.")
 
         target = st.selectbox("Select Team", sorted(model_2041['USER'].tolist()), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
         wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
+
+        def _get_live_team_overview(team_name):
+            live_wins = None
+            live_losses = None
+            live_cfp_rank = None
+
+            try:
+                _live_scores = pd.read_csv('CPUscores_MASTER.csv')
+                if not _live_scores.empty:
+                    _live_scores.columns = [str(c).strip() for c in _live_scores.columns]
+                    if 'YEAR' in _live_scores.columns:
+                        _live_scores['YEAR'] = pd.to_numeric(_live_scores['YEAR'], errors='coerce')
+                        _score_year = CURRENT_YEAR if (_live_scores['YEAR'] == CURRENT_YEAR).any() else _live_scores['YEAR'].dropna().max()
+                        if pd.notna(_score_year):
+                            _live_scores = _live_scores[_live_scores['YEAR'] == _score_year].copy()
+                    if 'Visitor' in _live_scores.columns and 'Home' in _live_scores.columns:
+                        _live_scores['Visitor'] = _live_scores['Visitor'].astype(str).str.strip()
+                        _live_scores['Home'] = _live_scores['Home'].astype(str).str.strip()
+                        _team_games = _live_scores[
+                            (_live_scores['Visitor'] == str(team_name).strip()) |
+                            (_live_scores['Home'] == str(team_name).strip())
+                        ].copy()
+                        if not _team_games.empty:
+                            _team_games['Vis Score'] = pd.to_numeric(_team_games.get('Vis Score'), errors='coerce')
+                            _team_games['Home Score'] = pd.to_numeric(_team_games.get('Home Score'), errors='coerce')
+                            _completed = _team_games[
+                                _team_games['Vis Score'].notna() & _team_games['Home Score'].notna()
+                            ].copy()
+                            if not _completed.empty:
+                                _is_home = _completed['Home'] == str(team_name).strip()
+                                live_wins = int(((_is_home) & (_completed['Home Score'] > _completed['Vis Score'])).sum() +
+                                                ((~_is_home) & (_completed['Vis Score'] > _completed['Home Score'])).sum())
+                                live_losses = int(len(_completed) - live_wins)
+            except Exception:
+                pass
+
+            try:
+                _cfp_hist_live = pd.read_csv('cfp_rankings_history.csv')
+                if not _cfp_hist_live.empty and {'YEAR','WEEK','TEAM','RANK'}.issubset(_cfp_hist_live.columns):
+                    _cfp_hist_live.columns = [str(c).strip() for c in _cfp_hist_live.columns]
+                    _cfp_hist_live['YEAR'] = pd.to_numeric(_cfp_hist_live['YEAR'], errors='coerce')
+                    _cfp_hist_live['WEEK'] = pd.to_numeric(_cfp_hist_live['WEEK'], errors='coerce')
+                    _cfp_hist_live['RANK'] = pd.to_numeric(_cfp_hist_live['RANK'], errors='coerce')
+                    _cfp_hist_live['TEAM'] = _cfp_hist_live['TEAM'].astype(str).str.strip()
+                    _cfp_year = CURRENT_YEAR if (_cfp_hist_live['YEAR'] == CURRENT_YEAR).any() else _cfp_hist_live['YEAR'].dropna().max()
+                    if pd.notna(_cfp_year):
+                        _cfp_slice = _cfp_hist_live[_cfp_hist_live['YEAR'] == _cfp_year].copy()
+                        _cfp_week = _cfp_slice['WEEK'].dropna().max()
+                        if pd.notna(_cfp_week):
+                            _cfp_slice = _cfp_slice[_cfp_slice['WEEK'] == _cfp_week]
+                        _team_cfp = _cfp_slice[_cfp_slice['TEAM'] == str(team_name).strip()]
+                        if not _team_cfp.empty:
+                            _rk = pd.to_numeric(_team_cfp.iloc[0]['RANK'], errors='coerce')
+                            if pd.notna(_rk):
+                                live_cfp_rank = int(_rk)
+            except Exception:
+                pass
+
+            return live_wins, live_losses, live_cfp_rank
+
+        _live_record_w, _live_record_l, _live_cfp_rank = _get_live_team_overview(str(row.get('TEAM', '')))
 
         # ── Live speed stats from roster CSV (same logic as Speed Freaks tab) ──
         _ta_team     = str(row['TEAM'])
@@ -6923,12 +6984,11 @@ if data:
         _logo_uri   = image_file_to_data_uri(get_logo_source(_ta_team))
         _logo_img   = (f"<img src='{_logo_uri}' style='width:60px;height:60px;object-fit:contain;'/>"
                        if _logo_uri else "<span style='font-size:36px;'>🏈</span>")
-        _cfp_rank_d = (f"#{int(row['Current CFP Ranking'])}"
-                       if pd.notna(row.get('Current CFP Ranking')) else "NR")
+        _cfp_rank_d = (f"#{int(_live_cfp_rank)}" if _live_cfp_rank is not None else "NR")
         _stock      = str(row.get('Program Stock', '—'))
         _conf       = str(row.get('CONFERENCE', ''))
-        _record_d   = (f"{int(row['Current Record Wins'])}-{int(row['Current Record Losses'])}"
-                       if pd.notna(row.get('Current Record Wins')) and pd.notna(row.get('Current Record Losses'))
+        _record_d   = (f"{int(_live_record_w)}-{int(_live_record_l)}"
+                       if _live_record_w is not None and _live_record_l is not None
                        else f"{wins}-{losses}")
         _cc = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),
                'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}.get(_conf, ('#6b7280','#1f2937'))
