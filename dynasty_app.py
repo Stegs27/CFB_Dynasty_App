@@ -4561,20 +4561,6 @@ else:
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
-    "🗞️ Dynasty News",
-    "📐 SOS & True Path",
-    "🏆 Who's In?",
-    "📺 Season Recap",
-    "🔍 Speed Freaks",
-    "🎯 Roster Matchup",
-    "📊 Team Overview",
-    "🏈 Recruiting Rankings",
-    "⚔️ H2H Matrix",
-    "🎬 ISPN Classics",
-    "🐐 GOAT Rankings",
-])
-
-    tabs = st.tabs([
         "🗞️ Dynasty News",
         "📐 SOS & True Path",
         "🏆 Who's In?",
