@@ -7375,18 +7375,33 @@ if data:
             def _plot_pos_scatter(df, title):
                 if df.empty: return None
                 
+                # Map detailed positions to broader groups for cleaner grouping
                 pos_mapping = {
                     'QB': 'QB', 'HB': 'RB', 'FB': 'RB', 
                     'WR': 'WR', 'TE': 'TE',
                     'DT': 'Trench', 'LEDG': 'Trench', 'REDG': 'Trench',
-                    'CB': 'CB', 'FS': 'Safety', 'SS': 'Safety',
+                    'CB': 'CB', 'FS': 'FS', 'SS': 'SS',
                     'MIKE': 'LB', 'WILL': 'LB', 'SAM': 'LB'
                 }
                 
-                df_grouped = df.copy()
-                df_grouped['PosGroup'] = df_grouped['Pos'].map(lambda x: pos_mapping.get(x, x))
+                # Make a copy and map the positions
+                df_mapped = df.copy()
+                df_mapped['FilterPos'] = df_mapped['Pos'].map(lambda x: pos_mapping.get(x, x))
                 
-                plot_df = df_grouped.groupby(['Team', 'PosGroup'], as_index=False).agg({
+                # Apply limits based on positional requirements
+                limits = {'QB': 1, 'RB': 2, 'WR': 4, 'TE': 2, 'LB': 4, 'CB': 4, 'FS': 1, 'SS': 1}
+                filtered_dfs = []
+                for (team, fpos), group in df_mapped.groupby(['Team', 'FilterPos']):
+                    limit = limits.get(fpos, 999) # Allow all Trench players to map dynamically
+                    filtered_dfs.append(group.nlargest(limit, 'OVR'))
+                
+                if not filtered_dfs: return None
+                df_limited = pd.concat(filtered_dfs)
+                
+                # Final mapping for display (Group FS and SS into Safety)
+                df_limited['PosGroup'] = df_limited['FilterPos'].replace({'FS': 'Safety', 'SS': 'Safety'})
+                
+                plot_df = df_limited.groupby(['Team', 'PosGroup'], as_index=False).agg({
                     'SPD': 'mean', 'Maneuverability': 'mean', 'OVR': 'mean', 'ACC': 'mean'
                 })
                 
