@@ -5842,14 +5842,16 @@ if data:
                        if _lu_uri else "<span style='font-size:28px;'>🏈</span>")
             _hr = _hs_lookup.get(_tm)
             if _hr is not None:
-                _rk    = int(_hr['Rank'])
-        # stabilized recruiting column lookup
-        _tot = int(_hr.get('Total', _hr.get('TotalCommits', 0)))
-        _f5  = int(_hr.get('FiveStar', _hr.get('5★', 0)))
-        _f4  = int(_hr.get('FourStar', _hr.get('4★', 0)))
-        _f3  = int(_hr.get('ThreeStar', _hr.get('3★', 0)))
-        _pts = float(_hr.get('Points', _hr.get('Overall Points', 0)))
-                             "#94a3b8" if _rk <= 40 else "#475569")
+                _rk  = int(_hr['Rank'])
+                # stabilized recruiting column lookup
+                _tot = int(_hr.get('Total', _hr.get('TotalCommits', 0)))
+                _5s  = int(_hr.get('FiveStar', _hr.get('5★', 0)))
+                _4s  = int(_hr.get('FourStar', _hr.get('4★', 0)))
+                _3s  = int(_hr.get('ThreeStar', _hr.get('3★', 0)))
+                _pts = float(_hr.get('Points', _hr.get('Overall Points', 0)))
+                _rk_color = ("#ffcc00" if _rk <= 5 else "#cbd5e1" if _rk <= 15 else "#94a3b8" if _rk <= 40 else "#475569")
+                _medal = "🥇 " if _rk == 1 else "🥈 " if _rk == 2 else "🥉 " if _rk == 3 else ""
+                _bcr = (_5s + _4s) / _tot if _tot > 0 else 0
                 _bcr_color = "#22c55e" if _bcr >= 0.5 else ("#fbbf24" if _bcr >= 0.25 else "#ef4444")
                 st.markdown(
                     f"<div style='background:linear-gradient(135deg,{_tc_u}1a,#0f172a);"
