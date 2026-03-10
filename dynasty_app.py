@@ -4417,8 +4417,14 @@ if data:
         frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
     }
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Sits ABOVE all tabs)
+# DYNAMIC GLOBAL HEADER (Corrected Data Load & Logic)
 # ════════════════════════════════════════════════════════════════════
+# 1. Load the data first so the logic below actually works
+try:
+    model_2041 = pd.read_csv('cfp_rankings_history.csv')
+except:
+    model_2041 = pd.DataFrame()
+
 def get_logo_url(team_name):
     slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
     return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
@@ -4431,6 +4437,7 @@ is_gold = False
 logo_html = ""
 
 try:
+    # PRIORITY 1: Check for CFP Results
     if os.path.exists('CFPbracketresults.csv'):
         _b_df = pd.read_csv('CFPbracketresults.csv')
         _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)]
@@ -4444,24 +4451,29 @@ try:
             logo_html = f"""
                 <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 10px;">
                     <img src="{win_logo}" style="width:50px; height:50px; object-fit:contain;">
-                    <span style="color:#9ca3af; font-weight:900; font-size:1.4rem;">VS</span>
+                    <span style="color:#94a3b8; font-weight:900; font-size:1.4rem;">VS</span>
                     <img src="{loss_logo}" style="width:50px; height:50px; object-fit:contain;">
                 </div>
             """
     
-    if not is_gold and 'Heisman Player' in model_2041.columns:
-        frontrunner = model_2041.sort_values('Power Index', ascending=False).iloc[0]
+    # PRIORITY 2: Heisman Frontrunner
+    if not is_gold and not model_2041.empty and 'Heisman Player' in model_2041.columns:
+        # Check if we have Power Index or just use first row
+        sort_col = 'Power Index' if 'Power Index' in model_2041.columns else model_2041.columns[0]
+        frontrunner = model_2041.sort_values(sort_col, ascending=False).iloc[0]
         p_name = str(frontrunner.get('Heisman Player', 'TBD'))
         p_stats = str(frontrunner.get('Heisman Stats', 'Evaluating...'))
+        
         if p_name not in ['TBD', 'nan', 'None']:
             top_headline = f"{p_name} — {p_stats}"
             badge_text = "HEISMAN WATCH"
             is_gold = True
-            h_logo = get_logo_url(frontrunner['TEAM'])
+            h_logo = get_logo_url(frontrunner.get('TEAM', 'NCAA'))
             logo_html = f'<div style="text-align:center; margin-bottom:10px;"><img src="{h_logo}" style="width:60px; height:60px; object-fit:contain;"></div>'
-except:
+except Exception as e:
     pass
 
+# Render the result
 if is_gold:
     st.markdown(f"""
         <style>
