@@ -5293,7 +5293,6 @@ if data:
                               f"a <strong>{_tf_natty}%</strong> chance to win it all. "
                               f"At {_tf_ovr} OVR{_tf_cfp_str}, this roster has the juice to "
                               f"survive the 12-team gauntlet."))
-                              
             # ── [ADDED] CHOKE JOB OVERRIDE ──────────────────────────────
             try:
                 _choke_res = pd.read_csv('CFPbracketresults.csv')
@@ -5307,7 +5306,8 @@ if data:
                 _s2_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM2_SCORE', 'HOME SCORE']), 'TEAM2_SCORE')
                 _rnd_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['ROUND', 'WEEK']), 'ROUND')
 
-                for _, _cg in _choke_res.iterrows():
+                # Read from bottom to top so we catch their MOST RECENT loss, not an older one!
+                for _, _cg in _choke_res.iloc[::-1].iterrows():
                     _c_t1 = str(_cg[_t1_col_c]).strip()
                     _c_t2 = str(_cg[_t2_col_c]).strip()
                     _c_s1 = int(float(_cg[_s1_col_c]))
