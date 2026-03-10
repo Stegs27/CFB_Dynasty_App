@@ -4523,7 +4523,7 @@ try:
 except Exception:
     pass
 
-# RENDER
+# ── RENDER THE DYNAMIC HEADER ────────────────────────────────────────
 if is_gold:
     st.markdown(f"""
         <style>
@@ -4533,31 +4533,30 @@ if is_gold:
             100% {{ opacity: 0.8; transform: scale(1); }}
         }}
         .top-story-badge {{
-            display: inline-block;
-            background: #f59e0b;
-            color: #451a03;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.65rem;
-            font-weight: 900;
+            display: inline-block; 
+            background: #f59e0b; 
+            color: #451a03; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 0.65rem; 
+            font-weight: 900; 
             margin-bottom: 8px;
             animation: subtle-pulse 3s infinite ease-in-out;
             letter-spacing: 1px;
         }}
         </style>
-        <div style="margin-top:-0px; margin-bottom:12px; text-align:center;">
+        <div style="margin-top: -35px; margin-bottom: 5px; text-align: center;">
             {logo_html}
             <div class="top-story-badge">{badge_text}</div>
-            <div style="color:#fbbf24; font-size:1.1rem; font-weight:800; letter-spacing:0.5px;">
+            <div style="color: #fbbf24; font-size: 1.1rem; font-weight: 800; letter-spacing: 0.5px;">
                 {top_headline.upper()}
             </div>
         </div>
     """, unsafe_allow_html=True)
 else:
-    st.markdown(
-        f"<p style='color:#9ca3af; font-size:0.9rem; margin-top:-35px; margin-bottom:12px; text-align:center;'>{top_headline}</p>",
-        unsafe_allow_html=True
-    )
+    # Standard Gray fallback if no gold data is found
+    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -30px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
+
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
