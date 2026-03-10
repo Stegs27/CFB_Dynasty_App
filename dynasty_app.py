@@ -14,10 +14,10 @@ from pathlib import Path
 st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", page_icon="🏈")
 st.title("📺 ISPN College Football Gameday")
 
-CURRENT_WEEK_NUMBER = 16   # Bowl Week 1 (post-season)
+CURRENT_WEEK_NUMBER = 19   # Semifinal Week
 CURRENT_YEAR        = 2041  # Active dynasty season — increment each new year
 IS_BOWL_WEEK       = True
-BOWL_ROUND         = 1    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
+BOWL_ROUND         = 2    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
 
 st.markdown("""
 <style>
@@ -5016,12 +5016,12 @@ if data:
 
         # ── Hardcoded injury notes (update each bowl week) ────────────────
         BOWL_INJURY_NOTES = {
-            'San Jose State': ('QB M.Shorter out 27 weeks — backup goes into Bowl 1', 'critical'),
-            'Florida State':  ('WR J.Feesago out 20 weeks — gone for the semis run', 'major'),
-            'Bowling Green':  ('DT B.Franco out 24 weeks — pass rush depleted for the whole bowl run', 'major'),
-            'Florida':        ('LB R.Casey out 14 weeks — defense shorthanded', 'moderate'),
-            'USF':            ('RG T.Christmas out 4 weeks — OL depth tested', 'minor'),
-            'Texas Tech':     ('LT K.Cota out 2 weeks — likely back for Bowl 2', 'minor'),
+            'San Jose State': ('QB M.Shorter out 27 weeks — missed entire bowl run', 'critical'),
+            'Florida State':  ('WR J.Feesago out 20 weeks — out for the national championship', 'major'),
+            'Bowling Green':  ('DT B.Franco out 24 weeks — was depleted all bowl run (eliminated in QF)', 'major'),
+            'Florida':        ('LB R.Casey out 14 weeks — defense shorthanded in bowl loss', 'moderate'),
+            'USF':            ('RG T.Christmas out 4 weeks — OL depth tested heading into SF vs TTU', 'minor'),
+            'Texas Tech':     ('LT K.Cota out 2 weeks — back for the semifinals', 'minor'),
         }
         _inj_colors = {'critical': '#ef4444', 'major': '#f97316', 'moderate': '#eab308', 'minor': '#6b7280'}
 
@@ -5423,7 +5423,7 @@ if data:
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🚑 Injury Report")
-        st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
+        st.caption("Last updated: Semifinal Week, 2041. Drop new screenshots in the ISPN chat to refresh.")
 
         INJURY_DATA = [
             {
@@ -5800,547 +5800,274 @@ if data:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
     # --- RECRUITING RANKINGS ---
     with tabs[7]:
-        st.header(f"🏈 {CURRENT_YEAR} Recruiting Final Rankings")
-        st.caption("Final class rankings — high school, portal, and overall. Uses the uploaded recruiting history CSVs automatically.")
+        st.header("🏈 2041 Recruiting Final Rankings")
+        st.caption("Final class rankings — all 136 FBS programs. Drop updated CSVs into the repo and rankings refresh automatically.")
 
-        recruit_year = CURRENT_YEAR
+        # ── Load data ─────────────────────────────────────────────────────────
+        _hs_df     = get_hs_recruiting_2040_final()
+        _portal_df = get_portal_recruiting_2040_final()
 
-        # ── Load recruiting snapshots from history CSVs ──────────────────────
-        _hs_df = get_hs_recruiting_snapshot(recruit_year)
-        _portal_df = get_portal_recruiting_snapshot(recruit_year)
-        _overall_df = get_overall_recruiting_snapshot(recruit_year)
-
-        def _empty_recruit_df():
-            return pd.DataFrame(columns=[
-                'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar',
-                'ThreeStar', 'TwoStar', 'OneStar', 'Points', 'BlueChipRatio', 'Logo'
-            ])
-
-        def _prep_recruit_df(df):
-            if df is None or df.empty:
-                return _empty_recruit_df()
-
-            df = df.copy()
-            defaults = {
-                'Rank': 0,
-                'Team': '',
-                'User': '',
-                'TotalCommits': 0,
-                'FiveStar': 0,
-                'FourStar': 0,
-                'ThreeStar': 0,
-                'TwoStar': 0,
-                'OneStar': 0,
-                'Points': 0.0,
-            }
-            for col, default in defaults.items():
-                if col not in df.columns:
-                    df[col] = default
-
-            df['Rank'] = pd.to_numeric(df['Rank'], errors='coerce').fillna(0).astype(int)
-            for col in ['TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar']:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-            df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
-            df['Team'] = df['Team'].astype(str).str.strip()
-            df['User'] = df['User'].fillna('').astype(str).str.strip()
-
-            if 'BlueChipRatio' not in df.columns:
-                df['BlueChipRatio'] = ((df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)).round(3)
-            else:
-                df['BlueChipRatio'] = pd.to_numeric(df['BlueChipRatio'], errors='coerce').fillna(0.0)
-
-            if 'Logo' not in df.columns:
-                df['Logo'] = df['Team'].apply(get_logo_source)
-
-            return df.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
-
-        _hs_df = _prep_recruit_df(_hs_df)
-        _portal_df = _prep_recruit_df(_portal_df)
-        _overall_df = _prep_recruit_df(_overall_df)
-
-        if _hs_df.empty and _portal_df.empty and _overall_df.empty:
-            st.warning(f"No recruiting data found for {recruit_year}.")
-        else:
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                st.metric("HS Teams Ranked", len(_hs_df))
-            with c2:
-                st.metric("Portal Teams Ranked", len(_portal_df))
-            with c3:
-                st.metric("Overall Teams Ranked", len(_overall_df))
-            with c4:
-                st.metric("Year", recruit_year)
-
-        st.markdown("---")
+        # Overall = HS points + Portal points (portal 0 for now)
+        _overall_df = _hs_df.copy()
+        _overall_df['Overall Points'] = _overall_df['Points']
+        _overall_df['Overall Rank']   = range(1, len(_overall_df) + 1)
 
         # ── USER TEAMS SPOTLIGHT ──────────────────────────────────────────────
-        st.subheader(f"👑 User Coaches — {recruit_year} Class Snapshot")
-        _user_teams_map = {
-            str(r['USER']).strip(): str(r['TEAM']).strip()
-            for _, r in model_2041.iterrows()
-        }
-        _team_to_user = {team: user for user, team in _user_teams_map.items()}
+        st.subheader("👑 User Coaches — 2040 Class Snapshot")
+        _user_teams_map = {str(r['USER']): str(r['TEAM']) for _, r in model_2041.iterrows()}
 
-        for _df in (_hs_df, _portal_df, _overall_df):
-            if not _df.empty:
-                # Only current 2041 user-controlled teams get a user name.
-                # Former schools should stay blank in the full recruiting tables.
-                _df['User'] = _df['Team'].astype(str).str.strip().map(_team_to_user).fillna('')
+        _hs_lookup = {str(r['Team']): r for _, r in _hs_df.iterrows()}
 
-        _hs_lookup = {str(r['Team']).strip(): r for _, r in _hs_df.iterrows()}
-        _portal_lookup = {str(r['Team']).strip(): r for _, r in _portal_df.iterrows()}
-        _overall_lookup = {str(r['Team']).strip(): r for _, r in _overall_df.iterrows()}
-
-        def _row_has_recruit_data(_row):
-            if _row is None:
-                return False
-            try:
-                _pts = pd.to_numeric(_row.get('Points', np.nan), errors='coerce')
-            except Exception:
-                _pts = np.nan
-            try:
-                _commits = pd.to_numeric(_row.get('TotalCommits', np.nan), errors='coerce')
-            except Exception:
-                _commits = np.nan
-            return (pd.notna(_pts) and float(_pts) > 0) or (pd.notna(_commits) and float(_commits) > 0)
-
-        _user_rows = []
         for _usr, _tm in sorted(_user_teams_map.items()):
-            _hs_row = _hs_lookup.get(_tm)
-            _portal_row = _portal_lookup.get(_tm)
-            _overall_row = _overall_lookup.get(_tm)
-            _effective_overall_row = _overall_row if _row_has_recruit_data(_overall_row) else _hs_row
-            _user_rows.append({
-                'Coach': _usr,
-                'Team': _tm,
-                'HS Rank': int(_hs_row['Rank']) if _hs_row is not None and pd.notna(_hs_row['Rank']) else None,
-                'HS Points': round(float(_hs_row['Points']), 2) if _hs_row is not None and pd.notna(_hs_row['Points']) else 0.0,
-                'Portal Rank': int(_portal_row['Rank']) if _portal_row is not None and pd.notna(_portal_row['Rank']) else None,
-                'Portal Points': round(float(_portal_row['Points']), 2) if _portal_row is not None and pd.notna(_portal_row['Points']) else 0.0,
-                'Overall Rank': int(_effective_overall_row['Rank']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['Rank']) else None,
-                'Overall Points': round(float(_effective_overall_row['Points']), 2) if _effective_overall_row is not None and pd.notna(_effective_overall_row['Points']) else 0.0,
-                'Total Commits': int(_effective_overall_row['TotalCommits']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['TotalCommits']) else 0,
-                '5★': int(_effective_overall_row['FiveStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['FiveStar']) else 0,
-                '4★': int(_effective_overall_row['FourStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['FourStar']) else 0,
-                '3★': int(_effective_overall_row['ThreeStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['ThreeStar']) else 0,
-                'Blue Chip %': round(float(_effective_overall_row['BlueChipRatio']) * 100, 1) if _effective_overall_row is not None and pd.notna(_effective_overall_row.get('BlueChipRatio', np.nan)) else 0.0,
-            })
-
-        if _user_rows:
-            _user_df = pd.DataFrame(_user_rows).sort_values(['Overall Rank', 'HS Rank'], ascending=[True, True], na_position='last')
-
-            def _fmt_rank(val):
-                try:
-                    if pd.isna(val):
-                        return '—'
-                    return f"#{int(val)}"
-                except Exception:
-                    return '—'
-
-            def _fmt_points(val):
-                try:
-                    return f"{float(val):.2f}"
-                except Exception:
-                    return '0.00'
-
-            _cards_html = ["""<style>
-.recruit-user-grid {
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-    gap:12px;
-    margin:8px 0 4px 0;
-}
-.recruit-user-card {
-    border-radius:16px;
-    padding:14px;
-    background:linear-gradient(145deg,#0f172a 0%,#1e293b 100%);
-    border:1px solid rgba(148,163,184,.22);
-    box-shadow:0 8px 22px rgba(0,0,0,.18);
-    min-width:0;
-}
-.recruit-user-top {
-    display:flex;
-    align-items:center;
-    gap:12px;
-    margin-bottom:12px;
-}
-.recruit-user-logo-wrap {
-    width:58px;
-    height:58px;
-    border-radius:14px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-shrink:0;
-    background:rgba(255,255,255,.04);
-    border:1px solid rgba(255,255,255,.08);
-}
-.recruit-user-logo-wrap img {
-    width:44px;
-    height:44px;
-    object-fit:contain;
-}
-.recruit-user-coach {
-    font-size:.75rem;
-    font-weight:800;
-    color:#94a3b8;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-}
-.recruit-user-team {
-    font-size:1.05rem;
-    font-weight:900;
-    line-height:1.1;
-}
-.recruit-user-rankline {
-    font-size:.78rem;
-    color:#cbd5e1;
-    margin-top:3px;
-}
-.recruit-user-metrics {
-    display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));
-    gap:8px;
-    margin-bottom:10px;
-}
-.recruit-user-metric {
-    background:rgba(15,23,42,.85);
-    border:1px solid rgba(51,65,85,.9);
-    border-radius:10px;
-    padding:8px 8px 7px 8px;
-    text-align:center;
-    min-width:0;
-}
-.recruit-user-metric-value {
-    font-size:1rem;
-    font-weight:900;
-    color:#f8fafc;
-    line-height:1.1;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-}
-.recruit-user-metric-label {
-    font-size:.63rem;
-    color:#94a3b8;
-    font-weight:700;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-    margin-top:3px;
-}
-.recruit-user-bottom {
-    display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
-    gap:8px;
-    margin-bottom:10px;
-}
-.recruit-user-chip {
-    background:rgba(255,255,255,.04);
-    border:1px solid rgba(148,163,184,.18);
-    border-radius:999px;
-    padding:5px 8px;
-    text-align:center;
-    font-size:.73rem;
-    color:#e2e8f0;
-    font-weight:800;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-}
-.recruit-user-footer {
-    font-size:.76rem;
-    color:#cbd5e1;
-    display:flex;
-    justify-content:space-between;
-    gap:8px;
-    flex-wrap:wrap;
-}
-@media (max-width: 640px) {
-    .recruit-user-grid { grid-template-columns:1fr; gap:10px; }
-    .recruit-user-card { padding:12px; }
-    .recruit-user-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
-    .recruit-user-bottom { grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
-    .recruit-user-metric-value { font-size:.92rem; }
-    .recruit-user-chip { font-size:.68rem; padding:5px 6px; }
-}
-</style>
-<div class='recruit-user-grid'>"""]
-
-            for _, _r in _user_df.iterrows():
-                _team = str(_r['Team']).strip()
-                _coach = str(_r['Coach']).strip()
-                _primary = get_team_primary_color(_team)
-                _secondary = get_team_secondary_color(_team)
-                _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                _logo_html = f"<img src='{_logo_uri}' alt='{html.escape(_team)} logo'/>" if _logo_uri else "<span style='font-size:28px;'>🏈</span>"
-                _card_html = (
-                    f"<div class='recruit-user-card' style='border-left:5px solid {_primary};'>"
-                    f"<div class='recruit-user-top'>"
-                    f"<div class='recruit-user-logo-wrap' style='box-shadow:inset 0 0 0 1px {_primary}33;'>{_logo_html}</div>"
-                    f"<div style='min-width:0;'>"
-                    f"<div class='recruit-user-coach'>{html.escape(_coach)}</div>"
-                    f"<div class='recruit-user-team' style='color:{_primary};'>{html.escape(_team)}</div>"
-                    f"<div class='recruit-user-rankline'>Overall {_fmt_rank(_r['Overall Rank'])} · HS {_fmt_rank(_r['HS Rank'])} · Portal {_fmt_rank(_r['Portal Rank'])}</div>"
-                    f"</div>"
-                    f"</div>"
-                    f"<div class='recruit-user-metrics'>"
-                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{_fmt_points(_r['Overall Points'])}</div><div class='recruit-user-metric-label'>Overall Pts</div></div>"
-                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{int(_r['Total Commits'])}</div><div class='recruit-user-metric-label'>Commits</div></div>"
-                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{float(_r['Blue Chip %']):.1f}%</div><div class='recruit-user-metric-label'>Blue Chip</div></div>"
-                    f"</div>"
-                    f"<div class='recruit-user-bottom'>"
-                    f"<div class='recruit-user-chip'>5★ {int(_r['5★'])}</div>"
-                    f"<div class='recruit-user-chip'>4★ {int(_r['4★'])}</div>"
-                    f"<div class='recruit-user-chip'>3★ {int(_r['3★'])}</div>"
-                    f"<div class='recruit-user-chip'>HS {_fmt_points(_r['HS Points'])}</div>"
-                    f"</div>"
-                    f"<div class='recruit-user-footer'>"
-                    f"<span>Portal Pts: <strong style='color:{_secondary if _secondary != '#FFFFFF' else '#f8fafc'};'>{_fmt_points(_r['Portal Points'])}</strong></span>"
-                    f"<span>Class Year: <strong>{recruit_year}</strong></span>"
-                    f"</div>"
-                    f"</div>"
+            _tc_u   = get_team_primary_color(_tm)
+            _lu_uri = image_file_to_data_uri(get_logo_source(_tm))
+            _lu_img = (f"<img src='{_lu_uri}' style='width:44px;height:44px;object-fit:contain;vertical-align:middle;'/>"
+                       if _lu_uri else "<span style='font-size:28px;'>🏈</span>")
+            _hr = _hs_lookup.get(_tm)
+            if _hr is not None:
+                _rk    = int(_hr['Rank'])
+                _tot   = int(_hr['Total'])
+                _5s    = int(_hr['5s'])
+                _4s    = int(_hr['4s'])
+                _3s    = int(_hr['3s'])
+                _pts   = float(_hr['Points'])
+                _bcr   = float(_hr['Blue Chip Ratio'])
+                _medal = "🥇" if _rk <= 5 else ("🥈" if _rk <= 10 else ("🥉" if _rk <= 25 else ""))
+                _rk_color = ("#fbbf24" if _rk <= 5 else
+                             "#60a5fa" if _rk <= 15 else
+                             "#94a3b8" if _rk <= 40 else "#475569")
+                _bcr_color = "#22c55e" if _bcr >= 0.5 else ("#fbbf24" if _bcr >= 0.25 else "#ef4444")
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg,{_tc_u}1a,#0f172a);"
+                    f"border:1px solid {_tc_u}44;border-left:5px solid {_tc_u};"
+                    f"border-radius:12px;padding:14px 16px;margin-bottom:10px;'>"
+                    f"<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;'>"
+                    f"{_lu_img}"
+                    f"<div style='flex:1;min-width:140px;'>"
+                    f"<div style='font-size:1rem;font-weight:900;color:{_tc_u};'>{html.escape(_tm)}</div>"
+                    f"<div style='font-size:0.75rem;color:#9ca3af;'>{html.escape(_usr)}</div></div>"
+                    f"<div style='display:flex;gap:12px;flex-wrap:wrap;align-items:center;'>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-size:1.4rem;font-weight:900;color:{_rk_color};'>{_medal}#{_rk}</div>"
+                    f"<div style='color:#475569;font-size:0.6rem;'>HS RANK</div></div>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-weight:800;color:#f1f5f9;font-size:1rem;'>{_tot}</div>"
+                    f"<div style='color:#475569;font-size:0.6rem;'>COMMITS</div></div>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-weight:800;color:#fbbf24;font-size:1rem;'>{'⭐'*_5s if _5s else '—'}</div>"
+                    f"<div style='color:#475569;font-size:0.6rem;'>5-STARS</div></div>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-weight:800;color:#60a5fa;font-size:1rem;'>{_4s}</div>"
+                    f"<div style='color:#475569;font-size:0.6rem;'>4-STARS</div></div>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-weight:800;color:{_bcr_color};font-size:1rem;'>{_bcr:.0%}</div>"
+                    f"<div style='color:#475569;font-size:0.6rem;'>BCR</div></div>"
+                    f"<div style='text-align:center;'>"
+                    f"<div style='font-weight:800;color:#34d399;font-size:1rem;'>{_pts:.1f}</div>"
+                    f"<div style='color:#475569;font-size:0.6rem;'>PTS</div></div>"
+                    f"</div></div></div>",
+                    unsafe_allow_html=True
                 )
-                _cards_html.append(_card_html)
-
-            _cards_html.append("</div>")
-            st.markdown(''.join(_cards_html), unsafe_allow_html=True)
-        else:
-            st.caption("No user teams found in model_2041.")
-
-        st.markdown("---")
-        st.subheader("🕰️ Coach Recruiting History")
-        st.caption("Pick a current user coach to see every school they have coached and the class ranks they posted there over time. Lower rank = better class.")
-
-        _history_year_cols = [c for c in rec.columns if str(c).isdigit()] if rec is not None and not rec.empty else []
-        if _history_year_cols:
-            _history_year_cols = sorted(_history_year_cols, key=lambda x: int(str(x)))
-            _rec_hist = rec.copy()
-            _rec_hist['USER'] = _rec_hist['USER'].astype(str).str.strip().str.title()
-            _rec_hist['Teams'] = _rec_hist['Teams'].astype(str).str.strip().map(normalize_history_team_name)
-
-            _history_users = sorted(_user_teams_map.keys())
-            _hist_user = st.selectbox(
-                "Choose a coach",
-                _history_users,
-                key="coach_recruiting_history_user"
-            )
-
-            _coach_rows = _rec_hist[_rec_hist['USER'] == _hist_user].copy()
-            if _coach_rows.empty:
-                st.caption("No recruiting history found for that coach in recruiting.csv.")
             else:
-                _school_cards = []
-                for _, _hr in _coach_rows.iterrows():
-                    _hist_team = str(_hr.get('Teams', '')).strip()
-                    if not _hist_team or _hist_team.lower() == 'nan':
-                        continue
-                    _year_vals = []
-                    for _yc in _history_year_cols:
-                        _v = _hr.get(_yc)
-                        if pd.notna(_v) and str(_v).strip() not in ('', 'nan', '', '-', '--'):
-                            try:
-                                _rank_val = int(float(_v))
-                                _year_vals.append({'Year': int(_yc), 'Class Rank': _rank_val})
-                            except Exception:
-                                pass
-                    if not _year_vals:
-                        continue
-                    _hist_df = pd.DataFrame(_year_vals).sort_values('Year', ascending=False).reset_index(drop=True)
-                    _best_rank = int(_hist_df['Class Rank'].min())
-                    _latest_rank = int(_hist_df.iloc[0]['Class Rank'])
-                    _years_span = sorted(_hist_df['Year'].astype(int).tolist())
-                    if len(_years_span) == 1:
-                        _years_label = str(_years_span[0])
-                    else:
-                        _years_label = f"{_years_span[0]}–{_years_span[-1]}"
-                    _school_cards.append({
-                        'team': _hist_team,
-                        'df': _hist_df,
-                        'best_rank': _best_rank,
-                        'latest_rank': _latest_rank,
-                        'years_label': _years_label,
-                        'classes': len(_hist_df),
-                    })
+                st.markdown(
+                    f"<div style='background:#111827;border:1px solid #374151;"
+                    f"border-left:5px solid {_tc_u};border-radius:12px;"
+                    f"padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;'>"
+                    f"{_lu_img}"
+                    f"<div><div style='font-weight:900;color:{_tc_u};'>{html.escape(_tm)}</div>"
+                    f"<div style='font-size:0.72rem;color:#64748b;'>{html.escape(_usr)} &mdash; "
+                    f"class data not yet entered</div></div></div>",
+                    unsafe_allow_html=True
+                )
 
-                if not _school_cards:
-                    st.caption("No historical class ranks found for that coach.")
+        # ── HISTORICAL CLASS TABLE for user coaches ────────────────────────────
+        st.markdown("---")
+        st.subheader("📜 Coach Recruiting History")
+        st.caption("Select a coach to see every school they have controlled in recruiting.csv, with logo cards and year-by-year class rank chips.")
+
+        _rec_data = rec.copy()
+        _rec_data.columns = [str(c).strip() for c in _rec_data.columns]
+        year_cols = sorted([c for c in _rec_data.columns if str(c).isdigit()], key=int)
+
+        if _rec_data.empty or 'USER' not in _rec_data.columns or 'Teams' not in _rec_data.columns or not year_cols:
+            st.caption("No recruiting history columns found in recruiting.csv.")
+        else:
+            _coach_options = [u for u in sorted(_user_teams_map.keys()) if str(u).strip()]
+            if _coach_options:
+                _hist_coach = st.selectbox(
+                    "Select coach",
+                    _coach_options,
+                    key="coach_history_select"
+                )
+
+                _coach_rows = _rec_data[_rec_data['USER'].astype(str).str.strip() == str(_hist_coach).strip()].copy()
+                if _coach_rows.empty:
+                    st.caption("No recruiting history found for that coach in recruiting.csv.")
                 else:
-                    _school_cards = sorted(_school_cards, key=lambda x: x['df']['Year'].min())
-                    st.markdown("""<style>
-.recruit-history-grid {
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-    gap:12px;
-    margin:10px 0 6px 0;
-}
-.recruit-history-card {
-    border-radius:16px;
-    padding:14px;
-    background:linear-gradient(145deg,#0f172a 0%,#172033 100%);
-    border:1px solid rgba(148,163,184,.20);
-    box-shadow:0 8px 22px rgba(0,0,0,.16);
-}
-.recruit-history-top {
-    display:flex;
-    align-items:center;
-    gap:12px;
-    margin-bottom:12px;
-}
-.recruit-history-logo {
-    width:56px;
-    height:56px;
-    border-radius:14px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:rgba(255,255,255,.04);
-    border:1px solid rgba(255,255,255,.08);
-    flex-shrink:0;
-}
-.recruit-history-logo img {
-    width:42px;
-    height:42px;
-    object-fit:contain;
-}
-.recruit-history-team {
-    font-size:1rem;
-    font-weight:900;
-    line-height:1.1;
-}
-.recruit-history-sub {
-    font-size:.76rem;
-    color:#cbd5e1;
-    margin-top:3px;
-}
-.recruit-history-metrics {
-    display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));
-    gap:8px;
-    margin-bottom:10px;
-}
-.recruit-history-metric {
-    background:rgba(15,23,42,.85);
-    border:1px solid rgba(51,65,85,.9);
-    border-radius:10px;
-    padding:8px 8px 7px 8px;
-    text-align:center;
-}
-.recruit-history-metric-value {
-    font-size:.98rem;
-    font-weight:900;
-    color:#f8fafc;
-}
-.recruit-history-metric-label {
-    font-size:.62rem;
-    color:#94a3b8;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.04em;
-    margin-top:3px;
-}
-@media (max-width:640px) {
-    .recruit-history-grid { grid-template-columns:1fr; gap:10px; }
-}
-</style>""", unsafe_allow_html=True)
-                    _history_cards_html = ["<div class='recruit-history-grid'>"]
-                    for _card in _school_cards:
-                        _team = _card['team']
-                        _color = get_team_primary_color(_team)
-                        _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                        _logo_html = f"<img src='{_logo_uri}' alt='{html.escape(_team)} logo'/>" if _logo_uri else "<span style='font-size:28px;'>🏈</span>"
-                        _history_cards_html.append(
-                            f"<div class='recruit-history-card' style='border-left:5px solid {_color};'>"
-                            f"<div class='recruit-history-top'>"
-                            f"<div class='recruit-history-logo' style='box-shadow:inset 0 0 0 1px {_color}33;'>{_logo_html}</div>"
+                    _history_cards = []
+                    for _, _ur in _coach_rows.iterrows():
+                        _team_name = normalize_history_team_name(_ur.get('Teams', ''))
+                        if not _team_name or str(_team_name).lower() == 'nan':
+                            continue
+
+                        _year_vals = []
+                        for _yc in year_cols:
+                            _v = _ur.get(_yc)
+                            if recruiting_value_means_coached(_v):
+                                _clean = clean_rank_value(_v)
+                                if pd.notna(_clean):
+                                    _year_vals.append({'Year': int(_yc), 'Class Rank': int(round(float(_clean)))})
+
+                        if not _year_vals:
+                            continue
+
+                        _hist_df = pd.DataFrame(_year_vals).sort_values('Year')
+                        _best = int(_hist_df['Class Rank'].min())
+                        _latest = int(_hist_df.iloc[-1]['Class Rank'])
+                        _avg = float(_hist_df['Class Rank'].mean())
+                        _classes = int(len(_hist_df))
+                        _tc_h = get_team_primary_color(_team_name)
+                        _logo_uri = image_file_to_data_uri(get_logo_source(_team_name))
+                        _logo_html = (
+                            f"<img src='{_logo_uri}' style='width:46px;height:46px;object-fit:contain;'/>"
+                            if _logo_uri else "<div style='font-size:32px;'>🏈</div>"
+                        )
+
+                        _chips = ""
+                        for _, _hrow in _hist_df.iterrows():
+                            _yr_v = int(_hrow['Year'])
+                            _rk_v = int(_hrow['Class Rank'])
+                            _pill_c = ("#22c55e" if _rk_v <= 5 else
+                                       "#60a5fa" if _rk_v <= 15 else
+                                       "#fbbf24" if _rk_v <= 40 else
+                                       "#f87171" if _rk_v > 80 else "#94a3b8")
+                            _chips += (
+                                f"<span style='display:inline-flex;flex-direction:column;align-items:center;justify-content:center;"
+                                f"padding:5px 10px;background:{_pill_c}22;border:1px solid {_pill_c}55;border-radius:10px;"
+                                f"min-width:58px;'>"
+                                f"<span style='font-size:0.62rem;color:#94a3b8;line-height:1.1;'>{_yr_v}</span>"
+                                f"<span style='font-size:0.92rem;font-weight:900;color:{_pill_c};line-height:1.1;'>#{_rk_v}</span>"
+                                f"</span>"
+                            )
+
+                        _history_cards.append(
+                            f"<div style='background:linear-gradient(145deg,#0f172a 0%,#1e293b 100%);"
+                            f"border:1px solid rgba(148,163,184,.20);border-left:5px solid {_tc_h};border-radius:16px;"
+                            f"padding:14px;box-shadow:0 8px 22px rgba(0,0,0,.16);'>"
+                            f"<div style='display:flex;align-items:center;gap:12px;margin-bottom:12px;'>"
+                            f"<div style='width:58px;height:58px;border-radius:14px;background:rgba(255,255,255,.04);"
+                            f"display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.08);flex-shrink:0;'>"
+                            f"{_logo_html}</div>"
                             f"<div style='min-width:0;'>"
-                            f"<div class='recruit-history-team' style='color:{_color};'>{html.escape(_team)}</div>"
-                            f"<div class='recruit-history-sub'>{_card['years_label']} · {_card['classes']} class{'es' if _card['classes'] != 1 else ''}</div>"
+                            f"<div style='font-size:1.02rem;font-weight:900;color:{_tc_h};line-height:1.1;'>{html.escape(str(_team_name))}</div>"
+                            f"<div style='font-size:0.74rem;color:#cbd5e1;margin-top:3px;'>"
+                            f"Best #{_best} • Latest #{_latest} • Avg #{_avg:.1f} • {_classes} classes</div>"
                             f"</div></div>"
-                            f"<div class='recruit-history-metrics'>"
-                            f"<div class='recruit-history-metric'><div class='recruit-history-metric-value'>#{_card['latest_rank']}</div><div class='recruit-history-metric-label'>Latest</div></div>"
-                            f"<div class='recruit-history-metric'><div class='recruit-history-metric-value'>#{_card['best_rank']}</div><div class='recruit-history-metric-label'>Best</div></div>"
-                            f"<div class='recruit-history-metric'><div class='recruit-history-metric-value'>{_card['classes']}</div><div class='recruit-history-metric-label'>Classes</div></div>"
-                            f"</div>"
+                            f"<div style='display:flex;flex-wrap:wrap;gap:6px;'>"
+                            f"{_chips}</div>"
                             f"</div>"
                         )
-                    _history_cards_html.append("</div>")
-                    st.markdown(''.join(_history_cards_html), unsafe_allow_html=True)
 
-                    st.markdown(f"#### {_hist_user}'s class-by-class results")
-                    for _card in _school_cards:
-                        _team = _card['team']
-                        _color = get_team_primary_color(_team)
-                        _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                        _logo_html = (f"<img src='{_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if _logo_uri else "🏈 " )
+                    if not _history_cards:
+                        st.caption("No recruiting history found for that coach in recruiting.csv.")
+                    else:
                         st.markdown(
-                            f"<div style='display:flex;align-items:center;gap:8px;margin:10px 0 8px 0;'>"
-                            f"{_logo_html}"
-                            f"<span style='font-weight:900;color:{_color};'>{html.escape(_team)}</span>"
-                            f"<span style='color:#94a3b8;font-size:.78rem;'>({_card['years_label']})</span>"
-                            f"</div>",
+                            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin:10px 0 4px 0;'>"
+                            + "".join(_history_cards) +
+                            "</div>",
                             unsafe_allow_html=True
                         )
-                        st.dataframe(_card['df'], hide_index=True, use_container_width=True)
-        else:
-            st.caption("No recruiting history columns found in recruiting.csv.")
+            else:
+                st.caption("No current user coaches found.")
 
         st.markdown("---")
 
-        recruit_tabs = st.tabs(["🏫 High School", "🔁 Transfer Portal", "📊 Overall"])
+        # ── MAIN RANKINGS TABS ────────────────────────────────────────────────
+        _rtab_hs, _rtab_portal, _rtab_overall = st.tabs(["📚 High School", "🚪 Transfer Portal", "🏆 Overall"])
 
-        with recruit_tabs[0]:
-            st.subheader(f"{recruit_year} High School Recruiting Rankings")
-            if _hs_df.empty:
-                st.info("No high school recruiting data available.")
-            else:
-                hs_display = _hs_df.rename(columns={
-                    'TotalCommits': 'Total',
-                    'FiveStar': '5★',
-                    'FourStar': '4★',
-                    'ThreeStar': '3★',
-                    'TwoStar': '2★',
-                    'OneStar': '1★',
-                    'BlueChipRatio': 'Blue Chip Ratio',
-                })
-                render_recruiting_snapshot_table(hs_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
-                with st.expander("Show full HS table"):
-                    st.dataframe(hs_display, hide_index=True, use_container_width=True)
+        # ── HIGH SCHOOL ───────────────────────────────────────────────────────
+        with _rtab_hs:
+            st.subheader("2040 High School Recruiting — Final (All 136 Teams)")
+            st.caption("Scroll to browse all 136 programs. Use the search box to filter by team name.")
 
-        with recruit_tabs[1]:
-            st.subheader(f"{recruit_year} Transfer Portal Rankings")
-            if _portal_df.empty:
-                st.info("No transfer portal recruiting data available for this year.")
-            else:
-                portal_display = _portal_df.rename(columns={
-                    'TotalCommits': 'Total',
-                    'FiveStar': '5★',
-                    'FourStar': '4★',
-                    'ThreeStar': '3★',
-                    'TwoStar': '2★',
-                    'OneStar': '1★',
-                    'BlueChipRatio': 'Blue Chip Ratio',
-                })
-                render_recruiting_snapshot_table(portal_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
-                with st.expander("Show full portal table"):
-                    st.dataframe(portal_display, hide_index=True, use_container_width=True)
+            _hs_search = st.text_input("🔍 Filter by team", key="hs_recruit_search", placeholder="e.g. Texas")
+            _hs_show = _hs_df.copy()
+            if _hs_search.strip():
+                _hs_show = _hs_show[_hs_show['Team'].str.contains(_hs_search.strip(), case=False, na=False)]
 
-        with recruit_tabs[2]:
-            st.subheader(f"{recruit_year} Overall Recruiting Rankings")
-            if _overall_df.empty:
-                st.info("No overall recruiting data available.")
-            else:
-                overall_display = _overall_df.rename(columns={
-                    'TotalCommits': 'Total',
-                    'FiveStar': '5★',
-                    'FourStar': '4★',
-                    'ThreeStar': '3★',
-                    'TwoStar': '2★',
-                    'OneStar': '1★',
-                    'BlueChipRatio': 'Blue Chip Ratio',
-                })
-                render_recruiting_snapshot_table(overall_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
-                with st.expander("Show full overall table"):
-                    st.dataframe(overall_display, hide_index=True, use_container_width=True)
+            # Top-10 cards
+            st.markdown("**Top 10 Classes**")
+            _top10 = _hs_df.head(10)
+            for _, _tr in _top10.iterrows():
+                _tc_r   = get_team_primary_color(str(_tr['Team']))
+                _lu_r   = image_file_to_data_uri(get_logo_source(str(_tr['Team'])))
+                _lu_r_img = (f"<img src='{_lu_r}' style='width:36px;height:36px;object-fit:contain;'/>"
+                             if _lu_r else "<span style='font-size:22px;'>🏈</span>")
+                _rk_r   = int(_tr['Rank'])
+                _medal_r = "🥇" if _rk_r == 1 else ("🥈" if _rk_r == 2 else ("🥉" if _rk_r == 3 else f"#{_rk_r}"))
+                _5s_r = int(_tr['5s']); _4s_r = int(_tr['4s']); _3s_r = int(_tr['3s'])
+                _tot_r= int(_tr['Total']); _pts_r=float(_tr['Points']); _bcr_r=float(_tr['Blue Chip Ratio'])
+                st.markdown(
+                    f"<div style='background:linear-gradient(90deg,{_tc_r}1a,#0f172a);"
+                    f"border:1px solid {_tc_r}44;border-left:4px solid {_tc_r};"
+                    f"border-radius:10px;padding:10px 14px;margin-bottom:6px;'>"
+                    f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;'>"
+                    f"<span style='font-size:1.1rem;font-weight:900;color:{_tc_r};min-width:32px;'>{_medal_r}</span>"
+                    f"{_lu_r_img}"
+                    f"<div style='flex:1;min-width:120px;'>"
+                    f"<div style='font-weight:900;color:{_tc_r};font-size:0.95rem;'>{html.escape(str(_tr['Team']))}</div></div>"
+                    f"<div style='display:flex;gap:10px;flex-wrap:wrap;font-size:0.82rem;'>"
+                    f"<span style='color:#f1f5f9;font-weight:700;'>{_tot_r} commits</span>"
+                    f"<span style='color:#fbbf24;'>{'⭐'*_5s_r if _5s_r else ''}{_5s_r} five-star</span>"
+                    f"<span style='color:#60a5fa;'>{_4s_r} four-star</span>"
+                    f"<span style='color:#94a3b8;'>{_3s_r} three-star</span>"
+                    f"<span style='color:#34d399;font-weight:800;'>{_pts_r:.2f} pts</span>"
+                    f"<span style='color:#a78bfa;'>{_bcr_r:.1%} BCR</span>"
+                    f"</div></div></div>",
+                    unsafe_allow_html=True
+                )
+
+            # Full searchable table
+            st.markdown("**Full 136-Team Table**")
+            _display_cols = ['Rank','Team','Total','5s','4s','3s','Points','Blue Chip Ratio']
+            _hs_table = _hs_show[_display_cols].rename(columns={
+                '5s':'5★','4s':'4★','3s':'3★'}).copy()
+            st.dataframe(_hs_table, hide_index=True, use_container_width=True)
+
+        # ── TRANSFER PORTAL ───────────────────────────────────────────────────
+        with _rtab_portal:
+            st.subheader("2040 Transfer Portal — Final Rankings")
+            st.info("🚪 Transfer portal rankings for the 2040 class haven't been entered yet. Check back when the portal window closes.")
+            st.caption("Once portal commits are recorded, this tab will show class rankings just like the HS board.")
+
+        # ── OVERALL ───────────────────────────────────────────────────────────
+        with _rtab_overall:
+            st.subheader("2040 Overall Recruiting — HS + Portal Combined")
+            st.caption("Portal is currently empty so Overall = High School rankings. Will auto-combine when portal data is entered.")
+
+            _ov_display = _overall_df[['Overall Rank','Team','Total','5s','4s','3s','Points']].rename(
+                columns={'Overall Rank':'Rank','5s':'5★','4s':'4★','3s':'3★','Points':'HS Points'}).copy()
+            st.dataframe(_ov_display, hide_index=True, use_container_width=True)
+
+            # User coach summary in overall
+            st.markdown("---")
+            st.subheader("User Coaches — Overall Ranking")
+            _ov_user_rows = []
+            for _usr_o, _tm_o in sorted(_user_teams_map.items()):
+                _match = _overall_df[_overall_df['Team'] == _tm_o]
+                if not _match.empty:
+                    _ov_r = _match.iloc[0]
+                    _ov_user_rows.append({
+                        'Coach': _usr_o,
+                        'Team': _tm_o,
+                        'Overall Rank': int(_ov_r['Overall Rank']),
+                        'Points': float(_ov_r['Points']),
+                        '5★': int(_ov_r['5s']),
+                        '4★': int(_ov_r['4s']),
+                    })
+            if _ov_user_rows:
+                _ov_usr_df = pd.DataFrame(_ov_user_rows).sort_values('Overall Rank')
+                st.dataframe(_ov_usr_df, hide_index=True, use_container_width=True)
 
     # --- H2H MATRIX ---
     with tabs[8]:
@@ -7309,6 +7036,59 @@ if data:
                             )
                         _g_html += "</div>"
                         st.markdown(_g_html, unsafe_allow_html=True)
+
+        # ── SECTION 1b: ATHLETIC PROFILE CHARTS ──────────────────────────────
+        st.markdown("---")
+        st.subheader("📊 2041 Athletic Profiles")
+        st.caption("Speed vs Maneuverability scatter plots built from user team starters + 1 reserve. "
+                   "Velocity = avg SPD of position group. Maneuverability = avg (AGI+COD)/2.")
+
+        # Overall team overview
+        _ap_overview_path = 'dynasty_athletic_profile_logos.png'
+        try:
+            import os as _os
+            if _os.path.exists(_ap_overview_path):
+                st.image(_ap_overview_path, use_container_width=True)
+        except Exception:
+            pass
+
+        # Skill positions + Trench in two expanders
+        with st.expander("🏈 Skill Position Profiles", expanded=False):
+            _skill_tabs = st.tabs(["🏈 Skill Map", "🏃 QB", "⚡ RB", "📡 WR", "🎯 TE"])
+            _skill_images = [
+                ('skill_position_speed_power_map.png', '🏈 Overall Skill Position Speed & Power Map'),
+                ('Quarterbacks_athletic_profile.png',  '🏈 QBs — Velocity vs Maneuverability'),
+                ('Running_Backs_athletic_profile.png', '⚡ Running Backs — Velocity vs Maneuverability'),
+                ('Wide_Receivers_athletic_profile.png','📡 Wide Receivers — Velocity vs Maneuverability'),
+                ('Tight_Ends_athletic_profile.png',    '🎯 Tight Ends — Velocity vs Maneuverability'),
+            ]
+            for _stab, (_img_path, _cap) in zip(_skill_tabs, _skill_images):
+                with _stab:
+                    try:
+                        if _os.path.exists(_img_path):
+                            st.image(_img_path, caption=_cap, use_container_width=True)
+                        else:
+                            st.caption(f"Image not found: {_img_path}")
+                    except Exception:
+                        pass
+
+        with st.expander("🛡️ Defensive Profiles", expanded=False):
+            _def_tabs = st.tabs(["🏰 Trench", "🔒 CB", "🛡️ Safety", "💥 LB"])
+            _def_images = [
+                ('trench_battle_map.png',              '🏰 Trench Battle Map — OL vs DL Power (STR + OVR)'),
+                ('Cornerbacks_athletic_profile.png',   '🔒 Cornerbacks — Velocity vs Maneuverability'),
+                ('Safeties_athletic_profile.png',      '🛡️ Safeties — Velocity vs Maneuverability'),
+                ('Linebackers_athletic_profile.png',   '💥 Linebackers — Velocity vs Maneuverability'),
+            ]
+            for _dtab, (_img_path, _cap) in zip(_def_tabs, _def_images):
+                with _dtab:
+                    try:
+                        if _os.path.exists(_img_path):
+                            st.image(_img_path, caption=_cap, use_container_width=True)
+                        else:
+                            st.caption(f"Image not found: {_img_path}")
+                    except Exception:
+                        pass
 
         # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
         st.markdown("---")
