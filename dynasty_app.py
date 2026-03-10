@@ -5188,6 +5188,35 @@ if data:
         rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
         rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
 
+        # ── [ADDED] ELIMINATION LOGIC FOR LIVE ODDS ────────────────────────
+        _elim_teams = set()
+        _bracket_teams = set()
+        _bracket_active = False
+        try:
+            _b_df = pd.read_csv('CFPbracketresults.csv')
+            _comp_col = next((c for c in _b_df.columns if c.strip().upper() == 'COMPLETED'), None)
+            _b_df_comp = _b_df[pd.to_numeric(_b_df[_comp_col], errors='coerce').fillna(0).astype(int) == 1] if _comp_col else _b_df
+            _loser_col = next((c for c in _b_df.columns if c.strip().upper() == 'LOSER'), 'LOSER')
+            _t1_col = next((c for c in _b_df.columns if c.strip().upper() in ['TEAM1', 'AWAY', 'VISITOR']), 'TEAM1')
+            _t2_col = next((c for c in _b_df.columns if c.strip().upper() in ['TEAM2', 'HOME']), 'TEAM2')
+            _year_col = next((c for c in _b_df.columns if c.strip().upper() == 'YEAR'), 'YEAR')
+            
+            # Check if the bracket has started for the current active year
+            if _year_col in _b_df.columns:
+                _cy_bracket = _b_df[_b_df[_year_col] == CURRENT_YEAR]
+                _cy_comp = _b_df_comp[_b_df_comp[_year_col] == CURRENT_YEAR]
+                
+                if not _cy_bracket.empty:
+                    _bracket_active = True
+                    _bracket_teams.update(_cy_bracket[_t1_col].dropna().astype(str).str.strip().str.lower())
+                    _bracket_teams.update(_cy_bracket[_t2_col].dropna().astype(str).str.strip().str.lower())
+                    
+                if not _cy_comp.empty:
+                    _elim_teams.update(_cy_comp[_loser_col].dropna().astype(str).str.strip().str.lower())
+        except Exception:
+            pass
+        # ───────────────────────────────────────────────────────────────────
+
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
             user = str(row.get('USER', ''))
@@ -5195,9 +5224,17 @@ if data:
             natty = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
             cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
             
-            # [ADDED] Extract live current odds
-            live_natty = row.get('Natty Odds', 0)
-            live_cfp = row.get('CFP Odds', 0)
+            # [ADDED] Extract live current odds and apply elimination zeroing
+            live_natty = float(row.get('Natty Odds', 0))
+            live_cfp = float(row.get('CFP Odds', 0))
+            
+            _team_clean = team.strip().lower()
+            if _bracket_active:
+                if _team_clean in _elim_teams:
+                    live_natty = 0.0  # Team lost a playoff game
+                elif _team_clean not in _bracket_teams:
+                    live_natty = 0.0  # Team missed the 12-team bracket entirely
+                    live_cfp = 0.0    # Team missed the 12-team bracket entirely
             
             _conf = str(row.get('CONFERENCE', ''))
             _conf_colors = {'SEC': ('#fbbf24','#78350f'), 'B1G': ('#60a5fa','#1e3a5f'), 'ACC': ('#a78bfa','#3b1d6e'), 'Big 12': ('#f97316','#431407')}
@@ -5226,13 +5263,7 @@ if data:
                 {conf_badge}
               </div>
               <div style='text-align:right;'>
-                <span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 Pre: <strong style="color:white;">{round(float(natty),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#22c55e;">{round(float(live_natty),1)}%</strong></span>
-                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP Pre: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#3b82f6;">{round(float(live_cfp),1)}%</strong></span>
-                <span style='display:inline-block;margin-left:12px;padding:2px 7px;border-radius:999px;
-                font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
-              </div>
-            </div>""", unsafe_allow_html=True)
+                <span style='font-size:0.8rem;color:#
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 2 — DYNASTY HEADLINES
