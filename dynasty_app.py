@@ -2742,6 +2742,87 @@ def get_team_record_display(team, model_df, rankings_df):
             return f"{int(w)}-{int(l)}"
     return '—'
 
+def get_live_team_stats(team, model_df=None, rankings_df=None, current_year=None):
+    """Best-effort live team summary from CPUscores_MASTER.csv with safe fallbacks."""
+    team = str(team).strip()
+    out = {
+        'wins': np.nan,
+        'losses': np.nan,
+        'record': '—',
+        'ppg': np.nan,
+        'avg_margin': np.nan,
+        'opp_record': 'N/A',
+    }
+    rankings_df = rankings_df if rankings_df is not None else pd.DataFrame()
+    try:
+        cpu = pd.read_csv('CPUscores_MASTER.csv')
+    except Exception:
+        cpu = pd.DataFrame()
+
+    if not cpu.empty:
+        vcol = smart_col(cpu, ['Visitor', 'Away', 'Vis Team'])
+        hcol = smart_col(cpu, ['Home', 'Home Team'])
+        vscol = smart_col(cpu, ['Vis Score', 'Visitor Score', 'Away Score'])
+        hscol = smart_col(cpu, ['Home Score'])
+        ycol = smart_col(cpu, ['YEAR', 'Year'])
+        scol = smart_col(cpu, ['Status', 'Game Status'])
+        if current_year is not None and ycol and ycol in cpu.columns:
+            cpu = cpu[pd.to_numeric(cpu[ycol], errors='coerce') == int(current_year)].copy()
+        if vcol and hcol and vcol in cpu.columns and hcol in cpu.columns:
+            games = cpu[(cpu[vcol].astype(str).str.strip() == team) | (cpu[hcol].astype(str).str.strip() == team)].copy()
+            if not games.empty and vscol and hscol and vscol in games.columns and hscol in games.columns:
+                games['_vpts'] = pd.to_numeric(games[vscol], errors='coerce')
+                games['_hpts'] = pd.to_numeric(games[hscol], errors='coerce')
+                completed = games[games['_vpts'].notna() & games['_hpts'].notna()].copy()
+                if scol and scol in completed.columns:
+                    status = completed[scol].astype(str).str.upper()
+                    completed = completed[(status.str.contains('FINAL')) | (status.str.contains('COMPLETE')) | (status.str.contains('PLAYED')) | (~status.str.contains('SCHEDULED'))]
+                if not completed.empty:
+                    completed['_pf'] = np.where(completed[vcol].astype(str).str.strip() == team, completed['_vpts'], completed['_hpts'])
+                    completed['_pa'] = np.where(completed[vcol].astype(str).str.strip() == team, completed['_hpts'], completed['_vpts'])
+                    out['wins'] = int((completed['_pf'] > completed['_pa']).sum())
+                    out['losses'] = int((completed['_pf'] < completed['_pa']).sum())
+                    out['record'] = f"{out['wins']}-{out['losses']}"
+                    out['ppg'] = round(float(completed['_pf'].mean()), 1)
+                    out['avg_margin'] = round(float((completed['_pf'] - completed['_pa']).mean()), 1)
+                # Opponent record summary from rankings/model
+                opps = []
+                for _, g in games.iterrows():
+                    opp = str(g[hcol]).strip() if str(g[vcol]).strip() == team else str(g[vcol]).strip()
+                    if opp and opp != 'nan':
+                        opps.append(opp)
+                if opps:
+                    wins_total = losses_total = 0
+                    found = 0
+                    rlookup = rankings_df.drop_duplicates('Team').set_index('Team') if rankings_df is not None and not rankings_df.empty else None
+                    mlookup = model_df.drop_duplicates('TEAM').set_index('TEAM') if model_df is not None and not model_df.empty else None
+                    for opp in opps:
+                        if rlookup is not None and opp in rlookup.index:
+                            rr = rlookup.loc[opp]
+                            if isinstance(rr, pd.DataFrame): rr = rr.iloc[0]
+                            w = pd.to_numeric(rr.get('Wins', np.nan), errors='coerce')
+                            l = pd.to_numeric(rr.get('Losses', np.nan), errors='coerce')
+                        elif mlookup is not None and opp in mlookup.index:
+                            rr = mlookup.loc[opp]
+                            if isinstance(rr, pd.DataFrame): rr = rr.iloc[0]
+                            w = pd.to_numeric(rr.get('Current Record Wins', np.nan), errors='coerce')
+                            l = pd.to_numeric(rr.get('Current Record Losses', np.nan), errors='coerce')
+                        else:
+                            w = l = np.nan
+                        if pd.notna(w) and pd.notna(l):
+                            wins_total += int(w); losses_total += int(l); found += 1
+                    if found:
+                        out['opp_record'] = f"{wins_total}-{losses_total}"
+    if out['record'] == '—':
+        rec = get_team_record_display(team, model_df if model_df is not None else pd.DataFrame(), rankings_df if rankings_df is not None else pd.DataFrame())
+        out['record'] = rec
+        try:
+            w, l = [int(x) for x in str(rec).split('-')]
+            out['wins'], out['losses'] = w, l
+        except Exception:
+            pass
+    return out
+
 
 def get_user_series_record(user_a, user_b, scores_df):
     ua = str(user_a).strip().title()
@@ -6106,6 +6187,22 @@ if data:
             st.caption("No user teams found in model_2041.")
 
         st.markdown("---")
+        st.subheader("🕰️ Coach Recruiting History")
+        _history_year_cols = [c for c in rec.columns if str(c).isdigit()] if 'rec' in locals() and rec is not None and not rec.empty else []
+        if _history_year_cols:
+            _history_year_cols = sorted(_history_year_cols, key=lambda x: int(str(x)))
+            _rec_hist = rec.copy()
+            _rec_hist['USER'] = _rec_hist['USER'].astype(str).str.strip().str.title()
+            _rec_hist['Teams'] = _rec_hist['Teams'].astype(str).str.strip()
+            _rec_hist = _rec_hist[_rec_hist['Teams'].isin(_user_teams_map.values())].copy()
+            _rec_hist['Current User'] = _rec_hist['Teams'].map(_team_to_user).fillna('')
+            _show_cols = ['Current User', 'Teams'] + _history_year_cols
+            _rec_hist = _rec_hist[_show_cols].sort_values(['Current User', 'Teams']).reset_index(drop=True)
+            st.dataframe(_rec_hist, hide_index=True, use_container_width=True)
+        else:
+            st.caption("No recruiting history columns found in recruiting.csv.")
+
+        st.markdown("---")
 
         recruit_tabs = st.tabs(["🏫 High School", "🔁 Transfer Portal", "📊 Overall"])
 
@@ -6669,6 +6766,7 @@ if data:
 
         target = st.selectbox("Select Team", sorted(model_2041['USER'].tolist()), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
+        _ta_team     = str(row['TEAM'])
         _live_team_stats = get_live_team_stats(_ta_team, model_2041, get_cfp_rankings_snapshot(), CURRENT_YEAR)
         wins = int(_live_team_stats['wins']) if pd.notna(_live_team_stats['wins']) else 0
         losses = int(_live_team_stats['losses']) if pd.notna(_live_team_stats['losses']) else 0
@@ -6676,7 +6774,6 @@ if data:
         avg_margin = _live_team_stats['avg_margin'] if pd.notna(_live_team_stats['avg_margin']) else get_team_schedule_summary(scores, target)[3]
 
         # ── Live speed stats from roster CSV (same logic as Speed Freaks tab) ──
-        _ta_team     = str(row['TEAM'])
         _ta_tc       = get_team_primary_color(_ta_team)
         _TA_OFF_POS  = {'QB','HB','FB','WR','TE','LT','LG','C','RG','RT'}
         _TA_DEF_POS  = {'LEDG','REDG','DT','MIKE','WILL','SAM','CB','FS','SS'}
