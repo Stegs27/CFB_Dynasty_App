@@ -5829,11 +5829,32 @@ if data:
                 _rk    = int(_hr['Rank'])
                 
         # normalize recruiting columns safely
-        _tot = int(_hr.get('Total', _hr.get('TotalCommits', 0)))
-        _f5  = int(_hr.get('FiveStar', _hr.get('5★', 0)))
-        _f4  = int(_hr.get('FourStar', _hr.get('4★', 0)))
-        _f3  = int(_hr.get('ThreeStar', _hr.get('3★', 0)))
-        _pts = float(_hr.get('Points', _hr.get('Overall Points', 0)))
+        
+            # stabilized recruiting column normalization
+            def _safe_int(row, *cols):
+                for c in cols:
+                    if c in row and pd.notna(row[c]):
+                        try:
+                            return int(row[c])
+                        except:
+                            pass
+                return 0
+
+            def _safe_float(row, *cols):
+                for c in cols:
+                    if c in row and pd.notna(row[c]):
+                        try:
+                            return float(row[c])
+                        except:
+                            pass
+                return 0.0
+
+            _tot = _safe_int(_hr, "Total", "TotalCommits")
+            _f5  = _safe_int(_hr, "FiveStar", "5★")
+            _f4  = _safe_int(_hr, "FourStar", "4★")
+            _f3  = _safe_int(_hr, "ThreeStar", "3★")
+            _pts = _safe_float(_hr, "Points", "Overall Points")
+ float(_hr.get('Points', _hr.get('Overall Points', 0)))
  float(_hr['Points'])
                 _bcr   = float(_hr['Blue Chip Ratio'])
                 _medal = "🥇" if _rk <= 5 else ("🥈" if _rk <= 10 else ("🥉" if _rk <= 25 else ""))
