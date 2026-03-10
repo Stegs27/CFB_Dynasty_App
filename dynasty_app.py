@@ -5178,16 +5178,6 @@ if data:
         st.subheader("📡 Preseason Power Rankings")
         st.caption("Preseason projections only — ranked on roster strength, speed, recruiting, QB tier, and coaching pedigree. No in-season results, injuries, or CFP rankings baked in.")
 
-        power_board = model_2041.copy()
-        for col in ['Preseason PI', 'Preseason Natty Odds', 'Preseason CFP %', 'Power Index', 'Natty Odds', 'CFP Odds']:
-            if col not in power_board.columns:
-                power_board[col] = 0
-        power_board = power_board.sort_values(['Preseason PI', 'Preseason Natty Odds'], ascending=False).reset_index(drop=True)
-
-        rank_icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"]
-        rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
-        rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
-
         # ── [ADDED] ELIMINATION LOGIC FOR LIVE ODDS ────────────────────────
         _elim_teams = set()
         _bracket_teams = set()
@@ -5263,7 +5253,13 @@ if data:
                 {conf_badge}
               </div>
               <div style='text-align:right;'>
-                <span style='font-size:0.8rem;color:#
+                <span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style="color:white;">{round(float(pi),1)}</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>🏆 Pre: <strong style="color:white;">{round(float(natty),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#22c55e;">{round(float(live_natty),1)}%</strong></span>
+                <span style='font-size:0.8rem;color:#d1d5db;margin-left:14px;'>CFP Pre: <strong style="color:white;">{round(float(cfp_pct),1)}%</strong> <span style='color:#9ca3af;'>|</span> Live: <strong style="color:#3b82f6;">{round(float(live_cfp),1)}%</strong></span>
+                <span style='display:inline-block;margin-left:12px;padding:2px 7px;border-radius:999px;
+                font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span>
+              </div>
+            </div>""", unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 2 — DYNASTY HEADLINES
