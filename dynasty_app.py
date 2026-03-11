@@ -9271,7 +9271,6 @@ with tabs[5]:
         except Exception:
             graduates = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR'])
 
-        # Auto-pull live OVRs for the current year so you don't have to type them
         try:
             rosters = pd.read_csv(roster_path)
             rosters['LookupKey'] = rosters['Team'] + "_" + rosters['Name']
@@ -9284,7 +9283,6 @@ with tabs[5]:
                 if 'OVR' not in df.columns:
                     df['OVR'] = pd.NA
                 
-                # Create a mask for rows matching the current year
                 curr_mask = df['Year'].astype(str) == str(cur_year)
                 if curr_mask.any():
                     lookup_keys = df.loc[curr_mask, 'Team'] + "_" + df.loc[curr_mask, 'Player']
@@ -9354,7 +9352,6 @@ with tabs[5]:
         
         team_grads = team_grads[~team_grads['Player'].isin(leave_names)]
 
-    # Sort departing players by OVR if the column exists
     if 'OVR' in team_nfl.columns and not team_nfl.empty:
         team_nfl = team_nfl.sort_values(by='OVR', ascending=False)
     if 'OVR' in team_transfers.columns and not team_transfers.empty:
@@ -9436,7 +9433,7 @@ with tabs[5]:
         else:
             st.caption(f"No graduates found for {selected_year}.")
 
-    st.markdown("---")
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
     # --- 6. Live NFL Prospect Generation (Always Current Roster) ---
     @st.cache_data
@@ -9493,17 +9490,21 @@ with tabs[5]:
     predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
     team_preds = predictions_df[predictions_df['Team'] == selected_team] if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
 
-    # --- 7. In-Season Predictions Header & Table ---
+    # --- 7. In-Season Predictions Header (Card Style) & Table ---
     sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
-    sel_logo_html = get_attrition_logo(selected_team, width=45, margin="0 12px 0 0")
+    sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
     
     st.markdown(f"""
-        <div style="display: flex; align-items: center; margin-bottom: 5px;">
-            {sel_logo_html}
-            <h3 style="color: {sel_color}; margin: 0; padding-top: 5px;">Current {selected_team} Flight Risk</h3>
+        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px 20px; border-radius: 8px; border-left: 6px solid {sel_color}; display: flex; align-items: center; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+            <div style="margin-right: 20px; display: flex; align-items: center;">
+                {sel_logo_html}
+            </div>
+            <div>
+                <h3 style="margin: 0; padding: 0; font-size: 1.5rem; text-align: left !important; color: #FFFFFF;">Current {selected_team} Flight Risk</h3>
+                <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #BBBBBB; text-align: left !important;">Auto-generated from current rosters. Highlighting all graduating seniors and underclassmen (90+ OVR) at risk of leaving.</p>
+            </div>
         </div>
     """, unsafe_allow_html=True)
-    st.caption("Auto-generated from current rosters. Highlighting all graduating seniors and underclassmen (90+ OVR) at risk of leaving.")
     
     if not team_preds.empty:
         st.dataframe(
