@@ -9513,7 +9513,7 @@ with tabs[5]:
     predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
     team_preds = predictions_df[predictions_df['Team'] == selected_team] if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
 
-    # --- 7. In-Season Predictions Header (Card Style) ---
+    # --- 7. In-Season Predictions Header ---
     sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
     
     st.markdown(f"""
@@ -9547,59 +9547,84 @@ with tabs[5]:
         current_roster = pd.read_csv('cfb26_rosters_full.csv')
         team_roster = current_roster[current_roster['Team'] == selected_team]
         
-        # Determine who is returning by removing departed & predicted departure names
         leaving_names = set(all_departing_players.tolist())
         if not team_preds.empty:
             leaving_names.update(team_preds['Player'].tolist())
             
         returning_players = team_roster[~team_roster['Name'].isin(leaving_names)]
         
-        # Calculate Base OVR (Average of top 25 returning players to simulate returning starters)
         if not returning_players.empty and len(returning_players) >= 20:
             base_ovr = returning_players.nlargest(25, 'OVR')['OVR'].mean()
         else:
             base_ovr = 80
             
-        # Calculate Incoming Talent Boost (Weighting 5-stars heavily, 4-stars slightly)
         inc_5_stars = (team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns else 0) + (team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns else 0)
         inc_4_stars = (team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns else 0) + (team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns else 0)
         
         talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4)
         projected_ovr = base_ovr + talent_boost
 
-        # Map Projected OVR to Odds Tiers
         if projected_ovr >= 91:
             tier_title = "🏆 National Title Contender"
             cfp_odds = "85%"
             title_odds = "22%"
-            tier_color = "#FACC15" # Gold
+            tier_color = "#FACC15" 
             tier_desc = "With elite talent returning and highly touted incoming recruits, this roster is primed for a deep playoff run and a chance at immortality."
         elif projected_ovr >= 88:
             tier_title = "⭐ Playoff Threat"
             cfp_odds = "50%"
             title_odds = "8%"
-            tier_color = "#38BDF8" # Blue
+            tier_color = "#38BDF8" 
             tier_desc = "A dangerous roster with enough firepower to make the newly expanded playoff. A few breaks their way and they could steal a title."
         elif projected_ovr >= 85:
             tier_title = "🏈 Bowl Bound"
             cfp_odds = "15%"
             title_odds = "< 1%"
-            tier_color = "#A7F3D0" # Green
+            tier_color = "#A7F3D0" 
             tier_desc = "A solid team with evident talent gaps compared to the elites. They will be competitive and bowl eligible, but a CFP birth would require a Cinderella season."
         else:
             tier_title = "🛠️ Rebuilding Year"
             cfp_odds = "< 5%"
             title_odds = "0%"
-            tier_color = "#9CA3AF" # Gray
+            tier_color = "#9CA3AF" 
             tier_desc = "High roster turnover and lack of immediate elite replacements points toward a challenging season. Building for the future is the priority."
 
-        # Draw Next Season Outlook Card
+        # Variable Extraction to fix f-string syntax errors
+        ret_count = len(returning_players)
+        inc_5_count = int(inc_5_stars)
+        inc_4_count = int(inc_4_stars)
+        next_yr = current_yr + 1
+
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid {sel_color}; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
                     <div>
-                        <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {current_yr + 1} Season Outlook</h3>
-                        <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {len(returning_players)} returning players + incoming ({int(inc_5_st
+                        <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players + incoming ({inc_5_count} 5⭐, {inc_4_count} 4⭐) minus departures.</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+                    <div style="flex: 2;">
+                        <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color}; margin-bottom: 8px;">{tier_title}</div>
+                        <div style="font-size: 1rem; color: #DDDDDD; line-height: 1.5;">{tier_desc}</div>
+                    </div>
+                    
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">Make CFP Odds</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: #FFFFFF;">{cfp_odds}</div>
+                        </div>
+                        <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">National Title Odds</div>
+                            <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color};">{title_odds}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    except Exception as e:
+        pass
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
