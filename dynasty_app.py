@@ -9889,7 +9889,7 @@ try:
         ].astype(str).tolist()
     )
 
-possible_early_starter_names = set()
+    possible_early_starter_names = set()
     if not possible_early_df.empty and 'Player' in possible_early_df.columns:
     possible_early_starter_names = set(
         [p for p in possible_early_df['Player'].astype(str).tolist() if p in current_starter_names]
