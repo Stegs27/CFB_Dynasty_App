@@ -4374,14 +4374,31 @@ if data:
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
 
-    USER_TEAMS = {
-        'Mike':  'San Jose State',
-        'Devin': 'Bowling Green',
-        'Josh':  'USF',
-        'Noah':  'Texas Tech',
-        'Doug':  'Florida',
-        'Nick':  'Florida State',
-    }
+    # ── USER_TEAMS: auto-derived from team_conferences.csv ───────────────
+    # Falls back to hardcoded dict only if CSV is missing or empty.
+    try:
+        _tc_df = pd.read_csv('team_conferences.csv')
+        _tc_df['USER'] = _tc_df['USER'].astype(str).str.strip().str.title()
+        _tc_df['TEAM'] = _tc_df['TEAM'].astype(str).str.strip()
+        # Keep most recent entry per user (highest YEAR_JOINED)
+        if 'YEAR_JOINED' in _tc_df.columns:
+            _tc_df['YEAR_JOINED'] = pd.to_numeric(_tc_df['YEAR_JOINED'], errors='coerce')
+            _tc_df = _tc_df.sort_values('YEAR_JOINED', ascending=False)
+        USER_TEAMS = dict(zip(
+            _tc_df.drop_duplicates('USER', keep='first')['USER'],
+            _tc_df.drop_duplicates('USER', keep='first')['TEAM']
+        ))
+        if not USER_TEAMS:
+            raise ValueError("Empty team_conferences.csv")
+    except Exception:
+        USER_TEAMS = {
+            'Mike':  'San Jose State',
+            'Devin': 'Bowling Green',
+            'Josh':  'USF',
+            'Noah':  'Texas Tech',
+            'Doug':  'Florida',
+            'Nick':  'Florida State',
+        }
 
     RIVALRY_NAMES = {
         frozenset(["Mike",  "Noah"]):  ("⚡ The Overclocked Bowl",      "Two tech schools. One beef. It's the nerd rivalry nobody asked for and everyone should fear."),
@@ -4691,6 +4708,11 @@ with tabs[1]:
         st.caption("📌 **Final SOS** uses latest CFP ranks. Adjusted SOS = Base SOS + Speed Handicap.")
 
         rank_medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"]
+
+        # Pre-compute speed bar scale across all users
+        _max_spd = max(float(r['Team Speed']) for _, r in resume_df.iterrows()) or 1
+        _max_base_sos = max(float(r['Base SOS']) for _, r in resume_df.iterrows()) or 1
+
         resume_cards = ""
         for i, row in resume_df.iterrows():
             tc = get_team_primary_color(row['Team'])
@@ -4705,6 +4727,34 @@ with tabs[1]:
             # QB Badge Color
             _qt = str(row.get('QB Tier', '—'))
             _qtc = {'Elite':('#22c55e','#0d2010'),'Leader':('#60a5fa','#0d1829'),'Average Joe':('#fbbf24','#1c1400'),'Ass':('#ef4444','#200808')}.get(_qt, ('#6b7280','#1f2937'))
+
+            # ── SPEED vs SCHEDULE BAR ─────────────────────────────────────────
+            _spd_count  = float(row['Team Speed'])
+            _base_sos   = float(row['Base SOS'])
+            _mph        = team_speed_to_mph(_spd_count)
+
+            # Speed bar fill: how fast is this team relative to the league max
+            _spd_bar_pct = min(100, round(_spd_count / _max_spd * 100))
+
+            # SOS difficulty tick: where does their schedule sit (0–100)
+            _sos_tick_pct = min(100, round(_base_sos / _max_base_sos * 100))
+
+            # Bar color: fast team on hard schedule = green; slow team on hard schedule = brutal red
+            if hcap <= -3:
+                _spd_bar_color = "#22c55e"   # speed advantage — green
+                _spd_label = f"⚡ {int(_spd_count)} speed guys · {_mph:.0f} MPH — SPEED ADVANTAGE"
+            elif hcap <= 0:
+                _spd_bar_color = "#4ade80"   # slight edge
+                _spd_label = f"⚡ {int(_spd_count)} speed guys · {_mph:.0f} MPH — holding their own"
+            elif hcap <= 2:
+                _spd_bar_color = "#fbbf24"   # warning
+                _spd_label = f"🐢 {int(_spd_count)} speed guys · {_mph:.0f} MPH — speed deficit vs schedule"
+            elif hcap <= 4:
+                _spd_bar_color = "#f97316"   # orange alert
+                _spd_label = f"🐢 {int(_spd_count)} speed guys · {_mph:.0f} MPH — real speed problem"
+            else:
+                _spd_bar_color = "#ef4444"   # red — cooked
+                _spd_label = f"💀 {int(_spd_count)} speed guys · {_mph:.0f} MPH — SPEED CRISIS vs this schedule"
 
             resume_cards += f"""
             <div style='background:#0a1628;border:1px solid #1e293b;border-left:4px solid {tc};border-radius:10px;padding:12px 14px;margin-bottom:8px;'>
@@ -4721,7 +4771,7 @@ with tabs[1]:
                   <div style='color:#475569;font-size:0.62rem;'>Adj SOS</div>
                 </div>
               </div>
-              <div style='display:flex;flex-wrap:wrap;gap:6px;'>
+              <div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;'>
                 <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
                   <div style='color:#22c55e;font-weight:800;font-size:0.9rem;'>{row['Ranked Wins']}</div>
                   <div style='color:#475569;font-size:0.62rem;'>RANKED W</div>
@@ -4737,6 +4787,25 @@ with tabs[1]:
                 <div style='background:{_qtc[1]};border-radius:6px;padding:5px 9px;text-align:center;border:1px solid {_qtc[0]}33;'>
                   <div style='color:{_qtc[0]};font-weight:800;font-size:0.82rem;'>{_qt}</div>
                   <div style='color:{_qtc[0]}99;font-size:0.62rem;'>{row['QB OVR']} OVR</div>
+                </div>
+              </div>
+              <!-- SPEED vs SCHEDULE BAR -->
+              <div style='margin-top:2px;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;'>
+                  <span style='font-size:0.65rem;color:#475569;font-family:monospace;letter-spacing:.04em;'>SPEED vs SCHEDULE</span>
+                  <span style='font-size:0.68rem;color:{_spd_bar_color};font-weight:700;'>{_spd_label}</span>
+                </div>
+                <!-- track -->
+                <div style='position:relative;background:#111f33;border-radius:4px;height:8px;overflow:visible;'>
+                  <!-- speed fill -->
+                  <div style='background:{_spd_bar_color};width:{_spd_bar_pct}%;height:8px;border-radius:4px;opacity:0.85;'></div>
+                  <!-- SOS difficulty tick mark -->
+                  <div style='position:absolute;top:-3px;left:{_sos_tick_pct}%;width:2px;height:14px;background:#f59e0b;border-radius:1px;' title='Schedule difficulty'></div>
+                </div>
+                <div style='display:flex;justify-content:space-between;margin-top:3px;'>
+                  <span style='font-size:0.58rem;color:#334155;'>slow</span>
+                  <span style='font-size:0.58rem;color:#f59e0b;'>▲ SOS difficulty</span>
+                  <span style='font-size:0.58rem;color:#334155;'>fast</span>
                 </div>
               </div>
             </div>"""
