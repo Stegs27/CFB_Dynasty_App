@@ -9603,13 +9603,11 @@ with tabs[5]:
                         <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players + incoming ({inc_5_count} 5⭐, {inc_4_count} 4⭐) minus departures.</p>
                     </div>
                 </div>
-                
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
                     <div style="flex: 2;">
                         <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color}; margin-bottom: 8px;">{tier_title}</div>
                         <div style="font-size: 1rem; color: #DDDDDD; line-height: 1.5;">{tier_desc}</div>
                     </div>
-                    
                     <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
                         <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">Make CFP Odds</div>
