@@ -9122,88 +9122,7 @@ with tabs[11]:
                     f"<div style='font-size:1.2rem;font-weight:900;color:{_pod_c};'>"
                     f"{_goat_s} pts</div>"
                     f"<div style='font-size:0.62rem;color:#475569;'>GOAT Score</div>"
-                    f"</div></div>"
-                    f"<div style='display:flex;flex-wrap:wrap;gap:8px;'>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#fbbf24;'>"
-                    f"{_natties}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>NATTIES</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#f1f5f9;'>"
-                    f"{_rec}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>RECORD</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#34d399;'>"
-                    f"{_win_pct:.0f}%</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>WIN %</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#60a5fa;'>"
-                    f"{_cfpw}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>CFP W</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#a78bfa;'>"
-                    f"{_conf}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>CONF &#9733;</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#fb923c;'>"
-                    f"{_nfl}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>NFL DRAFTED</div>"
-                    f"</div>"
-                    f"</div></div>",
-                    unsafe_allow_html=True
-                )
-
-            # ── FULL LEADERBOARD TABLE ───────────────────────────────────────────
-            st.markdown("---")
-            with st.expander("📊 Full GOAT Table", expanded=False):
-                _goat_cols = [c for c in [
-                    'User', 'GOAT Score', 'HoF Points', 'Career Record',
-                    'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins',
-                    'CFP Losses', 'Conf Titles', '1st Rounders', 'Drafted'
-                ] if c in goat.columns]
-                st.dataframe(
-                    goat[_goat_cols].reset_index(drop=True),
-                    hide_index=True, use_container_width=True
-                )
-
-            # ── BAR CHART ────────────────────────────────────────────────────────
-            _bar_colors = {
-                str(r['User']): get_team_primary_color(
-                    str(model_2041[model_2041['USER'] == str(r['User'])]['TEAM'].iloc[0])
-                    if not model_2041[model_2041['USER'] == str(r['User'])].empty else ''
-                )
-                for _, r in goat.iterrows()
-            }
-            _fig_goat = px.bar(
-                goat,
-                x="User", y="GOAT Score",
-                color="User",
-                color_discrete_map=_bar_colors,
-                hover_data=[c for c in ['Natties', 'Natty Apps', 'CFP Wins',
-                                         'Conf Titles', '1st Rounders', 'Drafted']
-                            if c in goat.columns],
-                template="plotly_dark",
-            )
-            _fig_goat.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                showlegend=False,
-                margin=dict(l=0, r=0, t=20, b=0),
-            )
-            st.plotly_chart(_fig_goat, use_container_width=True)
-
-    # --- ROSTER ATTRITION ---
+# --- ROSTER ATTRITION ---
 with tabs[5]:
     # --- 0. Logos & Header ---
     def get_attrition_logo(team_name, width=45, margin="0"):
@@ -9213,7 +9132,7 @@ with tabs[5]:
                 uri = image_file_to_data_uri(local_path)
                 if uri:
                     return f'<img src="{uri}" width="{width}" style="margin: {margin}; drop-shadow: 2px 2px 4px rgba(0,0,0,0.5);">'
-        
+
         slug = TEAM_VISUALS.get(team_name, {}).get("slug", team_name.lower().replace(" ", "-"))
         url = f"https://a.espncdn.com/i/teamlogos/ncaa/500/{slug}.png"
         return f'<img src="{url}" width="{width}" style="margin: {margin}; drop-shadow: 2px 2px 4px rgba(0,0,0,0.5);">'
@@ -9222,7 +9141,7 @@ with tabs[5]:
         user_teams_list = sorted(list(USER_TEAMS.values()))
     else:
         user_teams_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
-        
+
     mid_idx = len(user_teams_list) // 2
     left_teams = user_teams_list[:mid_idx]
     right_teams = user_teams_list[mid_idx:]
@@ -9237,7 +9156,7 @@ with tabs[5]:
             <div style="display: flex; align-items: center;">{right_logos_html}</div>
         </div>
     """, unsafe_allow_html=True)
-    
+
     st.caption("<div style='text-align: center;'>Tracking players leaving for the NFL, transferring, or graduating, compared against incoming talent.</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -9250,7 +9169,7 @@ with tabs[5]:
             hs_df = pd.read_csv('recruiting_high_school_history.csv')
         except Exception:
             hs_df = pd.DataFrame(columns=['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points'])
-            
+
         try:
             tp_df = pd.read_csv('recruiting_transfer_portal_history.csv')
         except Exception:
@@ -9259,27 +9178,30 @@ with tabs[5]:
         try:
             nfl = pd.read_csv('attrition_nfl.csv')
         except Exception:
-            nfl = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Round', 'Left Early'])
-            
+            nfl = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Round', 'Left Early', 'Class', 'Was Starter'])
+
         try:
             transfers = pd.read_csv('attrition_transfers.csv')
         except Exception:
-            transfers = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Destination'])
-            
+            transfers = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Destination', 'Class', 'Was Starter'])
+
         try:
             graduates = pd.read_csv('attrition_graduates.csv')
         except Exception:
-            graduates = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR'])
+            graduates = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
         try:
             incoming = pd.read_csv('attrition_incoming.csv')
         except Exception:
-            incoming = pd.DataFrame(columns=['Year', 'Team', 'Type', 'Player', 'Position', 'Stars'])
+            incoming = pd.DataFrame(columns=['Year', 'Team', 'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole'])
 
         try:
             rosters = pd.read_csv(roster_path)
-            rosters['LookupKey'] = rosters['Team'] + "_" + rosters['Name']
-            ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR']))
+            if 'Team' in rosters.columns and 'Name' in rosters.columns:
+                rosters['LookupKey'] = rosters['Team'].astype(str) + "_" + rosters['Name'].astype(str)
+                ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR'])) if 'OVR' in rosters.columns else {}
+            else:
+                ovr_dict = {}
         except Exception:
             ovr_dict = {}
 
@@ -9287,13 +9209,13 @@ with tabs[5]:
             if not df.empty and 'Team' in df.columns and 'Player' in df.columns and 'Year' in df.columns:
                 if 'OVR' not in df.columns:
                     df['OVR'] = pd.NA
-                
+
                 curr_mask = df['Year'].astype(str) == str(cur_year)
                 if curr_mask.any():
-                    lookup_keys = df.loc[curr_mask, 'Team'] + "_" + df.loc[curr_mask, 'Player']
+                    lookup_keys = df.loc[curr_mask, 'Team'].astype(str) + "_" + df.loc[curr_mask, 'Player'].astype(str)
                     df.loc[curr_mask, 'OVR'] = lookup_keys.map(ovr_dict).fillna(df.loc[curr_mask, 'OVR'])
             return df
-            
+
         return hs_df, tp_df, inject_live_ovr(nfl), inject_live_ovr(transfers), inject_live_ovr(graduates), incoming
 
     hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df = load_attrition_data('cfb26_rosters_full.csv', current_yr)
@@ -9303,38 +9225,47 @@ with tabs[5]:
     def get_auto_seniors(roster_path, cur_year):
         try:
             rosters = pd.read_csv(roster_path)
-            seniors = rosters[rosters['Year'].astype(str).str.contains('SR', na=False)]
-            
-            return pd.DataFrame({
+            seniors = rosters[rosters['Year'].astype(str).str.contains('SR', na=False)].copy()
+
+            auto_df = pd.DataFrame({
                 'Year': cur_year,
-                'Team': seniors['Team'],
-                'Player': seniors['Name'],
-                'Position': seniors['Pos'],
-                'OVR': seniors['OVR']
+                'Team': seniors['Team'] if 'Team' in seniors.columns else pd.Series(dtype=str),
+                'Player': seniors['Name'] if 'Name' in seniors.columns else pd.Series(dtype=str),
+                'Position': seniors['Pos'] if 'Pos' in seniors.columns else pd.Series(dtype=str),
+                'OVR': seniors['OVR'] if 'OVR' in seniors.columns else pd.Series(dtype=float),
+                'Class': seniors['Year'] if 'Year' in seniors.columns else "SR",
+                'Was Starter': False
             })
+            return auto_df
         except Exception:
-            return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR'])
+            return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
     auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
-    
-    graduates_df = pd.concat([manual_graduates_df, auto_seniors_df]).drop_duplicates(subset=['Year', 'Team', 'Player'])
+
+    graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(subset=['Year', 'Team', 'Player'])
 
     all_years = set()
     for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df, incoming_df]:
         if 'Year' in df.columns:
             all_years.update(df['Year'].dropna().unique())
-    
+
     available_years = sorted([int(y) for y in all_years if str(y).isdigit()], reverse=True)
     if not available_years:
         available_years = [current_yr]
 
     # --- 2. Selectors ---
-    col_sel1, col_sel2 = st.columns(2)
+    col_sel1, col_sel2, col_sel3 = st.columns([1, 1, 1])
     with col_sel1:
         selected_team = st.selectbox("🏈 Select Team to View", user_teams_list, key="attrition_team_select")
     with col_sel2:
         selected_year = st.selectbox("📅 Select Historical Year", available_years, key="attrition_year_select")
-        
+    with col_sel3:
+        outlook_mode = st.selectbox(
+            "🔮 Outlook Mode",
+            ["Aggressive", "Conservative"],
+            help="Aggressive = removes only confirmed departures. Conservative = also removes possible early leavers."
+        )
+
     st.markdown("---")
 
     sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
@@ -9348,39 +9279,57 @@ with tabs[5]:
     team_hs = filter_team_year(hs_df, selected_team, selected_year)
     team_tp = filter_team_year(tp_df, selected_team, selected_year)
     team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
-    
+
     team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
     team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
     team_grads = filter_team_year(graduates_df, selected_team, selected_year)
 
     if not team_grads.empty:
-        nfl_names = team_nfl['Player'].tolist() if not team_nfl.empty else []
-        transfer_names = team_transfers['Player'].tolist() if not team_transfers.empty else []
+        nfl_names = team_nfl['Player'].tolist() if 'Player' in team_nfl.columns else []
+        transfer_names = team_transfers['Player'].tolist() if 'Player' in team_transfers.columns else []
         leave_names = set(nfl_names + transfer_names)
-        
         team_grads = team_grads[~team_grads['Player'].isin(leave_names)]
 
-    if 'OVR' in team_nfl.columns and not team_nfl.empty:
-        team_nfl = team_nfl.sort_values(by='OVR', ascending=False)
-    if 'OVR' in team_transfers.columns and not team_transfers.empty:
-        team_transfers = team_transfers.sort_values(by='OVR', ascending=False)
-    if 'OVR' in team_grads.columns and not team_grads.empty:
-        team_grads = team_grads.sort_values(by='OVR', ascending=False)
+    for df_name in ['team_nfl', 'team_transfers', 'team_grads']:
+        if df_name in locals():
+            df_ref = locals()[df_name]
+            if 'OVR' in df_ref.columns and not df_ref.empty:
+                locals()[df_name] = df_ref.sort_values(by='OVR', ascending=False)
 
     # --- 4. Talent Balance Math ---
-    all_departing_players = pd.concat([
-        team_nfl['Player'] if 'Player' in team_nfl.columns else pd.Series(dtype=str),
-        team_transfers['Player'] if 'Player' in team_transfers.columns else pd.Series(dtype=str),
-        team_grads['Player'] if 'Player' in team_grads.columns else pd.Series(dtype=str)
-    ])
-    
-    total_departures = all_departing_players.nunique()
-    hs_recruits = int(team_hs['TotalCommits'].sum()) if 'TotalCommits' in team_hs.columns else 0
-    transfers_in = int(team_tp['TotalCommits'].sum()) if 'TotalCommits' in team_tp.columns else 0
-    
+    confirmed_departures_df = pd.concat([
+        team_nfl.assign(DepartureType='NFL') if not team_nfl.empty else pd.DataFrame(columns=list(team_nfl.columns) + ['DepartureType']),
+        team_transfers.assign(DepartureType='Transfer') if not team_transfers.empty else pd.DataFrame(columns=list(team_transfers.columns) + ['DepartureType']),
+        team_grads.assign(DepartureType='Graduate') if not team_grads.empty else pd.DataFrame(columns=list(team_grads.columns) + ['DepartureType'])
+    ], ignore_index=True)
+
+    confirmed_departure_names = confirmed_departures_df['Player'].dropna().astype(str).unique().tolist() if 'Player' in confirmed_departures_df.columns else []
+    total_departures = len(confirmed_departure_names)
+
+    hs_recruits = int(team_hs['TotalCommits'].sum()) if 'TotalCommits' in team_hs.columns and not team_hs.empty else 0
+    transfers_in = int(team_tp['TotalCommits'].sum()) if 'TotalCommits' in team_tp.columns and not team_tp.empty else 0
+
+    # Optional player-level incoming support
+    if not team_incoming.empty and 'Type' in team_incoming.columns:
+        hs_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS'])
+        tp_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER'])
+    else:
+        hs_individual = 0
+        tp_individual = 0
+
     net_talent = (hs_recruits + transfers_in) - total_departures
     net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
     net_color = "#10B981" if net_talent > 0 else ("#EF4444" if net_talent < 0 else "#AAAAAA")
+
+    confirmed_starter_losses = 0
+    if not confirmed_departures_df.empty and 'Was Starter' in confirmed_departures_df.columns:
+        confirmed_starter_losses = int(confirmed_departures_df['Was Starter'].fillna(False).astype(bool).sum())
+
+    impact_incoming_count = 0
+    if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
+        impact_incoming_count = int(
+            team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().isin(['starter', 'rotation']).sum()
+        )
 
     def get_stat_card(label, value, color, delta=None, delta_color=None):
         delta_html = f"<div style='font-size: 0.9rem; color: {delta_color}; margin-top: 5px; font-weight: bold;'>{delta}</div>" if delta else ""
@@ -9394,11 +9343,11 @@ with tabs[5]:
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
-        st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color), unsafe_allow_html=True)
+        st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m2:
-        st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color), unsafe_allow_html=True)
+        st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color, delta=f"{tp_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m3:
-        st.markdown(get_stat_card(f"{selected_year} Total Departures", str(total_departures), sel_color), unsafe_allow_html=True)
+        st.markdown(get_stat_card(f"{selected_year} Confirmed Departures", str(total_departures), sel_color, delta=f"{confirmed_starter_losses} starters lost", delta_color="#F59E0B"), unsafe_allow_html=True)
     with col_m4:
         st.markdown(get_stat_card("Net Talent Change", str(net_talent), sel_color, delta=net_str, delta_color=net_color), unsafe_allow_html=True)
 
@@ -9413,57 +9362,78 @@ with tabs[5]:
         """
 
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.markdown(get_mini_card("🏈 NFL Draft", sel_color), unsafe_allow_html=True)
         with st.expander(f"View {len(team_nfl)} Players", expanded=False):
             if not team_nfl.empty:
                 edited_nfl = st.data_editor(
-                    team_nfl.drop(columns=['Team', 'Year'], errors='ignore'), 
+                    team_nfl.drop(columns=['Team', 'Year'], errors='ignore'),
                     column_config={
                         "Left Early": st.column_config.CheckboxColumn("Left Early"),
+                        "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
                         "OVR": st.column_config.NumberColumn(format="%d ⭐")
                     },
-                    hide_index=True, 
+                    hide_index=True,
                     use_container_width=True,
                     key=f"nfl_editor_{selected_team}_{selected_year}"
                 )
-                
-                left_early_count = edited_nfl['Left Early'].sum() if 'Left Early' in edited_nfl.columns else 0
+
+                left_early_count = int(edited_nfl['Left Early'].fillna(False).astype(bool).sum()) if 'Left Early' in edited_nfl.columns else 0
                 if left_early_count > 0:
                     st.caption(f"🚨 Players officially left early: **{left_early_count}**")
             else:
-                st.caption(f"<div style='text-align: center;'>No NFL departures logged.</div>", unsafe_allow_html=True)
+                st.caption("No NFL departures logged.")
 
     with col2:
         st.markdown(get_mini_card("🎒 Transfers Out", sel_color), unsafe_allow_html=True)
         with st.expander(f"View {len(team_transfers)} Players", expanded=False):
             if not team_transfers.empty:
                 st.dataframe(
-                    team_transfers.drop(columns=['Team', 'Year'], errors='ignore'), 
+                    team_transfers.drop(columns=['Team', 'Year'], errors='ignore'),
                     column_config={
+                        "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
                         "OVR": st.column_config.NumberColumn(format="%d ⭐")
                     },
-                    hide_index=True, 
+                    hide_index=True,
                     use_container_width=True
                 )
             else:
-                st.caption(f"<div style='text-align: center;'>No transfers logged.</div>", unsafe_allow_html=True)
+                st.caption("No transfers logged.")
 
     with col3:
         st.markdown(get_mini_card("🎓 Graduates", sel_color), unsafe_allow_html=True)
         with st.expander(f"View {len(team_grads)} Players", expanded=False):
             if not team_grads.empty:
                 st.dataframe(
-                    team_grads.drop(columns=['Team', 'Year'], errors='ignore'), 
+                    team_grads.drop(columns=['Team', 'Year'], errors='ignore'),
                     column_config={
+                        "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
                         "OVR": st.column_config.NumberColumn(format="%d ⭐")
                     },
-                    hide_index=True, 
+                    hide_index=True,
                     use_container_width=True
                 )
             else:
-                st.caption(f"<div style='text-align: center;'>No graduates found.</div>", unsafe_allow_html=True)
+                st.caption("No graduates found.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- 5B. Incoming Talent Detail ---
+    st.markdown(get_mini_card("📥 Incoming Individual Talent", sel_color), unsafe_allow_html=True)
+    with st.expander(f"View {len(team_incoming)} Incoming Players", expanded=False):
+        if not team_incoming.empty:
+            st.dataframe(
+                team_incoming.drop(columns=['Team', 'Year'], errors='ignore'),
+                hide_index=True,
+                use_container_width=True
+            )
+            if 'ProjectedRole' in team_incoming.columns:
+                starter_proj = int(team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum())
+                rotation_proj = int(team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum())
+                st.caption(f"Projected impact newcomers: **{starter_proj} starters**, **{rotation_proj} rotation players**")
+        else:
+            st.caption("No incoming individual players logged.")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
@@ -9472,18 +9442,18 @@ with tabs[5]:
     def get_nfl_prospects(roster_path):
         try:
             rosters = pd.read_csv(roster_path)
-            
+
             if 'USER_TEAMS' in globals():
                 rosters = rosters[rosters['Team'].isin(USER_TEAMS.values())]
 
             prospects = []
             for _, row in rosters.iterrows():
-                year_val = str(row['Year'])
-                ovr = int(row['OVR'])
-                
+                year_val = str(row['Year']) if 'Year' in row else ''
+                ovr = int(row['OVR']) if 'OVR' in row and pd.notna(row['OVR']) else 0
+
                 is_senior = 'SR' in year_val
-                is_eligible_early = 'JR' in year_val or 'SO (RS)' in year_val
-                
+                is_eligible_early = ('JR' in year_val) or ('SO (RS)' in year_val)
+
                 if is_senior:
                     if ovr >= 92:
                         projection = 'Day 1-3'
@@ -9491,7 +9461,7 @@ with tabs[5]:
                         projection = 'Day 3 / UDFA'
                     else:
                         projection = 'Undrafted'
-                        
+
                     prospects.append({
                         'Team': row['Team'],
                         'Player': row['Name'],
@@ -9499,8 +9469,10 @@ with tabs[5]:
                         'Year': row['Year'],
                         'OVR': ovr,
                         'Draft Projection': projection,
-                        'Status': 'Graduating'
+                        'Status': 'Graduating',
+                        'Confirmed Risk': 'Confirmed Departure'
                     })
+
                 elif is_eligible_early and ovr >= 90:
                     prospects.append({
                         'Team': row['Team'],
@@ -9509,22 +9481,38 @@ with tabs[5]:
                         'Year': row['Year'],
                         'OVR': ovr,
                         'Draft Projection': 'Day 1-2' if ovr >= 94 else 'Day 2-3',
-                        'Status': '🚨 Leaving Early Risk'
+                        'Status': '🚨 Leaving Early Risk',
+                        'Confirmed Risk': 'Possible Early Leaver'
                     })
-            
+
             df = pd.DataFrame(prospects)
             if not df.empty:
                 df = df.sort_values(by=['Team', 'OVR'], ascending=[True, False])
             return df
-        except Exception as e:
-            return pd.DataFrame()
+        except Exception:
+            return pd.DataFrame(columns=['Team', 'Player', 'Pos', 'Year', 'OVR', 'Draft Projection', 'Status', 'Confirmed Risk'])
 
     predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
-    team_preds = predictions_df[predictions_df['Team'] == selected_team] if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
+    team_preds = predictions_df[predictions_df['Team'] == selected_team].copy() if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
+
+    # Confirmed current-year NFL departures from log
+    confirmed_current_nfl = filter_team_year(nfl_df, selected_team, current_yr)
+    confirmed_current_names = set(confirmed_current_nfl['Player'].astype(str).tolist()) if 'Player' in confirmed_current_nfl.columns else set()
+
+    possible_early_df = pd.DataFrame(columns=team_preds.columns)
+    confirmed_live_df = pd.DataFrame(columns=team_preds.columns)
+
+    if not team_preds.empty:
+        confirmed_live_df = team_preds[team_preds['Status'] == 'Graduating'].copy()
+        possible_early_df = team_preds[team_preds['Status'] == '🚨 Leaving Early Risk'].copy()
+
+        # Remove anyone already logged as confirmed NFL departure from "possible" pool
+        if 'Player' in possible_early_df.columns:
+            possible_early_df = possible_early_df[~possible_early_df['Player'].astype(str).isin(confirmed_current_names)]
 
     # --- 7. In-Season Predictions Header ---
     sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
-    
+
     st.markdown(f"""
         <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px 20px; border-radius: 8px; border-left: 6px solid {sel_color}; display: flex; align-items: center; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
             <div style="margin-right: 20px; display: flex; align-items: center;">
@@ -9532,56 +9520,90 @@ with tabs[5]:
             </div>
             <div>
                 <h3 style="margin: 0; padding: 0; font-size: 1.5rem; text-align: left !important; color: #FFFFFF;">Current {selected_team} Flight Risk</h3>
-                <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #BBBBBB; text-align: left !important;">Auto-generated from current rosters. Highlighting all graduating seniors and underclassmen (90+ OVR) at risk of leaving.</p>
+                <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #BBBBBB; text-align: left !important;">
+                    Confirmed departures are separated from possible early leavers so the outlook can be viewed in Aggressive or Conservative mode.
+                </p>
             </div>
         </div>
     """, unsafe_allow_html=True)
-    
-    if not team_preds.empty:
-        st.dataframe(
-            team_preds.drop(columns=['Team'], errors='ignore'), 
-            hide_index=True, 
-            use_container_width=True,
-            column_config={
-                "OVR": st.column_config.NumberColumn(format="%d ⭐")
-            }
-        )
-    else:
-        st.info(f"No active NFL prospects found matching the current criteria for {selected_team}.")
+
+    risk_col1, risk_col2 = st.columns(2)
+
+    with risk_col1:
+        st.markdown(get_mini_card("✅ Confirmed Departures", "#10B981"), unsafe_allow_html=True)
+        if not confirmed_live_df.empty:
+            st.dataframe(
+                confirmed_live_df.drop(columns=['Team'], errors='ignore'),
+                hide_index=True,
+                use_container_width=True,
+                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
+            )
+        else:
+            st.info("No confirmed graduating NFL-related departures found.")
+
+    with risk_col2:
+        st.markdown(get_mini_card("⚠️ Possible Early Leavers", "#F59E0B"), unsafe_allow_html=True)
+        if not possible_early_df.empty:
+            st.dataframe(
+                possible_early_df.drop(columns=['Team'], errors='ignore'),
+                hide_index=True,
+                use_container_width=True,
+                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
+            )
+        else:
+            st.info("No underclassmen currently flagged as possible early leavers.")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
     # --- 8. Next Season Outlook & Dynamic Championship Odds ---
     try:
         current_roster = pd.read_csv('cfb26_rosters_full.csv')
-        team_roster = current_roster[current_roster['Team'] == selected_team]
-        
-        leaving_names = set(all_departing_players.tolist())
-        if not team_preds.empty:
-            leaving_names.update(team_preds['Player'].tolist())
-            
-        returning_players = team_roster[~team_roster['Name'].isin(leaving_names)].copy()
-        
+        team_roster = current_roster[current_roster['Team'] == selected_team].copy()
+
+        confirmed_leaving_names = set(confirmed_departure_names)
+
+        possible_early_names = set()
+        if not possible_early_df.empty and 'Player' in possible_early_df.columns:
+            possible_early_names = set(possible_early_df['Player'].astype(str).tolist())
+
+        if outlook_mode == "Conservative":
+            leaving_names = confirmed_leaving_names.union(possible_early_names)
+        else:
+            leaving_names = confirmed_leaving_names
+
+        returning_players = team_roster[~team_roster['Name'].astype(str).isin(leaving_names)].copy()
+
         # Base Returning Starter Math
-        if not returning_players.empty:
+        if not returning_players.empty and 'OVR' in returning_players.columns:
             prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
             progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
             returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
-            base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean() if len(returning_players) >= 20 else 80
+            base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean() if len(returning_players) >= 20 else returning_players['Prog_OVR'].mean()
         else:
             base_ovr = 80
-            
+
         # 1. Incoming Talent Boost
-        inc_5_stars = (team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns else 0) + (team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns else 0)
-        inc_4_stars = (team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns else 0) + (team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns else 0)
-        talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4)
+        inc_5_stars = (team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns and not team_hs.empty else 0) + \
+                      (team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns and not team_tp.empty else 0)
+        inc_4_stars = (team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns and not team_hs.empty else 0) + \
+                      (team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns and not team_tp.empty else 0)
+
+        # Add a slight bump for individually logged instant-impact players
+        incoming_role_bonus = 0.0
+        if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
+            starter_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum() * 0.40
+            rotation_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum() * 0.15
+            incoming_role_bonus = starter_bonus + rotation_bonus
+
+        talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus
         projected_ovr = base_ovr + talent_boost
 
         # 2. Dynamic QB Evaluation (Returning vs Incoming)
-        qbs = returning_players[returning_players['Pos'] == 'QB']
+        qbs = returning_players[returning_players['Pos'] == 'QB'] if 'Pos' in returning_players.columns else pd.DataFrame()
         ret_qb_name = "Unknown QB"
         ret_qb_ovr = 75
-        if not qbs.empty:
+
+        if not qbs.empty and 'Prog_OVR' in qbs.columns and 'Name' in qbs.columns:
             best_ret_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
             ret_qb_name = best_ret_qb_row['Name']
             ret_qb_ovr = best_ret_qb_row['Prog_OVR']
@@ -9590,11 +9612,12 @@ with tabs[5]:
         inc_qb_name = ""
         inc_qb_stars = 0
         inc_qb_ovr = 0
-        
+
         if not inc_qbs.empty and 'Stars' in inc_qbs.columns:
             best_inc_qb = inc_qbs.sort_values(by='Stars', ascending=False).iloc[0]
-            inc_qb_name = best_inc_qb['Player'] if 'Player' in best_inc_qb else "Incoming Recruit"
-            inc_qb_stars = int(best_inc_qb['Stars'])
+            inc_qb_name = best_inc_qb['Player'] if 'Player' in best_inc_qb.index else "Incoming Recruit"
+            inc_qb_stars = int(best_inc_qb['Stars']) if pd.notna(best_inc_qb['Stars']) else 0
+
             if inc_qb_stars == 5:
                 inc_qb_ovr = 82
             elif inc_qb_stars == 4:
@@ -9604,7 +9627,6 @@ with tabs[5]:
             else:
                 inc_qb_ovr = 68
 
-        # Determine the Starting QB
         if inc_qb_ovr > ret_qb_ovr:
             best_qb_desc = f"Incoming Recruit {inc_qb_name} ({inc_qb_stars}⭐)"
             starting_qb_ovr = inc_qb_ovr
@@ -9612,8 +9634,8 @@ with tabs[5]:
             best_qb_desc = f"{ret_qb_name} ({int(ret_qb_ovr)} OVR)"
             starting_qb_ovr = ret_qb_ovr
 
-        qb_mod = (starting_qb_ovr - 84) * 0.6  
-        
+        qb_mod = (starting_qb_ovr - 84) * 0.6
+
         # 3. Returning Starters Estimation
         total_departing_count = len(leaving_names)
         est_returning_starters = max(5, min(22, 22 - int(total_departing_count * 0.6)))
@@ -9632,26 +9654,27 @@ with tabs[5]:
         # Set Dynamic Tiers & Texts
         if final_power_rating >= 92.5:
             tier_title = "🏆 National Title Contender"
-            tier_color = "#FACC15" 
+            tier_color = "#FACC15"
             tier_desc = f"With {est_returning_starters} est. returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
         elif final_power_rating >= 88.0:
             tier_title = "⭐ Playoff Threat"
-            tier_color = "#38BDF8" 
+            tier_color = "#38BDF8"
             tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
         elif final_power_rating >= 83.5:
             tier_title = "🏈 Bowl Bound"
-            tier_color = "#A7F3D0" 
+            tier_color = "#A7F3D0"
             tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
         else:
             tier_title = "🛠️ Rebuilding Year"
-            tier_color = "#9CA3AF" 
+            tier_color = "#9CA3AF"
             tier_desc = f"High roster turnover (only {est_returning_starters} est. starters returning) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
 
         ret_count = len(returning_players)
         inc_5_count = int(inc_5_stars)
         inc_4_count = int(inc_4_stars)
         next_yr = current_yr + 1
-        
+        mode_color = "#F59E0B" if outlook_mode == "Conservative" else "#10B981"
+
         outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
 
         st.markdown(f"""
@@ -9661,7 +9684,12 @@ with tabs[5]:
                         {outlook_logo_html}
                         <div>
                             <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
-                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm factors in top returning starters (+3 to +7 OVR dev), incoming recruits ({inc_5_count} 5⭐, {inc_4_count} 4⭐), and QB strength.</p>
+                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">
+                                Mode: <span style="color:{mode_color}; font-weight:bold;">{outlook_mode}</span> |
+                                Confirmed departures: {len(confirmed_leaving_names)} |
+                                Possible early leavers: {len(possible_early_names)} |
+                                Incoming impact players: {impact_incoming_count}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -9683,7 +9711,7 @@ with tabs[5]:
                 </div>
             </div>
         """, unsafe_allow_html=True)
-    except Exception as e:
+    except Exception:
         pass
 
 
