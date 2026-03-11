@@ -9241,9 +9241,11 @@ with tabs[5]:
     st.caption("<div style='text-align: center;'>Tracking players leaving for the NFL, transferring, or graduating, compared against incoming talent.</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 1. CSV Loading Logic ---
+    current_yr = CURRENT_YEAR if 'CURRENT_YEAR' in globals() else 2041
+
+    # --- 1. CSV Loading Logic (With Auto-OVR Injection) ---
     @st.cache_data
-    def load_attrition_data():
+    def load_attrition_data(roster_path, cur_year):
         try:
             hs_df = pd.read_csv('recruiting_high_school_history.csv')
         except Exception:
@@ -9257,47 +9259,63 @@ with tabs[5]:
         try:
             nfl = pd.read_csv('attrition_nfl.csv')
         except Exception:
-            nfl = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'Round', 'Left Early'])
+            nfl = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Round', 'Left Early'])
             
         try:
             transfers = pd.read_csv('attrition_transfers.csv')
         except Exception:
-            transfers = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'Destination'])
+            transfers = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Destination'])
             
         try:
             graduates = pd.read_csv('attrition_graduates.csv')
         except Exception:
-            graduates = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position'])
-            
-        return hs_df, tp_df, nfl, transfers, graduates
+            graduates = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR'])
 
-    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df = load_attrition_data()
+        # Auto-pull live OVRs for the current year so you don't have to type them
+        try:
+            rosters = pd.read_csv(roster_path)
+            rosters['LookupKey'] = rosters['Team'] + "_" + rosters['Name']
+            ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR']))
+        except Exception:
+            ovr_dict = {}
+
+        def inject_live_ovr(df):
+            if not df.empty and 'Team' in df.columns and 'Player' in df.columns and 'Year' in df.columns:
+                if 'OVR' not in df.columns:
+                    df['OVR'] = pd.NA
+                
+                # Create a mask for rows matching the current year
+                curr_mask = df['Year'].astype(str) == str(cur_year)
+                if curr_mask.any():
+                    lookup_keys = df.loc[curr_mask, 'Team'] + "_" + df.loc[curr_mask, 'Player']
+                    df.loc[curr_mask, 'OVR'] = lookup_keys.map(ovr_dict).fillna(df.loc[curr_mask, 'OVR'])
+            return df
+            
+        return hs_df, tp_df, inject_live_ovr(nfl), inject_live_ovr(transfers), inject_live_ovr(graduates)
+
+    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df = load_attrition_data('cfb26_rosters_full.csv', current_yr)
 
     # --- 1B. Auto-Pull Current Seniors from Roster ---
-    current_yr = CURRENT_YEAR if 'CURRENT_YEAR' in globals() else 2041
-
     @st.cache_data
     def get_auto_seniors(roster_path, cur_year):
         try:
             rosters = pd.read_csv(roster_path)
-            # Find anyone with "SR" in their class
             seniors = rosters[rosters['Year'].astype(str).str.contains('SR', na=False)]
             
             return pd.DataFrame({
                 'Year': cur_year,
                 'Team': seniors['Team'],
                 'Player': seniors['Name'],
-                'Position': seniors['Pos']
+                'Position': seniors['Pos'],
+                'OVR': seniors['OVR']
             })
         except Exception:
-            return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position'])
+            return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR'])
 
     auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
     
-    # Merge manual historical graduates with auto-pulled current seniors
     graduates_df = pd.concat([manual_graduates_df, auto_seniors_df]).drop_duplicates(subset=['Year', 'Team', 'Player'])
 
-    # Determine available years dynamically from all the data
     all_years = set()
     for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df]:
         if 'Year' in df.columns:
@@ -9329,13 +9347,20 @@ with tabs[5]:
     team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
     team_grads = filter_team_year(graduates_df, selected_team, selected_year)
 
-    # Smart Filter: Remove players from 'Graduates' if they went to the NFL or Transferred Out
     if not team_grads.empty:
         nfl_names = team_nfl['Player'].tolist() if not team_nfl.empty else []
         transfer_names = team_transfers['Player'].tolist() if not team_transfers.empty else []
         leave_names = set(nfl_names + transfer_names)
         
         team_grads = team_grads[~team_grads['Player'].isin(leave_names)]
+
+    # Sort departing players by OVR if the column exists
+    if 'OVR' in team_nfl.columns and not team_nfl.empty:
+        team_nfl = team_nfl.sort_values(by='OVR', ascending=False)
+    if 'OVR' in team_transfers.columns and not team_transfers.empty:
+        team_transfers = team_transfers.sort_values(by='OVR', ascending=False)
+    if 'OVR' in team_grads.columns and not team_grads.empty:
+        team_grads = team_grads.sort_values(by='OVR', ascending=False)
 
     # --- 4. Talent Balance Math ---
     all_departing_players = pd.concat([
@@ -9351,7 +9376,6 @@ with tabs[5]:
     net_talent = (hs_recruits + transfers_in) - total_departures
     net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
 
-    # UI Metric Cards
     mobile_metrics([
         {"label": f"{selected_year} HS Recruits", "value": str(hs_recruits)},
         {"label": f"{selected_year} Transfers In", "value": str(transfers_in)},
@@ -9369,7 +9393,10 @@ with tabs[5]:
         if not team_nfl.empty:
             edited_nfl = st.data_editor(
                 team_nfl.drop(columns=['Team', 'Year'], errors='ignore'), 
-                column_config={"Left Early": st.column_config.CheckboxColumn("Left Early")},
+                column_config={
+                    "Left Early": st.column_config.CheckboxColumn("Left Early"),
+                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                },
                 hide_index=True, 
                 use_container_width=True,
                 key=f"nfl_editor_{selected_team}_{selected_year}"
@@ -9386,6 +9413,9 @@ with tabs[5]:
         if not team_transfers.empty:
             st.dataframe(
                 team_transfers.drop(columns=['Team', 'Year'], errors='ignore'), 
+                column_config={
+                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                },
                 hide_index=True, 
                 use_container_width=True
             )
@@ -9397,6 +9427,9 @@ with tabs[5]:
         if not team_grads.empty:
             st.dataframe(
                 team_grads.drop(columns=['Team', 'Year'], errors='ignore'), 
+                column_config={
+                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                },
                 hide_index=True, 
                 use_container_width=True
             )
