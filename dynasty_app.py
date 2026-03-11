@@ -4418,9 +4418,9 @@ if data:
     }
 
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Fixed Rendering & Data Load)
+# DYNAMIC GLOBAL HEADER (Fixed Rendering & Data Loading)
 # ════════════════════════════════════════════════════════════════════
-# LOAD DATA FIRST TO PREVENT KEYERRORS
+# 1. LOAD DATA FIRST so logic doesn't fail
 try:
     model_2041 = pd.read_csv('cfp_rankings_history.csv')
 except Exception:
@@ -4434,47 +4434,51 @@ def get_logo_url(team_name):
         return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
 
 st.header("📰 Dynasty News")
+
+# Default placeholders
 top_headline = "Your home for league rankings, playoff races, and Heisman watch."
 badge_text = "TOP STORY"
 is_gold = False
 logo_html = ""
 
 try:
-    # 1. CFP BRACKET RESULTS
+    # PRIORITY 1: Check for CFP Results
     if os.path.exists('CFPbracketresults.csv'):
         _b_df = pd.read_csv('CFPbracketresults.csv')
         if not _b_df.empty:
             _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)].copy()
             if not _cy_games.empty:
                 _last = _cy_games.iloc[-1]
-                _w, _l = str(_last.get('WINNER','')), str(_last.get('LOSER',''))
-                win_logo, loss_logo = get_logo_url(_w), get_logo_url(_l)
-                top_headline = f"{_w} {int(_last.get('WIN_SCORE',0))} - {int(_last.get('LOSS_SCORE',0))} {_l}"
+                _w = str(_last.get('WINNER', ''))
+                _l = str(_last.get('LOSER', ''))
+                win_logo = get_logo_url(_w)
+                loss_logo = get_logo_url(_l)
+                top_headline = f"{_w} {int(_last.get('WIN_SCORE', 0))} - {int(_last.get('LOSS_SCORE', 0))} {_l}"
                 badge_text = "FINAL SCORE"
                 is_gold = True
                 logo_html = f"""
-                    <div style="display:flex; justify-content:center; align-items:center; gap:20px; margin-bottom:10px;">
+                    <div style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 10px;">
                         <img src="{win_logo}" style="width:50px; height:50px; object-fit:contain;">
                         <span style="color:#94a3b8; font-weight:900; font-size:1.4rem;">VS</span>
                         <img src="{loss_logo}" style="width:50px; height:50px; object-fit:contain;">
                     </div>
                 """
-
-    # 2. HEISMAN FALLBACK
+    
+    # PRIORITY 2: Heisman Watch Fallback
     if not is_gold and not model_2041.empty and 'Heisman Player' in model_2041.columns:
-        _front = model_2041.iloc[0]
-        p_name = str(_front.get('Heisman Player', '')).strip()
+        frontrunner = model_2041.iloc[0] # Assuming top row is the leader
+        p_name = str(frontrunner.get('Heisman Player', ''))
         if p_name and p_name.lower() not in ['tbd', 'nan']:
-            top_headline = f"{p_name} — {_front.get('Heisman Stats', '')}"
+            top_headline = f"{p_name} — {frontrunner.get('Heisman Stats', '')}"
             badge_text = "HEISMAN WATCH"
             is_gold = True
-            h_logo = get_logo_url(_front.get('TEAM', ''))
+            h_logo = get_logo_url(frontrunner.get('TEAM', ''))
             logo_html = f'<div style="text-align:center; margin-bottom:10px;"><img src="{h_logo}" style="width:60px; height:60px; object-fit:contain;"></div>'
 except Exception:
     pass
 
-# ── RENDER ────────────────────────────────────────
-if is_gold:
+# ── RENDER LOGIC (The only place these variables should be used) ─────
+if is_gold and logo_html:
     st.markdown(f"""
         <style>
         @keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
