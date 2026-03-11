@@ -4416,9 +4416,8 @@ if data:
         frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
         frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
     }
-
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Fixed Timezone, Blurbs & Spacing)
+# DYNAMIC GLOBAL HEADER (Fixed Syntax & Eastern Time)
 # ════════════════════════════════════════════════════════════════════
 import pytz
 from datetime import datetime
@@ -4427,8 +4426,8 @@ from datetime import datetime
 try:
     eastern = pytz.timezone('US/Eastern')
     now_et = datetime.now(eastern)
-    time_display = now_et.strftime("%-I:%M %p") # Example: 9:07 PM
-except:
+    time_display = now_et.strftime("%-I:%M %p") 
+except Exception:
     time_display = "Live"
 
 def get_header_logo(team_name):
@@ -4438,7 +4437,7 @@ def get_header_logo(team_name):
         if uri: return uri
         slug = TEAM_VISUALS.get(team_name, {}).get('slug', normalize_key(team_name))
         return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
-    except:
+    except Exception:
         return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
 
 # Default placeholders
@@ -4503,9 +4502,9 @@ try:
             h_logo = get_header_logo(frontrunner.get('TEAM', ''))
             logo_html = f'<div style="text-align:center;margin-bottom:10px;"><img src="{h_logo}" style="width:65px;height:65px;object-fit:contain;"></div>'
 except Exception:
-    pass
+    pass  # <--- THIS WAS LIKELY MISSING
 
-# ── RENDER (Raised up with ET Timestamp) ──
+# ── RENDER ──
 if is_gold and logo_html:
     st.markdown(f"""
 <style>
@@ -4532,7 +4531,6 @@ else:
 <p style="color: #9ca3af; font-size: 0.9rem;">{top_headline}</p>
 </div>
 """, unsafe_allow_html=True)
-
 
 
 # ── TABS START ───────────────────────────────────────────────────────
