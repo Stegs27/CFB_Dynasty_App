@@ -9208,23 +9208,33 @@ with tabs[5]:
     st.header("🚪 Roster Attrition & Turnover")
     st.caption("Tracking players leaving for the NFL, transferring, or graduating, compared against incoming talent.")
 
+    # --- 0. Team Selector ---
+    # Grabs the list of user teams dynamically from your app's global dictionary
+    if 'USER_TEAMS' in globals():
+        team_options = sorted(list(USER_TEAMS.values()))
+    else:
+        team_options = ["Florida State", "Florida", "Miami"] # Fallback if USER_TEAMS isn't loaded yet
+        
+    selected_team = st.selectbox("Select Team to View", team_options, key="attrition_team_select")
+    st.markdown("---")
+
     # --- 1. CSV Loading Logic (Historical & Incoming) ---
     @st.cache_data
     def load_attrition_data():
         try:
             nfl = pd.read_csv('attrition_nfl.csv')
         except Exception:
-            nfl = pd.DataFrame(columns=['Player', 'Position', 'Round', 'Left Early'])
+            nfl = pd.DataFrame(columns=['Team', 'Player', 'Position', 'Round', 'Left Early'])
             
         try:
             transfers = pd.read_csv('attrition_transfers.csv')
         except Exception:
-            transfers = pd.DataFrame(columns=['Player', 'Position', 'Status', 'Destination'])
+            transfers = pd.DataFrame(columns=['Team', 'Player', 'Position', 'Status', 'Destination'])
             
         try:
             incoming = pd.read_csv('attrition_incoming.csv')
         except Exception:
-            incoming = pd.DataFrame(columns=['Type', 'Player'])
+            incoming = pd.DataFrame(columns=['Team', 'Type', 'Player', 'Position', 'Stars'])
             
         return nfl, transfers, incoming
 
@@ -9236,7 +9246,6 @@ with tabs[5]:
         try:
             rosters = pd.read_csv(roster_path)
             
-            # Filter to only include User Teams
             if 'USER_TEAMS' in globals():
                 rosters = rosters[rosters['Team'].isin(USER_TEAMS.values())]
 
@@ -9248,7 +9257,6 @@ with tabs[5]:
                 is_senior = 'SR' in year
                 is_eligible_early = 'JR' in year or 'SO (RS)' in year
                 
-                # LOGIC: Seniors 88+, Underclassmen 90+
                 if is_senior and ovr >= 88:
                     prospects.append({
                         'Team': row['Team'],
@@ -9272,24 +9280,28 @@ with tabs[5]:
             
             df = pd.DataFrame(prospects)
             if not df.empty:
-                # Sort by highest OVR
                 df = df.sort_values(by=['Team', 'OVR'], ascending=[True, False])
             return df
         except Exception as e:
             return pd.DataFrame()
 
-    # Load dynamic predictions from the main roster file
     predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
 
-    # --- 3. Talent Balance Math ---
-    total_departures = len(nfl_df) + len(transfers_df)
-    hs_recruits = len(incoming_df[incoming_df['Type'] == 'HS']) if 'Type' in incoming_df.columns else 0
-    transfers_in = len(incoming_df[incoming_df['Type'] == 'Transfer']) if 'Type' in incoming_df.columns else 0
+    # --- 3. Filter Data by Selected Team ---
+    team_nfl = nfl_df[nfl_df['Team'] == selected_team] if 'Team' in nfl_df.columns else pd.DataFrame(columns=nfl_df.columns)
+    team_transfers = transfers_df[transfers_df['Team'] == selected_team] if 'Team' in transfers_df.columns else pd.DataFrame(columns=transfers_df.columns)
+    team_incoming = incoming_df[incoming_df['Team'] == selected_team] if 'Team' in incoming_df.columns else pd.DataFrame(columns=incoming_df.columns)
+    team_preds = predictions_df[predictions_df['Team'] == selected_team] if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
+
+    # --- 4. Talent Balance Math (Team Specific) ---
+    total_departures = len(team_nfl) + len(team_transfers)
+    hs_recruits = len(team_incoming[team_incoming['Type'] == 'HS']) if 'Type' in team_incoming.columns else 0
+    transfers_in = len(team_incoming[team_incoming['Type'] == 'Transfer']) if 'Type' in team_incoming.columns else 0
     
     net_talent = (hs_recruits + transfers_in) - total_departures
     net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
 
-    # Uses your app's native metric UI cards
+    # UI Metric Cards
     mobile_metrics([
         {"label": "Incoming HS Recruits", "value": str(hs_recruits)},
         {"label": "Incoming Transfers", "value": str(transfers_in)},
@@ -9299,46 +9311,56 @@ with tabs[5]:
 
     st.markdown("---")
 
-    # --- 4. Actual Departures (Split View) ---
+    # --- 5. Actual Departures (Split View with Interactive Data Editor) ---
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("🏈 NFL Departures")
-        if not nfl_df.empty:
-            st.dataframe(
-                nfl_df, 
+        st.subheader(f"🏈 NFL Departures")
+        if not team_nfl.empty:
+            # Interactive Editor!
+            edited_nfl = st.data_editor(
+                team_nfl.drop(columns=['Team'], errors='ignore'), 
                 column_config={"Left Early": st.column_config.CheckboxColumn("Left Early")},
+                hide_index=True, 
+                use_container_width=True,
+                key=f"nfl_editor_{selected_team}"
+            )
+            
+            # Live Math from the Checkboxes
+            left_early_count = edited_nfl['Left Early'].sum() if 'Left Early' in edited_nfl.columns else 0
+            if left_early_count > 0:
+                st.caption(f"🚨 Players officially leaving early: **{left_early_count}**")
+        else:
+            st.caption(f"No NFL departures logged for {selected_team} yet.")
+
+    with col2:
+        st.subheader(f"🎒 Transfers & Graduates")
+        if not team_transfers.empty:
+            st.dataframe(
+                team_transfers.drop(columns=['Team'], errors='ignore'), 
                 hide_index=True, 
                 use_container_width=True
             )
         else:
-            st.caption("No NFL departures logged yet.")
-
-    with col2:
-        st.subheader("🎒 Transfers & Graduates")
-        if not transfers_df.empty:
-            st.dataframe(transfers_df, hide_index=True, use_container_width=True)
-        else:
-            st.caption("No transfers or graduates logged yet.")
+            st.caption(f"No transfers or graduates logged for {selected_team} yet.")
 
     st.markdown("---")
 
-    # --- 5. In-Season Predictions (Live Roster Data) ---
-    st.subheader("🔮 In-Season NFL Flight Risk")
+    # --- 6. In-Season Predictions (Live Roster Data) ---
+    st.subheader(f"🔮 {selected_team} Flight Risk")
     st.caption("Auto-generated from current rosters. Highlighting seniors (88+ OVR) and underclassmen (90+ OVR) at risk of leaving.")
     
-    if not predictions_df.empty:
+    if not team_preds.empty:
         st.dataframe(
-            predictions_df, 
+            team_preds.drop(columns=['Team'], errors='ignore'), 
             hide_index=True, 
             use_container_width=True,
             column_config={
-                "OVR": st.column_config.NumberColumn(format="%d ⭐️")
+                "OVR": st.column_config.NumberColumn(format="%d ⭐")
             }
         )
     else:
-        st.info("No active NFL prospects found matching the current criteria.")
-
+        st.info(f"No active NFL prospects found matching the current criteria for {selected_team}.")
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
