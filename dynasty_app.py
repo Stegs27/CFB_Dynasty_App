@@ -9332,9 +9332,9 @@ with tabs[5]:
             'MIKE': 1,
             'WILL': 1,
             'LB': 3,
-            'CB': 2,
+            'CB': 3,
             'FS': 1,
-            'SS': 1,
+            'SS': 1
             'S': 2,
             'K': 1,
             'P': 1
@@ -9899,16 +9899,16 @@ try:
     cfp_odds = f"{cfp_prob_raw:.1f}%"
     title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
 
-    if final_power_rating >= 92.5:
-        tier_title = "🏆 National Title Contender"
+    if final_power_rating >= 94.5:
+        tier_title = "🏆 Legit National Title Contender"
         tier_color = "#FACC15"
-        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
-    elif final_power_rating >= 88.0:
-        tier_title = "⭐ Playoff Threat"
+        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. The keys are with {best_qb_desc} at QB and he gives them a very real chance at immortality."
+    elif final_power_rating >= 86.0:
+        tier_title = "⭐ Headed to the CFP?"
         tier_color = "#38BDF8"
         tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
     elif final_power_rating >= 83.5:
-        tier_title = "🏈 Bowl Bound"
+        tier_title = "🏈 Pop Tarts Bowl Bound"
         tier_color = "#A7F3D0"
         tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
     else:
