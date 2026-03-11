@@ -9797,8 +9797,8 @@ st.markdown("<br><br>", unsafe_allow_html=True)
 # --- 8. Next Season Outlook & Dynamic Championship Odds ---
 try:
     USER_TEAM_COLLISION_GROUPS = [
-        {"Florida State", "Florida", "Bowling Green"},
-        {"Texas Tech", "San Jose State", "USF"}
+        {"Florida State", "Florida", "USF"},
+        {"Texas Tech", "San Jose State", "Bowling Green"}
     ]
 
     current_roster = pd.read_csv('cfb26_rosters_full.csv')
