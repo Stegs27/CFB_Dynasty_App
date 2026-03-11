@@ -4549,7 +4549,7 @@ tabs = st.tabs([
 ])
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
-    with tabs[1]:
+       with tabs[1]:
         st.header("📐 SOS & True Path")
         st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
 
