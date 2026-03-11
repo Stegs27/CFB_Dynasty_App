@@ -1,5 +1,6 @@
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
 import numpy as np
@@ -5368,7 +5369,7 @@ with tabs[0]:
             # Render HTML Card
             card_html = (
                 f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
-                f"border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:8px; gap:12px; flex-wrap:wrap;'>"
+                f"border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
                 f"<div style='font-size:1.6rem; min-width:36px; {bw_style}'>{icon}</div>"
                 f"{logo_html}"
                 f"<div style='flex:1; min-width:200px; {bw_style}'>"
@@ -5385,6 +5386,18 @@ with tabs[0]:
                 f"</div></div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
+
+            # ── TEAM OVERVIEW JUMP BUTTON ─────────────────────────────────────
+            if st.button(
+                f"📊 View {team} Team Overview →",
+                key=f"_goto_overview_{team}_{idx}",
+                use_container_width=False,
+            ):
+                st.session_state["team_analysis_user"] = user
+                st.session_state["_jump_to_team_analysis"] = True
+                st.rerun()
+
+            st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 2 — DYNASTY HEADLINES
@@ -7479,6 +7492,19 @@ with tabs[3]:
 with tabs[6]:
         st.header("📊 Team Analysis")
         st.caption("Live speed metrics from roster CSV. Team card record comes from CPUscores_MASTER.csv and CFP rank comes from cfp_rankings_history.csv. Odds match Dynasty News preseason model.")
+
+        # ── AUTO-JUMP: if arriving from Power Rankings card click ─────────────
+        if st.session_state.pop("_jump_to_team_analysis", False):
+            components.html("""
+            <script>
+            setTimeout(function() {
+                try {
+                    var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
+                    if (tabs && tabs[6]) { tabs[6].click(); }
+                } catch(e) {}
+            }, 150);
+            </script>
+            """, height=0)
 
         target = st.selectbox("Select Team", sorted(model_2041['USER'].tolist()), key="team_analysis_user")
         row = model_2041[model_2041['USER'] == target].iloc[0]
