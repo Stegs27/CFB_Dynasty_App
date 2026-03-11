@@ -9557,7 +9557,9 @@ with tabs[5]:
         returning_players = team_roster[~team_roster['Name'].isin(leaving_names)]
         
         if not returning_players.empty and len(returning_players) >= 20:
-            base_ovr = returning_players.nlargest(25, 'OVR')['OVR'].mean()
+            raw_base_ovr = returning_players.nlargest(25, 'OVR')['OVR'].mean()
+            # Apply a 3% Offseason Progression bump to the returning starters
+            base_ovr = raw_base_ovr * 1.03
         else:
             base_ovr = 80
             
@@ -9597,7 +9599,6 @@ with tabs[5]:
         inc_4_count = int(inc_4_stars)
         next_yr = current_yr + 1
         
-        # Pulling a specifically spaced logo to fit the outlook card
         outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
 
         st.markdown(f"""
@@ -9607,7 +9608,7 @@ with tabs[5]:
                         {outlook_logo_html}
                         <div>
                             <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
-                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players + incoming ({inc_5_count} 5⭐, {inc_4_count} 4⭐) minus departures.</p>
+                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players (+3% offseason dev) & incoming class ({inc_5_count} 5⭐, {inc_4_count} 4⭐).</p>
                         </div>
                     </div>
                 </div>
@@ -9631,6 +9632,7 @@ with tabs[5]:
         """, unsafe_allow_html=True)
     except Exception as e:
         pass
+
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
