@@ -6201,7 +6201,7 @@ with tabs[0]:
 
 
     # --- WHO'S IN? ---
-    with tabs[2]:
+with tabs[2]:
         st.header("🏆 Who's In? | CFP Bubble Watch")
         st.caption("Built from your uploaded CFP ranking screenshots, then sharpened with this app's SOS, resume, QB, recruiting, and roster-strength model. Current CFP standards are assumed: five highest-ranked conference champs get in, plus seven at-larges, with the top four seeds earning byes.")
 
