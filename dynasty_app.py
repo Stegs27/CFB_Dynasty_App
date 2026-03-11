@@ -4418,8 +4418,11 @@ if data:
     }
 
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (With Game Blurb Engine)
+# DYNAMIC GLOBAL HEADER (Fixed Timezone, Blurbs & Spacing)
 # ════════════════════════════════════════════════════════════════════
+import pytz
+from datetime import datetime
+
 def get_header_logo(team_name):
     try:
         path = get_logo_source(team_name) 
@@ -4429,6 +4432,14 @@ def get_header_logo(team_name):
         return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
     except:
         return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
+
+# 1. TIMEZONE FIX (Miramar, FL is US/Eastern)
+try:
+    tz = pytz.timezone('US/Eastern')
+    now_et = datetime.now(tz)
+    time_display = now_et.strftime("%-I:%M %p") # Example: 9:07 PM
+except:
+    time_display = "Live"
 
 # Default placeholders
 top_headline = "Your home for league rankings, playoff races, and Heisman watch."
@@ -4462,7 +4473,7 @@ try:
                     if s1 >= s2: _w, _l, win_score, loss_score = t1, t2, int(s1), int(s2)
                     else: _w, _l, win_score, loss_score = t2, t1, int(s2), int(s1)
 
-                # ── STORY ENGINE (Generating the Blurb) ──
+                # ── STORY ENGINE ──
                 _csv_note = str(_last.get('NOTES', '')).strip()
                 if _csv_note and _csv_note.lower() != 'nan':
                     game_blurb = _csv_note
@@ -4480,7 +4491,7 @@ try:
                 is_gold = True
                 logo_html = f'<div style="display:flex;justify-content:center;align-items:center;gap:20px;margin-bottom:10px;"><img src="{win_logo}" style="width:55px;height:55px;object-fit:contain;"><span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span><img src="{loss_logo}" style="width:55px;height:55px;object-fit:contain;"></div>'
 
-    # Heisman Fallback (if no game data)
+    # Heisman Fallback
     if not is_gold and not model_2041.empty and 'Heisman Player' in model_2041.columns:
         frontrunner = model_2041.iloc[0]
         p_name = str(frontrunner.get('Heisman Player', '')).strip()
@@ -4494,24 +4505,25 @@ try:
 except Exception:
     pass
 
-# ── RENDER ──
+# ── RENDER (Raised up with ET Timestamp) ──
 if is_gold and logo_html:
     st.markdown(f"""
 <style>
 @keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
 .top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
 </style>
-<div style="margin-top: -65px; margin-bottom: 0px; text-align: center;">
+<div style="margin-top: -75px; margin-bottom: 0px; text-align: center;">
 <h2 style="margin-bottom: 10px; font-weight: 800; letter-spacing: -0.5px;">📰 Dynasty News</h2>
 {logo_html}
 <div class="top-story-badge">{badge_text}</div>
 <div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">{top_headline.upper()}</div>
 <div style="color: #94a3b8; font-size: 0.85rem; font-style: italic; max-width: 500px; margin: 0 auto;">"{game_blurb}"</div>
+<div style="color: #475569; font-size: 0.65rem; margin-top: 10px; letter-spacing: 1px; font-weight: 700;">LIVE UPDATE: {time_display} ET</div>
 </div>
 """, unsafe_allow_html=True)
 else:
     st.markdown(f"""
-<div style="margin-top: -60px; margin-bottom: 15px; text-align: center;">
+<div style="margin-top: -65px; margin-bottom: 15px; text-align: center;">
 <h2 style="margin-bottom: 5px; font-weight: 800;">📰 Dynasty News</h2>
 <p style="color: #9ca3af; font-size: 0.9rem;">{top_headline}</p>
 </div>
