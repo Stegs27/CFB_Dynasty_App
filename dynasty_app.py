@@ -9883,7 +9883,7 @@ try:
 
     confirmed_starter_names = set()
     if not confirmed_departures_df.empty and 'InferredStarter' in confirmed_departures_df.columns:
-    confirmed_starter_names = set(
+        confirmed_starter_names = set(
         confirmed_departures_df.loc[
             confirmed_departures_df['InferredStarter'] == True, 'Player'
         ].astype(str).tolist()
