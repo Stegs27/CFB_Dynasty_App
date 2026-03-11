@@ -4442,96 +4442,378 @@ def get_header_logo(team_name):
     except Exception:
         return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
 
-# Default placeholders
-top_headline = "Your home for league rankings, playoff races, and Heisman watch."
-game_blurb = ""
-badge_text = "TOP STORY"
-is_gold = False
-logo_html = ""
+# ════════════════════════════════════════════════════════════════════
+# MULTI-HEADLINE BUILDER — pulls from all live CSVs
+# Each headline is a dict: {badge, text, blurb, logo_html, priority}
+# Higher priority = shown first. Top headline drives the big logo.
+# ════════════════════════════════════════════════════════════════════
 
+_all_headlines = []
+
+# ── 1. PLAYOFF RESULTS (highest priority) ────────────────────────────
 try:
     if os.path.exists('CFPbracketresults.csv'):
         _b_df = pd.read_csv('CFPbracketresults.csv')
         if not _b_df.empty:
             _round_map = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
             _b_df['_rsort'] = _b_df['ROUND'].map(_round_map).fillna(0)
-            _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)].copy()
+            _cy_games = _b_df[
+                (_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)
+            ].copy().sort_values(['_rsort', 'GAME_ID'], ascending=True)
 
-            if not _cy_games.empty:
-                _cy_games = _cy_games.sort_values(['_rsort', 'GAME_ID'], ascending=True)
-                _last = _cy_games.iloc[-1]
-
-                t1, t2 = str(_last.get('TEAM1', '')).strip(), str(_last.get('TEAM2', '')).strip()
-                s1 = pd.to_numeric(_last.get('TEAM1_SCORE', 0), errors='coerce')
-                s2 = pd.to_numeric(_last.get('TEAM2_SCORE', 0), errors='coerce')
-                raw_winner = str(_last.get('WINNER', '')).strip()
-
-                if raw_winner.lower() == t1.lower():
-                    _w, _l, win_score, loss_score = t1, t2, int(s1), int(s2)
-                elif raw_winner.lower() == t2.lower():
-                    _w, _l, win_score, loss_score = t2, t1, int(s2), int(s1)
+            for _, _gm in _cy_games.iterrows():
+                t1 = str(_gm.get('TEAM1', '')).strip()
+                t2 = str(_gm.get('TEAM2', '')).strip()
+                s1 = pd.to_numeric(_gm.get('TEAM1_SCORE', 0), errors='coerce')
+                s2 = pd.to_numeric(_gm.get('TEAM2_SCORE', 0), errors='coerce')
+                raw_w = str(_gm.get('WINNER', '')).strip()
+                if raw_w.lower() == t1.lower():
+                    _w, _l, ws, ls = t1, t2, int(s1), int(s2)
+                elif raw_w.lower() == t2.lower():
+                    _w, _l, ws, ls = t2, t1, int(s2), int(s1)
                 else:
-                    if s1 >= s2: _w, _l, win_score, loss_score = t1, t2, int(s1), int(s2)
-                    else: _w, _l, win_score, loss_score = t2, t1, int(s2), int(s1)
-
-                # ── STORY ENGINE ──
-                _csv_note = str(_last.get('NOTES', '')).strip()
-                if _csv_note and _csv_note.lower() != 'nan':
-                    game_blurb = _csv_note
-                else:
-                    diff = win_score - loss_score
-                    rd = str(_last.get('ROUND', 'Playoffs'))
-                    if diff >= 24: game_blurb = f"{_w} delivers a massive statement win in the {rd}."
-                    elif diff <= 3: game_blurb = f"An absolute classic. {_w} survives a {rd} thriller."
-                    elif diff <= 7: game_blurb = f"{_w} holds on in a hard-fought {rd} battle."
-                    else: game_blurb = f"{_w} takes care of business to advance."
-
-                win_logo, loss_logo = get_header_logo(_w), get_header_logo(_l)
-                top_headline = f"{_w} {win_score} - {loss_score} {_l}"
-                badge_text = "FINAL SCORE"
-                is_gold = True
-                logo_html = f'<div style="display:flex;justify-content:center;align-items:center;gap:20px;margin-bottom:10px;"><img src="{win_logo}" style="width:55px;height:55px;object-fit:contain;"><span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span><img src="{loss_logo}" style="width:55px;height:55px;object-fit:contain;"></div>'
-
-    # Heisman Fallback
-    if not is_gold and not model_2041.empty and 'Heisman Player' in model_2041.columns:
-        frontrunner = model_2041.iloc[0]
-        p_name = str(frontrunner.get('Heisman Player', '')).strip()
-        if p_name and p_name.lower() not in ['tbd', 'nan']:
-            top_headline = f"{p_name} — {frontrunner.get('Heisman Stats', '')}"
-            badge_text = "HEISMAN WATCH"
-            is_gold = True
-            game_blurb = "The race for the bronze statue intensifies as the season reaches its peak."
-            h_logo = get_header_logo(frontrunner.get('TEAM', ''))
-            logo_html = f'<div style="text-align:center;margin-bottom:10px;"><img src="{h_logo}" style="width:65px;height:65px;object-fit:contain;"></div>'
+                    if s1 >= s2: _w, _l, ws, ls = t1, t2, int(s1), int(s2)
+                    else: _w, _l, ws, ls = t2, t1, int(s2), int(s1)
+                _rd = str(_gm.get('ROUND', 'Playoffs'))
+                _note = str(_gm.get('NOTES', '')).strip()
+                diff = ws - ls
+                if _note and _note.lower() != 'nan':
+                    _blurb = _note
+                elif diff >= 24: _blurb = f"{_w} delivers a statement win in the {_rd}."
+                elif diff <= 3:  _blurb = f"An absolute classic. {_w} survives a {_rd} thriller."
+                elif diff <= 7:  _blurb = f"{_w} holds on in a hard-fought {_rd} battle."
+                else:            _blurb = f"{_w} takes care of business and advances."
+                _wl = get_header_logo(_w)
+                _ll = get_header_logo(_l)
+                _lh = (f'<div style="display:flex;justify-content:center;align-items:center;'
+                       f'gap:20px;margin-bottom:10px;">'
+                       f'<img src="{_wl}" style="width:55px;height:55px;object-fit:contain;">'
+                       f'<span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span>'
+                       f'<img src="{_ll}" style="width:55px;height:55px;object-fit:contain;"></div>')
+                _pri = _round_map.get(_rd, 1) * 100
+                _all_headlines.append({
+                    'badge': 'FINAL SCORE', 'priority': _pri,
+                    'text': f"{_w} {ws} – {ls} {_l}",
+                    'blurb': _blurb, 'logo_html': _lh,
+                })
 except Exception:
-    pass  # <--- THIS WAS LIKELY MISSING
+    pass
 
-# ── RENDER (Raised up with ET Timestamp) ──
-if is_gold and logo_html:
-    st.markdown(f"""
+# ── 2. CURRENT CFP #1 TEAM ────────────────────────────────────────────
+try:
+    _cfp_h = pd.read_csv('cfp_rankings_history.csv')
+    _cfp_h['YEAR'] = pd.to_numeric(_cfp_h['YEAR'], errors='coerce')
+    _cfp_h['WEEK'] = pd.to_numeric(_cfp_h['WEEK'], errors='coerce')
+    _cfp_h['RANK'] = pd.to_numeric(_cfp_h['RANK'], errors='coerce')
+    _cfp_cy = _cfp_h[_cfp_h['YEAR'] == CURRENT_YEAR]
+    if not _cfp_cy.empty:
+        _cfp_lw = _cfp_cy['WEEK'].max()
+        _cfp_snap = _cfp_cy[_cfp_cy['WEEK'] == _cfp_lw].sort_values('RANK')
+        _no1 = _cfp_snap[_cfp_snap['RANK'] == 1]
+        if not _no1.empty:
+            _no1_team = str(_no1.iloc[0]['TEAM']).strip()
+            _no1_rec  = str(_no1.iloc[0].get('RECORD', '')).strip()
+            _rec_str  = f" ({_no1_rec})" if _no1_rec and _no1_rec.lower() != 'nan' else ''
+            _no1_logo = get_header_logo(_no1_team)
+            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_no1_logo}" style="width:60px;height:60px;object-fit:contain;"></div>'
+            _all_headlines.append({
+                'badge': 'CFP #1', 'priority': 85,
+                'text': f"{_no1_team}{_rec_str} holds the #1 spot — Week {int(_cfp_lw)}",
+                'blurb': f"The top seed in the CFP rankings after {int(_cfp_lw)} weeks. Target on their back.",
+                'logo_html': _lh,
+            })
+        # Top 5 ranked user teams as headlines
+        _user_teams_flat = {v.strip().lower(): k for k, v in USER_TEAMS.items()}
+        for _, _rrow in _cfp_snap[_cfp_snap['RANK'] <= 5].iterrows():
+            _rt = str(_rrow['TEAM']).strip()
+            if _rt.lower() in _user_teams_flat:
+                _ru = _user_teams_flat[_rt.lower()]
+                _rk = int(_rrow['RANK'])
+                _rrec = str(_rrow.get('RECORD', '')).strip()
+                _rrec_str = f" ({_rrec})" if _rrec and _rrec.lower() != 'nan' else ''
+                _rt_logo = get_header_logo(_rt)
+                _lh2 = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_rt_logo}" style="width:60px;height:60px;object-fit:contain;"></div>'
+                _all_headlines.append({
+                    'badge': f'CFP #{_rk}', 'priority': 80 - _rk,
+                    'text': f"{_rt}{_rrec_str} — ranked #{_rk} in the latest CFP poll",
+                    'blurb': f"{_ru}'s {_rt} sitting at #{_rk}. The committee is watching.",
+                    'logo_html': _lh2,
+                })
+except Exception:
+    pass
+
+# ── 3. HEISMAN WATCH (from model) ────────────────────────────────────
+try:
+    if not model_2041.empty and 'Heisman Player' in model_2041.columns:
+        _hz = model_2041[model_2041['Heisman Player'].notna()].copy()
+        for _, _hrow in _hz.iterrows():
+            _hp = str(_hrow.get('Heisman Player', '')).strip()
+            _hs = str(_hrow.get('Heisman Stats', '')).strip()
+            _ht = str(_hrow.get('TEAM', '')).strip()
+            if _hp and _hp.lower() not in ['tbd', 'nan']:
+                _hl = get_header_logo(_ht)
+                _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
+                _all_headlines.append({
+                    'badge': 'HEISMAN WATCH', 'priority': 70,
+                    'text': f"{_hp} — {_hs}",
+                    'blurb': "The race for the bronze statue intensifies as the season reaches its peak.",
+                    'logo_html': _lh,
+                })
+except Exception:
+    pass
+
+# ── 4. RECENT HEISMAN WINNER (from Heisman_History.csv) ──────────────
+try:
+    _hh = pd.read_csv('Heisman_History.csv')
+    _hh['YEAR'] = pd.to_numeric(_hh['YEAR'], errors='coerce')
+    _hh_latest = _hh[_hh['YEAR'] == _hh['YEAR'].max()]
+    if not _hh_latest.empty:
+        _hw = _hh_latest.iloc[0]
+        _hwn = str(_hw.get('NAME', '')).strip()
+        _hwt = str(_hw.get('TEAM', '')).strip()
+        _hwu = str(_hw.get('USER', '')).strip()
+        _hwy = int(_hw['YEAR'])
+        if _hwn and _hwn.lower() != 'nan':
+            _hl = get_header_logo(_hwt)
+            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
+            _all_headlines.append({
+                'badge': 'HEISMAN WINNER', 'priority': 65,
+                'text': f"{_hwn} wins the {_hwy} Heisman Trophy",
+                'blurb': f"{_hwt} ({_hwu}) takes home the hardware. The dynasty grows.",
+                'logo_html': _lh,
+            })
+except Exception:
+    pass
+
+# ── 5. BIGGEST USER-VS-USER GAME THIS SEASON ─────────────────────────
+try:
+    _uvu = pd.read_csv('CPUscores_MASTER.csv')
+    _uvu['YEAR'] = pd.to_numeric(_uvu['YEAR'], errors='coerce')
+    _uvu = _uvu[_uvu['YEAR'] == CURRENT_YEAR].copy()
+    _uvu['Vis Score'] = pd.to_numeric(_uvu['Vis Score'], errors='coerce')
+    _uvu['Home Score'] = pd.to_numeric(_uvu['Home Score'], errors='coerce')
+    _uvu_completed = _uvu[_uvu['Vis Score'].notna() & _uvu['Home Score'].notna()].copy()
+    _uvu_completed['Margin'] = (_uvu_completed['Vis Score'] - _uvu_completed['Home Score']).abs()
+    _uvu_completed['Total'] = _uvu_completed['Vis Score'] + _uvu_completed['Home Score']
+    # User-vs-user only
+    _known_users_set = set(USER_TEAMS.keys())
+    def _is_user(u): return str(u).strip().split()[0].title() in _known_users_set
+    _uvu_h2h = _uvu_completed[
+        _uvu_completed['Vis_User'].apply(_is_user) &
+        _uvu_completed['Home_User'].apply(_is_user)
+    ].copy()
+    if not _uvu_h2h.empty:
+        # Closest game
+        _closest = _uvu_h2h.sort_values('Margin').iloc[0]
+        _cv = str(_closest['Visitor']).strip()
+        _ch = str(_closest['Home']).strip()
+        _cvs = int(_closest['Vis Score'])
+        _chs = int(_closest['Home Score'])
+        _cwinner = _cv if _cvs > _chs else _ch
+        _margin = abs(_cvs - _chs)
+        _wl = get_header_logo(_cwinner)
+        _ll2 = get_header_logo(_ch if _cvs > _chs else _cv)
+        _lh = (f'<div style="display:flex;justify-content:center;align-items:center;'
+               f'gap:20px;margin-bottom:10px;">'
+               f'<img src="{_wl}" style="width:50px;height:50px;object-fit:contain;">'
+               f'<span style="color:#94a3b8;font-weight:900;font-size:1.3rem;">VS</span>'
+               f'<img src="{_ll2}" style="width:50px;height:50px;object-fit:contain;"></div>')
+        _all_headlines.append({
+            'badge': 'RIVALRY RESULT', 'priority': 60,
+            'text': f"{_cv} {_cvs} – {_chs} {_ch}",
+            'blurb': f"A {_margin}-point nail-biter. {_cwinner} finds a way. This one will be remembered.",
+            'logo_html': _lh,
+        })
+        # Biggest blowout
+        _blow = _uvu_h2h.sort_values('Margin', ascending=False).iloc[0]
+        _bv = str(_blow['Visitor']).strip()
+        _bh = str(_blow['Home']).strip()
+        _bvs = int(_blow['Vis Score'])
+        _bhs = int(_blow['Home Score'])
+        _bwinner = _bv if _bvs > _bhs else _bh
+        _bloser  = _bh if _bvs > _bhs else _bv
+        _bmargin = abs(_bvs - _bhs)
+        _bwl = get_header_logo(_bwinner)
+        _bll = get_header_logo(_bloser)
+        _blh = (f'<div style="display:flex;justify-content:center;align-items:center;'
+                f'gap:20px;margin-bottom:10px;">'
+                f'<img src="{_bwl}" style="width:50px;height:50px;object-fit:contain;">'
+                f'<span style="color:#94a3b8;font-weight:900;font-size:1.3rem;">VS</span>'
+                f'<img src="{_bll}" style="width:50px;height:50px;object-fit:contain;"></div>')
+        _all_headlines.append({
+            'badge': 'STATEMENT WIN', 'priority': 55,
+            'text': f"{_bwinner} dismantles {_bloser} by {_bmargin}",
+            'blurb': f"{_bv} {_bvs} – {_bhs} {_bh}. That wasn't even close.",
+            'logo_html': _blh,
+        })
+except Exception:
+    pass
+
+# ── 6. DEFENDING CHAMP CALLOUT ────────────────────────────────────────
+try:
+    _dc = pd.read_csv('champs.csv')
+    _dc['YEAR'] = pd.to_numeric(_dc['YEAR'], errors='coerce')
+    _dc_last = _dc[_dc['YEAR'] == CURRENT_YEAR - 1]
+    if not _dc_last.empty:
+        _dc_team = str(_dc_last.iloc[0].get('Team', '')).strip()
+        _dc_user = str(_dc_last.iloc[0].get('user', '')).strip()
+        if _dc_team and _dc_team.lower() != 'nan':
+            _dcl = get_header_logo(_dc_team)
+            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_dcl}" style="width:65px;height:65px;object-fit:contain;"></div>'
+            _all_headlines.append({
+                'badge': 'DEFENDING CHAMPS', 'priority': 50,
+                'text': f"{_dc_team} enters {CURRENT_YEAR} with a target on their back",
+                'blurb': f"{_dc_user}'s {_dc_team} won it all last year. Can anyone knock them off the throne?",
+                'logo_html': _lh,
+            })
+except Exception:
+    pass
+
+# ── 7. TOP RECRUITER THIS SEASON ──────────────────────────────────────
+try:
+    _rh = pd.read_csv('recruiting_high_school_history.csv')
+    _rh['Year'] = pd.to_numeric(_rh['Year'], errors='coerce')
+    _rh_cy = _rh[_rh['Year'] == CURRENT_YEAR]
+    if not _rh_cy.empty:
+        _top_rec = _rh_cy.sort_values('Points', ascending=False).iloc[0]
+        _rt2 = str(_top_rec.get('Team', '')).strip()
+        _ru2 = str(_top_rec.get('User', '')).strip()
+        _rpts = _top_rec.get('Points', 0)
+        _r5 = int(_top_rec.get('FiveStar', 0))
+        _r4 = int(_top_rec.get('FourStar', 0))
+        if _rt2 and _rt2.lower() != 'nan':
+            _rl = get_header_logo(_rt2)
+            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_rl}" style="width:60px;height:60px;object-fit:contain;"></div>'
+            _star_str = f"{_r5} five-stars, {_r4} four-stars" if _r5 > 0 else f"{_r4} four-stars"
+            _all_headlines.append({
+                'badge': 'RECRUITING', 'priority': 45,
+                'text': f"{_rt2} leads the {CURRENT_YEAR} recruiting class",
+                'blurb': f"{_ru2}'s class: {_star_str} · {round(float(_rpts), 1)} pts. The pipeline is loaded.",
+                'logo_html': _lh,
+            })
+except Exception:
+    pass
+
+# ── FALLBACK if nothing generated ────────────────────────────────────
+if not _all_headlines:
+    _all_headlines.append({
+        'badge': 'TOP STORY', 'priority': 0,
+        'text': "Your home for league rankings, playoff races, and Heisman watch.",
+        'blurb': f"ISPN Dynasty Coverage — Season {CURRENT_YEAR}",
+        'logo_html': '',
+    })
+
+# Sort by priority descending — top story first
+_all_headlines.sort(key=lambda h: h['priority'], reverse=True)
+_top = _all_headlines[0]
+
+# Build the big logo from the top story
+top_headline = _top['text']
+game_blurb   = _top['blurb']
+badge_text   = _top['badge']
+logo_html    = _top['logo_html']
+is_gold      = True
+
+# ── RENDER: rotating headline ticker ─────────────────────────────────
+_ticker_items = "".join([
+    f"<div class='ispn-slide'>"
+    f"<span class='ispn-badge' style='background:{('#f59e0b' if h['badge'] in ('FINAL SCORE','STATEMENT WIN','RIVALRY RESULT','HEISMAN WINNER') else ('#059669' if 'CFP' in h['badge'] else ('#a855f7' if 'RECRUIT' in h['badge'] else '#3b82f6')))};"
+    f"color:{'#451a03' if h['badge'] in ('FINAL SCORE','STATEMENT WIN','RIVALRY RESULT','HEISMAN WINNER') else 'white'};'>"
+    f"{h['badge']}</span>"
+    f" <span class='ispn-hl-text'>{html.escape(h['text'])}</span>"
+    f"</div>"
+    for h in _all_headlines
+])
+
+st.markdown(f"""
 <style>
-@keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
-@keyframes live-blink {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} 100% {{ opacity: 1; }} }}
-.top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
-.live-indicator {{ animation: live-blink 2s infinite ease-in-out; color: #38bdf8; font-weight: 900; }}
+@keyframes ispn-fade {{
+  0%,8%   {{ opacity:1; transform:translateY(0);   }}
+  12%,88% {{ opacity:0; transform:translateY(-8px); }}
+  92%,100%{{ opacity:1; transform:translateY(0);   }}
+}}
+@keyframes subtle-pulse {{
+  0%  {{ opacity:0.8; transform:scale(1);    }}
+  50% {{ opacity:1;   transform:scale(1.03); }}
+  100%{{ opacity:0.8; transform:scale(1);    }}
+}}
+@keyframes live-blink {{
+  0%,100% {{ opacity:1;   }}
+  50%     {{ opacity:0.4; }}
+}}
+.top-story-badge {{
+  display:inline-block; background:#f59e0b; color:#451a03;
+  padding:2px 8px; border-radius:4px; font-size:0.65rem; font-weight:900;
+  margin-bottom:8px; animation:subtle-pulse 3s infinite ease-in-out; letter-spacing:1px;
+}}
+.live-indicator {{ animation:live-blink 2s infinite ease-in-out; color:#38bdf8; font-weight:900; }}
+
+/* ── TICKER STRIP ── */
+.ispn-ticker-wrap {{
+  overflow:hidden; white-space:nowrap;
+  background:linear-gradient(90deg,#0a1628,#111827,#0a1628);
+  border:1px solid #1e293b; border-radius:8px;
+  padding:6px 16px; margin:6px 0 2px 0;
+  position:relative;
+}}
+.ispn-ticker-inner {{
+  display:inline-flex; gap:0;
+  animation: ispn-scroll linear infinite;
+}}
+.ispn-slide {{
+  display:inline-block;
+  padding:0 40px;
+  font-size:0.82rem;
+  color:#e2e8f0;
+  white-space:nowrap;
+}}
+.ispn-badge {{
+  display:inline-block;
+  padding:1px 6px; border-radius:3px;
+  font-size:0.65rem; font-weight:900;
+  letter-spacing:.05em; margin-right:6px;
+  vertical-align:middle;
+}}
+.ispn-hl-text {{
+  font-weight:700; color:#f1f5f9;
+  letter-spacing:.02em;
+}}
+@keyframes ispn-scroll {{
+  0%   {{ transform: translateX(0); }}
+  100% {{ transform: translateX(-50%); }}
+}}
 </style>
-<div style="margin-top: -75px; margin-bottom: 0px; text-align: center;">
-<h2 style="margin-bottom: 10px; font-weight: 800; letter-spacing: -0.5px;">📰 Dynasty News</h2>
-{logo_html}
-<div class="top-story-badge">{badge_text}</div>
-<div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">{top_headline.upper()}</div>
-<div style="color: #94a3b8; font-size: 0.85rem; font-style: italic; max-width: 500px; margin: 0 auto;">"{game_blurb}"</div>
-<div style="color: #38bdf8; font-size: 0.65rem; margin-top: 10px; letter-spacing: 1px; font-weight: 800;">
+
+<div style="margin-top:-75px;margin-bottom:0;text-align:center;">
+  <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-0.5px;">📰 Dynasty News</h2>
+  {logo_html}
+  <div class="top-story-badge">{badge_text}</div>
+  <div style="color:#fbbf24;font-size:1.15rem;font-weight:800;letter-spacing:0.5px;margin-bottom:4px;">{html.escape(top_headline).upper()}</div>
+  <div style="color:#94a3b8;font-size:0.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(game_blurb)}"</div>
+  <div style="color:#38bdf8;font-size:0.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
+  </div>
 </div>
+
+<!-- SCROLLING TICKER -->
+<div class="ispn-ticker-wrap" id="ispn-ticker-wrap">
+  <div class="ispn-ticker-inner" id="ispn-ticker">
+    {_ticker_items}{_ticker_items}
+  </div>
 </div>
-""", unsafe_allow_html=True)
-else:
-    st.markdown(f"""
-<div style="margin-top: -65px; margin-bottom: 15px; text-align: center;">
-<h2 style="margin-bottom: 5px; font-weight: 800;">📰 Dynasty News</h2>
-<p style="color: #9ca3af; font-size: 0.9rem;">{top_headline}</p>
-</div>
+
+<script>
+(function() {{
+  var wrap = document.getElementById('ispn-ticker-wrap');
+  var inner = document.getElementById('ispn-ticker');
+  if (!wrap || !inner) return;
+  // measure single set width and set duration proportional to content length
+  var totalW = inner.scrollWidth / 2;
+  var speed = 60; // px per second
+  var dur = Math.max(10, totalW / speed);
+  inner.style.animationDuration = dur + 's';
+}})();
+</script>
 """, unsafe_allow_html=True)
 
 
