@@ -6922,7 +6922,7 @@ with tabs[7]:
                     st.dataframe(overall_display, hide_index=True, use_container_width=True)
 
     # --- H2H MATRIX ---
-    with tabs[8]:
+with tabs[8]:
         st.header("⚔️ Head-to-Head Matrix")
         st.caption("All-time user vs. user records. Net Edge = wins minus losses. Rivalry Score weights game count and balance.")
 
@@ -7141,7 +7141,7 @@ with tabs[7]:
             )
 
     # --- SEASON RECAP ---
-    with tabs[3]:
+with tabs[3]:
         st.header("📺 Season Recap")
         sel_year = st.selectbox("Select Season", years, key="season_year")
         y_data = scores[scores[meta['yr']] == sel_year].copy()
@@ -7421,7 +7421,7 @@ with tabs[7]:
             )
 
     # --- TEAM OVERVIEW ---
-    with tabs[6]:
+with tabs[6]:
         st.header("📊 Team Analysis")
         st.caption("Live speed metrics from roster CSV. Team card record comes from CPUscores_MASTER.csv and CFP rank comes from cfp_rankings_history.csv. Odds match Dynasty News preseason model.")
 
@@ -7785,7 +7785,7 @@ with tabs[7]:
                    "Speed metrics marked (live) computed direct from roster CSV, matching Speed Freaks tab.")
 
     # --- TALENT PROFILE ---
-    with tabs[4]:
+with tabs[4]:
         st.header("🔍 2041 Speed Freaks")
         st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
@@ -8359,7 +8359,7 @@ with tabs[7]:
             st.markdown(_mh, unsafe_allow_html=True)
 
     # --- ISPN CLASSICS ---
-    with tabs[9]:
+with tabs[9]:
         st.header("🎬 ISPN Classics")
         st.caption(
             "The most iconic games in dynasty history — ranked by closeness, "
@@ -8496,7 +8496,7 @@ with tabs[7]:
                     _render_classic_card(_crow, _ci)
 
     # --- GOAT RANKINGS ---
-    with tabs[10]:
+with tabs[10]:
         st.header("🐐 Dynasty GOAT Rankings")
         st.caption("Who built the best dynasty? HoF Points weight natties, CFP appearances, conf titles, and NFL pipeline. Earn it on the field.")
 
@@ -8650,7 +8650,7 @@ with tabs[7]:
 
 
     # --- ROSTER MATCHUP ---
-    with tabs[5]:
+with tabs[5]:
         render_roster_matchup_tab()
 
     if st.sidebar.button("🔄 Refresh Data"):
