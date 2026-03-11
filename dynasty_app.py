@@ -4534,7 +4534,7 @@ else:
 
 
 # ── TABS START ───────────────────────────────────────────────────────
-    tabs = st.tabs([
+tabs = st.tabs([
     "🗞️ Dynasty News",
     "📐 SOS & True Path",
     "🏆 Who's In?",
@@ -4549,7 +4549,7 @@ else:
 ])
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
-    with tabs[1]:
+with tabs[1]:
         st.header("📐 SOS & True Path")
         st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
 
