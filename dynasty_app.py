@@ -4694,6 +4694,52 @@ try:
 except Exception:
     pass
 
+# ── 8. INJURY BULLETIN (weeks_out > 4) ────────────────────────────────
+# Mirrors the hardcoded INJURY_DATA used in the Dynasty News tab.
+# Update this list each week alongside that one.
+_INJURY_BULLETIN = [
+    {"user": "Mike",  "team": "San Jose State", "injuries": [
+        {"name": "M.Shorter",   "pos": "QB",   "ovr": 85, "injury": "Torn Pectoral",            "weeks": 27},
+        {"name": "D.Caplan",    "pos": "LT",   "ovr": 86, "injury": "Broken Collarbone",         "weeks": 4},
+    ]},
+    {"user": "Noah",  "team": "Texas Tech",     "injuries": [
+        {"name": "K.Cota",      "pos": "LT",   "ovr": 82, "injury": "Knee Cartilage Tear",       "weeks": 2},
+    ]},
+    {"user": "Josh",  "team": "USF",            "injuries": [
+        {"name": "T.Christmas", "pos": "RG",   "ovr": 76, "injury": "Dislocated Hip",             "weeks": 4},
+    ]},
+    {"user": "Devin", "team": "Bowling Green",  "injuries": [
+        {"name": "B.Franco",    "pos": "DT",   "ovr": 84, "injury": "Torn Pectoral",             "weeks": 24},
+    ]},
+    {"user": "Doug",  "team": "Florida",        "injuries": [
+        {"name": "S.Ivie",      "pos": "LEDG", "ovr": 80, "injury": "Dislocated Hip",             "weeks": 1},
+        {"name": "R.Casey",     "pos": "MIKE", "ovr": 87, "injury": "Fractured Shoulder Blade",   "weeks": 14},
+    ]},
+    {"user": "Nick",  "team": "Florida State",  "injuries": [
+        {"name": "S.Winterswyk","pos": "QB",   "ovr": 80, "injury": "Dislocated Elbow",           "weeks": 3},
+        {"name": "J.Fe'esago", "pos": "WR",   "ovr": 90, "injury": "Torn Pectoral",              "weeks": 20},
+    ]},
+]
+for _inj_team in _INJURY_BULLETIN:
+    for _inj in _inj_team["injuries"]:
+        if _inj["weeks"] > 4:
+            _it = _inj_team["team"]
+            _iu = _inj_team["user"]
+            _iw = _inj["weeks"]
+            _ip = _inj["pos"]
+            _in = _inj["name"]
+            _ii = _inj["injury"]
+            _iovr = _inj["ovr"]
+            _il = get_header_logo(_it)
+            _ilh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_il}" style="width:60px;height:60px;object-fit:contain;"></div>'
+            _sev = "SEASON-ENDING" if _iw >= 20 else "LONG-TERM INJ"
+            _all_headlines.append({
+                'badge': _sev, 'priority': 90,
+                'text': f"{_it} | {_in} ({_ip}, {_iovr} OVR) — {_ii} · {_iw} wks out",
+                'blurb': f"{_iu}'s {_it} is without {_in} for {_iw} more weeks. The depth is being tested.",
+                'logo_html': _ilh,
+            })
+
 # ── FALLBACK if nothing generated ────────────────────────────────────
 if not _all_headlines:
     _all_headlines.append({
@@ -4707,23 +4753,67 @@ if not _all_headlines:
 _all_headlines.sort(key=lambda h: h['priority'], reverse=True)
 _top = _all_headlines[0]
 
-# Build the big logo from the top story
-top_headline = _top['text']
-game_blurb   = _top['blurb']
-badge_text   = _top['badge']
-logo_html    = _top['logo_html']
-is_gold      = True
+# Build CFP rank lookup for hero section
+_hero_rank_lookup = {}
+try:
+    _cfp_rank_src = pd.read_csv('cfp_rankings_history.csv')
+    _cfp_rank_src['YEAR'] = pd.to_numeric(_cfp_rank_src['YEAR'], errors='coerce')
+    _cfp_rank_src['WEEK'] = pd.to_numeric(_cfp_rank_src['WEEK'], errors='coerce')
+    _cfp_rank_src['RANK'] = pd.to_numeric(_cfp_rank_src['RANK'], errors='coerce')
+    _cfp_cy2 = _cfp_rank_src[_cfp_rank_src['YEAR'] == CURRENT_YEAR]
+    if not _cfp_cy2.empty:
+        _cfp_lw2 = _cfp_cy2['WEEK'].max()
+        for _, _rr in _cfp_cy2[_cfp_cy2['WEEK'] == _cfp_lw2].iterrows():
+            _hero_rank_lookup[str(_rr['TEAM']).strip().lower()] = int(_rr['RANK'])
+except Exception:
+    pass
 
-# ── RENDER: rotating headline ticker ─────────────────────────────────
-_ticker_items = "".join([
-    f"<div class='ispn-slide'>"
-    f"<span class='ispn-badge' style='background:{('#f59e0b' if h['badge'] in ('FINAL SCORE','STATEMENT WIN','RIVALRY RESULT','HEISMAN WINNER') else ('#059669' if 'CFP' in h['badge'] else ('#a855f7' if 'RECRUIT' in h['badge'] else '#3b82f6')))};"
-    f"color:{'#451a03' if h['badge'] in ('FINAL SCORE','STATEMENT WIN','RIVALRY RESULT','HEISMAN WINNER') else 'white'};'>"
-    f"{h['badge']}</span>"
-    f" <span class='ispn-hl-text'>{html.escape(h['text'])}</span>"
-    f"</div>"
-    for h in _all_headlines
-])
+def _get_rank_badge(team_name):
+    """Return '  · #N' string if team is ranked, else ''."""
+    _r = _hero_rank_lookup.get(str(team_name).strip().lower())
+    if _r:
+        return f'  <span style="display:inline-block;background:#1e3a5f;color:#60a5fa;font-size:0.75rem;font-weight:900;padding:1px 7px;border-radius:4px;vertical-align:middle;margin-left:6px;">#{_r}</span>'
+    return ''
+
+# Inject rank badge into top headline if a team name matches
+top_headline  = _top['text']
+game_blurb    = _top['blurb']
+badge_text    = _top['badge']
+logo_html     = _top['logo_html']
+is_gold       = True
+
+# Find a ranked team in the top headline text and build rank display
+_hero_rank_html = ''
+for _tn, _rnk in _hero_rank_lookup.items():
+    if _tn in top_headline.lower():
+        _hero_rank_html = f'<div style="margin-top:2px;margin-bottom:6px;"><span style="background:#1e3a5f;color:#60a5fa;font-size:0.8rem;font-weight:900;padding:2px 10px;border-radius:5px;letter-spacing:.05em;">CFP RANK #{_rnk}</span></div>'
+        break
+
+# ── RENDER: ticker items ──────────────────────────────────────────────
+def _badge_color(badge):
+    if badge in ('FINAL SCORE', 'STATEMENT WIN', 'RIVALRY RESULT', 'HEISMAN WINNER'):
+        return ('#f59e0b', '#451a03')
+    if 'CFP' in badge:
+        return ('#059669', 'white')
+    if 'RECRUIT' in badge:
+        return ('#a855f7', 'white')
+    if 'INJ' in badge or 'SEASON' in badge:
+        return ('#dc2626', 'white')
+    if 'HEISMAN' in badge:
+        return ('#f59e0b', '#451a03')
+    if 'DEFEND' in badge:
+        return ('#7c3aed', 'white')
+    return ('#3b82f6', 'white')
+
+_ticker_items = ''
+for h in _all_headlines:
+    _bg, _fg = _badge_color(h['badge'])
+    _ticker_items += (
+        f"<div class='slide'>"
+        f"<span class='badge' style='background:{_bg};color:{_fg};'>{h['badge']}</span>"
+        f"<span class='hl'>{html.escape(h['text'])}</span>"
+        f"</div>"
+    )
 
 # ── HERO SECTION ─────────────────────────────────────────────────────
 st.markdown(f"""
@@ -4740,7 +4830,7 @@ st.markdown(f"""
 .top-story-badge {{
   display:inline-block; background:#f59e0b; color:#451a03;
   padding:2px 8px; border-radius:4px; font-size:0.65rem; font-weight:900;
-  margin-bottom:8px; animation:subtle-pulse 3s infinite ease-in-out; letter-spacing:1px;
+  margin-bottom:6px; animation:subtle-pulse 3s infinite ease-in-out; letter-spacing:1px;
 }}
 .live-indicator {{ animation:live-blink 2s infinite ease-in-out; color:#38bdf8; font-weight:900; }}
 </style>
@@ -4748,6 +4838,7 @@ st.markdown(f"""
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-0.5px;">📰 Dynasty News</h2>
   {logo_html}
   <div class="top-story-badge">{badge_text}</div>
+  {_hero_rank_html}
   <div style="color:#fbbf24;font-size:1.15rem;font-weight:800;letter-spacing:0.5px;margin-bottom:4px;">{html.escape(top_headline).upper()}</div>
   <div style="color:#94a3b8;font-size:0.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(game_blurb)}"</div>
   <div style="color:#38bdf8;font-size:0.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
@@ -4756,28 +4847,39 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── SCROLLING TICKER via components.html (JS + CSS animations work here) ──
+# ── SCROLLING TICKER via components.html ─────────────────────────────
 _ticker_char_count = sum(len(h['badge']) + len(h['text']) + 4 for h in _all_headlines)
-_ticker_duration   = max(12, int(_ticker_char_count * 0.18))
+_ticker_duration   = max(15, int(_ticker_char_count * 0.20))
 
 components.html(f"""<!DOCTYPE html>
 <html>
 <head>
 <style>
   * {{ margin:0; padding:0; box-sizing:border-box; }}
-  body {{ background:transparent; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
+  body {{
+    background:#0d1b2e;
+    overflow:hidden;
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+  }}
   .ticker-wrap {{
-    width:100%; overflow:hidden;
-    background:linear-gradient(90deg,#0a1628,#111827,#0a1628);
-    border:1px solid #1e293b; border-radius:8px; padding:7px 0; position:relative;
+    width:100%;
+    overflow:hidden;
+    background:#0d1b2e;
+    border-top:2px solid #f59e0b;
+    border-bottom:1px solid #1e293b;
+    padding:9px 0;
+    position:relative;
   }}
+  /* fade edges */
   .ticker-wrap::before, .ticker-wrap::after {{
-    content:''; position:absolute; top:0; bottom:0; width:60px; z-index:2; pointer-events:none;
+    content:'';
+    position:absolute; top:0; bottom:0; width:80px; z-index:2; pointer-events:none;
   }}
-  .ticker-wrap::before {{ left:0;  background:linear-gradient(to right,#0a1628,transparent); }}
-  .ticker-wrap::after  {{ right:0; background:linear-gradient(to left, #0a1628,transparent); }}
+  .ticker-wrap::before {{ left:0;  background:linear-gradient(to right,#0d1b2e 40%,transparent); }}
+  .ticker-wrap::after  {{ right:0; background:linear-gradient(to left, #0d1b2e 40%,transparent); }}
   .ticker-track {{
-    display:inline-flex; white-space:nowrap;
+    display:inline-flex;
+    white-space:nowrap;
     animation: scroll-left {_ticker_duration}s linear infinite;
   }}
   @keyframes scroll-left {{
@@ -4785,18 +4887,43 @@ components.html(f"""<!DOCTYPE html>
     100% {{ transform:translateX(-50%); }}
   }}
   .slide {{
-    display:inline-block; padding:0 40px;
-    font-size:13px; color:#e2e8f0; white-space:nowrap;
+    display:inline-flex;
+    align-items:center;
+    padding:0 36px;
+    font-size:15px;
+    font-weight:600;
+    color:#cbd5e1;
+    white-space:nowrap;
+    letter-spacing:0.01em;
   }}
-  .slide::before {{
-    content:'◆'; color:#334155; margin-right:40px; font-size:8px; vertical-align:middle;
+  /* bullet separator between items */
+  .slide + .slide::before {{
+    content:'●';
+    color:#f59e0b;
+    font-size:6px;
+    margin-right:36px;
+    opacity:0.6;
+    vertical-align:middle;
   }}
   .badge {{
-    display:inline-block; padding:2px 7px; border-radius:3px;
-    font-size:10px; font-weight:900; letter-spacing:.06em;
-    margin-right:8px; vertical-align:middle; line-height:1.6;
+    display:inline-block;
+    padding:3px 9px;
+    border-radius:4px;
+    font-size:10px;
+    font-weight:900;
+    letter-spacing:.1em;
+    margin-right:10px;
+    vertical-align:middle;
+    line-height:1.8;
+    text-transform:uppercase;
+    flex-shrink:0;
   }}
-  .hl {{ font-weight:700; color:#f1f5f9; }}
+  .hl {{
+    font-weight:700;
+    color:#f8fafc;
+    font-size:15px;
+    letter-spacing:0.01em;
+  }}
 </style>
 </head>
 <body>
@@ -4804,7 +4931,7 @@ components.html(f"""<!DOCTYPE html>
   <div class="ticker-track">{_ticker_items}{_ticker_items}</div>
 </div>
 </body>
-</html>""", height=40, scrolling=False)
+</html>""", height=46, scrolling=False)
 
 
 # ── TABS START ───────────────────────────────────────────────────────
