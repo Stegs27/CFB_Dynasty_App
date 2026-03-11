@@ -4418,73 +4418,79 @@ if data:
     }
 
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Fixed HTML Rendering)
+# DYNAMIC GLOBAL HEADER (Fixed Spacing & Broken Logos)
 # ════════════════════════════════════════════════════════════════════
-# 1. LOAD DATA FIRST
-try:
-    model_2041 = pd.read_csv('cfp_rankings_history.csv')
-except Exception:
-    model_2041 = pd.DataFrame()
+# 1. Robust logo finder using your app's native asset pipeline
+def get_header_logo(team_name):
+    path = get_logo_source(team_name) # Uses your LOGO_FILE_INDEX
+    uri = image_file_to_data_uri(path) # Converts to browser-safe URI
+    if uri:
+        return uri
+    # Fallback to GitHub URL if local file is completely missing
+    slug = TEAM_VISUALS.get(team_name, {}).get('slug', normalize_key(team_name))
+    return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
 
-def get_logo_url(team_name):
-    try:
-        slug = TEAM_VISUALS.get(team_name, {}).get('slug', 'ncaa')
-        return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
-    except Exception:
-        return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
+# --- IMPORTANT: DELETE the line st.header("📰 Dynasty News") ---
+# The title is now handled in the HTML below to fix the spacing gap.
 
-st.header("📰 Dynasty News")
-
-# Default placeholders
 top_headline = "Your home for league rankings, playoff races, and Heisman watch."
 badge_text = "TOP STORY"
 is_gold = False
 logo_html = ""
 
 try:
-    # PRIORITY 1: Check for CFP Results
     if os.path.exists('CFPbracketresults.csv'):
         _b_df = pd.read_csv('CFPbracketresults.csv')
         if not _b_df.empty:
             _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)].copy()
             if not _cy_games.empty:
                 _last = _cy_games.iloc[-1]
-                _w, _l = str(_last.get('WINNER', '')), str(_last.get('LOSER', ''))
-                win_logo, loss_logo = get_logo_url(_w), get_logo_url(_l)
-                top_headline = f"{_w} {int(_last.get('WIN_SCORE', 0))} - {int(_last.get('LOSS_SCORE', 0))} {_l}"
+                _w, _l = str(_last.get('WINNER','')).strip(), str(_last.get('LOSER','')).strip()
+                win_logo, loss_logo = get_header_logo(_w), get_header_logo(_l)
+                
+                ws = int(float(_last.get('WIN_SCORE', 0)))
+                ls = int(float(_last.get('LOSS_SCORE', 0)))
+                
+                top_headline = f"{_w} {ws} - {ls} {_l}"
                 badge_text = "FINAL SCORE"
                 is_gold = True
-                # FIX: Defining the HTML in a single line to prevent Markdown code-block formatting
-                logo_html = f'<div style="display:flex;justify-content:center;align-items:center;gap:20px;margin-bottom:10px;"><img src="{win_logo}" style="width:50px;height:50px;object-fit:contain;"><span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span><img src="{loss_logo}" style="width:50px;height:50px;object-fit:contain;"></div>'
+                # Using single-line HTML to prevent Markdown code-block errors
+                logo_html = f'<div style="display:flex;justify-content:center;align-items:center;gap:20px;margin-bottom:10px;"><img src="{win_logo}" style="width:55px;height:55px;object-fit:contain;"><span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span><img src="{loss_logo}" style="width:55px;height:55px;object-fit:contain;"></div>'
 
-    # PRIORITY 2: Heisman Watch Fallback
     if not is_gold and not model_2041.empty and 'Heisman Player' in model_2041.columns:
         frontrunner = model_2041.iloc[0]
-        p_name = str(frontrunner.get('Heisman Player', ''))
+        p_name = str(frontrunner.get('Heisman Player', '')).strip()
         if p_name and p_name.lower() not in ['tbd', 'nan']:
             top_headline = f"{p_name} — {frontrunner.get('Heisman Stats', '')}"
             badge_text = "HEISMAN WATCH"
             is_gold = True
-            h_logo = get_logo_url(frontrunner.get('TEAM', ''))
-            logo_html = f'<div style="text-align:center;margin-bottom:10px;"><img src="{h_logo}" style="width:60px;height:60px;object-fit:contain;"></div>'
+            h_logo = get_header_logo(frontrunner.get('TEAM', ''))
+            logo_html = f'<div style="text-align:center;margin-bottom:10px;"><img src="{h_logo}" style="width:65px;height:65px;object-fit:contain;"></div>'
 except Exception:
     pass
 
-# ── RENDER LOGIC ─────
+# ── RENDER (Title + Pulse + Score) ──
 if is_gold and logo_html:
     st.markdown(f"""
 <style>
 @keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
 .top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
 </style>
-<div style="margin-top: -35px; margin-bottom: 5px; text-align: center;">
+<div style="margin-top: -55px; margin-bottom: 0px; text-align: center;">
+<h2 style="margin-bottom: 10px; font-weight: 800;">📰 Dynasty News</h2>
 {logo_html}
 <div class="top-story-badge">{badge_text}</div>
-<div style="color: #fbbf24; font-size: 1.1rem; font-weight: 800; letter-spacing: 0.5px;">{top_headline.upper()}</div>
+<div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px;">{top_headline.upper()}</div>
 </div>
 """, unsafe_allow_html=True)
 else:
-    st.markdown(f"<p style='color: #9ca3af; font-size: 0.9rem; margin-top: -30px; margin-bottom: 10px; text-align: center;'>{top_headline}</p>", unsafe_allow_html=True)
+    st.markdown(f"""
+<div style="margin-top: -50px; margin-bottom: 15px; text-align: center;">
+<h2 style="margin-bottom: 5px; font-weight: 800;">📰 Dynasty News</h2>
+<p style="color: #9ca3af; font-size: 0.9rem;">{top_headline}</p>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
