@@ -4834,21 +4834,42 @@ badge_text   = _top['badge']
 logo_html    = _top['logo_html']
 is_gold      = True
 
-# Hero rank badge — find highest-ranked team mentioned in top headline
-_hero_rank_html = ''
-for _tn, _rnk in sorted(_rank_lookup.items(), key=lambda x: x[1]):
-    if _tn in top_headline.lower():
-        _hero_rank_html = (
-            f'<div style="margin-top:2px;margin-bottom:6px;">'
-            f'<span style="background:#1e3a5f;color:#60a5fa;font-size:0.8rem;font-weight:900;'
-            f'padding:2px 10px;border-radius:5px;letter-spacing:.05em;">CFP RANK #{_rnk}</span>'
-            f'</div>'
-        )
-        break
+# Build team-colored headline HTML
+# Scan top_headline for team names and color each one with its brand color.
+# No redundant CFP rank badge — the badge_text already says CFP TOP 10 / FINAL SCORE etc.
+def _colorize_headline(text):
+    """Replace known team names in headline text with team-color-styled spans."""
+    import re as _re
+    result = html.escape(text).upper()
+    # Sort by length descending so longer team names match first
+    for _tname in sorted(TEAM_VISUALS.keys(), key=len, reverse=True):
+        _color = TEAM_VISUALS[_tname].get('primary', '#fbbf24')
+        # Make color readable — if too dark, lighten it
+        try:
+            _r = int(_color[1:3], 16)
+            _g = int(_color[3:5], 16)
+            _b = int(_color[5:7], 16)
+            _lum = 0.299*_r + 0.587*_g + 0.114*_b
+            if _lum < 60:  # very dark — use a lighter variant
+                _color = f'#{min(255,_r+80):02x}{min(255,_g+80):02x}{min(255,_b+80):02x}'
+        except Exception:
+            pass
+        _upper = _tname.upper()
+        if _upper in result:
+            result = result.replace(
+                _upper,
+                f'<span style="color:{_color};font-weight:900;">{_upper}</span>',
+                1
+            )
+    return result
+
+_hero_headline_html = _colorize_headline(top_headline)
 
 # ── TICKER ITEM BUILDER ───────────────────────────────────────────────
 def _badge_color(badge):
-    if badge in ('FINAL SCORE', 'H2H RESULT', 'H2H THRILLER', 'THRILLER', 'BLOWOUT') or badge.startswith('WK '):
+    if badge == 'FINAL SCORE':
+        return ('#dc2626', 'white')
+    if badge in ('H2H RESULT', 'H2H THRILLER', 'THRILLER', 'BLOWOUT') or badge.startswith('WK '):
         return ('#f59e0b', '#451a03')
     if 'CFP' in badge:
         return ('#059669', 'white')
@@ -4895,8 +4916,7 @@ st.markdown(f"""
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-0.5px;">📰 Dynasty News</h2>
   {logo_html}
   <div class="top-story-badge">{badge_text}</div>
-  {_hero_rank_html}
-  <div style="color:#fbbf24;font-size:1.15rem;font-weight:800;letter-spacing:0.5px;margin-bottom:4px;">{html.escape(top_headline).upper()}</div>
+  <div style="font-size:1.15rem;font-weight:800;letter-spacing:0.5px;margin-bottom:4px;line-height:1.4;">{_hero_headline_html}</div>
   <div style="color:#94a3b8;font-size:0.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(game_blurb)}"</div>
   <div style="color:#38bdf8;font-size:0.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
@@ -4922,7 +4942,7 @@ components.html(f"""<!DOCTYPE html>
     width:100%;
     overflow:hidden;
     background:#0d1b2e;
-    border-top:2px solid #f59e0b;
+    border-top:2px solid #dc2626;
     border-bottom:1px solid #1e293b;
     padding:9px 0;
     position:relative;
