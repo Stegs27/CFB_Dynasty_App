@@ -9204,140 +9204,141 @@ with tabs[11]:
             st.plotly_chart(_fig_goat, use_container_width=True)
 
     # --- ROSTER ATTRITION ---
-    with tabs[5]:
-        st.header("🚪 Roster Attrition & Turnover")
-        st.caption("Tracking players leaving for the NFL, transferring, or graduating, compared against incoming talent.")
+with tabs[5]:
+    st.header("🚪 Roster Attrition & Turnover")
+    st.caption("Tracking players leaving for the NFL, transferring, or graduating, compared against incoming talent.")
 
-        # --- 1. CSV Loading Logic (Historical & Incoming) ---
-        @st.cache_data
-        def load_attrition_data():
-            try:
-                nfl = pd.read_csv('attrition_nfl.csv')
-            except Exception:
-                nfl = pd.DataFrame(columns=['Player', 'Position', 'Round', 'Left Early'])
+    # --- 1. CSV Loading Logic (Historical & Incoming) ---
+    @st.cache_data
+    def load_attrition_data():
+        try:
+            nfl = pd.read_csv('attrition_nfl.csv')
+        except Exception:
+            nfl = pd.DataFrame(columns=['Player', 'Position', 'Round', 'Left Early'])
+            
+        try:
+            transfers = pd.read_csv('attrition_transfers.csv')
+        except Exception:
+            transfers = pd.DataFrame(columns=['Player', 'Position', 'Status', 'Destination'])
+            
+        try:
+            incoming = pd.read_csv('attrition_incoming.csv')
+        except Exception:
+            incoming = pd.DataFrame(columns=['Type', 'Player'])
+            
+        return nfl, transfers, incoming
+
+    nfl_df, transfers_df, incoming_df = load_attrition_data()
+
+    # --- 2. Live NFL Prospect Generation (Driven by Rosters) ---
+    @st.cache_data
+    def get_nfl_prospects(roster_path):
+        try:
+            rosters = pd.read_csv(roster_path)
+            
+            # Filter to only include User Teams
+            if 'USER_TEAMS' in globals():
+                rosters = rosters[rosters['Team'].isin(USER_TEAMS.values())]
+
+            prospects = []
+            for _, row in rosters.iterrows():
+                year = str(row['Year'])
+                ovr = int(row['OVR'])
                 
-            try:
-                transfers = pd.read_csv('attrition_transfers.csv')
-            except Exception:
-                transfers = pd.DataFrame(columns=['Player', 'Position', 'Status', 'Destination'])
+                is_senior = 'SR' in year
+                is_eligible_early = 'JR' in year or 'SO (RS)' in year
                 
-            try:
-                incoming = pd.read_csv('attrition_incoming.csv')
-            except Exception:
-                incoming = pd.DataFrame(columns=['Type', 'Player'])
-                
-            return nfl, transfers, incoming
+                # LOGIC: Seniors 88+, Underclassmen 90+
+                if is_senior and ovr >= 88:
+                    prospects.append({
+                        'Team': row['Team'],
+                        'Player': row['Name'],
+                        'Pos': row['Pos'],
+                        'Year': row['Year'],
+                        'OVR': ovr,
+                        'Draft Projection': 'Day 1-3' if ovr >= 92 else 'Day 3 / UDFA',
+                        'Status': 'Graduating'
+                    })
+                elif is_eligible_early and ovr >= 90:
+                    prospects.append({
+                        'Team': row['Team'],
+                        'Player': row['Name'],
+                        'Pos': row['Pos'],
+                        'Year': row['Year'],
+                        'OVR': ovr,
+                        'Draft Projection': 'Day 1-2' if ovr >= 94 else 'Day 2-3',
+                        'Status': '🚨 Leaving Early Risk'
+                    })
+            
+            df = pd.DataFrame(prospects)
+            if not df.empty:
+                # Sort by highest OVR
+                df = df.sort_values(by=['Team', 'OVR'], ascending=[True, False])
+            return df
+        except Exception as e:
+            return pd.DataFrame()
 
-        nfl_df, transfers_df, incoming_df = load_attrition_data()
+    # Load dynamic predictions from the main roster file
+    predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
 
-        # --- 2. Live NFL Prospect Generation (Driven by Rosters) ---
-        @st.cache_data
-        def get_nfl_prospects(roster_path):
-            try:
-                rosters = pd.read_csv(roster_path)
-                
-                # Filter to only include User Teams
-                if 'USER_TEAMS' in globals():
-                    rosters = rosters[rosters['Team'].isin(USER_TEAMS.values())]
+    # --- 3. Talent Balance Math ---
+    total_departures = len(nfl_df) + len(transfers_df)
+    hs_recruits = len(incoming_df[incoming_df['Type'] == 'HS']) if 'Type' in incoming_df.columns else 0
+    transfers_in = len(incoming_df[incoming_df['Type'] == 'Transfer']) if 'Type' in incoming_df.columns else 0
+    
+    net_talent = (hs_recruits + transfers_in) - total_departures
+    net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
 
-                prospects = []
-                for _, row in rosters.iterrows():
-                    year = str(row['Year'])
-                    ovr = int(row['OVR'])
-                    
-                    is_senior = 'SR' in year
-                    is_eligible_early = 'JR' in year or 'SO (RS)' in year
-                    
-                    # LOGIC: Seniors 88+, Underclassmen 90+
-                    if is_senior and ovr >= 88:
-                        prospects.append({
-                            'Team': row['Team'],
-                            'Player': row['Name'],
-                            'Pos': row['Pos'],
-                            'Year': row['Year'],
-                            'OVR': ovr,
-                            'Draft Projection': 'Day 1-3' if ovr >= 92 else 'Day 3 / UDFA',
-                            'Status': 'Graduating'
-                        })
-                    elif is_eligible_early and ovr >= 90:
-                        prospects.append({
-                            'Team': row['Team'],
-                            'Player': row['Name'],
-                            'Pos': row['Pos'],
-                            'Year': row['Year'],
-                            'OVR': ovr,
-                            'Draft Projection': 'Day 1-2' if ovr >= 94 else 'Day 2-3',
-                            'Status': '🚨 Leaving Early Risk'
-                        })
-                
-                df = pd.DataFrame(prospects)
-                if not df.empty:
-                    # Sort by highest OVR
-                    df = df.sort_values(by=['Team', 'OVR'], ascending=[True, False])
-                return df
-            except Exception as e:
-                return pd.DataFrame()
+    # Uses your app's native metric UI cards
+    mobile_metrics([
+        {"label": "Incoming HS Recruits", "value": str(hs_recruits)},
+        {"label": "Incoming Transfers", "value": str(transfers_in)},
+        {"label": "Total Departures", "value": str(total_departures)},
+        {"label": "Net Talent Change", "value": str(net_talent), "delta": net_str}
+    ], cols_desktop=4)
 
-        # Load dynamic predictions from the main roster file
-        predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
+    st.markdown("---")
 
-        # --- 3. Talent Balance Math ---
-        total_departures = len(nfl_df) + len(transfers_df)
-        hs_recruits = len(incoming_df[incoming_df['Type'] == 'HS']) if 'Type' in incoming_df.columns else 0
-        transfers_in = len(incoming_df[incoming_df['Type'] == 'Transfer']) if 'Type' in incoming_df.columns else 0
-        
-        net_talent = (hs_recruits + transfers_in) - total_departures
-        net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
-
-        # Uses your app's native metric UI cards
-        mobile_metrics([
-            {"label": "Incoming HS Recruits", "value": str(hs_recruits)},
-            {"label": "Incoming Transfers", "value": str(transfers_in)},
-            {"label": "Total Departures", "value": str(total_departures)},
-            {"label": "Net Talent Change", "value": str(net_talent), "delta": net_str}
-        ], cols_desktop=4)
-
-        st.markdown("---")
-
-        # --- 4. Actual Departures (Split View) ---
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("🏈 NFL Departures")
-            if not nfl_df.empty:
-                st.dataframe(
-                    nfl_df, 
-                    column_config={"Left Early": st.column_config.CheckboxColumn("Left Early")},
-                    hide_index=True, 
-                    use_container_width=True
-                )
-            else:
-                st.caption("No NFL departures logged yet.")
-
-        with col2:
-            st.subheader("🎒 Transfers & Graduates")
-            if not transfers_df.empty:
-                st.dataframe(transfers_df, hide_index=True, use_container_width=True)
-            else:
-                st.caption("No transfers or graduates logged yet.")
-
-        st.markdown("---")
-
-        # --- 5. In-Season Predictions (Live Roster Data) ---
-        st.subheader("🔮 In-Season NFL Flight Risk")
-        st.caption("Auto-generated from current rosters. Highlighting seniors (88+ OVR) and underclassmen (90+ OVR) at risk of leaving.")
-        
-        if not predictions_df.empty:
+    # --- 4. Actual Departures (Split View) ---
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🏈 NFL Departures")
+        if not nfl_df.empty:
             st.dataframe(
-                predictions_df, 
+                nfl_df, 
+                column_config={"Left Early": st.column_config.CheckboxColumn("Left Early")},
                 hide_index=True, 
-                use_container_width=True,
-                column_config={
-                    "OVR": st.column_config.NumberColumn(format="%d ⭐️")
-                }
+                use_container_width=True
             )
         else:
-            st.info("No active NFL prospects found matching the current criteria.")
+            st.caption("No NFL departures logged yet.")
+
+    with col2:
+        st.subheader("🎒 Transfers & Graduates")
+        if not transfers_df.empty:
+            st.dataframe(transfers_df, hide_index=True, use_container_width=True)
+        else:
+            st.caption("No transfers or graduates logged yet.")
+
+    st.markdown("---")
+
+    # --- 5. In-Season Predictions (Live Roster Data) ---
+    st.subheader("🔮 In-Season NFL Flight Risk")
+    st.caption("Auto-generated from current rosters. Highlighting seniors (88+ OVR) and underclassmen (90+ OVR) at risk of leaving.")
+    
+    if not predictions_df.empty:
+        st.dataframe(
+            predictions_df, 
+            hide_index=True, 
+            use_container_width=True,
+            column_config={
+                "OVR": st.column_config.NumberColumn(format="%d ⭐️")
+            }
+        )
+    else:
+        st.info("No active NFL prospects found matching the current criteria.")
+
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
