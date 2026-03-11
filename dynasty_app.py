@@ -9797,8 +9797,8 @@ st.markdown("<br><br>", unsafe_allow_html=True)
 # --- 8. Next Season Outlook & Dynamic Championship Odds ---
 try:
     USER_TEAM_COLLISION_GROUPS = [
-        {"Florida State", "Florida", "USF"},
-        {"Texas Tech", "San Jose State", "Bowling Green"}
+        {"Florida State", "Florida", "Bowling Geen},
+        {"Texas Tech", "San Jose State", "USF"}
     ]
 
     current_roster = pd.read_csv('cfb26_rosters_full.csv')
@@ -9847,7 +9847,55 @@ try:
         rotation_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum() * 0.15
         incoming_role_bonus = starter_bonus + rotation_bonus
 
-    talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus
+# --- Veteran blue-chip transfer bonus (only projected contributors) ---
+    veteran_transfer_bonus = 0.0
+    blue_chip_ratio = 0.0
+    veteran_portal_count = 0
+    blue_chip_veteran_count = 0
+
+    if not team_incoming.empty:
+        incoming_tmp = team_incoming.copy()
+
+        if 'Type' in incoming_tmp.columns:
+            incoming_tmp = incoming_tmp[incoming_tmp['Type'].astype(str).str.upper() == 'TRANSFER']
+
+        if not incoming_tmp.empty and 'Class' in incoming_tmp.columns:
+            incoming_tmp['Class'] = incoming_tmp['Class'].fillna('').astype(str).str.upper().str.strip()
+
+            veteran_transfers = incoming_tmp[
+                incoming_tmp['Class'].isin(['SO', 'SO (RS)', 'RS SO', 'JR', 'SR'])
+            ].copy()
+
+            if not veteran_transfers.empty and 'ProjectedRole' in veteran_transfers.columns:
+                veteran_transfers['ProjectedRole'] = (
+                    veteran_transfers['ProjectedRole']
+                    .fillna('')
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
+
+                veteran_transfers = veteran_transfers[
+                    veteran_transfers['ProjectedRole'].isin(['starter', 'rotation'])
+                ].copy()
+
+            veteran_portal_count = len(veteran_transfers)
+
+            if veteran_portal_count > 0 and 'Stars' in veteran_transfers.columns:
+                veteran_transfers['Stars'] = pd.to_numeric(veteran_transfers['Stars'], errors='coerce').fillna(0)
+                blue_chip_veteran_count = int(veteran_transfers['Stars'].isin([4, 5]).sum())
+                blue_chip_ratio = blue_chip_veteran_count / veteran_portal_count
+
+                avg_star = veteran_transfers['Stars'].mean()
+
+                veteran_transfer_bonus = blue_chip_ratio * 1.5
+
+                if avg_star >= 4.5:
+                    veteran_transfer_bonus += 0.35
+                elif avg_star >= 4.0:
+                    veteran_transfer_bonus += 0.15
+
+    talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus + veteran_transfer_bonus
     projected_ovr = base_ovr + talent_boost
 
     # --- QB evaluation ---
@@ -9926,7 +9974,6 @@ try:
     est_returning_starters = max(0, min(22, len(returning_starter_names)))
     starters_lost_for_mode = max(0, 22 - est_returning_starters)
 
-    # modest starter count bonus
     starter_mod = (est_returning_starters - 13) * 0.35
 
     # --- Experience adjustment for returning starters ---
@@ -9993,7 +10040,6 @@ try:
         cfp_prob_raw *= (0.70 ** (collision_group_size - 1))
         title_prob_raw *= (0.35 ** (collision_group_size - 1))
 
-    # convert probabilities to ratio odds display
     def prob_to_ratio_odds(prob):
         if prob >= 50:
             return "Even"
@@ -10028,6 +10074,7 @@ try:
 
     skill_speed_text = f"{skill_speed_avg:.1f}" if skill_speed_avg is not None else "N/A"
     db_speed_text = f"{db_speed_avg:.1f}" if db_speed_avg is not None else "N/A"
+    blue_chip_ratio_text = f"{blue_chip_ratio:.0%}" if veteran_portal_count > 0 else "N/A"
 
     outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
 
@@ -10048,6 +10095,10 @@ try:
                         <p style="margin: 4px 0 0 0; font-size: 0.90rem; color: #9CA3AF; text-align: left !important;">
                             Skill starter speed avg: {skill_speed_text} |
                             DB starter speed avg: {db_speed_text}
+                        </p>
+                        <p style="margin: 4px 0 0 0; font-size: 0.90rem; color: #9CA3AF; text-align: left !important;">
+                            Veteran portal blue-chip rate: {blue_chip_ratio_text} |
+                            Veteran portal bonus: {veteran_transfer_bonus:.2f}
                         </p>
                     </div>
                 </div>
