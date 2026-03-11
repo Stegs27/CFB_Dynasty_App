@@ -9878,30 +9878,30 @@ try:
 
     qb_mod = (starting_qb_ovr - 84) * 0.6
 
-# --- ACTUAL returning starters logic aligned with confirmed departures card ---
+    # --- ACTUAL returning starters logic aligned with confirmed departures card ---
     current_starter_names = build_team_starter_map(current_roster, selected_team)
 
     confirmed_starter_names = set()
     if not confirmed_departures_df.empty and 'InferredStarter' in confirmed_departures_df.columns:
         confirmed_starter_names = set(
-        confirmed_departures_df.loc[
-            confirmed_departures_df['InferredStarter'] == True, 'Player'
-        ].astype(str).tolist()
-    )
+            confirmed_departures_df.loc[
+                confirmed_departures_df['InferredStarter'] == True, 'Player'
+            ].astype(str).tolist()
+        )
 
     possible_early_starter_names = set()
     if not possible_early_df.empty and 'Player' in possible_early_df.columns:
-    possible_early_starter_names = set(
-        [p for p in possible_early_df['Player'].astype(str).tolist() if p in current_starter_names]
-    )
+        possible_early_starter_names = set(
+            [p for p in possible_early_df['Player'].astype(str).tolist() if p in current_starter_names]
+        )
 
     if outlook_mode == "Aggressive":
-    starters_lost_names = confirmed_starter_names.union(possible_early_starter_names)
+        starters_lost_names = confirmed_starter_names.union(possible_early_starter_names)
     else:
-    starters_lost_names = confirmed_starter_names
+        starters_lost_names = confirmed_starter_names
 
-starters_lost_for_mode = len(starters_lost_names)
-est_returning_starters = max(0, min(22, 22 - starters_lost_for_mode))
+    starters_lost_for_mode = len(starters_lost_names)
+    est_returning_starters = max(0, min(22, 22 - starters_lost_for_mode))
 
     starter_mod = (est_returning_starters - 13) * 0.5
 
@@ -9914,16 +9914,16 @@ est_returning_starters = max(0, min(22, 22 - starters_lost_for_mode))
     cfp_odds = f"{cfp_prob_raw:.1f}%"
     title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
 
-    if final_power_rating >= 94.5:
-        tier_title = "🏆 Legit National Title Contender"
+    if final_power_rating >= 92.5:
+        tier_title = "🏆 National Title Contender"
         tier_color = "#FACC15"
-        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. The keys are with {best_qb_desc} at QB and he gives them a very real chance at immortality."
-    elif final_power_rating >= 86.0:
-        tier_title = "⭐ CFP and Maybe More"
+        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
+    elif final_power_rating >= 88.0:
+        tier_title = "⭐ Playoff Threat"
         tier_color = "#38BDF8"
         tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
     elif final_power_rating >= 83.5:
-        tier_title = "🏈 Pop Tarts Bowl Bound"
+        tier_title = "🏈 Bowl Bound"
         tier_color = "#A7F3D0"
         tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
     else:
