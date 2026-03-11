@@ -5298,6 +5298,16 @@ with tabs[1]:
         
         power_board = power_board.sort_values(['Preseason PI', 'Preseason Natty Odds'], ascending=False).reset_index(drop=True)
 
+        # --- NEW: Official Rank Lookup ---
+        try:
+            _cfp_hist = pd.read_csv('cfp_rankings_history.csv')
+            _latest_wk = _cfp_hist['WEEK'].max()
+            _latest_snap = _cfp_hist[_cfp_hist['WEEK'] == _latest_wk]
+            # Map Team Name -> Rank
+            official_rank_map = dict(zip(_latest_snap['TEAM'].str.strip(), _latest_snap['RANK'].astype(int)))
+        except:
+            official_rank_map = {}
+
         # 2. Initialize Bracket Variables (Prevents NameError)
         official_cfp_teams = []
         eliminated_teams = []
@@ -5349,25 +5359,12 @@ with tabs[1]:
             live_natty = float(row.get('Natty Odds', 0))
             live_cfp = float(row.get('CFP Odds', 0))
             
-        # 1. CREATE OFFICIAL RANK LOOKUP (Place this right before the loop)
-        try:
-            _cfp_master = pd.read_csv('cfp_rankings_history.csv')
-            _latest_wk = _cfp_master['WEEK'].max()
-            _latest_ranks = _cfp_master[_cfp_master['WEEK'] == _latest_wk]
-            official_rank_map = dict(zip(_latest_ranks['TEAM'].str.strip(), _latest_ranks['RANK'].astype(int)))
-        except:
-            official_rank_map = {}
-
-        # 2. START THE LOOP (Look for your 'for idx, row in...' line)
-        for idx, row in power_board.iterrows():
-            team_name = str(row.get('TEAM', '')).strip()
+            # --- THE FIX: Official Rank & Gold Glow Logic ---
+            _team_name = team.strip()
+            curr_rank = official_rank_map.get(_team_name, "UR")
             
-            # Pull official rank from our map
-            curr_rank = official_rank_map.get(team_name, "UR")
-            
-            # --- THE GOLD GLOW LOGIC ---
             if curr_rank != "UR" and int(curr_rank) <= 4:
-                # Playoff Bound - Gold Glow
+                # Top 4 Playoff Bound - Gold Glow
                 rank_label = f"#{curr_rank}"
                 badge_style = "color:#fbbf24; background:#fbbf2415; border:1px solid #fbbf2488; box-shadow: 0 0 12px #fbbf2444;"
             elif curr_rank != "UR":
@@ -5379,10 +5376,8 @@ with tabs[1]:
                 rank_label = "UNRANKED"
                 badge_style = "color:#94a3b8; background:#94a3b810; border:1px solid #94a3b833;"
 
-            # Combine into the badge
             rank_badge = f"<span style='{badge_style} font-size:0.75rem; font-weight:800; margin-left:6px; padding:2px 8px; border-radius:4px; text-transform:uppercase;'>RANK {rank_label}</span>"
 
-            rank_badge = f"<span style='color:#60a5fa; font-size:0.75rem; font-weight:800; margin-left:6px; background:#60a5fa15; border:1px solid #60a5fa44; padding:1px 6px; border-radius:4px;'>RANK #{curr_rank}</span>"
             
             _team_clean = team.strip().lower()
             is_official = _team_clean in official_cfp_teams
