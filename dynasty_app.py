@@ -4629,6 +4629,9 @@ with tabs[1]:
                 results.append({
                     'week': str(g['Week']), 'opponent': opp_n, 'result': res,
                     'effective_rank': eff_rank, 'opp_ranked_final': not pd.isna(eff_rank),
+                    'opp_ranked': not pd.isna(opp_r),
+                    'opp_rank': opp_r,
+                    'home_away': 'Away' if is_vis else 'Home',
                     'margin': (my_s - opp_s) if res != 'TBD' else None
                 })
             return pd.DataFrame(results)
