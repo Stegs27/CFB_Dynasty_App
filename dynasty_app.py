@@ -9332,7 +9332,7 @@ with tabs[5]:
             'MIKE': 1,
             'WILL': 1,
             'LB': 3,
-            'CB': 3,
+            'CB': 2,
             'FS': 1,
             'SS': 1,
             'S': 2,
@@ -9428,7 +9428,7 @@ with tabs[5]:
                     'MIKE': 1,
                     'WILL': 1,
                     'LB': 3,
-                    'CB': 3,
+                    'CB': 2,
                     'FS': 1,
                     'SS': 1,
                     'S': 2,
@@ -9872,8 +9872,17 @@ with tabs[5]:
 
         qb_mod = (starting_qb_ovr - 84) * 0.6
 
-        total_departing_count = len(leaving_names)
-        est_returning_starters = max(5, min(22, 22 - int(total_departing_count * 0.6)))
+        # --- ACTUAL returning starters logic ---
+        current_starter_names = build_team_starter_map(current_roster, selected_team)
+
+        if current_starter_names:
+            est_returning_starters = len([name for name in current_starter_names if str(name) not in leaving_names])
+        else:
+            est_returning_starters = 11
+
+        est_returning_starters = max(0, min(22, est_returning_starters))
+        starters_lost_for_mode = max(0, 22 - est_returning_starters)
+
         starter_mod = (est_returning_starters - 13) * 0.5
 
         final_power_rating = projected_ovr + qb_mod + starter_mod + np.random.uniform(-1.5, 1.5)
@@ -9887,7 +9896,7 @@ with tabs[5]:
         if final_power_rating >= 92.5:
             tier_title = "🏆 National Title Contender"
             tier_color = "#FACC15"
-            tier_desc = f"With {est_returning_starters} est. returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
+            tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
         elif final_power_rating >= 88.0:
             tier_title = "⭐ Playoff Threat"
             tier_color = "#38BDF8"
@@ -9899,7 +9908,7 @@ with tabs[5]:
         else:
             tier_title = "🛠️ Rebuilding Year"
             tier_color = "#9CA3AF"
-            tier_desc = f"High roster turnover (only {est_returning_starters} est. starters returning) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
+            tier_desc = f"High roster turnover (only {est_returning_starters} returning starters) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
 
         next_yr = current_yr + 1
         mode_color = "#F59E0B" if outlook_mode == "Aggressive" else "#10B981"
@@ -9915,8 +9924,8 @@ with tabs[5]:
                             <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
                             <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">
                                 Mode: <span style="color:{mode_color}; font-weight:bold;">{outlook_mode}</span> |
-                                Confirmed departures: {len(confirmed_leaving_names)} |
-                                Possible early leavers: {len(possible_early_names)} |
+                                Returning starters: {est_returning_starters} |
+                                Starters lost: {starters_lost_for_mode} |
                                 Incoming impact players: {impact_incoming_count}
                             </p>
                         </div>
