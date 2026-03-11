@@ -9545,7 +9545,7 @@ with tabs[5]:
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # --- 8. Next Season Outlook & Championship Odds ---
+    # --- 8. Next Season Outlook & Dynamic Championship Odds ---
     try:
         current_roster = pd.read_csv('cfb26_rosters_full.csv')
         team_roster = current_roster[current_roster['Team'] == selected_team]
@@ -9556,47 +9556,67 @@ with tabs[5]:
             
         returning_players = team_roster[~team_roster['Name'].isin(leaving_names)].copy()
         
-        if not returning_players.empty and len(returning_players) >= 20:
-            # Randomly simulate offseason development for each returning player (+3 to +7 OVR)
-            # Weights make +3 and +4 common, while +7 is a very rare breakout offseason
+        # Randomly simulate offseason development for each returning player (+3 to +7 OVR)
+        if not returning_players.empty:
             prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
             progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
-            
             returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
-            base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean()
+            
+            base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean() if len(returning_players) >= 20 else 80
         else:
             base_ovr = 80
             
+        # 1. Incoming Talent Boost
         inc_5_stars = (team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns else 0) + (team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns else 0)
         inc_4_stars = (team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns else 0) + (team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns else 0)
-        
         talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4)
+        
         projected_ovr = base_ovr + talent_boost
 
-        if projected_ovr >= 91:
+        # 2. Returning QB Impact
+        qbs = returning_players[returning_players['Pos'] == 'QB']
+        if not qbs.empty:
+            best_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
+            best_qb_name = best_qb_row['Name']
+            best_qb_ovr = best_qb_row['Prog_OVR']
+        else:
+            best_qb_name = "Unknown QB"
+            best_qb_ovr = 75
+            
+        qb_mod = (best_qb_ovr - 84) * 0.6  # Above 84 gives a massive boost, below hurts
+        
+        # 3. Returning Starters Estimation
+        total_departing_count = len(leaving_names)
+        est_returning_starters = max(5, min(22, 22 - int(total_departing_count * 0.6)))
+        starter_mod = (est_returning_starters - 13) * 0.5
+
+        # 4. Final Power Rating with organic random noise
+        final_power_rating = projected_ovr + qb_mod + starter_mod + np.random.uniform(-1.5, 1.5)
+
+        # 5. Sigmoid Probability Curves (Translates Power Rating to an organic 0-100% curve)
+        cfp_prob_raw = 100 / (1 + np.exp(-0.35 * (final_power_rating - 87.0)))
+        title_prob_raw = 100 / (1 + np.exp(-0.45 * (final_power_rating - 93.5)))
+
+        cfp_odds = f"{cfp_prob_raw:.1f}%"
+        title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
+
+        # Set Dynamic Tiers & Texts
+        if final_power_rating >= 92.5:
             tier_title = "🏆 National Title Contender"
-            cfp_odds = "85%"
-            title_odds = "22%"
             tier_color = "#FACC15" 
-            tier_desc = "With elite talent returning and highly touted incoming recruits, this roster is primed for a deep playoff run and a chance at immortality."
-        elif projected_ovr >= 88:
+            tier_desc = f"With {est_returning_starters} est. returning starters and elite talent arriving, this roster is primed for a deep playoff run. Having {best_qb_name} at QB ({int(best_qb_ovr)} OVR) gives them a very real chance at immortality."
+        elif final_power_rating >= 88.0:
             tier_title = "⭐ Playoff Threat"
-            cfp_odds = "50%"
-            title_odds = "8%"
             tier_color = "#38BDF8" 
-            tier_desc = "A dangerous roster with enough firepower to make the newly expanded playoff. A few breaks their way and they could steal a title."
-        elif projected_ovr >= 85:
+            tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_name} ({int(best_qb_ovr)} OVR) can command the offense efficiently and a few breaks go their way, they will steal a playoff spot."
+        elif final_power_rating >= 83.5:
             tier_title = "🏈 Bowl Bound"
-            cfp_odds = "15%"
-            title_odds = "< 1%"
             tier_color = "#A7F3D0" 
-            tier_desc = "A solid team with evident talent gaps compared to the elites. They will be competitive and bowl eligible, but a CFP birth would require a Cinderella season."
+            tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_name} ({int(best_qb_ovr)} OVR) will need a Cinderella season to reach the CFP."
         else:
             tier_title = "🛠️ Rebuilding Year"
-            cfp_odds = "< 5%"
-            title_odds = "0%"
             tier_color = "#9CA3AF" 
-            tier_desc = "High roster turnover and lack of immediate elite replacements points toward a challenging season. Building for the future is the priority."
+            tier_desc = f"High roster turnover (only {est_returning_starters} est. starters returning) and a lack of elite depth points toward a challenging season. Developing {best_qb_name} and building for the future is the priority."
 
         ret_count = len(returning_players)
         inc_5_count = int(inc_5_stars)
@@ -9612,7 +9632,7 @@ with tabs[5]:
                         {outlook_logo_html}
                         <div>
                             <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
-                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players (+3 to +7 OVR offseason dev) & incoming class ({inc_5_count} 5⭐, {inc_4_count} 4⭐).</p>
+                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm factors in top returning starters (+3 to +7 OVR dev), incoming recruits ({inc_5_count} 5⭐, {inc_4_count} 4⭐), and QB strength.</p>
                         </div>
                     </div>
                 </div>
