@@ -9767,7 +9767,7 @@ with tabs[5]:
         </div>
     """, unsafe_allow_html=True)
 
-    st.markdown(get_mini_card("Current Flight Risk Breakdown", sel_color), unsafe_allow_html=True)
+st.markdown(get_mini_card("Current Flight Risk Breakdown", sel_color), unsafe_allow_html=True)
 
 with st.expander(f"✅ Confirmed Departures ({len(confirmed_live_df)})", expanded=False):
     if not confirmed_live_df.empty:
@@ -9791,165 +9791,172 @@ with st.expander(f"⚠️ Possible Early Leavers ({len(possible_early_df)})", ex
     else:
         st.info("No underclassmen currently flagged as possible early leavers.")
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # --- 8. Next Season Outlook & Dynamic Championship Odds ---
-    try:
-        current_roster = pd.read_csv('cfb26_rosters_full.csv')
-        team_roster = current_roster[current_roster['Team'] == selected_team].copy()
+# --- 8. Next Season Outlook & Dynamic Championship Odds ---
+try:
+    current_roster = pd.read_csv('cfb26_rosters_full.csv')
+    team_roster = current_roster[current_roster['Team'] == selected_team].copy()
 
-        confirmed_leaving_names = set(confirmed_departure_names)
+    confirmed_leaving_names = set(confirmed_departure_names)
 
-        possible_early_names = set()
-        if not possible_early_df.empty and 'Player' in possible_early_df.columns:
-            possible_early_names = set(possible_early_df['Player'].astype(str).tolist())
+    possible_early_names = set()
+    if not possible_early_df.empty and 'Player' in possible_early_df.columns:
+        possible_early_names = set(possible_early_df['Player'].astype(str).tolist())
 
-        if outlook_mode == "Aggressive":
-            leaving_names = confirmed_leaving_names.union(possible_early_names)
+    if outlook_mode == "Aggressive":
+        leaving_names = confirmed_leaving_names.union(possible_early_names)
+    else:
+        leaving_names = confirmed_leaving_names
+
+    returning_players = team_roster[~team_roster['Name'].astype(str).isin(leaving_names)].copy()
+
+    if not returning_players.empty and 'OVR' in returning_players.columns:
+        prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
+        progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
+        returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
+        base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean() if len(returning_players) >= 20 else returning_players['Prog_OVR'].mean()
+    else:
+        base_ovr = 80
+
+    inc_5_stars = (
+        team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns and not team_hs.empty else 0
+    ) + (
+        team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns and not team_tp.empty else 0
+    )
+
+    inc_4_stars = (
+        team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns and not team_hs.empty else 0
+    ) + (
+        team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns and not team_tp.empty else 0
+    )
+
+    incoming_role_bonus = 0.0
+    if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
+        starter_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum() * 0.40
+        rotation_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum() * 0.15
+        incoming_role_bonus = starter_bonus + rotation_bonus
+
+    talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus
+    projected_ovr = base_ovr + talent_boost
+
+    qbs = returning_players[returning_players['Pos'] == 'QB'] if 'Pos' in returning_players.columns else pd.DataFrame()
+    ret_qb_name = "Unknown QB"
+    ret_qb_ovr = 75
+
+    if not qbs.empty and 'Prog_OVR' in qbs.columns and 'Name' in qbs.columns:
+        best_ret_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
+        ret_qb_name = best_ret_qb_row['Name']
+        ret_qb_ovr = best_ret_qb_row['Prog_OVR']
+
+    inc_qbs = team_incoming[team_incoming['Position'] == 'QB'] if not team_incoming.empty and 'Position' in team_incoming.columns else pd.DataFrame()
+    inc_qb_name = ""
+    inc_qb_stars = 0
+    inc_qb_ovr = 0
+
+    if not inc_qbs.empty and 'Stars' in inc_qbs.columns:
+        best_inc_qb = inc_qbs.sort_values(by='Stars', ascending=False).iloc[0]
+        inc_qb_name = best_inc_qb['Player'] if 'Player' in best_inc_qb.index else "Incoming Recruit"
+        inc_qb_stars = int(best_inc_qb['Stars']) if pd.notna(best_inc_qb['Stars']) else 0
+
+        if inc_qb_stars == 5:
+            inc_qb_ovr = 82
+        elif inc_qb_stars == 4:
+            inc_qb_ovr = 78
+        elif inc_qb_stars == 3:
+            inc_qb_ovr = 73
         else:
-            leaving_names = confirmed_leaving_names
+            inc_qb_ovr = 68
 
-        returning_players = team_roster[~team_roster['Name'].astype(str).isin(leaving_names)].copy()
+    if inc_qb_ovr > ret_qb_ovr:
+        best_qb_desc = f"Incoming Recruit {inc_qb_name} ({inc_qb_stars}⭐)"
+        starting_qb_ovr = inc_qb_ovr
+    else:
+        best_qb_desc = f"{ret_qb_name} ({int(ret_qb_ovr)} OVR)"
+        starting_qb_ovr = ret_qb_ovr
 
-        if not returning_players.empty and 'OVR' in returning_players.columns:
-            prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
-            progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
-            returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
-            base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean() if len(returning_players) >= 20 else returning_players['Prog_OVR'].mean()
-        else:
-            base_ovr = 80
+    qb_mod = (starting_qb_ovr - 84) * 0.6
 
-        inc_5_stars = (team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns and not team_hs.empty else 0) + \
-                      (team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns and not team_tp.empty else 0)
-        inc_4_stars = (team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns and not team_hs.empty else 0) + \
-                      (team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns and not team_tp.empty else 0)
+    # --- ACTUAL returning starters logic ---
+    current_starter_names = build_team_starter_map(current_roster, selected_team)
 
-        incoming_role_bonus = 0.0
-        if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
-            starter_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum() * 0.40
-            rotation_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum() * 0.15
-            incoming_role_bonus = starter_bonus + rotation_bonus
+    if current_starter_names:
+        est_returning_starters = len([name for name in current_starter_names if str(name) not in leaving_names])
+    else:
+        est_returning_starters = 11
 
-        talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus
-        projected_ovr = base_ovr + talent_boost
+    est_returning_starters = max(0, min(22, est_returning_starters))
+    starters_lost_for_mode = max(0, 22 - est_returning_starters)
 
-        qbs = returning_players[returning_players['Pos'] == 'QB'] if 'Pos' in returning_players.columns else pd.DataFrame()
-        ret_qb_name = "Unknown QB"
-        ret_qb_ovr = 75
+    starter_mod = (est_returning_starters - 13) * 0.5
 
-        if not qbs.empty and 'Prog_OVR' in qbs.columns and 'Name' in qbs.columns:
-            best_ret_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
-            ret_qb_name = best_ret_qb_row['Name']
-            ret_qb_ovr = best_ret_qb_row['Prog_OVR']
+    final_power_rating = projected_ovr + qb_mod + starter_mod + np.random.uniform(-1.5, 1.5)
 
-        inc_qbs = team_incoming[team_incoming['Position'] == 'QB'] if not team_incoming.empty and 'Position' in team_incoming.columns else pd.DataFrame()
-        inc_qb_name = ""
-        inc_qb_stars = 0
-        inc_qb_ovr = 0
+    cfp_prob_raw = 100 / (1 + np.exp(-0.35 * (final_power_rating - 88.0)))
+    title_prob_raw = 100 / (1 + np.exp(-0.22 * (final_power_rating - 99.0)))
+    title_prob_raw = min(title_prob_raw, 35)
 
-        if not inc_qbs.empty and 'Stars' in inc_qbs.columns:
-            best_inc_qb = inc_qbs.sort_values(by='Stars', ascending=False).iloc[0]
-            inc_qb_name = best_inc_qb['Player'] if 'Player' in best_inc_qb.index else "Incoming Recruit"
-            inc_qb_stars = int(best_inc_qb['Stars']) if pd.notna(best_inc_qb['Stars']) else 0
+    cfp_odds = f"{cfp_prob_raw:.1f}%"
+    title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
 
-            if inc_qb_stars == 5:
-                inc_qb_ovr = 82
-            elif inc_qb_stars == 4:
-                inc_qb_ovr = 78
-            elif inc_qb_stars == 3:
-                inc_qb_ovr = 73
-            else:
-                inc_qb_ovr = 68
+    if final_power_rating >= 92.5:
+        tier_title = "🏆 National Title Contender"
+        tier_color = "#FACC15"
+        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
+    elif final_power_rating >= 88.0:
+        tier_title = "⭐ Playoff Threat"
+        tier_color = "#38BDF8"
+        tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
+    elif final_power_rating >= 83.5:
+        tier_title = "🏈 Bowl Bound"
+        tier_color = "#A7F3D0"
+        tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
+    else:
+        tier_title = "🛠️ Rebuilding Year"
+        tier_color = "#9CA3AF"
+        tier_desc = f"High roster turnover (only {est_returning_starters} returning starters) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
 
-        if inc_qb_ovr > ret_qb_ovr:
-            best_qb_desc = f"Incoming Recruit {inc_qb_name} ({inc_qb_stars}⭐)"
-            starting_qb_ovr = inc_qb_ovr
-        else:
-            best_qb_desc = f"{ret_qb_name} ({int(ret_qb_ovr)} OVR)"
-            starting_qb_ovr = ret_qb_ovr
+    next_yr = current_yr + 1
+    mode_color = "#F59E0B" if outlook_mode == "Aggressive" else "#10B981"
 
-        qb_mod = (starting_qb_ovr - 84) * 0.6
+    outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
 
-        # --- ACTUAL returning starters logic ---
-        current_starter_names = build_team_starter_map(current_roster, selected_team)
-
-        if current_starter_names:
-            est_returning_starters = len([name for name in current_starter_names if str(name) not in leaving_names])
-        else:
-            est_returning_starters = 11
-
-        est_returning_starters = max(0, min(22, est_returning_starters))
-        starters_lost_for_mode = max(0, 22 - est_returning_starters)
-
-        starter_mod = (est_returning_starters - 13) * 0.5
-
-        final_power_rating = projected_ovr + qb_mod + starter_mod + np.random.uniform(-1.5, 1.5)
-
-        cfp_prob_raw = 100 / (1 + np.exp(-0.35 * (final_power_rating - 88.0)))
-        title_prob_raw = 100 / (1 + np.exp(-0.22 * (final_power_rating - 99.0)))
-        title_prob_raw = min(title_prob_raw, 35)
-
-        cfp_odds = f"{cfp_prob_raw:.1f}%"
-        title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
-
-        if final_power_rating >= 92.5:
-            tier_title = "🏆 National Title Contender"
-            tier_color = "#FACC15"
-            tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
-        elif final_power_rating >= 88.0:
-            tier_title = "⭐ Playoff Threat"
-            tier_color = "#38BDF8"
-            tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
-        elif final_power_rating >= 83.5:
-            tier_title = "🏈 Bowl Bound"
-            tier_color = "#A7F3D0"
-            tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
-        else:
-            tier_title = "🛠️ Rebuilding Year"
-            tier_color = "#9CA3AF"
-            tier_desc = f"High roster turnover (only {est_returning_starters} returning starters) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
-
-        next_yr = current_yr + 1
-        mode_color = "#F59E0B" if outlook_mode == "Aggressive" else "#10B981"
-
-        outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
-
-        st.markdown(f"""
-            <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid {sel_color}; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
-                    <div style="display: flex; align-items: center;">
-                        {outlook_logo_html}
-                        <div>
-                            <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
-                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">
-                                Mode: <span style="color:{mode_color}; font-weight:bold;">{outlook_mode}</span> |
-                                Returning starters: {est_returning_starters} |
-                                Starters lost: {starters_lost_for_mode} |
-                                Incoming impact players: {impact_incoming_count}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
-                    <div style="flex: 2;">
-                        <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color}; margin-bottom: 8px;">{tier_title}</div>
-                        <div style="font-size: 1rem; color: #DDDDDD; line-height: 1.5;">{tier_desc}</div>
-                    </div>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
-                        <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">Make CFP Odds</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: #FFFFFF;">{cfp_odds}</div>
-                        </div>
-                        <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">National Title Odds</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color};">{title_odds}</div>
-                        </div>
+    st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid {sel_color}; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center;">
+                    {outlook_logo_html}
+                    <div>
+                        <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">
+                            Mode: <span style="color:{mode_color}; font-weight:bold;">{outlook_mode}</span> |
+                            Returning starters: {est_returning_starters} |
+                            Starters lost: {starters_lost_for_mode} |
+                            Incoming impact players: {impact_incoming_count}
+                        </p>
                     </div>
                 </div>
             </div>
-        """, unsafe_allow_html=True)
-    except Exception:
-        pass
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+                <div style="flex: 2;">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color}; margin-bottom: 8px;">{tier_title}</div>
+                    <div style="font-size: 1rem; color: #DDDDDD; line-height: 1.5;">{tier_desc}</div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">Make CFP Odds</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: #FFFFFF;">{cfp_odds}</div>
+                    </div>
+                    <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">National Title Odds</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color};">{title_odds}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+except Exception:
+    pass
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
