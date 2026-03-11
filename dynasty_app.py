@@ -9332,6 +9332,9 @@ with tabs[5]:
         
     st.markdown("---")
 
+    # Fetch primary color to use across the cards
+    sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
+
     # --- 3. Filter Data by Selected Team & Year ---
     def filter_team_year(df, t, y):
         if 'Team' in df.columns and 'Year' in df.columns:
@@ -9372,21 +9375,43 @@ with tabs[5]:
     
     net_talent = (hs_recruits + transfers_in) - total_departures
     net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
+    net_color = "#10B981" if net_talent > 0 else ("#EF4444" if net_talent < 0 else "#AAAAAA")
 
-    mobile_metrics([
-        {"label": f"{selected_year} HS Recruits", "value": str(hs_recruits)},
-        {"label": f"{selected_year} Transfers In", "value": str(transfers_in)},
-        {"label": f"{selected_year} Total Departures", "value": str(total_departures)},
-        {"label": "Net Talent Change", "value": str(net_talent), "delta": net_str}
-    ], cols_desktop=4)
+    # Custom HTML Metric Cards
+    def get_stat_card(label, value, color, delta=None, delta_color=None):
+        delta_html = f"<div style='font-size: 0.9rem; color: {delta_color}; margin-top: 5px; font-weight: bold;'>{delta}</div>" if delta else ""
+        return f"""
+        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; border-top: 4px solid {color}; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 100%;">
+            <div style="font-size: 0.85rem; color: #BBBBBB; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">{label}</div>
+            <div style="font-size: 2.2rem; font-weight: bold; color: #FFFFFF; line-height: 1;">{value}</div>
+            {delta_html}
+        </div>
+        """
 
-    st.markdown("---")
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    with col_m1:
+        st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color), unsafe_allow_html=True)
+    with col_m2:
+        st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color), unsafe_allow_html=True)
+    with col_m3:
+        st.markdown(get_stat_card(f"{selected_year} Total Departures", str(total_departures), sel_color), unsafe_allow_html=True)
+    with col_m4:
+        st.markdown(get_stat_card("Net Talent Change", str(net_talent), sel_color, delta=net_str, delta_color=net_color), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # --- 5. Actual Departures Split View (3 Columns) ---
+    def get_mini_card(title, color):
+        return f"""
+        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; border-top: 4px solid {color}; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+            <h4 style="margin: 0; padding: 0; font-size: 1.2rem; text-align: center !important; color: #FFFFFF;">{title}</h4>
+        </div>
+        """
+
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.subheader("🏈 NFL Draft")
+        st.markdown(get_mini_card("🏈 NFL Draft", sel_color), unsafe_allow_html=True)
         if not team_nfl.empty:
             edited_nfl = st.data_editor(
                 team_nfl.drop(columns=['Team', 'Year'], errors='ignore'), 
@@ -9403,10 +9428,10 @@ with tabs[5]:
             if left_early_count > 0:
                 st.caption(f"🚨 Players officially left early: **{left_early_count}**")
         else:
-            st.caption(f"No NFL departures logged for {selected_year}.")
+            st.caption(f"<div style='text-align: center;'>No NFL departures logged for {selected_year}.</div>", unsafe_allow_html=True)
 
     with col2:
-        st.subheader("🎒 Transfers Out")
+        st.markdown(get_mini_card("🎒 Transfers Out", sel_color), unsafe_allow_html=True)
         if not team_transfers.empty:
             st.dataframe(
                 team_transfers.drop(columns=['Team', 'Year'], errors='ignore'), 
@@ -9417,10 +9442,10 @@ with tabs[5]:
                 use_container_width=True
             )
         else:
-            st.caption(f"No transfers logged for {selected_year}.")
+            st.caption(f"<div style='text-align: center;'>No transfers logged for {selected_year}.</div>", unsafe_allow_html=True)
 
     with col3:
-        st.subheader("🎓 Graduates")
+        st.markdown(get_mini_card("🎓 Graduates", sel_color), unsafe_allow_html=True)
         if not team_grads.empty:
             st.dataframe(
                 team_grads.drop(columns=['Team', 'Year'], errors='ignore'), 
@@ -9431,7 +9456,7 @@ with tabs[5]:
                 use_container_width=True
             )
         else:
-            st.caption(f"No graduates found for {selected_year}.")
+            st.caption(f"<div style='text-align: center;'>No graduates found for {selected_year}.</div>", unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
@@ -9491,7 +9516,6 @@ with tabs[5]:
     team_preds = predictions_df[predictions_df['Team'] == selected_team] if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
 
     # --- 7. In-Season Predictions Header (Card Style) & Table ---
-    sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
     sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
     
     st.markdown(f"""
