@@ -9398,7 +9398,7 @@ with tabs[5]:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 5. Actual Departures Split View (Dropdown Expanders) ---
+    # --- 5. Actual Departures Split View ---
     def get_mini_card(title, color):
         return f"""
         <div style="background-color: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; border-top: 4px solid {color}; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -9596,13 +9596,19 @@ with tabs[5]:
         inc_5_count = int(inc_5_stars)
         inc_4_count = int(inc_4_stars)
         next_yr = current_yr + 1
+        
+        # Pulling a specifically spaced logo to fit the outlook card
+        outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
 
         st.markdown(f"""
             <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid {sel_color}; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
-                    <div>
-                        <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
-                        <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players + incoming ({inc_5_count} 5⭐, {inc_4_count} 4⭐) minus departures.</p>
+                    <div style="display: flex; align-items: center;">
+                        {outlook_logo_html}
+                        <div>
+                            <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
+                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players + incoming ({inc_5_count} 5⭐, {inc_4_count} 4⭐) minus departures.</p>
+                        </div>
                     </div>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
@@ -9625,7 +9631,6 @@ with tabs[5]:
         """, unsafe_allow_html=True)
     except Exception as e:
         pass
-
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
