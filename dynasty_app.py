@@ -6378,7 +6378,7 @@ with tabs[2]:
         else:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
     # --- RECRUITING RANKINGS ---
-    with tabs[7]:
+with tabs[7]:
         st.header(f"🏈 {CURRENT_YEAR} Recruiting Final Rankings")
         st.caption("Final class rankings — high school, portal, and overall. Uses the uploaded recruiting history CSVs automatically.")
 
