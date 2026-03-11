@@ -9796,6 +9796,11 @@ st.markdown("<br><br>", unsafe_allow_html=True)
 
 # --- 8. Next Season Outlook & Dynamic Championship Odds ---
 try:
+    USER_TEAM_COLLISION_GROUPS = [
+        {"Florida State", "Florida", "USF"},
+        {"Texas Tech", "San Jose State", "Bowling Green"}
+    ]
+
     current_roster = pd.read_csv('cfb26_rosters_full.csv')
     team_roster = current_roster[current_roster['Team'] == selected_team].copy()
 
@@ -9951,7 +9956,6 @@ try:
     db_speed_avg = None
 
     if not starter_rows.empty:
-        # normalize speed column if present
         speed_col = None
         for col in ['SPD', 'Speed', 'Spd']:
             if col in starter_rows.columns:
@@ -9961,14 +9965,12 @@ try:
         if speed_col is not None:
             starter_rows[speed_col] = pd.to_numeric(starter_rows[speed_col], errors='coerce')
 
-            # HB + WR projected starters
             skill_rows = starter_rows[starter_rows['Pos'].isin(['HB', 'WR'])].copy()
             if not skill_rows.empty and skill_rows[speed_col].notna().any():
                 skill_speed_avg = float(skill_rows[speed_col].dropna().mean())
                 if skill_speed_avg < 90:
                     speed_mod -= (90 - skill_speed_avg) * 0.35
 
-            # CB + Safety projected starters
             db_rows = starter_rows[starter_rows['Pos'].isin(['CB', 'FS', 'SS', 'S'])].copy()
             if not db_rows.empty and db_rows[speed_col].notna().any():
                 db_speed_avg = float(db_rows[speed_col].dropna().mean())
@@ -9977,10 +9979,22 @@ try:
 
     final_power_rating = projected_ovr + qb_mod + starter_mod + starter_exp_mod + speed_mod + np.random.uniform(-1.0, 1.0)
 
-    # stricter odds
-    cfp_prob_raw = 100 / (1 + np.exp(-0.30 * (final_power_rating - 89.5)))
-    title_prob_raw = 100 / (1 + np.exp(-0.16 * (final_power_rating - 103.0)))
-    title_prob_raw = min(title_prob_raw, 12)
+    # --- harsh odds with collision penalty ---
+    cfp_prob_raw = 100 / (1 + np.exp(-0.24 * (final_power_rating - 91.0)))
+    title_prob_raw = 100 / (1 + np.exp(-0.13 * (final_power_rating - 105.0)))
+
+    cfp_prob_raw = min(cfp_prob_raw, 55)
+    title_prob_raw = min(title_prob_raw, 6)
+
+    collision_group_size = 1
+    for group in USER_TEAM_COLLISION_GROUPS:
+        if selected_team in group:
+            collision_group_size = len(group)
+            break
+
+    if collision_group_size >= 2:
+        cfp_prob_raw *= (0.78 ** (collision_group_size - 1))
+        title_prob_raw *= (0.45 ** (collision_group_size - 1))
 
     cfp_odds = f"{cfp_prob_raw:.1f}%"
     title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
