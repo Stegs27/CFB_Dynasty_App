@@ -9122,7 +9122,88 @@ with tabs[11]:
                     f"<div style='font-size:1.2rem;font-weight:900;color:{_pod_c};'>"
                     f"{_goat_s} pts</div>"
                     f"<div style='font-size:0.62rem;color:#475569;'>GOAT Score</div>"
-# --- ROSTER ATTRITION ---
+                    f"</div></div>"
+                    f"<div style='display:flex;flex-wrap:wrap;gap:8px;'>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#fbbf24;'>"
+                    f"{_natties}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>NATTIES</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#f1f5f9;'>"
+                    f"{_rec}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>RECORD</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#34d399;'>"
+                    f"{_win_pct:.0f}%</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>WIN %</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#60a5fa;'>"
+                    f"{_cfpw}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>CFP W</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#a78bfa;'>"
+                    f"{_conf}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>CONF &#9733;</div>"
+                    f"</div>"
+                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
+                    f"border-radius:8px;text-align:center;min-width:52px;'>"
+                    f"<div style='font-size:0.95rem;font-weight:900;color:#fb923c;'>"
+                    f"{_nfl}</div>"
+                    f"<div style='font-size:0.58rem;color:#475569;'>NFL DRAFTED</div>"
+                    f"</div>"
+                    f"</div></div>",
+                    unsafe_allow_html=True
+                )
+
+            # ── FULL LEADERBOARD TABLE ───────────────────────────────────────────
+            st.markdown("---")
+            with st.expander("📊 Full GOAT Table", expanded=False):
+                _goat_cols = [c for c in [
+                    'User', 'GOAT Score', 'HoF Points', 'Career Record',
+                    'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins',
+                    'CFP Losses', 'Conf Titles', '1st Rounders', 'Drafted'
+                ] if c in goat.columns]
+                st.dataframe(
+                    goat[_goat_cols].reset_index(drop=True),
+                    hide_index=True, use_container_width=True
+                )
+
+            # ── BAR CHART ────────────────────────────────────────────────────────
+            _bar_colors = {
+                str(r['User']): get_team_primary_color(
+                    str(model_2041[model_2041['USER'] == str(r['User'])]['TEAM'].iloc[0])
+                    if not model_2041[model_2041['USER'] == str(r['User'])].empty else ''
+                )
+                for _, r in goat.iterrows()
+            }
+            _fig_goat = px.bar(
+                goat,
+                x="User", y="GOAT Score",
+                color="User",
+                color_discrete_map=_bar_colors,
+                hover_data=[c for c in ['Natties', 'Natty Apps', 'CFP Wins',
+                                         'Conf Titles', '1st Rounders', 'Drafted']
+                            if c in goat.columns],
+                template="plotly_dark",
+            )
+            _fig_goat.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                showlegend=False,
+                margin=dict(l=0, r=0, t=20, b=0),
+            )
+            st.plotly_chart(_fig_goat, use_container_width=True)
+
+    # --- ROSTER ATTRITION ---
 with tabs[5]:
     # --- 0. Logos & Header ---
     def get_attrition_logo(team_name, width=45, margin="0"):
@@ -9713,7 +9794,6 @@ with tabs[5]:
         """, unsafe_allow_html=True)
     except Exception:
         pass
-
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
