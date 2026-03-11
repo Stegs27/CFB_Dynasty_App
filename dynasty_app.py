@@ -4423,6 +4423,14 @@ if data:
 import pytz
 from datetime import datetime
 
+# 1. ROBUST TIMEZONE LOGIC (Miramar, FL is US/Eastern)
+try:
+    eastern = pytz.timezone('US/Eastern')
+    now_et = datetime.now(eastern)
+    time_display = now_et.strftime("%-I:%M %p") # Example: 9:07 PM
+except:
+    time_display = "Live"
+
 def get_header_logo(team_name):
     try:
         path = get_logo_source(team_name) 
@@ -4432,14 +4440,6 @@ def get_header_logo(team_name):
         return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
     except:
         return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
-
-# 1. TIMEZONE FIX (Miramar, FL is US/Eastern)
-try:
-    tz = pytz.timezone('US/Eastern')
-    now_et = datetime.now(tz)
-    time_display = now_et.strftime("%-I:%M %p") # Example: 9:07 PM
-except:
-    time_display = "Live"
 
 # Default placeholders
 top_headline = "Your home for league rankings, playoff races, and Heisman watch."
@@ -4510,7 +4510,9 @@ if is_gold and logo_html:
     st.markdown(f"""
 <style>
 @keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
+@keyframes live-blink {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} 100% {{ opacity: 1; }} }}
 .top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
+.live-indicator {{ animation: live-blink 2s infinite ease-in-out; color: #ef4444; font-weight: 900; }}
 </style>
 <div style="margin-top: -75px; margin-bottom: 0px; text-align: center;">
 <h2 style="margin-bottom: 10px; font-weight: 800; letter-spacing: -0.5px;">📰 Dynasty News</h2>
@@ -4518,7 +4520,9 @@ if is_gold and logo_html:
 <div class="top-story-badge">{badge_text}</div>
 <div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">{top_headline.upper()}</div>
 <div style="color: #94a3b8; font-size: 0.85rem; font-style: italic; max-width: 500px; margin: 0 auto;">"{game_blurb}"</div>
-<div style="color: #475569; font-size: 0.65rem; margin-top: 10px; letter-spacing: 1px; font-weight: 700;">LIVE UPDATE: {time_display} ET</div>
+<div style="color: #475569; font-size: 0.65rem; margin-top: 10px; letter-spacing: 1px; font-weight: 700;">
+    <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
+</div>
 </div>
 """, unsafe_allow_html=True)
 else:
@@ -5411,26 +5415,43 @@ with tabs[1]:
             )
             st.markdown(card_html, unsafe_allow_html=True)
 
-        # 6. Last Updated Footer with Pulse
-        import os
-        from datetime import datetime
-        try:
-            mtime = os.path.getmtime('cfp_rankings_history.csv') 
-            last_updated = datetime.fromtimestamp(mtime).strftime('%B %d, %Y at %I:%M %p')
-            footer_html = (
-                f"<style>@keyframes pulse-blue {{ 0% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }} "
-                f"70% {{ transform: scale(1); box-shadow: 0 0 0 6px rgba(96, 165, 250, 0); }} "
-                f"100% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }} }} "
-                f".pulse-dot {{ display: inline-block; width: 8px; height: 8px; background: #60a5fa; "
-                f"border-radius: 50%; margin-right: 8px; vertical-align: middle; animation: pulse-blue 2s infinite; }}</style>"
-                f"<div style='text-align:center; margin-top:30px; padding:20px; border-top:1px solid #374151;'>"
-                f"<div class='pulse-dot'></div>"
-                f"<span style='color:#9ca3af; font-size:0.8rem; letter-spacing:1px; font-weight:600;'>"
-                f"LIVE SYSTEM STATUS: <span style='color:#60a5fa;'>UPDATED {last_updated.upper()}</span></span></div>"
-            )
-            st.markdown(footer_html, unsafe_allow_html=True)
-        except:
-            pass
+# ════════════════════════════════════════════════════════════════════
+# DYNAMIC GLOBAL HEADER (Fixed Timezone, Blurbs & Spacing)
+# ════════════════════════════════════════════════════════════════════
+import pytz
+from datetime import datetime
+
+# 1. ROBUST TIMEZONE LOGIC (Miramar, FL is US/Eastern)
+try:
+    eastern = pytz.timezone('US/Eastern')
+    now_et = datetime.now(eastern)
+    time_display = now_et.strftime("%-I:%M %p") # Example: 9:07 PM
+except:
+    time_display = "Live"
+
+def get_header_logo(team_name):
+    try:
+        path = get_logo_source(team_name) 
+        uri = image_file_to_data_uri(path) 
+        if uri: return uri
+        slug = TEAM_VISUALS.get(team_name, {}).get('slug', normalize_key(team_name))
+        return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
+    except:
+        return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
+
+# Default placeholders
+top_headline = "Your home for league rankings, playoff races, and Heisman watch."
+game_blurb = ""
+badge_text = "TOP STORY"
+is_gold = False
+logo_html = ""
+
+try:
+    if os.path.exists('CFPbracketresults.csv'):
+        _b_df = pd.read_csv('CFPbracketresults.csv')
+        if not _b_df.empty:
+            _round_map = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
+            _b_df['_rsort'] = _b_df['ROUND'].map(_round_map).f
 
 
         # ════════════════════════════════════════════════════════════════════
