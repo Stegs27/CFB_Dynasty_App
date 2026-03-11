@@ -4418,7 +4418,7 @@ if data:
     }
 
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Fixed Score Logic & Spacing)
+# DYNAMIC GLOBAL HEADER (With Game Blurb Engine)
 # ════════════════════════════════════════════════════════════════════
 def get_header_logo(team_name):
     try:
@@ -4432,6 +4432,7 @@ def get_header_logo(team_name):
 
 # Default placeholders
 top_headline = "Your home for league rankings, playoff races, and Heisman watch."
+game_blurb = ""
 badge_text = "TOP STORY"
 is_gold = False
 logo_html = ""
@@ -4440,36 +4441,38 @@ try:
     if os.path.exists('CFPbracketresults.csv'):
         _b_df = pd.read_csv('CFPbracketresults.csv')
         if not _b_df.empty:
-            # Map rounds for sorting to find the LATEST game
             _round_map = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
             _b_df['_rsort'] = _b_df['ROUND'].map(_round_map).fillna(0)
-            
             _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)].copy()
             
             if not _cy_games.empty:
                 _cy_games = _cy_games.sort_values(['_rsort', 'GAME_ID'], ascending=True)
                 _last = _cy_games.iloc[-1]
 
-                # ── ROBUST SCORE EXTRACTION ──
-                t1 = str(_last.get('TEAM1', '')).strip()
-                t2 = str(_last.get('TEAM2', '')).strip()
+                t1, t2 = str(_last.get('TEAM1', '')).strip(), str(_last.get('TEAM2', '')).strip()
                 s1 = pd.to_numeric(_last.get('TEAM1_SCORE', 0), errors='coerce')
                 s2 = pd.to_numeric(_last.get('TEAM2_SCORE', 0), errors='coerce')
                 raw_winner = str(_last.get('WINNER', '')).strip()
 
-                # Logic to ensure the winner gets the correct (higher) score
                 if raw_winner.lower() == t1.lower():
-                    _w, _l = t1, t2
-                    win_score, loss_score = int(s1), int(s2)
+                    _w, _l, win_score, loss_score = t1, t2, int(s1), int(s2)
                 elif raw_winner.lower() == t2.lower():
-                    _w, _l = t2, t1
-                    win_score, loss_score = int(s2), int(s1)
+                    _w, _l, win_score, loss_score = t2, t1, int(s2), int(s1)
                 else:
-                    # Final fallback: If names don't match, the higher score defines the winner
-                    if s1 >= s2:
-                        _w, _l, win_score, loss_score = t1, t2, int(s1), int(s2)
-                    else:
-                        _w, _l, win_score, loss_score = t2, t1, int(s2), int(s1)
+                    if s1 >= s2: _w, _l, win_score, loss_score = t1, t2, int(s1), int(s2)
+                    else: _w, _l, win_score, loss_score = t2, t1, int(s2), int(s1)
+
+                # ── STORY ENGINE (Generating the Blurb) ──
+                _csv_note = str(_last.get('NOTES', '')).strip()
+                if _csv_note and _csv_note.lower() != 'nan':
+                    game_blurb = _csv_note
+                else:
+                    diff = win_score - loss_score
+                    rd = str(_last.get('ROUND', 'Playoffs'))
+                    if diff >= 24: game_blurb = f"{_w} delivers a massive statement win in the {rd}."
+                    elif diff <= 3: game_blurb = f"An absolute classic. {_w} survives a {rd} thriller."
+                    elif diff <= 7: game_blurb = f"{_w} holds on in a hard-fought {rd} battle."
+                    else: game_blurb = f"{_w} takes care of business to advance."
 
                 win_logo, loss_logo = get_header_logo(_w), get_header_logo(_l)
                 top_headline = f"{_w} {win_score} - {loss_score} {_l}"
@@ -4477,7 +4480,7 @@ try:
                 is_gold = True
                 logo_html = f'<div style="display:flex;justify-content:center;align-items:center;gap:20px;margin-bottom:10px;"><img src="{win_logo}" style="width:55px;height:55px;object-fit:contain;"><span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span><img src="{loss_logo}" style="width:55px;height:55px;object-fit:contain;"></div>'
 
-    # Heisman Fallback
+    # Heisman Fallback (if no game data)
     if not is_gold and not model_2041.empty and 'Heisman Player' in model_2041.columns:
         frontrunner = model_2041.iloc[0]
         p_name = str(frontrunner.get('Heisman Player', '')).strip()
@@ -4485,12 +4488,13 @@ try:
             top_headline = f"{p_name} — {frontrunner.get('Heisman Stats', '')}"
             badge_text = "HEISMAN WATCH"
             is_gold = True
+            game_blurb = "The race for the bronze statue intensifies as the season reaches its peak."
             h_logo = get_header_logo(frontrunner.get('TEAM', ''))
             logo_html = f'<div style="text-align:center;margin-bottom:10px;"><img src="{h_logo}" style="width:65px;height:65px;object-fit:contain;"></div>'
 except Exception:
     pass
 
-# ── RENDER (With tight spacing fix) ──
+# ── RENDER ──
 if is_gold and logo_html:
     st.markdown(f"""
 <style>
@@ -4501,7 +4505,8 @@ if is_gold and logo_html:
 <h2 style="margin-bottom: 10px; font-weight: 800; letter-spacing: -0.5px;">📰 Dynasty News</h2>
 {logo_html}
 <div class="top-story-badge">{badge_text}</div>
-<div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px;">{top_headline.upper()}</div>
+<div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">{top_headline.upper()}</div>
+<div style="color: #94a3b8; font-size: 0.85rem; font-style: italic; max-width: 500px; margin: 0 auto;">"{game_blurb}"</div>
 </div>
 """, unsafe_allow_html=True)
 else:
@@ -4511,6 +4516,7 @@ else:
 <p style="color: #9ca3af; font-size: 0.9rem;">{top_headline}</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
