@@ -5414,45 +5414,6 @@ with tabs[1]:
             )
             st.markdown(card_html, unsafe_allow_html=True)
 
-# ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Fixed Timezone, Blurbs & Spacing)
-# ════════════════════════════════════════════════════════════════════
-import pytz
-from datetime import datetime
-
-# 1. ROBUST TIMEZONE LOGIC (Miramar, FL is US/Eastern)
-try:
-    eastern = pytz.timezone('US/Eastern')
-    now_et = datetime.now(eastern)
-    time_display = now_et.strftime("%-I:%M %p") # Example: 9:07 PM
-except:
-    time_display = "Live"
-
-def get_header_logo(team_name):
-    try:
-        path = get_logo_source(team_name) 
-        uri = image_file_to_data_uri(path) 
-        if uri: return uri
-        slug = TEAM_VISUALS.get(team_name, {}).get('slug', normalize_key(team_name))
-        return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
-    except:
-        return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
-
-# Default placeholders
-top_headline = "Your home for league rankings, playoff races, and Heisman watch."
-game_blurb = ""
-badge_text = "TOP STORY"
-is_gold = False
-logo_html = ""
-
-try:
-    if os.path.exists('CFPbracketresults.csv'):
-        _b_df = pd.read_csv('CFPbracketresults.csv')
-        if not _b_df.empty:
-            _round_map = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
-            _b_df['_rsort'] = _b_df['ROUND'].map(_round_map).f
-
-
         # ════════════════════════════════════════════════════════════════════
         # SECTION 2 — DYNASTY HEADLINES
         # All metrics use LIVE model columns (Natty Odds, Power Index,
