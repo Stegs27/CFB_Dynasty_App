@@ -9878,16 +9878,30 @@ try:
 
     qb_mod = (starting_qb_ovr - 84) * 0.6
 
-    # --- ACTUAL returning starters logic ---
-    current_starter_names = build_team_starter_map(current_roster, selected_team)
+    # --- ACTUAL returning starters logic aligned with confirmed departures card ---
+current_starter_names = build_team_starter_map(current_roster, selected_team)
 
-    if current_starter_names:
-        est_returning_starters = len([name for name in current_starter_names if str(name) not in leaving_names])
-    else:
-        est_returning_starters = 11
+confirmed_starter_names = set()
+if not confirmed_departures_df.empty and 'InferredStarter' in confirmed_departures_df.columns:
+    confirmed_starter_names = set(
+        confirmed_departures_df.loc[
+            confirmed_departures_df['InferredStarter'] == True, 'Player'
+        ].astype(str).tolist()
+    )
 
-    est_returning_starters = max(0, min(22, est_returning_starters))
-    starters_lost_for_mode = max(0, 22 - est_returning_starters)
+possible_early_starter_names = set()
+if not possible_early_df.empty and 'Player' in possible_early_df.columns:
+    possible_early_starter_names = set(
+        [p for p in possible_early_df['Player'].astype(str).tolist() if p in current_starter_names]
+    )
+
+if outlook_mode == "Aggressive":
+    starters_lost_names = confirmed_starter_names.union(possible_early_starter_names)
+else:
+    starters_lost_names = confirmed_starter_names
+
+starters_lost_for_mode = len(starters_lost_names)
+est_returning_starters = max(0, min(22, 22 - starters_lost_for_mode))
 
     starter_mod = (est_returning_starters - 13) * 0.5
 
