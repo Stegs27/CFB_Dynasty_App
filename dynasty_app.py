@@ -9244,7 +9244,6 @@ with tabs[5]:
     # --- 1. CSV Loading Logic ---
     @st.cache_data
     def load_attrition_data():
-        # Recruiting History
         try:
             hs_df = pd.read_csv('recruiting_high_school_history.csv')
         except Exception:
@@ -9255,7 +9254,6 @@ with tabs[5]:
         except Exception:
             tp_df = pd.DataFrame(columns=['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points'])
 
-        # Departures
         try:
             nfl = pd.read_csv('attrition_nfl.csv')
         except Exception:
@@ -9273,7 +9271,31 @@ with tabs[5]:
             
         return hs_df, tp_df, nfl, transfers, graduates
 
-    hs_df, tp_df, nfl_df, transfers_df, graduates_df = load_attrition_data()
+    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df = load_attrition_data()
+
+    # --- 1B. Auto-Pull Current Seniors from Roster ---
+    current_yr = CURRENT_YEAR if 'CURRENT_YEAR' in globals() else 2041
+
+    @st.cache_data
+    def get_auto_seniors(roster_path, cur_year):
+        try:
+            rosters = pd.read_csv(roster_path)
+            # Find anyone with "SR" in their class
+            seniors = rosters[rosters['Year'].astype(str).str.contains('SR', na=False)]
+            
+            return pd.DataFrame({
+                'Year': cur_year,
+                'Team': seniors['Team'],
+                'Player': seniors['Name'],
+                'Position': seniors['Pos']
+            })
+        except Exception:
+            return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position'])
+
+    auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
+    
+    # Merge manual historical graduates with auto-pulled current seniors
+    graduates_df = pd.concat([manual_graduates_df, auto_seniors_df]).drop_duplicates(subset=['Year', 'Team', 'Player'])
 
     # Determine available years dynamically from all the data
     all_years = set()
@@ -9283,8 +9305,7 @@ with tabs[5]:
     
     available_years = sorted([int(y) for y in all_years if str(y).isdigit()], reverse=True)
     if not available_years:
-        fallback_year = CURRENT_YEAR if 'CURRENT_YEAR' in globals() else 2041
-        available_years = [fallback_year]
+        available_years = [current_yr]
 
     # --- 2. Selectors ---
     col_sel1, col_sel2 = st.columns(2)
@@ -9308,9 +9329,22 @@ with tabs[5]:
     team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
     team_grads = filter_team_year(graduates_df, selected_team, selected_year)
 
+    # Smart Filter: Remove players from 'Graduates' if they went to the NFL or Transferred Out
+    if not team_grads.empty:
+        nfl_names = team_nfl['Player'].tolist() if not team_nfl.empty else []
+        transfer_names = team_transfers['Player'].tolist() if not team_transfers.empty else []
+        leave_names = set(nfl_names + transfer_names)
+        
+        team_grads = team_grads[~team_grads['Player'].isin(leave_names)]
+
     # --- 4. Talent Balance Math ---
-    total_departures = len(team_nfl) + len(team_transfers) + len(team_grads)
+    all_departing_players = pd.concat([
+        team_nfl['Player'] if 'Player' in team_nfl.columns else pd.Series(dtype=str),
+        team_transfers['Player'] if 'Player' in team_transfers.columns else pd.Series(dtype=str),
+        team_grads['Player'] if 'Player' in team_grads.columns else pd.Series(dtype=str)
+    ])
     
+    total_departures = all_departing_players.nunique()
     hs_recruits = int(team_hs['TotalCommits'].sum()) if 'TotalCommits' in team_hs.columns else 0
     transfers_in = int(team_tp['TotalCommits'].sum()) if 'TotalCommits' in team_tp.columns else 0
     
@@ -9367,7 +9401,7 @@ with tabs[5]:
                 use_container_width=True
             )
         else:
-            st.caption(f"No graduates logged for {selected_year}.")
+            st.caption(f"No graduates found for {selected_year}.")
 
     st.markdown("---")
 
