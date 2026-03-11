@@ -4491,7 +4491,26 @@ except Exception:
     pass
 
 # ── RENDER (With tight spacing fix) ──
-if is_gold
+if is_gold and logo_html:
+    st.markdown(f"""
+<style>
+@keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
+.top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
+</style>
+<div style="margin-top: -65px; margin-bottom: 0px; text-align: center;">
+<h2 style="margin-bottom: 10px; font-weight: 800; letter-spacing: -0.5px;">📰 Dynasty News</h2>
+{logo_html}
+<div class="top-story-badge">{badge_text}</div>
+<div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px;">{top_headline.upper()}</div>
+</div>
+""", unsafe_allow_html=True)
+else:
+    st.markdown(f"""
+<div style="margin-top: -60px; margin-bottom: 15px; text-align: center;">
+<h2 style="margin-bottom: 5px; font-weight: 800;">📰 Dynasty News</h2>
+<p style="color: #9ca3af; font-size: 0.9rem;">{top_headline}</p>
+</div>
+""", unsafe_allow_html=True)
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
