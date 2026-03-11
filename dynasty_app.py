@@ -5154,7 +5154,7 @@ with tabs[1]:
         else:
             st.info("No schedule data found for this user. Make sure CPUscores_MASTER.csv is up to date.")
 
-    with tabs[0]:
+with tabs[0]:
         import os
 
 
