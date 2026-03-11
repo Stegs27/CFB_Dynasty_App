@@ -9332,7 +9332,6 @@ with tabs[5]:
         
     st.markdown("---")
 
-    # Fetch primary color to use across the cards
     sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
 
     # --- 3. Filter Data by Selected Team & Year ---
@@ -9377,7 +9376,6 @@ with tabs[5]:
     net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
     net_color = "#10B981" if net_talent > 0 else ("#EF4444" if net_talent < 0 else "#AAAAAA")
 
-    # Custom HTML Metric Cards
     def get_stat_card(label, value, color, delta=None, delta_color=None):
         delta_html = f"<div style='font-size: 0.9rem; color: {delta_color}; margin-top: 5px; font-weight: bold;'>{delta}</div>" if delta else ""
         return f"""
@@ -9400,7 +9398,7 @@ with tabs[5]:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 5. Actual Departures Split View (3 Columns) ---
+    # --- 5. Actual Departures Split View ---
     def get_mini_card(title, color):
         return f"""
         <div style="background-color: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; border-top: 4px solid {color}; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -9460,7 +9458,7 @@ with tabs[5]:
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # --- 6. Live NFL Prospect Generation (Always Current Roster) ---
+    # --- 6. Live NFL Prospect Generation ---
     @st.cache_data
     def get_nfl_prospects(roster_path):
         try:
@@ -9515,7 +9513,7 @@ with tabs[5]:
     predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
     team_preds = predictions_df[predictions_df['Team'] == selected_team] if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
 
-    # --- 7. In-Season Predictions Header (Card Style) & Table ---
+    # --- 7. In-Season Predictions Header (Card Style) ---
     sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
     
     st.markdown(f"""
@@ -9541,6 +9539,67 @@ with tabs[5]:
         )
     else:
         st.info(f"No active NFL prospects found matching the current criteria for {selected_team}.")
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # --- 8. Next Season Outlook & Championship Odds ---
+    try:
+        current_roster = pd.read_csv('cfb26_rosters_full.csv')
+        team_roster = current_roster[current_roster['Team'] == selected_team]
+        
+        # Determine who is returning by removing departed & predicted departure names
+        leaving_names = set(all_departing_players.tolist())
+        if not team_preds.empty:
+            leaving_names.update(team_preds['Player'].tolist())
+            
+        returning_players = team_roster[~team_roster['Name'].isin(leaving_names)]
+        
+        # Calculate Base OVR (Average of top 25 returning players to simulate returning starters)
+        if not returning_players.empty and len(returning_players) >= 20:
+            base_ovr = returning_players.nlargest(25, 'OVR')['OVR'].mean()
+        else:
+            base_ovr = 80
+            
+        # Calculate Incoming Talent Boost (Weighting 5-stars heavily, 4-stars slightly)
+        inc_5_stars = (team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns else 0) + (team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns else 0)
+        inc_4_stars = (team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns else 0) + (team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns else 0)
+        
+        talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4)
+        projected_ovr = base_ovr + talent_boost
+
+        # Map Projected OVR to Odds Tiers
+        if projected_ovr >= 91:
+            tier_title = "🏆 National Title Contender"
+            cfp_odds = "85%"
+            title_odds = "22%"
+            tier_color = "#FACC15" # Gold
+            tier_desc = "With elite talent returning and highly touted incoming recruits, this roster is primed for a deep playoff run and a chance at immortality."
+        elif projected_ovr >= 88:
+            tier_title = "⭐ Playoff Threat"
+            cfp_odds = "50%"
+            title_odds = "8%"
+            tier_color = "#38BDF8" # Blue
+            tier_desc = "A dangerous roster with enough firepower to make the newly expanded playoff. A few breaks their way and they could steal a title."
+        elif projected_ovr >= 85:
+            tier_title = "🏈 Bowl Bound"
+            cfp_odds = "15%"
+            title_odds = "< 1%"
+            tier_color = "#A7F3D0" # Green
+            tier_desc = "A solid team with evident talent gaps compared to the elites. They will be competitive and bowl eligible, but a CFP birth would require a Cinderella season."
+        else:
+            tier_title = "🛠️ Rebuilding Year"
+            cfp_odds = "< 5%"
+            title_odds = "0%"
+            tier_color = "#9CA3AF" # Gray
+            tier_desc = "High roster turnover and lack of immediate elite replacements points toward a challenging season. Building for the future is the priority."
+
+        # Draw Next Season Outlook Card
+        st.markdown(f"""
+            <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid {sel_color}; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
+                    <div>
+                        <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {current_yr + 1} Season Outlook</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {len(returning_players)} returning players + incoming ({int(inc_5_st
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
