@@ -5382,6 +5382,7 @@ with tabs[1]:
             # Combine into the badge
             rank_badge = f"<span style='{badge_style} font-size:0.75rem; font-weight:800; margin-left:6px; padding:2px 8px; border-radius:4px; text-transform:uppercase;'>RANK {rank_label}</span>"
 
+            rank_badge = f"<span style='color:#60a5fa; font-size:0.75rem; font-weight:800; margin-left:6px; background:#60a5fa15; border:1px solid #60a5fa44; padding:1px 6px; border-radius:4px;'>RANK #{curr_rank}</span>"
             
             _team_clean = team.strip().lower()
             is_official = _team_clean in official_cfp_teams
