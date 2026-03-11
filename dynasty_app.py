@@ -9554,12 +9554,16 @@ with tabs[5]:
         if not team_preds.empty:
             leaving_names.update(team_preds['Player'].tolist())
             
-        returning_players = team_roster[~team_roster['Name'].isin(leaving_names)]
+        returning_players = team_roster[~team_roster['Name'].isin(leaving_names)].copy()
         
         if not returning_players.empty and len(returning_players) >= 20:
-            raw_base_ovr = returning_players.nlargest(25, 'OVR')['OVR'].mean()
-            # Apply a 3% Offseason Progression bump to the returning starters
-            base_ovr = raw_base_ovr * 1.03
+            # Randomly simulate offseason development for each returning player (+3 to +7 OVR)
+            # Weights make +3 and +4 common, while +7 is a very rare breakout offseason
+            prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
+            progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
+            
+            returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
+            base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean()
         else:
             base_ovr = 80
             
@@ -9608,7 +9612,7 @@ with tabs[5]:
                         {outlook_logo_html}
                         <div>
                             <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
-                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players (+3% offseason dev) & incoming class ({inc_5_count} 5⭐, {inc_4_count} 4⭐).</p>
+                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">Algorithm based on {ret_count} returning players (+3 to +7 OVR offseason dev) & incoming class ({inc_5_count} 5⭐, {inc_4_count} 4⭐).</p>
                         </div>
                     </div>
                 </div>
