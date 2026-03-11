@@ -5016,7 +5016,7 @@ tabs = st.tabs([
     "🏆 Who's In?",
     "📺 Season Recap",
     "🔍 Speed Freaks",
-    "🚪 Roster Attrition","
+    "🚪 Roster Attrition",
     "🎯 Roster Matchup",
     "📊 Team Overview",
     "🏈 Recruiting Rankings",
