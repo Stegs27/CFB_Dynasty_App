@@ -8653,6 +8653,6 @@ with tabs[10]:
 with tabs[5]:
         render_roster_matchup_tab()
 
-    if st.sidebar.button("🔄 Refresh Data"):
+if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
         st.rerun()
