@@ -4504,14 +4504,14 @@ try:
 except Exception:
     pass  # <--- THIS WAS LIKELY MISSING
 
-# ── RENDER ──
+# ── RENDER (Raised up with ET Timestamp) ──
 if is_gold and logo_html:
     st.markdown(f"""
 <style>
 @keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
 @keyframes live-blink {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} 100% {{ opacity: 1; }} }}
 .top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
-.live-indicator {{ animation: live-blink 2s infinite ease-in-out; color: #ef4444; font-weight: 900; }}
+.live-indicator {{ animation: live-blink 2s infinite ease-in-out; color: #38bdf8; font-weight: 900; }}
 </style>
 <div style="margin-top: -75px; margin-bottom: 0px; text-align: center;">
 <h2 style="margin-bottom: 10px; font-weight: 800; letter-spacing: -0.5px;">📰 Dynasty News</h2>
@@ -4519,7 +4519,7 @@ if is_gold and logo_html:
 <div class="top-story-badge">{badge_text}</div>
 <div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">{top_headline.upper()}</div>
 <div style="color: #94a3b8; font-size: 0.85rem; font-style: italic; max-width: 500px; margin: 0 auto;">"{game_blurb}"</div>
-<div style="color: #475569; font-size: 0.65rem; margin-top: 10px; letter-spacing: 1px; font-weight: 700;">
+<div style="color: #38bdf8; font-size: 0.65rem; margin-top: 10px; letter-spacing: 1px; font-weight: 800;">
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
 </div>
 </div>
