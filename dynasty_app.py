@@ -9816,7 +9816,11 @@ try:
         prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
         progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
         returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
-        base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean() if len(returning_players) >= 20 else returning_players['Prog_OVR'].mean()
+        base_ovr = (
+            returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean()
+            if len(returning_players) >= 20
+            else returning_players['Prog_OVR'].mean()
+        )
     else:
         base_ovr = 80
 
@@ -9841,6 +9845,7 @@ try:
     talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus
     projected_ovr = base_ovr + talent_boost
 
+    # --- QB evaluation ---
     qbs = returning_players[returning_players['Pos'] == 'QB'] if 'Pos' in returning_players.columns else pd.DataFrame()
     ret_qb_name = "Unknown QB"
     ret_qb_ovr = 75
@@ -9850,7 +9855,11 @@ try:
         ret_qb_name = best_ret_qb_row['Name']
         ret_qb_ovr = best_ret_qb_row['Prog_OVR']
 
-    inc_qbs = team_incoming[team_incoming['Position'] == 'QB'] if not team_incoming.empty and 'Position' in team_incoming.columns else pd.DataFrame()
+    inc_qbs = (
+        team_incoming[team_incoming['Position'] == 'QB']
+        if not team_incoming.empty and 'Position' in team_incoming.columns
+        else pd.DataFrame()
+    )
     inc_qb_name = ""
     inc_qb_stars = 0
     inc_qb_ovr = 0
@@ -9876,9 +9885,17 @@ try:
         best_qb_desc = f"{ret_qb_name} ({int(ret_qb_ovr)} OVR)"
         starting_qb_ovr = ret_qb_ovr
 
-    qb_mod = (starting_qb_ovr - 84) * 0.6
+    # QB bonus only for elite QBs
+    if starting_qb_ovr >= 96:
+        qb_mod = 4.0
+    elif starting_qb_ovr >= 94:
+        qb_mod = 2.5
+    elif starting_qb_ovr >= 92:
+        qb_mod = 1.0
+    else:
+        qb_mod = 0.0
 
-    # --- ACTUAL returning starters logic aligned with confirmed departures card ---
+    # --- Returning starters aligned with confirmed departures card ---
     current_starter_names = build_team_starter_map(current_roster, selected_team)
 
     confirmed_starter_names = set()
@@ -9900,30 +9917,84 @@ try:
     else:
         starters_lost_names = confirmed_starter_names
 
-    starters_lost_for_mode = len(starters_lost_names)
-    est_returning_starters = max(0, min(22, 22 - starters_lost_for_mode))
+    returning_starter_names = [name for name in current_starter_names if str(name) not in starters_lost_names]
+    est_returning_starters = max(0, min(22, len(returning_starter_names)))
+    starters_lost_for_mode = max(0, 22 - est_returning_starters)
 
-    starter_mod = (est_returning_starters - 13) * 0.5
+    # modest starter count bonus
+    starter_mod = (est_returning_starters - 13) * 0.35
 
-    final_power_rating = projected_ovr + qb_mod + starter_mod + np.random.uniform(-1.5, 1.5)
+    # --- Experience adjustment for returning starters ---
+    starter_exp_mod = 0.0
+    young_starter_count = 0
+    senior_starter_count = 0
 
-    cfp_prob_raw = 100 / (1 + np.exp(-0.35 * (final_power_rating - 88.0)))
-    title_prob_raw = 100 / (1 + np.exp(-0.18 * (final_power_rating - 101.0)))
-    title_prob_raw = min(title_prob_raw, 20)
+    starter_rows = pd.DataFrame()
+    if not team_roster.empty and 'Name' in team_roster.columns and 'Year' in team_roster.columns:
+        starter_rows = team_roster[team_roster['Name'].astype(str).isin(returning_starter_names)].copy()
+        starter_rows['Year'] = starter_rows['Year'].astype(str)
+
+        fr_count = starter_rows['Year'].str.fullmatch(r'FR', case=False, na=False).sum()
+        rs_fr_count = starter_rows['Year'].str.contains(r'FR \(RS\)|RS FR', case=False, na=False).sum()
+        so_count = starter_rows['Year'].str.fullmatch(r'SO', case=False, na=False).sum()
+        sr_count = starter_rows['Year'].str.contains(r'^SR$|SR ', case=False, na=False).sum()
+
+        young_starter_count = int(fr_count + rs_fr_count + so_count)
+        senior_starter_count = int(sr_count)
+
+        starter_exp_mod -= young_starter_count * 0.8
+        starter_exp_mod += senior_starter_count * 0.25
+
+    # --- Speed penalties for projected skill starters ---
+    speed_mod = 0.0
+    skill_speed_avg = None
+    db_speed_avg = None
+
+    if not starter_rows.empty:
+        # normalize speed column if present
+        speed_col = None
+        for col in ['SPD', 'Speed', 'Spd']:
+            if col in starter_rows.columns:
+                speed_col = col
+                break
+
+        if speed_col is not None:
+            starter_rows[speed_col] = pd.to_numeric(starter_rows[speed_col], errors='coerce')
+
+            # HB + WR projected starters
+            skill_rows = starter_rows[starter_rows['Pos'].isin(['HB', 'WR'])].copy()
+            if not skill_rows.empty and skill_rows[speed_col].notna().any():
+                skill_speed_avg = float(skill_rows[speed_col].dropna().mean())
+                if skill_speed_avg < 90:
+                    speed_mod -= (90 - skill_speed_avg) * 0.35
+
+            # CB + Safety projected starters
+            db_rows = starter_rows[starter_rows['Pos'].isin(['CB', 'FS', 'SS', 'S'])].copy()
+            if not db_rows.empty and db_rows[speed_col].notna().any():
+                db_speed_avg = float(db_rows[speed_col].dropna().mean())
+                if db_speed_avg < 90:
+                    speed_mod -= (90 - db_speed_avg) * 0.35
+
+    final_power_rating = projected_ovr + qb_mod + starter_mod + starter_exp_mod + speed_mod + np.random.uniform(-1.0, 1.0)
+
+    # stricter odds
+    cfp_prob_raw = 100 / (1 + np.exp(-0.30 * (final_power_rating - 89.5)))
+    title_prob_raw = 100 / (1 + np.exp(-0.16 * (final_power_rating - 103.0)))
+    title_prob_raw = min(title_prob_raw, 12)
 
     cfp_odds = f"{cfp_prob_raw:.1f}%"
     title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
 
     if final_power_rating >= 92.5:
-        tier_title = "🏆 Legit National Title Contender"
+        tier_title = "🏆 National Title Contender"
         tier_color = "#FACC15"
-        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. The keys are in {best_qb_desc}'s hands at QB and he gives them a very real chance at immortality."
+        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
     elif final_power_rating >= 88.0:
-        tier_title = "⭐ CFP Bound & National Title Threat"
+        tier_title = "⭐ Playoff Threat"
         tier_color = "#38BDF8"
         tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
     elif final_power_rating >= 83.5:
-        tier_title = "🏈 Pop Tarts Bowl Bound"
+        tier_title = "🏈 Bowl Bound"
         tier_color = "#A7F3D0"
         tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
     else:
@@ -9933,6 +10004,9 @@ try:
 
     next_yr = current_yr + 1
     mode_color = "#F59E0B" if outlook_mode == "Aggressive" else "#10B981"
+
+    skill_speed_text = f"{skill_speed_avg:.1f}" if skill_speed_avg is not None else "N/A"
+    db_speed_text = f"{db_speed_avg:.1f}" if db_speed_avg is not None else "N/A"
 
     outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
 
@@ -9947,7 +10021,12 @@ try:
                             Mode: <span style="color:{mode_color}; font-weight:bold;">{outlook_mode}</span> |
                             Returning starters: {est_returning_starters} |
                             Starters lost: {starters_lost_for_mode} |
-                            Incoming impact players: {impact_incoming_count}
+                            Young starters: {young_starter_count} |
+                            Senior starters: {senior_starter_count}
+                        </p>
+                        <p style="margin: 4px 0 0 0; font-size: 0.90rem; color: #9CA3AF; text-align: left !important;">
+                            Skill starter speed avg: {skill_speed_text} |
+                            DB starter speed avg: {db_speed_text}
                         </p>
                     </div>
                 </div>
