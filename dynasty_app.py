@@ -9257,14 +9257,22 @@ with tabs[5]:
                 is_senior = 'SR' in year
                 is_eligible_early = 'JR' in year or 'SO (RS)' in year
                 
-                if is_senior and ovr >= 88:
+                # ALL Seniors, Underclassmen 90+
+                if is_senior:
+                    if ovr >= 92:
+                        projection = 'Day 1-3'
+                    elif ovr >= 88:
+                        projection = 'Day 3 / UDFA'
+                    else:
+                        projection = 'Undrafted'
+                        
                     prospects.append({
                         'Team': row['Team'],
                         'Player': row['Name'],
                         'Pos': row['Pos'],
                         'Year': row['Year'],
                         'OVR': ovr,
-                        'Draft Projection': 'Day 1-3' if ovr >= 92 else 'Day 3 / UDFA',
+                        'Draft Projection': projection,
                         'Status': 'Graduating'
                     })
                 elif is_eligible_early and ovr >= 90:
@@ -9348,7 +9356,7 @@ with tabs[5]:
 
     # --- 6. In-Season Predictions (Live Roster Data) ---
     st.subheader(f"🔮 {selected_team} Flight Risk")
-    st.caption("Auto-generated from current rosters. Highlighting seniors (88+ OVR) and underclassmen (90+ OVR) at risk of leaving.")
+    st.caption("Auto-generated from current rosters. Highlighting all graduating seniors and underclassmen (90+ OVR) at risk of leaving.")
     
     if not team_preds.empty:
         st.dataframe(
