@@ -9878,7 +9878,7 @@ try:
 
     qb_mod = (starting_qb_ovr - 84) * 0.6
 
-    # --- ACTUAL returning starters logic aligned with confirmed departures card ---
+# --- ACTUAL returning starters logic aligned with confirmed departures card ---
 current_starter_names = build_team_starter_map(current_roster, selected_team)
 
 confirmed_starter_names = set()
