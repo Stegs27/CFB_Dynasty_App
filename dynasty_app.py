@@ -9983,9 +9983,6 @@ try:
     cfp_prob_raw = 100 / (1 + np.exp(-0.24 * (final_power_rating - 91.0)))
     title_prob_raw = 100 / (1 + np.exp(-0.13 * (final_power_rating - 105.0)))
 
-    cfp_prob_raw = min(cfp_prob_raw, 55)
-    title_prob_raw = min(title_prob_raw, 6)
-
     collision_group_size = 1
     for group in USER_TEAM_COLLISION_GROUPS:
         if selected_team in group:
@@ -9993,11 +9990,21 @@ try:
             break
 
     if collision_group_size >= 2:
-        cfp_prob_raw *= (0.78 ** (collision_group_size - 1))
-        title_prob_raw *= (0.45 ** (collision_group_size - 1))
+        cfp_prob_raw *= (0.70 ** (collision_group_size - 1))
+        title_prob_raw *= (0.35 ** (collision_group_size - 1))
 
-    cfp_odds = f"{cfp_prob_raw:.1f}%"
-    title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
+    # convert probabilities to ratio odds display
+    def prob_to_ratio_odds(prob):
+        if prob >= 50:
+            return "Even"
+        elif prob >= 0.1:
+            implied_ratio = max(1, round((100 / prob) - 1))
+            return f"{implied_ratio}:1"
+        else:
+            return "1000:1+"
+
+    cfp_odds = prob_to_ratio_odds(cfp_prob_raw)
+    title_odds = prob_to_ratio_odds(title_prob_raw)
 
     if final_power_rating >= 92.5:
         tier_title = "🏆 National Title Contender"
