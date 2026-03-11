@@ -9887,8 +9887,9 @@ with tabs[5]:
 
         final_power_rating = projected_ovr + qb_mod + starter_mod + np.random.uniform(-1.5, 1.5)
 
-        cfp_prob_raw = 100 / (1 + np.exp(-0.35 * (final_power_rating - 87.0)))
-        title_prob_raw = 100 / (1 + np.exp(-0.45 * (final_power_rating - 93.5)))
+        cfp_prob_raw = 100 / (1 + np.exp(-0.35 * (final_power_rating - 88.0)))
+        title_prob_raw = 100 / (1 + np.exp(-0.28 * (final_power_rating - 97.2)))
+        title_prob_raw = min(title_prob_raw, 65)
 
         cfp_odds = f"{cfp_prob_raw:.1f}%"
         title_odds = f"{title_prob_raw:.1f}%" if title_prob_raw >= 0.1 else "< 0.1%"
