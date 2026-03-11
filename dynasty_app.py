@@ -9398,10 +9398,10 @@ with tabs[5]:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 5. Actual Departures Split View ---
+    # --- 5. Actual Departures Split View (Dropdown Expanders) ---
     def get_mini_card(title, color):
         return f"""
-        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; border-top: 4px solid {color}; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; border-top: 4px solid {color}; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
             <h4 style="margin: 0; padding: 0; font-size: 1.2rem; text-align: center !important; color: #FFFFFF;">{title}</h4>
         </div>
         """
@@ -9410,51 +9410,54 @@ with tabs[5]:
     
     with col1:
         st.markdown(get_mini_card("🏈 NFL Draft", sel_color), unsafe_allow_html=True)
-        if not team_nfl.empty:
-            edited_nfl = st.data_editor(
-                team_nfl.drop(columns=['Team', 'Year'], errors='ignore'), 
-                column_config={
-                    "Left Early": st.column_config.CheckboxColumn("Left Early"),
-                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
-                },
-                hide_index=True, 
-                use_container_width=True,
-                key=f"nfl_editor_{selected_team}_{selected_year}"
-            )
-            
-            left_early_count = edited_nfl['Left Early'].sum() if 'Left Early' in edited_nfl.columns else 0
-            if left_early_count > 0:
-                st.caption(f"🚨 Players officially left early: **{left_early_count}**")
-        else:
-            st.caption(f"<div style='text-align: center;'>No NFL departures logged for {selected_year}.</div>", unsafe_allow_html=True)
+        with st.expander(f"View {len(team_nfl)} Players", expanded=False):
+            if not team_nfl.empty:
+                edited_nfl = st.data_editor(
+                    team_nfl.drop(columns=['Team', 'Year'], errors='ignore'), 
+                    column_config={
+                        "Left Early": st.column_config.CheckboxColumn("Left Early"),
+                        "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                    },
+                    hide_index=True, 
+                    use_container_width=True,
+                    key=f"nfl_editor_{selected_team}_{selected_year}"
+                )
+                
+                left_early_count = edited_nfl['Left Early'].sum() if 'Left Early' in edited_nfl.columns else 0
+                if left_early_count > 0:
+                    st.caption(f"🚨 Players officially left early: **{left_early_count}**")
+            else:
+                st.caption(f"<div style='text-align: center;'>No NFL departures logged.</div>", unsafe_allow_html=True)
 
     with col2:
         st.markdown(get_mini_card("🎒 Transfers Out", sel_color), unsafe_allow_html=True)
-        if not team_transfers.empty:
-            st.dataframe(
-                team_transfers.drop(columns=['Team', 'Year'], errors='ignore'), 
-                column_config={
-                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
-                },
-                hide_index=True, 
-                use_container_width=True
-            )
-        else:
-            st.caption(f"<div style='text-align: center;'>No transfers logged for {selected_year}.</div>", unsafe_allow_html=True)
+        with st.expander(f"View {len(team_transfers)} Players", expanded=False):
+            if not team_transfers.empty:
+                st.dataframe(
+                    team_transfers.drop(columns=['Team', 'Year'], errors='ignore'), 
+                    column_config={
+                        "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                    },
+                    hide_index=True, 
+                    use_container_width=True
+                )
+            else:
+                st.caption(f"<div style='text-align: center;'>No transfers logged.</div>", unsafe_allow_html=True)
 
     with col3:
         st.markdown(get_mini_card("🎓 Graduates", sel_color), unsafe_allow_html=True)
-        if not team_grads.empty:
-            st.dataframe(
-                team_grads.drop(columns=['Team', 'Year'], errors='ignore'), 
-                column_config={
-                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
-                },
-                hide_index=True, 
-                use_container_width=True
-            )
-        else:
-            st.caption(f"<div style='text-align: center;'>No graduates found for {selected_year}.</div>", unsafe_allow_html=True)
+        with st.expander(f"View {len(team_grads)} Players", expanded=False):
+            if not team_grads.empty:
+                st.dataframe(
+                    team_grads.drop(columns=['Team', 'Year'], errors='ignore'), 
+                    column_config={
+                        "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                    },
+                    hide_index=True, 
+                    use_container_width=True
+                )
+            else:
+                st.caption(f"<div style='text-align: center;'>No graduates found.</div>", unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
@@ -9589,7 +9592,6 @@ with tabs[5]:
             tier_color = "#9CA3AF" 
             tier_desc = "High roster turnover and lack of immediate elite replacements points toward a challenging season. Building for the future is the priority."
 
-        # Variable Extraction to fix f-string syntax errors
         ret_count = len(returning_players)
         inc_5_count = int(inc_5_stars)
         inc_4_count = int(inc_4_stars)
@@ -9623,6 +9625,7 @@ with tabs[5]:
         """, unsafe_allow_html=True)
     except Exception as e:
         pass
+
 
     # --- ROSTER MATCHUP ---
 with tabs[6]:
