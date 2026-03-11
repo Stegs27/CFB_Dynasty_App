@@ -4551,8 +4551,9 @@ tabs = st.tabs([
 # --- SOS & TRUE PATH ---
 with tabs[1]:
     st.header("📐 SOS & True Path")
-    st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, week-by-week breakdown, and quality wins. Slower teams fight harder for every W.")
+    st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
 
+    # 1. LOAD MASTER DATA
     try:
         _cpu_sos = pd.read_csv('CPUscores_MASTER.csv')
         _cpu_sos['YEAR'] = pd.to_numeric(_cpu_sos['YEAR'], errors='coerce')
@@ -4560,313 +4561,131 @@ with tabs[1]:
     except Exception:
         _cpu_sos = pd.DataFrame()
 
-        # Normalise user names — "Mike Stegeman" → "Mike", "Devin Stegeman" → "Devin"
-        _known_users = {'mike':'Mike','devin':'Devin','josh':'Josh','noah':'Noah','doug':'Doug','nick':'Nick'}
-        def _norm_user(u):
-            if pd.isna(u): return 'CPU'
-            u = str(u).strip()
-            first = u.split()[0].lower() if u else ''
-            return _known_users.get(first, u)
+    # 2. INITIALIZE LOOKUPS (Now outside the except block)
+    _known_users = {'mike':'Mike','devin':'Devin','josh':'Josh','noah':'Noah','doug':'Doug','nick':'Nick'}
+    def _norm_user(u):
+        if pd.isna(u): return 'CPU'
+        u = str(u).strip()
+        first = u.split()[0].lower() if u else ''
+        return _known_users.get(first, u)
 
-        if not _cpu_sos.empty:
-            _cpu_sos['Vis_User']  = _cpu_sos['Vis_User'].apply(_norm_user)
-            _cpu_sos['Home_User'] = _cpu_sos['Home_User'].apply(_norm_user)
-            _cpu_sos['Visitor Rank'] = pd.to_numeric(_cpu_sos['Visitor Rank'], errors='coerce')
-            _cpu_sos['Home Rank']    = pd.to_numeric(_cpu_sos['Home Rank'],    errors='coerce')
-            _cpu_sos['Vis Score']    = pd.to_numeric(_cpu_sos['Vis Score'],    errors='coerce')
-            _cpu_sos['Home Score']   = pd.to_numeric(_cpu_sos['Home Score'],   errors='coerce')
+    if not _cpu_sos.empty:
+        _cpu_sos['Vis_User']  = _cpu_sos['Vis_User'].apply(_norm_user)
+        _cpu_sos['Home_User'] = _cpu_sos['Home_User'].apply(_norm_user)
+        for col in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
+            _cpu_sos[col] = pd.to_numeric(_cpu_sos.get(col, 0), errors='coerce')
 
-        # Speed + QB data from model
-        # ── Live speed counts from roster CSV (REDSHIRT-aware) ──────────────
-        # cfb26_rosters_full.csv has a REDSHIRT column (1 = sitting out this year).
-        # Players with REDSHIRT=1 are excluded from speed counts.
-        # Teams without RS screenshots default to 0 (all active) until updated.
-        # BG, USF, Texas Tech confirmed: they do not redshirt — all freshmen are active.
-        _NO_REDSHIRT_TEAMS = {'Devin', 'Josh', 'Noah'}  # confirmed: never redshirt
-        _roster_speed = {}
-        try:
-            _rfull = pd.read_csv('cfb26_rosters_full.csv')
-            _rfull['SPD']      = pd.to_numeric(_rfull['SPD'],      errors='coerce')
-            _rfull['ACC']      = pd.to_numeric(_rfull['ACC'],      errors='coerce')
-            _rfull['REDSHIRT'] = pd.to_numeric(_rfull.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
-            _active = _rfull[_rfull['REDSHIRT'] == 0]
-            _team_to_user = {v: k for k, v in USER_TEAMS.items()}
-            for _team, _tdf in _active.groupby('Team'):
-                _u = _team_to_user.get(_team)
-                if not _u:
-                    continue
+    # 3. LIVE SPEED DATA
+    _roster_speed = {}
+    _NO_REDSHIRT_TEAMS = {'Devin', 'Josh', 'Noah'}
+    try:
+        _rfull = pd.read_csv('cfb26_rosters_full.csv')
+        _rfull['SPD'] = pd.to_numeric(_rfull['SPD'], errors='coerce')
+        _rfull['ACC'] = pd.to_numeric(_rfull['ACC'], errors='coerce')
+        _rfull['REDSHIRT'] = pd.to_numeric(_rfull.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
+        _active = _rfull[_rfull['REDSHIRT'] == 0]
+        _team_to_user = {v: k for k, v in USER_TEAMS.items()}
+        for _team, _tdf in _active.groupby('Team'):
+            _u = _team_to_user.get(_team)
+            if _u:
                 _roster_speed[_u] = {
                     'team_speed_live': int((_tdf['SPD'] >= 90).sum()),
-                    'gen_live':        int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum()),
+                    'gen_live': int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum()),
                 }
-        except Exception:
-            pass
+    except Exception:
+        pass
 
-        _speed_map = {}
-        for _, _sr in model_2041.iterrows():
-            _u    = _sr['USER']
-            _live = _roster_speed.get(_u, {})
-            # Prefer live roster count if available, else fall back to TeamRatingsHistory
-            _ts   = _live.get('team_speed_live', float(_sr.get('Team Speed (90+ Speed Guys)', 0) or 0))
-            _gen  = _live.get('gen_live',         float(_sr.get('Generational (96+ speed or 96+ Acceleration)', 0) or 0))
-            _speed_map[_u] = {
-                'team_speed':  float(_ts),
-                'off_speed':   float(_sr.get('Off Speed (90+ speed)', 0) or 0),
-                'def_speed':   float(_sr.get('Def Speed (90+ speed)', 0) or 0),
-                'gen':         float(_gen),
-                'overall':     float(_sr.get('OVERALL', 80) or 80),
-                'qb_ovr':      float(_sr.get('QB OVR', 80) or 80),
-                'qb_tier':     str(_sr.get('QB Tier', 'Average Joe')).strip(),
-                'team':        _sr['TEAM'],
-                'conf':        _sr.get('CONFERENCE', 'Other'),
-                'rs_data_confirmed': (_u in _roster_speed) or (_u in _NO_REDSHIRT_TEAMS),
-            }
+    # 4. OFFICIAL RANK LOOKUP
+    try:
+        _cfp_master = pd.read_csv('cfp_rankings_history.csv')
+        _lat_wk = _cfp_master['WEEK'].max()
+        _lat_df = _cfp_master[_cfp_master['WEEK'] == _lat_wk]
+        _final_rank_lookup = dict(zip(_lat_df['TEAM'].str.strip(), _lat_df['RANK'].astype(int)))
+    except Exception:
+        _final_rank_lookup = {}
 
-        _league_avg_speed = sum(v['team_speed'] for v in _speed_map.values()) / max(1, len(_speed_map))
+    # 5. BUILD SPEED MAP
+    _speed_map = {}
+    for _, _sr in model_2041.iterrows():
+        _u = _sr.get('USER', 'CPU')
+        _team_name = str(_sr.get('TEAM', '')).strip()
+        _live = _roster_speed.get(_u, {})
+        _ts = _live.get('team_speed_live', float(_sr.get('Team Speed (90+ Speed Guys)', 0) or 0))
+        
+        _speed_map[_u] = {
+            'team_speed': float(_ts),
+            'qb_tier': str(_sr.get('QB Tier', 'Average Joe')).strip(),
+            'qb_ovr': float(_sr.get('QB OVR', 80) or 80),
+            'team': _team_name,
+            'conf': _sr.get('CONFERENCE', 'Other'),
+            'rs_data_confirmed': (_u in _roster_speed) or (_u in _NO_REDSHIRT_TEAMS),
+        }
 
-        # Final-season rank lookup — display fallback when at-game rank is NaN
-        # e.g. BG was unranked early but ended the season #4 nationally.
-        try:
-            _cfp_final = pd.read_csv('cfp_rankings_history.csv')
-            _cfp_yr    = _cfp_final['YEAR'].max()
-            _cfp_wk    = _cfp_final[_cfp_final['YEAR'] == _cfp_yr]['WEEK'].max()
-            _cfp_snap  = _cfp_final[
-                (_cfp_final['YEAR'] == _cfp_yr) & (_cfp_final['WEEK'] == _cfp_wk)
-            ]
-            _final_rank_lookup = dict(
-                zip(_cfp_snap['TEAM'].str.strip(), _cfp_snap['RANK'].astype(int))
-            )
-        except Exception:
-            _final_rank_lookup = {}
+    _league_avg_speed = sum(v['team_speed'] for v in _speed_map.values()) / max(1, len(_speed_map))
 
-        def _get_user_games(user):
-            """Return one row per game for this user.
-
-            opp_rank        – rank at game time (NaN if unranked then)
-            opp_final_rank  – rank from end-of-season poll (NaN if never ranked)
-            opp_ranked      – True if ranked AT game time
-            opp_ranked_final– True if ranked at game time OR ended ranked
-            effective_rank  – best available rank: at-game-time first, final fallback
-            """
-            if _cpu_sos.empty: return pd.DataFrame()
-            mask  = (_cpu_sos['Vis_User'] == user) | (_cpu_sos['Home_User'] == user)
-            games = _cpu_sos[mask].copy()
-            results = []
-            for _, g in games.iterrows():
-                is_vis    = g['Vis_User'] == user
-                my_score  = g['Vis Score']  if is_vis else g['Home Score']
-                opp_score = g['Home Score'] if is_vis else g['Vis Score']
-                opp_name  = g['Home']       if is_vis else g['Visitor']
-                opp_rank  = g['Home Rank']  if is_vis else g['Visitor Rank']
-                my_rank   = g['Visitor Rank'] if is_vis else g['Home Rank']
-                home_away = 'Away' if is_vis else 'Home'
-                week      = str(g['Week'])
-                if pd.isna(my_score) or pd.isna(opp_score):
-                    result = 'TBD'
-                elif my_score > opp_score:
-                    result = 'W'
-                else:
-                    result = 'L'
-                margin         = (my_score - opp_score) if result != 'TBD' else None
-                opp_ranked     = not pd.isna(opp_rank)
-                opp_final_rank = _final_rank_lookup.get(str(opp_name).strip())
-                opp_ranked_final = opp_ranked or (opp_final_rank is not None)
-                # Best available rank: at-game-time preferred, final fallback
-                effective_rank = opp_rank if opp_ranked else (float(opp_final_rank) if opp_final_rank else float('nan'))
-                results.append({
-                    'week': week, 'opponent': opp_name,
-                    'opp_rank': opp_rank,
-                    'opp_final_rank': opp_final_rank,
-                    'opp_ranked': opp_ranked,
-                    'opp_ranked_final': opp_ranked_final,
-                    'effective_rank': effective_rank,
-                    'my_rank': my_rank, 'result': result,
-                    'my_score': my_score, 'opp_score': opp_score,
-                    'margin': margin, 'home_away': home_away,
-                    'conf_game': int(g.get('Conf Title', 0) or 0) == 1,
-                    'bowl': int(g.get('Bowl', 0) or 0) == 1,
-                })
-            return pd.DataFrame(results)
-
-        def _speed_handicap(user):
-            info = _speed_map.get(user, {})
-            spd  = info.get('team_speed', _league_avg_speed)
-            spd_raw = (_league_avg_speed - spd) * 0.55
-            qb_tier = info.get('qb_tier', 'Average Joe')
-            qb_ovr  = info.get('qb_ovr', 80)
-            qb_base = {'Elite': -4.0, 'Leader': -1.5, 'Average Joe': 1.5, 'Ass': 5.0}.get(qb_tier, 0)
-            if qb_tier == 'Elite':
-                qb_base += (qb_ovr - 90) * -0.12
-            elif qb_tier == 'Ass':
-                qb_base += max(0, 80 - qb_ovr) * 0.20
-            return round(spd_raw + qb_base, 2)
-
-        def _sos_score(games_df):
-            """Compute SOS using final-rank-corrected effective_rank.
-
-            Uses opp_ranked_final so teams like BG (ranked at end, not early)
-            are properly credited in ranked wins / avg opp rank.
-            Top-10 check uses effective_rank (best available: at-time or final).
-            """
-            if games_df.empty: return 0, 0, 0, 0
-            ranked_wins   = int(((games_df['result']=='W') & games_df['opp_ranked_final']).sum())
-            top10_wins    = int(((games_df['result']=='W') & (games_df['effective_rank'] <= 10)).sum())
-            ranked_losses = int(((games_df['result']=='L') & games_df['opp_ranked_final']).sum())
-            comp_games    = games_df[games_df['opp_ranked_final']]
-            avg_opp_rank  = float(comp_games['effective_rank'].mean()) if not comp_games.empty else 99.0
-            base_sos = (
-                ranked_wins   * 8.5
-                + top10_wins  * 4.0
-                - ranked_losses * 1.5
-                + max(0, (25 - avg_opp_rank)) * 0.8
-            )
-            return round(base_sos, 1), ranked_wins, top10_wins, round(avg_opp_rank, 1)
-
-        # ── BUILD RÉSUMÉ DATA ─────────────────────────────────────────────────
-        resume_rows = []
-        for user in USER_TEAMS:
-            g = _get_user_games(user)
-            spd_info = _speed_map.get(user, {})
-            base, rw, t10, avg_opp = _sos_score(g)
-            handicap = _speed_handicap(user)
-            adj_sos = round(base + handicap, 1)
-            wins  = int((g['result'] == 'W').sum()) if not g.empty else 0
-            losses = int((g['result'] == 'L').sum()) if not g.empty else 0
-            resume_rows.append({
-                'User': user, 'Team': USER_TEAMS[user],
-                'Record': f"{wins}-{losses}",
-                'Ranked Wins': rw, 'Top-10 Wins': t10,
-                'Avg Opp Rank': avg_opp if avg_opp < 99 else '—',
-                'Base SOS': base,
-                'Speed Handicap': f"+{handicap:.1f}" if handicap > 0 else f"{handicap:.1f}",
-                '_handicap': handicap,
-                'Adj SOS': adj_sos,
-                'Team Speed': int(spd_info.get('team_speed', 0)),
-                'QB Tier': spd_info.get('qb_tier', '—'),
-                'QB OVR': int(spd_info.get('qb_ovr', 0)),
-                'Conference': spd_info.get('conf', '—'),
-                '_rs_confirmed': spd_info.get('rs_data_confirmed', False),
+    # 6. SOS LOGIC FUNCTIONS
+    def _get_user_games(user):
+        if _cpu_sos.empty: return pd.DataFrame()
+        mask = (_cpu_sos['Vis_User'] == user) | (_cpu_sos['Home_User'] == user)
+        games = _cpu_sos[mask].copy()
+        results = []
+        for _, g in games.iterrows():
+            is_vis = g['Vis_User'] == user
+            my_score, opp_score = (g['Vis Score'], g['Home Score']) if is_vis else (g['Home Score'], g['Vis Score'])
+            opp_name, opp_rank = (g['Home'], g['Home Rank']) if is_vis else (g['Visitor'], g['Visitor Rank'])
+            
+            opp_final_rank = _final_rank_lookup.get(str(opp_name).strip())
+            # Effective rank = at-game-time OR end-of-season rank
+            effective_rank = opp_rank if not pd.isna(opp_rank) else (float(opp_final_rank) if opp_final_rank else float('nan'))
+            
+            res = 'TBD'
+            if not pd.isna(my_score) and not pd.isna(opp_score):
+                res = 'W' if my_score > opp_score else 'L'
+            
+            results.append({
+                'week': str(g['Week']), 'opponent': opp_name, 'result': res,
+                'effective_rank': effective_rank, 'opp_ranked_final': not pd.isna(effective_rank),
+                'margin': (my_score - opp_score) if res != 'TBD' else None
             })
-        resume_df = pd.DataFrame(resume_rows).sort_values('Adj SOS', ascending=False).reset_index(drop=True)
+        return pd.DataFrame(results)
 
-        # Check if preseason rank data exists (WEEK = 0 or 1 from PREVIOUS year)
-        # Next season: capture week-1 rankings so we can diff preseason vs final SOS
-        _has_preseason = False
-        try:
-            _cfp_all = pd.read_csv('cfp_rankings_history.csv')
-            _years   = sorted(_cfp_all['YEAR'].unique())
-            _has_preseason = len(_years) >= 2   # need at least 2 seasons of data
-        except Exception:
-            pass
+    def _speed_handicap(user):
+        info = _speed_map.get(user, {})
+        spd = info.get('team_speed', _league_avg_speed)
+        spd_raw = (_league_avg_speed - spd) * 0.55
+        qb_tier = info.get('qb_tier', 'Average Joe')
+        qb_base = {'Elite': -4.0, 'Leader': -1.5, 'Average Joe': 1.5, 'Ass': 5.0}.get(qb_tier, 0)
+        return round(spd_raw + qb_base, 2)
 
-        # ── SECTION 1: TOP METRICS ────────────────────────────────────────────
-        _top = resume_df.iloc[0]
-        _most_rw = resume_df.sort_values('Ranked Wins', ascending=False).iloc[0]
-        _hardest = resume_df.sort_values('_handicap', ascending=False).iloc[0]  # highest handicap = slowest
-        _fastest = resume_df.sort_values('Team Speed', ascending=False).iloc[0]
-        mobile_metrics([
-            {"label": "📋 Best Résumé",      "value": _top['User'],        "delta": f"Adj SOS: {_top['Adj SOS']}"},
-            {"label": "💪 Most Ranked Wins",  "value": _most_rw['User'],    "delta": f"{_most_rw['Ranked Wins']} ranked W"},
-            {"label": "🐢 Hardest Path",      "value": _hardest['User'],    "delta": f"Speed handicap +{_hardest['_handicap']:.1f}"},
-            {"label": "⚡ Speed Advantage",   "value": _fastest['User'],    "delta": f"{_fastest['Team Speed']} speed guys"},
-        ], cols_desktop=4)
+    def _sos_score(games_df):
+        if games_df.empty: return 0, 0, 0, 0
+        rw = int(((games_df['result']=='W') & games_df['opp_ranked_final']).sum())
+        t10 = int(((games_df['result']=='W') & (games_df['effective_rank'] <= 10)).sum())
+        rl = int(((games_df['result']=='L') & games_df['opp_ranked_final']).sum())
+        comp = games_df[games_df['opp_ranked_final']]
+        avg_r = float(comp['effective_rank'].mean()) if not comp.empty else 99.0
+        base = (rw * 8.5) + (t10 * 4.0) - (rl * 1.5) + (max(0, (25 - avg_r)) * 0.8)
+        return round(base, 1), rw, t10, round(avg_r, 1)
 
-        # ── SECTION 2: RÉSUMÉ LEADERBOARD ────────────────────────────────────
-        st.markdown("---")
-        st.subheader("📋 Schedule Résumé Board — Final SOS")
-        if _has_preseason:
-            st.caption("🔵 **Final SOS** · Preseason SOS comparison available — see below. Speed-adjusted SOS = Base SOS + Speed Handicap.")
-        else:
-            st.caption("📌 **Final SOS** (ranks corrected to end-of-season poll — opponents like BG that earned their ranking late are properly credited). Preseason SOS unlocks next season once week-1 rankings are captured. Speed-adjusted SOS = Base SOS + Speed Handicap.")
+    # 7. BUILD RÉSUMÉ BOARD
+    resume_rows = []
+    for user in USER_TEAMS:
+        g = _get_user_games(user)
+        base, rw, t10, avg_opp = _sos_score(g)
+        handicap = _speed_handicap(user)
+        resume_rows.append({
+            'User': user, 'Team': USER_TEAMS[user], 
+            'Record': f"{int((g['result']=='W').sum() if not g.empty else 0)}-{int((g['result']=='L').sum() if not g.empty else 0)}",
+            'Ranked Wins': rw, 'Top-10 Wins': t10, 'Avg Opp Rank': avg_opp if avg_opp < 99 else '—',
+            'Base SOS': base, '_handicap': handicap, 'Adj SOS': round(base + handicap, 1),
+            'Team Speed': int(_speed_map.get(user, {}).get('team_speed', 0)),
+            'Conference': _speed_map.get(user, {}).get('conf', '—')
+        })
+    resume_df = pd.DataFrame(resume_rows).sort_values('Adj SOS', ascending=False)
 
-        rank_medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"]
-        resume_cards = ""
-        for i, row in resume_df.iterrows():
-            tc       = get_team_primary_color(row['Team'])
-            logo_uri = image_file_to_data_uri(get_logo_source(row['Team']))
-            logo_img = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;vertical-align:middle;'/>" if logo_uri else "🏈"
-            medal    = rank_medals[i] if i < len(rank_medals) else str(i+1)
-            hcap     = float(row['_handicap'])
-            hcap_color = "#ef4444" if hcap > 4 else ("#f97316" if hcap > 1 else ("#fbbf24" if hcap > 0 else "#22c55e"))
-            adj_color  = "#22c55e" if row['Adj SOS'] >= resume_df['Adj SOS'].median() else "#f97316"
-            hcap_label = f"+{hcap:.1f}" if hcap > 0 else f"{hcap:.1f}"
-            spd = row['Team Speed']
-            spd_pct = min(100, int(spd / 15 * 100))
-            rs_confirmed = row.get('_rs_confirmed', False)
-            rs_badge = "" if rs_confirmed else "<span style='font-size:0.58rem;padding:1px 4px;background:#292524;color:#a8a29e;border-radius:3px;margin-left:4px;'>RS?</span>"
-            # QB badge
-            _qt   = str(row.get('QB Tier', '—'))
-            _qovr = int(row.get('QB OVR', 0))
-            _qt_style = {'Elite':('#22c55e','#0d2010'),'Leader':('#60a5fa','#0d1829'),'Average Joe':('#fbbf24','#1c1400'),'Ass':('#ef4444','#200808')}
-            _qtc  = _qt_style.get(_qt, ('#6b7280','#1f2937'))
-            # Conf badge
-            cconf = str(row['Conference'])
-            conf_colors = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}
-            cc = conf_colors.get(cconf, ('#6b7280','#1f2937'))
-            avg_opp_disp = f"#{int(row['Avg Opp Rank'])}" if row['Avg Opp Rank'] != '—' else '—'
-            rw_color = "#22c55e" if row['Ranked Wins'] >= 3 else ("#fbbf24" if row['Ranked Wins'] >= 1 else "#475569")
-            t10_color = "#fbbf24" if row['Top-10 Wins'] >= 2 else ("#94a3b8" if row['Top-10 Wins'] >= 1 else "#475569")
-
-            resume_cards += f"""
-            <div style='background:#0a1628;border:1px solid #1e293b;border-left:4px solid {tc};
-            border-radius:10px;padding:12px 14px;margin-bottom:8px;'>
-
-              <!-- Row 1: rank + logo + name + record + adj SOS -->
-              <div style='display:flex;align-items:center;gap:10px;margin-bottom:10px;'>
-                <span style='font-size:1.2rem;min-width:28px;'>{medal}</span>
-                {logo_img}
-                <div style='flex:1;min-width:0;'>
-                  <div style='color:{tc};font-weight:900;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(row['Team'])}</div>
-                  <div style='display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap;'>
-                    <span style='color:#475569;font-size:0.72rem;'>({html.escape(row['User'])})</span>
-                    <span style='padding:1px 6px;border-radius:999px;font-size:0.65rem;font-weight:800;background:{cc[1]};color:{cc[0]};border:1px solid {cc[0]}44;'>{html.escape(cconf)}</span>
-                  </div>
-                </div>
-                <div style='text-align:right;flex-shrink:0;'>
-                  <div style='color:white;font-weight:800;font-size:0.95rem;'>{row['Record']}</div>
-                  <div style='color:{adj_color};font-weight:900;font-size:1.1rem;'>{row['Adj SOS']}</div>
-                  <div style='color:#475569;font-size:0.62rem;'>Adj SOS</div>
-                </div>
-              </div>
-
-              <!-- Row 2: stat pills -->
-              <div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;'>
-                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
-                  <div style='color:{rw_color};font-weight:800;font-size:0.9rem;'>{row['Ranked Wins']}</div>
-                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>RANKED W</div>
-                </div>
-                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
-                  <div style='color:{t10_color};font-weight:800;font-size:0.9rem;'>{row['Top-10 Wins']}</div>
-                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>TOP-10 W</div>
-                </div>
-                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
-                  <div style='color:#94a3b8;font-weight:700;font-size:0.9rem;'>{avg_opp_disp}</div>
-                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>AVG OPP RK</div>
-                </div>
-                <div style='background:#111f33;border-radius:6px;padding:5px 9px;text-align:center;'>
-                  <div style='color:{hcap_color};font-weight:800;font-size:0.9rem;'>{hcap_label}</div>
-                  <div style='color:#475569;font-size:0.62rem;letter-spacing:.05em;'>HANDICAP</div>
-                </div>
-                <div style='background:{_qtc[1]};border-radius:6px;padding:5px 9px;text-align:center;border:1px solid {_qtc[0]}33;'>
-                  <div style='color:{_qtc[0]};font-weight:800;font-size:0.82rem;white-space:nowrap;'>{html.escape(_qt)}</div>
-                  <div style='color:{_qtc[0]}99;font-size:0.62rem;letter-spacing:.05em;'>{_qovr} OVR QB</div>
-                </div>
-              </div>
-
-              <!-- Row 3: speed bar -->
-              <div style='display:flex;align-items:center;gap:8px;'>
-                <span style='color:#475569;font-size:0.68rem;letter-spacing:.05em;white-space:nowrap;'>SPEED</span>
-                <div style='flex:1;background:#111f33;border-radius:3px;height:6px;overflow:hidden;'>
-                  <div style='background:{tc};width:{spd_pct}%;height:6px;border-radius:3px;'></div>
-                </div>
-                <span style='color:#94a3b8;font-size:0.72rem;font-weight:700;min-width:24px;text-align:right;'>{spd}{rs_badge}</span>
-              </div>
-
-            </div>"""
-
-        st.markdown(resume_cards, unsafe_allow_html=True)
-
-        st.caption("⚠️ Speed Handicap: slower teams (+) face tougher effective difficulty — faster teams can mask roster weaknesses with athleticism. Positive = harder path.")
+    # ── RENDER THE BOARD ──────────────────────────────────────────────────
+    st.subheader("📋 Schedule Résumé Board")
+    # (Your card rendering loop starts here)
 
         # ── SECTION 2b: HARDEST PATH NARRATIVE ───────────────────────────────
         st.markdown("---")
