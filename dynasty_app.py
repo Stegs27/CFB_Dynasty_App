@@ -9767,31 +9767,29 @@ with tabs[5]:
         </div>
     """, unsafe_allow_html=True)
 
-    risk_col1, risk_col2 = st.columns(2)
+    st.markdown(get_mini_card("Current Flight Risk Breakdown", sel_color), unsafe_allow_html=True)
 
-    with risk_col1:
-        st.markdown(get_mini_card("✅ Confirmed Departures", "#10B981"), unsafe_allow_html=True)
-        if not confirmed_live_df.empty:
-            st.dataframe(
-                confirmed_live_df.drop(columns=['Team'], errors='ignore'),
-                hide_index=True,
-                use_container_width=True,
-                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
-            )
-        else:
-            st.info("No confirmed graduating NFL-related departures found.")
+with st.expander(f"✅ Confirmed Departures ({len(confirmed_live_df)})", expanded=False):
+    if not confirmed_live_df.empty:
+        st.dataframe(
+            confirmed_live_df.drop(columns=['Team'], errors='ignore'),
+            hide_index=True,
+            use_container_width=True,
+            column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
+        )
+    else:
+        st.info("No confirmed graduating NFL-related departures found.")
 
-    with risk_col2:
-        st.markdown(get_mini_card("⚠️ Possible Early Leavers", "#F59E0B"), unsafe_allow_html=True)
-        if not possible_early_df.empty:
-            st.dataframe(
-                possible_early_df.drop(columns=['Team'], errors='ignore'),
-                hide_index=True,
-                use_container_width=True,
-                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
-            )
-        else:
-            st.info("No underclassmen currently flagged as possible early leavers.")
+with st.expander(f"⚠️ Possible Early Leavers ({len(possible_early_df)})", expanded=False):
+    if not possible_early_df.empty:
+        st.dataframe(
+            possible_early_df.drop(columns=['Team'], errors='ignore'),
+            hide_index=True,
+            use_container_width=True,
+            column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
+        )
+    else:
+        st.info("No underclassmen currently flagged as possible early leavers.")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
