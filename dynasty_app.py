@@ -4418,21 +4418,19 @@ if data:
     }
 
 # ════════════════════════════════════════════════════════════════════
-# DYNAMIC GLOBAL HEADER (Fixed Spacing & Broken Logos)
+# DYNAMIC GLOBAL HEADER (Fixed Score Logic & Spacing)
 # ════════════════════════════════════════════════════════════════════
-# 1. Robust logo finder using your app's native asset pipeline
 def get_header_logo(team_name):
-    path = get_logo_source(team_name) # Uses your LOGO_FILE_INDEX
-    uri = image_file_to_data_uri(path) # Converts to browser-safe URI
-    if uri:
-        return uri
-    # Fallback to GitHub URL if local file is completely missing
-    slug = TEAM_VISUALS.get(team_name, {}).get('slug', normalize_key(team_name))
-    return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
+    try:
+        path = get_logo_source(team_name) 
+        uri = image_file_to_data_uri(path) 
+        if uri: return uri
+        slug = TEAM_VISUALS.get(team_name, {}).get('slug', normalize_key(team_name))
+        return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
+    except:
+        return "https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/ncaa.png"
 
-# --- IMPORTANT: DELETE the line st.header("📰 Dynasty News") ---
-# The title is now handled in the HTML below to fix the spacing gap.
-
+# Default placeholders
 top_headline = "Your home for league rankings, playoff races, and Heisman watch."
 badge_text = "TOP STORY"
 is_gold = False
@@ -4442,21 +4440,44 @@ try:
     if os.path.exists('CFPbracketresults.csv'):
         _b_df = pd.read_csv('CFPbracketresults.csv')
         if not _b_df.empty:
+            # Map rounds for sorting to find the LATEST game
+            _round_map = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
+            _b_df['_rsort'] = _b_df['ROUND'].map(_round_map).fillna(0)
+            
             _cy_games = _b_df[(_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)].copy()
+            
             if not _cy_games.empty:
+                _cy_games = _cy_games.sort_values(['_rsort', 'GAME_ID'], ascending=True)
                 _last = _cy_games.iloc[-1]
-                _w, _l = str(_last.get('WINNER','')).strip(), str(_last.get('LOSER','')).strip()
+
+                # ── ROBUST SCORE EXTRACTION ──
+                t1 = str(_last.get('TEAM1', '')).strip()
+                t2 = str(_last.get('TEAM2', '')).strip()
+                s1 = pd.to_numeric(_last.get('TEAM1_SCORE', 0), errors='coerce')
+                s2 = pd.to_numeric(_last.get('TEAM2_SCORE', 0), errors='coerce')
+                raw_winner = str(_last.get('WINNER', '')).strip()
+
+                # Logic to ensure the winner gets the correct (higher) score
+                if raw_winner.lower() == t1.lower():
+                    _w, _l = t1, t2
+                    win_score, loss_score = int(s1), int(s2)
+                elif raw_winner.lower() == t2.lower():
+                    _w, _l = t2, t1
+                    win_score, loss_score = int(s2), int(s1)
+                else:
+                    # Final fallback: If names don't match, the higher score defines the winner
+                    if s1 >= s2:
+                        _w, _l, win_score, loss_score = t1, t2, int(s1), int(s2)
+                    else:
+                        _w, _l, win_score, loss_score = t2, t1, int(s2), int(s1)
+
                 win_logo, loss_logo = get_header_logo(_w), get_header_logo(_l)
-                
-                ws = int(float(_last.get('WIN_SCORE', 0)))
-                ls = int(float(_last.get('LOSS_SCORE', 0)))
-                
-                top_headline = f"{_w} {ws} - {ls} {_l}"
+                top_headline = f"{_w} {win_score} - {loss_score} {_l}"
                 badge_text = "FINAL SCORE"
                 is_gold = True
-                # Using single-line HTML to prevent Markdown code-block errors
                 logo_html = f'<div style="display:flex;justify-content:center;align-items:center;gap:20px;margin-bottom:10px;"><img src="{win_logo}" style="width:55px;height:55px;object-fit:contain;"><span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span><img src="{loss_logo}" style="width:55px;height:55px;object-fit:contain;"></div>'
 
+    # Heisman Fallback
     if not is_gold and not model_2041.empty and 'Heisman Player' in model_2041.columns:
         frontrunner = model_2041.iloc[0]
         p_name = str(frontrunner.get('Heisman Player', '')).strip()
@@ -4469,28 +4490,8 @@ try:
 except Exception:
     pass
 
-# ── RENDER (Title + Pulse + Score) ──
-if is_gold and logo_html:
-    st.markdown(f"""
-<style>
-@keyframes subtle-pulse {{ 0% {{ opacity: 0.8; transform: scale(1); }} 50% {{ opacity: 1; transform: scale(1.03); }} 100% {{ opacity: 0.8; transform: scale(1); }} }}
-.top-story-badge {{ display: inline-block; background: #f59e0b; color: #451a03; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 900; margin-bottom: 8px; animation: subtle-pulse 3s infinite ease-in-out; letter-spacing: 1px; }}
-</style>
-<div style="margin-top: -55px; margin-bottom: 0px; text-align: center;">
-<h2 style="margin-bottom: 10px; font-weight: 800;">📰 Dynasty News</h2>
-{logo_html}
-<div class="top-story-badge">{badge_text}</div>
-<div style="color: #fbbf24; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px;">{top_headline.upper()}</div>
-</div>
-""", unsafe_allow_html=True)
-else:
-    st.markdown(f"""
-<div style="margin-top: -50px; margin-bottom: 15px; text-align: center;">
-<h2 style="margin-bottom: 5px; font-weight: 800;">📰 Dynasty News</h2>
-<p style="color: #9ca3af; font-size: 0.9rem;">{top_headline}</p>
-</div>
-""", unsafe_allow_html=True)
-
+# ── RENDER (With tight spacing fix) ──
+if is_gold
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
