@@ -9904,7 +9904,7 @@ try:
         tier_color = "#FACC15"
         tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. The keys are with {best_qb_desc} at QB and he gives them a very real chance at immortality."
     elif final_power_rating >= 86.0:
-        tier_title = "⭐ Headed to the CFP?"
+        tier_title = "⭐ CFP and Maybe More"
         tier_color = "#38BDF8"
         tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
     elif final_power_rating >= 83.5:
