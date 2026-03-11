@@ -9272,6 +9272,11 @@ with tabs[5]:
             graduates = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR'])
 
         try:
+            incoming = pd.read_csv('attrition_incoming.csv')
+        except Exception:
+            incoming = pd.DataFrame(columns=['Year', 'Team', 'Type', 'Player', 'Position', 'Stars'])
+
+        try:
             rosters = pd.read_csv(roster_path)
             rosters['LookupKey'] = rosters['Team'] + "_" + rosters['Name']
             ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR']))
@@ -9289,9 +9294,9 @@ with tabs[5]:
                     df.loc[curr_mask, 'OVR'] = lookup_keys.map(ovr_dict).fillna(df.loc[curr_mask, 'OVR'])
             return df
             
-        return hs_df, tp_df, inject_live_ovr(nfl), inject_live_ovr(transfers), inject_live_ovr(graduates)
+        return hs_df, tp_df, inject_live_ovr(nfl), inject_live_ovr(transfers), inject_live_ovr(graduates), incoming
 
-    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df = load_attrition_data('cfb26_rosters_full.csv', current_yr)
+    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df = load_attrition_data('cfb26_rosters_full.csv', current_yr)
 
     # --- 1B. Auto-Pull Current Seniors from Roster ---
     @st.cache_data
@@ -9315,7 +9320,7 @@ with tabs[5]:
     graduates_df = pd.concat([manual_graduates_df, auto_seniors_df]).drop_duplicates(subset=['Year', 'Team', 'Player'])
 
     all_years = set()
-    for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df]:
+    for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df, incoming_df]:
         if 'Year' in df.columns:
             all_years.update(df['Year'].dropna().unique())
     
@@ -9342,6 +9347,7 @@ with tabs[5]:
 
     team_hs = filter_team_year(hs_df, selected_team, selected_year)
     team_tp = filter_team_year(tp_df, selected_team, selected_year)
+    team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
     
     team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
     team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
@@ -9556,12 +9562,11 @@ with tabs[5]:
             
         returning_players = team_roster[~team_roster['Name'].isin(leaving_names)].copy()
         
-        # Randomly simulate offseason development for each returning player (+3 to +7 OVR)
+        # Base Returning Starter Math
         if not returning_players.empty:
             prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
             progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
             returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
-            
             base_ovr = returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean() if len(returning_players) >= 20 else 80
         else:
             base_ovr = 80
@@ -9570,30 +9575,54 @@ with tabs[5]:
         inc_5_stars = (team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns else 0) + (team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns else 0)
         inc_4_stars = (team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns else 0) + (team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns else 0)
         talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4)
-        
         projected_ovr = base_ovr + talent_boost
 
-        # 2. Returning QB Impact
+        # 2. Dynamic QB Evaluation (Returning vs Incoming)
         qbs = returning_players[returning_players['Pos'] == 'QB']
+        ret_qb_name = "Unknown QB"
+        ret_qb_ovr = 75
         if not qbs.empty:
-            best_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
-            best_qb_name = best_qb_row['Name']
-            best_qb_ovr = best_qb_row['Prog_OVR']
+            best_ret_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
+            ret_qb_name = best_ret_qb_row['Name']
+            ret_qb_ovr = best_ret_qb_row['Prog_OVR']
+
+        inc_qbs = team_incoming[team_incoming['Position'] == 'QB'] if not team_incoming.empty and 'Position' in team_incoming.columns else pd.DataFrame()
+        inc_qb_name = ""
+        inc_qb_stars = 0
+        inc_qb_ovr = 0
+        
+        if not inc_qbs.empty and 'Stars' in inc_qbs.columns:
+            best_inc_qb = inc_qbs.sort_values(by='Stars', ascending=False).iloc[0]
+            inc_qb_name = best_inc_qb['Player'] if 'Player' in best_inc_qb else "Incoming Recruit"
+            inc_qb_stars = int(best_inc_qb['Stars'])
+            if inc_qb_stars == 5:
+                inc_qb_ovr = 82
+            elif inc_qb_stars == 4:
+                inc_qb_ovr = 78
+            elif inc_qb_stars == 3:
+                inc_qb_ovr = 73
+            else:
+                inc_qb_ovr = 68
+
+        # Determine the Starting QB
+        if inc_qb_ovr > ret_qb_ovr:
+            best_qb_desc = f"Incoming Recruit {inc_qb_name} ({inc_qb_stars}⭐)"
+            starting_qb_ovr = inc_qb_ovr
         else:
-            best_qb_name = "Unknown QB"
-            best_qb_ovr = 75
-            
-        qb_mod = (best_qb_ovr - 84) * 0.6  # Above 84 gives a massive boost, below hurts
+            best_qb_desc = f"{ret_qb_name} ({int(ret_qb_ovr)} OVR)"
+            starting_qb_ovr = ret_qb_ovr
+
+        qb_mod = (starting_qb_ovr - 84) * 0.6  
         
         # 3. Returning Starters Estimation
         total_departing_count = len(leaving_names)
         est_returning_starters = max(5, min(22, 22 - int(total_departing_count * 0.6)))
         starter_mod = (est_returning_starters - 13) * 0.5
 
-        # 4. Final Power Rating with organic random noise
+        # 4. Final Power Rating with random numerical noise
         final_power_rating = projected_ovr + qb_mod + starter_mod + np.random.uniform(-1.5, 1.5)
 
-        # 5. Sigmoid Probability Curves (Translates Power Rating to an organic 0-100% curve)
+        # 5. Sigmoid Probability Curves
         cfp_prob_raw = 100 / (1 + np.exp(-0.35 * (final_power_rating - 87.0)))
         title_prob_raw = 100 / (1 + np.exp(-0.45 * (final_power_rating - 93.5)))
 
@@ -9604,19 +9633,19 @@ with tabs[5]:
         if final_power_rating >= 92.5:
             tier_title = "🏆 National Title Contender"
             tier_color = "#FACC15" 
-            tier_desc = f"With {est_returning_starters} est. returning starters and elite talent arriving, this roster is primed for a deep playoff run. Having {best_qb_name} at QB ({int(best_qb_ovr)} OVR) gives them a very real chance at immortality."
+            tier_desc = f"With {est_returning_starters} est. returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
         elif final_power_rating >= 88.0:
             tier_title = "⭐ Playoff Threat"
             tier_color = "#38BDF8" 
-            tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_name} ({int(best_qb_ovr)} OVR) can command the offense efficiently and a few breaks go their way, they will steal a playoff spot."
+            tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
         elif final_power_rating >= 83.5:
             tier_title = "🏈 Bowl Bound"
             tier_color = "#A7F3D0" 
-            tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_name} ({int(best_qb_ovr)} OVR) will need a Cinderella season to reach the CFP."
+            tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
         else:
             tier_title = "🛠️ Rebuilding Year"
             tier_color = "#9CA3AF" 
-            tier_desc = f"High roster turnover (only {est_returning_starters} est. starters returning) and a lack of elite depth points toward a challenging season. Developing {best_qb_name} and building for the future is the priority."
+            tier_desc = f"High roster turnover (only {est_returning_starters} est. starters returning) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
 
         ret_count = len(returning_players)
         inc_5_count = int(inc_5_stars)
