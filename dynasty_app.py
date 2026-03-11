@@ -4725,13 +4725,9 @@ _ticker_items = "".join([
     for h in _all_headlines
 ])
 
+# ── HERO SECTION ─────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
-@keyframes ispn-fade {{
-  0%,8%   {{ opacity:1; transform:translateY(0);   }}
-  12%,88% {{ opacity:0; transform:translateY(-8px); }}
-  92%,100%{{ opacity:1; transform:translateY(0);   }}
-}}
 @keyframes subtle-pulse {{
   0%  {{ opacity:0.8; transform:scale(1);    }}
   50% {{ opacity:1;   transform:scale(1.03); }}
@@ -4747,43 +4743,7 @@ st.markdown(f"""
   margin-bottom:8px; animation:subtle-pulse 3s infinite ease-in-out; letter-spacing:1px;
 }}
 .live-indicator {{ animation:live-blink 2s infinite ease-in-out; color:#38bdf8; font-weight:900; }}
-
-/* ── TICKER STRIP ── */
-.ispn-ticker-wrap {{
-  overflow:hidden; white-space:nowrap;
-  background:linear-gradient(90deg,#0a1628,#111827,#0a1628);
-  border:1px solid #1e293b; border-radius:8px;
-  padding:6px 16px; margin:6px 0 2px 0;
-  position:relative;
-}}
-.ispn-ticker-inner {{
-  display:inline-flex; gap:0;
-  animation: ispn-scroll linear infinite;
-}}
-.ispn-slide {{
-  display:inline-block;
-  padding:0 40px;
-  font-size:0.82rem;
-  color:#e2e8f0;
-  white-space:nowrap;
-}}
-.ispn-badge {{
-  display:inline-block;
-  padding:1px 6px; border-radius:3px;
-  font-size:0.65rem; font-weight:900;
-  letter-spacing:.05em; margin-right:6px;
-  vertical-align:middle;
-}}
-.ispn-hl-text {{
-  font-weight:700; color:#f1f5f9;
-  letter-spacing:.02em;
-}}
-@keyframes ispn-scroll {{
-  0%   {{ transform: translateX(0); }}
-  100% {{ transform: translateX(-50%); }}
-}}
 </style>
-
 <div style="margin-top:-75px;margin-bottom:0;text-align:center;">
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-0.5px;">📰 Dynasty News</h2>
   {logo_html}
@@ -4794,27 +4754,57 @@ st.markdown(f"""
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
   </div>
 </div>
-
-<!-- SCROLLING TICKER -->
-<div class="ispn-ticker-wrap" id="ispn-ticker-wrap">
-  <div class="ispn-ticker-inner" id="ispn-ticker">
-    {_ticker_items}{_ticker_items}
-  </div>
-</div>
-
-<script>
-(function() {{
-  var wrap = document.getElementById('ispn-ticker-wrap');
-  var inner = document.getElementById('ispn-ticker');
-  if (!wrap || !inner) return;
-  // measure single set width and set duration proportional to content length
-  var totalW = inner.scrollWidth / 2;
-  var speed = 60; // px per second
-  var dur = Math.max(10, totalW / speed);
-  inner.style.animationDuration = dur + 's';
-}})();
-</script>
 """, unsafe_allow_html=True)
+
+# ── SCROLLING TICKER via components.html (JS + CSS animations work here) ──
+_ticker_char_count = sum(len(h['badge']) + len(h['text']) + 4 for h in _all_headlines)
+_ticker_duration   = max(12, int(_ticker_char_count * 0.18))
+
+components.html(f"""<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ background:transparent; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
+  .ticker-wrap {{
+    width:100%; overflow:hidden;
+    background:linear-gradient(90deg,#0a1628,#111827,#0a1628);
+    border:1px solid #1e293b; border-radius:8px; padding:7px 0; position:relative;
+  }}
+  .ticker-wrap::before, .ticker-wrap::after {{
+    content:''; position:absolute; top:0; bottom:0; width:60px; z-index:2; pointer-events:none;
+  }}
+  .ticker-wrap::before {{ left:0;  background:linear-gradient(to right,#0a1628,transparent); }}
+  .ticker-wrap::after  {{ right:0; background:linear-gradient(to left, #0a1628,transparent); }}
+  .ticker-track {{
+    display:inline-flex; white-space:nowrap;
+    animation: scroll-left {_ticker_duration}s linear infinite;
+  }}
+  @keyframes scroll-left {{
+    0%   {{ transform:translateX(0); }}
+    100% {{ transform:translateX(-50%); }}
+  }}
+  .slide {{
+    display:inline-block; padding:0 40px;
+    font-size:13px; color:#e2e8f0; white-space:nowrap;
+  }}
+  .slide::before {{
+    content:'◆'; color:#334155; margin-right:40px; font-size:8px; vertical-align:middle;
+  }}
+  .badge {{
+    display:inline-block; padding:2px 7px; border-radius:3px;
+    font-size:10px; font-weight:900; letter-spacing:.06em;
+    margin-right:8px; vertical-align:middle; line-height:1.6;
+  }}
+  .hl {{ font-weight:700; color:#f1f5f9; }}
+</style>
+</head>
+<body>
+<div class="ticker-wrap">
+  <div class="ticker-track">{_ticker_items}{_ticker_items}</div>
+</div>
+</body>
+</html>""", height=40, scrolling=False)
 
 
 # ── TABS START ───────────────────────────────────────────────────────
