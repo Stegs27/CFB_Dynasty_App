@@ -9496,6 +9496,7 @@ with tabs[5]:
         outlook_mode = st.selectbox(
             "🔮 Outlook Mode",
             ["Conservative", "Aggressive"],
+            index=1,
             help="Conservative = only confirmed departures. Aggressive = confirmed departures plus possible early leavers."
         )
 
