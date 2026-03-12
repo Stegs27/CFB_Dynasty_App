@@ -7920,9 +7920,30 @@ with tabs[3]:
                 f"<div style='font-size:0.65rem;color:#64748b;'>{_ppg} ppg</div></div></div>", unsafe_allow_html=True
             )
 
+        # 7. USER VS USER MATCHUPS (Restored)
+        if not user_games.empty:
+            st.markdown("#### ⚔️ User vs User Battles")
+            _games_sorted = user_games.sort_values('Margin')
+            for _, _g in _games_sorted.iterrows():
+                vu2, hu2 = str(_g['V_User_Final']), str(_g['H_User_Final'])
+                vt2, ht2 = str(_g['Visitor_Final']), str(_g['Home_Final'])
+                vp, hp = int(_g['V_Pts']), int(_g['H_Pts'])
+                vc, hc = _yr_color(vu2), _yr_color(hu2)
+                vl, hl = _logo_tag(vu2, 28), _logo_tag(hu2, 28)
+                
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:8px;padding:8px 10px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;margin-bottom:5px;'>"
+                    f"<div style='display:flex;align-items:center;gap:6px;flex:1;'>{vl}<div><div style='color:{vc};font-size:0.8rem;font-weight:800;'>{html.escape(vt2)}</div><div style='font-size:0.62rem;color:#475569;'>{html.escape(vu2)}</div></div></div>"
+                    f"<div style='text-align:center;min-width:70px;'><div style='font-weight:900;font-size:1rem;color:#f1f5f9;'>{vp} &ndash; {hp}</div></div>"
+                    f"<div style='display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;'><div style='text-align:right;'><div style='color:{hc};font-size:0.8rem;font-weight:800;'>{html.escape(ht2)}</div><div style='font-size:0.62rem;color:#475569;'>{html.escape(hu2)}</div></div>{hl}</div>"
+                    f"</div>", unsafe_allow_html=True
+                )
+
+    # 8. FULL LOGGED GAMES (Restored)
+    st.markdown("---")
+    with st.expander("📋 All Logged Games This Season"):
+        st.dataframe(y_data[['Visitor_Final', 'V_User_Final', 'V_Pts', 'H_Pts', 'H_User_Final', 'Home_Final', 'Margin', 'Total Points']], hide_index=True, use_container_width=True)
     st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
-
-
 
     # --- TEAM OVERVIEW ---
 with tabs[7]:
