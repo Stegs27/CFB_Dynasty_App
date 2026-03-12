@@ -10,10 +10,10 @@ import base64
 import hashlib
 from pathlib import Path
 
-# 🚨 STREAMLIT RULE: You can only have ONE set_page_config 🚨
+# 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
 st.set_page_config(
-    page_title="ISPN College Football Gameday", # Kept your original awesome title!
-    page_icon="🏈",
+    page_title="ISPN College Football Gameday",
+    page_icon="https://media.licdn.com/dms/image/sync/v2/D5627AQF8Fr9Tf4XYPQ/articleshare-shrink_800/articleshare-shrink_800/0/1719872318020?e=2147483647&v=beta&t=U2U9JE3vLoVeupd5tqDMceMxmhMeu0G47py4I5IUZ8o",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -10121,38 +10121,36 @@ with tabs[5]:
             st.info("No underclassmen currently flagged as possible early leavers.")
 
     # --- ROSTER MATCHUP ---
-with tabs[6]:
+    with tabs[6]:
         render_roster_matchup_tab()
 
-# --- SIDEBAR CONTENT ---
-with st.sidebar:
-    st.markdown("---")
-    st.markdown("""
-        <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 4px solid #10B981; box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                <div style="font-size: 1.5rem; margin-right: 10px;">📱</div>
-                <h4 style="margin: 0; color: #FFFFFF; font-size: 1.1rem;">Install Mobile App</h4>
+    # --- SIDEBAR CONTENT ---
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("""
+            <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 4px solid #10B981; box-shadow: 0 4px 6px rgba(0,0,0,0.3); margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                    <div style="font-size: 1.5rem; margin-right: 10px;">📱</div>
+                    <h4 style="margin: 0; color: #FFFFFF; font-size: 1.1rem;">Install Mobile App</h4>
+                </div>
+                <p style="font-size: 0.85rem; color: #BBBBBB; margin: 0 0 12px 0; line-height: 1.4;">Add this dynasty hub directly to your phone's home screen for fullscreen, one-tap access.</p>
+                <div style="margin-bottom: 10px;">
+                    <strong style="color: #FFFFFF; font-size: 0.85rem;">🍎 iOS (Safari)</strong>
+                    <ol style="font-size: 0.8rem; color: #DDDDDD; padding-left: 20px; margin: 3px 0 0 0;">
+                        <li>Tap the <b>Share</b> icon at the bottom.</li>
+                        <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
+                    </ol>
+                </div>
+                <div>
+                    <strong style="color: #FFFFFF; font-size: 0.85rem;">🤖 Android (Chrome)</strong>
+                    <ol style="font-size: 0.8rem; color: #DDDDDD; padding-left: 20px; margin: 3px 0 0 0;">
+                        <li>Tap the <b>Three Dots</b> menu at the top right.</li>
+                        <li>Tap <b>Add to Home Screen</b>.</li>
+                    </ol>
+                </div>
             </div>
-            <p style="font-size: 0.85rem; color: #BBBBBB; margin: 0 0 12px 0; line-height: 1.4;">Add this dynasty hub directly to your phone's home screen for fullscreen, one-tap access.</p>
+        """, unsafe_allow_html=True)
 
-            <div style="margin-bottom: 10px;">
-                <strong style="color: #FFFFFF; font-size: 0.85rem;">🍎 iOS (Safari)</strong>
-                <ol style="font-size: 0.8rem; color: #DDDDDD; padding-left: 20px; margin: 3px 0 0 0;">
-                    <li>Tap the <b>Share</b> icon at the bottom.</li>
-                    <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
-                </ol>
-            </div>
-
-            <div>
-                <strong style="color: #FFFFFF; font-size: 0.85rem;">🤖 Android (Chrome)</strong>
-                <ol style="font-size: 0.8rem; color: #DDDDDD; padding-left: 20px; margin: 3px 0 0 0;">
-                    <li>Tap the <b>Three Dots</b> menu at the top right.</li>
-                    <li>Tap <b>Add to Home Screen</b>.</li>
-                </ol>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-if st.sidebar.button("🔄 Refresh Data"):
-    st.cache_data.clear()
-    st.rerun()
+    if st.sidebar.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
