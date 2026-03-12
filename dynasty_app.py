@@ -7784,81 +7784,81 @@ with tabs[3]:
         heisman_row  = heisman[heisman[meta['h_yr']] == sel_year]
         coty_row     = coty[coty[meta['c_yr']] == sel_year]
 
-        # ── AWARDS BANNER ─────────────────────────────────────────────────────
-        award_champ    = "TBD"
-        champ_team     = champ_user = ""
-        heisman_player = heisman_team = heisman_user = ""
-        coty_coach     = coty_team   = coty_user    = ""
-
-        if not champ_row.empty:
-            # Safely find the Team and User columns regardless of capitalization
-            team_col = next((c for c in champs.columns if str(c).strip().lower() == 'team'), None)
-            user_col = next((c for c in champs.columns if str(c).strip().lower() == 'user'), None)
+                # ── AWARDS BANNER ─────────────────────────────────────────────────────
+        award_champ = "TBD"
+        champ_team = champ_user = ""
+        path_to_title = []
+        
+        # 1. Look for Champion and their Playoff Path
+        try:
+            _b_results = pd.read_csv('CFPbracketresults.csv')
+            # Find the NCG Winner for the selected year
+            _ncg_game = _b_results[(_b_results['YEAR'] == sel_year) & 
+                                   (_b_results['ROUND'].str.strip() == 'NCG') & 
+                                   (_b_results['COMPLETED'] == 1)]
             
-            champ_team = str(champ_row.iloc[0][team_col]) if team_col else "Unknown"
-            champ_user = str(champ_row.iloc[0][user_col]) if user_col else "Unknown"
-            award_champ = champ_team
+            if not _ncg_game.empty:
+                award_champ = str(_ncg_game.iloc[0]['WINNER']).strip()
+                champ_team = award_champ
+                
+                # Identify the User coach
+                _u_match = model_2041[model_2041['TEAM'] == champ_team]
+                champ_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else "CPU"
+                
+                # Build Path: Find every game where this team was the winner
+                _my_wins = _b_results[(_b_results['YEAR'] == sel_year) & 
+                                      (_b_results['WINNER'].str.strip() == champ_team) & 
+                                      (_b_results['COMPLETED'] == 1)]
+                
+                # Sort by Round priority
+                _rd_order = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
+                _my_wins = _my_wins.copy()
+                _my_wins['_rd_sort'] = _my_wins['ROUND'].str.strip().map(_rd_order)
+                _my_wins = _my_wins.sort_values('_rd_sort')
+                
+                for _, _wg in _my_wins.iterrows():
+                    _opp = str(_wg['TEAM2']).strip() if str(_wg['TEAM1']).strip() == champ_team else str(_wg['TEAM1']).strip()
+                    _rd_name = str(_wg['ROUND']).strip()
+                    path_to_title.append(f"{_rd_name}: def. {_opp}")
+            else:
+                # Fallback to championships.csv if NCG isn't in bracket results yet
+                _yr_champ = champs[champs['YEAR'] == sel_year]
+                if not _yr_champ.empty:
+                    champ_team = str(_yr_champ.iloc[0]['Team']).strip()
+                    champ_user = str(_yr_champ.iloc[0].get('user', 'CPU')).strip()
+                    award_champ = champ_team
+        except:
+            pass
 
-        if not heisman_row.empty:
-            heisman_player = str(heisman_row.iloc[0][meta['h_player']])
-            heisman_team   = str(heisman_row.iloc[0][meta['h_school']])
-            heisman_user   = str(heisman_row.iloc[0].get('USER', heisman_row.iloc[0].get('User', '')))
-        if not coty_row.empty:
-            coty_coach = str(coty_row.iloc[0][meta['c_coach']])
-            coty_team  = str(coty_row.iloc[0][meta['c_school']])
-            coty_user  = str(coty_row.iloc[0].get('User', coty_row.iloc[0].get('USER', '')))
+        # ── HEISMAN & COTY DATA ──
+        heisman_player = str(heisman_row.iloc[0][meta['h_player']]) if not heisman_row.empty else "TBD"
+        heisman_team   = str(heisman_row.iloc[0][meta['h_school']]) if not heisman_row.empty else ""
+        heisman_user   = str(heisman_row.iloc[0].get('USER', '')) if not heisman_row.empty else ""
 
-        def _award_logo_tag(team, size=48):
-            uri = image_file_to_data_uri(get_logo_source(team)) if team else None
-            if uri:
-                return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;'/>"
-            return f"<span style='font-size:{int(size*0.55)}px;'>🏈</span>"
+        cot_coach = str(coty_row.iloc[0][meta['c_coach']]) if not coty_row.empty else "TBD"
+        cot_team  = str(coty_row.iloc[0][meta['c_school']]) if not coty_row.empty else ""
+        cot_user  = str(coty_row.iloc[0].get('User', '')) if not coty_row.empty else ""
 
+        # ── RENDER CARDS ──
         _champ_color = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
         _heis_color  = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
         _coty_color  = get_team_primary_color(coty_team) if coty_team else '#34d399'
 
-        def _award_card(accent, logo_tag, badge, line1, line2, line3=''):
-            sub = f"<div style='font-size:0.68rem;color:#64748b;margin-top:1px;'>{html.escape(line3)}</div>" if line3 else ''
-            return (
-                f"<div style='background:linear-gradient(135deg,{accent}22,#0f172a);"
-                f"border:1px solid {accent}55;border-radius:12px;padding:14px 16px;"
-                f"display:flex;align-items:center;gap:12px;'>"
-                f"{logo_tag}"
-                f"<div style='min-width:0;'>"
-                f"<div style='font-size:0.6rem;color:#94a3b8;letter-spacing:.08em;font-weight:700;margin-bottom:3px;'>{badge}</div>"
-                f"<div style='font-weight:900;color:{accent};font-size:0.92rem;line-height:1.25;"
-                f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(line1)}</div>"
-                f"<div style='font-size:0.72rem;color:#94a3b8;margin-top:1px;'>{html.escape(line2)}</div>"
-                f"{sub}"
-                f"</div></div>"
-            )
+        # Build Path HTML
+        path_html = ""
+        if path_to_title:
+            path_items = "".join([f"<div style='font-size:0.6rem; color:#94a3b8; line-height:1.1;'>{p}</div>" for p in path_to_title])
+            path_html = f"<div style='margin-top:8px; border-top:1px solid {_champ_color}33; padding-top:6px;'>{path_items}</div>"
 
         awards_html = (
-            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));"
-            "gap:10px;margin-bottom:16px;'>"
-            + _award_card(_champ_color, _award_logo_tag(champ_team, 52),
-                          "🏆 CHAMPION", award_champ or "TBD", champ_user)
-            + _award_card(_heis_color, _award_logo_tag(heisman_team, 52),
-                          "🏅 HEISMAN", heisman_player or "TBD",
-                          heisman_team, heisman_user)
-            + _award_card(_coty_color, _award_logo_tag(coty_team, 52),
-                          "👔 COACH OF THE YEAR", coty_coach or "TBD",
-                          coty_team, coty_user)
+            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;margin-bottom:16px;'>"
+            + _award_card(_champ_color, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
+            + _award_card(_heis_color, _award_logo_tag(heisman_team, 52), "🏅 HEISMAN", heisman_player, f"{heisman_team} ({heisman_user})")
+            + _award_card(_cot_color, _award_logo_tag(coty_team, 52), "🎓 COACH OF THE YEAR", cot_coach, f"{cot_team} ({coty_user})")
             + "</div>"
         )
         st.markdown(awards_html, unsafe_allow_html=True)
 
-        if not y_data.empty:
-            user_games = y_data[
-                (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') &
-                (y_data['H_User_Final'].astype(str).str.upper() != 'CPU') &
-                (y_data['V_User_Final'] != y_data['H_User_Final'])
-            ].copy()
-            all_user_rows = y_data[
-                (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') |
-                (y_data['H_User_Final'].astype(str).str.upper() != 'CPU')
-            ].copy()
 
             # ── SEASON IN NUMBERS ─────────────────────────────────────────────
             avg_m       = round(y_data['Margin'].mean(), 1)
