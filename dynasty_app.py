@@ -1,4 +1,3 @@
-
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -11,16 +10,13 @@ import base64
 import hashlib
 from pathlib import Path
 
-# 🚨 THIS MUST BE THE VERY FIRST STREAMLIT COMMAND 🚨
+# 🚨 STREAMLIT RULE: You can only have ONE set_page_config 🚨
 st.set_page_config(
-    page_title="Dynasty Hub",
-    page_icon="🏈", # Can easily swap this to 🏆 or 🏟️ if you prefer!
+    page_title="ISPN College Football Gameday", # Kept your original awesome title!
+    page_icon="🏈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# --- PAGE SETUP ---
-st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", page_icon="🏈")
 
 CURRENT_WEEK_NUMBER = 16   # Bowl Week 1 (post-season)
 CURRENT_YEAR        = 2041  # Active dynasty season — increment each new year
