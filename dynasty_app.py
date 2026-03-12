@@ -7762,20 +7762,31 @@ with tabs[3]:
                 return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;' title='{html.escape(team)}'/>"
             return f"<span style='font-size:{size*0.6:.0f}px;'>🏈</span>"
 
-        champ_row    = champs[champs['YEAR'] == sel_year]
+        # ── SAFE LOOKUP FOR CHAMPS (Ignores upper/lowercase issues) ──
+        champ_yr_col = next((c for c in champs.columns if str(c).replace('\ufeff', '').strip().upper() == 'YEAR'), None)
+        if champ_yr_col and not champs.empty:
+            champ_row = champs[champs[champ_yr_col] == sel_year]
+        else:
+            champ_row = pd.DataFrame()
+
         heisman_row  = heisman[heisman[meta['h_yr']] == sel_year]
         coty_row     = coty[coty[meta['c_yr']] == sel_year]
 
         # ── AWARDS BANNER ─────────────────────────────────────────────────────
-        award_champ   = "TBD"
-        champ_team    = champ_user = ""
+        award_champ    = "TBD"
+        champ_team     = champ_user = ""
         heisman_player = heisman_team = heisman_user = ""
         coty_coach     = coty_team   = coty_user    = ""
 
         if not champ_row.empty:
-            champ_team = champ_row.iloc[0]['Team']
-            champ_user = str(champ_row.iloc[0]['user'])
+            # Safely find the Team and User columns regardless of capitalization
+            team_col = next((c for c in champs.columns if str(c).strip().lower() == 'team'), None)
+            user_col = next((c for c in champs.columns if str(c).strip().lower() == 'user'), None)
+            
+            champ_team = str(champ_row.iloc[0][team_col]) if team_col else "Unknown"
+            champ_user = str(champ_row.iloc[0][user_col]) if user_col else "Unknown"
             award_champ = champ_team
+
         if not heisman_row.empty:
             heisman_player = str(heisman_row.iloc[0][meta['h_player']])
             heisman_team   = str(heisman_row.iloc[0][meta['h_school']])
