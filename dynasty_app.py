@@ -8974,157 +8974,98 @@ with tabs[10]:
                 for _ci, (_idx, _crow) in enumerate(_close.iterrows(), 1):
                     _render_classic_card(_crow, _ci)
 
-    # --- GOAT RANKINGS ---
-with tabs[11]:
-        st.header("🐐 Dynasty GOAT Rankings")
-        st.caption("Who built the best dynasty? HoF Points weight natties, CFP appearances, conf titles, and NFL pipeline. Earn it on the field.")
+# --- GOAT RANKINGS (Tab 11) ---
+with tabs[10]:
+    st.header("🐐 The GOAT Council")
+    st.caption("Legacy points: National Title (15), Heisman (5), COTY (3).")
 
-        goat = stats.copy().sort_values("GOAT Score", ascending=False).reset_index(drop=True)
+    # 1. INITIALIZE & DATA LOADING
+    # Standardize user list from your main config
+    user_awards = {u: {'rings': 0, 'heismans': 0, 'cotys': 0} for u in USER_TEAMS}
+    
+    try:
+        # A. COUNT RINGS (National Championships)
+        # We look for the 'NCG' round in CFPbracketresults.csv
+        _b_results = pd.read_csv('CFPbracketresults.csv')
+        _natties = _b_results[(_b_results['ROUND'].str.strip() == 'NCG') & (_b_results['COMPLETED'] == 1)]
+        
+        for _, row in _natties.iterrows():
+            winner_team = str(row['WINNER']).strip()
+            # Map the winning team back to the User using your master model
+            _u_match = model_2041[model_2041['TEAM'].str.strip() == winner_team]
+            if not _u_match.empty:
+                _u_name = _u_match.iloc[0]['USER']
+                if _u_name in user_awards:
+                    user_awards[_u_name]['rings'] += 1
+        
+        # B. COUNT HEISMANS
+        # Using the updated Heisman_Finalists.csv where FINISH == 1
+        _h_finalists = pd.read_csv('Heisman_Finalists.csv')
+        _h_winners = _h_finalists[_h_finalists['FINISH'].astype(int) == 1]
+        for _, row in _h_winners.iterrows():
+            _u_name = str(row.get('USER', '')).strip()
+            if _u_name in user_awards:
+                user_awards[_u_name]['heismans'] += 1
 
-        if goat.empty:
-            st.info("No dynasty stats available yet.")
-        else:
-            # ── TOP-LINE HERO METRICS ────────────────────────────────────────────
-            mobile_metrics([
-                {"label": "👑 Current GOAT",     "value": str(goat.iloc[0]['User']),
-                 "delta": f"{goat.iloc[0]['GOAT Score']} pts"},
-                {"label": "🏆 Most Natties",
-                 "value": str(goat.loc[goat['Natties'].idxmax(), 'User']),
-                 "delta": f"{int(goat['Natties'].max())} titles"},
-                {"label": "🎯 Best Win %",
-                 "value": str(goat.loc[goat['Career Win %'].idxmax(), 'User']),
-                 "delta": f"{goat['Career Win %'].max()}%"},
-                {"label": "🏈 NFL Pipeline",
-                 "value": str(goat.loc[goat['Drafted'].idxmax(), 'User']),
-                 "delta": f"{int(goat['Drafted'].max())} drafted"},
-            ])
+        # C. COUNT COACH OF THE YEAR
+        # Using the coty dataframe already loaded in your app
+        for _, row in coty.iterrows():
+            _u_name = str(row.get('User', row.get('USER', ''))).strip()
+            if _u_name in user_awards:
+                user_awards[_u_name]['cotys'] += 1
+                
+    except Exception as e:
+        st.error(f"Error compiling legacy data: {e}")
 
-            st.markdown("---")
-
-            # ── PODIUM CARDS — top 3 ─────────────────────────────────────────────
-            _podium_labels = ["🥇", "🥈", "🥉"]
-            _podium_colors = ["#f59e0b", "#9ca3af", "#b45309"]
-
-            for _gi, _grow in goat.head(3).iterrows():
-                _gu   = str(_grow['User'])
-                _info = {}
-                for _, _mr in model_2041.iterrows():
-                    if str(_mr['USER']) == _gu:
-                        _info = {'team': str(_mr['TEAM'])}
-                        break
-                _tm = _info.get('team', '')
-                _tc = get_team_primary_color(_tm)
-                _lu = image_file_to_data_uri(get_logo_source(_tm))
-                _logo = (f"<img src='{_lu}' style='width:44px;height:44px;"
-                         f"object-fit:contain;'/>" if _lu else "🏈")
-                _medal = _podium_labels[_gi] if _gi < 3 else f"#{_gi+1}"
-                _pod_c = _podium_colors[_gi] if _gi < 3 else _tc
-                _natties = int(_grow.get('Natties', 0))
-                _goat_s  = int(_grow.get('GOAT Score', 0))
-                _rec     = str(_grow.get('Career Record', '—'))
-                _win_pct = float(_grow.get('Career Win %', 0))
-                _cfpw    = int(_grow.get('CFP Wins', 0))
-                _conf    = int(_grow.get('Conf Titles', 0))
-                _nfl     = int(_grow.get('Drafted', 0))
-
-                st.markdown(
-                    f"<div style='background:linear-gradient(135deg,{_pod_c}15,#0f172a);"
-                    f"border:1px solid {_pod_c}44;border-left:5px solid {_pod_c};"
-                    f"border-radius:14px;padding:16px 18px;margin-bottom:10px;'>"
-                    f"<div style='display:flex;align-items:center;gap:12px;"
-                    f"flex-wrap:wrap;margin-bottom:12px;'>"
-                    f"<span style='font-size:1.6rem;'>{_medal}</span>"
-                    f"{_logo}"
-                    f"<div style='flex:1;min-width:100px;'>"
-                    f"<div style='font-size:1rem;font-weight:900;color:{_tc};'>"
-                    f"{html.escape(_gu)}</div>"
-                    f"<div style='font-size:0.72rem;color:#64748b;'>"
-                    f"{html.escape(_tm)}</div>"
-                    f"</div>"
-                    f"<div style='text-align:right;'>"
-                    f"<div style='font-size:1.2rem;font-weight:900;color:{_pod_c};'>"
-                    f"{_goat_s} pts</div>"
-                    f"<div style='font-size:0.62rem;color:#475569;'>GOAT Score</div>"
-                    f"</div></div>"
-                    f"<div style='display:flex;flex-wrap:wrap;gap:8px;'>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#fbbf24;'>"
-                    f"{_natties}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>NATTIES</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#f1f5f9;'>"
-                    f"{_rec}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>RECORD</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#34d399;'>"
-                    f"{_win_pct:.0f}%</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>WIN %</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#60a5fa;'>"
-                    f"{_cfpw}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>CFP W</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#a78bfa;'>"
-                    f"{_conf}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>CONF &#9733;</div>"
-                    f"</div>"
-                    f"<div style='padding:5px 10px;background:#0f172a;border:1px solid #1e293b;"
-                    f"border-radius:8px;text-align:center;min-width:52px;'>"
-                    f"<div style='font-size:0.95rem;font-weight:900;color:#fb923c;'>"
-                    f"{_nfl}</div>"
-                    f"<div style='font-size:0.58rem;color:#475569;'>NFL DRAFTED</div>"
-                    f"</div>"
-                    f"</div></div>",
-                    unsafe_allow_html=True
+    # 2. BUILD THE LEADERBOARD
+    legacy_data = []
+    for u, stats in user_awards.items():
+        # Calculate Legacy Score: Natty(15), Heisman(5), COTY(3)
+        score = (stats['rings'] * 15) + (stats['heismans'] * 5) + (stats['cotys'] * 3)
+        
+        # Create the Ring Display
+        rings_icon = " 💍" * stats['rings'] if stats['rings'] > 0 else ""
+        
+        legacy_data.append({
+            "Coach": f"{u}{rings_icon}",
+            "Titles": stats['rings'],
+            "Heismans": stats['heismans'],
+            "COTYs": stats['cotys'],
+            "Legacy Score": score
+        })
+    
+    # Sort by Score then Titles
+    legacy_df = pd.DataFrame(legacy_data).sort_values(["Legacy Score", "Titles"], ascending=False)
+    
+    # 3. RENDER TOP 3 PERFORMANCE METRICS (PODIUM)
+    if not legacy_df.empty:
+        top_cols = st.columns(3)
+        medals = ["🥇", "🥈", "🥉"]
+        # Use reset_index to ensure we can iterate through the top 3 safely
+        top_3 = legacy_df.head(3).reset_index(drop=True)
+        for i, row in top_3.iterrows():
+            with top_cols[i]:
+                st.metric(
+                    label=f"{medals[i]} {row['Coach']}", 
+                    value=f"{row['Legacy Score']} pts",
+                    delta=f"{row['Titles']} Titles" if row['Titles'] > 0 else None
                 )
-
-            # ── FULL LEADERBOARD TABLE ───────────────────────────────────────────
-            st.markdown("---")
-            with st.expander("📊 Full GOAT Table", expanded=False):
-                _goat_cols = [c for c in [
-                    'User', 'GOAT Score', 'HoF Points', 'Career Record',
-                    'Career Win %', 'Natties', 'Natty Apps', 'CFP Wins',
-                    'CFP Losses', 'Conf Titles', '1st Rounders', 'Drafted'
-                ] if c in goat.columns]
-                st.dataframe(
-                    goat[_goat_cols].reset_index(drop=True),
-                    hide_index=True, use_container_width=True
-                )
-
-            # ── BAR CHART ────────────────────────────────────────────────────────
-            _bar_colors = {
-                str(r['User']): get_team_primary_color(
-                    str(model_2041[model_2041['USER'] == str(r['User'])]['TEAM'].iloc[0])
-                    if not model_2041[model_2041['USER'] == str(r['User'])].empty else ''
-                )
-                for _, r in goat.iterrows()
-            }
-            _fig_goat = px.bar(
-                goat,
-                x="User", y="GOAT Score",
-                color="User",
-                color_discrete_map=_bar_colors,
-                hover_data=[c for c in ['Natties', 'Natty Apps', 'CFP Wins',
-                                         'Conf Titles', '1st Rounders', 'Drafted']
-                            if c in goat.columns],
-                template="plotly_dark",
-            )
-            _fig_goat.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                showlegend=False,
-                margin=dict(l=0, r=0, t=20, b=0),
-            )
-            st.plotly_chart(_fig_goat, use_container_width=True)
+    
+    st.write("") # Spacer
+    
+    # 4. MAIN RANKINGS TABLE
+    st.dataframe(
+        legacy_df, 
+        hide_index=True, 
+        use_container_width=True,
+        column_config={
+            "Legacy Score": st.column_config.NumberColumn("Legacy Score", format="%d pts"),
+            "Coach": st.column_config.TextColumn("Coach (Legacy)"),
+            "Titles": st.column_config.NumberColumn("💍 Titles"),
+            "Heismans": st.column_config.NumberColumn("🏅 Heismans"),
+            "COTYs": st.column_config.NumberColumn("🎓 COTYs")
+        }
+    )
 
 # --- ROSTER ATTRITION ---
 with tabs[5]:
