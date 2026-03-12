@@ -7743,20 +7743,45 @@ with tabs[9]:
                 unsafe_allow_html=True
             )
 
+# --- SEASON RECAP ---
 with tabs[3]:
     st.header("📺 Season Recap")
     sel_year = st.selectbox("Select Season", years, key="season_year")
     y_data = scores[scores[meta['yr']] == sel_year].copy()
 
-    # ── AWARDS BANNER ─────────────────────────────────────────────────────
+    # ── Build user→team map for this season from scores ──────────────────
+    _yr_team_map = {}
+    for _, _sr in y_data.iterrows():
+        _vu = str(_sr.get('V_User_Final', '')).strip()
+        _hu = str(_sr.get('H_User_Final', '')).strip()
+        if _vu.upper() not in ('CPU', 'NAN', ''):
+            _yr_team_map[_vu] = str(_sr.get('Visitor_Final', '')).strip()
+        if _hu.upper() not in ('CPU', 'NAN', ''):
+            _yr_team_map[_hu] = str(_sr.get('Home_Final', '')).strip()
+
+    def _yr_logo(user):
+        team = _yr_team_map.get(str(user), '')
+        return image_file_to_data_uri(get_logo_source(team)) if team else None
+
+    def _yr_color(user):
+        team = _yr_team_map.get(str(user), '')
+        return get_team_primary_color(team) if team else '#64748b'
+
+    def _logo_tag(user, size=36):
+        uri = _yr_logo(user)
+        team = _yr_team_map.get(str(user), '')
+        if uri:
+            return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;' title='{html.escape(team)}'/>"
+        return f"<span style='font-size:{size*0.6:.0f}px;'>🏈</span>"
+
+    # ── AWARDS BANNER LOGIC (Standardized & Path-Enabled) ──────────────────
     award_champ = "TBD"
     champ_team = champ_user = ""
     path_to_title = []
-    
-    # 1. Look for Champion and their Playoff Path
+
     try:
+        # 1. Try to find the NCG winner in the bracket results
         _b_results = pd.read_csv('CFPbracketresults.csv')
-        # Find the NCG Winner for the selected year
         _ncg_game = _b_results[(_b_results['YEAR'] == sel_year) & 
                                (_b_results['ROUND'].str.strip() == 'NCG') & 
                                (_b_results['COMPLETED'] == 1)]
@@ -7764,17 +7789,14 @@ with tabs[3]:
         if not _ncg_game.empty:
             award_champ = str(_ncg_game.iloc[0]['WINNER']).strip()
             champ_team = award_champ
-            
-            # Identify the User coach
+            # Cross-reference with model to find the coach
             _u_match = model_2041[model_2041['TEAM'] == champ_team]
             champ_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else "CPU"
             
-            # Build Path: Find every game where this team was the winner
+            # Build Path: Find every win for this team in the bracket
             _my_wins = _b_results[(_b_results['YEAR'] == sel_year) & 
                                   (_b_results['WINNER'].str.strip() == champ_team) & 
                                   (_b_results['COMPLETED'] == 1)]
-            
-            # Sort by Round priority
             _rd_order = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
             _my_wins = _my_wins.copy()
             _my_wins['_rd_sort'] = _my_wins['ROUND'].str.strip().map(_rd_order)
@@ -7785,16 +7807,20 @@ with tabs[3]:
                 _rd_name = str(_wg['ROUND']).strip()
                 path_to_title.append(f"{_rd_name}: def. {_opp}")
         else:
-            # Fallback to championships.csv if NCG isn't in bracket results yet
-            _yr_champ = champs[champs['YEAR'] == sel_year]
-            if not _yr_champ.empty:
-                champ_team = str(_yr_champ.iloc[0]['Team']).strip()
-                champ_user = str(_yr_champ.iloc[0].get('user', 'CPU')).strip()
-                award_champ = champ_team
+            # 2. Fallback to championships.csv if bracket isn't updated
+            champ_yr_col = next((c for c in champs.columns if str(c).replace('\ufeff', '').strip().upper() == 'YEAR'), None)
+            if champ_yr_col:
+                champ_row = champs[champs[champ_yr_col] == sel_year]
+                if not champ_row.empty:
+                    team_col = next((c for c in champs.columns if str(c).strip().lower() == 'team'), None)
+                    user_col = next((c for c in champs.columns if str(c).strip().lower() == 'user'), None)
+                    champ_team = str(champ_row.iloc[0][team_col]) if team_col else "Unknown"
+                    champ_user = str(champ_row.iloc[0][user_col]) if user_col else "Unknown"
+                    award_champ = champ_team
     except Exception:
         pass
 
-    # ── HEISMAN & COTY DATA ──
+    # ── HEISMAN & COTY LOOKUP ──
     heisman_row = heisman[heisman[meta['h_yr']] == sel_year]
     coty_row = coty[coty[meta['c_yr']] == sel_year]
 
@@ -7802,203 +7828,106 @@ with tabs[3]:
     heisman_team   = str(heisman_row.iloc[0][meta['h_school']]) if not heisman_row.empty else ""
     heisman_user   = str(heisman_row.iloc[0].get('USER', '')) if not heisman_row.empty else ""
 
-    cot_coach = str(coty_row.iloc[0][meta['c_coach']]) if not coty_row.empty else "TBD"
-    cot_team  = str(coty_row.iloc[0][meta['c_school']]) if not coty_row.empty else ""
-    cot_user  = str(coty_row.iloc[0].get('User', '')) if not coty_row.empty else ""
+    coty_coach = str(coty_row.iloc[0][meta['c_coach']]) if not coty_row.empty else "TBD"
+    coty_team  = str(coty_row.iloc[0][meta['c_school']]) if not coty_row.empty else ""
+    coty_user  = str(coty_row.iloc[0].get('User', '')) if not coty_row.empty else ""
 
-    # ── RENDER CARDS ──
+    # ── RENDER AWARDS BANNER ──
     _champ_color = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
     _heis_color  = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
-    _coty_color  = get_team_primary_color(cot_team) if cot_team else '#34d399'
+    _coty_color  = get_team_primary_color(coty_team) if coty_team else '#34d399'
 
-    # Build Path HTML list
     path_html = ""
     if path_to_title:
-        path_items = "".join([f"<div style='font-size:0.65rem; color:#94a3b8; line-height:1.2; margin-top:2px;'>• {p}</div>" for p in path_to_title])
-        path_html = f"<div style='margin-top:10px; border-top:1px solid {_champ_color}44; padding-top:8px;'>{path_items}</div>"
+        path_items = "".join([f"<div style='font-size:0.62rem; color:#94a3b8; line-height:1.2; margin-top:1px;'>• {p}</div>" for p in path_to_title])
+        path_html = f"<div style='margin-top:8px; border-top:1px solid {_champ_color}33; padding-top:6px;'>{path_items}</div>"
 
     awards_html = (
-        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px; margin-bottom:20px;'>"
-        + _award_card(_champ_color, _award_logo_tag(champ_team, 56), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
-        + _award_card(_heis_color, _award_logo_tag(heisman_team, 56), "🏅 HEISMAN WINNER", heisman_player, f"{heisman_team} ({heisman_user})")
-        + _award_card(_coty_color, _award_logo_tag(cot_team, 56), "🎓 COACH OF THE YEAR", cot_coach, f"{cot_team} ({cot_user})")
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-bottom:16px;'>"
+        + _award_card(_champ_color, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
+        + _award_card(_heis_color, _award_logo_tag(heisman_team, 52), "🏅 HEISMAN WINNER", heisman_player, f"{heisman_team} ({heisman_user})")
+        + _award_card(_coty_color, _award_logo_tag(coty_team, 52), "🎓 COACH OF THE YEAR", coty_coach, f"{coty_team} ({coty_user})")
         + "</div>"
     )
     st.markdown(awards_html, unsafe_allow_html=True)
 
-            # ── SEASON IN NUMBERS ─────────────────────────────────────────────
-            avg_m       = round(y_data['Margin'].mean(), 1)
-            total_games = len(y_data)
-            avg_pts     = round(y_data['Total Points'].mean(), 1)
-            blowouts    = int((y_data['Margin'] >= 28).sum())
-            nail_biters = int((y_data['Margin'] <= 7).sum())
+    # ── SECTION 2: SEASON IN NUMBERS (Indentation Fixed) ─────────────────
+    if not y_data.empty:
+        user_games = y_data[
+            (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') &
+            (y_data['H_User_Final'].astype(str).str.upper() != 'CPU') &
+            (y_data['V_User_Final'] != y_data['H_User_Final'])
+        ].copy()
+        all_user_rows = y_data[
+            (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') |
+            (y_data['H_User_Final'].astype(str).str.upper() != 'CPU')
+        ].copy()
+
+        avg_m       = round(y_data['Margin'].mean(), 1)
+        total_games = len(y_data)
+        avg_pts     = round(y_data['Total Points'].mean(), 1)
+        blowouts    = int((y_data['Margin'] >= 28).sum())
+        nail_biters = int((y_data['Margin'] <= 7).sum())
+
+        st.markdown(f"""
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px;">
+          {_mini_stat_chip('Games Logged', str(total_games), '#60a5fa')}
+          {_mini_stat_chip('Avg Margin', str(avg_m), '#f59e0b')}
+          {_mini_stat_chip('Avg Total Pts', str(avg_pts), '#34d399')}
+          {_mini_stat_chip('Blowouts (28+)', str(blowouts), '#f87171')}
+          {_mini_stat_chip('Nail-Biters (≤7)', str(nail_biters), '#a78bfa')}
+          {_mini_stat_chip('User Battles', str(len(user_games)), '#fb923c')}
+        </div>""", unsafe_allow_html=True)
+
+        # ── USER RECORDS THIS SEASON ──
+        st.markdown("#### 📋 User Records This Season")
+        _user_rec_rows = []
+        for _u in sorted(_yr_team_map.keys()):
+            _u_games = all_user_rows[(all_user_rows['V_User_Final']==_u) | (all_user_rows['H_User_Final']==_u)]
+            if _u_games.empty: continue
+            _w = int((((_u_games['V_User_Final']==_u) & (_u_games['V_Pts']>_u_games['H_Pts'])) |
+                       ((_u_games['H_User_Final']==_u) & (_u_games['H_Pts']>_u_games['V_Pts']))).sum())
+            _l = len(_u_games) - _w
+            _ppg = round(_u_games.apply(lambda r: r['V_Pts'] if r['V_User_Final']==_u else r['H_Pts'], axis=1).mean(), 1)
+            _tc = _yr_color(_u)
+            _lt = _logo_tag(_u, 28)
+            _team_name = _yr_team_map.get(_u,'?')
+            _user_rec_rows.append((_w, _u, _team_name, _tc, _lt, _w, _l, _ppg))
+
+        _user_rec_rows.sort(key=lambda x: -x[0])
+        for rank_i, (_, _u, _tname, _tc, _lt, _w, _l, _ppg) in enumerate(_user_rec_rows):
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:10px; background:#0a1628;border-left:4px solid {_tc}; border-radius:8px;padding:8px 12px;margin-bottom:5px;'>"
+                f"<span style='color:#475569;font-size:0.72rem;min-width:18px;'>#{rank_i+1}</span>{_lt}"
+                f"<div style='flex:1;min-width:0;'><div style='font-weight:800;color:{_tc};font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                f"{html.escape(_tname)}</div><div style='font-size:0.65rem;color:#64748b;'>{html.escape(_u)}</div></div>"
+                f"<div style='text-align:right;'><div style='font-weight:900;color:#f1f5f9;font-size:0.95rem;'>{_w}&ndash;{_l}</div>"
+                f"<div style='font-size:0.65rem;color:#64748b;'>{_ppg} ppg</div></div></div>", unsafe_allow_html=True
+            )
+
+        # ── GAME OF THE YEAR ──
+        if not user_games.empty:
+            goty = user_games.loc[user_games['Margin'].idxmin()]
+            wu, lu = (goty['V_User_Final'], goty['H_User_Final']) if goty['V_Pts'] > goty['H_Pts'] else (goty['H_User_Final'], goty['V_User_Final'])
+            wt, lt = (goty['Visitor_Final'], goty['Home_Final']) if goty['V_Pts'] > goty['H_Pts'] else (goty['Home_Final'], goty['Visitor_Final'])
+            w_pts, l_pts = (int(goty['V_Pts']), int(goty['H_Pts'])) if goty['V_Pts'] > goty['H_Pts'] else (int(goty['H_Pts']), int(goty['V_Pts']))
+            _wc, _lc = _yr_color(wu), _yr_color(lu)
+            _wl, _ll = _logo_tag(wu, 40), _logo_tag(lu, 40)
             st.markdown(f"""
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px;">
-              {_mini_stat_chip('Games Logged', str(total_games), '#60a5fa')}
-              {_mini_stat_chip('Avg Margin', str(avg_m), '#f59e0b')}
-              {_mini_stat_chip('Avg Total Pts', str(avg_pts), '#34d399')}
-              {_mini_stat_chip('Blowouts (28+)', str(blowouts), '#f87171')}
-              {_mini_stat_chip('Nail-Biters (≤7)', str(nail_biters), '#a78bfa')}
-              {_mini_stat_chip('User Battles', str(len(user_games)), '#fb923c')}
+            <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid #fbbf2444; border-radius:14px;padding:16px;margin-bottom:14px; margin-top:20px;">
+              <div style="font-size:0.62rem;color:#fbbf24;letter-spacing:.1em;font-weight:700;margin-bottom:10px;">🏟️ GAME OF THE YEAR — CLOSEST USER BATTLE</div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">{_wl}<span style="font-weight:900;color:{_wc};font-size:0.82rem;">{html.escape(wt)}</span><span style="font-size:0.65rem;color:#64748b;">{html.escape(wu)}</span></div>
+                <div style="text-align:center;"><div style="font-size:1.6rem;font-weight:900;color:#f1f5f9;">{w_pts} – {l_pts}</div><div style="font-size:0.68rem;color:#94a3b8;">margin: {int(goty['Margin'])}</div></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">{_ll}<span style="font-weight:900;color:{_lc};font-size:0.82rem;">{html.escape(lt)}</span><span style="font-size:0.65rem;color:#64748b;">{html.escape(lu)}</span></div>
+              </div>
             </div>""", unsafe_allow_html=True)
 
-            # ── USER RECORDS THIS SEASON ──────────────────────────────────────
-            st.markdown("#### 📋 User Records This Season")
-            _user_rec_rows = []
-            for _u in sorted(_yr_team_map.keys()):
-                _u_games = all_user_rows[
-                    (all_user_rows['V_User_Final']==_u) |
-                    (all_user_rows['H_User_Final']==_u)
-                ]
-                _w = int((((_u_games['V_User_Final']==_u) & (_u_games['V_Pts']>_u_games['H_Pts'])) |
-                           ((_u_games['H_User_Final']==_u) & (_u_games['H_Pts']>_u_games['V_Pts']))).sum())
-                _l = len(_u_games) - _w
-                _ppg = round(_u_games.apply(
-                    lambda r: r['V_Pts'] if r['V_User_Final']==_u else r['H_Pts'], axis=1).mean(), 1)
-                _tc = _yr_color(_u)
-                _lt = _logo_tag(_u, 28)
-                _team_name = _yr_team_map.get(_u,'?')
-                _user_rec_rows.append((_w, _u, _team_name, _tc, _lt, _w, _l, _ppg))
-
-            _user_rec_rows.sort(key=lambda x: -x[0])
-            for rank_i, (_, _u, _tname, _tc, _lt, _w, _l, _ppg) in enumerate(_user_rec_rows):
-                st.markdown(
-                    f"<div style='display:flex;align-items:center;gap:10px;"
-                    f"background:#0a1628;border-left:4px solid {_tc};"
-                    f"border-radius:8px;padding:8px 12px;margin-bottom:5px;'>"
-                    f"<span style='color:#475569;font-size:0.72rem;min-width:18px;'>"
-                    f"#{rank_i+1}</span>{_lt}"
-                    f"<div style='flex:1;min-width:0;'>"
-                    f"<div style='font-weight:800;color:{_tc};font-size:0.88rem;"
-                    f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
-                    f"{html.escape(_tname)}</div>"
-                    f"<div style='font-size:0.65rem;color:#64748b;'>"
-                    f"{html.escape(_u)}</div></div>"
-                    f"<div style='text-align:right;'>"
-                    f"<div style='font-weight:900;color:#f1f5f9;font-size:0.95rem;'>"
-                    f"{_w}&ndash;{_l}</div>"
-                    f"<div style='font-size:0.65rem;color:#64748b;'>{_ppg} ppg</div>"
-                    f"</div></div>",
-                    unsafe_allow_html=True
-                )
-
-            # ── GAME OF THE YEAR ──────────────────────────────────────────────
-            if not user_games.empty:
-                goty = user_games.loc[user_games['Margin'].idxmin()]
-                if goty['V_Pts'] > goty['H_Pts']:
-                    wu, lu = goty['V_User_Final'], goty['H_User_Final']
-                    wt, lt = goty['Visitor_Final'], goty['Home_Final']
-                    w_pts, l_pts = int(goty['V_Pts']), int(goty['H_Pts'])
-                else:
-                    wu, lu = goty['H_User_Final'], goty['V_User_Final']
-                    wt, lt = goty['Home_Final'], goty['Visitor_Final']
-                    w_pts, l_pts = int(goty['H_Pts']), int(goty['V_Pts'])
-                roast_lines = [
-                    f"{lu} snatched defeat from the jaws of competence.",
-                    f"{lu} turned a pressure moment into performance art.",
-                    f"{lu} got all the way to the finish line and face-planted in front of the cameras."
-                ]
-                roast = roast_lines[int(goty['Margin']) % 3]
-                _wc, _lc = _yr_color(wu), _yr_color(lu)
-                _wl, _ll = _logo_tag(wu, 40), _logo_tag(lu, 40)
-                st.markdown(f"""
-                <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid #fbbf2444;
-                            border-radius:14px;padding:16px;margin-bottom:14px;">
-                  <div style="font-size:0.62rem;color:#fbbf24;letter-spacing:.1em;font-weight:700;margin-bottom:10px;">🏟️ GAME OF THE YEAR — CLOSEST USER BATTLE</div>
-                  <div style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;">
-                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">
-                      {_wl}
-                      <span style="font-weight:900;color:{_wc};font-size:0.82rem;text-align:center;">{html.escape(wt)}</span>
-                      <span style="font-size:0.65rem;color:#64748b;">{html.escape(wu)}</span>
-                    </div>
-                    <div style="text-align:center;">
-                      <div style="font-size:1.6rem;font-weight:900;color:#f1f5f9;">{w_pts} – {l_pts}</div>
-                      <div style="font-size:0.68rem;color:#94a3b8;">margin: {int(goty['Margin'])}</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">
-                      {_ll}
-                      <span style="font-weight:900;color:{_lc};font-size:0.82rem;text-align:center;">{html.escape(lt)}</span>
-                      <span style="font-size:0.65rem;color:#64748b;">{html.escape(lu)}</span>
-                    </div>
-                  </div>
-                  <div style="font-size:0.75rem;color:#94a3b8;margin-top:10px;text-align:center;font-style:italic;">{html.escape(roast)}</div>
-                </div>""", unsafe_allow_html=True)
-
-            # ── FUN STAT + NARRATIVE ──────────────────────────────────────────
-            st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
-
-            # ── HEAD-TO-HEAD USER MATCHUPS ────────────────────────────────────
-            if not user_games.empty:
-                st.markdown("#### ⚔️ User vs User Results")
-                _gtype_map = {}
-                for _, _gr in y_data.iterrows():
-                    _key = (str(_gr.get('Visitor_Final','')), str(_gr.get('Home_Final','')))
-                    _gt = 'Regular Season'
-                    if str(_gr.get('Natty Game','no')).upper() == 'YES': _gt = '🏆 National Championship'
-                    elif str(_gr.get('CFP','no')).lower() == 'yes':      _gt = '🎯 CFP'
-                    elif str(_gr.get('Conf Title','no')).lower() == 'yes': _gt = '🏅 Conf Title'
-                    elif str(_gr.get('Bowl','no')).lower() == 'yes':      _gt = '🎳 Bowl'
-                    _gtype_map[_key] = _gt
-
-                _games_sorted = user_games.sort_values('Margin')
-                for _, _g in _games_sorted.iterrows():
-                    _vu2, _hu2 = str(_g['V_User_Final']), str(_g['H_User_Final'])
-                    _vt2, _ht2 = str(_g['Visitor_Final']), str(_g['Home_Final'])
-                    _vp, _hp   = int(_g['V_Pts']), int(_g['H_Pts'])
-                    _v_won     = _vp > _hp
-                    _vc = _yr_color(_vu2); _hc = _yr_color(_hu2)
-                    _vl = _logo_tag(_vu2, 28); _hl = _logo_tag(_hu2, 28)
-                    _vw = "font-weight:900;" if _v_won else "opacity:0.55;"
-                    _hw = "font-weight:900;" if not _v_won else "opacity:0.55;"
-                    _game_key = (_vt2, _ht2)
-                    _gt_label = _gtype_map.get(_game_key, '')
-                    _gt_badge = (
-                        f"<span style='font-size:0.6rem;padding:2px 6px;"
-                        f"background:#1e293b;color:#94a3b8;border-radius:10px;'>"
-                        f"{html.escape(_gt_label)}</span>"
-                        if _gt_label and _gt_label != 'Regular Season' else ""
-                    )
-                    _badge_row = (
-                        f"<div style='width:100%;display:flex;justify-content:center;"
-                        f"margin-top:2px;'>{_gt_badge}</div>"
-                        if _gt_badge else ""
-                    )
-                    st.markdown(
-                        f"<div style='display:flex;align-items:center;gap:8px;"
-                        f"padding:8px 10px;background:#0a1628;border-radius:8px;"
-                        f"border:1px solid #1e293b;flex-wrap:wrap;margin-bottom:5px;'>"
-                        f"<div style='display:flex;align-items:center;gap:6px;"
-                        f"flex:1;min-width:120px;'>{_vl}"
-                        f"<div><div style='color:{_vc};font-size:0.8rem;{_vw}"
-                        f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
-                        f"max-width:110px;'>{html.escape(_vt2)}</div>"
-                        f"<div style='font-size:0.62rem;color:#475569;'>"
-                        f"{html.escape(_vu2)}</div></div></div>"
-                        f"<div style='text-align:center;min-width:70px;'>"
-                        f"<div style='font-weight:900;font-size:1rem;color:#f1f5f9;'>"
-                        f"{_vp} &ndash; {_hp}</div>"
-                        f"<div style='font-size:0.6rem;color:#475569;'>"
-                        f"&#177;{int(_g['Margin'])}</div></div>"
-                        f"<div style='display:flex;align-items:center;gap:6px;"
-                        f"flex:1;justify-content:flex-end;min-width:120px;'>"
-                        f"<div style='text-align:right;'>"
-                        f"<div style='color:{_hc};font-size:0.8rem;{_hw}"
-                        f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
-                        f"max-width:110px;'>{html.escape(_ht2)}</div>"
-                        f"<div style='font-size:0.62rem;color:#475569;'>"
-                        f"{html.escape(_hu2)}</div></div>{_hl}</div>"
-                        f"{_badge_row}</div>",
-                        unsafe_allow_html=True
-                    )
-
-        # ── ALL GAMES TABLE (collapsible) ─────────────────────────────────────
-        st.markdown("---")
+        # ── FOOTER STATS ──
+        st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
         with st.expander("📋 All Logged Games This Season"):
-            st.dataframe(
-                y_data[['Visitor_Final', 'V_User_Final', 'V_Pts', 'H_Pts', 'H_User_Final', 'Home_Final', 'Margin', 'Total Points']],
-                hide_index=True,
-                use_container_width=True
-            )
+            st.dataframe(y_data[['Visitor_Final', 'V_User_Final', 'V_Pts', 'H_Pts', 'H_User_Final', 'Home_Final', 'Margin', 'Total Points']], hide_index=True, use_container_width=True)
+
 
     # --- TEAM OVERVIEW ---
 with tabs[7]:
