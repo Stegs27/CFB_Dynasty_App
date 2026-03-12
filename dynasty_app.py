@@ -7871,16 +7871,12 @@ with tabs[3]:
     )
     st.markdown(awards_html, unsafe_allow_html=True)
 
-    # 6. SEASON METRICS & RECORDS
+    # 6. SEASON METRICS
     if not y_data.empty:
         user_games = y_data[
             (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') &
             (y_data['H_User_Final'].astype(str).str.upper() != 'CPU') &
             (y_data['V_User_Final'] != y_data['H_User_Final'])
-        ].copy()
-        all_user_rows = y_data[
-            (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') |
-            (y_data['H_User_Final'].astype(str).str.upper() != 'CPU')
         ].copy()
 
         avg_m = round(y_data['Margin'].mean(), 1)
@@ -7895,34 +7891,9 @@ with tabs[3]:
           {_mini_stat_chip('User Battles', str(len(user_games)), '#fb923c')}
         </div>""", unsafe_allow_html=True)
 
-        st.markdown("#### 📋 User Records This Season")
-        _user_rec_rows = []
-        for _u in sorted(_yr_team_map.keys()):
-            _u_games = all_user_rows[(all_user_rows['V_User_Final']==_u) | (all_user_rows['H_User_Final']==_u)]
-            if _u_games.empty: continue
-            _w = int((((_u_games['V_User_Final']==_u) & (_u_games['V_Pts']>_u_games['H_Pts'])) |
-                       ((_u_games['H_User_Final']==_u) & (_u_games['H_Pts']>_u_games['V_Pts']))).sum())
-            _l = len(_u_games) - _w
-            _ppg = round(_u_games.apply(lambda r: r['V_Pts'] if r['V_User_Final']==_u else r['H_Pts'], axis=1).mean(), 1)
-            _tc = _yr_color(_u)
-            _lt = _logo_tag(_u, 28)
-            _team_name = _yr_team_map.get(_u,'?')
-            _user_rec_rows.append((_w, _u, _team_name, _tc, _lt, _w, _l, _ppg))
-
-        _user_rec_rows.sort(key=lambda x: -x[0])
-        for rank_i, (_, _u, _tname, _tc, _lt, _w, _l, _ppg) in enumerate(_user_rec_rows):
-            st.markdown(
-                f"<div style='display:flex;align-items:center;gap:10px; background:#0a1628;border-left:4px solid {_tc}; border-radius:8px;padding:8px 12px;margin-bottom:5px;'>"
-                f"<span style='color:#475569;font-size:0.72rem;min-width:18px;'>#{rank_i+1}</span>{_lt}"
-                f"<div style='flex:1;min-width:0;'><div style='font-weight:800;color:{_tc};font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
-                f"{html.escape(_tname)}</div><div style='font-size:0.65rem;color:#64748b;'>{html.escape(_u)}</div></div>"
-                f"<div style='text-align:right;'><div style='font-weight:900;color:#f1f5f9;font-size:0.95rem;'>{_w}&ndash;{_l}</div>"
-                f"<div style='font-size:0.65rem;color:#64748b;'>{_ppg} ppg</div></div></div>", unsafe_allow_html=True
-            )
-
-        # 7. USER VS USER MATCHUPS (Restored)
+        # 7. USER VS USER MATCHUPS (Renamed and Dynamically Year-Stashed)
         if not user_games.empty:
-            st.markdown("#### ⚔️ User vs User Battles")
+            st.markdown(f"#### ⚔️ User Battles of {sel_year}")
             _games_sorted = user_games.sort_values('Margin')
             for _, _g in _games_sorted.iterrows():
                 vu2, hu2 = str(_g['V_User_Final']), str(_g['H_User_Final'])
@@ -7939,10 +7910,6 @@ with tabs[3]:
                     f"</div>", unsafe_allow_html=True
                 )
 
-    # 8. FULL LOGGED GAMES (Restored)
-    st.markdown("---")
-    with st.expander("📋 All Logged Games This Season"):
-        st.dataframe(y_data[['Visitor_Final', 'V_User_Final', 'V_Pts', 'H_Pts', 'H_User_Final', 'Home_Final', 'Margin', 'Total Points']], hide_index=True, use_container_width=True)
     st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
 
     # --- TEAM OVERVIEW ---
