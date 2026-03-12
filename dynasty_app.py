@@ -7762,9 +7762,17 @@ with tabs[3]:
                 return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;' title='{html.escape(team)}'/>"
             return f"<span style='font-size:{size*0.6:.0f}px;'>🏈</span>"
 
-        champ_row    = champs[champs['YEAR'] == sel_year]
+        # ── SAFE LOOKUP (Ignores hidden Excel characters & case issues) ──
+        champ_yr_col = next((c for c in champs.columns if str(c).replace('\ufeff', '').strip().upper() == 'YEAR'), None)
+        
+        if champ_yr_col and not champs.empty:
+            champ_row = champs[champs[champ_yr_col] == sel_year]
+        else:
+            champ_row = pd.DataFrame()
+
         heisman_row  = heisman[heisman[meta['h_yr']] == sel_year]
         coty_row     = coty[coty[meta['c_yr']] == sel_year]
+
 
         # ── AWARDS BANNER ─────────────────────────────────────────────────────
         award_champ   = "TBD"
