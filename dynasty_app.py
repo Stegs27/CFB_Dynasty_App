@@ -503,7 +503,14 @@ def get_program_history_cards(user, ratings_df, champs_df, rec_df):
 
     champs_local = champs_df.copy()
     champs_local['user'] = champs_local['user'].astype(str).str.strip().str.title()
-    champs_local['Team'] = champs_local['Team'].astype(str).str.strip().map(normalize_history_team_name)
+    # ── SAFE LOOKUP: Find 'user', 'User', or 'USER' dynamically ──
+    user_col = next((c for c in champs_local.columns if str(c).strip().lower() == 'user'), None)
+    
+    if user_col:
+        champs_local['user'] = champs_local[user_col].astype(str).str.strip().str.title()
+    else:
+        champs_local['user'] = "" # Fallback so it doesn't crash if the column is missing entirely
+.map(normalize_history_team_name)
     champs_local['YEAR'] = pd.to_numeric(champs_local['YEAR'], errors='coerce')
 
     cards = []
