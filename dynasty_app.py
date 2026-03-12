@@ -10134,6 +10134,9 @@ with tabs[5]:
                     <h4 style="margin: 0; color: #FFFFFF; font-size: 1.1rem;">Install Mobile App</h4>
                 </div>
                 <p style="font-size: 0.85rem; color: #BBBBBB; margin: 0 0 12px 0; line-height: 1.4;">Add this dynasty hub directly to your phone's home screen for fullscreen, one-tap access.</p>
+                <div style="background-color: rgba(239, 68, 68, 0.15); border-left: 3px solid #EF4444; padding: 8px; margin-bottom: 12px; font-size: 0.8rem; color: #DDDDDD;">
+                    <b>Note:</b> If opening from Discord or Messages, tap the menu and select <b>"Open in Safari/Chrome"</b> first!
+                </div>
                 <div style="margin-bottom: 10px;">
                     <strong style="color: #FFFFFF; font-size: 0.85rem;">🍎 iOS (Safari)</strong>
                     <ol style="font-size: 0.8rem; color: #DDDDDD; padding-left: 20px; margin: 3px 0 0 0;">
@@ -10145,7 +10148,7 @@ with tabs[5]:
                     <strong style="color: #FFFFFF; font-size: 0.85rem;">🤖 Android (Chrome)</strong>
                     <ol style="font-size: 0.8rem; color: #DDDDDD; padding-left: 20px; margin: 3px 0 0 0;">
                         <li>Tap the <b>Three Dots</b> menu at the top right.</li>
-                        <li>Tap <b>Add to Home Screen</b>.</li>
+                        <li>Tap <b>Open Streamlit</b>, <b>Install App</b>, or <b>Add to Home Screen</b>.</li>
                     </ol>
                 </div>
             </div>
