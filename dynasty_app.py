@@ -7845,36 +7845,40 @@ with tabs[3]:
                             f"<div style='text-align:center;min-width:110px;'><div style='font-weight:900;font-size:1.1rem;color:#f1f5f9;'>{int(_g['V_Pts'])} &ndash; {int(_g['H_Pts'])}</div>{upset_badge}</div>"
                             f"<div style='display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;'><div style='text-align:right;'><div style='color:{get_team_primary_color(ht)};font-size:0.8rem;font-weight:800;'>{html.escape(ht)}</div><div style='font-size:0.62rem;color:#475569;'>{int(h_ovr)} OVR</div></div>{_award_logo_tag(ht, 28)}</div></div>", unsafe_allow_html=True)
 
-    # 7. HEISMAN FINALISTS (Finish 2-5 with Logos)
+    # 7. HEISMAN FINALISTS (Vertical Stack)
     if not heisman_all.empty and len(heisman_all) > 1:
         st.markdown("#### 🏆 Heisman Finalists")
         
-        # Filter for finalists who didn't finish 1st (The Winner is in the top banner)
+        # Filter for finalists who didn't finish 1st
         finalists = heisman_all[heisman_all['FINISH'].astype(int) > 1].sort_values('FINISH')
         
-        # Display up to 4 finalists in a clean column grid
-        f_cols = st.columns(min(len(finalists), 4))
-        
+        # Iterate and stack vertically
         for idx, _f in finalists.head(4).reset_index(drop=True).iterrows():
-            with f_cols[idx]:
-                _ft = str(_f['TEAM']).strip()
-                _f_color = get_team_primary_color(_ft)
-                
-                # Get the logo using your existing award logo helper
-                _f_logo_tag = _award_logo_tag(_ft, size=32)
-                
-                st.markdown(f"""
-                <div style='background:#0f172a; border:1px solid #1e293b; border-left:3px solid {_f_color}; border-radius:8px; padding:10px; display:flex; align-items:center; gap:10px;'>
-                  <div style='flex-shrink:0;'>{_f_logo_tag}</div>
-                  <div style='min-width:0;'>
-                    <div style='font-weight:800; font-size:0.82rem; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
-                      #{int(_f['FINISH'])} {html.escape(str(_f['NAME']))}
-                    </div>
-                    <div style='font-size:0.65rem; color:#475569;'>
-                      {html.escape(_ft)} ({str(_f.get('POS','—'))})
-                    </div>
+            _ft = str(_f['TEAM']).strip()
+            _f_color = get_team_primary_color(_ft)
+            
+            # Get the logo using your award logo helper
+            _f_logo_tag = _award_logo_tag(_ft, size=34)
+            
+            st.markdown(f"""
+            <div style='background:#0f172a; border:1px solid #1e293b; border-left:4px solid {_f_color}; border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:12px; margin-bottom:8px;'>
+              <div style='flex-shrink:0; background:#0a1628; padding:4px; border-radius:6px;'>
+                {_f_logo_tag}
+              </div>
+              <div style='flex:1; min-width:0;'>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                  <div style='font-weight:900; font-size:1rem; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>
+                    {html.escape(str(_f['NAME']))}
                   </div>
-                </div>""", unsafe_allow_html=True)
+                  <div style='font-weight:800; color:#94a3b8; font-size:0.85rem;'>
+                    #{int(_f['FINISH'])}
+                  </div>
+                </div>
+                <div style='font-size:0.75rem; color:#64748b; margin-top:2px;'>
+                  {html.escape(_ft)} • {str(_f.get('POS','—'))}
+                </div>
+              </div>
+            </div>""", unsafe_allow_html=True)
 
 
     # --- TEAM OVERVIEW ---
