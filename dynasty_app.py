@@ -503,14 +503,7 @@ def get_program_history_cards(user, ratings_df, champs_df, rec_df):
 
     champs_local = champs_df.copy()
     champs_local['user'] = champs_local['user'].astype(str).str.strip().str.title()
-    # ── SAFE LOOKUP: Find 'user', 'User', or 'USER' dynamically ──
-    user_col = next((c for c in champs_local.columns if str(c).strip().lower() == 'user'), None)
-    
-    if user_col:
-        champs_local['user'] = champs_local[user_col].astype(str).str.strip().str.title()
-    else:
-        champs_local['user'] = "" # Fallback so it doesn't crash if the column is missing entirely
-    .map(normalize_history_team_name)
+    champs_local['Team'] = champs_local['Team'].astype(str).str.strip().map(normalize_history_team_name)
     champs_local['YEAR'] = pd.to_numeric(champs_local['YEAR'], errors='coerce')
 
     cards = []
@@ -7769,17 +7762,9 @@ with tabs[3]:
                 return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;' title='{html.escape(team)}'/>"
             return f"<span style='font-size:{size*0.6:.0f}px;'>🏈</span>"
 
-        # ── SAFE LOOKUP (Ignores hidden Excel characters & case issues) ──
-        champ_yr_col = next((c for c in champs.columns if str(c).replace('\ufeff', '').strip().upper() == 'YEAR'), None)
-        
-        if champ_yr_col and not champs.empty:
-            champ_row = champs[champs[champ_yr_col] == sel_year]
-        else:
-            champ_row = pd.DataFrame()
-
+        champ_row    = champs[champs['YEAR'] == sel_year]
         heisman_row  = heisman[heisman[meta['h_yr']] == sel_year]
         coty_row     = coty[coty[meta['c_yr']] == sel_year]
-
 
         # ── AWARDS BANNER ─────────────────────────────────────────────────────
         award_champ   = "TBD"
