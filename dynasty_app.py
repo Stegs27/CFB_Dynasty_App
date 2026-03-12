@@ -7749,7 +7749,29 @@ with tabs[3]:
     sel_year = st.selectbox("Select Season", years, key="season_year")
     y_data = scores[scores[meta['yr']] == sel_year].copy()
 
-    # ── Build user→team map for this season from scores ──────────────────
+    # 1. HELPER FUNCTIONS (Must be defined first to avoid NameError)
+    def _award_logo_tag(team, size=48):
+        uri = image_file_to_data_uri(get_logo_source(team)) if team else None
+        if uri:
+            return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;'/>"
+        return f"<span style='font-size:{int(size*0.55)}px;'>🏈</span>"
+
+    def _award_card(accent, logo_tag, badge, line1, line2, line3=''):
+        return (
+            f"<div style='background:linear-gradient(135deg,{accent}22,#0f172a);"
+            f"border:1px solid {accent}55;border-radius:12px;padding:14px 16px;"
+            f"display:flex;align-items:center;gap:12px;'>"
+            f"{logo_tag}"
+            f"<div style='min-width:0;'>"
+            f"<div style='font-size:0.6rem;color:#94a3b8;letter-spacing:.08em;font-weight:700;margin-bottom:3px;'>{badge}</div>"
+            f"<div style='font-weight:900;color:{accent};font-size:0.92rem;line-height:1.25;"
+            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(line1)}</div>"
+            f"<div style='font-size:0.72rem;color:#94a3b8;margin-top:1px;'>{html.escape(line2)}</div>"
+            f"{line3 if line3 else ''}"
+            f"</div></div>"
+        )
+
+    # 2. BUILD USER MAP
     _yr_team_map = {}
     for _, _sr in y_data.iterrows():
         _vu = str(_sr.get('V_User_Final', '')).strip()
@@ -7769,18 +7791,16 @@ with tabs[3]:
 
     def _logo_tag(user, size=36):
         uri = _yr_logo(user)
-        team = _yr_team_map.get(str(user), '')
         if uri:
-            return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;' title='{html.escape(team)}'/>"
+            return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;'/>"
         return f"<span style='font-size:{size*0.6:.0f}px;'>🏈</span>"
 
-    # ── AWARDS BANNER LOGIC (Standardized & Path-Enabled) ──────────────────
+    # 3. CHAMPION & PATH LOGIC
     award_champ = "TBD"
     champ_team = champ_user = ""
     path_to_title = []
 
     try:
-        # 1. Try to find the NCG winner in the bracket results
         _b_results = pd.read_csv('CFPbracketresults.csv')
         _ncg_game = _b_results[(_b_results['YEAR'] == sel_year) & 
                                (_b_results['ROUND'].str.strip() == 'NCG') & 
@@ -7789,11 +7809,9 @@ with tabs[3]:
         if not _ncg_game.empty:
             award_champ = str(_ncg_game.iloc[0]['WINNER']).strip()
             champ_team = award_champ
-            # Cross-reference with model to find the coach
             _u_match = model_2041[model_2041['TEAM'] == champ_team]
             champ_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else "CPU"
             
-            # Build Path: Find every win for this team in the bracket
             _my_wins = _b_results[(_b_results['YEAR'] == sel_year) & 
                                   (_b_results['WINNER'].str.strip() == champ_team) & 
                                   (_b_results['COMPLETED'] == 1)]
@@ -7807,20 +7825,16 @@ with tabs[3]:
                 _rd_name = str(_wg['ROUND']).strip()
                 path_to_title.append(f"{_rd_name}: def. {_opp}")
         else:
-            # 2. Fallback to championships.csv if bracket isn't updated
-            champ_yr_col = next((c for c in champs.columns if str(c).replace('\ufeff', '').strip().upper() == 'YEAR'), None)
-            if champ_yr_col:
-                champ_row = champs[champs[champ_yr_col] == sel_year]
-                if not champ_row.empty:
-                    team_col = next((c for c in champs.columns if str(c).strip().lower() == 'team'), None)
-                    user_col = next((c for c in champs.columns if str(c).strip().lower() == 'user'), None)
-                    champ_team = str(champ_row.iloc[0][team_col]) if team_col else "Unknown"
-                    champ_user = str(champ_row.iloc[0][user_col]) if user_col else "Unknown"
-                    award_champ = champ_team
-    except Exception:
+            # Fallback to championships.csv
+            _yr_champ = champs[champs['YEAR'] == sel_year] if 'champs' in locals() else pd.DataFrame()
+            if not _yr_champ.empty:
+                champ_team = str(_yr_champ.iloc[0]['Team']).strip()
+                champ_user = str(_yr_champ.iloc[0].get('user', 'CPU')).strip()
+                award_champ = champ_team
+    except:
         pass
 
-    # ── HEISMAN & COTY LOOKUP ──
+    # 4. AWARDS LOOKUP
     heisman_row = heisman[heisman[meta['h_yr']] == sel_year]
     coty_row = coty[coty[meta['c_yr']] == sel_year]
 
@@ -7832,7 +7846,7 @@ with tabs[3]:
     coty_team  = str(coty_row.iloc[0][meta['c_school']]) if not coty_row.empty else ""
     coty_user  = str(coty_row.iloc[0].get('User', '')) if not coty_row.empty else ""
 
-    # ── RENDER AWARDS BANNER ──
+    # 5. RENDER CARDS
     _champ_color = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
     _heis_color  = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
     _coty_color  = get_team_primary_color(coty_team) if coty_team else '#34d399'
@@ -7851,7 +7865,7 @@ with tabs[3]:
     )
     st.markdown(awards_html, unsafe_allow_html=True)
 
-    # ── SECTION 2: SEASON IN NUMBERS (Indentation Fixed) ─────────────────
+    # 6. SEASON IN NUMBERS
     if not y_data.empty:
         user_games = y_data[
             (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') &
@@ -7878,6 +7892,8 @@ with tabs[3]:
           {_mini_stat_chip('Nail-Biters (≤7)', str(nail_biters), '#a78bfa')}
           {_mini_stat_chip('User Battles', str(len(user_games)), '#fb923c')}
         </div>""", unsafe_allow_html=True)
+        
+        # ... Rest of your existing records and footer logic ...
 
         # ── USER RECORDS THIS SEASON ──
         st.markdown("#### 📋 User Records This Season")
