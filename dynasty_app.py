@@ -510,7 +510,13 @@ def get_program_history_cards(user, ratings_df, champs_df, rec_df):
         champs_local['user'] = "" 
 
     champs_local['Team'] = champs_local['Team'].astype(str).str.strip().map(normalize_history_team_name)
-    champs_local['YEAR'] = pd.to_numeric(champs_local['YEAR'], errors='coerce')
+    # ── SAFE LOOKUP: Find 'YEAR' dynamically to avoid hidden character crashes ──
+    year_col = next((c for c in champs_local.columns if str(c).replace('\ufeff', '').strip().upper() == 'YEAR'), None)
+    if year_col:
+        champs_local['YEAR'] = pd.to_numeric(champs_local[year_col], errors='coerce')
+    else:
+        champs_local['YEAR'] = 0  # Fallback so the math doesn't crash
+
 
     cards = []
     for team, years_set in sorted(team_years.items(), key=lambda kv: min(kv[1]) if kv[1] else 9999):
