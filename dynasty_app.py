@@ -7771,7 +7771,31 @@ with tabs[3]:
             f"</div></div>"
         )
 
-    # 2. CHAMPION & DETAILED PATH LOGIC
+    # 2. BUILD SEASON DATA MAPS
+    _yr_team_map = {}
+    for _, _sr in y_data.iterrows():
+        _vu = str(_sr.get('V_User_Final', '')).strip()
+        _hu = str(_sr.get('H_User_Final', '')).strip()
+        if _vu.upper() not in ('CPU', 'NAN', ''):
+            _yr_team_map[_vu] = str(_sr.get('Visitor_Final', '')).strip()
+        if _hu.upper() not in ('CPU', 'NAN', ''):
+            _yr_team_map[_hu] = str(_sr.get('Home_Final', '')).strip()
+
+    def _yr_logo(user):
+        team = _yr_team_map.get(str(user), '')
+        return image_file_to_data_uri(get_logo_source(team)) if team else None
+
+    def _yr_color(user):
+        team = _yr_team_map.get(str(user), '')
+        return get_team_primary_color(team) if team else '#64748b'
+
+    def _logo_tag(user, size=36):
+        uri = _yr_logo(user)
+        if uri:
+            return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;'/>"
+        return f"<span style='font-size:{size*0.6:.0f}px;'>🏈</span>"
+
+    # 3. CHAMPION & PATH LOGIC
     award_champ = "TBD"
     champ_team = champ_user = ""
     path_to_title = []
@@ -7788,7 +7812,6 @@ with tabs[3]:
             _u_match = model_2041[model_2041['TEAM'] == champ_team]
             champ_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else "CPU"
             
-            # Find every win for this team and include scores
             _my_wins = _b_results[(_b_results['YEAR'] == sel_year) & 
                                   (_b_results['WINNER'].str.strip() == champ_team) & 
                                   (_b_results['COMPLETED'] == 1)]
@@ -7803,39 +7826,33 @@ with tabs[3]:
                 _opp = str(_wg['TEAM2']).strip() if _is_t1 else str(_wg['TEAM1']).strip()
                 _my_score = int(_wg['TEAM1_SCORE']) if _is_t1 else int(_wg['TEAM2_SCORE'])
                 _opp_score = int(_wg['TEAM2_SCORE']) if _is_t1 else int(_wg['TEAM1_SCORE'])
-                _rd_name = str(_wg['ROUND']).strip()
-                
-                path_to_title.append(f"{_rd_name}: def. {_opp} ({_my_score}-{_opp_score})")
+                path_to_title.append(f"{str(_wg['ROUND']).strip()}: def. {_opp} ({_my_score}-{_opp_score})")
         else:
-            # Fallback to championships.csv
             _yr_champ = champs[champs['YEAR'] == sel_year] if 'champs' in locals() else pd.DataFrame()
             if not _yr_champ.empty:
                 champ_team = str(_yr_champ.iloc[0]['Team']).strip()
                 champ_user = str(_yr_champ.iloc[0].get('user', 'CPU')).strip()
                 award_champ = champ_team
-    except Exception:
+    except:
         pass
 
-    # 3. HEISMAN (with Position) & COTY LOOKUP
+    # 4. HEISMAN & COTY LOOKUP
     heisman_row = heisman[heisman[meta['h_yr']] == sel_year]
     coty_row = coty[coty[meta['c_yr']] == sel_year]
 
     if not heisman_row.empty:
         _h = heisman_row.iloc[0]
-        heisman_player = str(_h[meta['h_player']])
-        heisman_pos    = str(_h.get('POS', '—'))
-        heisman_team   = str(_h[meta['h_school']])
-        heisman_user   = str(_h.get('USER', ''))
-        heisman_line1  = f"{heisman_player} ({heisman_pos})"
+        heisman_player = f"{str(_h[meta['h_player']])} ({str(_h.get('POS', '—'))})"
+        heisman_team = str(_h[meta['h_school']])
+        heisman_user = str(_h.get('USER', ''))
     else:
-        heisman_line1 = "TBD"
-        heisman_team = heisman_user = ""
+        heisman_player, heisman_team, heisman_user = "TBD", "", ""
 
     coty_coach = str(coty_row.iloc[0][meta['c_coach']]) if not coty_row.empty else "TBD"
-    coty_team  = str(coty_row.iloc[0][meta['c_school']]) if not coty_row.empty else ""
-    coty_user  = str(coty_row.iloc[0].get('User', '')) if not coty_row.empty else ""
+    coty_team = str(coty_row.iloc[0][meta['c_school']]) if not coty_row.empty else ""
+    coty_user = str(coty_row.iloc[0].get('User', '')) if not coty_row.empty else ""
 
-    # 4. RENDER CARDS
+    # 5. RENDER CARDS
     _champ_color = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
     _heis_color  = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
     _coty_color  = get_team_primary_color(coty_team) if coty_team else '#34d399'
@@ -7848,13 +7865,13 @@ with tabs[3]:
     awards_html = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-bottom:16px;'>"
         + _award_card(_champ_color, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
-        + _award_card(_heis_color, _award_logo_tag(heisman_team, 52), "🏅 HEISMAN WINNER", heisman_line1, f"{heisman_team} ({heisman_user})")
+        + _award_card(_heis_color, _award_logo_tag(heisman_team, 52), "🏅 HEISMAN WINNER", heisman_player, f"{heisman_team} ({heisman_user})")
         + _award_card(_coty_color, _award_logo_tag(coty_team, 52), "🎓 COACH OF THE YEAR", coty_coach, f"{coty_team} ({coty_user})")
         + "</div>"
     )
     st.markdown(awards_html, unsafe_allow_html=True)
 
-    # 6. SEASON IN NUMBERS
+    # 6. SEASON METRICS & RECORDS
     if not y_data.empty:
         user_games = y_data[
             (y_data['V_User_Final'].astype(str).str.upper() != 'CPU') &
@@ -7866,25 +7883,18 @@ with tabs[3]:
             (y_data['H_User_Final'].astype(str).str.upper() != 'CPU')
         ].copy()
 
-        avg_m       = round(y_data['Margin'].mean(), 1)
+        avg_m = round(y_data['Margin'].mean(), 1)
         total_games = len(y_data)
-        avg_pts     = round(y_data['Total Points'].mean(), 1)
-        blowouts    = int((y_data['Margin'] >= 28).sum())
-        nail_biters = int((y_data['Margin'] <= 7).sum())
+        avg_pts = round(y_data['Total Points'].mean(), 1)
 
         st.markdown(f"""
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px;">
           {_mini_stat_chip('Games Logged', str(total_games), '#60a5fa')}
           {_mini_stat_chip('Avg Margin', str(avg_m), '#f59e0b')}
           {_mini_stat_chip('Avg Total Pts', str(avg_pts), '#34d399')}
-          {_mini_stat_chip('Blowouts (28+)', str(blowouts), '#f87171')}
-          {_mini_stat_chip('Nail-Biters (≤7)', str(nail_biters), '#a78bfa')}
           {_mini_stat_chip('User Battles', str(len(user_games)), '#fb923c')}
         </div>""", unsafe_allow_html=True)
-        
-        # ... Rest of your existing records and footer logic ...
 
-        # ── USER RECORDS THIS SEASON ──
         st.markdown("#### 📋 User Records This Season")
         _user_rec_rows = []
         for _u in sorted(_yr_team_map.keys()):
@@ -7910,28 +7920,8 @@ with tabs[3]:
                 f"<div style='font-size:0.65rem;color:#64748b;'>{_ppg} ppg</div></div></div>", unsafe_allow_html=True
             )
 
-        # ── GAME OF THE YEAR ──
-        if not user_games.empty:
-            goty = user_games.loc[user_games['Margin'].idxmin()]
-            wu, lu = (goty['V_User_Final'], goty['H_User_Final']) if goty['V_Pts'] > goty['H_Pts'] else (goty['H_User_Final'], goty['V_User_Final'])
-            wt, lt = (goty['Visitor_Final'], goty['Home_Final']) if goty['V_Pts'] > goty['H_Pts'] else (goty['Home_Final'], goty['Visitor_Final'])
-            w_pts, l_pts = (int(goty['V_Pts']), int(goty['H_Pts'])) if goty['V_Pts'] > goty['H_Pts'] else (int(goty['H_Pts']), int(goty['V_Pts']))
-            _wc, _lc = _yr_color(wu), _yr_color(lu)
-            _wl, _ll = _logo_tag(wu, 40), _logo_tag(lu, 40)
-            st.markdown(f"""
-            <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid #fbbf2444; border-radius:14px;padding:16px;margin-bottom:14px; margin-top:20px;">
-              <div style="font-size:0.62rem;color:#fbbf24;letter-spacing:.1em;font-weight:700;margin-bottom:10px;">🏟️ GAME OF THE YEAR — CLOSEST USER BATTLE</div>
-              <div style="display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;">
-                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">{_wl}<span style="font-weight:900;color:{_wc};font-size:0.82rem;">{html.escape(wt)}</span><span style="font-size:0.65rem;color:#64748b;">{html.escape(wu)}</span></div>
-                <div style="text-align:center;"><div style="font-size:1.6rem;font-weight:900;color:#f1f5f9;">{w_pts} – {l_pts}</div><div style="font-size:0.68rem;color:#94a3b8;">margin: {int(goty['Margin'])}</div></div>
-                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px;">{_ll}<span style="font-weight:900;color:{_lc};font-size:0.82rem;">{html.escape(lt)}</span><span style="font-size:0.65rem;color:#64748b;">{html.escape(lu)}</span></div>
-              </div>
-            </div>""", unsafe_allow_html=True)
+    st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
 
-        # ── FOOTER STATS ──
-        st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
-        with st.expander("📋 All Logged Games This Season"):
-            st.dataframe(y_data[['Visitor_Final', 'V_User_Final', 'V_Pts', 'H_Pts', 'H_User_Final', 'Home_Final', 'Margin', 'Total Points']], hide_index=True, use_container_width=True)
 
 
     # --- TEAM OVERVIEW ---
