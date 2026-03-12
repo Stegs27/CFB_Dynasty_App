@@ -8975,103 +8975,99 @@ with tabs[10]:
                     _render_classic_card(_crow, _ci)
 
 # --- GOAT RANKINGS (Tab 12) ---
-# Since Python is 0-indexed: Tab 1 = [0], Tab 11 = [10], Tab 12 = [11]
 with tabs[11]:
     st.header("🐐 The GOAT Council")
-    st.caption("The ultimate legacy leaderboard. Points: National Title (15), Heisman (5), COTY (3).")
+    st.caption("Legacy points: National Title (15), Heisman (5), COTY (3).")
 
-    # 1. INITIALIZE & DATA LOADING
-    user_awards = {}
-    
-    # Try to build the user list from the model first
-    if 'model_2041' in locals():
-        all_users = [u for u in model_2041['USER'].unique() if str(u).upper() not in ('CPU', 'NAN', '')]
-        user_awards = {u: {'rings': 0, 'heismans': 0, 'cotys': 0} for u in all_users}
+    # 1. INITIALIZE COACH STATS
+    # Deriving human users directly from the model
+    all_users = [u for u in model_2041['USER'].unique() if str(u).upper() not in ('CPU', 'NAN', '')]
+    user_awards = {u: {'rings': 0, 'heismans': 0, 'cotys': 0} for u in all_users}
 
+    # 2. ACCUMULATE SUCCESS
+    # A. NATIONAL TITLES (Prioritizing champs.csv)
     try:
-        # A. COUNT RINGS (National Championships)
-        if os.path.exists('CFPbracketresults.csv'):
-            _b_results = pd.read_csv('CFPbracketresults.csv')
-            _natties = _b_results[(_b_results['ROUND'].str.strip().str.upper() == 'NCG') & (_b_results['COMPLETED'] == 1)]
+        if os.path.exists('champs.csv'):
+            _champs_df = pd.read_csv('champs.csv')
+            # Identify the column containing the user/coach name
+            _u_col = next((c for c in _champs_df.columns if str(c).upper() in ['USER', 'COACH', 'WINNER_USER']), None)
             
-            for _, row in _natties.iterrows():
-                winner_team = str(row['WINNER']).strip()
-                _u_match = model_2041[model_2041['TEAM'].str.strip() == winner_team]
-                if not _u_match.empty:
-                    _u_name = _u_match.iloc[0]['USER']
-                    if _u_name in user_awards:
-                        user_awards[_u_name]['rings'] += 1
+            if _u_col:
+                for _, row in _champs_df.iterrows():
+                    u_name = str(row[_u_col]).strip()
+                    if u_name in user_awards:
+                        user_awards[u_name]['rings'] += 1
+            else:
+                st.warning("Found champs.csv but couldn't identify the 'User' column.")
+    except Exception as e:
+        st.error(f"Error loading champs.csv: {e}")
 
-        # B. COUNT HEISMANS (From your specific Heisman_Finalists.csv)
+    # B. HEISMANS (Using Heisman_Finalists.csv)
+    try:
         if os.path.exists('Heisman_Finalists.csv'):
             _h_df = pd.read_csv('Heisman_Finalists.csv')
-            # Look for the 'FINISH' column we confirmed earlier
-            if 'FINISH' in _h_df.columns:
-                _h_winners = _h_df[_h_df['FINISH'].astype(int) == 1]
-                for _, row in _h_winners.iterrows():
-                    _u_name = str(row.get('USER', '')).strip()
-                    if _u_name in user_awards:
-                        user_awards[_u_name]['heismans'] += 1
+            # Count winners (FINISH == 1)
+            _h_winners = _h_df[_h_df['FINISH'].astype(int) == 1]
+            for _, row in _h_winners.iterrows():
+                u_name = str(row.get('USER', '')).strip()
+                if u_name in user_awards:
+                    user_awards[u_name]['heismans'] += 1
+    except:
+        pass
 
-        # C. COUNT COACH OF THE YEAR
-        if 'coty' in locals() and not coty.empty:
-            for _, row in coty.iterrows():
-                _u_name = str(row.get('User', row.get('USER', ''))).strip()
-                if _u_name in user_awards:
-                    user_awards[_u_name]['cotys'] += 1
-                    
-    except Exception as e:
-        st.warning(f"Note: Legacy data check encountered a minor hitch: {e}")
+    # C. COACH OF THE YEAR (From coty dataframe)
+    if 'coty' in locals() and not coty.empty:
+        for _, row in coty.iterrows():
+            u_name = str(row.get('User', row.get('USER', ''))).strip()
+            if u_name in user_awards:
+                user_awards[u_name]['cotys'] += 1
 
-    # 2. CALCULATE LEGACY SCORE
+    # 3. BUILD LEADERBOARD
     legacy_rows = []
     for u, stats in user_awards.items():
+        # Score Calculation
         score = (stats['rings'] * 15) + (stats['heismans'] * 5) + (stats['cotys'] * 3)
-        rings_icon = " 💍" * stats['rings'] if stats['rings'] > 0 else ""
+        # Ring Display
+        rings_display = " 💍" * stats['rings']
         
         legacy_rows.append({
-            "Coach": f"{u}{rings_icon}",
+            "Coach": f"{u}{rings_display}",
             "Titles": stats['rings'],
             "Heismans": stats['heismans'],
             "COTYs": stats['cotys'],
             "Legacy Score": score
         })
-    
-    # Sort primarily by Score, then by Rings
+
     legacy_df = pd.DataFrame(legacy_rows).sort_values(["Legacy Score", "Titles"], ascending=False)
 
-    # 3. RENDER THE LEADERBOARD
+    # 4. RENDER UI
     if not legacy_df.empty:
-        # Podium View (Top 3)
+        # Podium (Top 3)
         top_3 = legacy_df.head(3).reset_index(drop=True)
-        pod_cols = st.columns(3)
+        p_cols = st.columns(3)
         medals = ["🥇", "🥈", "🥉"]
         
         for i, row in top_3.iterrows():
-            with pod_cols[i]:
-                st.metric(
-                    label=f"{medals[i]} {row['Coach']}", 
-                    value=f"{row['Legacy Score']} pts",
-                    delta=f"{row['Titles']} Rings" if row['Titles'] > 0 else None
-                )
-        
+            with p_cols[i]:
+                st.metric(label=f"{medals[i]} {row['Coach']}", value=f"{row['Legacy Score']} pts")
+
         st.write("---")
         
-        # Rankings Table (No Bar Graph)
+        # Rankings Table
         st.dataframe(
-            legacy_df, 
-            hide_index=True, 
+            legacy_df,
+            hide_index=True,
             use_container_width=True,
             column_config={
                 "Legacy Score": st.column_config.NumberColumn("Legacy Score", format="%d pts"),
                 "Coach": st.column_config.TextColumn("Coach (All-Time Legacy)"),
-                "Titles": st.column_config.NumberColumn("💍 Rings"),
+                "Titles": st.column_config.NumberColumn("💍 Titles"),
                 "Heismans": st.column_config.NumberColumn("🏅 Heismans"),
                 "COTYs": st.column_config.NumberColumn("🎓 COTYs")
             }
         )
     else:
-        st.info("The Council is currently empty. Start winning titles to build your legacy!")
+        st.info("Win some hardware to enter the GOAT Council.")
 
 # --- ROSTER ATTRITION ---
 with tabs[5]:
