@@ -7749,14 +7749,11 @@ with tabs[3]:
     sel_year = int(st.selectbox("Select Season", years, key="season_year"))
     y_data = scores[scores[meta['yr']].astype(int) == sel_year].copy()
 
-    # 1. DYNAMIC RATING LOOKUP (Fixes the "0 Overall" bug)
+    # 1. DYNAMIC RATING LOOKUP
     try:
-        # Find the column that contains 'OVR' or 'OVERALL'
         ovr_col = next((c for c in model_2041.columns if 'OVR' in str(c).upper() or 'OVERALL' in str(c).upper()), None)
         team_col = next((c for c in model_2041.columns if 'TEAM' in str(c).upper()), 'TEAM')
-        
         if ovr_col:
-            # Create the ratings map with normalized team names
             _ratings = dict(zip(model_2041[team_col].str.strip(), pd.to_numeric(model_2041[ovr_col], errors='coerce').fillna(0)))
         else:
             _ratings = {}
@@ -7776,13 +7773,7 @@ with tabs[3]:
             f"<div style='font-size:0.72rem; color:#94a3b8; margin-top:1px;'>{html.escape(line2)}</div>{line3 if line3 else ''}</div></div>"
         )
 
-    _yr_team_map = {}
-    for _, _sr in y_data.iterrows():
-        _vu, _hu = str(_sr.get('V_User_Final', '')).strip(), str(_sr.get('H_User_Final', '')).strip()
-        if _vu.upper() not in ('CPU', 'NAN', ''): _yr_team_map[_vu] = str(_sr.get('Visitor_Final', '')).strip()
-        if _hu.upper() not in ('CPU', 'NAN', ''): _yr_team_map[_hu] = str(_sr.get('Home_Final', '')).strip()
-
-    # 3. CHAMPION & HEISMAN (Robust Search)
+    # 3. CHAMPION, HEISMAN, & COTY LOGIC
     award_champ = "TBD"; champ_team = champ_user = ""; path_to_title = []
     try:
         _b_results = pd.read_csv('CFPbracketresults.csv')
@@ -7802,19 +7793,27 @@ with tabs[3]:
                 path_to_title.append(f"{str(_wg['ROUND']).strip()}: def. {_opp} ({_my_s}-{_opp_s})")
     except: pass
 
-    # Filter Heisman by year (force integer match)
+    # Heisman Winner & Finalists
     heisman_all = heisman[heisman[meta['h_yr']].astype(int) == sel_year].copy()
     if not heisman_all.empty:
-        # Sort so winner is always index 0
-        heisman_all = heisman_all.sort_values(by=meta['h_player'], ascending=True) # Or your rank column
         _winner = heisman_all.iloc[0]
         heisman_player = f"{str(_winner[meta['h_player']])} ({str(_winner.get('POS', '—'))})"
         heisman_team, heisman_user = str(_winner[meta['h_school']]), str(_winner.get('USER', ''))
     else: heisman_player, heisman_team, heisman_user = "TBD", "", ""
 
+    # Coach of the Year
+    coty_row = coty[coty[meta['c_yr']].astype(int) == sel_year]
+    if not coty_row.empty:
+        coty_coach = str(coty_row.iloc[0][meta['c_coach']])
+        coty_team = str(coty_row.iloc[0][meta['c_school']])
+        coty_user = str(coty_row.iloc[0].get('User', ''))
+    else: coty_coach, coty_team, coty_user = "TBD", "", ""
+
     # 4. RENDER AWARDS BANNER
     _c_col = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
     _h_col = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
+    _ct_col = get_team_primary_color(coty_team) if coty_team else '#34d399'
+
     path_html = "".join([f"<div style='font-size:0.62rem; color:#94a3b8; line-height:1.2; margin-top:1px;'>• {p}</div>" for p in path_to_title])
     if path_html: path_html = f"<div style='margin-top:8px; border-top:1px solid {_c_col}33; padding-top:6px;'>{path_html}</div>"
 
@@ -7822,6 +7821,7 @@ with tabs[3]:
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-bottom:16px;'>"
         + _award_card(_c_col, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
         + _award_card(_h_col, _award_logo_tag(heisman_team, 52), "🏅 HEISMAN WINNER", heisman_player, f"{heisman_team} ({heisman_user})")
+        + _award_card(_ct_col, _award_logo_tag(coty_team, 52), "🎓 COACH OF THE YEAR", coty_coach, f"{coty_team} ({coty_user})")
         + "</div>"
     )
     st.markdown(awards_html, unsafe_allow_html=True)
@@ -7847,7 +7847,7 @@ with tabs[3]:
                     f"</div>", unsafe_allow_html=True
                 )
 
-    # 6. HEISMAN FINALISTS (Restored and robust)
+    # 6. HEISMAN FINALISTS
     if len(heisman_all) > 1:
         st.markdown("#### 🏆 Heisman Finalists")
         f_cols = st.columns(min(len(heisman_all)-1, 4))
