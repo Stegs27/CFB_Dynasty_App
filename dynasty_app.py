@@ -7746,18 +7746,20 @@ with tabs[9]:
 # --- SEASON RECAP ---
 with tabs[3]:
     st.header("📺 Season Recap")
+    # Convert selectbox to int immediately to ensure matching with CSVs
     sel_year = int(st.selectbox("Select Season", years, key="season_year"))
     y_data = scores[scores[meta['yr']].astype(int) == sel_year].copy()
 
-    # 1. DYNAMIC RATING & FINALIST LOAD
+    # 1. DYNAMIC DATA LOADING (Ratings & Heisman Finalists)
     try:
+        # Find OVR and TEAM columns in your master model
         ovr_col = next((c for c in model_2041.columns if 'OVR' in str(c).upper() or 'OVERALL' in str(c).upper()), None)
         team_col = next((c for c in model_2041.columns if 'TEAM' in str(c).upper()), 'TEAM')
         _ratings = dict(zip(model_2041[team_col].str.strip(), pd.to_numeric(model_2041[ovr_col], errors='coerce').fillna(0))) if ovr_col else {}
         
-        # Explicitly load Finalists
-        heisman_finalists_df = pd.read_csv('Heisman_Finalists.csv')
-        heisman_all = heisman_finalists_df[heisman_finalists_df['YEAR'].astype(int) == sel_year].copy()
+        # Load Finalists from the specific CSV provided
+        heisman_all = pd.read_csv('Heisman_Finalists.csv')
+        heisman_all = heisman_all[heisman_all['YEAR'].astype(int) == sel_year].copy()
     except:
         _ratings = {}
         heisman_all = pd.DataFrame()
@@ -7768,6 +7770,7 @@ with tabs[3]:
         return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;'/>" if uri else "🏈"
 
     def _award_card(accent, logo_tag, badge, line1, line2, line3=''):
+        # accent is used for the line1 color to ensure it matches the team color
         return (
             f"<div style='background:linear-gradient(135deg,{accent}22,#0f172a); border:1px solid {accent}55; border-radius:12px; padding:14px 16px; display:flex; align-items:center; gap:12px;'>"
             f"{logo_tag}<div style='min-width:0;'><div style='font-size:0.6rem; color:#94a3b8; letter-spacing:.08em; font-weight:700; margin-bottom:3px;'>{badge}</div>"
@@ -7775,7 +7778,7 @@ with tabs[3]:
             f"<div style='font-size:0.72rem; color:#94a3b8; margin-top:1px;'>{html.escape(line2)}</div>{line3 if line3 else ''}</div></div>"
         )
 
-    # 3. AWARDS LOGIC
+    # 3. CHAMPION & PATH LOGIC
     award_champ = "TBD"; champ_team = champ_user = ""; path_to_title = []
     try:
         _b_results = pd.read_csv('CFPbracketresults.csv')
@@ -7785,6 +7788,7 @@ with tabs[3]:
             champ_team = award_champ
             _u_match = model_2041[model_2041[team_col].str.strip() == champ_team]
             champ_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else "CPU"
+            
             _my_wins = _b_results[(_b_results['YEAR'].astype(int) == sel_year) & (_b_results['WINNER'].str.strip() == champ_team) & (_b_results['COMPLETED'] == 1)]
             _rd_order = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
             _my_wins = _my_wins.copy(); _my_wins['_rd_sort'] = _my_wins['ROUND'].str.strip().map(_rd_order); _my_wins = _my_wins.sort_values('_rd_sort')
@@ -7795,10 +7799,11 @@ with tabs[3]:
                 path_to_title.append(f"{str(_wg['ROUND']).strip()}: def. {_opp} ({_my_s}-{_opp_s})")
     except: pass
 
-    # Winner is usually rank 1
+    # 4. HEISMAN WINNER & COTY LOOKUP
     if not heisman_all.empty:
-        _winner = heisman_all[heisman_all['RANK'].astype(int) == 1].iloc[0]
-        heisman_player = f"{str(_winner['PLAYER'])} ({str(_winner.get('POS', '—'))})"
+        # Filter for FINISH == 1 and use NAME column from your CSV
+        _winner = heisman_all[heisman_all['FINISH'].astype(int) == 1].iloc[0]
+        heisman_player = f"{str(_winner['NAME'])} ({str(_winner.get('POS', '—'))})"
         heisman_team, heisman_user = str(_winner['TEAM']), str(_winner.get('USER', ''))
     else:
         heisman_player, heisman_team, heisman_user = "TBD", "", ""
@@ -7807,8 +7812,9 @@ with tabs[3]:
     coty_coach = str(coty_row.iloc[0][meta['c_coach']]) if not coty_row.empty else "TBD"
     coty_team = str(coty_row.iloc[0][meta['c_school']]) if not coty_row.empty else ""
 
-    # 4. RENDER BANNER
+    # 5. RENDER AWARDS BANNER
     _c_col, _h_col, _ct_col = [get_team_primary_color(t) if t else '#fbbf24' for t in [champ_team, heisman_team, coty_team]]
+    
     path_html = "".join([f"<div style='font-size:0.62rem; color:#94a3b8; line-height:1.2; margin-top:1px;'>• {p}</div>" for p in path_to_title])
     if path_html: path_html = f"<div style='margin-top:8px; border-top:1px solid {_c_col}33; padding-top:6px;'>{path_html}</div>"
 
@@ -7821,7 +7827,7 @@ with tabs[3]:
     )
     st.markdown(awards_html, unsafe_allow_html=True)
 
-    # 5. USER BATTLES & FINALISTS
+    # 6. USER BATTLES & UPSET DETECTION (Based on OVR)
     if not y_data.empty:
         user_games = y_data[(y_data['V_User_Final'].astype(str).str.upper() != 'CPU') & (y_data['H_User_Final'].astype(str).str.upper() != 'CPU') & (y_data['V_User_Final'] != y_data['H_User_Final'])].copy()
         if not user_games.empty:
@@ -7829,24 +7835,30 @@ with tabs[3]:
             for _, _g in user_games.iterrows():
                 vt, ht = str(_g['Visitor_Final']).strip(), str(_g['Home_Final']).strip()
                 v_ovr, h_ovr = _ratings.get(vt, 0), _ratings.get(ht, 0)
+                
+                # Identify if the winner had a lower OVR
                 is_upset = (int(_g['V_Pts']) > int(_g['H_Pts']) and v_ovr < h_ovr - 2) or (int(_g['H_Pts']) > int(_g['V_Pts']) and h_ovr < v_ovr - 2)
                 upset_badge = f"<span style='background:#ef4444;color:white;font-size:0.6rem;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:900;'>🔥 UPSET (+{abs(v_ovr - h_ovr)})</span>" if is_upset else ""
+                
                 st.markdown(f"<div style='display:flex;align-items:center;gap:8px;padding:8px 10px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;margin-bottom:5px;'>"
                             f"<div style='display:flex;align-items:center;gap:6px;flex:1;'>{_award_logo_tag(vt, 28)}<div><div style='color:{get_team_primary_color(vt)};font-size:0.8rem;font-weight:800;'>{html.escape(vt)}</div><div style='font-size:0.62rem;color:#475569;'>{int(v_ovr)} OVR</div></div></div>"
                             f"<div style='text-align:center;min-width:110px;'><div style='font-weight:900;font-size:1.1rem;color:#f1f5f9;'>{int(_g['V_Pts'])} &ndash; {int(_g['H_Pts'])}</div>{upset_badge}</div>"
                             f"<div style='display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;'><div style='text-align:right;'><div style='color:{get_team_primary_color(ht)};font-size:0.8rem;font-weight:800;'>{html.escape(ht)}</div><div style='font-size:0.62rem;color:#475569;'>{int(h_ovr)} OVR</div></div>{_award_logo_tag(ht, 28)}</div></div>", unsafe_allow_html=True)
 
-    # 6. HEISMAN FINALISTS (from Heisman_Finalists.csv)
+    # 7. HEISMAN FINALISTS (Finish 2-5)
     if not heisman_all.empty and len(heisman_all) > 1:
         st.markdown("#### 🏆 Heisman Finalists")
-        finalists = heisman_all[heisman_all['RANK'].astype(int) > 1].sort_values('RANK')
-        f_cols = st.columns(4)
+        # Filter for finalists who didn't finish 1st
+        finalists = heisman_all[heisman_all['FINISH'].astype(int) > 1].sort_values('FINISH')
+        f_cols = st.columns(min(len(finalists), 4))
         for idx, _f in finalists.head(4).reset_index(drop=True).iterrows():
             with f_cols[idx]:
                 _ft = str(_f['TEAM'])
                 st.markdown(f"<div style='background:#0f172a;border:1px solid #1e293b;border-left:3px solid {get_team_primary_color(_ft)};border-radius:8px;padding:10px;'>"
-                            f"<div style='font-weight:800;font-size:0.82rem;color:white;'>#{int(_f['RANK'])} {html.escape(str(_f['PLAYER']))}</div>"
+                            f"<div style='font-weight:800;font-size:0.82rem;color:white;'>#{int(_f['FINISH'])} {html.escape(str(_f['NAME']))}</div>"
                             f"<div style='font-size:0.65rem;color:#475569;'>{html.escape(_ft)} ({str(_f.get('POS','—'))})</div></div>", unsafe_allow_html=True)
+
+    st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
 
 
     # --- TEAM OVERVIEW ---
