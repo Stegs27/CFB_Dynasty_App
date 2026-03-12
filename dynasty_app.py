@@ -7749,7 +7749,7 @@ with tabs[3]:
     sel_year = int(st.selectbox("Select Season", years, key="season_year"))
     y_data = scores[scores[meta['yr']].astype(int) == sel_year].copy()
 
-    # 1. DATA LOADING & STATS DETECTION
+    # 1. DATA LOADING & STAT ENGINE
     try:
         ovr_col = next((c for c in model_2041.columns if 'OVR' in str(c).upper() or 'OVERALL' in str(c).upper()), None)
         team_col = next((c for c in model_2041.columns if 'TEAM' in str(c).upper()), 'TEAM')
@@ -7759,6 +7759,30 @@ with tabs[3]:
         heisman_all = heisman_all[heisman_all['YEAR'].astype(int) == sel_year].copy()
     except:
         _ratings = {}; heisman_all = pd.DataFrame()
+
+    def format_heisman_stats(row):
+        """Builds a position-specific stat line from CSV columns."""
+        pos = str(row.get('POS', '')).upper()
+        parts = []
+        
+        def _fmt(val, label):
+            if pd.notnull(val) and val != 0:
+                # Format as int if possible
+                return f"{int(val)} {label}"
+            return None
+
+        if pos == 'QB':
+            parts += [f"{_fmt(row.get('PASS_YDS'), 'Yds')}", f"{_fmt(row.get('PASS_TD'), 'TD')}", f"{_fmt(row.get('PASS_INT'), 'Int')}"]
+            r_yds = _fmt(row.get('RUSH_YDS'), 'Rush Yds')
+            if r_yds: parts.append(r_yds)
+        elif pos in ['HB', 'RB']:
+            parts += [f"{_fmt(row.get('RUSH_YDS'), 'Yds')}", f"{_fmt(row.get('RUSH_TD'), 'TD')}", f"{_fmt(row.get('REC_YDS'), 'Rec Yds')}"]
+        elif pos in ['WR', 'TE']:
+            parts += [f"{_fmt(row.get('CATCHES'), 'Rec')}", f"{_fmt(row.get('REC_YDS'), 'Yds')}", f"{_fmt(row.get('REC_TD'), 'TD')}"]
+        
+        # Filter out Nones and join
+        valid_parts = [p for p in parts if p and 'None' not in p]
+        return " | ".join(valid_parts) if valid_parts else "Stats Pending"
 
     # 2. HELPER FUNCTIONS
     def _award_logo_tag(team, size=48):
@@ -7774,16 +7798,14 @@ with tabs[3]:
             f"<div style='font-size:0.72rem; color:#94a3b8; margin-top:1px;'>{html.escape(line2)}</div>{line3 if line3 else ''}{stat_div}</div></div>"
         )
 
-    # 3. AWARDS BANNER LOGIC
-    award_champ = "TBD"; champ_team = champ_user = ""; path_to_title = []
+    # 3. AWARDS LOGIC
+    award_champ = "TBD"; champ_team = ""; path_to_title = []
     try:
         _b_results = pd.read_csv('CFPbracketresults.csv')
         _ncg = _b_results[(_b_results['YEAR'].astype(int) == sel_year) & (_b_results['ROUND'].str.strip() == 'NCG') & (_b_results['COMPLETED'] == 1)]
         if not _ncg.empty:
             award_champ = str(_ncg.iloc[0]['WINNER']).strip()
             champ_team = award_champ
-            _u_match = model_2041[model_2041[team_col].str.strip() == champ_team]
-            champ_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else "CPU"
             _my_wins = _b_results[(_b_results['YEAR'].astype(int) == sel_year) & (_b_results['WINNER'].str.strip() == champ_team) & (_b_results['COMPLETED'] == 1)]
             _rd_order = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
             _my_wins = _my_wins.copy(); _my_wins['_rd_sort'] = _my_wins['ROUND'].str.strip().map(_rd_order); _my_wins = _my_wins.sort_values('_rd_sort')
@@ -7794,15 +7816,13 @@ with tabs[3]:
                 path_to_title.append(f"{str(_wg['ROUND']).strip()}: def. {_opp} ({_my_s}-{_opp_s})")
     except: pass
 
-    # Heisman Winner for Banner
-    heisman_stats_banner = ""
+    # Heisman Banner
     if not heisman_all.empty:
         _winner_row = heisman_all[heisman_all['FINISH'].astype(int) == 1].iloc[0]
         he_p = f"{str(_winner_row['NAME'])} ({str(_winner_row.get('POS', '—'))})"
         he_t, he_u = str(_winner_row['TEAM']), str(_winner_row.get('USER', ''))
-        # Try to pull stats
-        heisman_stats_banner = str(_winner_row.get('STATS', '')) if 'STATS' in _winner_row else ""
-    else: he_p, he_t, he_u = "TBD", "", ""
+        he_stats = format_heisman_stats(_winner_row)
+    else: he_p, he_t, he_u, he_stats = "TBD", "", "", ""
 
     coty_row = coty[coty[meta['c_yr']].astype(int) == sel_year]
     co_c = str(coty_row.iloc[0][meta['c_coach']]) if not coty_row.empty else "TBD"
@@ -7815,8 +7835,8 @@ with tabs[3]:
 
     awards_html = (
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-bottom:16px;'>"
-        + _award_card(_c_col, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
-        + _award_card(_h_col, _award_logo_tag(he_t, 52), "🏅 HEISMAN WINNER", he_p, f"{he_t} ({he_u})", stats=heisman_stats_banner)
+        + _award_card(_c_col, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, "", line3=path_html)
+        + _award_card(_h_col, _award_logo_tag(he_t, 52), "🏅 HEISMAN WINNER", he_p, f"{he_t} ({he_u})", stats=he_stats)
         + _award_card(_ct_col, _award_logo_tag(co_t, 52), "🎓 COACH OF THE YEAR", co_c, f"{co_t}")
         + "</div>"
     )
@@ -7837,7 +7857,7 @@ with tabs[3]:
                             f"<div style='text-align:center;min-width:110px;'><div style='font-weight:900;font-size:1.1rem;color:#f1f5f9;'>{int(_g['V_Pts'])} &ndash; {int(_g['H_Pts'])}</div>{badge}</div>"
                             f"<div style='display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;'><div style='text-align:right;'><div style='color:{get_team_primary_color(ht)};font-size:0.8rem;font-weight:800;'>{html.escape(ht)}</div><div style='font-size:0.62rem;color:#475569;'>{int(h_ovr)} OVR</div></div>{_award_logo_tag(ht, 28)}</div></div>", unsafe_allow_html=True)
 
-    # 6. HEISMAN LEADERBOARD (Vertical Stack with Stats)
+    # 6. HEISMAN LEADERBOARD (Vertical Stack with Custom Stats)
     if not heisman_all.empty:
         st.markdown("#### 🏆 Heisman Voting Results")
         leaderboard = heisman_all.sort_values('FINISH')
@@ -7846,35 +7866,25 @@ with tabs[3]:
             _ft = str(_f['TEAM']).strip()
             _f_color = get_team_primary_color(_ft)
             _finish = int(_f['FINISH'])
-            _stats = str(_f.get('STATS', '')) if 'STATS' in _f else ""
+            _stats = format_heisman_stats(_f)
             
             _bg = "#1e293b" if _finish == 1 else "#0f172a"
             _bw = "6px" if _finish == 1 else "4px"
-            
             stat_html = f"<div style='margin-top:8px; padding-top:6px; border-top:1px solid {_f_color}33; font-size:0.75rem; color:#cbd5e1; font-family:monospace; font-weight:600;'>📊 {_stats}</div>" if _stats else ""
 
             st.markdown(f"""
             <div style='background:{_bg}; border:1px solid #1e293b; border-left:{_bw} solid {_f_color}; border-radius:10px; padding:14px 18px; display:flex; align-items:center; gap:12px; margin-bottom:8px;'>
-              <div style='flex-shrink:0; background:#0a1628; padding:4px; border-radius:6px;'>
-                {_award_logo_tag(_ft, size=34)}
-              </div>
+              <div style='flex-shrink:0; background:#0a1628; padding:4px; border-radius:6px;'>{_award_logo_tag(_ft, size=34)}</div>
               <div style='flex:1; min-width:0;'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
-                  <div style='font-weight:900; font-size:1.05rem; color:white;'>
-                    {html.escape(str(_f['NAME']))} {"👑" if _finish == 1 else ""}
-                  </div>
-                  <div style='font-weight:800; color:{_f_color if _finish == 1 else "#94a3b8"}; font-size:0.95rem;'>
-                    #{_finish}
-                  </div>
+                  <div style='font-weight:900; font-size:1.05rem; color:white;'>{html.escape(str(_f['NAME']))} {"👑" if _finish == 1 else ""}</div>
+                  <div style='font-weight:800; color:{_f_color if _finish == 1 else "#94a3b8"}; font-size:0.95rem;'>#{_finish}</div>
                 </div>
-                <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
-                  {html.escape(_ft)} • {str(_f.get('POS','—'))} • {str(_f.get('USER','CPU'))}
-                </div>
+                <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{html.escape(_ft)} • {str(_f.get('POS','—'))} • {str(_f.get('USER','CPU'))}</div>
                 {stat_html}
               </div>
             </div>""", unsafe_allow_html=True)
 
-    st.caption(f"📊 Fun stat: {infer_best_fun_stat(y_data)}")
 
     # --- TEAM OVERVIEW ---
 with tabs[7]:
