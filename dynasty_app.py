@@ -11,6 +11,14 @@ import base64
 import hashlib
 from pathlib import Path
 
+# 🚨 THIS MUST BE THE VERY FIRST STREAMLIT COMMAND 🚨
+st.set_page_config(
+    page_title="Dynasty Hub",
+    page_icon="🏈", # Can easily swap this to 🏆 or 🏟️ if you prefer!
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # --- PAGE SETUP ---
 st.set_page_config(page_title="ISPN College Football Gameday", layout="wide", page_icon="🏈")
 
