@@ -7746,66 +7746,53 @@ with tabs[9]:
 # --- SEASON RECAP ---
 with tabs[3]:
     st.header("📺 Season Recap")
-    sel_year = st.selectbox("Select Season", years, key="season_year")
-    y_data = scores[scores[meta['yr']] == sel_year].copy()
+    sel_year = int(st.selectbox("Select Season", years, key="season_year"))
+    y_data = scores[scores[meta['yr']].astype(int) == sel_year].copy()
 
-    # 1. HELPER FUNCTIONS
-    def _award_logo_tag(team, size=48):
-        uri = image_file_to_data_uri(get_logo_source(team)) if team else None
-        if uri:
-            return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;flex-shrink:0;'/>"
-        return f"<span style='font-size:{int(size*0.55)}px;'>🏈</span>"
-
-    def _award_card(accent, logo_tag, badge, line1, line2, line3=''):
-        return (
-            f"<div style='background:linear-gradient(135deg,{accent}22,#0f172a);"
-            f"border:1px solid {accent}55;border-radius:12px;padding:14px 16px;"
-            f"display:flex;align-items:center;gap:12px;'>"
-            f"{logo_tag}"
-            f"<div style='min-width:0;'>"
-            f"<div style='font-size:0.6rem;color:#94a3b8;letter-spacing:.08em;font-weight:700;margin-bottom:3px;'>{badge}</div>"
-            f"<div style='font-weight:900;color:{accent};font-size:0.92rem;line-height:1.25;"
-            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(line1)}</div>"
-            f"<div style='font-size:0.72rem;color:#94a3b8;margin-top:1px;'>{html.escape(line2)}</div>"
-            f"{line3 if line3 else ''}"
-            f"</div></div>"
-        )
-
-    # 2. DATA MAPS & RATING ENGINE
-    _yr_team_map = {}
-    for _, _sr in y_data.iterrows():
-        _vu = str(_sr.get('V_User_Final', '')).strip()
-        _hu = str(_sr.get('H_User_Final', '')).strip()
-        if _vu.upper() not in ('CPU', 'NAN', ''): _yr_team_map[_vu] = str(_sr.get('Visitor_Final', '')).strip()
-        if _hu.upper() not in ('CPU', 'NAN', ''): _yr_team_map[_hu] = str(_sr.get('Home_Final', '')).strip()
-
-    def _yr_color(user):
-        team = _yr_team_map.get(str(user), '')
-        return get_team_primary_color(team) if team else '#64748b'
-
-    def _logo_tag(user, size=36):
-        team = _yr_team_map.get(str(user), '')
-        uri = image_file_to_data_uri(get_logo_source(team)) if team else None
-        return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;'/>" if uri else "🏈"
-
-    # Pull Team Ratings for the specific year
+    # 1. DYNAMIC RATING LOOKUP (Fixes the "0 Overall" bug)
     try:
-        # Assuming model_2041 or a similar master sheet contains team ratings per year
-        _ratings = dict(zip(model_2041['TEAM'].str.strip(), model_2041['TEAM OVR']))
+        # Find the column that contains 'OVR' or 'OVERALL'
+        ovr_col = next((c for c in model_2041.columns if 'OVR' in str(c).upper() or 'OVERALL' in str(c).upper()), None)
+        team_col = next((c for c in model_2041.columns if 'TEAM' in str(c).upper()), 'TEAM')
+        
+        if ovr_col:
+            # Create the ratings map with normalized team names
+            _ratings = dict(zip(model_2041[team_col].str.strip(), pd.to_numeric(model_2041[ovr_col], errors='coerce').fillna(0)))
+        else:
+            _ratings = {}
     except:
         _ratings = {}
 
-    # 3. CHAMPION & HEISMAN DATA
+    # 2. HELPER FUNCTIONS
+    def _award_logo_tag(team, size=48):
+        uri = image_file_to_data_uri(get_logo_source(team)) if team else None
+        return f"<img src='{uri}' style='width:{size}px;height:{size}px;object-fit:contain;'/>" if uri else "🏈"
+
+    def _award_card(accent, logo_tag, badge, line1, line2, line3=''):
+        return (
+            f"<div style='background:linear-gradient(135deg,{accent}22,#0f172a); border:1px solid {accent}55; border-radius:12px; padding:14px 16px; display:flex; align-items:center; gap:12px;'>"
+            f"{logo_tag}<div style='min-width:0;'><div style='font-size:0.6rem; color:#94a3b8; letter-spacing:.08em; font-weight:700; margin-bottom:3px;'>{badge}</div>"
+            f"<div style='font-weight:900; color:{accent}; font-size:0.92rem; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{html.escape(line1)}</div>"
+            f"<div style='font-size:0.72rem; color:#94a3b8; margin-top:1px;'>{html.escape(line2)}</div>{line3 if line3 else ''}</div></div>"
+        )
+
+    _yr_team_map = {}
+    for _, _sr in y_data.iterrows():
+        _vu, _hu = str(_sr.get('V_User_Final', '')).strip(), str(_sr.get('H_User_Final', '')).strip()
+        if _vu.upper() not in ('CPU', 'NAN', ''): _yr_team_map[_vu] = str(_sr.get('Visitor_Final', '')).strip()
+        if _hu.upper() not in ('CPU', 'NAN', ''): _yr_team_map[_hu] = str(_sr.get('Home_Final', '')).strip()
+
+    # 3. CHAMPION & HEISMAN (Robust Search)
     award_champ = "TBD"; champ_team = champ_user = ""; path_to_title = []
     try:
         _b_results = pd.read_csv('CFPbracketresults.csv')
-        _ncg = _b_results[(_b_results['YEAR'] == sel_year) & (_b_results['ROUND'].str.strip() == 'NCG') & (_b_results['COMPLETED'] == 1)]
+        _ncg = _b_results[(_b_results['YEAR'].astype(int) == sel_year) & (_b_results['ROUND'].str.strip() == 'NCG') & (_b_results['COMPLETED'] == 1)]
         if not _ncg.empty:
             award_champ = str(_ncg.iloc[0]['WINNER']).strip()
             champ_team = award_champ
-            _u_match = model_2041[model_2041['TEAM'] == champ_team]
+            _u_match = model_2041[model_2041[team_col].str.strip() == champ_team]
             champ_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else "CPU"
-            _my_wins = _b_results[(_b_results['YEAR'] == sel_year) & (_b_results['WINNER'].str.strip() == champ_team) & (_b_results['COMPLETED'] == 1)]
+            _my_wins = _b_results[(_b_results['YEAR'].astype(int) == sel_year) & (_b_results['WINNER'].str.strip() == champ_team) & (_b_results['COMPLETED'] == 1)]
             _rd_order = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
             _my_wins = _my_wins.copy(); _my_wins['_rd_sort'] = _my_wins['ROUND'].str.strip().map(_rd_order); _my_wins = _my_wins.sort_values('_rd_sort')
             for _, _wg in _my_wins.iterrows():
@@ -7815,21 +7802,19 @@ with tabs[3]:
                 path_to_title.append(f"{str(_wg['ROUND']).strip()}: def. {_opp} ({_my_s}-{_opp_s})")
     except: pass
 
-    heisman_all = heisman[heisman[meta['h_yr']] == sel_year].sort_values(by=meta['h_yr'], ascending=False)
+    # Filter Heisman by year (force integer match)
+    heisman_all = heisman[heisman[meta['h_yr']].astype(int) == sel_year].copy()
     if not heisman_all.empty:
+        # Sort so winner is always index 0
+        heisman_all = heisman_all.sort_values(by=meta['h_player'], ascending=True) # Or your rank column
         _winner = heisman_all.iloc[0]
         heisman_player = f"{str(_winner[meta['h_player']])} ({str(_winner.get('POS', '—'))})"
         heisman_team, heisman_user = str(_winner[meta['h_school']]), str(_winner.get('USER', ''))
     else: heisman_player, heisman_team, heisman_user = "TBD", "", ""
 
-    # 4. RENDER AWARDS
+    # 4. RENDER AWARDS BANNER
     _c_col = get_team_primary_color(champ_team) if champ_team else '#fbbf24'
     _h_col = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
-    _coty_row = coty[coty[meta['c_yr']] == sel_year]
-    _cty_c = str(_coty_row.iloc[0][meta['c_coach']]) if not _coty_row.empty else "TBD"
-    _cty_t = str(_coty_row.iloc[0][meta['c_school']]) if not _coty_row.empty else ""
-    _cty_col = get_team_primary_color(_cty_t) if _cty_t else '#34d399'
-
     path_html = "".join([f"<div style='font-size:0.62rem; color:#94a3b8; line-height:1.2; margin-top:1px;'>• {p}</div>" for p in path_to_title])
     if path_html: path_html = f"<div style='margin-top:8px; border-top:1px solid {_c_col}33; padding-top:6px;'>{path_html}</div>"
 
@@ -7837,53 +7822,44 @@ with tabs[3]:
         "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-bottom:16px;'>"
         + _award_card(_c_col, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
         + _award_card(_h_col, _award_logo_tag(heisman_team, 52), "🏅 HEISMAN WINNER", heisman_player, f"{heisman_team} ({heisman_user})")
-        + _award_card(_cty_col, _award_logo_tag(_cty_t, 52), "🎓 COACH OF THE YEAR", _cty_c, f"{_cty_t}")
         + "</div>"
     )
     st.markdown(awards_html, unsafe_allow_html=True)
 
-    # 5. USER BATTLES WITH RATING-BASED UPSET DETECTION
+    # 5. USER BATTLES OF THE YEAR
     if not y_data.empty:
         user_games = y_data[(y_data['V_User_Final'].astype(str).str.upper() != 'CPU') & (y_data['H_User_Final'].astype(str).str.upper() != 'CPU') & (y_data['V_User_Final'] != y_data['H_User_Final'])].copy()
         if not user_games.empty:
             st.markdown(f"#### ⚔️ User Battles of {sel_year}")
             for _, _g in user_games.iterrows():
-                vt, ht = str(_g['Visitor_Final']), str(_g['Home_Final'])
+                vt, ht = str(_g['Visitor_Final']).strip(), str(_g['Home_Final']).strip()
                 vp, hp = int(_g['V_Pts']), int(_g['H_Pts'])
                 v_ovr, h_ovr = _ratings.get(vt, 0), _ratings.get(ht, 0)
                 
-                # Logic: Winner had lower OVR than Loser
-                is_upset = False
-                if vp > hp and v_ovr < h_ovr: is_upset = True
-                if hp > vp and h_ovr < v_ovr: is_upset = True
-                
-                upset_badge = f"<span style='background:#ef4444;color:white;font-size:0.6rem;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:900;'>🔥 UPSET (Gap: {abs(v_ovr - h_ovr)})</span>" if is_upset else ""
+                is_upset = (vp > hp and v_ovr < h_ovr and (h_ovr - v_ovr) >= 3) or (hp > vp and h_ovr < v_ovr and (v_ovr - h_ovr) >= 3)
+                upset_badge = f"<span style='background:#ef4444;color:white;font-size:0.6rem;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:900;'>🔥 UPSET (+{abs(v_ovr - h_ovr)})</span>" if is_upset else ""
 
                 st.markdown(
                     f"<div style='display:flex;align-items:center;gap:8px;padding:8px 10px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;margin-bottom:5px;'>"
-                    f"<div style='display:flex;align-items:center;gap:6px;flex:1;'>{_logo_tag(_g['V_User_Final'], 28)}<div><div style='color:{_yr_color(_g['V_User_Final'])};font-size:0.8rem;font-weight:800;'>{html.escape(vt)}</div><div style='font-size:0.62rem;color:#475569;'>{v_ovr} OVR</div></div></div>"
-                    f"<div style='text-align:center;min-width:120px;'><div style='font-weight:900;font-size:1.1rem;color:#f1f5f9;'>{vp} &ndash; {hp}</div>{upset_badge}</div>"
-                    f"<div style='display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;'><div style='text-align:right;'><div style='color:{_yr_color(_g['H_User_Final'])};font-size:0.8rem;font-weight:800;'>{html.escape(ht)}</div><div style='font-size:0.62rem;color:#475569;'>{h_ovr} OVR</div></div>{_logo_tag(_g['H_User_Final'], 28)}</div>"
+                    f"<div style='display:flex;align-items:center;gap:6px;flex:1;'>{_award_logo_tag(vt, 28)}<div><div style='color:{get_team_primary_color(vt)};font-size:0.8rem;font-weight:800;'>{html.escape(vt)}</div><div style='font-size:0.62rem;color:#475569;'>{int(v_ovr)} OVR</div></div></div>"
+                    f"<div style='text-align:center;min-width:110px;'><div style='font-weight:900;font-size:1.1rem;color:#f1f5f9;'>{vp} &ndash; {hp}</div>{upset_badge}</div>"
+                    f"<div style='display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end;'><div style='text-align:right;'><div style='color:{get_team_primary_color(ht)};font-size:0.8rem;font-weight:800;'>{html.escape(ht)}</div><div style='font-size:0.62rem;color:#475569;'>{int(h_ovr)} OVR</div></div>{_award_logo_tag(ht, 28)}</div>"
                     f"</div>", unsafe_allow_html=True
                 )
 
-    # 6. HEISMAN FINALISTS
+    # 6. HEISMAN FINALISTS (Restored and robust)
     if len(heisman_all) > 1:
         st.markdown("#### 🏆 Heisman Finalists")
-        finalists_html = "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;'>"
-        for _, _f in heisman_all.iloc[1:5].iterrows():
-            _ft = str(_f[meta['h_school']])
-            _f_color = get_team_primary_color(_ft)
-            _f_logo = image_file_to_data_uri(get_logo_source(_ft))
-            finalists_html += f"""
-            <div style='background:#0f172a;border:1px solid #1e293b;border-left:3px solid {_f_color};border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px;'>
-              <img src='{_f_logo}' style='width:30px;height:30px;object-fit:contain;'/>
-              <div style='min-width:0;'>
-                <div style='font-weight:800;font-size:0.82rem;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(str(_f[meta['h_player']]))}</div>
-                <div style='font-size:0.65rem;color:#475569;'>{html.escape(_ft)} ({str(_f.get('POS','—'))})</div>
-              </div>
-            </div>"""
-        st.markdown(finalists_html + "</div>", unsafe_allow_html=True)
+        f_cols = st.columns(min(len(heisman_all)-1, 4))
+        for idx, _f in heisman_all.iloc[1:5].reset_index(drop=True).iterrows():
+            with f_cols[idx % 4]:
+                _ft = str(_f[meta['h_school']])
+                _f_color = get_team_primary_color(_ft)
+                st.markdown(f"""
+                <div style='background:#0f172a;border:1px solid #1e293b;border-left:3px solid {_f_color};border-radius:8px;padding:10px;'>
+                  <div style='font-weight:800;font-size:0.82rem;color:white;'>{html.escape(str(_f[meta['h_player']]))}</div>
+                  <div style='font-size:0.65rem;color:#475569;'>{html.escape(_ft)} ({str(_f.get('POS','—'))})</div>
+                </div>""", unsafe_allow_html=True)
 
 
     # --- TEAM OVERVIEW ---
