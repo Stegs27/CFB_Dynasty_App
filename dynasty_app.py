@@ -8975,32 +8975,34 @@ with tabs[10]:
                     _render_classic_card(_crow, _ci)
 
 # --- GOAT RANKINGS (Tab 11) ---
+# Note: In 0-based indexing, Tab 11 is tabs[10]
 with tabs[10]:
     st.header("🐐 The GOAT Council")
-    st.caption("Legacy points: National Title (15), Heisman (5), COTY (3).")
+    st.caption("Legacy is written in rings. Points: National Title (15), Heisman (5), COTY (3).")
 
-    # 1. INITIALIZE & DATA LOADING
-    # Standardize user list from your main config
-    user_awards = {u: {'rings': 0, 'heismans': 0, 'cotys': 0} for u in USER_TEAMS}
-    
+    # 1. DERIVE COACH LIST & INITIALIZE
     try:
+        # Get all unique human users from your model
+        all_coaches = [u for u in model_2041['USER'].unique() if str(u).upper() not in ('CPU', 'NAN', '')]
+        user_awards = {u: {'rings': 0, 'heismans': 0, 'cotys': 0} for u in all_coaches}
+        
         # A. COUNT RINGS (National Championships)
-        # We look for the 'NCG' round in CFPbracketresults.csv
         _b_results = pd.read_csv('CFPbracketresults.csv')
+        # Filter for NCG wins
         _natties = _b_results[(_b_results['ROUND'].str.strip() == 'NCG') & (_b_results['COMPLETED'] == 1)]
         
         for _, row in _natties.iterrows():
             winner_team = str(row['WINNER']).strip()
-            # Map the winning team back to the User using your master model
+            # Find which user coached that team
             _u_match = model_2041[model_2041['TEAM'].str.strip() == winner_team]
             if not _u_match.empty:
                 _u_name = _u_match.iloc[0]['USER']
                 if _u_name in user_awards:
                     user_awards[_u_name]['rings'] += 1
         
-        # B. COUNT HEISMANS
-        # Using the updated Heisman_Finalists.csv where FINISH == 1
+        # B. COUNT HEISMANS (Using FINISH column)
         _h_finalists = pd.read_csv('Heisman_Finalists.csv')
+        # Find winners (Finish #1)
         _h_winners = _h_finalists[_h_finalists['FINISH'].astype(int) == 1]
         for _, row in _h_winners.iterrows():
             _u_name = str(row.get('USER', '')).strip()
@@ -9008,22 +9010,21 @@ with tabs[10]:
                 user_awards[_u_name]['heismans'] += 1
 
         # C. COUNT COACH OF THE YEAR
-        # Using the coty dataframe already loaded in your app
-        for _, row in coty.iterrows():
-            _u_name = str(row.get('User', row.get('USER', ''))).strip()
-            if _u_name in user_awards:
-                user_awards[_u_name]['cotys'] += 1
+        # Check if 'coty' dataframe exists and has data
+        if 'coty' in locals() and not coty.empty:
+            for _, row in coty.iterrows():
+                _u_name = str(row.get('User', row.get('USER', ''))).strip()
+                if _u_name in user_awards:
+                    user_awards[_u_name]['cotys'] += 1
                 
     except Exception as e:
-        st.error(f"Error compiling legacy data: {e}")
+        # This will show you exactly what's breaking if the tab stays empty
+        st.error(f"⚠️ Legacy Data Error: {e}")
 
-    # 2. BUILD THE LEADERBOARD
+    # 2. CALCULATE SCORES
     legacy_data = []
     for u, stats in user_awards.items():
-        # Calculate Legacy Score: Natty(15), Heisman(5), COTY(3)
         score = (stats['rings'] * 15) + (stats['heismans'] * 5) + (stats['cotys'] * 3)
-        
-        # Create the Ring Display
         rings_icon = " 💍" * stats['rings'] if stats['rings'] > 0 else ""
         
         legacy_data.append({
@@ -9034,15 +9035,14 @@ with tabs[10]:
             "Legacy Score": score
         })
     
-    # Sort by Score then Titles
     legacy_df = pd.DataFrame(legacy_data).sort_values(["Legacy Score", "Titles"], ascending=False)
-    
-    # 3. RENDER TOP 3 PERFORMANCE METRICS (PODIUM)
-    if not legacy_df.empty:
+
+    # 3. RENDER PODIUM (Top 3)
+    if not legacy_df.empty and legacy_df['Legacy Score'].max() > 0:
         top_cols = st.columns(3)
         medals = ["🥇", "🥈", "🥉"]
-        # Use reset_index to ensure we can iterate through the top 3 safely
         top_3 = legacy_df.head(3).reset_index(drop=True)
+        
         for i, row in top_3.iterrows():
             with top_cols[i]:
                 st.metric(
@@ -9051,9 +9051,9 @@ with tabs[10]:
                     delta=f"{row['Titles']} Titles" if row['Titles'] > 0 else None
                 )
     
-    st.write("") # Spacer
+    st.write("---")
     
-    # 4. MAIN RANKINGS TABLE
+    # 4. LEADERBOARD TABLE
     st.dataframe(
         legacy_df, 
         hide_index=True, 
