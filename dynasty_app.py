@@ -6768,19 +6768,63 @@ with tabs[2]:
         cfp_rankings = get_cfp_rankings_snapshot()
         cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
 
-        # Project the field by Make CFP %, then seed the 12-team bracket with a separate seed score.
-        projected_field = cfp_board.sort_values(['CFP Make %', 'Bye %', 'Committee Score', 'Rank'], ascending=[False, False, False, True]).head(12).copy()
-        projected_field = compute_projected_seed_score(projected_field)
-        projected_field = projected_field.sort_values(['Seed Score', 'CFP Make %', 'Bye %', 'Rank'], ascending=[False, False, False, True]).reset_index(drop=True)
-        projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
+               # ── 12-TEAM PLAYOFF LOGIC (5+7 MODEL) ───────────────────────────────
+        # 1. Load the standings to map teams to their conferences
+        try:
+            conf_df = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
+            conf_map = dict(zip(conf_df['TEAM'], conf_df['CONFERENCE']))
+        except Exception:
+            conf_map = {}
+            
+        cfp_board['Conference'] = cfp_board['Team'].map(conf_map)
+        
+        # 2. Sort the entire board strictly by Rank
+        board_by_rank = cfp_board.sort_values('Rank', ascending=True).copy()
+        
+        # 3. Identify highest-ranked team in each conference as the projected champion
+        conf_teams = board_by_rank.dropna(subset=['Conference'])
+        if not conf_teams.empty:
+            champs = conf_teams.drop_duplicates(subset=['Conference'], keep='first')
+            
+            # 4. The 5 highest-ranked champions are our Automatic Qualifiers (AQs)
+            aq_champs = champs.head(5)
+            
+            # 5. Top 4 highest-ranked champs get the Byes (Seeds 1-4)
+            top_4_byes = aq_champs.head(4).copy()
+            
+            # 6. The 5th AQ Champ goes into the At-Large pool to be seeded 5-12
+            fifth_champ = aq_champs.tail(1).copy()
+            
+            # 7. Identify the At-Large pool (everyone else not in the top 5 champs)
+            aq_names = aq_champs['Team'].tolist()
+            remaining_pool = board_by_rank[~board_by_rank['Team'].isin(aq_names)]
+            
+            # 8. Take the 7 highest-ranked teams from the remaining pool
+            at_large_bids = remaining_pool.head(7).copy()
+            
+            # 9. Combine the 5th Champ and the 7 At-Larges, and sort them purely by Rank for seeds 5-12
+            seeds_5_to_12 = pd.concat([fifth_champ, at_large_bids]).sort_values('Rank', ascending=True)
+            
+            # 10. Build the final 12-team field!
+            projected_field = pd.concat([top_4_byes, seeds_5_to_12]).reset_index(drop=True)
+            projected_field['Projected Seed'] = range(1, 13)
+        else:
+            # Fallback if no conference data is found
+            projected_field = board_by_rank.head(12).copy()
+            projected_field['Projected Seed'] = range(1, 13)
 
-        # Push the corrected projected seeds back onto the full board so the main table matches the bracket table.
+        # Calculate seed scores (for internal model consistency)
+        projected_field = compute_projected_seed_score(projected_field)
+
+        # Push the corrected projected seeds back onto the full board
         cfp_board = compute_projected_seed_score(cfp_board)
         cfp_board['Projected Seed'] = np.nan
         seed_map = projected_field.set_index('Team')['Projected Seed'].to_dict()
         cfp_board['Projected Seed'] = cfp_board['Team'].map(seed_map)
 
-        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values(['CFP Make %', 'Seed Score', 'Rank'], ascending=[False, False, True]).head(4).copy()
+        # First Four Out logic
+        first_four_out = cfp_board[~cfp_board['Team'].isin(projected_field['Team'])].sort_values('Rank', ascending=True).head(4).copy()
+
 
         mobile_metrics([
             {"label": "🔒 Projected Locks",  "value": str(int((cfp_board['CFP Make %'] >= 92).sum()))},
