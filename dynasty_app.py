@@ -7784,7 +7784,7 @@ with tabs[3]:
         heisman_row  = heisman[heisman[meta['h_yr']] == sel_year]
         coty_row     = coty[coty[meta['c_yr']] == sel_year]
 
-                # ── AWARDS BANNER ─────────────────────────────────────────────────────
+        # ── AWARDS BANNER ─────────────────────────────────────────────────────
         award_champ = "TBD"
         champ_team = champ_user = ""
         path_to_title = []
@@ -7827,7 +7827,7 @@ with tabs[3]:
                     champ_team = str(_yr_champ.iloc[0]['Team']).strip()
                     champ_user = str(_yr_champ.iloc[0].get('user', 'CPU')).strip()
                     award_champ = champ_team
-        except:
+        except Exception:
             pass
 
         # ── HEISMAN & COTY DATA ──
@@ -7844,21 +7844,20 @@ with tabs[3]:
         _heis_color  = get_team_primary_color(heisman_team) if heisman_team else '#f59e0b'
         _coty_color  = get_team_primary_color(coty_team) if coty_team else '#34d399'
 
-        # Build Path HTML
+        # Build Path HTML list
         path_html = ""
         if path_to_title:
-            path_items = "".join([f"<div style='font-size:0.6rem; color:#94a3b8; line-height:1.1;'>{p}</div>" for p in path_to_title])
-            path_html = f"<div style='margin-top:8px; border-top:1px solid {_champ_color}33; padding-top:6px;'>{path_items}</div>"
+            path_items = "".join([f"<div style='font-size:0.65rem; color:#94a3b8; line-height:1.2; margin-top:2px;'>• {p}</div>" for p in path_to_title])
+            path_html = f"<div style='margin-top:10px; border-top:1px solid {_champ_color}44; padding-top:8px;'>{path_items}</div>"
 
         awards_html = (
-            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;margin-bottom:16px;'>"
-            + _award_card(_champ_color, _award_logo_tag(champ_team, 52), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
-            + _award_card(_heis_color, _award_logo_tag(heisman_team, 52), "🏅 HEISMAN", heisman_player, f"{heisman_team} ({heisman_user})")
-            + _award_card(_cot_color, _award_logo_tag(coty_team, 52), "🎓 COACH OF THE YEAR", cot_coach, f"{cot_team} ({coty_user})")
+            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px; margin-bottom:20px;'>"
+            + _award_card(_champ_color, _award_logo_tag(champ_team, 56), "🏆 NATIONAL CHAMPION", award_champ, champ_user, line3=path_html)
+            + _award_card(_heis_color, _award_logo_tag(heisman_team, 56), "🏅 HEISMAN WINNER", heisman_player, f"{heisman_team} ({heisman_user})")
+            + _award_card(_coty_color, _award_logo_tag(coty_team, 56), "🎓 COACH OF THE YEAR", cot_coach, f"{cot_team} ({coty_user})")
             + "</div>"
         )
         st.markdown(awards_html, unsafe_allow_html=True)
-
 
             # ── SEASON IN NUMBERS ─────────────────────────────────────────────
             avg_m       = round(y_data['Margin'].mean(), 1)
