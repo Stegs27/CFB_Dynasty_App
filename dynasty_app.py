@@ -26,24 +26,18 @@ import streamlit as st
 ROUND_START = {1: 1, 2: 33, 3: 65, 4: 97, 5: 129, 6: 161, 7: 193}
 ROUND_END   = {1: 32, 2: 64, 3: 96, 4: 128, 5: 160, 6: 192, 7: 224}
 
-# Shared normalization layer for CFB + NFL position mismatches
 POS_BUCKET_MAP = {
-    # offense
     "QB": "QB",
     "HB": "RB",
     "RB": "RB",
     "FB": "RB",
     "WR": "WR",
     "TE": "TE",
-
-    # OL
     "LT": "OL",
     "LG": "OL",
     "C": "OL",
     "RG": "OL",
     "RT": "OL",
-
-    # DL / EDGE
     "LEDG": "EDGE",
     "REDG": "EDGE",
     "EDGE": "EDGE",
@@ -51,8 +45,6 @@ POS_BUCKET_MAP = {
     "RE": "EDGE",
     "DT": "IDL",
     "IDL": "IDL",
-
-    # LB
     "MIKE": "LB",
     "WILL": "LB",
     "SAM": "LB",
@@ -60,8 +52,6 @@ POS_BUCKET_MAP = {
     "LOLB": "LB",
     "ROLB": "LB",
     "LB": "LB",
-
-    # DB
     "CB": "CB",
     "FS": "S",
     "SS": "S",
@@ -93,8 +83,10 @@ NFL_DRAFT_HISTORY_COLS = [
     "DraftYear", "PlayerID", "Player", "CollegeTeam", "CollegeUser",
     "Pos", "PosBucket", "Class", "OVR", "DraftRoundCanon",
     "GeneratedNFLTeam", "GeneratedRoundPick", "GeneratedOverallPick",
+    "OriginalPick", "WasTrade", "TradeNote",
     "GenerationMethod", "DraftValueScore", "NeedScore", "CareerTier",
     "RookieRole", "PeakOVR", "StoryTag",
+    "DraftSource", "TrackStoryline",
     "IsCanonRound", "IsCanonTeam", "IsCanonPick"
 ]
 
@@ -142,14 +134,13 @@ def safe_num(value, default=0):
     except Exception:
         return default
 
+
 def _normalize_logo_key(s):
     import re
     return re.sub(r"[^a-z0-9]+", "", str(s).lower())
 
 
 def _build_logo_index(search_dir="."):
-    import os
-
     idx = {}
     try:
         for fname in os.listdir(search_dir):
@@ -163,24 +154,17 @@ def _build_logo_index(search_dir="."):
 
 
 def get_school_logo_path(team_name):
-    import os
-
     name = str(team_name).strip()
     if not name:
         return None
 
-    # 1) HARD-CODED PRIORITY MAP
-    # Put every created/custom team name here exactly as it appears in your app/CSV.
     manual_map = {
-        # user teams / common tracked teams
         "Florida State": "floridaState.png",
         "Florida": "florida.png",
         "Bowling Green": "bowlingGreen.png",
         "USF": "southFlorida.png",
         "Texas Tech": "texasTech.png",
         "San Jose State": "sanJoseState.png",
-
-        # common real schools with irregular filenames
         "Ohio State": "ohioState.png",
         "Boise State": "boiseState.png",
         "NC State": "ncState.png",
@@ -194,8 +178,6 @@ def get_school_logo_path(team_name):
         "ULM": "louisianaMonroe.png",
         "Miami (OH)": "miamiOH.png",
         "Miami OH": "miamiOH.png",
-
-        # created/custom teams you mentioned
         "Death Valley": "Death Valley.png",
         "Gate City": "GateCity.png",
         "Hammond": "Hammond.png",
@@ -204,19 +186,16 @@ def get_school_logo_path(team_name):
         "Alabaster": "Alabaster.png",
     }
 
-    # Try root first, then logos folder
     for search_dir in [".", "logos"]:
         if name in manual_map:
             candidate = os.path.join(search_dir, manual_map[name])
             if os.path.exists(candidate):
                 return candidate
 
-    # 2) Build indexes from actual files
     root_index = _build_logo_index(".")
     logos_index = _build_logo_index("logos")
-    logo_index = {**logos_index, **root_index}  # root wins if duplicate
+    logo_index = {**logos_index, **root_index}
 
-    # 3) Alias keys for awkward naming differences
     alias_keys = {
         "usf": "southFlorida",
         "utsa": "texasSanAntonio",
@@ -239,11 +218,9 @@ def get_school_logo_path(team_name):
         if alias_norm in logo_index:
             return logo_index[alias_norm]
 
-    # 4) Exact normalized filename match
     if norm_name in logo_index:
         return logo_index[norm_name]
 
-    # 5) CamelCase fallback: "Ohio State" -> "ohioState"
     parts = name.replace("&", "and").split()
     if parts:
         camel_name = parts[0].lower() + "".join(p[:1].upper() + p[1:] for p in parts[1:])
@@ -282,6 +259,7 @@ def get_school_logo_src(team_name):
             if uri:
                 return uri
     return None
+
 
 def get_nfl_logo_slug(team_name):
     name = str(team_name).strip().lower()
@@ -325,8 +303,6 @@ def get_nfl_logo_slug(team_name):
 
 
 def get_nfl_logo_path(team_name):
-    import os
-
     slug = get_nfl_logo_slug(team_name)
     if not slug:
         return None
@@ -369,6 +345,7 @@ def get_nfl_logo_src(team_name):
             if uri:
                 return uri
     return None
+
 
 def calc_athletic_bonus(row, bucket):
     spd = safe_num(row.get("SPD", 0))
@@ -609,6 +586,8 @@ def load_nfl_universe_data():
         "nfl_story": nfl_story,
         "nfl_settings": nfl_settings,
     }
+
+
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — DRAFT ENRICHMENT
 # ──────────────────────────────────────────────────────────────────────
@@ -761,8 +740,11 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
                     "IsCanonPick": "No",
                 })
 
-    out = pd.DataFrame(enriched_rows, columns=NFL_DRAFT_HISTORY_COLS)
-    return out
+    out = pd.DataFrame(enriched_rows)
+    for col in NFL_DRAFT_HISTORY_COLS:
+        if col not in out.columns:
+            out[col] = pd.NA
+    return out[NFL_DRAFT_HISTORY_COLS].copy()
 
 
 def get_newest_unprocessed_draft_class(cfb_draft_df, nfl_draft_hist_df):
@@ -807,6 +789,39 @@ def is_user_team(team_name):
 def is_senior_label(year_val):
     y = str(year_val).strip().upper()
     return y in {"SR", "SR (RS)", "RS SR"}
+
+
+def build_round1_pick_order(nfl_roster_df):
+    if nfl_roster_df is None or nfl_roster_df.empty or "Team" not in nfl_roster_df.columns:
+        return [
+            "Bears", "Jets", "Giants", "Patriots", "Cardinals", "Commanders", "Titans", "Falcons",
+            "Seahawks", "Raiders", "Saints", "Broncos", "Vikings", "Colts", "Steelers", "Bengals",
+            "Browns", "Rams", "Dolphins", "Buccaneers", "Packers", "Texans", "Jaguars", "Chargers",
+            "Cowboys", "Eagles", "Bills", "Lions", "49ers", "Chiefs", "Ravens", "Panthers"
+        ]
+
+    teams = sorted(nfl_roster_df["Team"].dropna().astype(str).unique().tolist())
+
+    preferred_order = [
+        "Bears", "Jets", "Giants", "Patriots", "Cardinals", "Commanders", "Redskins", "Titans",
+        "Falcons", "Seahawks", "Raiders", "Saints", "Broncos", "Vikings", "Colts", "Steelers",
+        "Bengals", "Browns", "Rams", "Dolphins", "Buccaneers", "Packers", "Texans", "Jaguars",
+        "Chargers", "Cowboys", "Eagles", "Bills", "Lions", "49ers", "Chiefs", "Ravens", "Panthers"
+    ]
+
+    norm_map = {str(t).strip().lower(): t for t in teams}
+    ordered = []
+
+    for team in preferred_order:
+        key = team.strip().lower()
+        if key in norm_map and norm_map[key] not in ordered:
+            ordered.append(norm_map[key])
+
+    for team in teams:
+        if team not in ordered:
+            ordered.append(team)
+
+    return ordered[:32]
 
 
 def build_background_round1_pool(cfb_roster_df, cfb_user_draft_df, draft_year, max_players=32):
@@ -1093,7 +1108,7 @@ def maybe_apply_round1_trade(current_pick, current_team, available_order, remain
 
     candidates = []
     for idx, team in enumerate(available_order):
-        if team == current_team:
+        if str(team) == str(current_team):
             continue
 
         row = need_pool[need_pool["NFLTeam"].astype(str) == str(team)]
@@ -1108,18 +1123,18 @@ def maybe_apply_round1_trade(current_pick, current_team, available_order, remain
         return current_team, current_pick, "No", ""
 
     candidates = sorted(candidates, key=lambda x: (x[2], -x[1]), reverse=True)
-    chosen_team, chosen_pick, chosen_need = candidates[0]
+    chosen_team, chosen_pick, _ = candidates[0]
 
     if chosen_pick == current_pick:
         return current_team, current_pick, "No", ""
 
     source_pick = int(chosen_pick)
     target_pick = int(current_pick)
-
     move_word = "up" if target_pick < source_pick else "down"
     trade_note = f"{chosen_team} trades {move_word} from #{source_pick} to #{target_pick}"
 
     return chosen_team, source_pick, "Yes", trade_note
+
 
 def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     if generated_df is None or generated_df.empty:
@@ -1302,259 +1317,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 </div>
                 <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
                     <div style="font-size:0.8rem; color:#9ca3af;">Tracked Picks</div>
-                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{sum(1 for r in revealed_rows if r['Source'] == 'Tracked')}</div>
-                </div>
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Top Pipeline</div>
-                    <div style="font-size:1.25rem; font-weight:800; color:#fff;">{html.escape(str(top_user))}</div>
-                </div>
-            </div>
-        """), unsafe_allow_html=True)
-
-        if round_num == 1:
-            time.sleep(speeds["r1"])
-        elif round_num <= 3:
-            time.sleep(speeds["mid"])
-        else:
-            time.sleep(speeds["late"])
-
-    progress.progress(1.0, text="Draft reveal complete.")
-    return df
-
-def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_latest=False):
-    universe = load_nfl_universe_data()
-    cfb_draft = universe["cfb_draft"]
-    cfb_roster = universe["cfb_roster"]
-    nfl_roster = universe["nfl_roster"]
-    existing_hist = universe["nfl_draft_hist"]
-
-    if force_latest:
-        work = cfb_draft.copy()
-        work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
-        work = work.dropna(subset=["DraftYear"]).copy()
-
-        if work.empty:
-            return existing_hist, None, "No valid DraftYear values found for rerun."
-
-        work["DraftYear"] = work["DraftYear"].astype(int)
-        newest_year = int(work["DraftYear"].max())
-
-        combined_new_class = work[work["DraftYear"] == newest_year].copy()
-        combined_new_class["DraftSource"] = "user_results"
-        combined_new_class["TrackStoryline"] = "Yes"
-
-        combined_new_class["DraftRound"] = pd.to_numeric(
-            combined_new_class["DraftRound"], errors="coerce"
-        ).fillna(0).astype(int)
-
-        user_r1 = combined_new_class[combined_new_class["DraftRound"] == 1].copy()
-        user_non_r1 = combined_new_class[combined_new_class["DraftRound"] != 1].copy()
-
-        needed_background = max(0, 32 - len(user_r1))
-
-        background_r1 = build_background_round1_pool(
-            cfb_roster_df=cfb_roster,
-            cfb_user_draft_df=combined_new_class,
-            draft_year=newest_year,
-            max_players=needed_background
-        )
-
-        background_later = build_background_later_round_pool(
-            cfb_roster_df=cfb_roster,
-            cfb_user_draft_df=combined_new_class,
-            draft_year=newest_year
-        )
-
-        if not background_r1.empty:
-            background_r1["DraftRound"] = 1
-            background_r1["DraftSource"] = "background_r1"
-            background_r1["TrackStoryline"] = "No"
-
-        if not background_later.empty:
-            background_later["DraftSource"] = "background_later"
-            background_later["TrackStoryline"] = "No"
-
-        combined_new_class = pd.concat(
-            [user_r1, background_r1, user_non_r1, background_later],
-            ignore_index=True,
-            sort=False
-        )
-        msg = f"Draft class {newest_year} rerun for testing."
-    else:
-        combined_new_class, newest_year, msg = build_combined_newest_class(cfb_draft, cfb_roster, existing_hist)
-
-        if combined_new_class.empty:
-            return existing_hist, newest_year, msg
-
-    generated_new = enrich_user_draft_results(combined_new_class, cfb_roster, nfl_roster)
-
-    if generated_new.empty:
-        return existing_hist, newest_year, f"Could not generate draft history for class {newest_year}."
-
-    source_meta = combined_new_class.copy()
-    source_meta["PlayerID"] = source_meta.apply(
-        lambda r: build_player_id(r["DraftYear"], r["CollegeTeam"], r["Player"], r["Pos"]),
-        axis=1
-    )
-
-    source_meta = source_meta[["PlayerID", "DraftSource", "TrackStoryline"]].drop_duplicates()
-    generated_new = generated_new.merge(source_meta, on="PlayerID", how="left", suffixes=("", "_src"))
-
-    generated_new["DraftSource"] = generated_new["DraftSource"].fillna("user_results")
-    generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("Yes")
-    generated_new["OriginalPick"] = pd.NA
-    generated_new["WasTrade"] = "No"
-    generated_new["TradeNote"] = ""
-
-    round1_order = build_round1_pick_order(nfl_roster)
-    team_needs = build_nfl_team_needs(nfl_roster)
-
-    r1 = generated_new[generated_new["DraftRoundCanon"] == 1].copy()
-    later = generated_new[generated_new["DraftRoundCanon"] != 1].copy()
-
-    if not r1.empty:
-        r1 = r1.sort_values(["DraftValueScore", "OVR"], ascending=[False, False]).reset_index(drop=True)
-
-        assigned_rows = []
-        available_order = round1_order.copy()
-
-        max_r1 = min(32, len(r1))
-        for pick_num in range(1, max_r1 + 1):
-            current_team = available_order[0] if available_order else f"Team {pick_num}"
-            remaining_players = r1.iloc[pick_num - 1:].copy()
-
-            trade_team, original_pick, was_trade, trade_note = maybe_apply_round1_trade(
-                current_pick=pick_num,
-                current_team=current_team,
-                available_order=available_order,
-                remaining_players=remaining_players,
-                team_needs=team_needs
-            )
-
-            row = r1.iloc[pick_num - 1].copy()
-            row["GeneratedNFLTeam"] = trade_team
-            row["GeneratedOverallPick"] = pick_num
-            row["GeneratedRoundPick"] = pick_num
-            row["OriginalPick"] = original_pick if was_trade == "Yes" else pick_num
-            row["WasTrade"] = was_trade
-            row["TradeNote"] = trade_note
-
-            assigned_rows.append(row)
-
-            if trade_team in available_order:
-                available_order.remove(trade_team)
-
-        r1 = pd.DataFrame(assigned_rows)
-
-    generated_new = pd.concat([r1, later], ignore_index=True).sort_values(
-        ["DraftYear", "GeneratedOverallPick", "Player"],
-        ascending=[True, True, True]
-    ).reset_index(drop=True)
-
-    if live_mode:
-        generated_new = live_reveal_nfl_draft(generated_new, speed_mode=speed_mode)
-
-    if existing_hist is None or existing_hist.empty:
-        combined = generated_new.copy()
-    else:
-        existing_clean = existing_hist.copy()
-        if "DraftYear" in existing_clean.columns:
-            existing_clean["DraftYear"] = pd.to_numeric(existing_clean["DraftYear"], errors="coerce")
-            existing_clean = existing_clean[
-                existing_clean["DraftYear"].fillna(-1).astype(int) != int(newest_year)
-            ].copy()
-
-        combined = pd.concat([existing_clean, generated_new], ignore_index=True)
-
-    combined = combined.sort_values(
-        ["DraftYear", "GeneratedOverallPick", "Player"],
-        ascending=[True, True, True]
-    ).reset_index(drop=True)
-
-    combined = combined.reindex(columns=NFL_DRAFT_HISTORY_COLS)
-    combined.to_csv("nfl_draft_history.csv", index=False)
-
-    if force_latest:
-        return combined, newest_year, f"Draft class {newest_year} rerun for testing."
-
-    return combined, newest_year, f"Draft class {newest_year} has been officially added to NFL history."
-
-
-def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
-    if draft_class_df is None or draft_class_df.empty:
-        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-
-    src = draft_class_df.copy()
-
-    if "TrackStoryline" not in src.columns:
-        src["TrackStoryline"] = "Yes"
-
-    src = src[src["TrackStoryline"].astype(str).str.upper() == "YES"].copy()
-
-    if src.empty:
-        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-
-    src["DraftYear"] = pd.to_numeric(src["DraftYear"], errors="coerce")
-    src = src.dropna(subset=["DraftYear"]).copy()
-
-    if src.empty:
-        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-
-    src["DraftYear"] = src["DraftYear"].astype(int)
-    draft_year = int(src["DraftYear"].max())
-
-    if existing_story_df is None:
-        if os.path.exists("nfl_story_events.csv"):
-            existing_story_df = pd.read_csv("nfl_story_events.csv")
-        else:
-            existing_story_df = pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-
-    existing_story_df = existing_story_df.copy() if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-
-    if not existing_story_df.empty and "Season" in existing_story_df.columns:
-        existing_story_df["Season"] = pd.to_numeric(existing_story_df["Season"], errors="coerce")
-        existing_story_df = existing_story_df[
-            ~(
-                existing_story_df["Season"].fillna(-1).astype(int).eq(draft_year) &
-                existing_story_df["EventType"].astype(str).eq("DraftNight")
-            )
-        ].copy()
-
-    rows = []
-    src = src.sort_values(["GeneratedOverallPick", "Player"], ascending=[True, True])
-
-    for _, r in src.iterrows():
-        player = str(r.get("Player", "Unknown Player"))
-        nfl_team = str(r.get("GeneratedNFLTeam", "Unknown Team"))
-        college_team = str(r.get("CollegeTeam", "Unknown School"))
-        round_num = int(safe_num(r.get("DraftRoundCanon", 0), 0))
-        pick_num = int(safe_num(r.get("GeneratedOverallPick", 999), 999))
-        pos = str(r.get("Pos", ""))
-        pos_bucket = str(r.get("PosBucket", ""))
-        story_tag = str(r.get("StoryTag", ""))
-
-        rows.append({
-            "Season": draft_year,
-            "Week": 0,
-            "PlayerID": r.get("PlayerID", ""),
-            "Player": player,
-            "NFLTeam": nfl_team,
-            "EventType": "DraftNight",
-            "Headline": f"{player} lands with the {nfl_team}",
-            "Description": f"{college_team} {pos} ({pos_bucket}) was selected in Round {round_num} at pick {pick_num}. {story_tag}",
-            "ImpactScore": int(max(50, 100 - pick_num))
-        })
-
-    new_story_df = pd.DataFrame(rows, columns=NFL_STORY_EVENTS_COLS)
-
-    if existing_story_df.empty:
-        combined = new_story_df.copy()
-    else:
-        combined = pd.concat([existing_story_df, new_story_df], ignore_index=True)
-
-    combined = combined.sort_values(["Season", "Week", "ImpactScore"], ascending=[False, True, False]).reset_index(drop=True)
-    combined.to_csv("nfl_story_events.csv", index=False)
-    return combined
+                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{sum(1 for
 
 # 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
 st.set_page_config(
