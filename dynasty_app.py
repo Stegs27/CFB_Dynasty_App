@@ -855,12 +855,7 @@ def build_background_round1_pool(cfb_roster_df, cfb_user_draft_df, draft_year, m
 
     def is_senior_like(year_label):
         y = str(year_label).upper().strip()
-        return (
-            y == "SR"
-            or "SR (RS)" in y
-            or "RS SR" in y
-            or "R-SR" in y
-        )
+        return y in {"SR", "SR (RS)", "RS SR", "R-SR"}
 
     pool = roster[roster["Year"].apply(is_senior_like)].copy()
     if pool.empty:
@@ -877,7 +872,7 @@ def build_background_round1_pool(cfb_roster_df, cfb_user_draft_df, draft_year, m
     if pool.empty:
         return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
 
-    bg_rows = []
+    rows = []
     for _, row in pool.iterrows():
         row_dict = {
             "DraftYear": int(draft_year),
@@ -899,31 +894,34 @@ def build_background_round1_pool(cfb_roster_df, cfb_user_draft_df, draft_year, m
             "TrackStoryline": "No",
         }
         row_dict["DraftValueScore"] = calc_draft_value(row_dict)
-        bg_rows.append(row_dict)
+        rows.append(row_dict)
 
-    bg_df = pd.DataFrame(bg_rows)
+    bg_df = pd.DataFrame(rows)
     if bg_df.empty:
         return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
 
-    top_91 = bg_df[bg_df["OVR"] >= 91].copy()
-    top_91 = top_91.sort_values(["DraftValueScore", "OVR", "Player"], ascending=[False, False, True])
+    # Global board: OVR first, draft value second
+    bg_df = bg_df.sort_values(
+        ["OVR", "DraftValueScore", "Player"],
+        ascending=[False, False, True]
+    ).reset_index(drop=True)
 
-    if len(top_91) >= max_players:
-        final_df = top_91.head(int(max_players)).copy()
-    else:
-        remainder = bg_df[bg_df["OVR"] < 91].copy()
-        remainder = remainder.sort_values(["DraftValueScore", "OVR", "Player"], ascending=[False, False, True])
-        needed = int(max_players - len(top_91))
-        final_df = pd.concat([top_91, remainder.head(needed)], ignore_index=True)
+    # Prefer 91+ for round 1, then backfill if needed
+    preferred = bg_df[bg_df["OVR"] >= 91].copy()
+    fallback = bg_df[bg_df["OVR"] < 91].copy()
+    final_df = pd.concat([preferred, fallback], ignore_index=True).head(int(max_players)).copy()
+
+    final_df = final_df.drop_duplicates(
+        subset=["Player", "CollegeTeam", "Pos"],
+        keep="first"
+    ).copy()
 
     for col in CFB_USER_DRAFT_RESULTS_COLS:
         if col not in final_df.columns:
             final_df[col] = pd.NA
 
-    if "DraftSource" not in final_df.columns:
-        final_df["DraftSource"] = "background_r1"
-    if "TrackStoryline" not in final_df.columns:
-        final_df["TrackStoryline"] = "No"
+    final_df["DraftSource"] = "background_r1"
+    final_df["TrackStoryline"] = "No"
 
     return final_df[CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"]].copy()
 
@@ -959,12 +957,7 @@ def build_background_later_round_pool(cfb_roster_df, cfb_user_draft_df, draft_ye
 
     def is_senior_like(year_label):
         y = str(year_label).upper().strip()
-        return (
-            y == "SR"
-            or "SR (RS)" in y
-            or "RS SR" in y
-            or "R-SR" in y
-        )
+        return y in {"SR", "SR (RS)", "RS SR", "R-SR"}
 
     pool = roster[roster["Year"].apply(is_senior_like)].copy()
     if pool.empty:
@@ -980,6 +973,71 @@ def build_background_later_round_pool(cfb_roster_df, cfb_user_draft_df, draft_ye
 
     if pool.empty:
         return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    rows = []
+    for _, row in pool.iterrows():
+        ovr = int(round(safe_num(row.get("OVR", 0), 0)))
+
+        if ovr >= 89:
+            draft_round = 2
+        elif ovr >= 86:
+            draft_round = 3
+        elif ovr >= 83:
+            draft_round = 4
+        elif ovr >= 80:
+            draft_round = 5
+        elif ovr >= 77:
+            draft_round = 6
+        elif ovr >= 74:
+            draft_round = 7
+        else:
+            continue
+
+        row_dict = {
+            "DraftYear": int(draft_year),
+            "Player": row.get("Name", ""),
+            "CollegeTeam": row.get("Team", ""),
+            "CollegeUser": "",
+            "Pos": row.get("Pos", ""),
+            "Class": row.get("Year", ""),
+            "OVR": ovr,
+            "DraftRound": draft_round,
+            "SPD": safe_num(row.get("SPD", 0), 0),
+            "ACC": safe_num(row.get("ACC", 0), 0),
+            "AGI": safe_num(row.get("AGI", 0), 0),
+            "COD": safe_num(row.get("COD", 0), 0),
+            "STR": safe_num(row.get("STR", 0), 0),
+            "AWR": safe_num(row.get("AWR", 0), 0),
+            "PosBucket": clean_bucket(row.get("Pos", "")),
+            "DraftSource": "background_later",
+            "TrackStoryline": "No",
+        }
+        row_dict["DraftValueScore"] = calc_draft_value(row_dict)
+        rows.append(row_dict)
+
+    later_df = pd.DataFrame(rows)
+    if later_df.empty:
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    # Global ranking within projected rounds
+    later_df = later_df.sort_values(
+        ["DraftRound", "OVR", "DraftValueScore", "Player"],
+        ascending=[True, False, False, True]
+    ).reset_index(drop=True)
+
+    later_df = later_df.drop_duplicates(
+        subset=["Player", "CollegeTeam", "Pos"],
+        keep="first"
+    ).copy()
+
+    for col in CFB_USER_DRAFT_RESULTS_COLS:
+        if col not in later_df.columns:
+            later_df[col] = pd.NA
+
+    later_df["DraftSource"] = "background_later"
+    later_df["TrackStoryline"] = "No"
+
+    return later_df[CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"]].copy()
 
     rows = []
     for _, row in pool.iterrows():
@@ -1402,6 +1460,30 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
         if combined_new_class.empty:
             return existing_hist, newest_year, msg
 
+combined_new_class["__player_key"] = combined_new_class.apply(
+    lambda r: build_player_id(
+        int(safe_num(r.get("DraftYear", newest_year), newest_year)),
+        r.get("CollegeTeam", ""),
+        r.get("Player", ""),
+        r.get("Pos", "")
+    ),
+    axis=1
+)
+
+source_priority = {
+    "user_results": 0,
+    "background_r1": 1,
+    "background_later": 2,
+}
+combined_new_class["__source_rank"] = combined_new_class["DraftSource"].astype(str).map(source_priority).fillna(9)
+
+combined_new_class = combined_new_class.sort_values(
+    ["__player_key", "__source_rank", "DraftRound", "OVR"],
+    ascending=[True, True, True, False]
+).drop_duplicates(subset=["__player_key"], keep="first").copy()
+
+combined_new_class = combined_new_class.drop(columns=["__player_key", "__source_rank"], errors="ignore")
+
     generated_new = enrich_user_draft_results(combined_new_class, cfb_roster, nfl_roster)
 
     if generated_new.empty:
@@ -1426,46 +1508,161 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     team_needs = build_nfl_team_needs(nfl_roster)
 
     r1 = generated_new[generated_new["DraftRoundCanon"] == 1].copy()
-    later = generated_new[generated_new["DraftRoundCanon"] != 1].copy()
+later = generated_new[generated_new["DraftRoundCanon"] != 1].copy()
 
-    if not r1.empty:
-        r1 = r1.sort_values(["DraftValueScore", "OVR"], ascending=[False, False]).reset_index(drop=True)
+assigned_round_rows = []
 
-        assigned_rows = []
-        available_order = round1_order.copy()
+if not r1.empty:
+    r1 = r1.sort_values(["OVR", "DraftValueScore"], ascending=[False, False]).reset_index(drop=True)
 
-        max_r1 = min(32, len(r1))
-        for pick_num in range(1, max_r1 + 1):
-            current_team = available_order[0] if available_order else f"Team {pick_num}"
-            remaining_players = r1.iloc[pick_num - 1:].copy()
+    available_order = round1_order.copy()
+    used_player_ids = set()
 
-            trade_team, original_pick, was_trade, trade_note = maybe_apply_round1_trade(
-                current_pick=pick_num,
-                current_team=current_team,
-                available_order=available_order,
-                remaining_players=remaining_players,
-                team_needs=team_needs
+    max_r1 = min(32, len(r1))
+    for pick_num in range(1, max_r1 + 1):
+        current_team = available_order[0] if available_order else f"Team {pick_num}"
+        remaining_players = r1[~r1["PlayerID"].isin(used_player_ids)].copy()
+
+        if remaining_players.empty:
+            break
+
+        trade_team, original_pick, was_trade, trade_note = maybe_apply_round1_trade(
+            current_pick=pick_num,
+            current_team=current_team,
+            available_order=available_order,
+            remaining_players=remaining_players,
+            team_needs=team_needs
+        )
+
+        drafting_team = trade_team
+
+        candidate_rows = []
+        for _, cand in remaining_players.iterrows():
+            bucket = clean_bucket(cand.get("PosBucket", cand.get("Pos", "")))
+            need_row = team_needs[
+                (team_needs["NFLTeam"].astype(str) == str(drafting_team)) &
+                (team_needs["PosBucket"].astype(str) == str(bucket))
+            ]
+
+            need_score = safe_num(
+                need_row.iloc[0]["NeedScore"] if not need_row.empty else 0,
+                0
             )
 
-            row = r1.iloc[pick_num - 1].copy()
-            row["GeneratedNFLTeam"] = trade_team
-            row["GeneratedOverallPick"] = pick_num
-            row["GeneratedRoundPick"] = pick_num
-            row["OriginalPick"] = original_pick if was_trade == "Yes" else pick_num
-            row["WasTrade"] = was_trade
-            row["TradeNote"] = trade_note
+            fit_score = (
+                safe_num(cand.get("DraftValueScore", 0), 0) * 0.72 +
+                safe_num(cand.get("OVR", 0), 0) * 0.18 +
+                need_score * 0.10
+            )
 
-            assigned_rows.append(row)
+            cand_copy = cand.copy()
+            cand_copy["__fit_score"] = fit_score
+            candidate_rows.append(cand_copy)
 
-            if trade_team in available_order:
-                available_order.remove(trade_team)
+        candidate_df = pd.DataFrame(candidate_rows).sort_values(
+            ["__fit_score", "OVR", "DraftValueScore"],
+            ascending=[False, False, False]
+        )
 
-        r1 = pd.DataFrame(assigned_rows)
+        row = candidate_df.iloc[0].copy()
+        row["GeneratedNFLTeam"] = drafting_team
+        row["GeneratedOverallPick"] = pick_num
+        row["GeneratedRoundPick"] = pick_num
+        row["OriginalPick"] = original_pick if was_trade == "Yes" else pick_num
+        row["WasTrade"] = was_trade
+        row["TradeNote"] = trade_note
 
-    generated_new = pd.concat([r1, later], ignore_index=True).sort_values(
-        ["DraftYear", "GeneratedOverallPick", "Player"],
-        ascending=[True, True, True]
-    ).reset_index(drop=True)
+        assigned_round_rows.append(row)
+        used_player_ids.add(row["PlayerID"])
+
+        if drafting_team in available_order:
+            available_order.remove(drafting_team)
+
+later_assigned = []
+if not later.empty:
+    later = later.sort_values(["DraftRoundCanon", "OVR", "DraftValueScore"], ascending=[True, False, False]).reset_index(drop=True)
+
+    used_player_ids = set([r["PlayerID"] for r in assigned_round_rows if "PlayerID" in r])
+
+    for rnd in sorted(later["DraftRoundCanon"].dropna().unique().tolist()):
+        rnd = int(rnd)
+        rnd_df = later[
+            (pd.to_numeric(later["DraftRoundCanon"], errors="coerce").fillna(0).astype(int) == rnd) &
+            (~later["PlayerID"].isin(used_player_ids))
+        ].copy()
+
+        if rnd_df.empty:
+            continue
+
+        pick_start = ROUND_START.get(rnd, 0)
+        pick_end = ROUND_END.get(rnd, 0)
+
+        nfl_team_list = sorted(nfl_roster["Team"].dropna().astype(str).unique().tolist())
+        if not nfl_team_list:
+            nfl_team_list = round1_order.copy()
+
+        available_order = nfl_team_list.copy()
+        round_pick = 1
+
+        for overall_pick in range(pick_start, min(pick_end, pick_start + len(rnd_df) - 1) + 1):
+            remaining_players = rnd_df[~rnd_df["PlayerID"].isin(used_player_ids)].copy()
+            if remaining_players.empty:
+                break
+
+            drafting_team = available_order[0] if available_order else nfl_team_list[(round_pick - 1) % len(nfl_team_list)]
+
+            candidate_rows = []
+            for _, cand in remaining_players.iterrows():
+                bucket = clean_bucket(cand.get("PosBucket", cand.get("Pos", "")))
+                need_row = team_needs[
+                    (team_needs["NFLTeam"].astype(str) == str(drafting_team)) &
+                    (team_needs["PosBucket"].astype(str) == str(bucket))
+                ]
+
+                need_score = safe_num(
+                    need_row.iloc[0]["NeedScore"] if not need_row.empty else 0,
+                    0
+                )
+
+                fit_score = (
+                    safe_num(cand.get("DraftValueScore", 0), 0) * 0.68 +
+                    safe_num(cand.get("OVR", 0), 0) * 0.17 +
+                    need_score * 0.15
+                )
+
+                cand_copy = cand.copy()
+                cand_copy["__fit_score"] = fit_score
+                candidate_rows.append(cand_copy)
+
+            candidate_df = pd.DataFrame(candidate_rows).sort_values(
+                ["__fit_score", "OVR", "DraftValueScore"],
+                ascending=[False, False, False]
+            )
+
+            row = candidate_df.iloc[0].copy()
+            row["GeneratedNFLTeam"] = drafting_team
+            row["GeneratedOverallPick"] = overall_pick
+            row["GeneratedRoundPick"] = round_pick
+            row["OriginalPick"] = overall_pick
+            row["WasTrade"] = "No"
+            row["TradeNote"] = ""
+
+            later_assigned.append(row)
+            used_player_ids.add(row["PlayerID"])
+
+            if drafting_team in available_order:
+                available_order.remove(drafting_team)
+
+            round_pick += 1
+            if not available_order:
+                available_order = nfl_team_list.copy()
+
+generated_new = pd.DataFrame(assigned_round_rows + later_assigned)
+
+generated_new = generated_new.sort_values(
+    ["DraftYear", "GeneratedOverallPick", "Player"],
+    ascending=[True, True, True]
+).reset_index(drop=True)
 
     if live_mode:
         generated_new = live_reveal_nfl_draft(generated_new, speed_mode=speed_mode)
