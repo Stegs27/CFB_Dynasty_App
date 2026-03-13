@@ -810,57 +810,119 @@ def is_senior_label(year_val):
 
 
 def build_background_round1_pool(cfb_roster_df, cfb_user_draft_df, draft_year, max_players=32):
-    if cfb_roster_df is None or cfb_roster_df.empty:
+    if cfb_roster_df is None or cfb_roster_df.empty or max_players <= 0:
         return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
 
     roster = cfb_roster_df.copy()
 
-    required_cols = {"Team", "Name", "Year", "OVR"}
-    if not required_cols.issubset(set(roster.columns)):
+    if "Name" not in roster.columns or "Team" not in roster.columns:
         return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
 
-    roster["OVR"] = pd.to_numeric(roster["OVR"], errors="coerce").fillna(0)
-    roster["Year"] = roster["Year"].astype(str)
-    roster["Team"] = roster["Team"].astype(str)
-    roster["Name"] = roster["Name"].astype(str)
+    roster["Name"] = roster["Name"].astype(str).str.strip()
+    roster["Team"] = roster["Team"].astype(str).str.strip()
+    roster["Pos"] = roster["Pos"].astype(str).str.strip() if "Pos" in roster.columns else ""
+    roster["Year"] = roster["Year"].astype(str).str.strip() if "Year" in roster.columns else ""
+    roster["OVR"] = pd.to_numeric(roster.get("OVR", 0), errors="coerce").fillna(0)
 
-    roster = roster[roster["Year"].map(is_senior_label)].copy()
-    roster = roster[roster["OVR"] >= 91].copy()
-
-    if roster.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    roster = roster[~roster["Team"].map(is_user_team)].copy()
-
-    existing_keys = set()
+    # Exclude anyone already in user draft results for this draft year
+    taken_keys = set()
     if cfb_user_draft_df is not None and not cfb_user_draft_df.empty:
-        temp = cfb_user_draft_df.copy()
-        if "Player" in temp.columns and "CollegeTeam" in temp.columns:
-            for _, r in temp.iterrows():
-                existing_keys.add((normalize_key(r.get("Player", "")), normalize_key(r.get("CollegeTeam", ""))))
+        work = cfb_user_draft_df.copy()
+        if "DraftYear" in work.columns:
+            work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
+            work = work[work["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
 
-    rows = []
-    for _, r in roster.iterrows():
-        key = (normalize_key(r.get("Name", "")), normalize_key(r.get("Team", "")))
-        if key in existing_keys:
-            continue
+        for _, r in work.iterrows():
+            taken_keys.add(
+                (
+                    normalize_key(r.get("Player", "")),
+                    normalize_key(r.get("CollegeTeam", "")),
+                    normalize_key(r.get("Pos", "")),
+                )
+            )
 
-        rows.append({
-            "DraftYear": int(draft_year),
-            "Player": r.get("Name", ""),
-            "CollegeTeam": r.get("Team", ""),
-            "CollegeUser": "",
-            "Pos": r.get("Pos", ""),
-            "Class": r.get("Year", ""),
-            "OVR": int(safe_num(r.get("OVR", 0), 0)),
-            "DraftRound": 1,
-            "DraftSource": "background_r1",
-            "TrackStoryline": "No"
-        })
+    # Seniors / RS seniors only
+    def is_round1_background_eligible(year_label):
+        y = str(year_label).upper().strip()
+        return (
+            y == "SR"
+            or "SR (RS)" in y
+            or "RS SR" in y
+            or "R-SR" in y
+        )
 
-    out = pd.DataFrame(rows)
-    if out.empty:
+    pool = roster[roster["Year"].apply(is_round1_background_eligible)].copy()
+
+    if pool.empty:
         return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    # 91+ only for league/background first rounders
+    pool = pool[pool["OVR"] >= 91].copy()
+
+    if pool.empty:
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    # Remove already tracked drafted players
+    pool["player_key"] = pool["Name"].map(normalize_key)
+    pool["team_key"] = pool["Team"].map(normalize_key)
+    pool["pos_key"] = pool["Pos"].map(normalize_key)
+
+    pool = pool[
+        ~pool.apply(lambda r: (r["player_key"], r["team_key"], r["pos_key"]) in taken_keys, axis=1)
+    ].copy()
+
+    if pool.empty:
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    # Draft value scoring
+    bg_rows = []
+    for _, row in pool.iterrows():
+        row_dict = {
+            "DraftYear": int(draft_year),
+            "Player": row.get("Name", ""),
+            "CollegeTeam": row.get("Team", ""),
+            "CollegeUser": "",
+            "Pos": row.get("Pos", ""),
+            "Class": row.get("Year", ""),
+            "OVR": int(round(safe_num(row.get("OVR", 0), 0))),
+            "DraftRound": 1,
+            "SPD": safe_num(row.get("SPD", 0), 0),
+            "ACC": safe_num(row.get("ACC", 0), 0),
+            "AGI": safe_num(row.get("AGI", 0), 0),
+            "COD": safe_num(row.get("COD", 0), 0),
+            "STR": safe_num(row.get("STR", 0), 0),
+            "AWR": safe_num(row.get("AWR", 0), 0),
+            "PosBucket": clean_bucket(row.get("Pos", "")),
+            "DraftSource": "background_r1",
+            "TrackStoryline": "No",
+        }
+
+        row_dict["DraftValueScore"] = calc_draft_value(row_dict)
+        bg_rows.append(row_dict)
+
+    bg_df = pd.DataFrame(bg_rows)
+
+    if bg_df.empty:
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    bg_df = bg_df.sort_values(
+        ["DraftValueScore", "OVR", "Player"],
+        ascending=[False, False, True]
+    ).reset_index(drop=True)
+
+    bg_df = bg_df.head(int(max_players)).copy()
+
+    # Only keep the columns we want flowing downstream
+    for col in CFB_USER_DRAFT_RESULTS_COLS:
+        if col not in bg_df.columns:
+            bg_df[col] = pd.NA
+
+    if "DraftSource" not in bg_df.columns:
+        bg_df["DraftSource"] = "background_r1"
+    if "TrackStoryline" not in bg_df.columns:
+        bg_df["TrackStoryline"] = "No"
+
+    return bg_df[CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"]].copy()
 
     roster["Name_key"] = roster["Name"].map(normalize_key)
     roster["Team_key"] = roster["Team"].map(normalize_key)
