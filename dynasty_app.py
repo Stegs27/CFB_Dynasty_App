@@ -10,6 +10,566 @@ import base64
 import hashlib
 from pathlib import Path
 
+import os
+import random
+import html
+import pandas as pd
+import streamlit as st
+
+# ──────────────────────────────────────────────────────────────────────
+# NFL UNIVERSE — HELPERS / CONFIG
+# ──────────────────────────────────────────────────────────────────────
+
+ROUND_START = {1: 1, 2: 33, 3: 65, 4: 97, 5: 129, 6: 161, 7: 193}
+ROUND_END   = {1: 32, 2: 64, 3: 96, 4: 128, 5: 160, 6: 192, 7: 224}
+
+# Shared normalization layer for CFB + NFL position mismatches
+POS_BUCKET_MAP = {
+    # offense
+    "QB": "QB",
+    "HB": "RB",
+    "RB": "RB",
+    "FB": "RB",
+    "WR": "WR",
+    "TE": "TE",
+
+    # OL
+    "LT": "OL",
+    "LG": "OL",
+    "C": "OL",
+    "RG": "OL",
+    "RT": "OL",
+
+    # DL / EDGE
+    "LEDG": "EDGE",
+    "REDG": "EDGE",
+    "EDGE": "EDGE",
+    "LE": "EDGE",
+    "RE": "EDGE",
+    "DT": "IDL",
+    "IDL": "IDL",
+
+    # LB
+    "MIKE": "LB",
+    "WILL": "LB",
+    "SAM": "LB",
+    "MLB": "LB",
+    "LOLB": "LB",
+    "ROLB": "LB",
+    "LB": "LB",
+
+    # DB
+    "CB": "CB",
+    "FS": "S",
+    "SS": "S",
+    "S": "S",
+}
+
+POS_PREMIUM = {
+    "QB": 10,
+    "EDGE": 9,
+    "WR": 8,
+    "CB": 8,
+    "OL": 7,
+    "IDL": 6,
+    "LB": 5,
+    "S": 5,
+    "RB": 4,
+    "TE": 4,
+}
+
+NFL_UNIVERSE_SETTINGS_COLS = [
+    "CurrentNFLSeason", "LastCompletedDraftYear", "LastCompletedSuperBowlSeason", "UniverseVersion"
+]
+
+CFB_USER_DRAFT_RESULTS_COLS = [
+    "DraftYear", "Player", "CollegeTeam", "CollegeUser", "Pos", "Class", "OVR", "DraftRound"
+]
+
+NFL_DRAFT_HISTORY_COLS = [
+    "DraftYear", "PlayerID", "Player", "CollegeTeam", "CollegeUser",
+    "Pos", "PosBucket", "Class", "OVR", "DraftRoundCanon",
+    "GeneratedNFLTeam", "GeneratedRoundPick", "GeneratedOverallPick",
+    "GenerationMethod", "DraftValueScore", "NeedScore", "CareerTier",
+    "RookieRole", "PeakOVR", "StoryTag",
+    "IsCanonRound", "IsCanonTeam", "IsCanonPick"
+]
+
+NFL_PLAYER_HISTORY_COLS = [
+    "Season", "PlayerID", "Player", "NFLTeam", "Pos", "PosBucket", "Age", "Role", "OverallStart",
+    "OverallEnd", "Games", "Starts", "StatLine", "ProBowl", "AllPro", "MVPVotes",
+    "SuperBowlWin", "SuperBowlAppear", "CareerValue", "Status"
+]
+
+NFL_SUPER_BOWL_HISTORY_COLS = [
+    "Season", "Champion", "RunnerUp", "Score", "MVP", "MVPTeam", "Headline"
+]
+
+NFL_STORY_EVENTS_COLS = [
+    "Season", "Week", "PlayerID", "Player", "NFLTeam", "EventType", "Headline",
+    "Description", "ImpactScore"
+]
+
+
+def ensure_csv_exists(path, columns, default_rows=None):
+    if not os.path.exists(path):
+        df = pd.DataFrame(default_rows or [], columns=columns)
+        df.to_csv(path, index=False)
+
+
+def normalize_key(s):
+    import re
+    return re.sub(r"[^a-z0-9]+", "", str(s).lower().strip())
+
+
+def clean_bucket(pos):
+    pos = str(pos).strip().upper()
+    return POS_BUCKET_MAP.get(pos, pos)
+
+
+def build_player_id(draft_year, college_team, player_name, pos):
+    return f"{draft_year}_{normalize_key(college_team)}_{normalize_key(player_name)}_{normalize_key(pos)}"
+
+
+def safe_num(value, default=0):
+    try:
+        if pd.isna(value):
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def calc_athletic_bonus(row, bucket):
+    spd = safe_num(row.get("SPD", 0))
+    acc = safe_num(row.get("ACC", 0))
+    agi = safe_num(row.get("AGI", 0))
+    cod = safe_num(row.get("COD", 0))
+    awr = safe_num(row.get("AWR", 0))
+    strength = safe_num(row.get("STR", 0))
+
+    if bucket in {"WR", "CB", "RB", "S"}:
+        return (spd + acc + agi + cod) / 20.0
+    if bucket == "QB":
+        return (awr + acc + agi) / 15.0
+    if bucket in {"OL", "IDL", "EDGE", "LB"}:
+        return (strength + acc + awr) / 15.0
+    if bucket == "TE":
+        return (spd + strength + acc) / 18.0
+    return (spd + acc + awr) / 18.0
+
+
+def calc_draft_value(row):
+    bucket = clean_bucket(row.get("PosBucket", row.get("Pos", "")))
+    ovr = safe_num(row.get("OVR", 0))
+    awr = safe_num(row.get("AWR", 0))
+    player_class = str(row.get("Class", "")).strip()
+
+    class_bonus = {
+        "JR": 2.5,
+        "JR (RS)": 1.5,
+        "SR": 1.0,
+        "SR (RS)": 0.5,
+    }.get(player_class, 0.0)
+
+    athletic_bonus = calc_athletic_bonus(row, bucket)
+    pos_bonus = POS_PREMIUM.get(bucket, 3)
+    variance = random.uniform(-2.5, 2.5)
+
+    return round((ovr * 0.70) + (awr * 0.08) + athletic_bonus + pos_bonus + class_bonus + variance, 2)
+
+
+def build_nfl_team_needs(nfl_df):
+    if nfl_df is None or nfl_df.empty:
+        return pd.DataFrame(columns=["NFLTeam", "PosBucket", "NeedScore", "StarterOVR", "StarterAge", "DepthCount"])
+
+    work = nfl_df.copy()
+    work["PosBucket"] = work["Pos"].map(clean_bucket)
+
+    rows = []
+    all_buckets = ["QB", "RB", "WR", "TE", "OL", "EDGE", "IDL", "LB", "CB", "S"]
+
+    for team in sorted(work["Team"].dropna().astype(str).unique()):
+        team_df = work[work["Team"].astype(str) == str(team)].copy()
+
+        for bucket in all_buckets:
+            room = team_df[team_df["PosBucket"] == bucket].copy().sort_values("OVR", ascending=False)
+
+            starter_ovr = safe_num(room["OVR"].iloc[0], 60.0) if len(room) >= 1 else 60.0
+            starter_age = safe_num(room["Age"].iloc[0], 25.0) if len(room) >= 1 else 25.0
+            room_avg = safe_num(pd.to_numeric(room["OVR"], errors="coerce").head(3).mean(), 60.0) if len(room) else 60.0
+            depth_count = int(len(room))
+
+            need = 0.0
+            need += max(0, 82 - starter_ovr) * 2.0
+            need += max(0, 75 - room_avg) * 1.2
+            need += 8.0 if starter_age >= 29 else 0.0
+            need += 6.0 if depth_count <= 2 else 0.0
+
+            rows.append({
+                "NFLTeam": team,
+                "PosBucket": bucket,
+                "NeedScore": round(need, 2),
+                "StarterOVR": starter_ovr,
+                "StarterAge": starter_age,
+                "DepthCount": depth_count
+            })
+
+    return pd.DataFrame(rows)
+
+
+def assign_career_tier(round_num):
+    r = random.random()
+    tables = {
+        1: [("Superstar", 0.18), ("Star", 0.28), ("Solid Starter", 0.27), ("Starter", 0.17), ("Rotation", 0.07), ("Bust", 0.03)],
+        2: [("Superstar", 0.08), ("Star", 0.20), ("Solid Starter", 0.30), ("Starter", 0.22), ("Rotation", 0.13), ("Bust", 0.07)],
+        3: [("Superstar", 0.05), ("Star", 0.14), ("Solid Starter", 0.24), ("Starter", 0.26), ("Rotation", 0.20), ("Bust", 0.11)],
+        4: [("Star", 0.03), ("Solid Starter", 0.12), ("Starter", 0.28), ("Rotation", 0.32), ("Fringe", 0.18), ("Bust", 0.07)],
+        5: [("Star", 0.02), ("Solid Starter", 0.08), ("Starter", 0.20), ("Rotation", 0.35), ("Fringe", 0.25), ("Bust", 0.10)],
+        6: [("Star", 0.01), ("Solid Starter", 0.05), ("Starter", 0.14), ("Rotation", 0.32), ("Fringe", 0.33), ("Bust", 0.15)],
+        7: [("Star", 0.01), ("Solid Starter", 0.04), ("Starter", 0.10), ("Rotation", 0.25), ("Fringe", 0.38), ("Bust", 0.22)],
+    }
+    table = tables.get(int(round_num), tables[7])
+    total = 0.0
+    for label, p in table:
+        total += p
+        if r <= total:
+            return label
+    return table[-1][0]
+
+
+def assign_rookie_role(round_num, need_score, pos_bucket):
+    round_num = int(round_num)
+    need_score = safe_num(need_score, 0)
+
+    if pos_bucket == "QB":
+        if round_num == 1 and need_score >= 80:
+            return "QB Battle"
+        if round_num <= 2:
+            return "QB2"
+        return "Developmental QB"
+
+    if pos_bucket == "RB":
+        if round_num <= 2 and need_score >= 70:
+            return "Committee Back"
+        if round_num <= 4:
+            return "RB2"
+        return "Depth Back"
+
+    if pos_bucket == "WR":
+        if round_num == 1 and need_score >= 80:
+            return "Day 1 Starter"
+        if round_num <= 2:
+            return "WR3"
+        return "Rotation WR"
+
+    if pos_bucket == "TE":
+        if round_num <= 3:
+            return "TE2"
+        return "Depth TE"
+
+    if pos_bucket == "OL":
+        if round_num <= 2 and need_score >= 75:
+            return "Starter Battle"
+        if round_num <= 4:
+            return "Swing OL"
+        return "Depth OL"
+
+    if pos_bucket == "EDGE":
+        if round_num <= 2:
+            return "Pass Rush Rotation"
+        return "Depth EDGE"
+
+    if pos_bucket == "IDL":
+        if round_num <= 3:
+            return "DL Rotation"
+        return "Depth IDL"
+
+    if pos_bucket == "LB":
+        if round_num <= 3:
+            return "LB Rotation"
+        return "Depth LB"
+
+    if pos_bucket == "CB":
+        if round_num <= 2:
+            return "CB3"
+        return "Depth CB"
+
+    if pos_bucket == "S":
+        if round_num <= 3:
+            return "DB Rotation"
+        return "Depth Safety"
+
+    if round_num == 1 and need_score >= 80:
+        return "Day 1 Starter"
+    if round_num <= 2 and need_score >= 70:
+        return "Primary Rotation"
+    if round_num <= 4:
+        return "Depth Piece"
+    return "Roster Battle"
+
+
+def estimate_peak_ovr(base_ovr, career_tier):
+    base_ovr = int(round(safe_num(base_ovr, 70)))
+    bumps = {
+        "Superstar": random.randint(6, 10),
+        "Star": random.randint(4, 7),
+        "Solid Starter": random.randint(2, 5),
+        "Starter": random.randint(1, 3),
+        "Rotation": random.randint(0, 2),
+        "Fringe": random.randint(-1, 1),
+        "Bust": random.randint(-3, 0),
+    }
+    return max(60, min(99, base_ovr + bumps.get(career_tier, 0)))
+
+
+def generate_story_tag(pos_bucket, career_tier, round_num):
+    if career_tier == "Superstar":
+        return "Face of the franchise"
+    if career_tier == "Star" and int(round_num) >= 3:
+        return "Mid-round steal"
+    if career_tier == "Bust" and int(round_num) == 1:
+        return "First-round pressure"
+    if pos_bucket in {"WR", "CB"}:
+        return "Speed mismatch"
+    if pos_bucket == "EDGE":
+        return "Pass-rush juice"
+    if pos_bucket == "QB":
+        return "Franchise swing"
+    if pos_bucket == "RB":
+        return "Explosive weapon"
+    if pos_bucket == "OL":
+        return "Trench anchor"
+    return "Developmental upside"
+
+
+def load_nfl_universe_data():
+    ensure_csv_exists("cfb_user_draft_results.csv", CFB_USER_DRAFT_RESULTS_COLS)
+    ensure_csv_exists("nfl_draft_history.csv", NFL_DRAFT_HISTORY_COLS)
+    ensure_csv_exists("nfl_player_history.csv", NFL_PLAYER_HISTORY_COLS)
+    ensure_csv_exists("nfl_super_bowl_history.csv", NFL_SUPER_BOWL_HISTORY_COLS)
+    ensure_csv_exists("nfl_story_events.csv", NFL_STORY_EVENTS_COLS)
+    ensure_csv_exists("nfl_universe_settings.csv", NFL_UNIVERSE_SETTINGS_COLS, [{
+        "CurrentNFLSeason": 2042,
+        "LastCompletedDraftYear": 2041,
+        "LastCompletedSuperBowlSeason": 2041,
+        "UniverseVersion": 1
+    }])
+
+    nfl_roster = pd.read_csv("NFLroster26_MASTER.csv") if os.path.exists("NFLroster26_MASTER.csv") else pd.DataFrame()
+    cfb_roster = pd.read_csv("cfb26_rosters_full.csv") if os.path.exists("cfb26_rosters_full.csv") else pd.DataFrame()
+    cfb_draft = pd.read_csv("cfb_user_draft_results.csv")
+    nfl_draft_hist = pd.read_csv("nfl_draft_history.csv")
+    nfl_player_hist = pd.read_csv("nfl_player_history.csv")
+    nfl_super_bowl = pd.read_csv("nfl_super_bowl_history.csv")
+    nfl_story = pd.read_csv("nfl_story_events.csv")
+    nfl_settings = pd.read_csv("nfl_universe_settings.csv")
+
+    return {
+        "nfl_roster": nfl_roster,
+        "cfb_roster": cfb_roster,
+        "cfb_draft": cfb_draft,
+        "nfl_draft_hist": nfl_draft_hist,
+        "nfl_player_hist": nfl_player_hist,
+        "nfl_super_bowl": nfl_super_bowl,
+        "nfl_story": nfl_story,
+        "nfl_settings": nfl_settings,
+    }
+# ──────────────────────────────────────────────────────────────────────
+# NFL UNIVERSE — DRAFT ENRICHMENT
+# ──────────────────────────────────────────────────────────────────────
+
+def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
+    if cfb_draft_df is None or cfb_draft_df.empty:
+        return pd.DataFrame(columns=NFL_DRAFT_HISTORY_COLS)
+
+    work = cfb_draft_df.copy()
+
+    for col in ["Player", "CollegeTeam", "CollegeUser", "Pos", "Class"]:
+        if col in work.columns:
+            work[col] = work[col].astype(str).str.strip()
+
+    if "DraftYear" in work.columns:
+        work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce").fillna(0).astype(int)
+    if "DraftRound" in work.columns:
+        work["DraftRound"] = pd.to_numeric(work["DraftRound"], errors="coerce").fillna(0).astype(int)
+    if "OVR" in work.columns:
+        work["OVR"] = pd.to_numeric(work["OVR"], errors="coerce").fillna(0)
+
+    roster_lookup = pd.DataFrame()
+    if cfb_roster_df is not None and not cfb_roster_df.empty:
+        roster_lookup = cfb_roster_df.copy()
+        roster_lookup["Name_key"] = roster_lookup["Name"].astype(str).map(normalize_key)
+        roster_lookup["Team_key"] = roster_lookup["Team"].astype(str).map(normalize_key)
+
+    enriched_rows = []
+    team_needs = build_nfl_team_needs(nfl_roster_df)
+    nfl_teams = sorted(team_needs["NFLTeam"].dropna().astype(str).unique().tolist())
+
+    if not nfl_teams:
+        return pd.DataFrame(columns=NFL_DRAFT_HISTORY_COLS)
+
+    for draft_year in sorted(work["DraftYear"].dropna().unique()):
+        class_df = work[work["DraftYear"] == draft_year].copy()
+
+        for rnd in sorted(class_df["DraftRound"].dropna().unique()):
+            rnd = int(rnd)
+            if rnd not in ROUND_START:
+                continue
+
+            pool = class_df[class_df["DraftRound"] == rnd].copy()
+            if pool.empty:
+                continue
+
+            used_teams = set()
+            row_objs = []
+
+            for _, row in pool.iterrows():
+                player_key = normalize_key(row.get("Player", ""))
+                team_key = normalize_key(row.get("CollegeTeam", ""))
+
+                roster_match = pd.DataFrame()
+                if not roster_lookup.empty:
+                    roster_match = roster_lookup[
+                        (roster_lookup["Name_key"] == player_key) &
+                        (roster_lookup["Team_key"] == team_key)
+                    ].head(1)
+
+                merged = row.to_dict()
+
+                if not roster_match.empty:
+                    for extra_col in ["OVR", "Year", "SPD", "ACC", "AGI", "COD", "STR", "AWR"]:
+                        if extra_col in roster_match.columns:
+                            val = roster_match.iloc[0][extra_col]
+                            if extra_col == "Year":
+                                if not merged.get("Class") or str(merged.get("Class")).strip() in {"", "nan", "None"}:
+                                    merged["Class"] = val
+                            elif extra_col not in merged or merged.get(extra_col) in [0, "", None] or pd.isna(merged.get(extra_col)):
+                                merged[extra_col] = val
+
+                if not merged.get("Class") or str(merged.get("Class")).strip() in {"", "nan", "None"}:
+                    merged["Class"] = "SR"
+
+                if safe_num(merged.get("OVR", 0), 0) == 0:
+                    merged["OVR"] = 80
+
+                merged["PosBucket"] = clean_bucket(merged.get("Pos", ""))
+                draft_value = calc_draft_value(merged)
+
+                row_objs.append({
+                    "base": merged,
+                    "draft_value": draft_value
+                })
+
+            row_objs = sorted(row_objs, key=lambda x: x["draft_value"], reverse=True)
+
+            pick_slots = list(range(ROUND_START[rnd], min(ROUND_END[rnd], ROUND_START[rnd] + len(row_objs) - 1) + 1))
+            if len(pick_slots) < len(row_objs):
+                pick_slots = list(range(ROUND_START[rnd], ROUND_END[rnd] + 1))
+
+            for idx, obj in enumerate(row_objs):
+                merged = obj["base"]
+                bucket = merged["PosBucket"]
+                draft_value = obj["draft_value"]
+
+                need_pool = team_needs[team_needs["PosBucket"] == bucket].copy()
+                if need_pool.empty:
+                    need_pool = team_needs.copy()
+
+                need_pool["FitScore"] = need_pool["NeedScore"].astype(float) * 0.75 + draft_value * 0.15
+                need_pool["FitScore"] = need_pool["FitScore"] + need_pool.apply(lambda _: random.uniform(0, 10), axis=1)
+
+                fresh_need = need_pool[~need_pool["NFLTeam"].isin(used_teams)].copy()
+                selection_pool = fresh_need if not fresh_need.empty else need_pool
+                selection_pool = selection_pool.sort_values(["FitScore", "NeedScore"], ascending=False)
+
+                chosen = selection_pool.iloc[0]
+                chosen_team = str(chosen["NFLTeam"])
+                need_score = round(float(chosen["NeedScore"]), 2)
+                used_teams.add(chosen_team)
+
+                overall_pick = pick_slots[idx] if idx < len(pick_slots) else ROUND_END[rnd]
+                round_pick = overall_pick - ROUND_START[rnd] + 1
+
+                career_tier = assign_career_tier(rnd)
+                rookie_role = assign_rookie_role(rnd, need_score, bucket)
+                peak_ovr = estimate_peak_ovr(merged.get("OVR", 80), career_tier)
+                story_tag = generate_story_tag(bucket, career_tier, rnd)
+
+                enriched_rows.append({
+                    "DraftYear": int(draft_year),
+                    "PlayerID": build_player_id(draft_year, merged.get("CollegeTeam", ""), merged.get("Player", ""), merged.get("Pos", "")),
+                    "Player": merged.get("Player", ""),
+                    "CollegeTeam": merged.get("CollegeTeam", ""),
+                    "CollegeUser": merged.get("CollegeUser", ""),
+                    "Pos": merged.get("Pos", ""),
+                    "PosBucket": bucket,
+                    "Class": merged.get("Class", ""),
+                    "OVR": int(round(safe_num(merged.get("OVR", 80), 80))),
+                    "DraftRoundCanon": rnd,
+                    "GeneratedNFLTeam": chosen_team,
+                    "GeneratedRoundPick": int(round_pick),
+                    "GeneratedOverallPick": int(overall_pick),
+                    "GenerationMethod": "round_locked_team_generated",
+                    "DraftValueScore": round(float(draft_value), 2),
+                    "NeedScore": need_score,
+                    "CareerTier": career_tier,
+                    "RookieRole": rookie_role,
+                    "PeakOVR": peak_ovr,
+                    "StoryTag": story_tag,
+                    "IsCanonRound": "Yes",
+                    "IsCanonTeam": "No",
+                    "IsCanonPick": "No",
+                })
+
+    out = pd.DataFrame(enriched_rows, columns=NFL_DRAFT_HISTORY_COLS)
+    return out
+
+
+def refresh_nfl_draft_history():
+    universe = load_nfl_universe_data()
+    cfb_draft = universe["cfb_draft"]
+    cfb_roster = universe["cfb_roster"]
+    nfl_roster = universe["nfl_roster"]
+
+    generated = enrich_user_draft_results(cfb_draft, cfb_roster, nfl_roster)
+
+    if generated.empty:
+        return generated
+
+    generated = generated.sort_values(
+        ["DraftYear", "DraftRoundCanon", "GeneratedOverallPick", "Player"],
+        ascending=[True, True, True, True]
+    ).reset_index(drop=True)
+
+    generated.to_csv("nfl_draft_history.csv", index=False)
+    return generated
+
+
+def seed_story_events_from_draft(nfl_draft_hist):
+    if nfl_draft_hist is None or nfl_draft_hist.empty:
+        return pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    rows = []
+    src = nfl_draft_hist.sort_values(["DraftYear", "GeneratedOverallPick"], ascending=[False, True]).head(20)
+
+    for _, r in src.iterrows():
+        rows.append({
+            "Season": int(r["DraftYear"]),
+            "Week": 0,
+            "PlayerID": r["PlayerID"],
+            "Player": r["Player"],
+            "NFLTeam": r["GeneratedNFLTeam"],
+            "EventType": "DraftNight",
+            "Headline": f'{r["Player"]} lands with the {r["GeneratedNFLTeam"]}',
+            "Description": f'{r["CollegeTeam"]} standout drafted in Round {int(r["DraftRoundCanon"])} at pick {int(r["GeneratedOverallPick"])}.',
+            "ImpactScore": int(max(50, 100 - safe_num(r["GeneratedOverallPick"], 100)))
+        })
+
+    out = pd.DataFrame(rows, columns=NFL_STORY_EVENTS_COLS)
+    out.to_csv("nfl_story_events.csv", index=False)
+    return out
+
 # 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
 st.set_page_config(
     page_title="ISPN College Football Gameday",
@@ -5027,18 +5587,19 @@ components.html(f"""<!DOCTYPE html>
 
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
-    "🗞️ Dynasty News",
-    "📐 SOS & True Path",
-    "🏆 Who's In?",
-    "📺 Season Recap",
-    "🔍 Speed Freaks",
-    "🚪 Roster Attrition",
-    "🎯 Roster Matchup",
-    "📊 Team Overview",
-    "🏈 Recruiting Rankings",
-    "⚔️ H2H Matrix",
-    "🎬 ISPN Classics",
-    "🐐 GOAT Rankings",
+    "🗞️ Dynasty News",          # tabs[0]
+    "📐 SOS & True Path",       # tabs[1]
+    "🏆 Who's In?",             # tabs[2]
+    "📺 Season Recap",          # tabs[3]
+    "🔍 Speed Freaks",          # tabs[4]
+    "🚪 Roster Attrition",      # tabs[5]
+    "🎯 Roster Matchup",        # tabs[6]
+    "📊 Team Overview",         # tabs[7]
+    "🏈 Recruiting Rankings",   # tabs[8]
+    "🏈 NFL Universe",          # tabs[9]
+    "⚔️ H2H Matrix",            # tabs[10]
+    "🎬 ISPN Classics",         # tabs[11]
+    "🐐 GOAT Rankings",         # tabs[12]
 ])
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
@@ -7525,7 +8086,7 @@ with tabs[8]:
                     st.dataframe(overall_display, hide_index=True, use_container_width=True)
 
     # --- H2H MATRIX ---
-with tabs[9]:
+with tabs[10]:
         st.header("⚔️ Head-to-Head Matrix")
         st.caption("All-time user vs. user records. Net Edge = wins minus losses. Rivalry Score weights game count and balance.")
 
@@ -8838,7 +9399,7 @@ with tabs[4]:
             st.markdown(_mh, unsafe_allow_html=True)
 
     # --- ISPN CLASSICS ---
-with tabs[10]:
+with tabs[11]:
         st.header("🎬 ISPN Classics")
         st.caption(
             "The most iconic games in dynasty history — ranked by closeness, "
@@ -8975,7 +9536,7 @@ with tabs[10]:
                     _render_classic_card(_crow, _ci)
 
 # --- GOAT RANKINGS (Tab 12) ---
-with tabs[11]:
+with tabs[12]:
     st.header("🐐 The GOAT Council")
     st.caption("Legacy points: National Title (15), Heisman (5), COTY (3).")
 
@@ -9068,6 +9629,260 @@ with tabs[11]:
         )
     else:
         st.info("Win some hardware to enter the GOAT Council.")
+
+# ──────────────────────────────────────────────────────────────────────
+# NFL UNIVERSE
+# ──────────────────────────────────────────────────────────────────────
+with tabs[9]:
+    st.header("🏈 NFL Universe")
+    st.caption("Track where dynasty alumni land, how their NFL careers evolve, and who owns the fictional pro landscape.")
+
+    universe = load_nfl_universe_data()
+    nfl_roster = universe["nfl_roster"]
+    cfb_draft = universe["cfb_draft"]
+    nfl_draft_hist = universe["nfl_draft_hist"]
+    nfl_player_hist = universe["nfl_player_hist"]
+    nfl_super_bowl = universe["nfl_super_bowl"]
+    nfl_story = universe["nfl_story"]
+    nfl_settings = universe["nfl_settings"]
+
+    c1, c2, c3 = st.columns([1.1, 1.1, 1.4])
+    with c1:
+        if st.button("🔄 Regenerate NFL Draft Universe", use_container_width=True):
+            nfl_draft_hist = refresh_nfl_draft_history()
+            if os.path.exists("nfl_story_events.csv"):
+                existing_story = pd.read_csv("nfl_story_events.csv")
+                if existing_story.empty:
+                    seed_story_events_from_draft(nfl_draft_hist)
+            st.success("NFL draft history regenerated from cfb_user_draft_results.csv")
+
+    with c2:
+        latest_draft_year = int(pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
+        st.metric("Latest Draft Year", latest_draft_year if latest_draft_year else "—")
+
+    with c3:
+        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
+
+    st.markdown("---")
+
+    nfl_tabs = st.tabs([
+        "📦 Draft Central",
+        "👤 Alumni Tracker",
+        "🏆 Super Bowl History",
+        "📰 Storylines",
+        "🏟️ NFL Teams",
+    ])
+
+    # ── Draft Central ──────────────────────────────────────────────────
+    with nfl_tabs[0]:
+        st.subheader("📦 Draft Central")
+
+        if nfl_draft_hist.empty:
+            st.info("No NFL draft universe data yet. Fill cfb_user_draft_results.csv, then click Regenerate.")
+        else:
+            years = sorted(nfl_draft_hist["DraftYear"].dropna().unique().tolist())
+            sel_year = st.selectbox("Draft Year", years, index=len(years)-1)
+
+            yr_df = nfl_draft_hist[nfl_draft_hist["DraftYear"] == sel_year].copy()
+            yr_df = yr_df.sort_values(["DraftRoundCanon", "GeneratedOverallPick"])
+
+            k1, k2, k3, k4, k5 = st.columns(5)
+            with k1:
+                st.metric("Players Drafted", len(yr_df))
+            with k2:
+                st.metric("1st Rounders", int((yr_df["DraftRoundCanon"] == 1).sum()))
+            with k3:
+                top_user = yr_df["CollegeUser"].value_counts().idxmax() if not yr_df["CollegeUser"].dropna().empty else "—"
+                st.metric("Top User Pipeline", top_user)
+            with k4:
+                best_pick = int(pd.to_numeric(yr_df["GeneratedOverallPick"], errors="coerce").min()) if not yr_df.empty else 0
+                st.metric("Earliest Generated Pick", best_pick if best_pick else "—")
+            with k5:
+                top_bucket = yr_df["PosBucket"].value_counts().idxmax() if not yr_df["PosBucket"].dropna().empty else "—"
+                st.metric("Top Position Bucket", top_bucket)
+
+            st.markdown("#### Draft Results")
+            view_cols = [
+                "GeneratedOverallPick", "DraftRoundCanon", "Player", "CollegeTeam", "CollegeUser",
+                "Pos", "PosBucket", "OVR", "GeneratedNFLTeam", "RookieRole", "CareerTier", "StoryTag"
+            ]
+            show_df = yr_df[view_cols].copy().rename(columns={
+                "GeneratedOverallPick": "Pick",
+                "DraftRoundCanon": "Rnd",
+                "CollegeTeam": "School",
+                "CollegeUser": "User",
+                "GeneratedNFLTeam": "NFL Team"
+            })
+            st.dataframe(show_df, hide_index=True, use_container_width=True)
+
+            st.markdown("#### User Summary")
+            user_sum = (
+                yr_df.groupby("CollegeUser", dropna=False)
+                .agg(
+                    Players=("Player", "count"),
+                    FirstRounders=("DraftRoundCanon", lambda s: int((pd.to_numeric(s, errors="coerce") == 1).sum())),
+                    AvgPick=("GeneratedOverallPick", lambda s: round(pd.to_numeric(s, errors="coerce").mean(), 1)),
+                )
+                .reset_index()
+                .rename(columns={"CollegeUser": "User"})
+                .sort_values(["Players", "FirstRounders"], ascending=False)
+            )
+            st.dataframe(user_sum, hide_index=True, use_container_width=True)
+
+    # ── Alumni Tracker ────────────────────────────────────────────────
+    with nfl_tabs[1]:
+        st.subheader("👤 Alumni Tracker")
+
+        if nfl_draft_hist.empty:
+            st.info("No alumni tracked yet.")
+        else:
+            users = ["All"] + sorted([u for u in nfl_draft_hist["CollegeUser"].dropna().astype(str).unique().tolist() if u.strip()])
+            teams = ["All"] + sorted([t for t in nfl_draft_hist["CollegeTeam"].dropna().astype(str).unique().tolist() if t.strip()])
+            buckets = ["All"] + sorted([b for b in nfl_draft_hist["PosBucket"].dropna().astype(str).unique().tolist() if b.strip()])
+
+            f1, f2, f3 = st.columns(3)
+            with f1:
+                sel_user = st.selectbox("Filter by User", users, index=0)
+            with f2:
+                sel_team = st.selectbox("Filter by College Team", teams, index=0)
+            with f3:
+                sel_bucket = st.selectbox("Filter by Position Bucket", buckets, index=0)
+
+            alum = nfl_draft_hist.copy()
+
+            if sel_user != "All":
+                alum = alum[alum["CollegeUser"].astype(str) == sel_user]
+            if sel_team != "All":
+                alum = alum[alum["CollegeTeam"].astype(str) == sel_team]
+            if sel_bucket != "All":
+                alum = alum[alum["PosBucket"].astype(str) == sel_bucket]
+
+            alum = alum.sort_values(["GeneratedOverallPick", "PeakOVR"], ascending=[True, False])
+
+            display_cols = [
+                "Player", "CollegeTeam", "CollegeUser", "Pos", "PosBucket", "DraftYear", "DraftRoundCanon",
+                "GeneratedOverallPick", "GeneratedNFLTeam", "CareerTier", "RookieRole", "PeakOVR", "StoryTag"
+            ]
+            st.dataframe(
+                alum[display_cols].rename(columns={
+                    "CollegeTeam": "School",
+                    "CollegeUser": "User",
+                    "DraftRoundCanon": "Rnd",
+                    "GeneratedOverallPick": "Pick",
+                    "GeneratedNFLTeam": "NFL Team"
+                }),
+                hide_index=True,
+                use_container_width=True
+            )
+
+    # ── Super Bowl History ────────────────────────────────────────────
+    with nfl_tabs[2]:
+        st.subheader("🏆 Super Bowl History")
+
+        if nfl_super_bowl.empty:
+            st.info("No fictional Super Bowl history entered yet.")
+        else:
+            sb = nfl_super_bowl.copy().sort_values("Season", ascending=False)
+            st.dataframe(sb, hide_index=True, use_container_width=True)
+
+            st.markdown("#### Franchise Ring Count")
+            ring_counts = (
+                sb.groupby("Champion")
+                .size()
+                .reset_index(name="Rings")
+                .sort_values(["Rings", "Champion"], ascending=[False, True])
+            )
+            st.dataframe(ring_counts, hide_index=True, use_container_width=True)
+
+    # ── Storylines ────────────────────────────────────────────────────
+    with nfl_tabs[3]:
+        st.subheader("📰 Storylines")
+
+        if nfl_story.empty and not nfl_draft_hist.empty:
+            fallback = nfl_draft_hist.copy().sort_values(["DraftYear", "GeneratedOverallPick"], ascending=[False, True]).head(12)
+
+            for _, r in fallback.iterrows():
+                st.markdown(
+                    f"""
+                    <div style="padding:0.85rem 1rem; border-left:5px solid #4f46e5; background:#4f46e510; border-radius:10px; margin-bottom:0.65rem;">
+                        <div style="font-weight:800; font-size:1rem;">{html.escape(str(r.get("Player", "")))} lands with the {html.escape(str(r.get("GeneratedNFLTeam", "")))}</div>
+                        <div style="font-size:0.9rem; opacity:0.9;">
+                            {html.escape(str(r.get("CollegeTeam", "")))} • {html.escape(str(r.get("Pos", "")))} / {html.escape(str(r.get("PosBucket", "")))} • Round {int(r.get("DraftRoundCanon", 0))} • Pick {int(r.get("GeneratedOverallPick", 0))} • {html.escape(str(r.get("StoryTag", "")))}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+        elif nfl_story.empty:
+            st.info("No story events yet.")
+        else:
+            story_df = nfl_story.copy().sort_values(["Season", "ImpactScore"], ascending=[False, False]).head(20)
+            for _, r in story_df.iterrows():
+                st.markdown(
+                    f"""
+                    <div style="padding:0.85rem 1rem; border-left:5px solid #16a34a; background:#16a34a10; border-radius:10px; margin-bottom:0.65rem;">
+                        <div style="font-weight:800; font-size:1rem;">{html.escape(str(r.get("Headline", "")))}</div>
+                        <div style="font-size:0.9rem; opacity:0.9;">
+                            {html.escape(str(r.get("Description", "")))}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+    # ── NFL Teams ─────────────────────────────────────────────────────
+    with nfl_tabs[4]:
+        st.subheader("🏟️ NFL Teams")
+
+        if nfl_roster.empty:
+            st.info("NFLroster26_MASTER.csv is missing.")
+        else:
+            team_needs = build_nfl_team_needs(nfl_roster)
+            nfl_teams = sorted(nfl_roster["Team"].dropna().astype(str).unique().tolist())
+            sel_nfl_team = st.selectbox("Select NFL Team", nfl_teams)
+
+            roster_team = nfl_roster[nfl_roster["Team"].astype(str) == sel_nfl_team].copy().sort_values("OVR", ascending=False)
+            roster_team["PosBucket"] = roster_team["Pos"].map(clean_bucket)
+
+            drafted_here = pd.DataFrame()
+            if not nfl_draft_hist.empty:
+                drafted_here = nfl_draft_hist[nfl_draft_hist["GeneratedNFLTeam"].astype(str) == sel_nfl_team].copy()
+                drafted_here = drafted_here.sort_values(["DraftYear", "GeneratedOverallPick"], ascending=[False, True])
+
+            left, right = st.columns([1.15, 1])
+
+            with left:
+                st.markdown("#### Current Top Roster")
+                show_cols = [c for c in ["Player", "Pos", "PosBucket", "OVR", "Age", "SPD", "ACC", "AWR"] if c in roster_team.columns]
+                st.dataframe(roster_team[show_cols].head(20), hide_index=True, use_container_width=True)
+
+            with right:
+                st.markdown("#### Team Need Profile")
+                need_show = team_needs[team_needs["NFLTeam"] == sel_nfl_team].copy()
+                need_show = need_show.sort_values("NeedScore", ascending=False)
+                st.dataframe(
+                    need_show[["PosBucket", "NeedScore", "StarterOVR", "StarterAge", "DepthCount"]],
+                    hide_index=True,
+                    use_container_width=True
+                )
+
+            st.markdown("#### Dynasty Alumni on This Team")
+            if drafted_here.empty:
+                st.caption("No tracked dynasty alumni generated onto this roster yet.")
+            else:
+                st.dataframe(
+                    drafted_here[[
+                        "DraftYear", "Player", "CollegeTeam", "CollegeUser", "Pos", "PosBucket",
+                        "DraftRoundCanon", "GeneratedOverallPick", "CareerTier", "RookieRole"
+                    ]].rename(columns={
+                        "CollegeTeam": "School",
+                        "CollegeUser": "User",
+                        "DraftRoundCanon": "Rnd",
+                        "GeneratedOverallPick": "Pick"
+                    }),
+                    hide_index=True,
+                    use_container_width=True
+                )
 
 # --- ROSTER ATTRITION ---
 with tabs[5]:
