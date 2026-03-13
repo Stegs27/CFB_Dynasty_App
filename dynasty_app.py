@@ -1131,33 +1131,9 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 trade_ph.empty()
 
             badge_html = (
-                """
-                <span style="
-                    display:inline-block;
-                    background:rgba(148,163,184,0.18);
-                    color:#e2e8f0;
-                    border:1px solid rgba(148,163,184,0.30);
-                    font-size:0.78rem;
-                    font-weight:700;
-                    padding:4px 8px;
-                    border-radius:999px;
-                    margin-top:8px;
-                ">League Prospect</span>
-                """
+                '<span style="display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">League Prospect</span>'
                 if draft_source == "background_r1"
-                else f"""
-                <span style="
-                    display:inline-block;
-                    background:rgba(59,130,246,0.18);
-                    color:#dbeafe;
-                    border:1px solid rgba(59,130,246,0.30);
-                    font-size:0.78rem;
-                    font-weight:700;
-                    padding:4px 8px;
-                    border-radius:999px;
-                    margin-top:8px;
-                ">{html.escape(college_user) if college_user else "User Team Pick"}</span>
-                """
+                else f'<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(college_user) if college_user else "User Team Pick"}</span>'
             )
 
             time.sleep(speeds["suspense"])
@@ -11292,10 +11268,21 @@ with tabs[9]:
             if drafted_here.empty:
                 st.caption("No tracked dynasty alumni generated onto this roster yet.")
             else:
-                drafted_show = drafted_here[[
+                drafted_show = drafted_here.copy()
+
+                if "PosBucket" not in drafted_show.columns and "Pos" in drafted_show.columns:
+                    drafted_show["PosBucket"] = drafted_show["Pos"].map(clean_bucket)
+
+                if "DraftSource" not in drafted_show.columns:
+                    drafted_show["DraftSource"] = "user_results"
+
+                wanted_cols = [
                     "DraftYear", "Player", "CollegeTeam", "CollegeUser", "Pos", "PosBucket",
                     "DraftRoundCanon", "GeneratedOverallPick", "CareerTier", "RookieRole", "DraftSource"
-                ]].copy().rename(columns={
+                ]
+                keep_cols = [c for c in wanted_cols if c in drafted_show.columns]
+
+                drafted_show = drafted_show[keep_cols].copy().rename(columns={
                     "CollegeTeam": "School",
                     "CollegeUser": "User",
                     "DraftRoundCanon": "Rnd",
@@ -11303,8 +11290,12 @@ with tabs[9]:
                     "DraftSource": "Source"
                 })
 
-                drafted_show.insert(2, "School Logo", drafted_show["School"].map(get_school_logo_src))
-                drafted_show.insert(10, "NFL Logo", get_nfl_logo_src(sel_nfl_team))
+                if "School" in drafted_show.columns:
+                    drafted_show.insert(2, "School Logo", drafted_show["School"].map(get_school_logo_src))
+                else:
+                    drafted_show.insert(2, "School Logo", None)
+
+                drafted_show.insert(len(drafted_show.columns), "NFL Logo", get_nfl_logo_src(sel_nfl_team))
 
                 st.dataframe(
                     drafted_show,
@@ -11328,33 +11319,9 @@ with tabs[9]:
                     draft_source = str(r.get("DraftSource", "user_results")).strip().lower()
 
                     badge_html = (
-                        """
-                        <span style="
-                            display:inline-block;
-                            background:rgba(148,163,184,0.18);
-                            color:#e2e8f0;
-                            border:1px solid rgba(148,163,184,0.30);
-                            font-size:0.74rem;
-                            font-weight:700;
-                            padding:4px 8px;
-                            border-radius:999px;
-                            margin-top:6px;
-                        ">League Prospect</span>
-                        """
+                        '<span style="display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">League Prospect</span>'
                         if draft_source == "background_r1"
-                        else f"""
-                        <span style="
-                            display:inline-block;
-                            background:rgba(59,130,246,0.18);
-                            color:#dbeafe;
-                            border:1px solid rgba(59,130,246,0.30);
-                            font-size:0.74rem;
-                            font-weight:700;
-                            padding:4px 8px;
-                            border-radius:999px;
-                            margin-top:6px;
-                        ">{html.escape(str(r.get("CollegeUser", "")) or "Tracked Player")}</span>
-                        """
+                        else f'<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(user_name) if user_name else "Tracked Player"}</span>'
                     )
 
                     st.markdown(
