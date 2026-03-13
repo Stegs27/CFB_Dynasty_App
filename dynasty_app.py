@@ -287,39 +287,38 @@ def get_nfl_logo_slug(team_name):
     name = str(team_name).strip().lower()
 
     slug_map = {
-        "arizona cardinals": "cardinals",
-        "atlanta falcons": "falcons",
-        "baltimore ravens": "ravens",
-        "buffalo bills": "bills",
-        "carolina panthers": "panthers",
-        "chicago bears": "bears",
-        "cincinnati bengals": "bengals",
-        "cleveland browns": "browns",
-        "dallas cowboys": "cowboys",
-        "denver broncos": "broncos",
-        "detroit lions": "lions",
-        "green bay packers": "packers",
-        "houston texans": "texans",
-        "indianapolis colts": "colts",
-        "jacksonville jaguars": "jaguars",
-        "kansas city chiefs": "chiefs",
-        "las vegas raiders": "raiders",
-        "los angeles chargers": "chargers",
-        "los angeles rams": "rams",
-        "miami dolphins": "dolphins",
-        "minnesota vikings": "vikings",
-        "new england patriots": "patriots",
-        "new orleans saints": "saints",
-        "new york giants": "giants",
-        "new york jets": "jets",
-        "philadelphia eagles": "eagles",
-        "pittsburgh steelers": "steelers",
-        "san francisco 49ers": "49ers",
-        "seattle seahawks": "seahawks",
-        "tampa bay buccaneers": "buccaneers",
-        "tennessee titans": "titans",
-        "washington commanders": "redskins",
-        "washington redskins": "redskins",
+        "arizona cardinals": "cardinals", "cardinals": "cardinals",
+        "atlanta falcons": "falcons", "falcons": "falcons",
+        "baltimore ravens": "ravens", "ravens": "ravens",
+        "buffalo bills": "bills", "bills": "bills",
+        "carolina panthers": "panthers", "panthers": "panthers",
+        "chicago bears": "bears", "bears": "bears",
+        "cincinnati bengals": "bengals", "bengals": "bengals",
+        "cleveland browns": "browns", "browns": "browns",
+        "dallas cowboys": "cowboys", "cowboys": "cowboys",
+        "denver broncos": "broncos", "broncos": "broncos",
+        "detroit lions": "lions", "lions": "lions",
+        "green bay packers": "packers", "packers": "packers",
+        "houston texans": "texans", "texans": "texans",
+        "indianapolis colts": "colts", "colts": "colts",
+        "jacksonville jaguars": "jaguars", "jaguars": "jaguars",
+        "kansas city chiefs": "chiefs", "chiefs": "chiefs",
+        "las vegas raiders": "raiders", "raiders": "raiders",
+        "los angeles chargers": "chargers", "chargers": "chargers",
+        "los angeles rams": "rams", "rams": "rams",
+        "miami dolphins": "dolphins", "dolphins": "dolphins",
+        "minnesota vikings": "vikings", "vikings": "vikings",
+        "new england patriots": "patriots", "patriots": "patriots",
+        "new orleans saints": "saints", "saints": "saints",
+        "new york giants": "giants", "giants": "giants",
+        "new york jets": "jets", "jets": "jets",
+        "philadelphia eagles": "eagles", "eagles": "eagles",
+        "pittsburgh steelers": "steelers", "steelers": "steelers",
+        "san francisco 49ers": "49ers", "49ers": "49ers",
+        "seattle seahawks": "seahawks", "seahawks": "seahawks",
+        "tampa bay buccaneers": "buccaneers", "buccaneers": "buccaneers",
+        "tennessee titans": "titans", "titans": "titans",
+        "washington commanders": "redskins", "washington redskins": "redskins", "redskins": "redskins",
     }
 
     return slug_map.get(name)
@@ -1065,44 +1064,32 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
             time.sleep(speeds["suspense"])
 
-            card_ph.markdown(textwrap.dedent(f"""
-                <div style="background:linear-gradient(135deg, rgba(79,70,229,0.18), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.12); border-top:5px solid #4f46e5; border-radius:18px; padding:22px; box-shadow:0 10px 24px rgba(0,0,0,0.40); margin-bottom:14px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
-                        <div style="display:flex; align-items:center; min-width:0;">
-                            {school_logo}
-                            <div>
-                                <div style="font-size:0.78rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">From</div>
-                                <div style="font-size:1.15rem; font-weight:800; color:#ffffff;">{html.escape(school)}</div>
-                                <div style="font-size:0.92rem; color:#cbd5e1;">{html.escape(college_user) if college_user else "Non-user team"}</div>
-                                {badge_html}
-                            </div>
-                        </div>
+            with card_ph.container():
+    left, mid, right = st.columns([1.15, 1.35, 1.1])
 
-                        <div style="flex:1; text-align:center;">
-                            <div style="font-size:0.8rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">Selected</div>
-                            <div style="font-size:2.2rem; font-weight:900; color:#ffffff; line-height:1.1;">{html.escape(player)}</div>
-                            <div style="font-size:1.02rem; color:#dbeafe; margin-top:6px;">
-                                {html.escape(pos)} / {html.escape(pos_bucket)} • {ovr} OVR
-                            </div>
-                            <div style="font-size:0.96rem; color:#e5e7eb; margin-top:8px;">
-                                {html.escape(rookie_role)} • {html.escape(career_tier)} ceiling
-                            </div>
-                            <div style="font-size:0.86rem; color:#93c5fd; margin-top:7px;">
-                                {html.escape(story_tag)}
-                            </div>
-                        </div>
+    with left:
+        school_logo_src = get_school_logo_src(school)
+        if school_logo_src:
+            st.image(school_logo_src, width=64)
+        st.caption("FROM")
+        st.markdown(f"**{school}**")
+        st.write(college_user if college_user else "Non-user team")
+        st.caption("League Prospect" if draft_source == "background_r1" else (college_user if college_user else "User Team Pick"))
 
-                        <div style="display:flex; align-items:center; min-width:0;">
-                            <div style="text-align:right;">
-                                <div style="font-size:0.78rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">To</div>
-                                <div style="font-size:1.15rem; font-weight:800; color:#ffffff;">{html.escape(nfl_team)}</div>
-                                <div style="font-size:0.92rem; color:#cbd5e1;">Round 1 • Pick {overall_pick}</div>
-                            </div>
-                            {nfl_logo}
-                        </div>
-                    </div>
-                </div>
-            """), unsafe_allow_html=True)
+    with mid:
+        st.caption("SELECTED")
+        st.markdown(f"## {player}")
+        st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
+        st.write(f"{rookie_role} • {career_tier} ceiling")
+        st.caption(story_tag)
+
+    with right:
+        nfl_logo_src = get_nfl_logo_src(nfl_team)
+        if nfl_logo_src:
+            st.image(nfl_logo_src, width=64)
+        st.caption("TO")
+        st.markdown(f"**{nfl_team}**")
+        st.write(f"Round 1 • Pick {overall_pick}")
 
         else:
             if round_num == 2 and idx > 1:
@@ -10670,7 +10657,7 @@ with tabs[9]:
         "🏟️ NFL Teams",
     ])
 
-    # ── Draft Central ──────────────────────────────────────────────────
+# ── Draft Central ──────────────────────────────────────────────────
     with nfl_tabs[0]:
         st.subheader("📦 Draft Central")
 
@@ -10678,7 +10665,7 @@ with tabs[9]:
             st.info("No NFL draft universe data yet. Fill cfb_user_draft_results.csv, then click Regenerate.")
         else:
             years = sorted(nfl_draft_hist["DraftYear"].dropna().unique().tolist())
-            sel_year = st.selectbox("Draft Year", years, index=len(years)-1)
+            sel_year = st.selectbox("Draft Year", years, index=len(years) - 1)
 
             yr_df = nfl_draft_hist[nfl_draft_hist["DraftYear"] == sel_year].copy()
             yr_df = yr_df.sort_values(["DraftRoundCanon", "GeneratedOverallPick"])
@@ -10698,23 +10685,9 @@ with tabs[9]:
                 top_bucket = yr_df["PosBucket"].value_counts().idxmax() if not yr_df["PosBucket"].dropna().empty else "—"
                 st.metric("Top Position Bucket", top_bucket)
 
-            k1, k2, k3, k4, k5 = st.columns(5)
-            with k1:
-                st.metric("Players Drafted", len(yr_df))
-            with k2:
-                st.metric("1st Rounders", int((yr_df["DraftRoundCanon"] == 1).sum()))
-            with k3:
-                top_user = yr_df["CollegeUser"].value_counts().idxmax() if not yr_df["CollegeUser"].dropna().empty else "—"
-                st.metric("Top User Pipeline", top_user)
-            with k4:
-                best_pick = int(pd.to_numeric(yr_df["GeneratedOverallPick"], errors="coerce").min()) if not yr_df.empty else 0
-                st.metric("Earliest Generated Pick", best_pick if best_pick else "—")
-            with k5:
-                top_bucket = yr_df["PosBucket"].value_counts().idxmax() if not yr_df["PosBucket"].dropna().empty else "—"
-                st.metric("Top Position Bucket", top_bucket)
-
             if not yr_df.empty:
                 top_pick = yr_df.sort_values("GeneratedOverallPick", ascending=True).iloc[0]
+
                 school = str(top_pick.get("CollegeTeam", ""))
                 nfl_team = str(top_pick.get("GeneratedNFLTeam", ""))
                 player = str(top_pick.get("Player", ""))
@@ -10729,104 +10702,36 @@ with tabs[9]:
                 ovr = int(safe_num(top_pick.get("OVR", 0), 0))
                 draft_source = str(top_pick.get("DraftSource", "user_results")).strip().lower()
 
-                school_logo = get_school_logo_html(school, width=58, margin="0 12px 0 0")
-                nfl_logo = get_nfl_logo_html(nfl_team, width=58, margin="0 0 0 12px")
+                left, mid, right = st.columns([1.15, 1.35, 1.1])
 
-                badge_html = (
-                    """
-                    <span style="
-                        display:inline-block;
-                        background:rgba(148,163,184,0.18);
-                        color:#e2e8f0;
-                        border:1px solid rgba(148,163,184,0.30);
-                        font-size:0.78rem;
-                        font-weight:700;
-                        padding:4px 8px;
-                        border-radius:999px;
-                        margin-top:8px;
-                    ">League Prospect</span>
-                    """
-                    if draft_source == "background_r1"
-                    else f"""
-                    <span style="
-                        display:inline-block;
-                        background:rgba(59,130,246,0.18);
-                        color:#dbeafe;
-                        border:1px solid rgba(59,130,246,0.30);
-                        font-size:0.78rem;
-                        font-weight:700;
-                        padding:4px 8px;
-                        border-radius:999px;
-                        margin-top:8px;
-                    ">{html.escape(user_name) if user_name else "Tracked Player"}</span>
-                    """
-                )
+                with left:
+                    school_logo_src = get_school_logo_src(school)
+                    if school_logo_src:
+                        st.image(school_logo_src, width=58)
+                    st.caption("TOP PICK SCHOOL")
+                    st.markdown(f"**{school}**")
+                    st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
+                    if draft_source == "background_r1":
+                        st.caption("League Prospect")
+                    else:
+                        st.caption(user_name if user_name else "Tracked Player")
 
-                st.markdown(
-                    f"""
-                    <div style="
-                        background: linear-gradient(135deg, rgba(34,197,94,0.14), rgba(255,255,255,0.03));
-                        border-radius:16px;
-                        padding:18px 20px;
-                        margin-bottom:14px;
-                        border-left:6px solid #22c55e;
-                        box-shadow:0 8px 20px rgba(0,0,0,0.35);
-                    ">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:18px;">
-                            <div style="display:flex; align-items:center; min-width:0;">
-                                {school_logo}
-                                <div>
-                                    <div style="font-size:0.78rem; color:#9ca3af; text-transform:uppercase; letter-spacing:1px;">
-                                        Top Pick School
-                                    </div>
-                                    <div style="font-size:1.18rem; font-weight:800; color:#ffffff;">
-                                        {html.escape(school)}
-                                    </div>
-                                    <div style="font-size:0.92rem; color:#d1d5db;">
-                                        {html.escape(pos)} / {html.escape(pos_bucket)} • {ovr} OVR
-                                    </div>
-                                    {badge_html}
-                                </div>
-                            </div>
+                with mid:
+                    st.caption("EARLIEST PICK")
+                    st.markdown(f"## #{pick_no}")
+                    st.markdown(f"**{player}**")
+                    st.write(f"Round {rnd} • {rookie_role} • {career_tier}")
+                    st.caption(story_tag)
 
-                            <div style="flex:1; text-align:center; min-width:0;">
-                                <div style="font-size:0.82rem; color:#9ca3af; text-transform:uppercase; letter-spacing:1px;">
-                                    Earliest Pick
-                                </div>
-                                <div style="font-size:1.9rem; font-weight:900; color:#ffffff;">
-                                    #{pick_no}
-                                </div>
-                                <div style="font-size:1.05rem; font-weight:800; color:#dbeafe;">
-                                    {html.escape(player)}
-                                </div>
-                                <div style="font-size:0.92rem; color:#e5e7eb; margin-top:4px;">
-                                    Round {rnd} • {html.escape(rookie_role)} • {html.escape(career_tier)}
-                                </div>
-                                <div style="font-size:0.84rem; color:#93c5fd; margin-top:4px;">
-                                    {html.escape(story_tag)}
-                                </div>
-                            </div>
-
-                            <div style="display:flex; align-items:center; min-width:0;">
-                                <div style="text-align:right;">
-                                    <div style="font-size:0.78rem; color:#9ca3af; text-transform:uppercase; letter-spacing:1px;">
-                                        Drafted By
-                                    </div>
-                                    <div style="font-size:1.18rem; font-weight:800; color:#ffffff;">
-                                        {html.escape(nfl_team)}
-                                    </div>
-                                </div>
-                                {nfl_logo}
-                            </div>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                with right:
+                    nfl_logo_src = get_nfl_logo_src(nfl_team)
+                    if nfl_logo_src:
+                        st.image(nfl_logo_src, width=58)
+                    st.caption("DRAFTED BY")
+                    st.markdown(f"**{nfl_team}**")
 
             st.markdown("#### Draft Results")
 
-            st.markdown("#### Draft Results")
             view_cols = [
                 "GeneratedOverallPick", "DraftRoundCanon", "Player", "CollegeTeam", "CollegeUser",
                 "Pos", "PosBucket", "OVR", "GeneratedNFLTeam", "RookieRole", "CareerTier", "StoryTag"
