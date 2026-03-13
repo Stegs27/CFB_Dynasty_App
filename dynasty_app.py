@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 import os
+import io
 import re
 import html
 import time
@@ -140,6 +141,149 @@ def safe_num(value, default=0):
     except Exception:
         return default
 
+def get_school_logo_path(team_name):
+    import os
+
+    name = str(team_name).strip()
+
+    slug = TEAM_VISUALS.get(name, {}).get("slug", name.lower().replace(" ", "_"))
+    alt_slug = name.lower().replace(" ", "_")
+    alt_dash = name.lower().replace(" ", "-")
+
+    candidate_paths = [
+        f"{slug}.png",
+        f"{alt_slug}.png",
+        f"{alt_dash}.png",
+        f"{name}.png",
+    ]
+
+    for path in candidate_paths:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def get_school_logo_html(team_name, width=52, margin="0"):
+    if 'image_file_to_data_uri' in globals():
+        local_path = get_school_logo_path(team_name)
+        if local_path:
+            uri = image_file_to_data_uri(local_path)
+            if uri:
+                return f'<img src="{uri}" width="{width}" style="margin:{margin}; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.45));">'
+
+    return f"""
+        <div style="
+            width:{width}px; height:{width}px; border-radius:50%;
+            background:rgba(255,255,255,0.08); color:#FFF;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:800; font-size:0.75rem; margin:{margin};
+            border:1px solid rgba(255,255,255,0.15);
+            text-align:center;
+            padding:4px;
+        ">
+            CFB
+        </div>
+    """
+
+
+def get_school_logo_src(team_name):
+    if 'image_file_to_data_uri' in globals():
+        local_path = get_school_logo_path(team_name)
+        if local_path:
+            uri = image_file_to_data_uri(local_path)
+            if uri:
+                return uri
+    return None
+
+
+def get_nfl_logo_slug(team_name):
+    name = str(team_name).strip().lower()
+
+    slug_map = {
+        "arizona cardinals": "cardinals",
+        "atlanta falcons": "falcons",
+        "baltimore ravens": "ravens",
+        "buffalo bills": "bills",
+        "carolina panthers": "panthers",
+        "chicago bears": "bears",
+        "cincinnati bengals": "bengals",
+        "cleveland browns": "browns",
+        "dallas cowboys": "cowboys",
+        "denver broncos": "broncos",
+        "detroit lions": "lions",
+        "green bay packers": "packers",
+        "houston texans": "texans",
+        "indianapolis colts": "colts",
+        "jacksonville jaguars": "jaguars",
+        "kansas city chiefs": "chiefs",
+        "las vegas raiders": "raiders",
+        "los angeles chargers": "chargers",
+        "los angeles rams": "rams",
+        "miami dolphins": "dolphins",
+        "minnesota vikings": "vikings",
+        "new england patriots": "patriots",
+        "new orleans saints": "saints",
+        "new york giants": "giants",
+        "new york jets": "jets",
+        "philadelphia eagles": "eagles",
+        "pittsburgh steelers": "steelers",
+        "san francisco 49ers": "49ers",
+        "seattle seahawks": "seahawks",
+        "tampa bay buccaneers": "buccaneers",
+        "tennessee titans": "titans",
+        "washington commanders": "commanders",
+    }
+
+    return slug_map.get(name)
+
+
+def get_nfl_logo_path(team_name):
+    import os
+
+    slug = get_nfl_logo_slug(team_name)
+    if not slug:
+        return None
+
+    candidate_paths = [
+        f"{slug}.png",
+        os.path.join(".", f"{slug}.png"),
+    ]
+
+    for path in candidate_paths:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def get_nfl_logo_html(team_name, width=52, margin="0"):
+    if 'image_file_to_data_uri' in globals():
+        local_path = get_nfl_logo_path(team_name)
+        if local_path:
+            uri = image_file_to_data_uri(local_path)
+            if uri:
+                return f'<img src="{uri}" width="{width}" style="margin:{margin}; filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.45));">'
+
+    return f"""
+        <div style="
+            width:{width}px; height:{width}px; border-radius:50%;
+            background:rgba(255,255,255,0.08); color:#FFF;
+            display:flex; align-items:center; justify-content:center;
+            font-weight:800; font-size:0.8rem; margin:{margin};
+            border:1px solid rgba(255,255,255,0.15);
+        ">
+            NFL
+        </div>
+    """
+
+
+def get_nfl_logo_src(team_name):
+    if 'image_file_to_data_uri' in globals():
+        local_path = get_nfl_logo_path(team_name)
+        if local_path:
+            uri = image_file_to_data_uri(local_path)
+            if uri:
+                return uri
+    return None
 
 def calc_athletic_bonus(row, bucket):
     spd = safe_num(row.get("SPD", 0))
@@ -511,6 +655,9 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
                     "GeneratedNFLTeam": chosen_team,
                     "GeneratedRoundPick": int(round_pick),
                     "GeneratedOverallPick": int(overall_pick),
+                    "OriginalPick": pd.NA,
+                    "WasTrade": "No",
+                    "TradeNote": "",
                     "GenerationMethod": "round_locked_team_generated",
                     "DraftValueScore": round(float(draft_value), 2),
                     "NeedScore": need_score,
@@ -518,6 +665,8 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
                     "RookieRole": rookie_role,
                     "PeakOVR": peak_ovr,
                     "StoryTag": story_tag,
+                    "DraftSource": row.get("DraftSource", "user_results"),
+                    "TrackStoryline": row.get("TrackStoryline", "Yes"),
                     "IsCanonRound": "Yes",
                     "IsCanonTeam": "No",
                     "IsCanonPick": "No",
@@ -525,6 +674,7 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
 
     out = pd.DataFrame(enriched_rows, columns=NFL_DRAFT_HISTORY_COLS)
     return out
+
 
 def get_newest_unprocessed_draft_class(cfb_draft_df, nfl_draft_hist_df):
     if cfb_draft_df is None or cfb_draft_df.empty:
@@ -558,6 +708,422 @@ def get_newest_unprocessed_draft_class(cfb_draft_df, nfl_draft_hist_df):
 
     return newest_df, newest_year, None
 
+
+def is_user_team(team_name):
+    if 'USER_TEAMS' in globals():
+        return str(team_name).strip() in set(USER_TEAMS.values())
+    return False
+
+
+def is_senior_label(year_val):
+    y = str(year_val).strip().upper()
+    return y in {"SR", "SR (RS)", "RS SR"}
+
+
+def build_background_round1_pool(cfb_roster_df, cfb_user_draft_df, draft_year, max_players=32):
+    if cfb_roster_df is None or cfb_roster_df.empty:
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    roster = cfb_roster_df.copy()
+
+    required_cols = {"Team", "Name", "Year", "OVR"}
+    if not required_cols.issubset(set(roster.columns)):
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    roster["OVR"] = pd.to_numeric(roster["OVR"], errors="coerce").fillna(0)
+    roster["Year"] = roster["Year"].astype(str)
+    roster["Team"] = roster["Team"].astype(str)
+    roster["Name"] = roster["Name"].astype(str)
+
+    roster = roster[roster["Year"].map(is_senior_label)].copy()
+    roster = roster[roster["OVR"] >= 91].copy()
+
+    if roster.empty:
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    roster = roster[~roster["Team"].map(is_user_team)].copy()
+
+    existing_keys = set()
+    if cfb_user_draft_df is not None and not cfb_user_draft_df.empty:
+        temp = cfb_user_draft_df.copy()
+        if "Player" in temp.columns and "CollegeTeam" in temp.columns:
+            for _, r in temp.iterrows():
+                existing_keys.add((normalize_key(r.get("Player", "")), normalize_key(r.get("CollegeTeam", ""))))
+
+    rows = []
+    for _, r in roster.iterrows():
+        key = (normalize_key(r.get("Name", "")), normalize_key(r.get("Team", "")))
+        if key in existing_keys:
+            continue
+
+        rows.append({
+            "DraftYear": int(draft_year),
+            "Player": r.get("Name", ""),
+            "CollegeTeam": r.get("Team", ""),
+            "CollegeUser": "",
+            "Pos": r.get("Pos", ""),
+            "Class": r.get("Year", ""),
+            "OVR": int(safe_num(r.get("OVR", 0), 0)),
+            "DraftRound": 1,
+            "DraftSource": "background_r1",
+            "TrackStoryline": "No"
+        })
+
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
+
+    roster["Name_key"] = roster["Name"].map(normalize_key)
+    roster["Team_key"] = roster["Team"].map(normalize_key)
+    out["Name_key"] = out["Player"].map(normalize_key)
+    out["Team_key"] = out["CollegeTeam"].map(normalize_key)
+
+    merge_cols = ["Name_key", "Team_key"]
+    extra_cols = [c for c in ["SPD", "ACC", "AGI", "COD", "STR", "AWR"] if c in roster.columns]
+    if extra_cols:
+        out = out.merge(roster[merge_cols + extra_cols].drop_duplicates(), on=merge_cols, how="left")
+
+    out["PosBucket"] = out["Pos"].map(clean_bucket)
+    out["DraftValueScore"] = out.apply(calc_draft_value, axis=1)
+    out = out.sort_values(["OVR", "DraftValueScore"], ascending=[False, False]).head(max_players).copy()
+
+    return out.drop(columns=[c for c in ["Name_key", "Team_key", "PosBucket", "DraftValueScore"] if c in out.columns])
+
+
+def build_combined_newest_class(cfb_draft_df, cfb_roster_df, existing_hist_df):
+    newest_class_df, newest_year, msg = get_newest_unprocessed_draft_class(cfb_draft_df, existing_hist_df)
+    if newest_class_df.empty:
+        return pd.DataFrame(), newest_year, msg
+
+    user_class = newest_class_df.copy()
+    user_class["DraftSource"] = "user_results"
+    user_class["TrackStoryline"] = "Yes"
+
+    user_r1_count = int((pd.to_numeric(user_class["DraftRound"], errors="coerce").fillna(0).astype(int) == 1).sum())
+    needed_background = max(0, 32 - user_r1_count)
+
+    background_r1 = build_background_round1_pool(
+        cfb_roster_df=cfb_roster_df,
+        cfb_user_draft_df=user_class,
+        draft_year=newest_year,
+        max_players=needed_background
+    )
+
+    combined = pd.concat([user_class, background_r1], ignore_index=True, sort=False)
+    return combined, newest_year, None
+
+
+def build_round1_pick_order(nfl_roster_df):
+    if nfl_roster_df is None or nfl_roster_df.empty or "Team" not in nfl_roster_df.columns:
+        return [f"Team {i}" for i in range(1, 33)]
+
+    work = nfl_roster_df.copy()
+    work["OVR"] = pd.to_numeric(work.get("OVR", 0), errors="coerce").fillna(0)
+
+    team_strength = (
+        work.groupby("Team")
+        .agg(TeamOVR=("OVR", "mean"))
+        .reset_index()
+        .sort_values("TeamOVR", ascending=True)
+    )
+
+    teams = team_strength["Team"].astype(str).tolist()
+    return teams[:32]
+
+
+def maybe_apply_round1_trade(current_pick, current_team, available_order, remaining_players, team_needs):
+    if current_pick > 32:
+        return current_team, current_pick, "No", ""
+
+    if remaining_players is None or remaining_players.empty or team_needs is None or team_needs.empty:
+        return current_team, current_pick, "No", ""
+
+    best_player = remaining_players.iloc[0]
+    bucket = str(best_player.get("PosBucket", ""))
+
+    need_pool = team_needs[team_needs["PosBucket"] == bucket].copy()
+    if need_pool.empty:
+        return current_team, current_pick, "No", ""
+
+    need_pool = need_pool.sort_values("NeedScore", ascending=False)
+    strong_need_teams = [t for t in need_pool["NFLTeam"].astype(str).tolist() if t in available_order and t != current_team]
+
+    if not strong_need_teams:
+        return current_team, current_pick, "No", ""
+
+    top_team = strong_need_teams[0]
+    later_index = available_order.index(top_team)
+    current_index = available_order.index(current_team) if current_team in available_order else 0
+
+    if later_index <= current_index:
+        return current_team, current_pick, "No", ""
+
+    player_value = safe_num(best_player.get("DraftValueScore", 0), 0)
+    top_need = float(need_pool.iloc[0]["NeedScore"])
+
+    trade_score = 0.0
+    trade_score += 1.2 if bucket == "QB" else 0.0
+    trade_score += 0.9 if bucket in {"EDGE", "WR", "CB", "OL"} else 0.0
+    trade_score += 1.0 if top_need >= 22 else 0.0
+    trade_score += 0.8 if player_value >= 88 else 0.0
+    trade_score += random.uniform(-0.8, 1.2)
+
+    if trade_score < 1.8:
+        return current_team, current_pick, "No", ""
+
+    trade_note = f"{top_team} trade up from #{later_index + 1} to #{current_pick}"
+    return top_team, later_index + 1, "Yes", trade_note
+
+
+def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
+    if generated_df is None or generated_df.empty:
+        st.info("No generated draft rows to reveal.")
+        return generated_df
+
+    df = generated_df.copy().sort_values(
+        ["DraftYear", "GeneratedOverallPick", "Player"],
+        ascending=[True, True, True]
+    ).reset_index(drop=True)
+
+    speed_map = {
+        "Turbo": {"r1": 0.30, "mid": 0.10, "late": 0.04},
+        "Fast": {"r1": 0.70, "mid": 0.22, "late": 0.08},
+        "Broadcast": {"r1": 1.25, "mid": 0.35, "late": 0.12},
+    }
+    speeds = speed_map.get(speed_mode, speed_map["Broadcast"])
+
+    progress = st.progress(0, text="Initializing NFL Draft Universe...")
+    round_header_placeholder = st.empty()
+    trade_placeholder = st.empty()
+    card_placeholder = st.empty()
+    board_placeholder = st.empty()
+    stats_placeholder = st.empty()
+
+    revealed_rows = []
+    total = len(df)
+
+    for idx, (_, row) in enumerate(df.iterrows(), start=1):
+        round_num = int(safe_num(row.get("DraftRoundCanon", 1), 1))
+        pick_num = int(safe_num(row.get("GeneratedOverallPick", idx), idx))
+        nfl_team = str(row.get("GeneratedNFLTeam", "Unknown Team"))
+        school = str(row.get("CollegeTeam", "Unknown School"))
+        player = str(row.get("Player", "Unknown Player"))
+        college_user = str(row.get("CollegeUser", "")).strip()
+        pos = str(row.get("Pos", ""))
+        pos_bucket = str(row.get("PosBucket", ""))
+        rookie_role = str(row.get("RookieRole", ""))
+        career_tier = str(row.get("CareerTier", ""))
+        story_tag = str(row.get("StoryTag", ""))
+        ovr = int(safe_num(row.get("OVR", 0), 0))
+        draft_source = str(row.get("DraftSource", "user_results")).strip().lower()
+        was_trade = str(row.get("WasTrade", "No")).strip().lower() == "yes"
+        trade_note = str(row.get("TradeNote", "")).strip()
+
+        school_logo = get_school_logo_html(school, width=56, margin="0 10px 0 0")
+        nfl_logo = get_nfl_logo_html(nfl_team, width=56, margin="0 0 0 10px")
+
+        progress.progress(idx / total, text=f"Revealing pick {pick_num} of {total}")
+
+        if round_num == 1:
+            round_header_placeholder.markdown(
+                """
+                <div style="
+                    background: linear-gradient(135deg, rgba(245,158,11,0.18), rgba(255,255,255,0.03));
+                    border:1px solid rgba(255,255,255,0.10);
+                    border-left:6px solid #f59e0b;
+                    border-radius:12px;
+                    padding:12px 16px;
+                    margin-bottom:12px;
+                    box-shadow:0 6px 14px rgba(0,0,0,0.35);
+                ">
+                    <div style="font-size:0.82rem; color:#d1d5db; text-transform:uppercase; letter-spacing:1px;">Round 1</div>
+                    <div style="font-size:1.4rem; font-weight:800; color:#fff; margin-top:3px;">Pick #{pick_num} is in</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            if was_trade and trade_note:
+                trade_placeholder.markdown(
+                    f"""
+                    <div style="
+                        background: rgba(34,197,94,0.12);
+                        border:1px solid rgba(34,197,94,0.30);
+                        border-left:6px solid #22c55e;
+                        border-radius:12px;
+                        padding:10px 14px;
+                        margin-bottom:12px;
+                        color:#f8fafc;
+                        font-weight:700;
+                    ">
+                        🔁 TRADE ALERT: {html.escape(trade_note)}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                trade_placeholder.empty()
+
+            if draft_source == "background_r1":
+                source_badge = """
+                    <span style="
+                        display:inline-block;
+                        background:rgba(148,163,184,0.18);
+                        color:#e2e8f0;
+                        border:1px solid rgba(148,163,184,0.30);
+                        font-size:0.78rem;
+                        font-weight:700;
+                        padding:4px 8px;
+                        border-radius:999px;
+                        margin-top:8px;
+                    ">League Prospect</span>
+                """
+            else:
+                source_badge = f"""
+                    <span style="
+                        display:inline-block;
+                        background:rgba(59,130,246,0.18);
+                        color:#dbeafe;
+                        border:1px solid rgba(59,130,246,0.30);
+                        font-size:0.78rem;
+                        font-weight:700;
+                        padding:4px 8px;
+                        border-radius:999px;
+                        margin-top:8px;
+                    ">{html.escape(college_user) if college_user else "User Team Pick"}</span>
+                """
+
+            card_placeholder.markdown(
+                f"""
+                <div style="
+                    background: linear-gradient(135deg, rgba(79,70,229,0.16), rgba(255,255,255,0.03));
+                    border:1px solid rgba(255,255,255,0.12);
+                    border-top:5px solid #4f46e5;
+                    border-radius:16px;
+                    padding:18px;
+                    box-shadow:0 10px 24px rgba(0,0,0,0.40);
+                    margin-bottom:12px;
+                ">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:18px;">
+                        <div style="display:flex; align-items:center; min-width:0;">
+                            {school_logo}
+                            <div style="min-width:0;">
+                                <div style="font-size:0.8rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">From</div>
+                                <div style="font-size:1.15rem; font-weight:800; color:#fff;">{html.escape(school)}</div>
+                                <div style="font-size:0.9rem; color:#cbd5e1;">{html.escape(college_user) if college_user else "Non-user team"}</div>
+                                {source_badge}
+                            </div>
+                        </div>
+
+                        <div style="flex:1; text-align:center; min-width:0;">
+                            <div style="font-size:0.85rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">Selected</div>
+                            <div style="font-size:2rem; font-weight:900; color:#fff; line-height:1.1;">{html.escape(player)}</div>
+                            <div style="font-size:1rem; color:#dbeafe; margin-top:5px;">
+                                {html.escape(pos)} <span style="opacity:0.7;">/ {html.escape(pos_bucket)}</span> • {ovr} OVR
+                            </div>
+                            <div style="font-size:0.95rem; color:#e5e7eb; margin-top:7px;">
+                                {html.escape(rookie_role)} • {html.escape(career_tier)} ceiling
+                            </div>
+                            <div style="font-size:0.85rem; color:#93c5fd; margin-top:6px;">
+                                {html.escape(story_tag)}
+                            </div>
+                        </div>
+
+                        <div style="display:flex; align-items:center; min-width:0;">
+                            <div style="text-align:right; min-width:0;">
+                                <div style="font-size:0.8rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">To</div>
+                                <div style="font-size:1.15rem; font-weight:800; color:#fff;">{html.escape(nfl_team)}</div>
+                                <div style="font-size:0.9rem; color:#cbd5e1;">Round 1 • Pick {pick_num}</div>
+                            </div>
+                            {nfl_logo}
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        else:
+            if round_num == 2 and idx > 1:
+                round_header_placeholder.markdown(
+                    """
+                    <div style="
+                        background: linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
+                        border:1px solid rgba(255,255,255,0.10);
+                        border-left:6px solid #64748b;
+                        border-radius:12px;
+                        padding:12px 16px;
+                        margin-bottom:12px;
+                        box-shadow:0 6px 14px rgba(0,0,0,0.35);
+                    ">
+                        <div style="font-size:0.82rem; color:#d1d5db; text-transform:uppercase; letter-spacing:1px;">Day 2</div>
+                        <div style="font-size:1.2rem; font-weight:800; color:#fff; margin-top:3px;">Rounds 2+ moving to board view</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            trade_placeholder.empty()
+            card_placeholder.empty()
+
+        revealed_rows.append({
+            "Pick": pick_num,
+            "Rnd": round_num,
+            "Player": player,
+            "School": school,
+            "User": college_user,
+            "Pos": pos,
+            "Bucket": pos_bucket,
+            "NFL Team": nfl_team,
+            "Source": "League Prospect" if draft_source == "background_r1" else "Tracked",
+            "Trade": trade_note if was_trade else ""
+        })
+
+        board_df = pd.DataFrame(revealed_rows)
+        board_placeholder.dataframe(board_df, hide_index=True, use_container_width=True)
+
+        first_rounders = sum(1 for r in revealed_rows if r["Rnd"] == 1)
+        tracked_rows = [r for r in revealed_rows if r["Source"] == "Tracked" and str(r["User"]).strip()]
+        top_user = "—"
+        if tracked_rows:
+            tracked_df = pd.DataFrame(tracked_rows)
+            if not tracked_df.empty:
+                top_user = tracked_df["User"].value_counts().idxmax()
+
+        stats_placeholder.markdown(
+            f"""
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:10px 0 16px 0;">
+                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
+                    <div style="font-size:0.8rem; color:#9ca3af;">Picks Revealed</div>
+                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{len(revealed_rows)}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
+                    <div style="font-size:0.8rem; color:#9ca3af;">Round 1 Picks</div>
+                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{first_rounders}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
+                    <div style="font-size:0.8rem; color:#9ca3af;">Tracked Picks</div>
+                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{sum(1 for r in revealed_rows if r["Source"] == "Tracked")}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
+                    <div style="font-size:0.8rem; color:#9ca3af;">Top Pipeline</div>
+                    <div style="font-size:1.25rem; font-weight:800; color:#fff;">{html.escape(str(top_user))}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        if round_num == 1:
+            time.sleep(speeds["r1"])
+        elif round_num <= 3:
+            time.sleep(speeds["mid"])
+        else:
+            time.sleep(speeds["late"])
+
+    progress.progress(1.0, text="Draft reveal complete.")
+    return df
+
+
 def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast"):
     universe = load_nfl_universe_data()
     cfb_draft = universe["cfb_draft"]
@@ -565,19 +1131,75 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast"):
     nfl_roster = universe["nfl_roster"]
     existing_hist = universe["nfl_draft_hist"]
 
-    newest_class_df, newest_year, msg = get_newest_unprocessed_draft_class(cfb_draft, existing_hist)
+    combined_new_class, newest_year, msg = build_combined_newest_class(cfb_draft, cfb_roster, existing_hist)
 
-    if newest_class_df.empty:
+    if combined_new_class.empty:
         return existing_hist, newest_year, msg
 
-    generated_new = enrich_user_draft_results(newest_class_df, cfb_roster, nfl_roster)
+    generated_new = enrich_user_draft_results(combined_new_class, cfb_roster, nfl_roster)
 
     if generated_new.empty:
         return existing_hist, newest_year, f"Could not generate draft history for class {newest_year}."
 
-    generated_new = generated_new.sort_values(
-        ["DraftYear", "DraftRoundCanon", "GeneratedOverallPick", "Player"],
-        ascending=[True, True, True, True]
+    # Reattach source metadata cleanly by stable player id
+    source_meta = combined_new_class.copy()
+    source_meta["PlayerID"] = source_meta.apply(
+        lambda r: build_player_id(r["DraftYear"], r["CollegeTeam"], r["Player"], r["Pos"]),
+        axis=1
+    )
+
+    source_meta = source_meta[["PlayerID", "DraftSource", "TrackStoryline"]].drop_duplicates()
+    generated_new = generated_new.merge(source_meta, on="PlayerID", how="left", suffixes=("", "_src"))
+
+    generated_new["DraftSource"] = generated_new["DraftSource"].fillna("user_results")
+    generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("Yes")
+    generated_new["OriginalPick"] = pd.NA
+    generated_new["WasTrade"] = "No"
+    generated_new["TradeNote"] = ""
+
+    round1_order = build_round1_pick_order(nfl_roster)
+    team_needs = build_nfl_team_needs(nfl_roster)
+
+    r1 = generated_new[generated_new["DraftRoundCanon"] == 1].copy()
+    later = generated_new[generated_new["DraftRoundCanon"] != 1].copy()
+
+    if not r1.empty:
+        r1 = r1.sort_values(["DraftValueScore", "OVR"], ascending=[False, False]).reset_index(drop=True)
+
+        assigned_rows = []
+        available_order = round1_order.copy()
+
+        max_r1 = min(32, len(r1))
+        for pick_num in range(1, max_r1 + 1):
+            current_team = available_order[0] if available_order else f"Team {pick_num}"
+            remaining_players = r1.iloc[pick_num - 1:].copy()
+
+            trade_team, original_pick, was_trade, trade_note = maybe_apply_round1_trade(
+                current_pick=pick_num,
+                current_team=current_team,
+                available_order=available_order,
+                remaining_players=remaining_players,
+                team_needs=team_needs
+            )
+
+            row = r1.iloc[pick_num - 1].copy()
+            row["GeneratedNFLTeam"] = trade_team
+            row["GeneratedOverallPick"] = pick_num
+            row["GeneratedRoundPick"] = pick_num
+            row["OriginalPick"] = original_pick if was_trade == "Yes" else pick_num
+            row["WasTrade"] = was_trade
+            row["TradeNote"] = trade_note
+
+            assigned_rows.append(row)
+
+            if trade_team in available_order:
+                available_order.remove(trade_team)
+
+        r1 = pd.DataFrame(assigned_rows)
+
+    generated_new = pd.concat([r1, later], ignore_index=True).sort_values(
+        ["DraftYear", "GeneratedOverallPick", "Player"],
+        ascending=[True, True, True]
     ).reset_index(drop=True)
 
     if live_mode:
@@ -600,14 +1222,17 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast"):
         ascending=[True, True, True]
     ).reset_index(drop=True)
 
+    combined = combined.reindex(columns=NFL_DRAFT_HISTORY_COLS)
     combined.to_csv("nfl_draft_history.csv", index=False)
     return combined, newest_year, f"Draft class {newest_year} has been officially added to NFL history."
+
 
 def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
     if draft_class_df is None or draft_class_df.empty:
         return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
 
     src = draft_class_df.copy()
+    src = src[src["TrackStoryline"].astype(str).str.upper() == "YES"].copy()
     src["DraftYear"] = pd.to_numeric(src["DraftYear"], errors="coerce")
     src = src.dropna(subset=["DraftYear"]).copy()
 
@@ -625,7 +1250,6 @@ def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
 
     existing_story_df = existing_story_df.copy() if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
 
-    # Lock old years: remove only this draft year's draft-night entries before rewriting them
     if not existing_story_df.empty and "Season" in existing_story_df.columns:
         existing_story_df["Season"] = pd.to_numeric(existing_story_df["Season"], errors="coerce")
         existing_story_df = existing_story_df[
@@ -9783,6 +10407,76 @@ with tabs[9]:
         st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
 
     st.markdown("---")
+
+    # ── NFL Universe file status / downloads ──────────────────────────
+    draft_hist_exists = os.path.exists("nfl_draft_history.csv")
+    story_exists = os.path.exists("nfl_story_events.csv")
+    sb_exists = os.path.exists("nfl_super_bowl_history.csv")
+    player_hist_exists = os.path.exists("nfl_player_history.csv")
+
+    s1, s2, s3, s4 = st.columns(4)
+    with s1:
+        st.caption(f"Draft History: {'✅' if draft_hist_exists else '❌'}")
+    with s2:
+        st.caption(f"Story Events: {'✅' if story_exists else '❌'}")
+    with s3:
+        st.caption(f"Super Bowl History: {'✅' if sb_exists else '❌'}")
+    with s4:
+        st.caption(f"Player History: {'✅' if player_hist_exists else '❌'}")
+
+    d1, d2, d3, d4 = st.columns(4)
+
+    with d1:
+        if draft_hist_exists:
+            with open("nfl_draft_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Draft History",
+                    data=f.read(),
+                    file_name="nfl_draft_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_draft_history"
+                )
+
+    with d2:
+        if story_exists:
+            with open("nfl_story_events.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Story Events",
+                    data=f.read(),
+                    file_name="nfl_story_events.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_story_events"
+                )
+
+    with d3:
+        if sb_exists:
+            with open("nfl_super_bowl_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download SB History",
+                    data=f.read(),
+                    file_name="nfl_super_bowl_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_super_bowl_history"
+                )
+
+    with d4:
+        if player_hist_exists:
+            with open("nfl_player_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Player History",
+                    data=f.read(),
+                    file_name="nfl_player_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_player_history"
+                )
+
+    st.markdown("---")
+
+    st.caption(f"Working directory: {os.getcwd()}")
 
     nfl_tabs = st.tabs([
         "📦 Draft Central",
