@@ -1064,7 +1064,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
             time.sleep(speeds["suspense"])
 
-            with card_ph.container():
+with card_ph.container():
     left, mid, right = st.columns([1.15, 1.35, 1.1])
 
     with left:
@@ -1074,7 +1074,11 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         st.caption("FROM")
         st.markdown(f"**{school}**")
         st.write(college_user if college_user else "Non-user team")
-        st.caption("League Prospect" if draft_source == "background_r1" else (college_user if college_user else "User Team Pick"))
+        st.caption(
+            "League Prospect"
+            if draft_source == "background_r1"
+            else (college_user if college_user else "User Team Pick")
+        )
 
     with mid:
         st.caption("SELECTED")
@@ -1090,92 +1094,6 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         st.caption("TO")
         st.markdown(f"**{nfl_team}**")
         st.write(f"Round 1 • Pick {overall_pick}")
-
-        else:
-            if round_num == 2 and idx > 1:
-                trade_ph.empty()
-                card_ph.markdown(textwrap.dedent("""
-                    <div style="background:linear-gradient(180deg, rgba(2,6,23,0.92), rgba(15,23,42,0.90)); border:1px solid rgba(255,255,255,0.08); border-top:4px solid #94a3b8; border-radius:18px; padding:28px 22px; margin-bottom:14px; box-shadow:0 10px 24px rgba(0,0,0,0.45); text-align:center;">
-                        <div style="font-size:0.8rem; color:#94a3b8; text-transform:uppercase; letter-spacing:2px; font-weight:800; margin-bottom:8px;">
-                            End of Round 1
-                        </div>
-                        <div style="font-size:2rem; font-weight:900; color:#ffffff; line-height:1.1; margin-bottom:8px;">
-                            Day 2 Begins
-                        </div>
-                        <div style="font-size:1rem; color:#cbd5e1; line-height:1.5;">
-                            The first-round fireworks are over. The board now shifts to a faster view for Rounds 2–7.
-                        </div>
-                    </div>
-                """), unsafe_allow_html=True)
-
-                time.sleep(speeds["transition"])
-
-                header_ph.markdown(textwrap.dedent("""
-                    <div style="background:linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.10); border-left:6px solid #64748b; border-radius:12px; padding:12px 16px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
-                        <div style="font-size:0.82rem; color:#d1d5db; text-transform:uppercase; letter-spacing:1px;">Day 2</div>
-                        <div style="font-size:1.2rem; font-weight:800; color:#fff; margin-top:3px;">Rounds 2+ moving to board view</div>
-                    </div>
-                """), unsafe_allow_html=True)
-
-            trade_ph.empty()
-            card_ph.empty()
-
-        revealed_rows.append({
-            "Pick": overall_pick,
-            "Rnd": round_num,
-            "Player": player,
-            "School": school,
-            "User": college_user,
-            "Pos": pos,
-            "Bucket": pos_bucket,
-            "NFL Team": nfl_team,
-            "Source": "League Prospect" if draft_source == "background_r1" else "Tracked",
-            "Trade": trade_note if was_trade else ""
-        })
-
-        board_df = pd.DataFrame(revealed_rows)
-        if not board_df.empty:
-            board_df.insert(3, "School Logo", board_df["School"].map(get_school_logo_src))
-            board_df.insert(8, "NFL Logo", board_df["NFL Team"].map(get_nfl_logo_src))
-
-        board_ph.dataframe(
-            board_df,
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "School Logo": st.column_config.ImageColumn(""),
-                "NFL Logo": st.column_config.ImageColumn(""),
-            }
-        )
-
-        first_rounders = sum(1 for r in revealed_rows if r["Rnd"] == 1)
-        tracked_rows = [r for r in revealed_rows if r["Source"] == "Tracked" and str(r["User"]).strip()]
-        top_user = "—"
-        if tracked_rows:
-            tracked_df = pd.DataFrame(tracked_rows)
-            if not tracked_df.empty:
-                top_user = tracked_df["User"].value_counts().idxmax()
-
-        stats_ph.markdown(textwrap.dedent(f"""
-            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:10px 0 16px 0;">
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Picks Revealed</div>
-                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{len(revealed_rows)}</div>
-                </div>
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Round 1 Picks</div>
-                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{first_rounders}</div>
-                </div>
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Tracked Picks</div>
-                    <div style="font-size:1.6rem; font-weight:800; color:#fff;">{sum(1 for r in revealed_rows if r['Source'] == 'Tracked')}</div>
-                </div>
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Top Pipeline</div>
-                    <div style="font-size:1.25rem; font-weight:800; color:#fff;">{html.escape(str(top_user))}</div>
-                </div>
-            </div>
-        """), unsafe_allow_html=True)
 
         if round_num == 1:
             time.sleep(speeds["r1"])
