@@ -590,6 +590,10 @@ def load_nfl_universe_data():
     cfb_roster = pd.read_csv("cfb26_rosters_full.csv") if os.path.exists("cfb26_rosters_full.csv") else pd.DataFrame()
     cfb_draft = pd.read_csv("cfb_user_draft_results.csv")
     nfl_draft_hist = pd.read_csv("nfl_draft_history.csv")
+    for col in NFL_DRAFT_HISTORY_COLS:
+        if col not in nfl_draft_hist.columns:
+            nfl_draft_hist[col] = pd.NA
+    nfl_draft_hist = nfl_draft_hist.reindex(columns=NFL_DRAFT_HISTORY_COLS)
     nfl_player_hist = pd.read_csv("nfl_player_history.csv")
     nfl_super_bowl = pd.read_csv("nfl_super_bowl_history.csv")
     nfl_story = pd.read_csv("nfl_story_events.csv")
@@ -1487,6 +1491,10 @@ def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
         return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
 
     src = draft_class_df.copy()
+
+    if "TrackStoryline" not in src.columns:
+        src["TrackStoryline"] = "Yes"
+
     src = src[src["TrackStoryline"].astype(str).str.upper() == "YES"].copy()
     src["DraftYear"] = pd.to_numeric(src["DraftYear"], errors="coerce")
     src = src.dropna(subset=["DraftYear"]).copy()
