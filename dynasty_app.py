@@ -1103,7 +1103,7 @@ with card_ph.container():
             time.sleep(speeds["late"])
 
     progress.progress(1.0, text="Draft reveal complete.")
-    return df
+         return df
 
 
 def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_latest=False):
