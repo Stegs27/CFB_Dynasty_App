@@ -11146,7 +11146,10 @@ with tabs[9]:
             st.info("No story events yet.")
 
         else:
-            story_df = nfl_story.copy().sort_values(["Season", "ImpactScore"], ascending=[False, False]).head(20)
+            story_df = nfl_story.copy().sort_values(
+                ["Season", "ImpactScore"],
+                ascending=[False, False]
+            ).head(20)
 
             draft_lookup = {}
             if nfl_draft_hist is not None and not nfl_draft_hist.empty:
@@ -11193,59 +11196,6 @@ with tabs[9]:
                         </div>
                     </div>
                     """,
-                    unsafe_allow_html=True
-                )
-        elif nfl_story.empty:
-            st.info("No story events yet.")
-            else:
-            story_df = nfl_story.copy().sort_values(["Season", "ImpactScore"], ascending=[False, False]).head(20)
-
-            # Build quick lookup so story cards can pull school logos from draft history
-            draft_lookup = {}
-            if nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                tmp_lookup = nfl_draft_hist.copy()
-                for _, dr in tmp_lookup.iterrows():
-                    draft_lookup[str(dr.get("PlayerID", ""))] = {
-                        "CollegeTeam": str(dr.get("CollegeTeam", "")),
-                        "GeneratedNFLTeam": str(dr.get("GeneratedNFLTeam", "")),
-                    }
-
-            for _, r in story_df.iterrows():
-                pid = str(r.get("PlayerID", ""))
-                lookup = draft_lookup.get(pid, {})
-                school = lookup.get("CollegeTeam", "")
-                nfl_team = str(r.get("NFLTeam", lookup.get("GeneratedNFLTeam", "")))
-
-                school_logo = get_school_logo_html(school, width=40, margin="0 10px 0 0") if school else ""
-                nfl_logo = get_nfl_logo_html(nfl_team, width=40, margin="0 0 0 10px") if nfl_team else ""
-
-                st.markdown(
-                    f"""
-                        <div style="
-                            padding:0.95rem 1rem;
-                            border-left:5px solid #16a34a;
-                            background:#16a34a10;
-                            border-radius:12px;
-                            margin-bottom:0.75rem;
-                        ">
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                                <div style="display:flex; align-items:center; min-width:0;">
-                                    {school_logo}
-                                    <div style="min-width:0;">
-                                        <div style="font-weight:800; font-size:1rem; color:#ffffff;">
-                                            {html.escape(str(r.get("Headline", "")))}
-                                        </div>
-                                        <div style="font-size:0.9rem; opacity:0.9; color:#d1d5db;">
-                                            {html.escape(str(r.get("Description", "")))}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style="display:flex; align-items:center;">
-                                    {nfl_logo}
-                                </div>
-                            </div>
-                        </div>
-                        """,
                     unsafe_allow_html=True
                 )
 
