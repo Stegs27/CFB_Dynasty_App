@@ -1124,24 +1124,51 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     return df
 
 
-def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast"):
+def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_latest=False):
     universe = load_nfl_universe_data()
     cfb_draft = universe["cfb_draft"]
     cfb_roster = universe["cfb_roster"]
     nfl_roster = universe["nfl_roster"]
     existing_hist = universe["nfl_draft_hist"]
 
-    combined_new_class, newest_year, msg = build_combined_newest_class(cfb_draft, cfb_roster, existing_hist)
+    if force_latest:
+        work = cfb_draft.copy()
+        work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
+        work = work.dropna(subset=["DraftYear"]).copy()
 
-    if combined_new_class.empty:
-        return existing_hist, newest_year, msg
+        if work.empty:
+            return existing_hist, None, "No valid DraftYear values found for rerun."
+
+        work["DraftYear"] = work["DraftYear"].astype(int)
+        newest_year = int(work["DraftYear"].max())
+
+        combined_new_class = work[work["DraftYear"] == newest_year].copy()
+        combined_new_class["DraftSource"] = "user_results"
+        combined_new_class["TrackStoryline"] = "Yes"
+
+        user_r1_count = int((pd.to_numeric(combined_new_class["DraftRound"], errors="coerce").fillna(0).astype(int) == 1).sum())
+        needed_background = max(0, 32 - user_r1_count)
+
+        background_r1 = build_background_round1_pool(
+            cfb_roster_df=cfb_roster,
+            cfb_user_draft_df=combined_new_class,
+            draft_year=newest_year,
+            max_players=needed_background
+        )
+
+        combined_new_class = pd.concat([combined_new_class, background_r1], ignore_index=True, sort=False)
+        msg = f"Draft class {newest_year} rerun for testing."
+    else:
+        combined_new_class, newest_year, msg = build_combined_newest_class(cfb_draft, cfb_roster, existing_hist)
+
+        if combined_new_class.empty:
+            return existing_hist, newest_year, msg
 
     generated_new = enrich_user_draft_results(combined_new_class, cfb_roster, nfl_roster)
 
     if generated_new.empty:
         return existing_hist, newest_year, f"Could not generate draft history for class {newest_year}."
 
-    # Reattach source metadata cleanly by stable player id
     source_meta = combined_new_class.copy()
     source_meta["PlayerID"] = source_meta.apply(
         lambda r: build_player_id(r["DraftYear"], r["CollegeTeam"], r["Player"], r["Pos"]),
@@ -1224,6 +1251,10 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast"):
 
     combined = combined.reindex(columns=NFL_DRAFT_HISTORY_COLS)
     combined.to_csv("nfl_draft_history.csv", index=False)
+
+    if force_latest:
+        return combined, newest_year, f"Draft class {newest_year} rerun for testing."
+
     return combined, newest_year, f"Draft class {newest_year} has been officially added to NFL history."
 
 
@@ -10387,7 +10418,7 @@ with tabs[9]:
             st.error("Incorrect password.")
 
     if is_commissioner:
-        c1, c2, c3, c4 = st.columns([1.15, 1.0, 1.0, 1.1])
+        c1, c2, c3, c4, c5 = st.columns([1.1, 1.0, 1.0, 1.0, 1.15])
 
         with c1:
             draft_mode = st.selectbox(
@@ -10413,12 +10444,20 @@ with tabs[9]:
         with c4:
             st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
 
+        with c5:
+            allow_rerun = st.checkbox(
+                "Allow rerun of latest class for testing",
+                value=False,
+                key="nfl_allow_rerun_latest"
+            )
+
         if st.button("🔄 Run NFL Draft", use_container_width=True):
             try:
                 use_live = (draft_mode == "Live Draft")
                 nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
                     live_mode=use_live,
-                    speed_mode=reveal_speed
+                    speed_mode=reveal_speed,
+                    force_latest=allow_rerun
                 )
 
                 if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
@@ -10427,7 +10466,9 @@ with tabs[9]:
                             processed_year)
                         ].copy()
 
-                    if status_msg and "officially added" in status_msg.lower():
+                    if status_msg and (
+                            "officially added" in status_msg.lower() or "rerun for testing" in status_msg.lower()
+                    ):
                         existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists(
                             "nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
                         seed_story_events_from_draft_class(just_added_class, existing_story)
@@ -10437,6 +10478,8 @@ with tabs[9]:
                         st.info(status_msg)
                     elif "officially added" in status_msg.lower():
                         st.success(status_msg)
+                    elif "rerun for testing" in status_msg.lower():
+                        st.warning(status_msg)
                     else:
                         st.warning(status_msg)
 
