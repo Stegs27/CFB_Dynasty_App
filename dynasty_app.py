@@ -1167,7 +1167,6 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 """
             )
 
-            # brief suspense pause before reveal
             suspense_delay = {
                 "Turbo": 0.25,
                 "Fast": 0.60,
@@ -1224,8 +1223,60 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 """,
                 unsafe_allow_html=True
             )
+
         else:
             if round_num == 2 and idx > 1:
+                trade_ph.empty()
+                card_ph.markdown(
+                    """
+                    <div style="
+                        background: linear-gradient(180deg, rgba(2,6,23,0.92), rgba(15,23,42,0.90));
+                        border: 1px solid rgba(255,255,255,0.08);
+                        border-top: 4px solid #94a3b8;
+                        border-radius: 18px;
+                        padding: 28px 22px;
+                        margin-bottom: 14px;
+                        box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+                        text-align: center;
+                    ">
+                        <div style="
+                            font-size:0.8rem;
+                            color:#94a3b8;
+                            text-transform:uppercase;
+                            letter-spacing:2px;
+                            font-weight:800;
+                            margin-bottom:8px;
+                        ">
+                            End of Round 1
+                        </div>
+                        <div style="
+                            font-size:2rem;
+                            font-weight:900;
+                            color:#ffffff;
+                            line-height:1.1;
+                            margin-bottom:8px;
+                        ">
+                            Day 2 Begins
+                        </div>
+                        <div style="
+                            font-size:1rem;
+                            color:#cbd5e1;
+                            line-height:1.5;
+                        ">
+                            The first-round fireworks are over. The board now shifts to a faster view for Rounds 2–7.
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                transition_delay = {
+                    "Turbo": 0.6,
+                    "Fast": 1.2,
+                    "Broadcast": 2.2,
+                }.get(speed_mode, 2.2)
+                time.sleep(transition_delay)
+
                 header_ph.markdown(
                     """
                     <div style="
