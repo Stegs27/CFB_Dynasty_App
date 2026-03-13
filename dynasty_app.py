@@ -6,6 +6,7 @@ import numpy as np
 import os
 import io
 import re
+import textwrap
 import html
 import time
 import base64
@@ -1014,119 +1015,45 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         progress.progress(idx / total, text=f"Revealing pick {overall_pick} of {total}")
 
         if round_num == 1:
-            header_ph.markdown(
-                f"""
-                <div style="
-                    background: linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03));
-                    border: 1px solid rgba(255,255,255,0.10);
-                    border-left: 8px solid #f59e0b;
-                    border-radius: 14px;
-                    padding: 14px 18px;
-                    margin-bottom: 12px;
-                    box-shadow: 0 6px 14px rgba(0,0,0,0.35);
-                ">
+            header_ph.markdown(textwrap.dedent(f"""
+                <div style="background:linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.10); border-left:8px solid #f59e0b; border-radius:14px; padding:14px 18px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
                         <div>
-                            <div style="
-                                font-size:0.78rem;
-                                color:#fcd34d;
-                                text-transform:uppercase;
-                                letter-spacing:1.1px;
-                                font-weight:800;
-                            ">
+                            <div style="font-size:0.78rem; color:#fcd34d; text-transform:uppercase; letter-spacing:1.1px; font-weight:800;">
                                 NFL Draft • Round 1
                             </div>
-                            <div style="
-                                font-size:1.65rem;
-                                font-weight:900;
-                                color:#ffffff;
-                                margin-top:4px;
-                            ">
+                            <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:4px;">
                                 Pick #{overall_pick} is in
                             </div>
                         </div>
-
-                        <div style="
-                            font-size:0.82rem;
-                            color:#fef3c7;
-                            font-weight:800;
-                            padding:6px 10px;
-                            border-radius:999px;
-                            background:rgba(245,158,11,0.14);
-                            border:1px solid rgba(245,158,11,0.24);
-                            white-space:nowrap;
-                        ">
+                        <div style="font-size:0.82rem; color:#fef3c7; font-weight:800; padding:6px 10px; border-radius:999px; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.24); white-space:nowrap;">
                             On the Clock
                         </div>
                     </div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
+            """), unsafe_allow_html=True)
 
             if was_trade and trade_note:
-                trade_ph.markdown(
-                    f"""
-                    <div style="
-                        background: linear-gradient(90deg, rgba(34,197,94,0.18), rgba(255,255,255,0.03));
-                        border: 1px solid rgba(34,197,94,0.28);
-                        border-left: 8px solid #22c55e;
-                        border-radius: 14px;
-                        padding: 12px 16px;
-                        margin-bottom: 14px;
-                        box-shadow: 0 6px 14px rgba(0,0,0,0.30);
-                    ">
+                trade_ph.markdown(textwrap.dedent(f"""
+                    <div style="background:linear-gradient(90deg, rgba(34,197,94,0.18), rgba(255,255,255,0.03)); border:1px solid rgba(34,197,94,0.28); border-left:8px solid #22c55e; border-radius:14px; padding:12px 16px; margin-bottom:14px; box-shadow:0 6px 14px rgba(0,0,0,0.30);">
                         <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
                             <div style="display:flex; align-items:center; gap:12px;">
-                                <div style="
-                                    width:36px;
-                                    height:36px;
-                                    border-radius:999px;
-                                    background:rgba(34,197,94,0.18);
-                                    display:flex;
-                                    align-items:center;
-                                    justify-content:center;
-                                    font-size:1.05rem;
-                                    border:1px solid rgba(34,197,94,0.30);
-                                ">🔁</div>
+                                <div style="width:36px; height:36px; border-radius:999px; background:rgba(34,197,94,0.18); display:flex; align-items:center; justify-content:center; font-size:1.05rem; border:1px solid rgba(34,197,94,0.30);">🔁</div>
                                 <div>
-                                    <div style="
-                                        font-size:0.76rem;
-                                        color:#86efac;
-                                        text-transform:uppercase;
-                                        letter-spacing:1.2px;
-                                        font-weight:800;
-                                    ">
+                                    <div style="font-size:0.76rem; color:#86efac; text-transform:uppercase; letter-spacing:1.2px; font-weight:800;">
                                         Trade Alert
                                     </div>
-                                    <div style="
-                                        font-size:1.02rem;
-                                        color:#f8fafc;
-                                        font-weight:800;
-                                        margin-top:2px;
-                                    ">
-                                        {trade_note}
+                                    <div style="font-size:1.02rem; color:#f8fafc; font-weight:800; margin-top:2px;">
+                                        {html.escape(trade_note)}
                                     </div>
                                 </div>
                             </div>
-
-                            <div style="
-                                font-size:0.78rem;
-                                color:#d1fae5;
-                                font-weight:700;
-                                padding:5px 9px;
-                                border-radius:999px;
-                                background:rgba(34,197,94,0.14);
-                                border:1px solid rgba(34,197,94,0.25);
-                                white-space:nowrap;
-                            ">
+                            <div style="font-size:0.78rem; color:#d1fae5; font-weight:700; padding:5px 9px; border-radius:999px; background:rgba(34,197,94,0.14); border:1px solid rgba(34,197,94,0.25); white-space:nowrap;">
                                 Round 1 Move
                             </div>
                         </div>
                     </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                """), unsafe_allow_html=True)
             else:
                 trade_ph.empty()
 
@@ -1138,17 +1065,8 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
             time.sleep(speeds["suspense"])
 
-            card_ph.markdown(
-                f"""
-                <div style="
-                    background: linear-gradient(135deg, rgba(79,70,229,0.18), rgba(255,255,255,0.03));
-                    border: 1px solid rgba(255,255,255,0.12);
-                    border-top: 5px solid #4f46e5;
-                    border-radius: 18px;
-                    padding: 22px;
-                    box-shadow: 0 10px 24px rgba(0,0,0,0.40);
-                    margin-bottom: 14px;
-                ">
+            card_ph.markdown(textwrap.dedent(f"""
+                <div style="background:linear-gradient(135deg, rgba(79,70,229,0.18), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.12); border-top:5px solid #4f46e5; border-radius:18px; padding:22px; box-shadow:0 10px 24px rgba(0,0,0,0.40); margin-bottom:14px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:20px;">
                         <div style="display:flex; align-items:center; min-width:0;">
                             {school_logo}
@@ -1184,75 +1102,33 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                         </div>
                     </div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
+            """), unsafe_allow_html=True)
 
         else:
             if round_num == 2 and idx > 1:
                 trade_ph.empty()
-                card_ph.markdown(
-                    """
-                    <div style="
-                        background: linear-gradient(180deg, rgba(2,6,23,0.92), rgba(15,23,42,0.90));
-                        border: 1px solid rgba(255,255,255,0.08);
-                        border-top: 4px solid #94a3b8;
-                        border-radius: 18px;
-                        padding: 28px 22px;
-                        margin-bottom: 14px;
-                        box-shadow: 0 10px 24px rgba(0,0,0,0.45);
-                        text-align: center;
-                    ">
-                        <div style="
-                            font-size:0.8rem;
-                            color:#94a3b8;
-                            text-transform:uppercase;
-                            letter-spacing:2px;
-                            font-weight:800;
-                            margin-bottom:8px;
-                        ">
+                card_ph.markdown(textwrap.dedent("""
+                    <div style="background:linear-gradient(180deg, rgba(2,6,23,0.92), rgba(15,23,42,0.90)); border:1px solid rgba(255,255,255,0.08); border-top:4px solid #94a3b8; border-radius:18px; padding:28px 22px; margin-bottom:14px; box-shadow:0 10px 24px rgba(0,0,0,0.45); text-align:center;">
+                        <div style="font-size:0.8rem; color:#94a3b8; text-transform:uppercase; letter-spacing:2px; font-weight:800; margin-bottom:8px;">
                             End of Round 1
                         </div>
-                        <div style="
-                            font-size:2rem;
-                            font-weight:900;
-                            color:#ffffff;
-                            line-height:1.1;
-                            margin-bottom:8px;
-                        ">
+                        <div style="font-size:2rem; font-weight:900; color:#ffffff; line-height:1.1; margin-bottom:8px;">
                             Day 2 Begins
                         </div>
-                        <div style="
-                            font-size:1rem;
-                            color:#cbd5e1;
-                            line-height:1.5;
-                        ">
+                        <div style="font-size:1rem; color:#cbd5e1; line-height:1.5;">
                             The first-round fireworks are over. The board now shifts to a faster view for Rounds 2–7.
                         </div>
                     </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                """), unsafe_allow_html=True)
 
                 time.sleep(speeds["transition"])
 
-                header_ph.markdown(
-                    """
-                    <div style="
-                        background: linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
-                        border: 1px solid rgba(255,255,255,0.10);
-                        border-left: 6px solid #64748b;
-                        border-radius: 12px;
-                        padding: 12px 16px;
-                        margin-bottom: 12px;
-                        box-shadow: 0 6px 14px rgba(0,0,0,0.35);
-                    ">
+                header_ph.markdown(textwrap.dedent("""
+                    <div style="background:linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.10); border-left:6px solid #64748b; border-radius:12px; padding:12px 16px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
                         <div style="font-size:0.82rem; color:#d1d5db; text-transform:uppercase; letter-spacing:1px;">Day 2</div>
                         <div style="font-size:1.2rem; font-weight:800; color:#fff; margin-top:3px;">Rounds 2+ moving to board view</div>
                     </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                """), unsafe_allow_html=True)
 
             trade_ph.empty()
             card_ph.empty()
@@ -1293,8 +1169,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
             if not tracked_df.empty:
                 top_user = tracked_df["User"].value_counts().idxmax()
 
-        stats_ph.markdown(
-            f"""
+        stats_ph.markdown(textwrap.dedent(f"""
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:10px 0 16px 0;">
                 <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
                     <div style="font-size:0.8rem; color:#9ca3af;">Picks Revealed</div>
@@ -1313,9 +1188,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                     <div style="font-size:1.25rem; font-weight:800; color:#fff;">{html.escape(str(top_user))}</div>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+        """), unsafe_allow_html=True)
 
         if round_num == 1:
             time.sleep(speeds["r1"])
@@ -1472,6 +1345,10 @@ def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
         src["TrackStoryline"] = "Yes"
 
     src = src[src["TrackStoryline"].astype(str).str.upper() == "YES"].copy()
+
+    if src.empty:
+        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
     src["DraftYear"] = pd.to_numeric(src["DraftYear"], errors="coerce")
     src = src.dropna(subset=["DraftYear"]).copy()
 
@@ -10605,6 +10482,13 @@ with tabs[9]:
     nfl_roster = universe["nfl_roster"]
     cfb_draft = universe["cfb_draft"]
     nfl_draft_hist = universe["nfl_draft_hist"]
+
+    for col in NFL_DRAFT_HISTORY_COLS:
+        if col not in nfl_draft_hist.columns:
+            nfl_draft_hist[col] = pd.NA
+
+    nfl_draft_hist = nfl_draft_hist.reindex(columns=NFL_DRAFT_HISTORY_COLS)
+
     nfl_player_hist = universe["nfl_player_hist"]
     nfl_super_bowl = universe["nfl_super_bowl"]
     nfl_story = universe["nfl_story"]
