@@ -526,50 +526,150 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
     out = pd.DataFrame(enriched_rows, columns=NFL_DRAFT_HISTORY_COLS)
     return out
 
+def get_newest_unprocessed_draft_class(cfb_draft_df, nfl_draft_hist_df):
+    if cfb_draft_df is None or cfb_draft_df.empty:
+        return pd.DataFrame(), None, "No rows found in cfb_user_draft_results.csv."
 
-def refresh_nfl_draft_history():
+    work = cfb_draft_df.copy()
+    work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
+    work = work.dropna(subset=["DraftYear"]).copy()
+
+    if work.empty:
+        return pd.DataFrame(), None, "No valid DraftYear values found in cfb_user_draft_results.csv."
+
+    work["DraftYear"] = work["DraftYear"].astype(int)
+    newest_year = int(work["DraftYear"].max())
+
+    existing_years = set()
+    if nfl_draft_hist_df is not None and not nfl_draft_hist_df.empty and "DraftYear" in nfl_draft_hist_df.columns:
+        existing_years = set(
+            pd.to_numeric(nfl_draft_hist_df["DraftYear"], errors="coerce")
+            .dropna()
+            .astype(int)
+            .tolist()
+        )
+
+    if newest_year in existing_years:
+        return pd.DataFrame(), newest_year, f"Draft class {newest_year} is already locked in."
+
+    newest_df = work[work["DraftYear"] == newest_year].copy()
+    if newest_df.empty:
+        return pd.DataFrame(), newest_year, f"No draft rows found for newest year {newest_year}."
+
+    return newest_df, newest_year, None
+
+def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast"):
     universe = load_nfl_universe_data()
     cfb_draft = universe["cfb_draft"]
     cfb_roster = universe["cfb_roster"]
     nfl_roster = universe["nfl_roster"]
+    existing_hist = universe["nfl_draft_hist"]
 
-    generated = enrich_user_draft_results(cfb_draft, cfb_roster, nfl_roster)
+    newest_class_df, newest_year, msg = get_newest_unprocessed_draft_class(cfb_draft, existing_hist)
 
-    if generated.empty:
-        return generated
+    if newest_class_df.empty:
+        return existing_hist, newest_year, msg
 
-    generated = generated.sort_values(
+    generated_new = enrich_user_draft_results(newest_class_df, cfb_roster, nfl_roster)
+
+    if generated_new.empty:
+        return existing_hist, newest_year, f"Could not generate draft history for class {newest_year}."
+
+    generated_new = generated_new.sort_values(
         ["DraftYear", "DraftRoundCanon", "GeneratedOverallPick", "Player"],
         ascending=[True, True, True, True]
     ).reset_index(drop=True)
 
-    generated.to_csv("nfl_draft_history.csv", index=False)
-    return generated
+    if live_mode:
+        generated_new = live_reveal_nfl_draft(generated_new, speed_mode=speed_mode)
 
+    if existing_hist is None or existing_hist.empty:
+        combined = generated_new.copy()
+    else:
+        existing_clean = existing_hist.copy()
+        if "DraftYear" in existing_clean.columns:
+            existing_clean["DraftYear"] = pd.to_numeric(existing_clean["DraftYear"], errors="coerce")
+            existing_clean = existing_clean[
+                existing_clean["DraftYear"].fillna(-1).astype(int) != int(newest_year)
+            ].copy()
 
-def seed_story_events_from_draft(nfl_draft_hist):
-    if nfl_draft_hist is None or nfl_draft_hist.empty:
-        return pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+        combined = pd.concat([existing_clean, generated_new], ignore_index=True)
+
+    combined = combined.sort_values(
+        ["DraftYear", "GeneratedOverallPick", "Player"],
+        ascending=[True, True, True]
+    ).reset_index(drop=True)
+
+    combined.to_csv("nfl_draft_history.csv", index=False)
+    return combined, newest_year, f"Draft class {newest_year} has been officially added to NFL history."
+
+def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
+    if draft_class_df is None or draft_class_df.empty:
+        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    src = draft_class_df.copy()
+    src["DraftYear"] = pd.to_numeric(src["DraftYear"], errors="coerce")
+    src = src.dropna(subset=["DraftYear"]).copy()
+
+    if src.empty:
+        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    src["DraftYear"] = src["DraftYear"].astype(int)
+    draft_year = int(src["DraftYear"].max())
+
+    if existing_story_df is None:
+        if os.path.exists("nfl_story_events.csv"):
+            existing_story_df = pd.read_csv("nfl_story_events.csv")
+        else:
+            existing_story_df = pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    existing_story_df = existing_story_df.copy() if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    # Lock old years: remove only this draft year's draft-night entries before rewriting them
+    if not existing_story_df.empty and "Season" in existing_story_df.columns:
+        existing_story_df["Season"] = pd.to_numeric(existing_story_df["Season"], errors="coerce")
+        existing_story_df = existing_story_df[
+            ~(
+                existing_story_df["Season"].fillna(-1).astype(int).eq(draft_year) &
+                existing_story_df["EventType"].astype(str).eq("DraftNight")
+            )
+        ].copy()
 
     rows = []
-    src = nfl_draft_hist.sort_values(["DraftYear", "GeneratedOverallPick"], ascending=[False, True]).head(20)
+    src = src.sort_values(["GeneratedOverallPick", "Player"], ascending=[True, True])
 
     for _, r in src.iterrows():
+        player = str(r.get("Player", "Unknown Player"))
+        nfl_team = str(r.get("GeneratedNFLTeam", "Unknown Team"))
+        college_team = str(r.get("CollegeTeam", "Unknown School"))
+        round_num = int(safe_num(r.get("DraftRoundCanon", 0), 0))
+        pick_num = int(safe_num(r.get("GeneratedOverallPick", 999), 999))
+        pos = str(r.get("Pos", ""))
+        pos_bucket = str(r.get("PosBucket", ""))
+        story_tag = str(r.get("StoryTag", ""))
+
         rows.append({
-            "Season": int(r["DraftYear"]),
+            "Season": draft_year,
             "Week": 0,
-            "PlayerID": r["PlayerID"],
-            "Player": r["Player"],
-            "NFLTeam": r["GeneratedNFLTeam"],
+            "PlayerID": r.get("PlayerID", ""),
+            "Player": player,
+            "NFLTeam": nfl_team,
             "EventType": "DraftNight",
-            "Headline": f'{r["Player"]} lands with the {r["GeneratedNFLTeam"]}',
-            "Description": f'{r["CollegeTeam"]} standout drafted in Round {int(r["DraftRoundCanon"])} at pick {int(r["GeneratedOverallPick"])}.',
-            "ImpactScore": int(max(50, 100 - safe_num(r["GeneratedOverallPick"], 100)))
+            "Headline": f"{player} lands with the {nfl_team}",
+            "Description": f"{college_team} {pos} ({pos_bucket}) was selected in Round {round_num} at pick {pick_num}. {story_tag}",
+            "ImpactScore": int(max(50, 100 - pick_num))
         })
 
-    out = pd.DataFrame(rows, columns=NFL_STORY_EVENTS_COLS)
-    out.to_csv("nfl_story_events.csv", index=False)
-    return out
+    new_story_df = pd.DataFrame(rows, columns=NFL_STORY_EVENTS_COLS)
+
+    if existing_story_df.empty:
+        combined = new_story_df.copy()
+    else:
+        combined = pd.concat([existing_story_df, new_story_df], ignore_index=True)
+
+    combined = combined.sort_values(["Season", "Week", "ImpactScore"], ascending=[False, True, False]).reset_index(drop=True)
+    combined.to_csv("nfl_story_events.csv", index=False)
+    return combined
 
 # 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
 st.set_page_config(
@@ -9649,13 +9749,31 @@ with tabs[9]:
 
     c1, c2, c3 = st.columns([1.1, 1.1, 1.4])
     with c1:
-        if st.button("🔄 Regenerate NFL Draft Universe", use_container_width=True):
-            nfl_draft_hist = refresh_nfl_draft_history()
-            if os.path.exists("nfl_story_events.csv"):
-                existing_story = pd.read_csv("nfl_story_events.csv")
-                if existing_story.empty:
-                    seed_story_events_from_draft(nfl_draft_hist)
-            st.success("NFL draft history regenerated from cfb_user_draft_results.csv")
+        if st.button("🎟️ Reveal Newest Draft Class", use_container_width=True):
+            use_live = (draft_mode == "Live Draft")
+            nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                live_mode=use_live,
+                speed_mode=reveal_speed
+            )
+
+            if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                just_added_class = nfl_draft_hist[
+                    pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(
+                        processed_year)
+                    ].copy()
+
+                if status_msg and "officially added" in status_msg.lower():
+                    existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists(
+                        "nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                    seed_story_events_from_draft_class(just_added_class, existing_story)
+
+            if status_msg:
+                if "already locked in" in status_msg.lower():
+                    st.info(status_msg)
+                elif "officially added" in status_msg.lower():
+                    st.success(status_msg)
+                else:
+                    st.warning(status_msg)
 
     with c2:
         latest_draft_year = int(pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
