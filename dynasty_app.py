@@ -888,8 +888,15 @@ def build_combined_newest_class(cfb_draft_df, cfb_roster_df, existing_hist_df):
     user_class["DraftSource"] = "user_results"
     user_class["TrackStoryline"] = "Yes"
 
-    user_r1_count = int((pd.to_numeric(user_class["DraftRound"], errors="coerce").fillna(0).astype(int) == 1).sum())
-    needed_background = max(0, 32 - user_r1_count)
+    if "DraftRound" in user_class.columns:
+        user_class["DraftRound"] = pd.to_numeric(user_class["DraftRound"], errors="coerce").fillna(0).astype(int)
+    else:
+        user_class["DraftRound"] = 0
+
+    user_r1 = user_class[user_class["DraftRound"] == 1].copy()
+    user_non_r1 = user_class[user_class["DraftRound"] != 1].copy()
+
+    needed_background = max(0, 32 - len(user_r1))
 
     background_r1 = build_background_round1_pool(
         cfb_roster_df=cfb_roster_df,
@@ -898,7 +905,12 @@ def build_combined_newest_class(cfb_draft_df, cfb_roster_df, existing_hist_df):
         max_players=needed_background
     )
 
-    combined = pd.concat([user_class, background_r1], ignore_index=True, sort=False)
+    if not background_r1.empty:
+        background_r1["DraftRound"] = 1
+        background_r1["DraftSource"] = "background_r1"
+        background_r1["TrackStoryline"] = "No"
+
+    combined = pd.concat([user_r1, background_r1, user_non_r1], ignore_index=True, sort=False)
     return combined, newest_year, None
 
 
@@ -975,10 +987,10 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     ).reset_index(drop=True)
 
     speed_map = {
-        "Turbo": {"r1": 0.8, "mid": 0.18, "late": 0.08, "suspense": 0.25, "transition": 0.6},
-        "Fast": {"r1": 1.8, "mid": 0.40, "late": 0.15, "suspense": 0.60, "transition": 1.2},
-        "Broadcast": {"r1": 3.2, "mid": 0.75, "late": 0.25, "suspense": 1.35, "transition": 2.2},
-    }
+    "Turbo": {"r1": 1.6, "mid": 0.35, "late": 0.15, "suspense": 0.50, "transition": 1.0},
+    "Fast": {"r1": 3.5, "mid": 0.75, "late": 0.30, "suspense": 1.10, "transition": 1.8},
+    "Broadcast": {"r1": 6.0, "mid": 1.25, "late": 0.45, "suspense": 2.00, "transition": 3.0},
+}
     speeds = speed_map.get(speed_mode, speed_map["Broadcast"])
 
     progress = st.progress(0, text="Initializing NFL Draft Universe...")
@@ -1211,21 +1223,32 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
         newest_year = int(work["DraftYear"].max())
 
         combined_new_class = work[work["DraftYear"] == newest_year].copy()
-        combined_new_class["DraftSource"] = "user_results"
-        combined_new_class["TrackStoryline"] = "Yes"
+combined_new_class["DraftSource"] = "user_results"
+combined_new_class["TrackStoryline"] = "Yes"
 
-        user_r1_count = int((pd.to_numeric(combined_new_class["DraftRound"], errors="coerce").fillna(0).astype(int) == 1).sum())
-        needed_background = max(0, 32 - user_r1_count)
+combined_new_class["DraftRound"] = pd.to_numeric(
+    combined_new_class["DraftRound"], errors="coerce"
+).fillna(0).astype(int)
 
-        background_r1 = build_background_round1_pool(
-            cfb_roster_df=cfb_roster,
-            cfb_user_draft_df=combined_new_class,
-            draft_year=newest_year,
-            max_players=needed_background
-        )
+user_r1 = combined_new_class[combined_new_class["DraftRound"] == 1].copy()
+user_non_r1 = combined_new_class[combined_new_class["DraftRound"] != 1].copy()
 
-        combined_new_class = pd.concat([combined_new_class, background_r1], ignore_index=True, sort=False)
-        msg = f"Draft class {newest_year} rerun for testing."
+needed_background = max(0, 32 - len(user_r1))
+
+background_r1 = build_background_round1_pool(
+    cfb_roster_df=cfb_roster,
+    cfb_user_draft_df=combined_new_class,
+    draft_year=newest_year,
+    max_players=needed_background
+)
+
+if not background_r1.empty:
+    background_r1["DraftRound"] = 1
+    background_r1["DraftSource"] = "background_r1"
+    background_r1["TrackStoryline"] = "No"
+
+combined_new_class = pd.concat([user_r1, background_r1, user_non_r1], ignore_index=True, sort=False)
+msg = f"Draft class {newest_year} rerun for testing."
     else:
         combined_new_class, newest_year, msg = build_combined_newest_class(cfb_draft, cfb_roster, existing_hist)
 
