@@ -970,11 +970,10 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         ascending=[True, True, True]
     ).reset_index(drop=True)
 
-    # Slower Round 1 timing
     speed_map = {
-        "Turbo": {"r1": 0.8, "mid": 0.18, "late": 0.08},
-        "Fast": {"r1": 1.8, "mid": 0.40, "late": 0.15},
-        "Broadcast": {"r1": 3.2, "mid": 0.75, "late": 0.25},
+        "Turbo": {"r1": 0.8, "mid": 0.18, "late": 0.08, "suspense": 0.25, "transition": 0.6},
+        "Fast": {"r1": 1.8, "mid": 0.40, "late": 0.15, "suspense": 0.60, "transition": 1.2},
+        "Broadcast": {"r1": 3.2, "mid": 0.75, "late": 0.25, "suspense": 1.35, "transition": 2.2},
     }
     speeds = speed_map.get(speed_mode, speed_map["Broadcast"])
 
@@ -1000,10 +999,10 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         rookie_role = str(row.get("RookieRole", ""))
         career_tier = str(row.get("CareerTier", ""))
         story_tag = str(row.get("StoryTag", ""))
+        ovr = int(safe_num(row.get("OVR", 0), 0))
         draft_source = str(row.get("DraftSource", "user_results")).strip().lower()
         was_trade = str(row.get("WasTrade", "No")).strip().lower() == "yes"
         trade_note = str(row.get("TradeNote", "")).strip()
-        ovr = int(safe_num(row.get("OVR", 0), 0))
 
         school_logo = get_school_logo_html(school, width=64, margin="0 12px 0 0")
         nfl_logo = get_nfl_logo_html(nfl_team, width=64, margin="0 0 0 12px")
@@ -1022,12 +1021,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                     margin-bottom: 12px;
                     box-shadow: 0 6px 14px rgba(0,0,0,0.35);
                 ">
-                    <div style="
-                        display:flex;
-                        align-items:center;
-                        justify-content:space-between;
-                        gap:14px;
-                    ">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
                         <div>
                             <div style="
                                 font-size:0.78rem;
@@ -1078,12 +1072,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                         margin-bottom: 14px;
                         box-shadow: 0 6px 14px rgba(0,0,0,0.30);
                     ">
-                        <div style="
-                            display:flex;
-                            align-items:center;
-                            justify-content:space-between;
-                            gap:16px;
-                        ">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
                             <div style="display:flex; align-items:center; gap:12px;">
                                 <div style="
                                     width:36px;
@@ -1163,16 +1152,11 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                     padding:4px 8px;
                     border-radius:999px;
                     margin-top:8px;
-                ">{college_user if college_user else "User Team Pick"}</span>
+                ">{html.escape(college_user) if college_user else "User Team Pick"}</span>
                 """
             )
 
-            suspense_delay = {
-                "Turbo": 0.25,
-                "Fast": 0.60,
-                "Broadcast": 1.35,
-            }.get(speed_mode, 1.35)
-            time.sleep(suspense_delay)
+            time.sleep(speeds["suspense"])
 
             card_ph.markdown(
                 f"""
@@ -1190,30 +1174,30 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                             {school_logo}
                             <div>
                                 <div style="font-size:0.78rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">From</div>
-                                <div style="font-size:1.15rem; font-weight:800; color:#ffffff;">{school}</div>
-                                <div style="font-size:0.92rem; color:#cbd5e1;">{college_user if college_user else "Non-user team"}</div>
+                                <div style="font-size:1.15rem; font-weight:800; color:#ffffff;">{html.escape(school)}</div>
+                                <div style="font-size:0.92rem; color:#cbd5e1;">{html.escape(college_user) if college_user else "Non-user team"}</div>
                                 {badge_html}
                             </div>
                         </div>
 
                         <div style="flex:1; text-align:center;">
                             <div style="font-size:0.8rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">Selected</div>
-                            <div style="font-size:2.2rem; font-weight:900; color:#ffffff; line-height:1.1;">{player}</div>
+                            <div style="font-size:2.2rem; font-weight:900; color:#ffffff; line-height:1.1;">{html.escape(player)}</div>
                             <div style="font-size:1.02rem; color:#dbeafe; margin-top:6px;">
-                                {pos} / {pos_bucket} • {ovr} OVR
+                                {html.escape(pos)} / {html.escape(pos_bucket)} • {ovr} OVR
                             </div>
                             <div style="font-size:0.96rem; color:#e5e7eb; margin-top:8px;">
-                                {rookie_role} • {career_tier} ceiling
+                                {html.escape(rookie_role)} • {html.escape(career_tier)} ceiling
                             </div>
                             <div style="font-size:0.86rem; color:#93c5fd; margin-top:7px;">
-                                {story_tag}
+                                {html.escape(story_tag)}
                             </div>
                         </div>
 
                         <div style="display:flex; align-items:center; min-width:0;">
                             <div style="text-align:right;">
                                 <div style="font-size:0.78rem; color:#cbd5e1; text-transform:uppercase; letter-spacing:1px;">To</div>
-                                <div style="font-size:1.15rem; font-weight:800; color:#ffffff;">{nfl_team}</div>
+                                <div style="font-size:1.15rem; font-weight:800; color:#ffffff;">{html.escape(nfl_team)}</div>
                                 <div style="font-size:0.92rem; color:#cbd5e1;">Round 1 • Pick {overall_pick}</div>
                             </div>
                             {nfl_logo}
@@ -1270,12 +1254,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                     unsafe_allow_html=True
                 )
 
-                transition_delay = {
-                    "Turbo": 0.6,
-                    "Fast": 1.2,
-                    "Broadcast": 2.2,
-                }.get(speed_mode, 2.2)
-                time.sleep(transition_delay)
+                time.sleep(speeds["transition"])
 
                 header_ph.markdown(
                     """
@@ -1351,7 +1330,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 </div>
                 <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
                     <div style="font-size:0.8rem; color:#9ca3af;">Top Pipeline</div>
-                    <div style="font-size:1.25rem; font-weight:800; color:#fff;">{top_user}</div>
+                    <div style="font-size:1.25rem; font-weight:800; color:#fff;">{html.escape(str(top_user))}</div>
                 </div>
             </div>
             """,
