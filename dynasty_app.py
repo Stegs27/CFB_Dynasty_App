@@ -10371,68 +10371,89 @@ with tabs[9]:
     nfl_story = universe["nfl_story"]
     nfl_settings = universe["nfl_settings"]
 
-    c1, c2, c3, c4 = st.columns([1.15, 1.0, 1.0, 1.1])
+    is_commissioner = False
 
-    with c1:
-        draft_mode = st.selectbox(
-            "Draft Reveal Mode",
-            ["Live Draft", "Instant"],
-            index=0,
-            key="nfl_draft_reveal_mode"
+    with st.expander("🔒 Commissioner Controls", expanded=False):
+        commissioner_key = st.text_input(
+            "Enter commissioner password",
+            type="password",
+            key="nfl_commissioner_password"
         )
 
-    with c2:
-        reveal_speed = st.selectbox(
-            "Reveal Speed",
-            ["Broadcast", "Fast", "Turbo"],
-            index=0,
-            key="nfl_draft_reveal_speed"
-        )
+        if commissioner_key == "replace-this-with-your-password":
+            is_commissioner = True
+            st.success("Commissioner mode unlocked.")
+        elif commissioner_key:
+            st.error("Incorrect password.")
 
-    with c3:
-        latest_draft_year = int(
-            pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
-        st.metric("Latest Draft Year", latest_draft_year if latest_draft_year else "—")
+    if is_commissioner:
+        c1, c2, c3, c4 = st.columns([1.15, 1.0, 1.0, 1.1])
 
-    with c4:
-        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
-
-    if st.button("🔄 Run NFL Draft", use_container_width=True):
-        try:
-            use_live = (draft_mode == "Live Draft")
-            nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
-                live_mode=use_live,
-                speed_mode=reveal_speed
+        with c1:
+            draft_mode = st.selectbox(
+                "Draft Reveal Mode",
+                ["Live Draft", "Instant"],
+                index=0,
+                key="nfl_draft_reveal_mode"
             )
 
-            if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                just_added_class = nfl_draft_hist[
-                    pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(
-                        processed_year)
-                    ].copy()
+        with c2:
+            reveal_speed = st.selectbox(
+                "Reveal Speed",
+                ["Broadcast", "Fast", "Turbo"],
+                index=0,
+                key="nfl_draft_reveal_speed"
+            )
 
-                if status_msg and "officially added" in status_msg.lower():
-                    existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists(
-                        "nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                    seed_story_events_from_draft_class(just_added_class, existing_story)
+        with c3:
+            latest_draft_year = int(
+                pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
+            st.metric("Latest Draft Year", latest_draft_year if latest_draft_year else "—")
 
-            if status_msg:
-                if "already locked in" in status_msg.lower():
-                    st.info(status_msg)
-                elif "officially added" in status_msg.lower():
-                    st.success(status_msg)
-                else:
-                    st.warning(status_msg)
+        with c4:
+            st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
 
-        except Exception as e:
-            st.error(f"NFL draft error: {type(e).__name__}: {e}")
+        if st.button("🔄 Run NFL Draft", use_container_width=True):
+            try:
+                use_live = (draft_mode == "Live Draft")
+                nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                    live_mode=use_live,
+                    speed_mode=reveal_speed
+                )
 
-    with c2:
-        latest_draft_year = int(pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
-        st.metric("Latest Draft Year", latest_draft_year if latest_draft_year else "—")
+                if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                    just_added_class = nfl_draft_hist[
+                        pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(
+                            processed_year)
+                        ].copy()
 
-    with c3:
-        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
+                    if status_msg and "officially added" in status_msg.lower():
+                        existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists(
+                            "nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                        seed_story_events_from_draft_class(just_added_class, existing_story)
+
+                if status_msg:
+                    if "already locked in" in status_msg.lower():
+                        st.info(status_msg)
+                    elif "officially added" in status_msg.lower():
+                        st.success(status_msg)
+                    else:
+                        st.warning(status_msg)
+
+            except Exception as e:
+                st.error(f"NFL draft error: {type(e).__name__}: {e}")
+    else:
+        c1, c2 = st.columns(2)
+
+        with c1:
+            latest_draft_year = int(
+                pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
+            st.metric("Latest Draft Year", latest_draft_year if latest_draft_year else "—")
+
+        with c2:
+            st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
+
+        st.caption("Draft controls are restricted to the commissioner.")
 
     st.markdown("---")
 
