@@ -11836,14 +11836,17 @@ with tabs[5]:
     left_teams = user_teams_list[:mid_idx]
     right_teams = user_teams_list[mid_idx:]
 
-    left_logos_html = "".join([get_attrition_logo(t, width=45, margin="0 8px 0 0") for t in left_teams])
-    right_logos_html = "".join([get_attrition_logo(t, width=45, margin="0 0 0 8px") for t in right_teams])
+    all_logos_html = "".join([
+        get_attrition_logo(t, width=45, margin="0 8px")
+        for t in user_teams_list
+    ])
 
     st.markdown(f"""
-        <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 5px;">
-            <div style="display: flex; align-items: center;">{left_logos_html}</div>
-            <h2 style="margin: 0 15px;">🚪 Roster Attrition & Turnover</h2>
-            <div style="display: flex; align-items: center;">{right_logos_html}</div>
+        <div style="text-align:center; margin-bottom: 6px;">
+            <h2 style="margin: 0 0 10px 0;">🚪 Roster Turnover</h2>
+            <div style="display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:4px;">
+                {all_logos_html}
+            </div>
         </div>
     """, unsafe_allow_html=True)
 
