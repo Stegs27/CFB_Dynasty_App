@@ -12376,8 +12376,8 @@ with tabs[5]:
 
         # ONLY actual transfers out
         team_transfers = team_transfers_all[
-            team_transfers_all['TransferStatus'].eq('Leaving')
-        ].copy()
+    team_transfers_all['TransferStatus'].eq('Leaving')
+].drop_duplicates(subset=["Year", "Team", "Player"]).copy()
 
         team_transfer_stayed = team_transfers_all[
             team_transfers_all['TransferStatus'].eq('Staying')
