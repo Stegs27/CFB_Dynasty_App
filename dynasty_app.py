@@ -9850,7 +9850,9 @@ with tabs[3]:
     aa_df["School"] = aa_df["School"].astype(str).str.strip()
     aa_df["Class"] = aa_df["Class"].astype(str).str.strip()
 
-    user_team_set = set(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else set()
+    user_team_map = USER_TEAMS if 'USER_TEAMS' in globals() else {}
+    team_to_user = {str(team).strip(): str(user).strip() for user, team in user_team_map.items()}
+    user_team_set = set(team_to_user.keys())
 
     def get_school_logo_src(team_name):
         try:
@@ -9869,9 +9871,7 @@ with tabs[3]:
 
         out = df_in.copy()
         out.insert(0, "Logo", out["School"].map(get_school_logo_src))
-        out["User Team"] = out["School"].map(lambda x: "⭐ Yes" if str(x).strip() in user_team_set else "")
-        out["UserSort"] = out["School"].map(lambda x: 0 if str(x).strip() in user_team_set else 1)
-        out = out.sort_values(["UserSort", "School", "Pos", "Player"], ascending=[True, True, True, True]).copy()
+        out["User"] = out["School"].map(lambda x: team_to_user.get(str(x).strip(), ""))
         return out
 
     recap_year = 2041
@@ -9888,7 +9888,7 @@ with tabs[3]:
                 st.caption("No 1st Team rows found.")
             else:
                 st.dataframe(
-                    first_df[["Logo", "Pos", "Player", "School", "Class", "User Team"]],
+                    first_df[["Logo", "Pos", "Player", "School", "Class", "User"]],
                     hide_index=True,
                     use_container_width=True,
                     column_config={
@@ -9897,7 +9897,7 @@ with tabs[3]:
                         "Player": st.column_config.TextColumn("Player", width="medium"),
                         "School": st.column_config.TextColumn("School", width="medium"),
                         "Class": st.column_config.TextColumn("Class", width="small"),
-                        "User Team": st.column_config.TextColumn("User Team", width="small"),
+                        "User": st.column_config.TextColumn("User", width="small"),
                     }
                 )
 
@@ -9907,7 +9907,7 @@ with tabs[3]:
                 st.caption("No 2nd Team rows found.")
             else:
                 st.dataframe(
-                    second_df[["Logo", "Pos", "Player", "School", "Class", "User Team"]],
+                    second_df[["Logo", "Pos", "Player", "School", "Class", "User"]],
                     hide_index=True,
                     use_container_width=True,
                     column_config={
@@ -9916,7 +9916,7 @@ with tabs[3]:
                         "Player": st.column_config.TextColumn("Player", width="medium"),
                         "School": st.column_config.TextColumn("School", width="medium"),
                         "Class": st.column_config.TextColumn("Class", width="small"),
-                        "User Team": st.column_config.TextColumn("User Team", width="small"),
+                        "User": st.column_config.TextColumn("User", width="small"),
                     }
                 )
 
@@ -9926,7 +9926,7 @@ with tabs[3]:
                 st.caption("No Freshman rows found.")
             else:
                 st.dataframe(
-                    fresh_df[["Logo", "Pos", "Player", "School", "Class", "User Team"]],
+                    fresh_df[["Logo", "Pos", "Player", "School", "Class", "User"]],
                     hide_index=True,
                     use_container_width=True,
                     column_config={
@@ -9935,7 +9935,7 @@ with tabs[3]:
                         "Player": st.column_config.TextColumn("Player", width="medium"),
                         "School": st.column_config.TextColumn("School", width="medium"),
                         "Class": st.column_config.TextColumn("Class", width="small"),
-                        "User Team": st.column_config.TextColumn("User Team", width="small"),
+                        "User": st.column_config.TextColumn("User", width="small"),
                     }
                 )
 
