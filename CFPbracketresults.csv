@@ -164,14 +164,14 @@ YEAR,ROUND,GAME_ID,TEAM1,SEED1,DISPLAY_RANK1,RECORD1,TEAM1_SCORE,TEAM2,SEED2,DIS
 2040,SF,2040_SF_1,Wyoming,4.0,4.0,16-0,49.0,Alabaster,1.0,1.0,14-1,37.0,Wyoming,Alabaster,1,Bracket screenshot
 2040,SF,2040_SF_2,USF,6.0,6.0,15-1,35.0,Bowling Green,2.0,2.0,15-1,38.0,Bowling Green,USF,1,Bracket screenshot
 2040,NCG,2040_NCG_1,Bowling Green,2.0,2.0,15-1,24.0,Wyoming,4.0,4.0,16-0,59.0,Wyoming,Bowling Green,1,Bracket screenshot
-2041,R1,2041_R1_1,San Diego State,12.0,12.0,12-2,43.0,Clemson,5.0,5.0,14-1,49.0,Clemson,San Diego State,1,Bracket screenshot
+2041,R1,2041_R1_1,San Diego State,12.0,12.0,12-2,43.0,Clemson,5.0,5.0,14-2,49.0,Clemson,San Diego State,1,Bracket screenshot
 2041,R1,2041_R1_2,Texas,9.0,9.0,11-3,40.0,San Jose State,8.0,8.0,10-4,27.0,Texas,San Jose State,1,Bracket screenshot
-2041,R1,2041_R1_3,USF,11.0,11.0,12-2,63.0,Texas A&M,6.0,6.0,10-3,34.0,USF,Texas A&M,1,Bracket screenshot
+2041,R1,2041_R1_3,USF,11.0,11.0,12-3,63.0,Texas A&M,6.0,6.0,10-3,34.0,USF,Texas A&M,1,Bracket screenshot
 2041,R1,2041_R1_4,Georgia Tech,10.0,10.0,11-3,28.0,Alabaster,7.0,7.0,11-4,49.0,Alabaster,Georgia Tech,1,Bracket screenshot
-2041,QF,2041_QF_1,Clemson,5.0,5.0,14-1,89.0,Bowling Green,4.0,4.0,12-2,77.0,Clemson,Bowling Green,1,Bracket screenshot
-2041,QF,2041_QF_2,Texas,9.0,9.0,11-3,27.0,Florida State,1.0,1.0,13-1,42.0,Florida State,Texas,1,Bracket screenshot
-2041,QF,2041_QF_3,USF,11.0,11.0,12-2,42.0,Rapid City,3.0,3.0,12-2,31.0,USF,Rapid City,1,Bracket screenshot
-2041,QF,2041_QF_4,Alabaster,7.0,7.0,11-4,38.0,Texas Tech,2.0,2.0,13-1,56.0,Texas Tech,Alabaster,1,Bracket screenshot
-2041,SF,2041_SF_1,Clemson,5.0,5.0,14-1,,Florida State,1.0,1.0,13-1,,,,0,Bracket screenshot
-2041,SF,2041_SF_2,USF,11.0,11.0,12-2,,Texas Tech,2.0,2.0,13-1,,,,0,Bracket screenshot
-2041,NCG,2041_NCG_1,,,,,,,,,,,,,0,Bracket screenshot
+2041,QF,2041_QF_1,Clemson,5.0,5.0,14-2,89.0,Bowling Green,4.0,4.0,12-2,77.0,Clemson,Bowling Green,1,Bracket screenshot
+2041,QF,2041_QF_2,Texas,9.0,9.0,11-3,27.0,Florida State,1.0,1.0,14-2,42.0,Florida State,Texas,1,Bracket screenshot
+2041,QF,2041_QF_3,USF,11.0,11.0,12-3,42.0,Rapid City,3.0,3.0,12-2,31.0,USF,Rapid City,1,Bracket screenshot
+2041,QF,2041_QF_4,Alabaster,7.0,7.0,11-4,38.0,Texas Tech,2.0,2.0,15-1,56.0,Texas Tech,Alabaster,1,Bracket screenshot
+2041,SF,2041_SF_1,Clemson,5.0,5.0,14-2,31.0,Florida State,1.0,1.0,14-2,34.0,Florida State,Clemson,1,Bracket screenshot
+2041,SF,2041_SF_2,USF,11.0,11.0,12-3,28.0,Texas Tech,2.0,2.0,15-1,42.0,Texas Tech,USF,1,Bracket screenshot
+2041,NCG,2041_NCG_1,Texas Tech,2.0,2.0,15-1,35.0,Florida State,1.0,1.0,14-2,28.0,Texas Tech,Florida State,1,CFP bracket screenshot
