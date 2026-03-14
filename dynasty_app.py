@@ -12364,13 +12364,7 @@ with tabs[5]:
             team_transfers_all['Position'] = team_transfers_all['Pos']
 
         if 'TransferStatus' not in team_transfers_all.columns:
-            team_transfers_all['TransferStatus'] = pd.NA
-
-        if 'Persuaded' not in team_transfers_all.columns:
-            team_transfers_all['Persuaded'] = pd.NA
-
-        if 'Reason' not in team_transfers_all.columns:
-            team_transfers_all['Reason'] = ""
+            team_transfers_all['TransferStatus'] = ''
 
         team_transfers_all['TransferStatus'] = (
             team_transfers_all['TransferStatus']
@@ -12380,55 +12374,17 @@ with tabs[5]:
             .str.title()
         )
 
-        team_transfers_all['Persuaded'] = (
-            team_transfers_all['Persuaded']
-            .fillna('')
-            .astype(str)
-            .str.strip()
-            .str.title()
-        )
-
-        team_transfers_all['Reason'] = (
-            team_transfers_all['Reason']
-            .fillna('')
-            .astype(str)
-            .str.strip()
-        )
-
-        # Count as transfer out if:
-        # 1) new schema explicitly says Leaving + No
-        # OR
-        # 2) older row still says Leaving: Transfer in Reason
-        leaving_by_new_schema = (
-            team_transfers_all['TransferStatus'].eq('Leaving') &
-            team_transfers_all['Persuaded'].eq('No')
-        )
-
-        leaving_by_legacy_reason = (
-            team_transfers_all['Reason'].str.startswith('Leaving: Transfer', na=False)
-        )
-
+        # ONLY actual transfers out
         team_transfers = team_transfers_all[
-            leaving_by_new_schema | leaving_by_legacy_reason
+            team_transfers_all['TransferStatus'].eq('Leaving')
         ].copy()
 
         team_transfer_stayed = team_transfers_all[
-            (
-                team_transfers_all['TransferStatus'].eq('Staying') &
-                team_transfers_all['Persuaded'].eq('Yes')
-            ) |
-            (
-                team_transfers_all['Reason'].str.startswith('Staying:', na=False)
-            )
+            team_transfers_all['TransferStatus'].eq('Staying')
         ].copy()
 
         team_transfer_undecided = team_transfers_all[
-            (~leaving_by_new_schema) &
-            (~leaving_by_legacy_reason) &
-            (~(
-                (team_transfers_all['TransferStatus'].eq('Staying') & team_transfers_all['Persuaded'].eq('Yes')) |
-                (team_transfers_all['Reason'].str.startswith('Staying:', na=False))
-            ))
+            ~team_transfers_all['TransferStatus'].isin(['Leaving', 'Staying'])
         ].copy()
     else:
         team_transfers = pd.DataFrame(columns=transfers_df.columns)
@@ -12443,7 +12399,15 @@ with tabs[5]:
 
     if not team_nfl.empty and 'OVR' in team_nfl.columns:
         team_nfl['OVR'] = pd.to_numeric(team_nfl['OVR'], errors='coerce')
-        team_nfl = team_n
+        team_nfl = team_nfl.sort_values(by='OVR', ascending=False)
+
+    if not team_transfers.empty and 'OVR' in team_transfers.columns:
+        team_transfers['OVR'] = pd.to_numeric(team_transfers['OVR'], errors='coerce')
+        team_transfers = team_transfers.sort_values(by='OVR', ascending=False)
+
+    if not team_grads.empty and 'OVR' in team_grads.columns:
+        team_grads['OVR'] = pd.to_numeric(team_grads['OVR'], errors='coerce')
+        team_grads = team_grads.sort_values(by='OVR', ascending=False)
 
     # --- 4. Talent Balance Math ---
     confirmed_departures_df = pd.concat([
