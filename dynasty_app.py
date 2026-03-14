@@ -12363,30 +12363,47 @@ with tabs[5]:
         if 'Position' not in team_transfers_all.columns and 'Pos' in team_transfers_all.columns:
             team_transfers_all['Position'] = team_transfers_all['Pos']
 
-        if 'Persuaded' not in team_transfers_all.columns:
-            team_transfers_all['Persuaded'] = 'Undecided'
+        if 'Persuaded' in team_transfers_all.columns:
+            team_transfers_all['Persuaded'] = (
+                team_transfers_all['Persuaded']
+                .fillna('Undecided')
+                .astype(str)
+                .str.strip()
+                .str.title()
+            )
 
-        team_transfers_all['Persuaded'] = (
-            team_transfers_all['Persuaded']
-            .fillna('Undecided')
-            .astype(str)
-            .str.strip()
-            .str.title()
-        )
+            team_transfers = team_transfers_all[
+                team_transfers_all['Persuaded'].eq('No')
+            ].copy()
 
-        # Only actual transfer outs count as attrition
-        team_transfers = team_transfers_all[
-            team_transfers_all['Persuaded'] == 'No'
-        ].copy()
+            team_transfer_undecided = team_transfers_all[
+                team_transfers_all['Persuaded'].eq('Undecided')
+            ].copy()
 
-        # Optional extra buckets for display later if you want them
-        team_transfer_undecided = team_transfers_all[
-            team_transfers_all['Persuaded'] == 'Undecided'
-        ].copy()
+            team_transfer_stayed = team_transfers_all[
+                team_transfers_all['Persuaded'].eq('Yes')
+            ].copy()
 
-        team_transfer_stayed = team_transfers_all[
-            team_transfers_all['Persuaded'] == 'Yes'
-        ].copy()
+        else:
+            if 'TransferStatus' not in team_transfers_all.columns:
+                team_transfers_all['TransferStatus'] = 'Leaving'
+
+            team_transfers_all['TransferStatus'] = (
+                team_transfers_all['TransferStatus']
+                .fillna('Leaving')
+                .astype(str)
+                .str.strip()
+                .str.title()
+            )
+
+            team_transfers = team_transfers_all[
+                team_transfers_all['TransferStatus'].eq('Leaving')
+            ].copy()
+
+            team_transfer_undecided = pd.DataFrame(columns=team_transfers_all.columns)
+            team_transfer_stayed = team_transfers_all[
+                team_transfers_all['TransferStatus'].eq('Staying')
+            ].copy()
     else:
         team_transfers = pd.DataFrame(columns=transfers_df.columns)
         team_transfer_undecided = pd.DataFrame(columns=transfers_df.columns)
