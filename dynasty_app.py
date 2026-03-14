@@ -2109,10 +2109,14 @@ def get_local_logo_path(team):
             return str(LOGO_FILE_INDEX[key])
 
     # fuzzy match: look for alias inside filename or filename inside alias
-    for key, fp in LOGO_FILE_INDEX.items():
-        for alias in exact_keys:
-            if alias and (alias in key or key in alias):
-                return str(fp)
+def get_local_logo_path(team):
+    aliases = get_team_aliases(clean_team_name_for_lookup(team))
+    exact_keys = [normalize_key(a) for a in aliases]
+
+    for key in exact_keys:
+        if key in LOGO_FILE_INDEX:
+            return str(LOGO_FILE_INDEX[key])
+
     return ""
 
 def get_logo_source(team):
