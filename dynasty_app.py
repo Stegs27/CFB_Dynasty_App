@@ -9826,43 +9826,72 @@ with tabs[3]:
     st.subheader("🏅 2041 All-Americans")
 
     try:
-        aa_df = pd.read_csv("all_americans_2041.csv")
+        aa_df = pd.read_csv("all_americans.csv")
     except Exception:
         aa_df = pd.DataFrame(columns=["Year", "TeamType", "Pos", "Player", "School", "Class"])
 
+    for col in ["Year", "TeamType", "Pos", "Player", "School", "Class"]:
+        if col not in aa_df.columns:
+            aa_df[col] = pd.NA
+
     aa_df["Year"] = pd.to_numeric(aa_df["Year"], errors="coerce")
+    aa_df["TeamType"] = (
+        aa_df["TeamType"]
+        .astype(str)
+        .str.strip()
+        .replace({
+            "First Team": "1st Team",
+            "Second Team": "2nd Team",
+            "Freshman Team": "Freshman"
+        })
+    )
+    aa_df["Pos"] = aa_df["Pos"].astype(str).str.strip()
+    aa_df["Player"] = aa_df["Player"].astype(str).str.strip()
+    aa_df["School"] = aa_df["School"].astype(str).str.strip()
+    aa_df["Class"] = aa_df["Class"].astype(str).str.strip()
 
     recap_year = 2041
     aa_year_df = aa_df[aa_df["Year"] == recap_year].copy()
 
     if aa_year_df.empty:
         st.caption("No All-Americans logged for this season yet.")
+        st.write("Years found:", sorted(aa_df["Year"].dropna().unique().tolist()) if not aa_df.empty else [])
+        st.write("Team types found:", sorted(aa_df["TeamType"].dropna().unique().tolist()) if not aa_df.empty else [])
     else:
         aa_tabs = st.tabs(["🥇 1st Team", "🥈 2nd Team", "🌟 Freshman"])
 
         with aa_tabs[0]:
             first_df = aa_year_df[aa_year_df["TeamType"] == "1st Team"].copy()
-            st.dataframe(
-                first_df[["Pos", "Player", "School", "Class"]],
-                hide_index=True,
-                use_container_width=True
-            )
+            if first_df.empty:
+                st.caption("No 1st Team rows found.")
+            else:
+                st.dataframe(
+                    first_df[["Pos", "Player", "School", "Class"]],
+                    hide_index=True,
+                    use_container_width=True
+                )
 
         with aa_tabs[1]:
             second_df = aa_year_df[aa_year_df["TeamType"] == "2nd Team"].copy()
-            st.dataframe(
-                second_df[["Pos", "Player", "School", "Class"]],
-                hide_index=True,
-                use_container_width=True
-            )
+            if second_df.empty:
+                st.caption("No 2nd Team rows found.")
+            else:
+                st.dataframe(
+                    second_df[["Pos", "Player", "School", "Class"]],
+                    hide_index=True,
+                    use_container_width=True
+                )
 
         with aa_tabs[2]:
             fresh_df = aa_year_df[aa_year_df["TeamType"] == "Freshman"].copy()
-            st.dataframe(
-                fresh_df[["Pos", "Player", "School", "Class"]],
-                hide_index=True,
-                use_container_width=True
-            )
+            if fresh_df.empty:
+                st.caption("No Freshman rows found.")
+            else:
+                st.dataframe(
+                    fresh_df[["Pos", "Player", "School", "Class"]],
+                    hide_index=True,
+                    use_container_width=True
+                )
 
     # --- TEAM OVERVIEW ---
 with tabs[7]:
