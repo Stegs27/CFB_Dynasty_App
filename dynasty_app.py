@@ -3161,8 +3161,6 @@ def render_roster_matchup_tab():
     # TAB 1 — ATHLETIC PROFILE
     # ════════════════════════════════════════════════════════════════════════
     with tab_overview:
-        st.subheader("📊 Team Athletic Profile")
-
         def team_summary(df):
             return {
                 "Avg OVR":       round(df["OVR"].mean(), 1),
@@ -3178,55 +3176,7 @@ def render_roster_matchup_tab():
         summ_a = team_summary(roster_a)
         summ_b = team_summary(roster_b)
 
-        metric_rows = [
-            ("Roster Size",    "👥 Total Roster Size"),
-            ("Avg OVR",        "📈 Roster Avg Overall"),
-            ("Top OVR",        "⭐ Best Player OVR"),
-            ("90+ OVR Count",  "💎 Players 90+ OVR"),
-            ("Avg SPD",        "💨 Roster Avg Speed"),
-            ("90+ SPD Count",  "⚡ Players 90+ Speed"),
-            ("Avg AGI",        "🐍 Roster Avg Agility"),
-            ("Avg AWR",        "🧠 Roster Avg Awareness"),
-        ]
-        hdr_a, hdr_mid, hdr_b = st.columns([3, 3, 3])
-        hdr_a.markdown(f"<div style='text-align:center;font-weight:800;color:{color_a};font-size:0.95rem;padding-bottom:4px;'>{team_a}</div>", unsafe_allow_html=True)
-        hdr_mid.markdown("<div style='text-align:center;color:#9ca3af;font-size:0.75rem;padding-bottom:4px;'>METRIC</div>", unsafe_allow_html=True)
-        hdr_b.markdown(f"<div style='text-align:center;font-weight:800;color:{color_b};font-size:0.95rem;padding-bottom:4px;'>{team_b}</div>", unsafe_allow_html=True)
-        st.markdown("<hr style='margin:2px 0 8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
-        for key, label in metric_rows:
-            va, vb = summ_a[key], summ_b[key]
-            col_a, col_mid, col_b = st.columns([3, 3, 3])
-            col_a.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_a};'>{'🏆 ' if va > vb else ''}<strong>{va}</strong></div>", unsafe_allow_html=True)
-            col_mid.markdown(f"<div style='text-align:center;color:#6b7280;font-size:0.78rem;font-weight:600;'>{label}</div>", unsafe_allow_html=True)
-            col_b.markdown(f"<div style='text-align:center;font-size:1.05rem;color:{color_b};'><strong>{vb}</strong>{' 🏆' if vb > va else ''}</div>", unsafe_allow_html=True)
-        st.markdown("<hr style='margin:8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
-
-        # Radar
-        # Plotly comparison chart
-        st.subheader("📊 Athletic Comparison Chart")
-
-        team_metric_map = {
-            team_a: {
-                "Players 90+ Speed": summ_a["90+ SPD Count"],
-                "Roster Avg Speed": summ_a["Avg SPD"],
-                "Roster Avg Overall": summ_a["Avg OVR"],
-                "Best Player Overall": summ_a["Top OVR"],
-                "Players 90+ Overall": summ_a["90+ OVR Count"],
-                "Roster Avg Awareness": summ_a["Avg AWR"],
-                "Roster Avg Agility": summ_a["Avg AGI"],
-            },
-            team_b: {
-                "Players 90+ Speed": summ_b["90+ SPD Count"],
-                "Roster Avg Speed": summ_b["Avg SPD"],
-                "Roster Avg Overall": summ_b["Avg OVR"],
-                "Best Player Overall": summ_b["Top OVR"],
-                "Players 90+ Overall": summ_b["90+ OVR Count"],
-                "Roster Avg Awareness": summ_b["Avg AWR"],
-                "Roster Avg Agility": summ_b["Avg AGI"],
-            }
-        }
-
-        render_team_athletic_profile_plotly(team_metric_map)
+        st.subheader("⚔️ Positional Battle Breakdown")
 
         # Positional battles
         st.markdown("---")
@@ -3274,6 +3224,34 @@ def render_roster_matchup_tab():
                         st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
                     else:
                         st.caption("No players.")
+
+        st.markdown("---")
+        st.subheader("📊 Athletic Comparison Chart")
+
+        team_metric_map = {
+            team_a: {
+                "Players 90+ Speed": summ_a["90+ SPD Count"],
+                "Roster Avg Speed": summ_a["Avg SPD"],
+                "Roster Avg Overall": summ_a["Avg OVR"],
+                "Best Player Overall": summ_a["Top OVR"],
+                "Players 90+ Overall": summ_a["90+ OVR Count"],
+                "Roster Avg Awareness": summ_a["Avg AWR"],
+                "Roster Avg Agility": summ_a["Avg AGI"],
+            },
+            team_b: {
+                "Players 90+ Speed": summ_b["90+ SPD Count"],
+                "Roster Avg Speed": summ_b["Avg SPD"],
+                "Roster Avg Overall": summ_b["Avg OVR"],
+                "Best Player Overall": summ_b["Top OVR"],
+                "Players 90+ Overall": summ_b["90+ OVR Count"],
+                "Roster Avg Awareness": summ_b["Avg AWR"],
+                "Roster Avg Agility": summ_b["Avg AGI"],
+            }
+        }
+
+        render_team_athletic_profile_plotly(team_metric_map)
+
+        
 
         # Scorecard
         st.markdown("---")
