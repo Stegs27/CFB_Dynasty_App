@@ -11977,7 +11977,7 @@ def get_auto_seniors(roster_path, cur_year):
     except Exception:
         return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
-auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
+auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr + 1)
 
 graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(
     subset=['Year', 'Team', 'Player']
