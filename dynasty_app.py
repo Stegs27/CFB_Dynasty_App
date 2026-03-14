@@ -3176,8 +3176,6 @@ def render_roster_matchup_tab():
         summ_a = team_summary(roster_a)
         summ_b = team_summary(roster_b)
 
-        st.subheader("⚔️ Positional Battle Breakdown")
-
         # Positional battles
         st.markdown("---")
         st.subheader("⚔️ Positional Battle Breakdown")
