@@ -9874,7 +9874,7 @@ with tabs[3]:
         out["User"] = out["School"].map(lambda x: team_to_user.get(str(x).strip(), ""))
         return out
 
-    recap_year = 2041
+    recap_year = sel_year
     aa_year_df = aa_df[aa_df["Year"] == recap_year].copy()
 
     if aa_year_df.empty:
