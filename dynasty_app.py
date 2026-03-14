@@ -3167,7 +3167,7 @@ def render_roster_matchup_tab():
 
         # Experience tag for display
         def exp_tag(row):
-            rs_tag = " 🔄" if row['IsRS'] else ""
+            rs_tag = "🔴" if row['IsRS'] else ""
             return f"{row['YrClass']}{rs_tag} ({row['EligLeft']}yr left)"
         df['ExpTag'] = df.apply(exp_tag, axis=1)
 
