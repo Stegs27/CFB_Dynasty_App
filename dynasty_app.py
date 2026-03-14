@@ -6784,28 +6784,35 @@ is_gold      = True
 def _colorize_headline(text):
     """Replace known team names in headline text with team-color-styled spans."""
     import re as _re
-    result = html.escape(text).upper()
-    # Sort by length descending so longer team names match first
-    for _tname in sorted(TEAM_VISUALS.keys(), key=len, reverse=True):
-        _color = TEAM_VISUALS[_tname].get('primary', '#fbbf24')
-        # Make color readable — if too dark, lighten it
+
+    escaped = html.escape(str(text)).upper()
+
+    team_names = sorted(TEAM_VISUALS.keys(), key=len, reverse=True)
+    pattern = _re.compile(
+        r'(?<![A-Z0-9])(' + '|'.join(_re.escape(t.upper()) for t in team_names) + r')(?![A-Z0-9])'
+    )
+
+    def _safe_color(team_name):
+        color = TEAM_VISUALS.get(team_name, {}).get('primary', '#fbbf24')
         try:
-            _r = int(_color[1:3], 16)
-            _g = int(_color[3:5], 16)
-            _b = int(_color[5:7], 16)
-            _lum = 0.299*_r + 0.587*_g + 0.114*_b
-            if _lum < 60:  # very dark — use a lighter variant
-                _color = f'#{min(255,_r+80):02x}{min(255,_g+80):02x}{min(255,_b+80):02x}'
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            lum = 0.299 * r + 0.587 * g + 0.114 * b
+            if lum < 60:
+                color = f'#{min(255, r+80):02x}{min(255, g+80):02x}{min(255, b+80):02x}'
         except Exception:
             pass
-        _upper = _tname.upper()
-        if _upper in result:
-            result = result.replace(
-                _upper,
-                f'<span style="color:{_color};font-weight:900;">{_upper}</span>',
-                1
-            )
-    return result
+        return color
+
+    color_map = {t.upper(): _safe_color(t) for t in team_names}
+
+    def repl(match):
+        team_upper = match.group(1)
+        color = color_map.get(team_upper, '#fbbf24')
+        return f'<span style="color:{color};font-weight:900;">{team_upper}</span>'
+
+    return pattern.sub(repl, escaped)
 
 _hero_headline_html = _colorize_headline(top_headline)
 
