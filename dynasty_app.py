@@ -12109,403 +12109,402 @@ if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
         .str.lower()
         .isin(['starter', 'rotation'])
         .sum()
-    )   
+    )
 
-    # --- 5. Live NFL Prospect Generation ---
-    @st.cache_data
-    def get_nfl_prospects(roster_path):
-        try:
-            rosters = pd.read_csv(roster_path)
-
-            if 'USER_TEAMS' in globals():
-                rosters = rosters[rosters['Team'].isin(USER_TEAMS.values())]
-
-            prospects = []
-            for _, row in rosters.iterrows():
-                year_val = str(row['Year']) if 'Year' in row else ''
-                ovr = int(row['OVR']) if 'OVR' in row and pd.notna(row['OVR']) else 0
-
-                is_senior = 'SR' in year_val
-                is_eligible_early = ('JR' in year_val) or ('SO (RS)' in year_val)
-
-                if is_senior:
-                    if ovr >= 92:
-                        projection = 'Day 1-3'
-                    elif ovr >= 88:
-                        projection = 'Day 3 / UDFA'
-                    else:
-                        projection = 'Undrafted'
-
-                    prospects.append({
-                        'Team': row['Team'],
-                        'Player': row['Name'],
-                        'Pos': row['Pos'],
-                        'Year': row['Year'],
-                        'OVR': ovr,
-                        'Draft Projection': projection,
-                        'Status': 'Graduating',
-                        'Confirmed Risk': 'Confirmed Departure'
-                    })
-
-                elif is_eligible_early and ovr >= 90:
-                    prospects.append({
-                        'Team': row['Team'],
-                        'Player': row['Name'],
-                        'Pos': row['Pos'],
-                        'Year': row['Year'],
-                        'OVR': ovr,
-                        'Draft Projection': 'Day 1-2' if ovr >= 94 else 'Day 2-3',
-                        'Status': '🚨 Leaving Early Risk',
-                        'Confirmed Risk': 'Possible Early Leaver'
-                    })
-
-            df = pd.DataFrame(prospects)
-            if not df.empty:
-                df = df.sort_values(by=['Team', 'OVR'], ascending=[True, False])
-            return df
-        except Exception:
-            return pd.DataFrame(columns=['Team', 'Player', 'Pos', 'Year', 'OVR', 'Draft Projection', 'Status', 'Confirmed Risk'])
-
-    predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
-    team_preds = predictions_df[predictions_df['Team'] == selected_team].copy() if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
-
-    confirmed_current_nfl = filter_team_year(nfl_df, selected_team, current_yr)
-    confirmed_current_names = set(confirmed_current_nfl['Player'].astype(str).tolist()) if 'Player' in confirmed_current_nfl.columns else set()
-
-    possible_early_df = pd.DataFrame(columns=team_preds.columns)
-    confirmed_live_df = pd.DataFrame(columns=team_preds.columns)
-
-    if not team_preds.empty:
-        confirmed_live_df = team_preds[team_preds['Status'] == 'Graduating'].copy()
-        possible_early_df = team_preds[team_preds['Status'] == '🚨 Leaving Early Risk'].copy()
-
-        if 'Player' in possible_early_df.columns:
-            possible_early_df = possible_early_df[~possible_early_df['Player'].astype(str).isin(confirmed_current_names)]
-
-    # --- 6. Next Season Outlook & Dynamic Championship Odds ---
+# --- 5. Live NFL Prospect Generation ---
+@st.cache_data
+def get_nfl_prospects(roster_path):
     try:
-        USER_TEAM_COLLISION_GROUPS = [
-            {"Florida State", "Florida", "Bowling Green"},
-            {"Texas Tech", "San Jose State", "USF"}
-        ]
+        rosters = pd.read_csv(roster_path)
 
-        current_roster = pd.read_csv('cfb26_rosters_full.csv')
-        team_roster = current_roster[current_roster['Team'] == selected_team].copy()
+        if 'USER_TEAMS' in globals():
+            rosters = rosters[rosters['Team'].isin(USER_TEAMS.values())]
 
-        confirmed_leaving_names = set(confirmed_departure_names)
+        prospects = []
+        for _, row in rosters.iterrows():
+            year_val = str(row['Year']) if 'Year' in row else ''
+            ovr = int(row['OVR']) if 'OVR' in row and pd.notna(row['OVR']) else 0
 
-        possible_early_names = set()
-        if not possible_early_df.empty and 'Player' in possible_early_df.columns:
-            possible_early_names = set(possible_early_df['Player'].astype(str).tolist())
+            is_senior = 'SR' in year_val
+            is_eligible_early = ('JR' in year_val) or ('SO (RS)' in year_val)
 
-        if outlook_mode == "Aggressive":
-            leaving_names = confirmed_leaving_names.union(possible_early_names)
-        else:
-            leaving_names = confirmed_leaving_names
+            if is_senior:
+                if ovr >= 92:
+                    projection = 'Day 1-3'
+                elif ovr >= 88:
+                    projection = 'Day 3 / UDFA'
+                else:
+                    projection = 'Undrafted'
 
-        returning_players = team_roster[~team_roster['Name'].astype(str).isin(leaving_names)].copy()
+                prospects.append({
+                    'Team': row['Team'],
+                    'Player': row['Name'],
+                    'Pos': row['Pos'],
+                    'Year': row['Year'],
+                    'OVR': ovr,
+                    'Draft Projection': projection,
+                    'Status': 'Graduating',
+                    'Confirmed Risk': 'Confirmed Departure'
+                })
 
-        if not returning_players.empty and 'OVR' in returning_players.columns:
-            prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
-            progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
-            returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
-            base_ovr = (
-                returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean()
-                if len(returning_players) >= 20
-                else returning_players['Prog_OVR'].mean()
-            )
-        else:
-            base_ovr = 80
+            elif is_eligible_early and ovr >= 90:
+                prospects.append({
+                    'Team': row['Team'],
+                    'Player': row['Name'],
+                    'Pos': row['Pos'],
+                    'Year': row['Year'],
+                    'OVR': ovr,
+                    'Draft Projection': 'Day 1-2' if ovr >= 94 else 'Day 2-3',
+                    'Status': '🚨 Leaving Early Risk',
+                    'Confirmed Risk': 'Possible Early Leaver'
+                })
 
-        inc_5_stars = (
-            team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns and not team_hs.empty else 0
-        ) + (
-            team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns and not team_tp.empty else 0
+        df = pd.DataFrame(prospects)
+        if not df.empty:
+            df = df.sort_values(by=['Team', 'OVR'], ascending=[True, False])
+        return df
+    except Exception:
+        return pd.DataFrame(columns=['Team', 'Player', 'Pos', 'Year', 'OVR', 'Draft Projection', 'Status', 'Confirmed Risk'])
+
+predictions_df = get_nfl_prospects('cfb26_rosters_full.csv')
+team_preds = predictions_df[predictions_df['Team'] == selected_team].copy() if 'Team' in predictions_df.columns else pd.DataFrame(columns=predictions_df.columns)
+
+confirmed_current_nfl = filter_team_year(nfl_df, selected_team, current_yr)
+confirmed_current_names = set(confirmed_current_nfl['Player'].astype(str).tolist()) if 'Player' in confirmed_current_nfl.columns else set()
+
+possible_early_df = pd.DataFrame(columns=team_preds.columns)
+confirmed_live_df = pd.DataFrame(columns=team_preds.columns)
+
+if not team_preds.empty:
+    confirmed_live_df = team_preds[team_preds['Status'] == 'Graduating'].copy()
+    possible_early_df = team_preds[team_preds['Status'] == '🚨 Leaving Early Risk'].copy()
+
+    if 'Player' in possible_early_df.columns:
+        possible_early_df = possible_early_df[~possible_early_df['Player'].astype(str).isin(confirmed_current_names)]
+
+# --- 6. Next Season Outlook & Dynamic Championship Odds ---
+try:
+    USER_TEAM_COLLISION_GROUPS = [
+        {"Florida State", "Florida", "Bowling Green"},
+        {"Texas Tech", "San Jose State", "USF"}
+    ]
+
+    current_roster = pd.read_csv('cfb26_rosters_full.csv')
+    team_roster = current_roster[current_roster['Team'] == selected_team].copy()
+
+    confirmed_leaving_names = set(confirmed_departure_names)
+
+    possible_early_names = set()
+    if not possible_early_df.empty and 'Player' in possible_early_df.columns:
+        possible_early_names = set(possible_early_df['Player'].astype(str).tolist())
+
+    if outlook_mode == "Aggressive":
+        leaving_names = confirmed_leaving_names.union(possible_early_names)
+    else:
+        leaving_names = confirmed_leaving_names
+
+    returning_players = team_roster[~team_roster['Name'].astype(str).isin(leaving_names)].copy()
+
+    if not returning_players.empty and 'OVR' in returning_players.columns:
+        prog_weights = [0.40, 0.35, 0.15, 0.08, 0.02]
+        progression_bumps = np.random.choice([3, 4, 5, 6, 7], size=len(returning_players), p=prog_weights)
+        returning_players['Prog_OVR'] = returning_players['OVR'] + progression_bumps
+        base_ovr = (
+            returning_players.nlargest(25, 'Prog_OVR')['Prog_OVR'].mean()
+            if len(returning_players) >= 20
+            else returning_players['Prog_OVR'].mean()
         )
+    else:
+        base_ovr = 80
 
-        inc_4_stars = (
-            team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns and not team_hs.empty else 0
-        ) + (
-            team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns and not team_tp.empty else 0
-        )
+    inc_5_stars = (
+        team_hs['FiveStar'].sum() if 'FiveStar' in team_hs.columns and not team_hs.empty else 0
+    ) + (
+        team_tp['FiveStar'].sum() if 'FiveStar' in team_tp.columns and not team_tp.empty else 0
+    )
 
-        incoming_role_bonus = 0.0
-        if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
-            starter_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum() * 0.40
-            rotation_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum() * 0.15
-            incoming_role_bonus = starter_bonus + rotation_bonus
+    inc_4_stars = (
+        team_hs['FourStar'].sum() if 'FourStar' in team_hs.columns and not team_hs.empty else 0
+    ) + (
+        team_tp['FourStar'].sum() if 'FourStar' in team_tp.columns and not team_tp.empty else 0
+    )
 
-        # --- Veteran blue-chip transfer bonus (only projected contributors) ---
-        veteran_transfer_bonus = 0.0
-        blue_chip_ratio = 0.0
-        veteran_portal_count = 0
-        blue_chip_veteran_count = 0
+    incoming_role_bonus = 0.0
+    if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
+        starter_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum() * 0.40
+        rotation_bonus = team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum() * 0.15
+        incoming_role_bonus = starter_bonus + rotation_bonus
 
-        if not team_incoming.empty:
-            incoming_tmp = team_incoming.copy()
+    veteran_transfer_bonus = 0.0
+    blue_chip_ratio = 0.0
+    veteran_portal_count = 0
+    blue_chip_veteran_count = 0
 
-            if 'Type' in incoming_tmp.columns:
-                incoming_tmp = incoming_tmp[incoming_tmp['Type'].astype(str).str.upper() == 'TRANSFER']
+    if not team_incoming.empty:
+        incoming_tmp = team_incoming.copy()
 
-            if not incoming_tmp.empty and 'Class' in incoming_tmp.columns:
-                incoming_tmp['Class'] = incoming_tmp['Class'].fillna('').astype(str).str.upper().str.strip()
+        if 'Type' in incoming_tmp.columns:
+            incoming_tmp = incoming_tmp[incoming_tmp['Type'].astype(str).str.upper() == 'TRANSFER']
 
-                veteran_transfers = incoming_tmp[
-                    incoming_tmp['Class'].isin(['SO', 'SO (RS)', 'RS SO', 'JR', 'SR'])
+        if not incoming_tmp.empty and 'Class' in incoming_tmp.columns:
+            incoming_tmp['Class'] = incoming_tmp['Class'].fillna('').astype(str).str.upper().str.strip()
+
+            veteran_transfers = incoming_tmp[
+                incoming_tmp['Class'].isin(['SO', 'SO (RS)', 'RS SO', 'JR', 'SR'])
+            ].copy()
+
+            if not veteran_transfers.empty and 'ProjectedRole' in veteran_transfers.columns:
+                veteran_transfers['ProjectedRole'] = (
+                    veteran_transfers['ProjectedRole']
+                    .fillna('')
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
+
+                veteran_transfers = veteran_transfers[
+                    veteran_transfers['ProjectedRole'].isin(['starter', 'rotation'])
                 ].copy()
 
-                if not veteran_transfers.empty and 'ProjectedRole' in veteran_transfers.columns:
-                    veteran_transfers['ProjectedRole'] = (
-                        veteran_transfers['ProjectedRole']
-                        .fillna('')
-                        .astype(str)
-                        .str.strip()
-                        .str.lower()
-                    )
+            veteran_portal_count = len(veteran_transfers)
 
-                    veteran_transfers = veteran_transfers[
-                        veteran_transfers['ProjectedRole'].isin(['starter', 'rotation'])
-                    ].copy()
+            if veteran_portal_count > 0 and 'Stars' in veteran_transfers.columns:
+                veteran_transfers['Stars'] = pd.to_numeric(veteran_transfers['Stars'], errors='coerce').fillna(0)
+                blue_chip_veteran_count = int(veteran_transfers['Stars'].isin([4, 5]).sum())
+                blue_chip_ratio = blue_chip_veteran_count / veteran_portal_count
 
-                veteran_portal_count = len(veteran_transfers)
+                avg_star = veteran_transfers['Stars'].mean()
 
-                if veteran_portal_count > 0 and 'Stars' in veteran_transfers.columns:
-                    veteran_transfers['Stars'] = pd.to_numeric(veteran_transfers['Stars'], errors='coerce').fillna(0)
-                    blue_chip_veteran_count = int(veteran_transfers['Stars'].isin([4, 5]).sum())
-                    blue_chip_ratio = blue_chip_veteran_count / veteran_portal_count
+                veteran_transfer_bonus = blue_chip_ratio * 1.5
 
-                    avg_star = veteran_transfers['Stars'].mean()
+                if avg_star >= 4.5:
+                    veteran_transfer_bonus += 0.35
+                elif avg_star >= 4.0:
+                    veteran_transfer_bonus += 0.15
 
-                    veteran_transfer_bonus = blue_chip_ratio * 1.5
+    talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus + veteran_transfer_bonus
+    projected_ovr = base_ovr + talent_boost
 
-                    if avg_star >= 4.5:
-                        veteran_transfer_bonus += 0.35
-                    elif avg_star >= 4.0:
-                        veteran_transfer_bonus += 0.15
+    qbs = returning_players[returning_players['Pos'] == 'QB'] if 'Pos' in returning_players.columns else pd.DataFrame()
+    ret_qb_name = "Unknown QB"
+    ret_qb_ovr = 75
 
-        talent_boost = (inc_5_stars * 1.0) + (inc_4_stars * 0.4) + incoming_role_bonus + veteran_transfer_bonus
-        projected_ovr = base_ovr + talent_boost
+    if not qbs.empty and 'Prog_OVR' in qbs.columns and 'Name' in qbs.columns:
+        best_ret_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
+        ret_qb_name = best_ret_qb_row['Name']
+        ret_qb_ovr = best_ret_qb_row['Prog_OVR']
 
-        # --- QB evaluation ---
-        qbs = returning_players[returning_players['Pos'] == 'QB'] if 'Pos' in returning_players.columns else pd.DataFrame()
-        ret_qb_name = "Unknown QB"
-        ret_qb_ovr = 75
+    inc_qbs = (
+        team_incoming[team_incoming['Position'] == 'QB']
+        if not team_incoming.empty and 'Position' in team_incoming.columns
+        else pd.DataFrame()
+    )
+    inc_qb_name = ""
+    inc_qb_stars = 0
+    inc_qb_ovr = 0
 
-        if not qbs.empty and 'Prog_OVR' in qbs.columns and 'Name' in qbs.columns:
-            best_ret_qb_row = qbs.nlargest(1, 'Prog_OVR').iloc[0]
-            ret_qb_name = best_ret_qb_row['Name']
-            ret_qb_ovr = best_ret_qb_row['Prog_OVR']
+    if not inc_qbs.empty and 'Stars' in inc_qbs.columns:
+        best_inc_qb = inc_qbs.sort_values(by='Stars', ascending=False).iloc[0]
+        inc_qb_name = best_inc_qb['Player'] if 'Player' in best_inc_qb.index else "Incoming Recruit"
+        inc_qb_stars = int(best_inc_qb['Stars']) if pd.notna(best_inc_qb['Stars']) else 0
 
-        inc_qbs = (
-            team_incoming[team_incoming['Position'] == 'QB']
-            if not team_incoming.empty and 'Position' in team_incoming.columns
-            else pd.DataFrame()
+        if inc_qb_stars == 5:
+            inc_qb_ovr = 82
+        elif inc_qb_stars == 4:
+            inc_qb_ovr = 78
+        elif inc_qb_stars == 3:
+            inc_qb_ovr = 73
+        else:
+            inc_qb_ovr = 68
+
+    if inc_qb_ovr > ret_qb_ovr:
+        best_qb_desc = f"Incoming Recruit {inc_qb_name} ({inc_qb_stars}⭐)"
+        starting_qb_ovr = inc_qb_ovr
+    else:
+        best_qb_desc = f"{ret_qb_name} ({int(ret_qb_ovr)} OVR)"
+        starting_qb_ovr = ret_qb_ovr
+
+    if starting_qb_ovr >= 96:
+        qb_mod = 4.0
+    elif starting_qb_ovr >= 94:
+        qb_mod = 2.5
+    elif starting_qb_ovr >= 92:
+        qb_mod = 1.0
+    else:
+        qb_mod = 0.0
+
+    current_starter_names = build_team_starter_map(current_roster, selected_team)
+
+    confirmed_starter_names = set()
+    if not confirmed_departures_df.empty and 'InferredStarter' in confirmed_departures_df.columns:
+        confirmed_starter_names = set(
+            confirmed_departures_df.loc[
+                confirmed_departures_df['InferredStarter'] == True, 'Player'
+            ].astype(str).tolist()
         )
-        inc_qb_name = ""
-        inc_qb_stars = 0
-        inc_qb_ovr = 0
 
-        if not inc_qbs.empty and 'Stars' in inc_qbs.columns:
-            best_inc_qb = inc_qbs.sort_values(by='Stars', ascending=False).iloc[0]
-            inc_qb_name = best_inc_qb['Player'] if 'Player' in best_inc_qb.index else "Incoming Recruit"
-            inc_qb_stars = int(best_inc_qb['Stars']) if pd.notna(best_inc_qb['Stars']) else 0
+    possible_early_starter_names = set()
+    if not possible_early_df.empty and 'Player' in possible_early_df.columns:
+        possible_early_starter_names = set(
+            [p for p in possible_early_df['Player'].astype(str).tolist() if p in current_starter_names]
+        )
 
-            if inc_qb_stars == 5:
-                inc_qb_ovr = 82
-            elif inc_qb_stars == 4:
-                inc_qb_ovr = 78
-            elif inc_qb_stars == 3:
-                inc_qb_ovr = 73
-            else:
-                inc_qb_ovr = 68
+    if outlook_mode == "Aggressive":
+        starters_lost_names = confirmed_starter_names.union(possible_early_starter_names)
+    else:
+        starters_lost_names = confirmed_starter_names
 
-        if inc_qb_ovr > ret_qb_ovr:
-            best_qb_desc = f"Incoming Recruit {inc_qb_name} ({inc_qb_stars}⭐)"
-            starting_qb_ovr = inc_qb_ovr
-        else:
-            best_qb_desc = f"{ret_qb_name} ({int(ret_qb_ovr)} OVR)"
-            starting_qb_ovr = ret_qb_ovr
+    returning_starter_names = [name for name in current_starter_names if str(name) not in starters_lost_names]
+    est_returning_starters = max(0, min(22, len(returning_starter_names)))
+    starters_lost_for_mode = max(0, 22 - est_returning_starters)
 
-        if starting_qb_ovr >= 96:
-            qb_mod = 4.0
-        elif starting_qb_ovr >= 94:
-            qb_mod = 2.5
-        elif starting_qb_ovr >= 92:
-            qb_mod = 1.0
-        else:
-            qb_mod = 0.0
+    starter_mod = (est_returning_starters - 13) * 0.35
 
-        current_starter_names = build_team_starter_map(current_roster, selected_team)
+    starter_exp_mod = 0.0
+    young_starter_count = 0
+    senior_starter_count = 0
 
-        confirmed_starter_names = set()
-        if not confirmed_departures_df.empty and 'InferredStarter' in confirmed_departures_df.columns:
-            confirmed_starter_names = set(
-                confirmed_departures_df.loc[
-                    confirmed_departures_df['InferredStarter'] == True, 'Player'
-                ].astype(str).tolist()
-            )
+    starter_rows = pd.DataFrame()
+    if not team_roster.empty and 'Name' in team_roster.columns and 'Year' in team_roster.columns:
+        starter_rows = team_roster[team_roster['Name'].astype(str).isin(returning_starter_names)].copy()
+        starter_rows['Year'] = starter_rows['Year'].astype(str)
 
-        possible_early_starter_names = set()
-        if not possible_early_df.empty and 'Player' in possible_early_df.columns:
-            possible_early_starter_names = set(
-                [p for p in possible_early_df['Player'].astype(str).tolist() if p in current_starter_names]
-            )
+        fr_count = starter_rows['Year'].str.fullmatch(r'FR', case=False, na=False).sum()
+        rs_fr_count = starter_rows['Year'].str.contains(r'FR \(RS\)|RS FR', case=False, na=False).sum()
+        so_count = starter_rows['Year'].str.fullmatch(r'SO', case=False, na=False).sum()
+        sr_count = starter_rows['Year'].str.contains(r'^SR$|SR ', case=False, na=False).sum()
 
-        if outlook_mode == "Aggressive":
-            starters_lost_names = confirmed_starter_names.union(possible_early_starter_names)
-        else:
-            starters_lost_names = confirmed_starter_names
+        young_starter_count = int(fr_count + rs_fr_count + so_count)
+        senior_starter_count = int(sr_count)
 
-        returning_starter_names = [name for name in current_starter_names if str(name) not in starters_lost_names]
-        est_returning_starters = max(0, min(22, len(returning_starter_names)))
-        starters_lost_for_mode = max(0, 22 - est_returning_starters)
+        starter_exp_mod -= young_starter_count * 0.8
+        starter_exp_mod += senior_starter_count * 0.25
 
-        starter_mod = (est_returning_starters - 13) * 0.35
+    speed_mod = 0.0
+    skill_speed_avg = None
+    db_speed_avg = None
 
-        starter_exp_mod = 0.0
-        young_starter_count = 0
-        senior_starter_count = 0
-
-        starter_rows = pd.DataFrame()
-        if not team_roster.empty and 'Name' in team_roster.columns and 'Year' in team_roster.columns:
-            starter_rows = team_roster[team_roster['Name'].astype(str).isin(returning_starter_names)].copy()
-            starter_rows['Year'] = starter_rows['Year'].astype(str)
-
-            fr_count = starter_rows['Year'].str.fullmatch(r'FR', case=False, na=False).sum()
-            rs_fr_count = starter_rows['Year'].str.contains(r'FR \(RS\)|RS FR', case=False, na=False).sum()
-            so_count = starter_rows['Year'].str.fullmatch(r'SO', case=False, na=False).sum()
-            sr_count = starter_rows['Year'].str.contains(r'^SR$|SR ', case=False, na=False).sum()
-
-            young_starter_count = int(fr_count + rs_fr_count + so_count)
-            senior_starter_count = int(sr_count)
-
-            starter_exp_mod -= young_starter_count * 0.8
-            starter_exp_mod += senior_starter_count * 0.25
-
-        speed_mod = 0.0
-        skill_speed_avg = None
-        db_speed_avg = None
-
-        if not starter_rows.empty:
-            speed_col = None
-            for col in ['SPD', 'Speed', 'Spd']:
-                if col in starter_rows.columns:
-                    speed_col = col
-                    break
-
-            if speed_col is not None:
-                starter_rows[speed_col] = pd.to_numeric(starter_rows[speed_col], errors='coerce')
-
-                skill_rows = starter_rows[starter_rows['Pos'].isin(['HB', 'WR'])].copy()
-                if not skill_rows.empty and skill_rows[speed_col].notna().any():
-                    skill_speed_avg = float(skill_rows[speed_col].dropna().mean())
-                    if skill_speed_avg < 90:
-                        speed_mod -= (90 - skill_speed_avg) * 0.35
-
-                db_rows = starter_rows[starter_rows['Pos'].isin(['CB', 'FS', 'SS', 'S'])].copy()
-                if not db_rows.empty and db_rows[speed_col].notna().any():
-                    db_speed_avg = float(db_rows[speed_col].dropna().mean())
-                    if db_speed_avg < 90:
-                        speed_mod -= (90 - db_speed_avg) * 0.35
-
-        final_power_rating = projected_ovr + qb_mod + starter_mod + starter_exp_mod + speed_mod + np.random.uniform(-1.0, 1.0)
-
-        cfp_prob_raw = 100 / (1 + np.exp(-0.24 * (final_power_rating - 91.0)))
-        title_prob_raw = 100 / (1 + np.exp(-0.13 * (final_power_rating - 105.0)))
-
-        collision_group_size = 1
-        for group in USER_TEAM_COLLISION_GROUPS:
-            if selected_team in group:
-                collision_group_size = len(group)
+    if not starter_rows.empty:
+        speed_col = None
+        for col in ['SPD', 'Speed', 'Spd']:
+            if col in starter_rows.columns:
+                speed_col = col
                 break
 
-        if collision_group_size >= 2:
-            cfp_prob_raw *= (0.70 ** (collision_group_size - 1))
-            title_prob_raw *= (0.35 ** (collision_group_size - 1))
+        if speed_col is not None:
+            starter_rows[speed_col] = pd.to_numeric(starter_rows[speed_col], errors='coerce')
 
-        def prob_to_ratio_odds(prob):
-            if prob >= 50:
-                return "Even"
-            elif prob >= 0.1:
-                implied_ratio = max(1, round((100 / prob) - 1))
-                return f"{implied_ratio}:1"
-            else:
-                return "1000:1+"
+            skill_rows = starter_rows[starter_rows['Pos'].isin(['HB', 'WR'])].copy()
+            if not skill_rows.empty and skill_rows[speed_col].notna().any():
+                skill_speed_avg = float(skill_rows[speed_col].dropna().mean())
+                if skill_speed_avg < 90:
+                    speed_mod -= (90 - skill_speed_avg) * 0.35
 
-        cfp_odds = prob_to_ratio_odds(cfp_prob_raw)
-        title_odds = prob_to_ratio_odds(title_prob_raw)
+            db_rows = starter_rows[starter_rows['Pos'].isin(['CB', 'FS', 'SS', 'S'])].copy()
+            if not db_rows.empty and db_rows[speed_col].notna().any():
+                db_speed_avg = float(db_rows[speed_col].dropna().mean())
+                if db_speed_avg < 90:
+                    speed_mod -= (90 - db_speed_avg) * 0.35
 
-        if final_power_rating >= 92.5:
-            tier_title = "🏆 National Title Contender"
-            tier_color = "#FACC15"
-            tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
-        elif final_power_rating >= 88.0:
-            tier_title = "⭐ Playoff Threat"
-            tier_color = "#38BDF8"
-            tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
-        elif final_power_rating >= 83.5:
-            tier_title = "🏈 Bowl Bound"
-            tier_color = "#A7F3D0"
-            tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
+    final_power_rating = projected_ovr + qb_mod + starter_mod + starter_exp_mod + speed_mod + np.random.uniform(-1.0, 1.0)
+
+    cfp_prob_raw = 100 / (1 + np.exp(-0.24 * (final_power_rating - 91.0)))
+    title_prob_raw = 100 / (1 + np.exp(-0.13 * (final_power_rating - 105.0)))
+
+    collision_group_size = 1
+    for group in USER_TEAM_COLLISION_GROUPS:
+        if selected_team in group:
+            collision_group_size = len(group)
+            break
+
+    if collision_group_size >= 2:
+        cfp_prob_raw *= (0.70 ** (collision_group_size - 1))
+        title_prob_raw *= (0.35 ** (collision_group_size - 1))
+
+    def prob_to_ratio_odds(prob):
+        if prob >= 50:
+            return "Even"
+        elif prob >= 0.1:
+            implied_ratio = max(1, round((100 / prob) - 1))
+            return f"{implied_ratio}:1"
         else:
-            tier_title = "🛠️ Rebuilding Year"
-            tier_color = "#9CA3AF"
-            tier_desc = f"High roster turnover (only {est_returning_starters} returning starters) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
+            return "1000:1+"
 
-        next_yr = current_yr + 1
-        mode_color = "#F59E0B" if outlook_mode == "Aggressive" else "#10B981"
+    cfp_odds = prob_to_ratio_odds(cfp_prob_raw)
+    title_odds = prob_to_ratio_odds(title_prob_raw)
 
-        skill_speed_text = f"{skill_speed_avg:.1f}" if skill_speed_avg is not None else "N/A"
-        db_speed_text = f"{db_speed_avg:.1f}" if db_speed_avg is not None else "N/A"
-        blue_chip_ratio_text = f"{blue_chip_ratio:.0%}" if veteran_portal_count > 0 else "N/A"
+    if final_power_rating >= 92.5:
+        tier_title = "🏆 National Title Contender"
+        tier_color = "#FACC15"
+        tier_desc = f"With {est_returning_starters} returning starters and elite talent arriving, this roster is primed for a deep playoff run. Handing the keys to {best_qb_desc} at QB gives them a very real chance at immortality."
+    elif final_power_rating >= 88.0:
+        tier_title = "⭐ Playoff Threat"
+        tier_color = "#38BDF8"
+        tier_desc = f"A dangerous roster returning {est_returning_starters} starters. If {best_qb_desc} can command the offense efficiently and a few breaks go their way, they will easily steal a playoff spot."
+    elif final_power_rating >= 83.5:
+        tier_title = "🏈 Bowl Bound"
+        tier_color = "#A7F3D0"
+        tier_desc = f"A solid team returning {est_returning_starters} starters, but evident talent gaps keep them out of the elite tier. {best_qb_desc} will need a Cinderella season to reach the CFP."
+    else:
+        tier_title = "🛠️ Rebuilding Year"
+        tier_color = "#9CA3AF"
+        tier_desc = f"High roster turnover (only {est_returning_starters} returning starters) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
 
-        outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
+    next_yr = current_yr + 1
+    mode_color = "#F59E0B" if outlook_mode == "Aggressive" else "#10B981"
 
-        st.markdown(f"""
-            <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid {sel_color}; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
-                    <div style="display: flex; align-items: center;">
-                        {outlook_logo_html}
-                        <div>
-                            <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
-                            <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">
-                                Mode: <span style="color:{mode_color}; font-weight:bold;">{outlook_mode}</span> |
-                                Returning starters: {est_returning_starters} |
-                                Starters lost: {starters_lost_for_mode} |
-                                Young starters: {young_starter_count} |
-                                Senior starters: {senior_starter_count}
-                            </p>
-                            <p style="margin: 4px 0 0 0; font-size: 0.90rem; color: #9CA3AF; text-align: left !important;">
-                                Skill starter speed avg: {skill_speed_text} |
-                                DB starter speed avg: {db_speed_text}
-                            </p>
-                            <p style="margin: 4px 0 0 0; font-size: 0.90rem; color: #9CA3AF; text-align: left !important;">
-                                Veteran portal blue-chip rate: {blue_chip_ratio_text} |
-                                Veteran portal bonus: {veteran_transfer_bonus:.2f}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
-                    <div style="flex: 2;">
-                        <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color}; margin-bottom: 8px;">{tier_title}</div>
-                        <div style="font-size: 1rem; color: #DDDDDD; line-height: 1.5;">{tier_desc}</div>
-                    </div>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
-                        <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">Make CFP Odds</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: #FFFFFF;">{cfp_odds}</div>
-                        </div>
-                        <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">National Title Odds</div>
-                            <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color};">{title_odds}</div>
-                        </div>
+    skill_speed_text = f"{skill_speed_avg:.1f}" if skill_speed_avg is not None else "N/A"
+    db_speed_text = f"{db_speed_avg:.1f}" if db_speed_avg is not None else "N/A"
+    blue_chip_ratio_text = f"{blue_chip_ratio:.0%}" if veteran_portal_count > 0 else "N/A"
+
+    outlook_logo_html = get_attrition_logo(selected_team, width=55, margin="0 15px 0 0")
+
+    st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 5px solid {sel_color}; box-shadow: 0 8px 16px rgba(0,0,0,0.4); margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center;">
+                    {outlook_logo_html}
+                    <div>
+                        <h3 style="margin: 0; padding: 0; font-size: 1.6rem; text-align: left !important; color: #FFFFFF;">🔮 {next_yr} Season Outlook</h3>
+                        <p style="margin: 4px 0 0 0; font-size: 0.95rem; color: #BBBBBB; text-align: left !important;">
+                            Mode: <span style="color:{mode_color}; font-weight:bold;">{outlook_mode}</span> |
+                            Returning starters: {est_returning_starters} |
+                            Starters lost: {starters_lost_for_mode} |
+                            Young starters: {young_starter_count} |
+                            Senior starters: {senior_starter_count}
+                        </p>
+                        <p style="margin: 4px 0 0 0; font-size: 0.90rem; color: #9CA3AF; text-align: left !important;">
+                            Skill starter speed avg: {skill_speed_text} |
+                            DB starter speed avg: {db_speed_text}
+                        </p>
+                        <p style="margin: 4px 0 0 0; font-size: 0.90rem; color: #9CA3AF; text-align: left !important;">
+                            Veteran portal blue-chip rate: {blue_chip_ratio_text} |
+                            Veteran portal bonus: {veteran_transfer_bonus:.2f}
+                        </p>
                     </div>
                 </div>
             </div>
-        """, unsafe_allow_html=True)
-    except Exception:
-        pass
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+                <div style="flex: 2;">
+                    <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color}; margin-bottom: 8px;">{tier_title}</div>
+                    <div style="font-size: 1rem; color: #DDDDDD; line-height: 1.5;">{tier_desc}</div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">Make CFP Odds</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: #FFFFFF;">{cfp_odds}</div>
+                    </div>
+                    <div style="background-color: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 0.8rem; text-transform: uppercase; color: #AAAAAA; letter-spacing: 1px;">National Title Odds</div>
+                        <div style="font-size: 1.8rem; font-weight: bold; color: {tier_color};">{title_odds}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+except Exception:
+    pass
 
     # --- 7. Summary Cards ---
     def get_stat_card(label, value, color, delta=None, delta_color=None):
