@@ -2125,21 +2125,59 @@ def get_logo_source(team):
         return local
     return ""
 
-def get_team_primary_color(team):
+def clean_team_name_for_lookup(team):
     team = str(team).strip()
+    if not team or team.lower() == "nan":
+        return ""
+
+    # remove seed/rank prefixes like "#2 " or "2 "
+    team = re.sub(r'^\#?\d+\s+', '', team).strip()
+
+    # remove trailing playoff asterisk(s)
+    team = re.sub(r'\*+$', '', team).strip()
+
+    return team
+
+
+def get_team_primary_color(team):
+    team = clean_team_name_for_lookup(team)
+
     if team in TEAM_VISUALS:
         return TEAM_VISUALS[team].get("primary", "#1f77b4")
-    # fallback: try normalized alias match
+
     nteam = normalize_key(team)
+
     for name, meta in TEAM_VISUALS.items():
         if normalize_key(name) == nteam:
             return meta.get("primary", "#1f77b4")
+
+    for name, meta in TEAM_VISUALS.items():
+        aliases = TEAM_ALIASES.get(name, [])
+        for alias in [name] + aliases:
+            if normalize_key(alias) == nteam:
+                return meta.get("primary", "#1f77b4")
+
     return "#1f77b4"
 
+
 def get_team_secondary_color(team):
-    team = str(team).strip()
+    team = clean_team_name_for_lookup(team)
+
     if team in TEAM_VISUALS:
         return TEAM_VISUALS[team].get("secondary", "#ffffff")
+
+    nteam = normalize_key(team)
+
+    for name, meta in TEAM_VISUALS.items():
+        if normalize_key(name) == nteam:
+            return meta.get("secondary", "#ffffff")
+
+    for name, meta in TEAM_VISUALS.items():
+        aliases = TEAM_ALIASES.get(name, [])
+        for alias in [name] + aliases:
+            if normalize_key(alias) == nteam:
+                return meta.get("secondary", "#ffffff")
+
     return "#ffffff"
 
 
