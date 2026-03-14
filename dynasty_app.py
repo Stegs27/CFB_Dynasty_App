@@ -3175,6 +3175,39 @@ def render_roster_matchup_tab():
 
         summ_a = team_summary(roster_a)
         summ_b = team_summary(roster_b)
+        
+        st.subheader("📋 Scouting Report")
+        adv_a = sorted([r for r in group_results if r["winner"] == team_a], key=lambda x: x["margin"], reverse=True)
+        adv_b = sorted([r for r in group_results if r["winner"] == team_b], key=lambda x: x["margin"], reverse=True)
+        lines = []
+        if adv_a:
+            lines.append(f"**{team_a}** has the roster advantage at **{', '.join([r['group'] for r in adv_a[:2]])}**{' and ' + str(len(adv_a)-2) + ' more groups' if len(adv_a) > 2 else ''}.")
+        if adv_b:
+            lines.append(f"**{team_b}** counters with the edge at **{', '.join([r['group'] for r in adv_b[:2]])}**{' and ' + str(len(adv_b)-2) + ' more groups' if len(adv_b) > 2 else ''}.")
+        spd_a, spd_b = summ_a["90+ SPD Count"], summ_b["90+ SPD Count"]
+        if spd_a > spd_b + 1:
+            lines.append(f"The speed gap is real -- **{team_a}** has **{spd_a}** players at 90+ SPD vs {team_b}'s **{spd_b}**.")
+        elif spd_b > spd_a + 1:
+            lines.append(f"**{team_b}** brings the burners -- **{spd_b}** players at 90+ SPD vs {team_a}'s **{spd_a}**.")
+        else:
+            lines.append(f"Speed depth is essentially equal -- **{spd_a}** vs **{spd_b}** players at 90+ SPD.")
+        awr_a, awr_b = summ_a["Avg AWR"], summ_b["Avg AWR"]
+        if abs(awr_a - awr_b) >= 3:
+            smarter = team_a if awr_a > awr_b else team_b
+            lines.append(f"**{smarter}** has the awareness edge ({max(awr_a, awr_b)} avg AWR) -- fewer blown assignments, faster reads.")
+        for r in [r for r in adv_a if r["margin"] >= 4]:
+            lines.append(f"The **{r['group']}** unit for **{team_a}** is a genuine mismatch.")
+        for r in [r for r in adv_b if r["margin"] >= 4]:
+            lines.append(f"**{team_b}** has a dominant edge at **{r['group']}**.")
+        if wins_a > wins_b:
+            verdict_team, verdict_color, verdict_desc = team_a, color_a, f"wins {wins_a} of {total} positional battles"
+        elif wins_b > wins_a:
+            verdict_team, verdict_color, verdict_desc = team_b, color_b, f"wins {wins_b} of {total} positional battles"
+        else:
+            verdict_team, verdict_color, verdict_desc = "Neither team", "#9ca3af", "-- this matchup is an absolute coin flip on paper"
+        for line in lines:
+            st.markdown(line)
+        st.markdown(f"""<div style="padding:1rem 1.25rem;border-left:6px solid {verdict_color};background:{verdict_color}18;border-radius:8px;margin-top:1rem;"><strong>Roster Verdict:</strong> <span style="color:{verdict_color};font-size:1.05rem;font-weight:800;">{html.escape(verdict_team)}</span> {verdict_desc}. Paper never plays the game, but this one matters.</div>""", unsafe_allow_html=True)
 
         # Positional battles
         st.markdown("---")
