@@ -11665,327 +11665,440 @@ with tabs[5]:
 
     current_yr = CURRENT_YEAR if 'CURRENT_YEAR' in globals() else 2041
 
-    # --- 1. CSV Loading Logic (With Auto-OVR Injection) ---
-    @st.cache_data
-    def load_attrition_data(roster_path, cur_year):
+   # --- 1. CSV Loading Logic (Schema-Safe) ---
+@st.cache_data
+def load_attrition_data(roster_path, cur_year):
+    def safe_read_csv(path, fallback_cols):
         try:
-            hs_df = pd.read_csv('recruiting_high_school_history.csv')
+            df = pd.read_csv(path)
+            if df is None:
+                df = pd.DataFrame(columns=fallback_cols)
         except Exception:
-            hs_df = pd.DataFrame(columns=['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points'])
+            df = pd.DataFrame(columns=fallback_cols)
 
-        try:
-            tp_df = pd.read_csv('recruiting_transfer_portal_history.csv')
-        except Exception:
-            tp_df = pd.DataFrame(columns=['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points'])
+        for col in fallback_cols:
+            if col not in df.columns:
+                df[col] = pd.NA
+        return df
 
-        try:
-            nfl = pd.read_csv('attrition_nfl.csv')
-        except Exception:
-            nfl = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Round', 'Left Early', 'Class', 'Was Starter'])
+    hs_df = safe_read_csv(
+        'recruiting_high_school_history.csv',
+        ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
+    )
 
-        try:
-            transfers = pd.read_csv('attrition_transfers.csv')
-        except Exception:
-            transfers = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Destination', 'Class', 'Was Starter'])
+    tp_df = safe_read_csv(
+        'recruiting_transfer_portal_history.csv',
+        ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
+    )
 
-        try:
-            graduates = pd.read_csv('attrition_graduates.csv')
-        except Exception:
-            graduates = pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
+    nfl = safe_read_csv(
+        'attrition_nfl.csv',
+        ['Year', 'Team', 'Player', 'Position', 'OVR', 'Round', 'Left Early', 'Class', 'Was Starter']
+    )
 
-        try:
-            incoming = pd.read_csv('attrition_incoming.csv')
-        except Exception:
-            incoming = pd.DataFrame(columns=['Year', 'Team', 'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole'])
+    transfers = safe_read_csv(
+        'attrition_transfers.csv',
+        ['Team', 'Player', 'Pos', 'Class', 'Year', 'OVR', 'Reason', 'ReasonDetail', 'TransferStatus', 'PersuasionChance']
+    )
 
-        try:
-            rosters = pd.read_csv(roster_path)
-            if 'Team' in rosters.columns and 'Name' in rosters.columns:
-                rosters['LookupKey'] = rosters['Team'].astype(str) + "_" + rosters['Name'].astype(str)
-                ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR'])) if 'OVR' in rosters.columns else {}
-            else:
-                ovr_dict = {}
-        except Exception:
+    graduates = safe_read_csv(
+        'attrition_graduates.csv',
+        ['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter']
+    )
+
+    incoming = safe_read_csv(
+        'attrition_incoming.csv',
+        ['Year', 'Team', 'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole']
+    )
+
+    # --- Normalize NFL departures ---
+    if not nfl.empty:
+        if 'Position' not in nfl.columns and 'Pos' in nfl.columns:
+            nfl['Position'] = nfl['Pos']
+        if 'Was Starter' not in nfl.columns:
+            nfl['Was Starter'] = False
+        if 'Class' not in nfl.columns:
+            nfl['Class'] = pd.NA
+
+    # --- Normalize transfers schema ---
+    if not transfers.empty:
+        if 'Position' in transfers.columns and 'Pos' not in transfers.columns:
+            transfers['Pos'] = transfers['Position']
+
+        if 'Pos' in transfers.columns and 'Position' not in transfers.columns:
+            transfers['Position'] = transfers['Pos']
+
+        if 'TransferStatus' not in transfers.columns:
+            transfers['TransferStatus'] = 'Leaving'
+
+        transfers['TransferStatus'] = (
+            transfers['TransferStatus']
+            .fillna('Leaving')
+            .astype(str)
+            .str.strip()
+        )
+
+        if 'ReasonDetail' not in transfers.columns and 'Reason' in transfers.columns:
+            transfers['ReasonDetail'] = transfers['Reason']
+
+        if 'Reason' not in transfers.columns:
+            transfers['Reason'] = 'Transfer'
+
+        if 'PersuasionChance' not in transfers.columns:
+            transfers['PersuasionChance'] = pd.NA
+
+        if 'Was Starter' not in transfers.columns:
+            transfers['Was Starter'] = False
+
+        if 'Destination' not in transfers.columns:
+            transfers['Destination'] = pd.NA
+
+    # --- Normalize graduates schema ---
+    if not graduates.empty:
+        if 'Position' not in graduates.columns and 'Pos' in graduates.columns:
+            graduates['Position'] = graduates['Pos']
+        if 'Was Starter' not in graduates.columns:
+            graduates['Was Starter'] = False
+        if 'Class' not in graduates.columns:
+            graduates['Class'] = pd.NA
+
+    # --- Normalize incoming schema ---
+    if not incoming.empty:
+        if 'Position' not in incoming.columns and 'Pos' in incoming.columns:
+            incoming['Position'] = incoming['Pos']
+        if 'ProjectedRole' not in incoming.columns:
+            incoming['ProjectedRole'] = pd.NA
+        if 'Class' not in incoming.columns:
+            incoming['Class'] = pd.NA
+
+    # --- Build live OVR lookup from current roster ---
+    try:
+        rosters = pd.read_csv(roster_path)
+        if 'Team' in rosters.columns and 'Name' in rosters.columns:
+            rosters['LookupKey'] = rosters['Team'].astype(str) + "_" + rosters['Name'].astype(str)
+            ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR'])) if 'OVR' in rosters.columns else {}
+        else:
             ovr_dict = {}
+    except Exception:
+        ovr_dict = {}
 
-        def inject_live_ovr(df):
-            if not df.empty and 'Team' in df.columns and 'Player' in df.columns and 'Year' in df.columns:
-                if 'OVR' not in df.columns:
-                    df['OVR'] = pd.NA
+    def inject_live_ovr(df):
+        df = df.copy()
+        if not df.empty and 'Team' in df.columns and 'Player' in df.columns and 'Year' in df.columns:
+            if 'OVR' not in df.columns:
+                df['OVR'] = pd.NA
 
-                curr_mask = df['Year'].astype(str) == str(cur_year)
-                if curr_mask.any():
-                    lookup_keys = df.loc[curr_mask, 'Team'].astype(str) + "_" + df.loc[curr_mask, 'Player'].astype(str)
-                    df.loc[curr_mask, 'OVR'] = lookup_keys.map(ovr_dict).fillna(df.loc[curr_mask, 'OVR'])
-            return df
+            curr_mask = df['Year'].astype(str) == str(cur_year)
+            if curr_mask.any():
+                lookup_keys = (
+                    df.loc[curr_mask, 'Team'].astype(str) + "_" +
+                    df.loc[curr_mask, 'Player'].astype(str)
+                )
+                df.loc[curr_mask, 'OVR'] = lookup_keys.map(ovr_dict).fillna(df.loc[curr_mask, 'OVR'])
 
-        return hs_df, tp_df, inject_live_ovr(nfl), inject_live_ovr(transfers), inject_live_ovr(graduates), incoming
+            df['OVR'] = pd.to_numeric(df['OVR'], errors='coerce')
+        return df
 
-    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df = load_attrition_data('cfb26_rosters_full.csv', current_yr)
+    return (
+        hs_df,
+        tp_df,
+        inject_live_ovr(nfl),
+        inject_live_ovr(transfers),
+        inject_live_ovr(graduates),
+        incoming
+    )
 
-    # --- 1B. Starter Inference Helpers ---
-    def truthy_series(series):
-        return (
-            series.fillna(False)
+hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df = load_attrition_data('cfb26_rosters_full.csv', current_yr)
+
+# --- 1B. Starter Inference Helpers ---
+def truthy_series(series):
+    return (
+        series.fillna(False)
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .isin(['true', '1', 'yes', 'y'])
+    )
+
+def build_team_starter_map(roster_df, team_name):
+    starter_slots = {
+        'QB': 1,
+        'HB': 1,
+        'FB': 1,
+        'WR': 3,
+        'TE': 1,
+        'LT': 1,
+        'LG': 1,
+        'C': 1,
+        'RG': 1,
+        'RT': 1,
+        'OL': 5,
+        'LEDG': 1,
+        'REDG': 1,
+        'DE': 2,
+        'DT': 2,
+        'SAM': 1,
+        'MIKE': 1,
+        'WILL': 1,
+        'LB': 3,
+        'CB': 3,
+        'FS': 1,
+        'SS': 1,
+        'S': 2,
+        'K': 1,
+        'P': 1
+    }
+
+    if roster_df.empty or 'Team' not in roster_df.columns:
+        return set()
+
+    team_roster = roster_df[roster_df['Team'] == team_name].copy()
+    if team_roster.empty or 'Name' not in team_roster.columns or 'Pos' not in team_roster.columns:
+        return set()
+
+    team_roster['OVR'] = pd.to_numeric(team_roster.get('OVR', 0), errors='coerce').fillna(0)
+    starter_names = set()
+
+    for pos, slot_count in starter_slots.items():
+        pos_df = team_roster[team_roster['Pos'].astype(str) == pos].sort_values(by='OVR', ascending=False)
+        if not pos_df.empty:
+            starter_names.update(pos_df.head(slot_count)['Name'].astype(str).tolist())
+
+    return starter_names
+
+def infer_departure_starters(departures_df, roster_df, team_name):
+    if departures_df.empty:
+        return departures_df.assign(InferredStarter=False)
+
+    df = departures_df.copy()
+    starter_names = build_team_starter_map(roster_df, team_name)
+
+    explicit_starter = pd.Series(False, index=df.index)
+    if 'Was Starter' in df.columns:
+        explicit_starter = truthy_series(df['Was Starter'])
+
+    projected_starter = pd.Series(False, index=df.index)
+    if 'ProjectedRole' in df.columns:
+        projected_starter = (
+            df['ProjectedRole']
+            .fillna('')
             .astype(str)
             .str.strip()
             .str.lower()
-            .isin(['true', '1', 'yes', 'y'])
+            .eq('starter')
         )
 
-    def build_team_starter_map(roster_df, team_name):
-        starter_slots = {
-            'QB': 1,
-            'HB': 1,
-            'FB': 1,
-            'WR': 3,
-            'TE': 1,
-            'LT': 1,
-            'LG': 1,
-            'C': 1,
-            'RG': 1,
-            'RT': 1,
-            'OL': 5,
-            'LEDG': 1,
-            'REDG': 1,
-            'DE': 2,
-            'DT': 2,
-            'SAM': 1,
-            'MIKE': 1,
-            'WILL': 1,
-            'LB': 3,
-            'CB': 3,
-            'FS': 1,
-            'SS': 1,
-            'S': 2,
-            'K': 1,
-            'P': 1
-        }
+    roster_inferred = pd.Series(False, index=df.index)
+    if 'Player' in df.columns:
+        roster_inferred = df['Player'].astype(str).isin(starter_names)
 
-        if roster_df.empty or 'Team' not in roster_df.columns:
-            return set()
+    df['InferredStarter'] = explicit_starter | projected_starter | roster_inferred
+    return df
 
-        team_roster = roster_df[roster_df['Team'] == team_name].copy()
-        if team_roster.empty or 'Name' not in team_roster.columns or 'Pos' not in team_roster.columns:
-            return set()
+# --- 1C. Auto-Pull Current Seniors from Roster ---
+@st.cache_data
+def get_auto_seniors(roster_path, cur_year):
+    try:
+        rosters = pd.read_csv(roster_path).copy()
 
-        team_roster['OVR'] = pd.to_numeric(team_roster.get('OVR', 0), errors='coerce').fillna(0)
-        starter_names = set()
-
-        for pos, slot_count in starter_slots.items():
-            pos_df = team_roster[team_roster['Pos'].astype(str) == pos].sort_values(by='OVR', ascending=False)
-            if not pos_df.empty:
-                starter_names.update(pos_df.head(slot_count)['Name'].astype(str).tolist())
-
-        return starter_names
-
-    def infer_departure_starters(departures_df, roster_df, team_name):
-        if departures_df.empty:
-            return departures_df.assign(InferredStarter=False)
-
-        df = departures_df.copy()
-        starter_names = build_team_starter_map(roster_df, team_name)
-
-        explicit_starter = pd.Series(False, index=df.index)
-        if 'Was Starter' in df.columns:
-            explicit_starter = truthy_series(df['Was Starter'])
-
-        projected_starter = pd.Series(False, index=df.index)
-        if 'ProjectedRole' in df.columns:
-            projected_starter = (
-                df['ProjectedRole']
-                .fillna('')
-                .astype(str)
-                .str.strip()
-                .str.lower()
-                .eq('starter')
-            )
-
-        roster_inferred = pd.Series(False, index=df.index)
-        if 'Player' in df.columns:
-            roster_inferred = df['Player'].astype(str).isin(starter_names)
-
-        df['InferredStarter'] = explicit_starter | projected_starter | roster_inferred
-        return df
-
-    # --- 1C. Auto-Pull Current Seniors from Roster ---
-    @st.cache_data
-    def get_auto_seniors(roster_path, cur_year):
-        try:
-            rosters = pd.read_csv(roster_path).copy()
-
-            if rosters.empty:
-                return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
-
-            if 'Team' not in rosters.columns or 'Name' not in rosters.columns:
-                return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
-
-            rosters['Year'] = rosters['Year'].astype(str) if 'Year' in rosters.columns else ""
-            rosters['Pos'] = rosters['Pos'].astype(str) if 'Pos' in rosters.columns else ""
-            rosters['OVR'] = pd.to_numeric(rosters['OVR'], errors='coerce') if 'OVR' in rosters.columns else 0
-
-            seniors = rosters[rosters['Year'].str.contains('SR', na=False)].copy()
-
-            if seniors.empty:
-                return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
-
-            def infer_team_starters(team_df):
-                starter_slots = {
-                    'QB': 1,
-                    'HB': 1,
-                    'FB': 1,
-                    'WR': 3,
-                    'TE': 1,
-                    'LT': 1,
-                    'LG': 1,
-                    'C': 1,
-                    'RG': 1,
-                    'RT': 1,
-                    'OL': 5,
-                    'LEDG': 1,
-                    'REDG': 1,
-                    'DE': 2,
-                    'DT': 2,
-                    'SAM': 1,
-                    'MIKE': 1,
-                    'WILL': 1,
-                    'LB': 3,
-                    'CB': 3,
-                    'FS': 1,
-                    'SS': 1,
-                    'S': 2,
-                    'K': 1,
-                    'P': 1
-                }
-
-                team_df = team_df.copy()
-                team_df['Inferred Starter'] = False
-
-                if 'OVR' not in team_df.columns:
-                    team_df['OVR'] = 0
-
-                for pos, slot_count in starter_slots.items():
-                    pos_df = team_df[team_df['Pos'] == pos].sort_values(by='OVR', ascending=False)
-                    if not pos_df.empty:
-                        starter_idx = pos_df.head(slot_count).index
-                        team_df.loc[starter_idx, 'Inferred Starter'] = True
-
-                return team_df
-
-            rosters = rosters.groupby('Team', group_keys=False).apply(infer_team_starters)
-            seniors = rosters[rosters['Year'].str.contains('SR', na=False)].copy()
-
-            auto_df = pd.DataFrame({
-                'Year': cur_year,
-                'Team': seniors['Team'],
-                'Player': seniors['Name'],
-                'Position': seniors['Pos'],
-                'OVR': seniors['OVR'],
-                'Class': seniors['Year'],
-                'Was Starter': seniors['Inferred Starter'].fillna(False).astype(bool)
-            })
-
-            return auto_df
-
-        except Exception:
+        if rosters.empty:
             return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
-    auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
+        if 'Team' not in rosters.columns or 'Name' not in rosters.columns:
+            return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
-    graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(subset=['Year', 'Team', 'Player'])
+        rosters['Year'] = rosters['Year'].astype(str) if 'Year' in rosters.columns else ""
+        rosters['Pos'] = rosters['Pos'].astype(str) if 'Pos' in rosters.columns else ""
+        rosters['OVR'] = pd.to_numeric(rosters['OVR'], errors='coerce') if 'OVR' in rosters.columns else 0
 
-    all_years = set()
-    for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df, incoming_df]:
-        if 'Year' in df.columns:
-            all_years.update(df['Year'].dropna().unique())
+        seniors = rosters[rosters['Year'].str.contains('SR', na=False)].copy()
 
-    available_years = sorted([int(y) for y in all_years if str(y).isdigit()], reverse=True)
-    if not available_years:
-        available_years = [current_yr]
+        if seniors.empty:
+            return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
-    try:
-        full_roster_df = pd.read_csv('cfb26_rosters_full.csv')
+        def infer_team_starters(team_df):
+            starter_slots = {
+                'QB': 1,
+                'HB': 1,
+                'FB': 1,
+                'WR': 3,
+                'TE': 1,
+                'LT': 1,
+                'LG': 1,
+                'C': 1,
+                'RG': 1,
+                'RT': 1,
+                'OL': 5,
+                'LEDG': 1,
+                'REDG': 1,
+                'DE': 2,
+                'DT': 2,
+                'SAM': 1,
+                'MIKE': 1,
+                'WILL': 1,
+                'LB': 3,
+                'CB': 3,
+                'FS': 1,
+                'SS': 1,
+                'S': 2,
+                'K': 1,
+                'P': 1
+            }
+
+            team_df = team_df.copy()
+            team_df['Inferred Starter'] = False
+
+            if 'OVR' not in team_df.columns:
+                team_df['OVR'] = 0
+
+            for pos, slot_count in starter_slots.items():
+                pos_df = team_df[team_df['Pos'] == pos].sort_values(by='OVR', ascending=False)
+                if not pos_df.empty:
+                    starter_idx = pos_df.head(slot_count).index
+                    team_df.loc[starter_idx, 'Inferred Starter'] = True
+
+            return team_df
+
+        rosters = rosters.groupby('Team', group_keys=False).apply(infer_team_starters)
+        seniors = rosters[rosters['Year'].str.contains('SR', na=False)].copy()
+
+        auto_df = pd.DataFrame({
+            'Year': cur_year,
+            'Team': seniors['Team'],
+            'Player': seniors['Name'],
+            'Position': seniors['Pos'],
+            'OVR': seniors['OVR'],
+            'Class': seniors['Year'],
+            'Was Starter': seniors['Inferred Starter'].fillna(False).astype(bool)
+        })
+
+        return auto_df
+
     except Exception:
-        full_roster_df = pd.DataFrame()
+        return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
-    # --- 2. Selectors ---
-    col_sel1, col_sel2, col_sel3 = st.columns([1, 1, 1])
-    with col_sel1:
-        selected_team = st.selectbox("🏈 Select Team to View", user_teams_list, key="attrition_team_select")
-    with col_sel2:
-        selected_year = st.selectbox("📅 Select Historical Year", available_years, key="attrition_year_select")
-    with col_sel3:
-        outlook_mode = st.selectbox(
-            "🔮 Outlook Mode",
-            ["Conservative", "Aggressive"],
-            index=1,
-            help="Conservative = only confirmed departures. Aggressive = confirmed departures plus possible early leavers."
-        )
+auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
 
-    st.markdown("---")
+graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(
+    subset=['Year', 'Team', 'Player']
+)
 
-    sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
+all_years = set()
+for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df, incoming_df]:
+    if 'Year' in df.columns:
+        all_years.update(df['Year'].dropna().unique())
 
-    # --- 3. Filter Data by Selected Team & Year ---
-    def filter_team_year(df, t, y):
-        if 'Team' in df.columns and 'Year' in df.columns:
-            return df[(df['Team'] == t) & (df['Year'].astype(str) == str(y))]
-        return pd.DataFrame(columns=df.columns)
+available_years = sorted([int(y) for y in all_years if str(y).isdigit()], reverse=True)
+if not available_years:
+    available_years = [current_yr]
 
-    team_hs = filter_team_year(hs_df, selected_team, selected_year)
-    team_tp = filter_team_year(tp_df, selected_team, selected_year)
-    team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
+try:
+    full_roster_df = pd.read_csv('cfb26_rosters_full.csv')
+except Exception:
+    full_roster_df = pd.DataFrame()
 
-    team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
-    team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
-    team_grads = filter_team_year(graduates_df, selected_team, selected_year)
+# --- 2. Selectors ---
+col_sel1, col_sel2, col_sel3 = st.columns([1, 1, 1])
+with col_sel1:
+    selected_team = st.selectbox("🏈 Select Team to View", user_teams_list, key="attrition_team_select")
+with col_sel2:
+    selected_year = st.selectbox("📅 Select Historical Year", available_years, key="attrition_year_select")
+with col_sel3:
+    outlook_mode = st.selectbox(
+        "🔮 Outlook Mode",
+        ["Conservative", "Aggressive"],
+        index=1,
+        help="Conservative = only confirmed departures. Aggressive = confirmed departures plus possible early leavers."
+    )
 
-    if not team_grads.empty:
-        nfl_names = team_nfl['Player'].tolist() if 'Player' in team_nfl.columns else []
-        transfer_names = team_transfers['Player'].tolist() if 'Player' in team_transfers.columns else []
-        leave_names = set(nfl_names + transfer_names)
-        team_grads = team_grads[~team_grads['Player'].isin(leave_names)]
+st.markdown("---")
 
-    if not team_nfl.empty and 'OVR' in team_nfl.columns:
-        team_nfl = team_nfl.sort_values(by='OVR', ascending=False)
-    if not team_transfers.empty and 'OVR' in team_transfers.columns:
-        team_transfers = team_transfers.sort_values(by='OVR', ascending=False)
-    if not team_grads.empty and 'OVR' in team_grads.columns:
-        team_grads = team_grads.sort_values(by='OVR', ascending=False)
+sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
 
-    # --- 4. Talent Balance Math ---
-    confirmed_departures_df = pd.concat([
-        team_nfl.assign(DepartureType='NFL') if not team_nfl.empty else pd.DataFrame(columns=list(team_nfl.columns) + ['DepartureType']),
-        team_transfers.assign(DepartureType='Transfer') if not team_transfers.empty else pd.DataFrame(columns=list(team_transfers.columns) + ['DepartureType']),
-        team_grads.assign(DepartureType='Graduate') if not team_grads.empty else pd.DataFrame(columns=list(team_grads.columns) + ['DepartureType'])
-    ], ignore_index=True)
+# --- 3. Filter Data by Selected Team & Year ---
+def filter_team_year(df, t, y):
+    if 'Team' in df.columns and 'Year' in df.columns:
+        return df[(df['Team'] == t) & (df['Year'].astype(str) == str(y))].copy()
+    return pd.DataFrame(columns=df.columns)
 
-    confirmed_departures_df = infer_departure_starters(confirmed_departures_df, full_roster_df, selected_team)
+team_hs = filter_team_year(hs_df, selected_team, selected_year)
+team_tp = filter_team_year(tp_df, selected_team, selected_year)
+team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
 
-    confirmed_departure_names = confirmed_departures_df['Player'].dropna().astype(str).unique().tolist() if 'Player' in confirmed_departures_df.columns else []
-    total_departures = len(confirmed_departure_names)
+team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
+team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
+team_grads = filter_team_year(graduates_df, selected_team, selected_year)
 
-    hs_recruits = int(team_hs['TotalCommits'].sum()) if 'TotalCommits' in team_hs.columns and not team_hs.empty else 0
-    transfers_in = int(team_tp['TotalCommits'].sum()) if 'TotalCommits' in team_tp.columns and not team_tp.empty else 0
+# Transfers file now includes both Staying and Leaving. Only Leaving counts as attrition.
+if not team_transfers.empty and 'TransferStatus' in team_transfers.columns:
+    team_transfers = team_transfers[
+        team_transfers['TransferStatus'].astype(str).str.strip().str.lower() == 'leaving'
+    ].copy()
 
-    if not team_incoming.empty and 'Type' in team_incoming.columns:
-        hs_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS'])
-        tp_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER'])
-    else:
-        hs_individual = 0
-        tp_individual = 0
+if not team_grads.empty:
+    nfl_names = team_nfl['Player'].astype(str).tolist() if 'Player' in team_nfl.columns else []
+    transfer_names = team_transfers['Player'].astype(str).tolist() if 'Player' in team_transfers.columns else []
+    leave_names = set(nfl_names + transfer_names)
+    team_grads = team_grads[~team_grads['Player'].astype(str).isin(leave_names)].copy()
 
-    net_talent = (hs_recruits + transfers_in) - total_departures
-    net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
-    net_color = "#10B981" if net_talent > 0 else ("#EF4444" if net_talent < 0 else "#AAAAAA")
+if not team_nfl.empty and 'OVR' in team_nfl.columns:
+    team_nfl['OVR'] = pd.to_numeric(team_nfl['OVR'], errors='coerce')
+    team_nfl = team_nfl.sort_values(by='OVR', ascending=False)
 
-    confirmed_starter_losses = int(confirmed_departures_df['InferredStarter'].sum()) if 'InferredStarter' in confirmed_departures_df.columns else 0
+if not team_transfers.empty and 'OVR' in team_transfers.columns:
+    team_transfers['OVR'] = pd.to_numeric(team_transfers['OVR'], errors='coerce')
+    team_transfers = team_transfers.sort_values(by='OVR', ascending=False)
 
-    impact_incoming_count = 0
-    if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
-        impact_incoming_count = int(
-            team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().isin(['starter', 'rotation']).sum()
-        )
+if not team_grads.empty and 'OVR' in team_grads.columns:
+    team_grads['OVR'] = pd.to_numeric(team_grads['OVR'], errors='coerce')
+    team_grads = team_grads.sort_values(by='OVR', ascending=False)
+
+# --- 4. Talent Balance Math ---
+confirmed_departures_df = pd.concat([
+    team_nfl.assign(DepartureType='NFL') if not team_nfl.empty else pd.DataFrame(columns=list(team_nfl.columns) + ['DepartureType']),
+    team_transfers.assign(DepartureType='Transfer') if not team_transfers.empty else pd.DataFrame(columns=list(team_transfers.columns) + ['DepartureType']),
+    team_grads.assign(DepartureType='Graduate') if not team_grads.empty else pd.DataFrame(columns=list(team_grads.columns) + ['DepartureType'])
+], ignore_index=True)
+
+if 'Position' in confirmed_departures_df.columns and 'Pos' not in confirmed_departures_df.columns:
+    confirmed_departures_df['Pos'] = confirmed_departures_df['Position']
+
+confirmed_departures_df = infer_departure_starters(
+    confirmed_departures_df, full_roster_df, selected_team
+)
+
+confirmed_departure_names = (
+    confirmed_departures_df['Player'].dropna().astype(str).unique().tolist()
+    if 'Player' in confirmed_departures_df.columns else []
+)
+total_departures = len(confirmed_departure_names)
+
+hs_recruits = int(pd.to_numeric(team_hs['TotalCommits'], errors='coerce').fillna(0).sum()) if 'TotalCommits' in team_hs.columns and not team_hs.empty else 0
+transfers_in = int(pd.to_numeric(team_tp['TotalCommits'], errors='coerce').fillna(0).sum()) if 'TotalCommits' in team_tp.columns and not team_tp.empty else 0
+
+if not team_incoming.empty and 'Type' in team_incoming.columns:
+    hs_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS'])
+    tp_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER'])
+else:
+    hs_individual = 0
+    tp_individual = 0
+
+net_talent = (hs_recruits + transfers_in) - total_departures
+net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
+net_color = "#10B981" if net_talent > 0 else ("#EF4444" if net_talent < 0 else "#AAAAAA")
+
+confirmed_starter_losses = int(confirmed_departures_df['InferredStarter'].sum()) if 'InferredStarter' in confirmed_departures_df.columns else 0
+
+impact_incoming_count = 0
+if not team_incoming.empty and 'ProjectedRole' in team_incoming.columns:
+    impact_incoming_count = int(
+        team_incoming['ProjectedRole']
+        .fillna('')
+        .astype(str)
+        .str.lower()
+        .isin(['starter', 'rotation'])
+        .sum()
+    )   
 
     # --- 5. Live NFL Prospect Generation ---
     @st.cache_data
