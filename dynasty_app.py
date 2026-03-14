@@ -12021,8 +12021,10 @@ def filter_team_year(df, t, y):
         return df[(df['Team'] == t) & (df['Year'].astype(str) == str(y))].copy()
     return pd.DataFrame(columns=df.columns)
 
-team_hs = filter_team_year(hs_df, selected_team, selected_year)
-team_tp = filter_team_year(tp_df, selected_team, selected_year)
+recruiting_source_year = selected_year - 1
+
+team_hs = filter_team_year(hs_df, selected_team, recruiting_source_year)
+team_tp = filter_team_year(tp_df, selected_team, recruiting_source_year)
 team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
 
 team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
