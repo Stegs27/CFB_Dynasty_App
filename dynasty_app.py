@@ -1875,6 +1875,111 @@ def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
     combined.to_csv("nfl_story_events.csv", index=False)
     return combined
 
+import plotly.graph_objects as go
+
+def render_team_athletic_profile_plotly(team_metric_map):
+    """
+    team_metric_map example:
+    {
+        "Florida State": {
+            "Players 90+ Speed": 12,
+            "Roster Avg Speed": 84.6,
+            "Roster Avg Overall": 86.2,
+            "Best Player Overall": 97,
+            "Players 90+ Overall": 8,
+            "Roster Avg Awareness": 81.4,
+            "Roster Avg Agility": 83.7,
+        },
+        "Texas Tech": {
+            ...
+        }
+    }
+    """
+
+    if not team_metric_map:
+        st.caption("No athletic profile data available.")
+        return
+
+    metric_order = [
+        "Players 90+ Speed",
+        "Roster Avg Speed",
+        "Roster Avg Overall",
+        "Best Player Overall",
+        "Players 90+ Overall",
+        "Roster Avg Awareness",
+        "Roster Avg Agility",
+    ]
+
+    first_team = list(team_metric_map.keys())[0]
+    categories = [m for m in metric_order if m in team_metric_map[first_team]]
+
+    if not categories:
+        st.caption("No athletic profile metrics available.")
+        return
+
+    all_vals = []
+    for _, metrics in team_metric_map.items():
+        for cat in categories:
+            try:
+                all_vals.append(float(metrics.get(cat, 0)))
+            except Exception:
+                pass
+
+    if not all_vals:
+        st.caption("No athletic profile values available.")
+        return
+
+    min_val = min(all_vals)
+    max_val = max(all_vals)
+
+    axis_floor = max(0, int(min_val) - 3)
+    axis_ceiling = min(100, int(max_val) + 3) if max_val <= 100 else int(max_val) + 2
+
+    fig = go.Figure()
+
+    for team, metrics in team_metric_map.items():
+        team_color = TEAM_VISUALS.get(team, {}).get("primary", "#38bdf8")
+        vals = [float(metrics.get(cat, 0)) for cat in categories]
+
+        fig.add_trace(go.Bar(
+            y=categories,
+            x=vals,
+            name=team,
+            orientation="h",
+            marker=dict(color=team_color),
+            text=[f"{v:.1f}" if isinstance(v, float) and not v.is_integer() else f"{int(v)}" for v in vals],
+            textposition="outside",
+            hovertemplate=f"<b>{team}</b><br>%{{y}}: %{{x}}<extra></extra>"
+        ))
+
+    fig.update_layout(
+        barmode="group",
+        height=520,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="white"),
+        margin=dict(l=20, r=40, t=20, b=20),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0
+        ),
+        xaxis=dict(
+            title="Value",
+            range=[axis_floor, axis_ceiling],
+            gridcolor="rgba(255,255,255,0.10)",
+            zeroline=False
+        ),
+        yaxis=dict(
+            title="",
+            autorange="reversed"
+        )
+    )
+
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
 # 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
 st.set_page_config(
     page_title="ISPN College Football Gameday",
@@ -3097,14 +3202,31 @@ def render_roster_matchup_tab():
         st.markdown("<hr style='margin:8px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
 
         # Radar
-        st.subheader("🕸️ Attribute Spider Chart")
-        avg_a = [round(roster_a[a].mean(), 1) for a in ATTRS]
-        avg_b = [round(roster_b[a].mean(), 1) for a in ATTRS]
-        fig = go.Figure()
-        fig.add_trace(go.Scatterpolar(r=avg_a+[avg_a[0]], theta=ATTRS+[ATTRS[0]], fill="toself", name=team_a, line=dict(color=color_a, width=2), fillcolor=hex_to_rgba(color_a, 0.27)))
-        fig.add_trace(go.Scatterpolar(r=avg_b+[avg_b[0]], theta=ATTRS+[ATTRS[0]], fill="toself", name=team_b, line=dict(color=color_b, width=2), fillcolor=hex_to_rgba(color_b, 0.27)))
-        fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[60, 100], tickfont=dict(size=10))), showlegend=True, height=430, margin=dict(t=50, b=50, l=60, r=60), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5))
-        st.plotly_chart(fig, use_container_width=True)
+        # Plotly comparison chart
+        st.subheader("📊 Athletic Comparison Chart")
+
+        team_metric_map = {
+            team_a: {
+                "Players 90+ Speed": summ_a["90+ SPD Count"],
+                "Roster Avg Speed": summ_a["Avg SPD"],
+                "Roster Avg Overall": summ_a["Avg OVR"],
+                "Best Player Overall": summ_a["Top OVR"],
+                "Players 90+ Overall": summ_a["90+ OVR Count"],
+                "Roster Avg Awareness": summ_a["Avg AWR"],
+                "Roster Avg Agility": summ_a["Avg AGI"],
+            },
+            team_b: {
+                "Players 90+ Speed": summ_b["90+ SPD Count"],
+                "Roster Avg Speed": summ_b["Avg SPD"],
+                "Roster Avg Overall": summ_b["Avg OVR"],
+                "Best Player Overall": summ_b["Top OVR"],
+                "Players 90+ Overall": summ_b["90+ OVR Count"],
+                "Roster Avg Awareness": summ_b["Avg AWR"],
+                "Roster Avg Agility": summ_b["Avg AGI"],
+            }
+        }
+
+        render_team_athletic_profile_plotly(team_metric_map)
 
         # Positional battles
         st.markdown("---")
