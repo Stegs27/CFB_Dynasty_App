@@ -12027,6 +12027,17 @@ team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
 
 team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
 team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
+
+if not team_transfers.empty:
+    if 'Position' not in team_transfers.columns and 'Pos' in team_transfers.columns:
+        team_transfers['Position'] = team_transfers['Pos']
+
+    if 'TransferStatus' not in team_transfers.columns:
+        team_transfers['TransferStatus'] = 'Leaving'
+
+    team_transfers = team_transfers[
+        team_transfers['TransferStatus'].astype(str).str.strip().str.lower() == 'leaving'
+    ].copy()
 team_grads = filter_team_year(graduates_df, selected_team, selected_year)
 
 # Transfers file now includes both Staying and Leaving. Only Leaving counts as attrition.
