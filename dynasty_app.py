@@ -3386,7 +3386,7 @@ def render_roster_matchup_tab():
     # ════════════════════════════════════════════════════════════════════════
     with tab_resilience:
         st.subheader("🩺 Injury Resilience Score")
-        st.caption("Score drop when each group's best player is removed. 🟢 Solid depth  🟡 Some risk  🔴 One injury from disaster.")
+        st.caption("Score drop when each group's best player is removed. 🟢 Solid depth  🟡 Some risk 🔴 One injury from disaster.")
 
         def resilience_score(df, positions):
             grp = df[df["Pos"].isin(positions)].nlargest(5, "OVR")
@@ -10451,17 +10451,6 @@ with tabs[7]:
         ])
         st.dataframe(stat_table, hide_index=True, use_container_width=True)
 
-        detail_chart = pd.DataFrame({
-            'Category': ['Overall', 'Offense', 'Defense',
-                         'Off Speed', 'Def Speed', 'Quad 90', 'Generational'],
-            'Score': [_ovr_val, _off_val, _def_val,
-                      _live_offspd, _live_defspd, _live_q90, _live_gen]
-        })
-        st.plotly_chart(
-            px.bar(detail_chart, x='Category', y='Score', text='Score',
-                   color_discrete_sequence=[_ta_tc]),
-            use_container_width=True
-        )
         st.caption("Natty Odds and CFP Make % use the preseason model — same numbers shown in Dynasty News. "
                    "Speed metrics marked (live) computed direct from roster CSV, matching Speed Freaks tab.")
 
