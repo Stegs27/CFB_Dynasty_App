@@ -5798,35 +5798,23 @@ def render_playoff_bracket(projected_field, actual_results=None):
         S += slot_svg(SFX,sf2[1],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #3 Bracket"))
 
     if nat_top is not None:
-        S += slot_svg(NX,nat[0],str(nat_top.get('Projected Seed', '?')),nat_top,actual=True,w=NW)
+        S += slot_svg(NX, nat[0], str(nat_top.get('Projected Seed', '?')), nat_top, actual=True, w=NW)
     else:
-        S += slot_svg(NX,nat[0],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 1"),w=NW)
+        S += slot_svg(NX, nat[0], "?", None, tbd_lines=("NATIONAL CHAMPIONSHIP", "Winner: Semifinal 1"), w=NW)
+
     if nat_bot is not None:
-        S += slot_svg(NX,nat[1],str(nat_bot.get('Projected Seed', '?')),nat_bot,actual=True,w=NW)
+        S += slot_svg(NX, nat[1], str(nat_bot.get('Projected Seed', '?')), nat_bot, actual=True, w=NW)
     else:
-        S += slot_svg(NX,nat[1],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 2"),w=NW)
+        S += slot_svg(NX, nat[1], "?", None, tbd_lines=("NATIONAL CHAMPIONSHIP", "Winner: Semifinal 2"), w=NW)
 
-if nat_winner is not None:
-        if nat and len(nat) > 0:
-            first_nat = nat[0]
-            if isinstance(first_nat, (list, tuple)) and len(first_nat) >= 2:
-                nat_y = first_nat[1]
-            else:
-                nat_y = first_nat
-            champ_y = max(38, nat_y - 56)
-        else:
-            champ_y = 38
+    if nat_winner is not None:
+        first_nat = nat[0] if nat and len(nat) > 0 else 94
+        champ_y = max(38, first_nat - 56)
+        S += slot_svg(NX, champ_y, str(nat_winner.get('Projected Seed', '?')), nat_winner, actual=True, w=NW)
 
-        S += slot_svg(
-            NX,
-            champ_y,
-            str(nat_winner.get('Projected Seed', '?')),
-            nat_winner,
-            actual=True,
-            w=NW
-        )
-
-    divider = '<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#1a2a3a" stroke-width="1" stroke-dasharray="4,8"/>'.format(SFX-10, NC, NX+NW+10, NC)
+    divider = '<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#1a2a3a" stroke-width="1" stroke-dasharray="4,8"/>'.format(
+        SFX - 10, NC, NX + NW + 10, NC
+    )
 
     svg = (
         '<div style="overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border-radius:12px;background:#060e1a;padding:8px;">'
