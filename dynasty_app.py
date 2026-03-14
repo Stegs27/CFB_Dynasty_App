@@ -5825,9 +5825,26 @@ def render_playoff_bracket(projected_field, actual_results=None):
     )
 
     st.markdown(svg, unsafe_allow_html=True)
-    if actual_results.get('nat_winner'):
+
+    nat_actual = actual_results.get('nat_winner', None)
+    r1_actual = actual_results.get('r1_winners', None)
+    qf_actual = actual_results.get('qf_winners', None)
+    sf_actual = actual_results.get('sf_winners', None)
+
+    def has_actual_data(x):
+        if x is None:
+            return False
+        if isinstance(x, pd.DataFrame):
+            return not x.empty
+        if isinstance(x, pd.Series):
+            return not x.empty
+        if isinstance(x, (list, tuple, set, dict)):
+            return len(x) > 0
+        return True
+
+    if has_actual_data(nat_actual):
         st.caption("🟩 FINAL = actual playoff advancement from CPUscores_MASTER.csv · bracket locked to official seeds")
-    elif actual_results.get('r1_winners') or actual_results.get('qf_winners') or actual_results.get('sf_winners'):
+    elif has_actual_data(r1_actual) or has_actual_data(qf_actual) or has_actual_data(sf_actual):
         st.caption("🟩 FINAL = actual playoff advancement from CPUscores_MASTER.csv · remaining open rounds stay projected/placeholders")
     else:
         st.caption("🟦 PROJ = projected R1 winner · lock the bracket and post playoff scores to CPUscores_MASTER.csv to auto-advance rounds")
