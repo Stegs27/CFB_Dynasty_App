@@ -12506,160 +12506,160 @@ try:
 except Exception:
     pass
 
-    # --- 7. Summary Cards ---
-    def get_stat_card(label, value, color, delta=None, delta_color=None):
-        delta_html = f"<div style='font-size: 0.9rem; color: {delta_color}; margin-top: 5px; font-weight: bold;'>{delta}</div>" if delta else ""
-        return f"""
-        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; border-top: 4px solid {color}; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 100%;">
-            <div style="font-size: 0.85rem; color: #BBBBBB; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">{label}</div>
-            <div style="font-size: 2.2rem; font-weight: bold; color: #FFFFFF; line-height: 1;">{value}</div>
-            {delta_html}
-        </div>
-        """
+# --- 7. Summary Cards ---
+def get_stat_card(label, value, color, delta=None, delta_color=None):
+    delta_html = f"<div style='font-size: 0.9rem; color: {delta_color}; margin-top: 5px; font-weight: bold;'>{delta}</div>" if delta else ""
+    return f"""
+    <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px; border-top: 4px solid {color}; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 100%;">
+        <div style="font-size: 0.85rem; color: #BBBBBB; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">{label}</div>
+        <div style="font-size: 2.2rem; font-weight: bold; color: #FFFFFF; line-height: 1;">{value}</div>
+        {delta_html}
+    </div>
+    """
 
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-        st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
-    with col_m2:
-        st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color, delta=f"{tp_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
-    with col_m3:
-        st.markdown(get_stat_card(f"{selected_year} Confirmed Departures", str(total_departures), sel_color, delta=f"{confirmed_starter_losses} starters lost", delta_color="#F59E0B"), unsafe_allow_html=True)
-    with col_m4:
-        st.markdown(get_stat_card("Net Talent Change", str(net_talent), sel_color, delta=net_str, delta_color=net_color), unsafe_allow_html=True)
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+with col_m1:
+    st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
+with col_m2:
+    st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color, delta=f"{tp_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
+with col_m3:
+    st.markdown(get_stat_card(f"{selected_year} Confirmed Departures", str(total_departures), sel_color, delta=f"{confirmed_starter_losses} starters lost", delta_color="#F59E0B"), unsafe_allow_html=True)
+with col_m4:
+    st.markdown(get_stat_card("Net Talent Change", str(net_talent), sel_color, delta=net_str, delta_color=net_color), unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 8. Actual Departures Split View ---
-    def get_mini_card(title, color):
-        return f"""
-        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; border-top: 4px solid {color}; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-            <h4 style="margin: 0; padding: 0; font-size: 1.2rem; text-align: center !important; color: #FFFFFF;">{title}</h4>
-        </div>
-        """
+# --- 8. Actual Departures Split View ---
+def get_mini_card(title, color):
+    return f"""
+    <div style="background-color: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; border-top: 4px solid {color}; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <h4 style="margin: 0; padding: 0; font-size: 1.2rem; text-align: center !important; color: #FFFFFF;">{title}</h4>
+    </div>
+    """
 
-    col1, col2, col3 = st.columns(3)
+col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.markdown(get_mini_card("🏈 NFL Draft", sel_color), unsafe_allow_html=True)
-        with st.expander(f"View {len(team_nfl)} Players", expanded=False):
-            if not team_nfl.empty:
-                team_nfl_display = infer_departure_starters(team_nfl, full_roster_df, selected_team)
+with col1:
+    st.markdown(get_mini_card("🏈 NFL Draft", sel_color), unsafe_allow_html=True)
+    with st.expander(f"View {len(team_nfl)} Players", expanded=False):
+        if not team_nfl.empty:
+            team_nfl_display = infer_departure_starters(team_nfl, full_roster_df, selected_team)
 
-                edited_nfl = st.data_editor(
-                    team_nfl_display.drop(columns=['Team', 'Year'], errors='ignore'),
-                    column_config={
-                        "Left Early": st.column_config.CheckboxColumn("Left Early"),
-                        "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
-                        "InferredStarter": st.column_config.CheckboxColumn("Starter Lost"),
-                        "OVR": st.column_config.NumberColumn(format="%d ⭐")
-                    },
-                    hide_index=True,
-                    use_container_width=True,
-                    key=f"nfl_editor_{selected_team}_{selected_year}"
-                )
+            edited_nfl = st.data_editor(
+                team_nfl_display.drop(columns=['Team', 'Year'], errors='ignore'),
+                column_config={
+                    "Left Early": st.column_config.CheckboxColumn("Left Early"),
+                    "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
+                    "InferredStarter": st.column_config.CheckboxColumn("Starter Lost"),
+                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                },
+                hide_index=True,
+                use_container_width=True,
+                key=f"nfl_editor_{selected_team}_{selected_year}"
+            )
 
-                left_early_count = int(edited_nfl['Left Early'].fillna(False).astype(bool).sum()) if 'Left Early' in edited_nfl.columns else 0
-                if left_early_count > 0:
-                    st.caption(f"🚨 Players officially left early: **{left_early_count}**")
-            else:
-                st.caption("No NFL departures logged.")
+            left_early_count = int(edited_nfl['Left Early'].fillna(False).astype(bool).sum()) if 'Left Early' in edited_nfl.columns else 0
+            if left_early_count > 0:
+                st.caption(f"🚨 Players officially left early: **{left_early_count}**")
+        else:
+            st.caption("No NFL departures logged.")
 
-    with col2:
-        st.markdown(get_mini_card("🎒 Transfers Out", sel_color), unsafe_allow_html=True)
-        with st.expander(f"View {len(team_transfers)} Players", expanded=False):
-            if not team_transfers.empty:
-                team_transfers_display = infer_departure_starters(team_transfers, full_roster_df, selected_team)
-                st.dataframe(
-                    team_transfers_display.drop(columns=['Team', 'Year'], errors='ignore'),
-                    column_config={
-                        "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
-                        "InferredStarter": st.column_config.CheckboxColumn("Starter Lost"),
-                        "OVR": st.column_config.NumberColumn(format="%d ⭐")
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.caption("No transfers logged.")
-
-    with col3:
-        st.markdown(get_mini_card("🎓 Graduates", sel_color), unsafe_allow_html=True)
-        with st.expander(f"View {len(team_grads)} Players", expanded=False):
-            if not team_grads.empty:
-                team_grads_display = infer_departure_starters(team_grads, full_roster_df, selected_team)
-                st.dataframe(
-                    team_grads_display.drop(columns=['Team', 'Year'], errors='ignore'),
-                    column_config={
-                        "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
-                        "InferredStarter": st.column_config.CheckboxColumn("Starter Lost"),
-                        "OVR": st.column_config.NumberColumn(format="%d ⭐")
-                    },
-                    hide_index=True,
-                    use_container_width=True
-                )
-            else:
-                st.caption("No graduates found.")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- 9. Incoming Talent Detail ---
-    st.markdown(get_mini_card("📥 Incoming Individual Talent", sel_color), unsafe_allow_html=True)
-    with st.expander(f"View {len(team_incoming)} Incoming Players", expanded=False):
-        if not team_incoming.empty:
+with col2:
+    st.markdown(get_mini_card("🎒 Transfers Out", sel_color), unsafe_allow_html=True)
+    with st.expander(f"View {len(team_transfers)} Players", expanded=False):
+        if not team_transfers.empty:
+            team_transfers_display = infer_departure_starters(team_transfers, full_roster_df, selected_team)
             st.dataframe(
-                team_incoming.drop(columns=['Team', 'Year'], errors='ignore'),
+                team_transfers_display.drop(columns=['Team', 'Year'], errors='ignore'),
+                column_config={
+                    "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
+                    "InferredStarter": st.column_config.CheckboxColumn("Starter Lost"),
+                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                },
                 hide_index=True,
                 use_container_width=True
             )
-            if 'ProjectedRole' in team_incoming.columns:
-                starter_proj = int(team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum())
-                rotation_proj = int(team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum())
-                st.caption(f"Projected impact newcomers: **{starter_proj} starters**, **{rotation_proj} rotation players**")
         else:
-            st.caption("No incoming individual players logged.")
+            st.caption("No transfers logged.")
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
+with col3:
+    st.markdown(get_mini_card("🎓 Graduates", sel_color), unsafe_allow_html=True)
+    with st.expander(f"View {len(team_grads)} Players", expanded=False):
+        if not team_grads.empty:
+            team_grads_display = infer_departure_starters(team_grads, full_roster_df, selected_team)
+            st.dataframe(
+                team_grads_display.drop(columns=['Team', 'Year'], errors='ignore'),
+                column_config={
+                    "Was Starter": st.column_config.CheckboxColumn("Was Starter"),
+                    "InferredStarter": st.column_config.CheckboxColumn("Starter Lost"),
+                    "OVR": st.column_config.NumberColumn(format="%d ⭐")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.caption("No graduates found.")
 
-    # --- 10. In-Season Predictions Header ---
-    sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
+st.markdown("<br>", unsafe_allow_html=True)
 
-    st.markdown(f"""
-        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px 20px; border-radius: 8px; border-left: 6px solid {sel_color}; display: flex; align-items: center; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-            <div style="margin-right: 20px; display: flex; align-items: center;">
-                {sel_logo_html}
-            </div>
-            <div>
-                <h3 style="margin: 0; padding: 0; font-size: 1.5rem; text-align: left !important; color: #FFFFFF;">Current {selected_team} Flight Risk</h3>
-                <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #BBBBBB; text-align: left !important;">
-                    Confirmed departures are separated from possible early leavers so the outlook can be viewed in Aggressive or Conservative mode.
-                </p>
-            </div>
+# --- 9. Incoming Talent Detail ---
+st.markdown(get_mini_card("📥 Incoming Individual Talent", sel_color), unsafe_allow_html=True)
+with st.expander(f"View {len(team_incoming)} Incoming Players", expanded=False):
+    if not team_incoming.empty:
+        st.dataframe(
+            team_incoming.drop(columns=['Team', 'Year'], errors='ignore'),
+            hide_index=True,
+            use_container_width=True
+        )
+        if 'ProjectedRole' in team_incoming.columns:
+            starter_proj = int(team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('starter').sum())
+            rotation_proj = int(team_incoming['ProjectedRole'].fillna('').astype(str).str.lower().eq('rotation').sum())
+            st.caption(f"Projected impact newcomers: **{starter_proj} starters**, **{rotation_proj} rotation players**")
+    else:
+        st.caption("No incoming individual players logged.")
+
+st.markdown("<br><br>", unsafe_allow_html=True)
+
+# --- 10. In-Season Predictions Header ---
+sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
+
+st.markdown(f"""
+    <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px 20px; border-radius: 8px; border-left: 6px solid {sel_color}; display: flex; align-items: center; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+        <div style="margin-right: 20px; display: flex; align-items: center;">
+            {sel_logo_html}
         </div>
-    """, unsafe_allow_html=True)
+        <div>
+            <h3 style="margin: 0; padding: 0; font-size: 1.5rem; text-align: left !important; color: #FFFFFF;">Current {selected_team} Flight Risk</h3>
+            <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #BBBBBB; text-align: left !important;">
+                Confirmed departures are separated from possible early leavers so the outlook can be viewed in Aggressive or Conservative mode.
+            </p>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 
-    st.markdown(get_mini_card("Current Flight Risk Breakdown", sel_color), unsafe_allow_html=True)
+st.markdown(get_mini_card("Current Flight Risk Breakdown", sel_color), unsafe_allow_html=True)
 
-    with st.expander(f"✅ Confirmed Departures ({len(confirmed_live_df)})", expanded=False):
-        if not confirmed_live_df.empty:
-            st.dataframe(
-                confirmed_live_df.drop(columns=['Team'], errors='ignore'),
-                hide_index=True,
-                use_container_width=True,
-                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
-            )
-        else:
-            st.info("No confirmed graduating NFL-related departures found.")
+with st.expander(f"✅ Confirmed Departures ({len(confirmed_live_df)})", expanded=False):
+    if not confirmed_live_df.empty:
+        st.dataframe(
+            confirmed_live_df.drop(columns=['Team'], errors='ignore'),
+            hide_index=True,
+            use_container_width=True,
+            column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
+        )
+    else:
+        st.info("No confirmed graduating NFL-related departures found.")
 
-    with st.expander(f"⚠️ Possible Early Leavers ({len(possible_early_df)})", expanded=False):
-        if not possible_early_df.empty:
-            st.dataframe(
-                possible_early_df.drop(columns=['Team'], errors='ignore'),
-                hide_index=True,
-                use_container_width=True,
-                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
-            )
-        else:
-            st.info("No underclassmen currently flagged as possible early leavers.")
+with st.expander(f"⚠️ Possible Early Leavers ({len(possible_early_df)})", expanded=False):
+    if not possible_early_df.empty:
+        st.dataframe(
+            possible_early_df.drop(columns=['Team'], errors='ignore'),
+            hide_index=True,
+            use_container_width=True,
+            column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
+        )
+    else:
+        st.info("No underclassmen currently flagged as possible early leavers.")
 
     # --- ROSTER MATCHUP ---
     with tabs[6]:
