@@ -5806,7 +5806,7 @@ def render_playoff_bracket(projected_field, actual_results=None):
     else:
         S += slot_svg(NX,nat[1],"?",None,tbd_lines=("NATIONAL CHAMPIONSHIP","Winner: Semifinal 2"),w=NW)
 
-   if nat_winner is not None:
+if nat_winner is not None:
         if nat and len(nat) > 0:
             first_nat = nat[0]
             if isinstance(first_nat, (list, tuple)) and len(first_nat) >= 2:
@@ -5817,7 +5817,14 @@ def render_playoff_bracket(projected_field, actual_results=None):
         else:
             champ_y = 38
 
-        S += slot_svg(NX, champ_y, str(nat_winner.get('Projected Seed', '?')), nat_winner, actual=True, w=NW)
+        S += slot_svg(
+            NX,
+            champ_y,
+            str(nat_winner.get('Projected Seed', '?')),
+            nat_winner,
+            actual=True,
+            w=NW
+        )
 
     divider = '<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#1a2a3a" stroke-width="1" stroke-dasharray="4,8"/>'.format(SFX-10, NC, NX+NW+10, NC)
 
