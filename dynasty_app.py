@@ -12356,19 +12356,41 @@ with tabs[5]:
     team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
 
     team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
-    team_transfers = filter_team_year(transfers_df, selected_team, selected_year)
+    team_transfers_all = filter_team_year(transfers_df, selected_team, selected_year)
     team_grads = filter_team_year(graduates_df, selected_team, selected_year)
 
-    if not team_transfers.empty:
-        if 'Position' not in team_transfers.columns and 'Pos' in team_transfers.columns:
-            team_transfers['Position'] = team_transfers['Pos']
+    if not team_transfers_all.empty:
+        if 'Position' not in team_transfers_all.columns and 'Pos' in team_transfers_all.columns:
+            team_transfers_all['Position'] = team_transfers_all['Pos']
 
-        if 'TransferStatus' not in team_transfers.columns:
-            team_transfers['TransferStatus'] = 'Leaving'
+        if 'Persuaded' not in team_transfers_all.columns:
+            team_transfers_all['Persuaded'] = 'Undecided'
 
-        team_transfers = team_transfers[
-            team_transfers['TransferStatus'].astype(str).str.strip().str.lower() == 'leaving'
+        team_transfers_all['Persuaded'] = (
+            team_transfers_all['Persuaded']
+            .fillna('Undecided')
+            .astype(str)
+            .str.strip()
+            .str.title()
+        )
+
+        # Only actual transfer outs count as attrition
+        team_transfers = team_transfers_all[
+            team_transfers_all['Persuaded'] == 'No'
         ].copy()
+
+        # Optional extra buckets for display later if you want them
+        team_transfer_undecided = team_transfers_all[
+            team_transfers_all['Persuaded'] == 'Undecided'
+        ].copy()
+
+        team_transfer_stayed = team_transfers_all[
+            team_transfers_all['Persuaded'] == 'Yes'
+        ].copy()
+    else:
+        team_transfers = pd.DataFrame(columns=transfers_df.columns)
+        team_transfer_undecided = pd.DataFrame(columns=transfers_df.columns)
+        team_transfer_stayed = pd.DataFrame(columns=transfers_df.columns)
 
     if not team_grads.empty:
         nfl_names = team_nfl['Player'].astype(str).tolist() if 'Player' in team_nfl.columns else []
