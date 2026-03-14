@@ -2243,6 +2243,40 @@ def clean_team_name_for_lookup(team):
 
     return team
 
+def get_redshirt_logo_path():
+    candidates = [
+        "REDSHIRT.png",
+        "logos/REDSHIRT.png",
+        "/mount/src/cfb_dynasty_app/REDSHIRT.png",
+        "/mount/src/cfb_dynasty_app/logos/REDSHIRT.png",
+    ]
+    for path in candidates:
+        try:
+            if os.path.exists(path):
+                return path
+        except Exception:
+            pass
+    return ""
+
+def get_redshirt_logo_html(width=18, margin="0 4px -3px 4px"):
+    try:
+        path = get_redshirt_logo_path()
+        if path:
+            uri = image_file_to_data_uri(path)
+            if uri:
+                return f'<img src="{uri}" width="{width}" style="margin:{margin}; vertical-align:middle;">'
+    except Exception:
+        pass
+    return "🔴"
+
+def get_redshirt_logo_src():
+    try:
+        path = get_redshirt_logo_path()
+        if path:
+            return image_file_to_data_uri(path)
+    except Exception:
+        pass
+    return None
 
 def get_team_primary_color(team):
     team = clean_team_name_for_lookup(team)
@@ -3406,7 +3440,13 @@ def render_roster_matchup_tab():
     # ════════════════════════════════════════════════════════════════════════
     with tab_class:
         st.subheader("🎓 Roster Composition Breakdown")
-        st.caption("Class distribution with redshirt-aware eligibility. 🔄 = currently redshirting.")
+        st.markdown(
+            f"<div style='color:#9ca3af; font-size:0.875rem; margin-top:-6px; margin-bottom:8px;'>"
+            f"Class distribution with redshirt-aware eligibility. "
+            f"{get_redshirt_logo_html(width=16, margin='0 4px -3px 4px')} = currently redshirting."
+            f"</div>",
+            unsafe_allow_html=True
+        )
 
         def class_breakdown(df):
             total = len(df)
@@ -3478,19 +3518,30 @@ def render_roster_matchup_tab():
 
         # Redshirt breakdown
         st.markdown("---")
-        st.markdown("#### 🔄 Redshirt Inventory")
+        st.markdown(
+            f"#### {get_redshirt_logo_html(width=18, margin='0 6px -3px 0')} Redshirt Inventory",
+            unsafe_allow_html=True
+        )
         st.caption("Redshirts = players who gained a year in the program without burning eligibility. These players have more development than their class label suggests.")
         rs_a = roster_a[roster_a['IsRS']].sort_values("OVR", ascending=False)[["Name", "Pos", "ExpTag", "OVR", "SPD", "FV"]].reset_index(drop=True)
         rs_b = roster_b[roster_b['IsRS']].sort_values("OVR", ascending=False)[["Name", "Pos", "ExpTag", "OVR", "SPD", "FV"]].reset_index(drop=True)
         rc1, rc2 = st.columns(2)
         with rc1:
-            st.markdown(f"<span style='color:{color_a};font-weight:800;'>{team_a} — {len(rs_a)} redshirts</span>", unsafe_allow_html=True)
+            st.markdown(
+                f"<span style='color:{color_a};font-weight:800;'>{team_a} — "
+                f"{get_redshirt_logo_html(width=16, margin='0 4px -3px 4px')} {len(rs_a)} redshirts</span>",
+                unsafe_allow_html=True
+            )
             if not rs_a.empty:
                 st.dataframe(rs_a.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True)
             else:
                 st.caption("No redshirts.")
         with rc2:
-            st.markdown(f"<span style='color:{color_b};font-weight:800;'>{team_b} — {len(rs_b)} redshirts</span>", unsafe_allow_html=True)
+            st.markdown(
+                f"<span style='color:{color_b};font-weight:800;'>{team_b} — "
+                f"{get_redshirt_logo_html(width=16, margin='0 4px -3px 4px')} {len(rs_b)} redshirts</span>",
+                unsafe_allow_html=True
+            )
             if not rs_b.empty:
                 st.dataframe(rs_b.rename(columns={"ExpTag": "Status", "FV": "FV Score"}), hide_index=True, use_container_width=True)
             else:
