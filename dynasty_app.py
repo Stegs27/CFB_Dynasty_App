@@ -9850,6 +9850,8 @@ with tabs[3]:
     aa_df["School"] = aa_df["School"].astype(str).str.strip()
     aa_df["Class"] = aa_df["Class"].astype(str).str.strip()
 
+    user_team_set = set(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else set()
+
     def get_school_logo_src(team_name):
         try:
             logo_path = get_logo_source(team_name)
@@ -9861,58 +9863,79 @@ with tabs[3]:
             pass
         return None
 
+    def prep_aa_table(df_in):
+        if df_in.empty:
+            return df_in
+
+        out = df_in.copy()
+        out.insert(0, "Logo", out["School"].map(get_school_logo_src))
+        out["User Team"] = out["School"].map(lambda x: "⭐ Yes" if str(x).strip() in user_team_set else "")
+        out["UserSort"] = out["School"].map(lambda x: 0 if str(x).strip() in user_team_set else 1)
+        out = out.sort_values(["UserSort", "School", "Pos", "Player"], ascending=[True, True, True, True]).copy()
+        return out
+
     recap_year = 2041
     aa_year_df = aa_df[aa_df["Year"] == recap_year].copy()
 
     if aa_year_df.empty:
         st.caption("No All-Americans logged for this season yet.")
-        st.write("Years found:", sorted(aa_df["Year"].dropna().unique().tolist()) if not aa_df.empty else [])
-        st.write("Team types found:", sorted(aa_df["TeamType"].dropna().unique().tolist()) if not aa_df.empty else [])
     else:
         aa_tabs = st.tabs(["🥇 1st Team", "🥈 2nd Team", "🌟 Freshman"])
 
         with aa_tabs[0]:
-            first_df = aa_year_df[aa_year_df["TeamType"] == "1st Team"].copy()
+            first_df = prep_aa_table(aa_year_df[aa_year_df["TeamType"] == "1st Team"].copy())
             if first_df.empty:
                 st.caption("No 1st Team rows found.")
             else:
-                first_df.insert(0, "Logo", first_df["School"].map(get_school_logo_src))
                 st.dataframe(
-                    first_df[["Logo", "Pos", "Player", "School", "Class"]],
+                    first_df[["Logo", "Pos", "Player", "School", "Class", "User Team"]],
                     hide_index=True,
                     use_container_width=True,
                     column_config={
                         "Logo": st.column_config.ImageColumn(""),
+                        "Pos": st.column_config.TextColumn("Pos", width="small"),
+                        "Player": st.column_config.TextColumn("Player", width="medium"),
+                        "School": st.column_config.TextColumn("School", width="medium"),
+                        "Class": st.column_config.TextColumn("Class", width="small"),
+                        "User Team": st.column_config.TextColumn("User Team", width="small"),
                     }
                 )
 
         with aa_tabs[1]:
-            second_df = aa_year_df[aa_year_df["TeamType"] == "2nd Team"].copy()
+            second_df = prep_aa_table(aa_year_df[aa_year_df["TeamType"] == "2nd Team"].copy())
             if second_df.empty:
                 st.caption("No 2nd Team rows found.")
             else:
-                second_df.insert(0, "Logo", second_df["School"].map(get_school_logo_src))
                 st.dataframe(
-                    second_df[["Logo", "Pos", "Player", "School", "Class"]],
+                    second_df[["Logo", "Pos", "Player", "School", "Class", "User Team"]],
                     hide_index=True,
                     use_container_width=True,
                     column_config={
                         "Logo": st.column_config.ImageColumn(""),
+                        "Pos": st.column_config.TextColumn("Pos", width="small"),
+                        "Player": st.column_config.TextColumn("Player", width="medium"),
+                        "School": st.column_config.TextColumn("School", width="medium"),
+                        "Class": st.column_config.TextColumn("Class", width="small"),
+                        "User Team": st.column_config.TextColumn("User Team", width="small"),
                     }
                 )
 
         with aa_tabs[2]:
-            fresh_df = aa_year_df[aa_year_df["TeamType"] == "Freshman"].copy()
+            fresh_df = prep_aa_table(aa_year_df[aa_year_df["TeamType"] == "Freshman"].copy())
             if fresh_df.empty:
                 st.caption("No Freshman rows found.")
             else:
-                fresh_df.insert(0, "Logo", fresh_df["School"].map(get_school_logo_src))
                 st.dataframe(
-                    fresh_df[["Logo", "Pos", "Player", "School", "Class"]],
+                    fresh_df[["Logo", "Pos", "Player", "School", "Class", "User Team"]],
                     hide_index=True,
                     use_container_width=True,
                     column_config={
                         "Logo": st.column_config.ImageColumn(""),
+                        "Pos": st.column_config.TextColumn("Pos", width="small"),
+                        "Player": st.column_config.TextColumn("Player", width="medium"),
+                        "School": st.column_config.TextColumn("School", width="medium"),
+                        "Class": st.column_config.TextColumn("Class", width="small"),
+                        "User Team": st.column_config.TextColumn("User Team", width="small"),
                     }
                 )
 
