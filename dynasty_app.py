@@ -9850,6 +9850,17 @@ with tabs[3]:
     aa_df["School"] = aa_df["School"].astype(str).str.strip()
     aa_df["Class"] = aa_df["Class"].astype(str).str.strip()
 
+    def get_school_logo_src(team_name):
+        try:
+            logo_path = get_logo_source(team_name)
+            if logo_path:
+                uri = image_file_to_data_uri(logo_path)
+                if uri:
+                    return uri
+        except Exception:
+            pass
+        return None
+
     recap_year = 2041
     aa_year_df = aa_df[aa_df["Year"] == recap_year].copy()
 
@@ -9865,10 +9876,14 @@ with tabs[3]:
             if first_df.empty:
                 st.caption("No 1st Team rows found.")
             else:
+                first_df.insert(0, "Logo", first_df["School"].map(get_school_logo_src))
                 st.dataframe(
-                    first_df[["Pos", "Player", "School", "Class"]],
+                    first_df[["Logo", "Pos", "Player", "School", "Class"]],
                     hide_index=True,
-                    use_container_width=True
+                    use_container_width=True,
+                    column_config={
+                        "Logo": st.column_config.ImageColumn(""),
+                    }
                 )
 
         with aa_tabs[1]:
@@ -9876,10 +9891,14 @@ with tabs[3]:
             if second_df.empty:
                 st.caption("No 2nd Team rows found.")
             else:
+                second_df.insert(0, "Logo", second_df["School"].map(get_school_logo_src))
                 st.dataframe(
-                    second_df[["Pos", "Player", "School", "Class"]],
+                    second_df[["Logo", "Pos", "Player", "School", "Class"]],
                     hide_index=True,
-                    use_container_width=True
+                    use_container_width=True,
+                    column_config={
+                        "Logo": st.column_config.ImageColumn(""),
+                    }
                 )
 
         with aa_tabs[2]:
@@ -9887,10 +9906,14 @@ with tabs[3]:
             if fresh_df.empty:
                 st.caption("No Freshman rows found.")
             else:
+                fresh_df.insert(0, "Logo", fresh_df["School"].map(get_school_logo_src))
                 st.dataframe(
-                    fresh_df[["Pos", "Player", "School", "Class"]],
+                    fresh_df[["Logo", "Pos", "Player", "School", "Class"]],
                     hide_index=True,
-                    use_container_width=True
+                    use_container_width=True,
+                    column_config={
+                        "Logo": st.column_config.ImageColumn(""),
+                    }
                 )
 
     # --- TEAM OVERVIEW ---
