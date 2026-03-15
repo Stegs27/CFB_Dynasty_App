@@ -22,6 +22,32 @@ import streamlit as st
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — HELPERS / CONFIG
 # ──────────────────────────────────────────────────────────────────────
+def play_user_pick_sound():
+    components.html("""
+    <script>
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) {
+        const ctx = new AudioContext();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+
+        o.type = "triangle";
+        o.frequency.setValueAtTime(880, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+
+        g.gain.setValueAtTime(0.001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+
+        o.connect(g);
+        g.connect(ctx.destination);
+
+        o.start();
+        o.stop(ctx.currentTime + 0.18);
+    }
+    </script>
+    """, height=0)
+
 
 ROUND_START = {1: 1, 2: 33, 3: 65, 4: 97, 5: 129, 6: 161, 7: 193}
 ROUND_END   = {1: 32, 2: 64, 3: 96, 4: 128, 5: 160, 6: 192, 7: 224}
@@ -1296,6 +1322,82 @@ def maybe_apply_round1_trade(current_pick, current_team, available_order, remain
 
     return chosen_team, source_pick, "Yes", trade_note
 
+def clean_display(val, fallback=""):
+    if pd.isna(val):
+        return fallback
+    text = str(val).strip()
+    if text.lower() in {"nan", "none", "<na>"}:
+        return fallback
+    return text
+
+def draft_source_label(val):
+    text = clean_display(val).lower()
+    if text == "user_results":
+        return "Tracked"
+    if text == "cpu_pool":
+        return "CPU Pool"
+    return ""
+
+def file_to_data_uri(path_str):
+    try:
+        if path_str and os.path.exists(path_str):
+            ext = Path(path_str).suffix.lower().replace(".", "")
+            mime_map = {
+                "mp3": "audio/mpeg",
+                "wav": "audio/wav",
+                "ogg": "audio/ogg",
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "webp": "image/webp",
+            }
+            mime = mime_map.get(ext, "application/octet-stream")
+            with open(path_str, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode("ascii")
+            return f"data:{mime};base64,{encoded}"
+    except Exception:
+        return ""
+    return ""
+
+def render_centered_logo(src, width=64):
+    if not src:
+        return
+
+    src = str(src).strip()
+    if not src:
+        return
+
+    if os.path.exists(src):
+        src = file_to_data_uri(src)
+
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:center; margin-bottom:10px;">
+            <img src="{src}" style="width:{width}px; height:{width}px; object-fit:contain;" />
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+def play_user_pick_chime(audio_path="assets/espn_chime.mp3"):
+    try:
+        if not os.path.exists(audio_path):
+            return
+
+        audio_uri = file_to_data_uri(audio_path)
+        if not audio_uri:
+            return
+
+        components.html(
+            f"""
+            <audio autoplay>
+                <source src="{audio_uri}" type="audio/mpeg">
+            </audio>
+            """,
+            height=0,
+        )
+    except Exception:
+        pass
 
 def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     if generated_df is None or generated_df.empty:
@@ -1340,20 +1442,41 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         ovr = int(safe_num(row.get("OVR", 0), 0))
         draft_source = clean_display(row.get("DraftSource", "cpu_pool"), "cpu_pool").lower()
         source_label = draft_source_label(draft_source)
+        is_user_pick = draft_source == "user_results"
         was_trade = clean_display(row.get("WasTrade", "No"), "No").lower() == "yes"
         trade_note = clean_display(row.get("TradeNote", ""), "")
 
         progress.progress(idx / total, text=f"Revealing pick {overall_pick} of {total}")
 
+        if is_user_pick:
+            play_user_pick_chime()
+
         if round_num == 1:
+            badge_html = ""
+            if is_user_pick:
+                badge_html = """
+                    <div style="font-size:0.78rem; color:#dcfce7; font-weight:900; padding:6px 10px; border-radius:999px; background:rgba(34,197,94,0.18); border:1px solid rgba(34,197,94,0.35); white-space:nowrap;">
+                        USER PICK
+                    </div>
+                """
+
             header_ph.markdown(textwrap.dedent(f"""
-                <div style="background:linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.10); border-left:8px solid #f59e0b; border-radius:14px; padding:14px 18px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
+                <div style="background:linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.10); border-left:8px solid {"#22c55e" if is_user_pick else "#f59e0b"}; border-radius:14px; padding:14px 18px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
                         <div>
-                            <div style="font-size:0.78rem; color:#fcd34d; text-transform:uppercase; letter-spacing:1.1px; font-weight:800;">NFL Draft • Round 1</div>
-                            <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:4px;">Pick #{overall_pick} is in</div>
+                            <div style="font-size:0.78rem; color:{"#86efac" if is_user_pick else "#fcd34d"}; text-transform:uppercase; letter-spacing:1.1px; font-weight:800;">
+                                NFL Draft • Round 1
+                            </div>
+                            <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:4px;">
+                                Pick #{overall_pick} is in
+                            </div>
                         </div>
-                        <div style="font-size:0.82rem; color:#fef3c7; font-weight:800; padding:6px 10px; border-radius:999px; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.24); white-space:nowrap;">On the Clock</div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            {badge_html}
+                            <div style="font-size:0.82rem; color:#fef3c7; font-weight:800; padding:6px 10px; border-radius:999px; background:rgba(245,158,11,0.14); border:1px solid rgba(245,158,11,0.24); white-space:nowrap;">
+                                On the Clock
+                            </div>
+                        </div>
                     </div>
                 </div>
             """), unsafe_allow_html=True)
