@@ -1365,16 +1365,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with left:
                     school_logo_src = get_school_logo_src(school)
-                    school_logo_uri = image_file_to_data_uri(school_logo_src) if school_logo_src else ""
-                    if school_logo_uri:
-                        st.markdown(
-                            f"""
-                            <div style="display:flex; justify-content:center; margin-bottom:10px;">
-                                <img src="{school_logo_uri}" style="width:64px; height:64px; object-fit:contain;" />
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                    render_centered_logo(school_logo_src, width=64)
                     st.caption("FROM")
                     st.markdown(f"**{school}**")
                     if college_user:
@@ -1394,16 +1385,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with right:
                     nfl_logo_src = get_nfl_logo_src(nfl_team)
-                    nfl_logo_uri = image_file_to_data_uri(nfl_logo_src) if nfl_logo_src else ""
-                    if nfl_logo_uri:
-                        st.markdown(
-                            f"""
-                            <div style="display:flex; justify-content:center; margin-bottom:10px;">
-                                <img src="{nfl_logo_uri}" style="width:64px; height:64px; object-fit:contain;" />
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                    render_centered_logo(nfl_logo_src, width=64)
                     st.caption("TO")
                     st.markdown(f"**{nfl_team}**")
                     st.write(f"Round 1 • Pick {overall_pick}")
