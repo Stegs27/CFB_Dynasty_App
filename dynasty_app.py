@@ -22,31 +22,61 @@ import streamlit as st
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — HELPERS / CONFIG
 # ──────────────────────────────────────────────────────────────────────
-def play_user_pick_sound():
-    components.html("""
-    <script>
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) {
-        const ctx = new AudioContext();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
+def render_centered_logo(src, width=64):
+    if not src:
+        return
 
-        o.type = "triangle";
-        o.frequency.setValueAtTime(880, ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+    src = str(src).strip()
+    if not src:
+        return
 
-        g.gain.setValueAtTime(0.001, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    if os.path.exists(src):
+        src = file_to_data_uri(src)
 
-        o.connect(g);
-        g.connect(ctx.destination);
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:center; margin-bottom:10px;">
+            <img src="{src}" style="width:{width}px; height:{width}px; object-fit:contain;" />
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-        o.start();
-        o.stop(ctx.currentTime + 0.18);
-    }
-    </script>
-    """, height=0)
+if "draft_audio_enabled" not in st.session_state:
+    st.session_state["draft_audio_enabled"] = False
+
+def enable_draft_audio():
+    st.session_state["draft_audio_enabled"] = True
+
+def play_user_pick_chime(audio_path="espn_chime.mp3"):
+    try:
+        if not st.session_state.get("draft_audio_enabled", False):
+            return
+
+        if not os.path.exists(audio_path):
+            return
+
+        audio_uri = file_to_data_uri(audio_path)
+        if not audio_uri:
+            return
+
+        components.html(
+            f"""
+            <audio id="userPickChime" preload="auto">
+                <source src="{audio_uri}" type="audio/mpeg">
+            </audio>
+            <script>
+                const audio = document.getElementById("userPickChime");
+                if (audio) {{
+                    audio.currentTime = 0;
+                    audio.play().catch(err => console.log("Audio play blocked:", err));
+                }}
+            </script>
+            """,
+            height=0,
+        )
+    except Exception:
+        pass
 
 
 ROUND_START = {1: 1, 2: 33, 3: 65, 4: 97, 5: 129, 6: 161, 7: 193}
@@ -11276,9 +11306,18 @@ with tabs[9]:
 
                 except Exception as e:
                     st.error(f"NFL draft error: {type(e).__name__}: {e}")
+a1, a2 = st.columns([1, 3])
 
+        with a1:
+            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn"):
+                enable_draft_audio()
+                st.success("Draft audio enabled for this session.")
+
+        with a2:
+            st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
+            
         with b2:
-            if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
+            if st.button("▶️ Run NFL Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
                 if latest_saved_draft_year is None:
                     st.warning("No saved draft exists yet.")
                 else:
