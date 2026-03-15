@@ -1487,65 +1487,83 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     nfl_roster = universe["nfl_roster"]
     existing_hist = universe["nfl_draft_hist"]
 
-    if force_latest:
-        work = cfb_draft.copy()
-        work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
-        work = work.dropna(subset=["DraftYear"]).copy()
+    if cfb_draft is None or cfb_draft.empty:
+        return existing_hist, None, "No rows found in cfb_user_draft_results.csv."
 
-        if work.empty:
-            return existing_hist, None, "No valid DraftYear values found for rerun."
+    work = cfb_draft.copy()
+    work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
+    work = work.dropna(subset=["DraftYear"]).copy()
 
-        work["DraftYear"] = work["DraftYear"].astype(int)
-        newest_year = int(work["DraftYear"].max())
+    if work.empty:
+        return existing_hist, None, "No valid DraftYear values found."
 
-        combined_new_class = work[work["DraftYear"] == newest_year].copy()
-        combined_new_class["DraftSource"] = "user_results"
-        combined_new_class["TrackStoryline"] = "Yes"
+    work["DraftYear"] = work["DraftYear"].astype(int)
+    newest_year = int(work["DraftYear"].max())
 
-        combined_new_class["DraftRound"] = pd.to_numeric(
-            combined_new_class["DraftRound"], errors="coerce"
-        ).fillna(0).astype(int)
+    if not force_latest:
+        existing_years = set()
+        if existing_hist is not None and not existing_hist.empty and "DraftYear" in existing_hist.columns:
+            existing_years = set(
+                pd.to_numeric(existing_hist["DraftYear"], errors="coerce")
+                .dropna()
+                .astype(int)
+                .tolist()
+            )
+        if newest_year in existing_years:
+            return existing_hist, newest_year, f"Draft class {newest_year} is already locked in."
 
-        user_r1 = combined_new_class[combined_new_class["DraftRound"] == 1].copy()
-        user_non_r1 = combined_new_class[combined_new_class["DraftRound"] != 1].copy()
+    user_class = work[work["DraftYear"] == newest_year].copy()
+    user_class["DraftSource"] = "user_results"
+    user_class["TrackStoryline"] = "Yes"
 
-        needed_background = max(0, 32 - len(user_r1))
+    for col in ["Player", "CollegeTeam", "Pos", "Class"]:
+        if col in user_class.columns:
+            user_class[col] = user_class[col].astype(str).str.strip()
 
-        background_r1 = build_background_round1_pool(
-            cfb_roster_df=cfb_roster,
-            cfb_user_draft_df=combined_new_class,
-            draft_year=newest_year,
-            max_players=needed_background
-        )
+    user_class["DraftRound"] = pd.to_numeric(
+        user_class.get("DraftRound"), errors="coerce"
+    ).fillna(7).astype(int)
 
-        background_later = build_background_later_round_pool(
-            cfb_roster_df=cfb_roster,
-            cfb_user_draft_df=combined_new_class,
-            draft_year=newest_year
-        )
+    user_class["OVR"] = pd.to_numeric(
+        user_class.get("OVR"), errors="coerce"
+    ).fillna(0)
 
-        if not background_r1.empty:
-            background_r1["DraftRound"] = 1
-            background_r1["DraftSource"] = "background_r1"
-            background_r1["TrackStoryline"] = "No"
+    try:
+        cpu_pool = pd.read_csv("cpu_draft_pool.csv")
+    except Exception:
+        cpu_pool = pd.DataFrame()
 
-        if not background_later.empty:
-            background_later["DraftSource"] = "background_later"
-            background_later["TrackStoryline"] = "No"
+    if not cpu_pool.empty:
+        cpu_pool["DraftYear"] = pd.to_numeric(cpu_pool.get("DraftYear"), errors="coerce")
+        cpu_pool = cpu_pool[
+            cpu_pool["DraftYear"].fillna(-1).astype(int) == int(newest_year)
+        ].copy()
 
-        combined_new_class = pd.concat(
-            [user_r1, background_r1, user_non_r1, background_later],
-            ignore_index=True,
-            sort=False
-        )
-        msg = f"Draft class {newest_year} rerun for testing."
+        for col in ["Player", "CollegeTeam", "Pos", "Class"]:
+            if col in cpu_pool.columns:
+                cpu_pool[col] = cpu_pool[col].astype(str).str.strip()
+
+        cpu_pool["DraftRound"] = pd.to_numeric(
+            cpu_pool.get("DraftRound"), errors="coerce"
+        ).fillna(7).astype(int)
+
+        cpu_pool["OVR"] = pd.to_numeric(
+            cpu_pool.get("OVR"), errors="coerce"
+        ).fillna(0)
+
+        cpu_pool["DraftSource"] = "cpu_pool"
+        cpu_pool["TrackStoryline"] = "No"
     else:
-        combined_new_class, newest_year, msg = build_combined_newest_class(
-            cfb_draft, cfb_roster, existing_hist
-        )
+        cpu_pool = pd.DataFrame(columns=list(user_class.columns) + ["DraftSource", "TrackStoryline"])
 
-        if combined_new_class.empty:
-            return existing_hist, newest_year, msg
+    combined_new_class = pd.concat(
+        [user_class, cpu_pool],
+        ignore_index=True,
+        sort=False
+    )
+
+    if combined_new_class.empty:
+        return existing_hist, newest_year, f"No draft rows found for class {newest_year}."
 
     combined_new_class["__player_key"] = combined_new_class.apply(
         lambda r: build_player_id(
@@ -1559,8 +1577,7 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
 
     source_priority = {
         "user_results": 0,
-        "background_r1": 1,
-        "background_later": 2,
+        "cpu_pool": 1,
     }
     combined_new_class["__source_rank"] = (
         combined_new_class["DraftSource"].astype(str).map(source_priority).fillna(9)
