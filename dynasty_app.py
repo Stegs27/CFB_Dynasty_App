@@ -1556,7 +1556,7 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
             if col in cpu_pool.columns:
                 cpu_pool[col] = cpu_pool[col].fillna("").astype(str).str.strip()
 
-    cpu_pool["CollegeUser"] = ""
+        cpu_pool["CollegeUser"] = ""
 
         cpu_pool["DraftRound"] = pd.to_numeric(
             cpu_pool.get("DraftRound"), errors="coerce"
@@ -1622,7 +1622,7 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     generated_new = generated_new.merge(source_meta, on="PlayerID", how="left", suffixes=("", "_src"))
 
     generated_new["DraftSource"] = generated_new["DraftSource"].fillna("cpu_pool")
-    generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("Yes")
+    generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("No")
     generated_new["OriginalPick"] = pd.NA
     generated_new["WasTrade"] = "No"
     generated_new["TradeNote"] = ""
