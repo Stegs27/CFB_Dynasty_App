@@ -296,7 +296,7 @@ def get_nfl_logo_slug(team_name):
         "seattle seahawks": "seahawks", "seahawks": "seahawks",
         "tampa bay buccaneers": "buccaneers", "buccaneers": "buccaneers",
         "tennessee titans": "titans", "titans": "titans",
-        "washington commanders": "redskins", "washington redskins": "redskins", "redskins": "redskins",
+        "washington commanders": "commanders", "commanders": "commanders", "redskins", "washington redskins": "redskins", "redskins": "redskins",
     }
 
     return slug_map.get(name)
@@ -1305,23 +1305,25 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
     revealed_rows = []
     total = len(df)
+    day2_banner_shown = False
 
     for idx, (_, row) in enumerate(df.iterrows(), start=1):
         round_num = int(safe_num(row.get("DraftRoundCanon", 1), 1))
         overall_pick = int(safe_num(row.get("GeneratedOverallPick", idx), idx))
-        nfl_team = str(row.get("GeneratedNFLTeam", "Unknown Team"))
-        school = str(row.get("CollegeTeam", "Unknown School"))
-        player = str(row.get("Player", "Unknown Player"))
-        college_user = str(row.get("CollegeUser", "")).strip()
-        pos = str(row.get("Pos", ""))
-        pos_bucket = str(row.get("PosBucket", ""))
-        rookie_role = str(row.get("RookieRole", ""))
-        career_tier = str(row.get("CareerTier", ""))
-        story_tag = str(row.get("StoryTag", ""))
+        nfl_team = clean_display(row.get("GeneratedNFLTeam", "Unknown Team"), "Unknown Team")
+        school = clean_display(row.get("CollegeTeam", "Unknown School"), "Unknown School")
+        player = clean_display(row.get("Player", "Unknown Player"), "Unknown Player")
+        college_user = clean_display(row.get("CollegeUser", ""), "")
+        pos = clean_display(row.get("Pos", ""), "")
+        pos_bucket = clean_display(row.get("PosBucket", ""), "")
+        rookie_role = clean_display(row.get("RookieRole", ""), "")
+        career_tier = clean_display(row.get("CareerTier", ""), "")
+        story_tag = clean_display(row.get("StoryTag", ""), "")
         ovr = int(safe_num(row.get("OVR", 0), 0))
-        draft_source = str(row.get("DraftSource", "user_results")).strip().lower()
-        was_trade = str(row.get("WasTrade", "No")).strip().lower() == "yes"
-        trade_note = str(row.get("TradeNote", "")).strip()
+        draft_source = clean_display(row.get("DraftSource", "cpu_pool"), "cpu_pool").lower()
+        source_label = draft_source_label(draft_source)
+        was_trade = clean_display(row.get("WasTrade", "No"), "No").lower() == "yes"
+        trade_note = clean_display(row.get("TradeNote", ""), "")
 
         progress.progress(idx / total, text=f"Revealing pick {overall_pick} of {total}")
 
@@ -1367,19 +1369,20 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                         st.image(school_logo_src, width=64)
                     st.caption("FROM")
                     st.markdown(f"**{school}**")
-                    st.write(college_user if college_user else "Non-user team")
-                    st.caption(
-                        "League Prospect"
-                        if draft_source == "background_r1"
-                        else (college_user if college_user else "User Team Pick")
-                    )
+                    if college_user:
+                        st.write(college_user)
+                    if source_label:
+                        st.caption(source_label)
 
                 with mid:
                     st.caption("SELECTED")
                     st.markdown(f"## {player}")
                     st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
-                    st.write(f"{rookie_role} • {career_tier} ceiling")
-                    st.caption(story_tag)
+                    role_line = f"{rookie_role} • {career_tier} ceiling".strip(" •")
+                    if role_line:
+                        st.write(role_line)
+                    if story_tag:
+                        st.caption(story_tag)
 
                 with right:
                     nfl_logo_src = get_nfl_logo_src(nfl_team)
@@ -1390,7 +1393,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                     st.write(f"Round 1 • Pick {overall_pick}")
 
         else:
-            if round_num == 2 and idx > 1:
+            if not day2_banner_shown:
                 trade_ph.empty()
                 card_ph.markdown(textwrap.dedent("""
                     <div style="background:linear-gradient(180deg, rgba(2,6,23,0.92), rgba(15,23,42,0.90)); border:1px solid rgba(255,255,255,0.08); border-top:4px solid #94a3b8; border-radius:18px; padding:28px 22px; margin-bottom:14px; box-shadow:0 10px 24px rgba(0,0,0,0.45); text-align:center;">
@@ -1409,6 +1412,8 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                     </div>
                 """), unsafe_allow_html=True)
 
+                day2_banner_shown = True
+
             trade_ph.empty()
             card_ph.empty()
 
@@ -1421,7 +1426,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
             "Pos": pos,
             "Bucket": pos_bucket,
             "NFL Team": nfl_team,
-            "Source": "League Prospect" if draft_source.startswith("background") else "Tracked",
+            "Source": source_label,
             "Trade": trade_note if was_trade else ""
         })
 
@@ -1441,7 +1446,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         )
 
         first_rounders = sum(1 for r in revealed_rows if r["Rnd"] == 1)
-        tracked_rows = [r for r in revealed_rows if r["Source"] == "Tracked" and str(r["User"]).strip()]
+        tracked_rows = [r for r in revealed_rows if r["Source"] == "Tracked" and clean_display(r["User"])]
         top_user = "—"
         if tracked_rows:
             tracked_df = pd.DataFrame(tracked_rows)
@@ -1518,7 +1523,15 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
 
     for col in ["Player", "CollegeTeam", "Pos", "Class"]:
         if col in user_class.columns:
-            user_class[col] = user_class[col].astype(str).str.strip()
+            user_class[col] = user_class[col].fillna("").astype(str).str.strip()
+
+    user_class["CollegeUser"] = (
+        user_class.get("CollegeUser", "")
+        .fillna("")
+        .astype(str)
+        .replace("nan", "")
+        .str.strip()
+    )
 
     user_class["DraftRound"] = pd.to_numeric(
         user_class.get("DraftRound"), errors="coerce"
@@ -1540,8 +1553,10 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
         ].copy()
 
         for col in ["Player", "CollegeTeam", "Pos", "Class"]:
-            if col in cpu_pool.columns:
-                cpu_pool[col] = cpu_pool[col].astype(str).str.strip()
+        if col in cpu_pool.columns:
+            cpu_pool[col] = cpu_pool[col].fillna("").astype(str).str.strip()
+
+    cpu_pool["CollegeUser"] = ""
 
         cpu_pool["DraftRound"] = pd.to_numeric(
             cpu_pool.get("DraftRound"), errors="coerce"
@@ -1606,7 +1621,7 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     source_meta = source_meta[["PlayerID", "DraftSource", "TrackStoryline"]].drop_duplicates()
     generated_new = generated_new.merge(source_meta, on="PlayerID", how="left", suffixes=("", "_src"))
 
-    generated_new["DraftSource"] = generated_new["DraftSource"].fillna("user_results")
+    generated_new["DraftSource"] = generated_new["DraftSource"].fillna("cpu_pool")
     generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("Yes")
     generated_new["OriginalPick"] = pd.NA
     generated_new["WasTrade"] = "No"
@@ -3192,6 +3207,22 @@ def render_roster_matchup_tab():
 
     roster_a = enrich_roster(roster_a)
     roster_b = enrich_roster(roster_b)
+    
+def clean_display(val, fallback=""):
+    if pd.isna(val):
+        return fallback
+    text = str(val).strip()
+    if text.lower() in {"nan", "none", "<na>"}:
+        return fallback
+    return text
+
+def draft_source_label(val):
+    text = clean_display(val).lower()
+    if text == "user_results":
+        return "Tracked"
+    if text == "cpu_pool":
+        return "CPU Pool"
+    return ""
 
     # ── TEAM HEADER ──────────────────────────────────────────────────────────
     h1, hm, h2 = st.columns([5, 1, 5])
