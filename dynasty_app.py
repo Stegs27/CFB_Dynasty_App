@@ -296,7 +296,7 @@ def get_nfl_logo_slug(team_name):
         "seattle seahawks": "seahawks", "seahawks": "seahawks",
         "tampa bay buccaneers": "buccaneers", "buccaneers": "buccaneers",
         "tennessee titans": "titans", "titans": "titans",
-        "washington commanders": "commanders", "commanders": "commanders", "redskins", "washington redskins": "redskins", "redskins": "redskins",
+        "washington commanders": "commanders", "commanders": "commanders", "washington redskins": "redskins", "redskins": "redskins",
     }
 
     return slug_map.get(name)
