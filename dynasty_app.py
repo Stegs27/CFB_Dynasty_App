@@ -11489,6 +11489,12 @@ st.caption("If Chrome blocks sound, click Enable Draft Audio once before running
     st.markdown("---")
 
     st.caption(f"Working directory: {os.getcwd()}")
+    
+if os.path.exists("espn_chime.mp3"):
+    with open("espn_chime.mp3", "rb") as f:
+        st.audio(f.read(), format="audio/mp3")
+else:
+    st.warning("espn_chime.mp3 not found")    
 
     nfl_tabs = st.tabs([
         "📦 Draft Central",
