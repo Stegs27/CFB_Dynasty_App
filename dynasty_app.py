@@ -1612,23 +1612,50 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     if generated_new.empty:
         return existing_hist, newest_year, f"Could not generate draft history for class {newest_year}."
 
+    # Build a stable source lookup from the pre-enrichment combined class
     source_meta = combined_new_class.copy()
-    source_meta["PlayerID"] = source_meta.apply(
-        lambda r: build_player_id(r["DraftYear"], r["CollegeTeam"], r["Player"], r["Pos"]),
+
+    source_meta["__source_key"] = source_meta.apply(
+        lambda r: "||".join([
+            str(int(safe_num(r.get("DraftYear", newest_year), newest_year))),
+            normalize_key(clean_display(r.get("CollegeTeam", ""), "")),
+            normalize_key(clean_display(r.get("Player", ""), "")),
+            normalize_key(clean_display(r.get("Pos", ""), ""))
+        ]),
         axis=1
     )
 
-    source_meta = combined_new_class.copy()
-    source_meta["PlayerID"] = source_meta.apply(
-        lambda r: build_player_id(r["DraftYear"], r["CollegeTeam"], r["Player"], r["Pos"]),
+    source_meta = source_meta.sort_values(
+        ["DraftSource", "DraftRound", "OVR"],
+        ascending=[True, True, False]
+    ).drop_duplicates(subset=["__source_key"], keep="first").copy()
+
+    source_lookup = dict(zip(source_meta["__source_key"], source_meta["DraftSource"]))
+    storyline_lookup = dict(zip(source_meta["__source_key"], source_meta["TrackStoryline"]))
+
+    generated_new["__source_key"] = generated_new.apply(
+        lambda r: "||".join([
+            str(int(safe_num(r.get("DraftYear", newest_year), newest_year))),
+            normalize_key(clean_display(r.get("CollegeTeam", ""), "")),
+            normalize_key(clean_display(r.get("Player", ""), "")),
+            normalize_key(clean_display(r.get("Pos", ""), ""))
+        ]),
         axis=1
     )
 
-    source_meta = source_meta[["PlayerID", "DraftSource", "TrackStoryline"]].drop_duplicates()
-    generated_new = generated_new.merge(source_meta, on="PlayerID", how="left", suffixes=("", "_src"))
+    generated_new["DraftSource"] = generated_new["__source_key"].map(source_lookup)
+    generated_new["TrackStoryline"] = generated_new["__source_key"].map(storyline_lookup)
 
-    generated_new["DraftSource"] = generated_new["DraftSource"].fillna("cpu_pool")
     generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("No")
+    generated_new["DraftSource"] = generated_new["DraftSource"].fillna(
+        generated_new["TrackStoryline"].astype(str).str.upper().map({
+            "YES": "user_results",
+            "NO": "cpu_pool"
+        })
+    ).fillna("cpu_pool")
+
+    generated_new = generated_new.drop(columns=["__source_key"], errors="ignore")
+
     generated_new["OriginalPick"] = pd.NA
     generated_new["WasTrade"] = "No"
     generated_new["TradeNote"] = ""
