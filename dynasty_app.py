@@ -1379,13 +1379,36 @@ def render_centered_logo(src, width=64):
         unsafe_allow_html=True
     )
 
+def file_to_data_uri(path_str):
+    try:
+        if path_str and os.path.exists(path_str):
+            ext = Path(path_str).suffix.lower().replace(".", "")
+            mime_map = {
+                "mp3": "audio/mpeg",
+                "wav": "audio/wav",
+                "ogg": "audio/ogg",
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "webp": "image/webp",
+            }
+            mime = mime_map.get(ext, "application/octet-stream")
+            with open(path_str, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode("ascii")
+            return f"data:{mime};base64,{encoded}"
+    except Exception:
+        return ""
+    return ""
+
 def play_user_pick_chime(audio_path="espn_chime.mp3"):
     try:
         if not os.path.exists(audio_path):
+            st.warning(f"Chime file not found: {audio_path}")
             return
 
         audio_uri = file_to_data_uri(audio_path)
         if not audio_uri:
+            st.warning("Could not build audio URI for chime.")
             return
 
         components.html(
@@ -1396,8 +1419,8 @@ def play_user_pick_chime(audio_path="espn_chime.mp3"):
             """,
             height=0,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        st.warning(f"Chime error: {e}")
 
 def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     if generated_df is None or generated_df.empty:
