@@ -1360,33 +1360,15 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
             time.sleep(speeds["suspense"])
 
-            with left:
-    l1, l2, l3 = st.columns([1, 2, 1])
-    with l2:
-        school_logo_src = get_school_logo_src(school)
-        if school_logo_src:
-            st.image(school_logo_src, width=64)
-    st.caption("FROM")
-    st.markdown(f"**{school}**")
-    if college_user:
-        st.write(college_user)
-    if source_label:
-        st.caption(source_label)
-
-with right:
-    r1, r2, r3 = st.columns([1, 2, 1])
-    with r2:
-        nfl_logo_src = get_nfl_logo_src(nfl_team)
-        if nfl_logo_src:
-            st.image(nfl_logo_src, width=64)
-    st.caption("TO")
-    st.markdown(f"**{nfl_team}**")
-    st.write(f"Round 1 • Pick {overall_pick}")
+            with card_ph.container():
+                left, mid, right = st.columns([1.15, 1.35, 1.1])
 
                 with left:
-                    school_logo_src = get_school_logo_src(school)
-                    if school_logo_src:
-                        st.image(school_logo_src, width=64)
+                    l1, l2, l3 = st.columns([1, 2, 1])
+                    with l2:
+                        school_logo_src = get_school_logo_src(school)
+                        if school_logo_src:
+                            st.image(school_logo_src, width=64)
                     st.caption("FROM")
                     st.markdown(f"**{school}**")
                     if college_user:
@@ -1405,9 +1387,11 @@ with right:
                         st.caption(story_tag)
 
                 with right:
-                    nfl_logo_src = get_nfl_logo_src(nfl_team)
-                    if nfl_logo_src:
-                        st.image(nfl_logo_src, width=64)
+                    r1, r2, r3 = st.columns([1, 2, 1])
+                    with r2:
+                        nfl_logo_src = get_nfl_logo_src(nfl_team)
+                        if nfl_logo_src:
+                            st.image(nfl_logo_src, width=64)
                     st.caption("TO")
                     st.markdown(f"**{nfl_team}**")
                     st.write(f"Round 1 • Pick {overall_pick}")
