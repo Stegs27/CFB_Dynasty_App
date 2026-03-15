@@ -11307,7 +11307,7 @@ with tabs[9]:
                 except Exception as e:
                     st.error(f"NFL draft error: {type(e).__name__}: {e}")
                     
-audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
+        audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
 
         with audio_c:
             if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn"):
