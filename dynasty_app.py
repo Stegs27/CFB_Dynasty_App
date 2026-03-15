@@ -1469,24 +1469,25 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 </div>
             """
 
-            header_ph.markdown(textwrap.dedent(f"""
-                <div style="background:linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.10); border-left:8px solid {border_color}; border-radius:14px; padding:14px 18px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
-                        <div>
-                            <div style="font-size:0.78rem; color:{accent_color}; text-transform:uppercase; letter-spacing:1.1px; font-weight:800;">
-                                NFL Draft • Round 1
+            header_ph.markdown(
+                textwrap.dedent(
+                    f"""
+                    <div style="background:linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.10); border-left:8px solid {border_color}; border-radius:14px; padding:14px 18px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
+                            <div>
+                                <div style="font-size:0.78rem; color:{accent_color}; text-transform:uppercase; letter-spacing:1.1px; font-weight:800;">NFL Draft • Round 1</div>
+                                <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:4px;">Pick #{overall_pick} is in</div>
                             </div>
-                            <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:4px;">
-                                Pick #{overall_pick} is in
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                {badge_html}
+                                {on_clock_html}
                             </div>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            {badge_html}
-                            {on_clock_html}
                         </div>
                     </div>
-                </div>
-            """), unsafe_allow_html=True)
+                    """
+                ),
+                unsafe_allow_html=True,
+            )
 
             if was_trade and trade_note:
                 trade_ph.markdown(textwrap.dedent(f"""
