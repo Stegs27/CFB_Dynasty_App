@@ -11340,7 +11340,7 @@ with tabs[9]:
             key="nfl_commissioner_password"
         )
 
-        if commissioner_key == "ChickenRunsThis83$":
+        if commissioner_key == "Chicken83$":
             is_commissioner = True
             st.success("Commissioner mode unlocked.")
         elif commissioner_key:
