@@ -1481,9 +1481,6 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                             <div style="display:flex; align-items:center; gap:10px;">
                                 {badge_html}
                                 {on_clock_html}
-                            </div>
-                        </div>
-                    </div>
                     """
                 ),
                 unsafe_allow_html=True,
@@ -1495,11 +1492,11 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                         <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
                             <div style="display:flex; align-items:center; gap:12px;">
                                 <div style="width:36px; height:36px; border-radius:999px; background:rgba(34,197,94,0.18); display:flex; align-items:center; justify-content:center; font-size:1.05rem; border:1px solid rgba(34,197,94,0.30);">🔁</div>
-                                
+                                <div>
                                     <div style="font-size:0.76rem; color:#86efac; text-transform:uppercase; letter-spacing:1.2px; font-weight:800;">Trade Alert</div>
                                     <div style="font-size:1.02rem; color:#f8fafc; font-weight:800; margin-top:2px;">{html.escape(trade_note)}</div>
-                                
-                            
+                                </div>
+                            </div>
                             <div style="font-size:0.78rem; color:#d1fae5; font-weight:700; padding:5px 9px; border-radius:999px; background:rgba(34,197,94,0.14); border:1px solid rgba(34,197,94,0.25); white-space:nowrap;">Round 1 Move</div>
                         </div>
                     </div>
