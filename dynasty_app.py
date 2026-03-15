@@ -1553,8 +1553,8 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
         ].copy()
 
         for col in ["Player", "CollegeTeam", "Pos", "Class"]:
-        if col in cpu_pool.columns:
-            cpu_pool[col] = cpu_pool[col].fillna("").astype(str).str.strip()
+            if col in cpu_pool.columns:
+                cpu_pool[col] = cpu_pool[col].fillna("").astype(str).str.strip()
 
     cpu_pool["CollegeUser"] = ""
 
