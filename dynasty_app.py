@@ -867,414 +867,6 @@ def build_round1_pick_order(nfl_roster_df):
 
     return ordered[:32]
 
-
-def build_background_round1_pool(cfb_roster_df, cfb_user_draft_df, draft_year, max_players=32):
-    if cfb_roster_df is None or cfb_roster_df.empty or max_players <= 0:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    roster = cfb_roster_df.copy()
-
-    required_cols = ["Name", "Team", "Pos", "Year", "OVR"]
-    for col in required_cols:
-        if col not in roster.columns:
-            roster[col] = ""
-
-    roster["Name"] = roster["Name"].astype(str).str.strip()
-    roster["Team"] = roster["Team"].astype(str).str.strip()
-    roster["Pos"] = roster["Pos"].astype(str).str.strip()
-    roster["Year"] = roster["Year"].astype(str).str.strip()
-    roster["OVR"] = pd.to_numeric(roster["OVR"], errors="coerce").fillna(0)
-
-    # Exclude only players already present in the tracked draft file for this year
-    taken_keys = set()
-    if cfb_user_draft_df is not None and not cfb_user_draft_df.empty:
-        work = cfb_user_draft_df.copy()
-        if "DraftYear" in work.columns:
-            work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
-            work = work[work["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
-
-        for _, r in work.iterrows():
-            taken_keys.add((
-                normalize_key(r.get("Player", "")),
-                normalize_key(r.get("CollegeTeam", "")),
-                normalize_key(r.get("Pos", "")),
-            ))
-
-    def is_senior_like(year_label):
-        y = str(year_label).upper().strip()
-        return y in {"SR", "SR (RS)", "RS SR", "R-SR"}
-
-    # IMPORTANT: this uses the entire full roster file, all teams
-    pool = roster[roster["Year"].apply(is_senior_like)].copy()
-
-    if pool.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    pool["player_key"] = pool["Name"].map(normalize_key)
-    pool["team_key"] = pool["Team"].map(normalize_key)
-    pool["pos_key"] = pool["Pos"].map(normalize_key)
-
-    pool = pool[
-        ~pool.apply(lambda r: (r["player_key"], r["team_key"], r["pos_key"]) in taken_keys, axis=1)
-    ].copy()
-
-    if pool.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    rows = []
-    for _, row in pool.iterrows():
-        row_dict = {
-            "DraftYear": int(draft_year),
-            "Player": row.get("Name", ""),
-            "CollegeTeam": row.get("Team", ""),
-            "CollegeUser": "",
-            "Pos": row.get("Pos", ""),
-            "Class": row.get("Year", ""),
-            "OVR": int(round(safe_num(row.get("OVR", 0), 0))),
-            "DraftRound": 1,
-            "SPD": safe_num(row.get("SPD", 0), 0),
-            "ACC": safe_num(row.get("ACC", 0), 0),
-            "AGI": safe_num(row.get("AGI", 0), 0),
-            "COD": safe_num(row.get("COD", 0), 0),
-            "STR": safe_num(row.get("STR", 0), 0),
-            "AWR": safe_num(row.get("AWR", 0), 0),
-            "PosBucket": clean_bucket(row.get("Pos", "")),
-            "DraftSource": "background_r1",
-            "TrackStoryline": "No",
-        }
-        row_dict["DraftValueScore"] = calc_draft_value(row_dict)
-        rows.append(row_dict)
-
-    bg_df = pd.DataFrame(rows)
-    if bg_df.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    # Global full-roster board: all schools, sorted nationally
-    bg_df = bg_df.sort_values(
-        ["OVR", "DraftValueScore", "Player"],
-        ascending=[False, False, True]
-    ).reset_index(drop=True)
-
-    # Prefer 91+ first for round 1, then backfill from rest of national pool
-    preferred = bg_df[bg_df["OVR"] >= 91].copy()
-    fallback = bg_df[bg_df["OVR"] < 91].copy()
-
-    final_df = pd.concat([preferred, fallback], ignore_index=True).head(int(max_players)).copy()
-
-    final_df = final_df.drop_duplicates(
-        subset=["Player", "CollegeTeam", "Pos"],
-        keep="first"
-    ).copy()
-
-    for col in CFB_USER_DRAFT_RESULTS_COLS:
-        if col not in final_df.columns:
-            final_df[col] = pd.NA
-
-    final_df["DraftSource"] = "background_r1"
-    final_df["TrackStoryline"] = "No"
-
-    return final_df[CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"]].copy()
-
-
-def build_background_later_round_pool(cfb_roster_df, cfb_user_draft_df, draft_year):
-    if cfb_roster_df is None or cfb_roster_df.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    roster = cfb_roster_df.copy()
-
-    required_cols = ["Name", "Team", "Pos", "Year", "OVR"]
-    for col in required_cols:
-        if col not in roster.columns:
-            roster[col] = ""
-
-    roster["Name"] = roster["Name"].astype(str).str.strip()
-    roster["Team"] = roster["Team"].astype(str).str.strip()
-    roster["Pos"] = roster["Pos"].astype(str).str.strip()
-    roster["Year"] = roster["Year"].astype(str).str.strip()
-    roster["OVR"] = pd.to_numeric(roster["OVR"], errors="coerce").fillna(0)
-
-    taken_keys = set()
-    if cfb_user_draft_df is not None and not cfb_user_draft_df.empty:
-        work = cfb_user_draft_df.copy()
-        if "DraftYear" in work.columns:
-            work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
-            work = work[work["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
-
-        for _, r in work.iterrows():
-            taken_keys.add((
-                normalize_key(r.get("Player", "")),
-                normalize_key(r.get("CollegeTeam", "")),
-                normalize_key(r.get("Pos", "")),
-            ))
-
-    def is_senior_like(year_label):
-        y = str(year_label).upper().strip()
-        return y in {"SR", "SR (RS)", "RS SR", "R-SR"}
-
-    # Again: all teams from full roster CSV
-    pool = roster[roster["Year"].apply(is_senior_like)].copy()
-
-    if pool.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    pool["player_key"] = pool["Name"].map(normalize_key)
-    pool["team_key"] = pool["Team"].map(normalize_key)
-    pool["pos_key"] = pool["Pos"].map(normalize_key)
-
-    pool = pool[
-        ~pool.apply(lambda r: (r["player_key"], r["team_key"], r["pos_key"]) in taken_keys, axis=1)
-    ].copy()
-
-    if pool.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    rows = []
-    for _, row in pool.iterrows():
-        ovr = int(round(safe_num(row.get("OVR", 0), 0)))
-
-        if ovr >= 89:
-            draft_round = 2
-        elif ovr >= 86:
-            draft_round = 3
-        elif ovr >= 83:
-            draft_round = 4
-        elif ovr >= 80:
-            draft_round = 5
-        elif ovr >= 77:
-            draft_round = 6
-        elif ovr >= 74:
-            draft_round = 7
-        else:
-            continue
-
-        row_dict = {
-            "DraftYear": int(draft_year),
-            "Player": row.get("Name", ""),
-            "CollegeTeam": row.get("Team", ""),
-            "CollegeUser": "",
-            "Pos": row.get("Pos", ""),
-            "Class": row.get("Year", ""),
-            "OVR": ovr,
-            "DraftRound": draft_round,
-            "SPD": safe_num(row.get("SPD", 0), 0),
-            "ACC": safe_num(row.get("ACC", 0), 0),
-            "AGI": safe_num(row.get("AGI", 0), 0),
-            "COD": safe_num(row.get("COD", 0), 0),
-            "STR": safe_num(row.get("STR", 0), 0),
-            "AWR": safe_num(row.get("AWR", 0), 0),
-            "PosBucket": clean_bucket(row.get("Pos", "")),
-            "DraftSource": "background_later",
-            "TrackStoryline": "No",
-        }
-        row_dict["DraftValueScore"] = calc_draft_value(row_dict)
-        rows.append(row_dict)
-
-    later_df = pd.DataFrame(rows)
-    if later_df.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    later_df = later_df.sort_values(
-        ["DraftRound", "OVR", "DraftValueScore", "Player"],
-        ascending=[True, False, False, True]
-    ).reset_index(drop=True)
-
-    later_df = later_df.drop_duplicates(
-        subset=["Player", "CollegeTeam", "Pos"],
-        keep="first"
-    ).copy()
-
-    for col in CFB_USER_DRAFT_RESULTS_COLS:
-        if col not in later_df.columns:
-            later_df[col] = pd.NA
-
-    later_df["DraftSource"] = "background_later"
-    later_df["TrackStoryline"] = "No"
-
-    return later_df[CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"]].copy()
-
-    pool["player_key"] = pool["Name"].map(normalize_key)
-    pool["team_key"] = pool["Team"].map(normalize_key)
-    pool["pos_key"] = pool["Pos"].map(normalize_key)
-
-    pool = pool[
-        ~pool.apply(lambda r: (r["player_key"], r["team_key"], r["pos_key"]) in taken_keys, axis=1)
-    ].copy()
-
-    if pool.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    rows = []
-    for _, row in pool.iterrows():
-        ovr = int(round(safe_num(row.get("OVR", 0), 0)))
-
-        if ovr >= 89:
-            draft_round = 2
-        elif ovr >= 86:
-            draft_round = 3
-        elif ovr >= 83:
-            draft_round = 4
-        elif ovr >= 80:
-            draft_round = 5
-        elif ovr >= 77:
-            draft_round = 6
-        elif ovr >= 74:
-            draft_round = 7
-        else:
-            continue
-
-        row_dict = {
-            "DraftYear": int(draft_year),
-            "Player": row.get("Name", ""),
-            "CollegeTeam": row.get("Team", ""),
-            "CollegeUser": "",
-            "Pos": row.get("Pos", ""),
-            "Class": row.get("Year", ""),
-            "OVR": ovr,
-            "DraftRound": draft_round,
-            "SPD": safe_num(row.get("SPD", 0), 0),
-            "ACC": safe_num(row.get("ACC", 0), 0),
-            "AGI": safe_num(row.get("AGI", 0), 0),
-            "COD": safe_num(row.get("COD", 0), 0),
-            "STR": safe_num(row.get("STR", 0), 0),
-            "AWR": safe_num(row.get("AWR", 0), 0),
-            "PosBucket": clean_bucket(row.get("Pos", "")),
-            "DraftSource": "background_later",
-            "TrackStoryline": "No",
-        }
-        row_dict["DraftValueScore"] = calc_draft_value(row_dict)
-        rows.append(row_dict)
-
-    later_df = pd.DataFrame(rows)
-    if later_df.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    # Global ranking within projected rounds
-    later_df = later_df.sort_values(
-        ["DraftRound", "OVR", "DraftValueScore", "Player"],
-        ascending=[True, False, False, True]
-    ).reset_index(drop=True)
-
-    later_df = later_df.drop_duplicates(
-        subset=["Player", "CollegeTeam", "Pos"],
-        keep="first"
-    ).copy()
-
-    for col in CFB_USER_DRAFT_RESULTS_COLS:
-        if col not in later_df.columns:
-            later_df[col] = pd.NA
-
-    later_df["DraftSource"] = "background_later"
-    later_df["TrackStoryline"] = "No"
-
-    return later_df[CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"]].copy()
-
-    rows = []
-    for _, row in pool.iterrows():
-        ovr = int(round(safe_num(row.get("OVR", 0), 0)))
-
-        if ovr >= 89:
-            draft_round = 2
-        elif ovr >= 86:
-            draft_round = 3
-        elif ovr >= 83:
-            draft_round = 4
-        elif ovr >= 80:
-            draft_round = 5
-        elif ovr >= 77:
-            draft_round = 6
-        elif ovr >= 74:
-            draft_round = 7
-        else:
-            continue
-
-        row_dict = {
-            "DraftYear": int(draft_year),
-            "Player": row.get("Name", ""),
-            "CollegeTeam": row.get("Team", ""),
-            "CollegeUser": "",
-            "Pos": row.get("Pos", ""),
-            "Class": row.get("Year", ""),
-            "OVR": ovr,
-            "DraftRound": draft_round,
-            "SPD": safe_num(row.get("SPD", 0), 0),
-            "ACC": safe_num(row.get("ACC", 0), 0),
-            "AGI": safe_num(row.get("AGI", 0), 0),
-            "COD": safe_num(row.get("COD", 0), 0),
-            "STR": safe_num(row.get("STR", 0), 0),
-            "AWR": safe_num(row.get("AWR", 0), 0),
-            "PosBucket": clean_bucket(row.get("Pos", "")),
-            "DraftSource": "background_later",
-            "TrackStoryline": "No",
-        }
-        row_dict["DraftValueScore"] = calc_draft_value(row_dict)
-        rows.append(row_dict)
-
-    later_df = pd.DataFrame(rows)
-    if later_df.empty:
-        return pd.DataFrame(columns=CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"])
-
-    later_df = later_df.sort_values(
-        ["DraftRound", "DraftValueScore", "OVR", "Player"],
-        ascending=[True, False, False, True]
-    ).reset_index(drop=True)
-
-    for col in CFB_USER_DRAFT_RESULTS_COLS:
-        if col not in later_df.columns:
-            later_df[col] = pd.NA
-
-    return later_df[CFB_USER_DRAFT_RESULTS_COLS + ["DraftSource", "TrackStoryline"]].copy()
-
-
-def build_combined_newest_class(cfb_draft_df, cfb_roster_df, existing_hist_df):
-    newest_class_df, newest_year, msg = get_newest_unprocessed_draft_class(cfb_draft_df, existing_hist_df)
-    if newest_class_df.empty:
-        return pd.DataFrame(), newest_year, msg
-
-    user_class = newest_class_df.copy()
-    user_class["DraftSource"] = "user_results"
-    user_class["TrackStoryline"] = "Yes"
-
-    if "DraftRound" in user_class.columns:
-        user_class["DraftRound"] = pd.to_numeric(user_class["DraftRound"], errors="coerce").fillna(0).astype(int)
-    else:
-        user_class["DraftRound"] = 0
-
-    user_r1 = user_class[user_class["DraftRound"] == 1].copy()
-    user_non_r1 = user_class[user_class["DraftRound"] != 1].copy()
-
-    needed_background = max(0, 32 - len(user_r1))
-
-    background_r1 = build_background_round1_pool(
-        cfb_roster_df=cfb_roster_df,
-        cfb_user_draft_df=user_class,
-        draft_year=newest_year,
-        max_players=needed_background
-    )
-
-    background_later = build_background_later_round_pool(
-        cfb_roster_df=cfb_roster_df,
-        cfb_user_draft_df=user_class,
-        draft_year=newest_year
-    )
-
-    if not background_r1.empty:
-        background_r1["DraftRound"] = 1
-        background_r1["DraftSource"] = "background_r1"
-        background_r1["TrackStoryline"] = "No"
-
-    if not background_later.empty:
-        background_later["DraftSource"] = "background_later"
-        background_later["TrackStoryline"] = "No"
-
-    combined = pd.concat(
-        [user_r1, background_r1, user_non_r1, background_later],
-        ignore_index=True,
-        sort=False
-    )
-
-    return combined, newest_year, None
-
-
 def maybe_apply_round1_trade(current_pick, current_team, available_order, remaining_players, team_needs):
     if not available_order or len(available_order) < 2:
         return current_team, current_pick, "No", ""
@@ -2199,6 +1791,49 @@ def render_team_athletic_profile_plotly(team_metric_map):
     )
 
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+def get_latest_saved_draft_year():
+    if not os.path.exists("nfl_draft_history.csv"):
+        return None
+
+    try:
+        hist = pd.read_csv("nfl_draft_history.csv")
+    except Exception:
+        return None
+
+    if hist.empty or "DraftYear" not in hist.columns:
+        return None
+
+    years = pd.to_numeric(hist["DraftYear"], errors="coerce").dropna()
+    if years.empty:
+        return None
+
+    return int(years.astype(int).max())
+
+
+def replay_saved_nfl_draft(draft_year, speed_mode="Broadcast"):
+    if not os.path.exists("nfl_draft_history.csv"):
+        st.warning("No saved NFL draft history found yet.")
+        return
+
+    try:
+        hist = pd.read_csv("nfl_draft_history.csv")
+    except Exception:
+        st.warning("Could not read nfl_draft_history.csv.")
+        return
+
+    if hist.empty:
+        st.warning("NFL draft history is empty.")
+        return
+
+    hist["DraftYear"] = pd.to_numeric(hist["DraftYear"], errors="coerce")
+    replay_df = hist[hist["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
+
+    if replay_df.empty:
+        st.warning(f"No saved draft results found for {draft_year}.")
+        return
+
+    live_reveal_nfl_draft(replay_df, speed_mode=speed_mode)
 
 # 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
 st.set_page_config(
@@ -3411,6 +3046,48 @@ def draft_source_label(val):
     if text == "cpu_pool":
         return "CPU Pool"
     return ""
+
+def get_latest_saved_draft_year():
+    if not os.path.exists("nfl_draft_history.csv"):
+        return None
+    try:
+        hist = pd.read_csv("nfl_draft_history.csv")
+    except Exception:
+        return None
+
+    if hist.empty or "DraftYear" not in hist.columns:
+        return None
+
+    years = pd.to_numeric(hist["DraftYear"], errors="coerce").dropna()
+    if years.empty:
+        return None
+
+    return int(years.astype(int).max())
+
+
+def replay_saved_nfl_draft(draft_year, speed_mode="Broadcast"):
+    if not os.path.exists("nfl_draft_history.csv"):
+        st.warning("No saved NFL draft history found yet.")
+        return
+
+    try:
+        hist = pd.read_csv("nfl_draft_history.csv")
+    except Exception:
+        st.warning("Could not read nfl_draft_history.csv.")
+        return
+
+    if hist.empty:
+        st.warning("NFL draft history is empty.")
+        return
+
+    hist["DraftYear"] = pd.to_numeric(hist["DraftYear"], errors="coerce")
+    replay_df = hist[hist["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
+
+    if replay_df.empty:
+        st.warning(f"No saved draft results found for {draft_year}.")
+        return
+
+    live_reveal_nfl_draft(replay_df, speed_mode=speed_mode)
 
     # ── TEAM HEADER ──────────────────────────────────────────────────────────
     h1, hm, h2 = st.columns([5, 1, 5])
@@ -11534,86 +11211,124 @@ with tabs[9]:
         elif commissioner_key:
             st.error("Incorrect password.")
 
+    latest_input_draft_year = (
+        int(pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max())
+        if not cfb_draft.empty and "DraftYear" in cfb_draft.columns and pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").notna().any()
+        else None
+    )
+
+    latest_saved_draft_year = get_latest_saved_draft_year()
+
     if is_commissioner:
-        c1, c2, c3, c4, c5 = st.columns([1.1, 1.0, 1.0, 1.0, 1.15])
+        c1, c2, c3, c4, c5 = st.columns([1.05, 1.0, 1.0, 1.0, 1.15])
 
         with c1:
-            draft_mode = st.selectbox(
-                "Draft Reveal Mode",
-                ["Live Draft", "Instant"],
-                index=0,
-                key="nfl_draft_reveal_mode"
-            )
-
-        with c2:
             reveal_speed = st.selectbox(
-                "Reveal Speed",
+                "Replay Speed",
                 ["Broadcast", "Fast", "Turbo"],
                 index=0,
                 key="nfl_draft_reveal_speed"
             )
 
+        with c2:
+            st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
+
         with c3:
-            latest_draft_year = int(
-                pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
-            st.metric("Latest Draft Year", latest_draft_year if latest_draft_year else "—")
+            st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
 
         with c4:
             st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
 
         with c5:
             allow_rerun = st.checkbox(
-                "Allow rerun of latest class for testing",
+                "Allow rerun of latest class",
                 value=False,
                 key="nfl_allow_rerun_latest"
             )
 
-        if st.button("🔄 Run NFL Draft", use_container_width=True):
-            try:
-                use_live = (draft_mode == "Live Draft")
-                nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
-                    live_mode=use_live,
-                    speed_mode=reveal_speed,
-                    force_latest=allow_rerun
-                )
+        b1, b2, b3 = st.columns(3)
 
-                if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                    just_added_class = nfl_draft_hist[
-                        pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(
-                            processed_year)
+        with b1:
+            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft"):
+                try:
+                    nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                        live_mode=False,
+                        speed_mode=reveal_speed,
+                        force_latest=False
+                    )
+
+                    if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                        just_added_class = nfl_draft_hist[
+                            pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
                         ].copy()
 
-                    if status_msg and (
-                            "officially added" in status_msg.lower() or "rerun for testing" in status_msg.lower()
-                    ):
-                        existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists(
-                            "nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                        seed_story_events_from_draft_class(just_added_class, existing_story)
+                        if status_msg and "officially added" in status_msg.lower():
+                            existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists("nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                            seed_story_events_from_draft_class(just_added_class, existing_story)
 
-                if status_msg:
-                    if "already locked in" in status_msg.lower():
-                        st.info(status_msg)
-                    elif "officially added" in status_msg.lower():
-                        st.success(status_msg)
-                    elif "rerun for testing" in status_msg.lower():
-                        st.warning(status_msg)
-                    else:
-                        st.warning(status_msg)
+                    if status_msg:
+                        if "already locked in" in status_msg.lower():
+                            st.info(status_msg)
+                        elif "officially added" in status_msg.lower():
+                            st.success(status_msg)
+                        else:
+                            st.warning(status_msg)
 
-            except Exception as e:
-                st.error(f"NFL draft error: {type(e).__name__}: {e}")
+                except Exception as e:
+                    st.error(f"NFL draft error: {type(e).__name__}: {e}")
+
+        with b2:
+            if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
+                if latest_saved_draft_year is None:
+                    st.warning("No saved draft exists yet.")
+                else:
+                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode=reveal_speed)
+
+        with b3:
+            if st.button("🛠️ Admin Rerun Latest", use_container_width=True, key="rerun_latest_nfl_draft"):
+                if not allow_rerun:
+                    st.warning("Enable 'Allow rerun of latest class' first.")
+                else:
+                    try:
+                        nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                            live_mode=False,
+                            speed_mode=reveal_speed,
+                            force_latest=True
+                        )
+
+                        if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                            just_added_class = nfl_draft_hist[
+                                pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
+                            ].copy()
+
+                            if status_msg and "rerun for testing" in status_msg.lower():
+                                existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists("nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                                seed_story_events_from_draft_class(just_added_class, existing_story)
+
+                        st.warning(status_msg if status_msg else "Latest draft rerun complete.")
+
+                    except Exception as e:
+                        st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
+
     else:
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
 
         with c1:
-            latest_draft_year = int(
-                pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max()) if not cfb_draft.empty else None
-            st.metric("Latest Draft Year", latest_draft_year if latest_draft_year else "—")
+            st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
 
         with c2:
+            st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
+
+        with c3:
             st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
 
-        st.caption("Draft controls are restricted to the commissioner.")
+        if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_public"):
+            if latest_saved_draft_year is None:
+                st.warning("No saved draft exists yet.")
+            else:
+                replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
+
+        st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
 
     st.markdown("---")
 
