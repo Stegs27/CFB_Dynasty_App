@@ -1379,7 +1379,7 @@ def render_centered_logo(src, width=64):
         unsafe_allow_html=True
     )
 
-def play_user_pick_chime(audio_path="assets/espn_chime.mp3"):
+def play_user_pick_chime(audio_path="main/espn_chime.mp3"):
     try:
         if not os.path.exists(audio_path):
             return
