@@ -1364,11 +1364,17 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 left, mid, right = st.columns([1.15, 1.35, 1.1])
 
                 with left:
-                    l1, l2, l3 = st.columns([1, 2, 1])
-                    with l2:
-                        school_logo_src = get_school_logo_src(school)
-                        if school_logo_src:
-                            st.image(school_logo_src, width=64)
+                    school_logo_src = get_school_logo_src(school)
+                    school_logo_uri = image_file_to_data_uri(school_logo_src) if school_logo_src else ""
+                    if school_logo_uri:
+                        st.markdown(
+                            f"""
+                            <div style="display:flex; justify-content:center; margin-bottom:10px;">
+                                <img src="{school_logo_uri}" style="width:64px; height:64px; object-fit:contain;" />
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
                     st.caption("FROM")
                     st.markdown(f"**{school}**")
                     if college_user:
@@ -1387,11 +1393,17 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                         st.caption(story_tag)
 
                 with right:
-                    r1, r2, r3 = st.columns([1, 2, 1])
-                    with r2:
-                        nfl_logo_src = get_nfl_logo_src(nfl_team)
-                        if nfl_logo_src:
-                            st.image(nfl_logo_src, width=64)
+                    nfl_logo_src = get_nfl_logo_src(nfl_team)
+                    nfl_logo_uri = image_file_to_data_uri(nfl_logo_src) if nfl_logo_src else ""
+                    if nfl_logo_uri:
+                        st.markdown(
+                            f"""
+                            <div style="display:flex; justify-content:center; margin-bottom:10px;">
+                                <img src="{nfl_logo_uri}" style="width:64px; height:64px; object-fit:contain;" />
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
                     st.caption("TO")
                     st.markdown(f"**{nfl_team}**")
                     st.write(f"Round 1 • Pick {overall_pick}")
