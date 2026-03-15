@@ -1379,27 +1379,6 @@ def render_centered_logo(src, width=64):
         unsafe_allow_html=True
     )
 
-def file_to_data_uri(path_str):
-    try:
-        if path_str and os.path.exists(path_str):
-            ext = Path(path_str).suffix.lower().replace(".", "")
-            mime_map = {
-                "mp3": "audio/mpeg",
-                "wav": "audio/wav",
-                "ogg": "audio/ogg",
-                "png": "image/png",
-                "jpg": "image/jpeg",
-                "jpeg": "image/jpeg",
-                "webp": "image/webp",
-            }
-            mime = mime_map.get(ext, "application/octet-stream")
-            with open(path_str, "rb") as f:
-                encoded = base64.b64encode(f.read()).decode("ascii")
-            return f"data:{mime};base64,{encoded}"
-    except Exception:
-        return ""
-    return ""
-
 def play_user_pick_chime(audio_path="espn_chime.mp3"):
     try:
         if not os.path.exists(audio_path):
@@ -1413,9 +1392,16 @@ def play_user_pick_chime(audio_path="espn_chime.mp3"):
 
         components.html(
             f"""
-            <audio autoplay>
+            <audio id="userPickChime" preload="auto">
                 <source src="{audio_uri}" type="audio/mpeg">
             </audio>
+            <script>
+                const audio = document.getElementById("userPickChime");
+                if (audio) {{
+                    audio.currentTime = 0;
+                    audio.play().catch(err => console.log("Audio play blocked:", err));
+                }}
+            </script>
             """,
             height=0,
         )
