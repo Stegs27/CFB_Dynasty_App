@@ -587,7 +587,25 @@ def load_nfl_universe_data():
         "nfl_settings": nfl_settings,
     }
 
+def render_centered_logo(src, width=64):
+    if not src:
+        return
 
+    src = str(src).strip()
+    if not src:
+        return
+
+    if os.path.exists(src):
+        src = image_file_to_data_uri(src)
+
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:center; margin-bottom:10px;">
+            <img src="{src}" style="width:{width}px; height:{width}px; object-fit:contain;" />
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — DRAFT ENRICHMENT
 # ──────────────────────────────────────────────────────────────────────
