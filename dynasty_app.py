@@ -12026,7 +12026,7 @@ with tabs[5]:
 
         transfers = safe_read_csv(
             'attrition_transfers.csv',
-            ['Team', 'Player', 'Pos', 'Class', 'Year', 'OVR', 'Reason', 'ReasonDetail', 'TransferStatus', 'PersuasionChance']
+            ['Team', 'Player', 'Pos', 'Class', 'Year', 'OVR', 'Reason', 'ReasonDetail', 'TransferStatus', 'Persuaded']
         )
 
         graduates = safe_read_csv(
@@ -12037,6 +12037,11 @@ with tabs[5]:
         incoming = safe_read_csv(
             'attrition_incoming.csv',
             ['Year', 'Team', 'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole']
+        )
+
+        user_draft_results = safe_read_csv(
+            'cfb_user_draft_results.csv',
+            ['DraftYear', 'Player', 'CollegeTeam', 'CollegeUser', 'Pos', 'Class', 'OVR', 'DraftRound']
         )
 
         # --- Normalize NFL departures ---
@@ -12057,13 +12062,14 @@ with tabs[5]:
                 transfers['Position'] = transfers['Pos']
 
             if 'TransferStatus' not in transfers.columns:
-                transfers['TransferStatus'] = 'Leaving'
+                transfers['TransferStatus'] = pd.NA
 
             transfers['TransferStatus'] = (
                 transfers['TransferStatus']
-                .fillna('Leaving')
+                .fillna('')
                 .astype(str)
                 .str.strip()
+                .str.title()
             )
 
             if 'ReasonDetail' not in transfers.columns and 'Reason' in transfers.columns:
@@ -12072,8 +12078,16 @@ with tabs[5]:
             if 'Reason' not in transfers.columns:
                 transfers['Reason'] = 'Transfer'
 
-            if 'PersuasionChance' not in transfers.columns:
-                transfers['PersuasionChance'] = pd.NA
+            if 'Persuaded' not in transfers.columns:
+                transfers['Persuaded'] = pd.NA
+
+            transfers['Persuaded'] = (
+                transfers['Persuaded']
+                .fillna('')
+                .astype(str)
+                .str.strip()
+                .str.title()
+            )
 
             if 'Was Starter' not in transfers.columns:
                 transfers['Was Starter'] = False
@@ -12098,6 +12112,31 @@ with tabs[5]:
                 incoming['ProjectedRole'] = pd.NA
             if 'Class' not in incoming.columns:
                 incoming['Class'] = pd.NA
+
+        # --- Normalize actual user draft results schema ---
+        if not user_draft_results.empty:
+            if 'CollegeTeam' not in user_draft_results.columns:
+                user_draft_results['CollegeTeam'] = pd.NA
+            if 'Player' not in user_draft_results.columns:
+                user_draft_results['Player'] = pd.NA
+            if 'Pos' not in user_draft_results.columns:
+                user_draft_results['Pos'] = pd.NA
+            if 'DraftRound' not in user_draft_results.columns:
+                user_draft_results['DraftRound'] = pd.NA
+            if 'OVR' not in user_draft_results.columns:
+                user_draft_results['OVR'] = pd.NA
+            if 'Class' not in user_draft_results.columns:
+                user_draft_results['Class'] = pd.NA
+
+            user_draft_results['DraftYear'] = pd.to_numeric(
+                user_draft_results['DraftYear'], errors='coerce'
+            )
+            user_draft_results['OVR'] = pd.to_numeric(
+                user_draft_results['OVR'], errors='coerce'
+            )
+            user_draft_results['DraftRound'] = pd.to_numeric(
+                user_draft_results['DraftRound'], errors='coerce'
+            )
 
         # --- Build live OVR lookup from current roster ---
         try:
@@ -12133,10 +12172,14 @@ with tabs[5]:
             inject_live_ovr(nfl),
             inject_live_ovr(transfers),
             inject_live_ovr(graduates),
-            incoming
+            incoming,
+            user_draft_results
         )
 
-    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df = load_attrition_data('cfb26_rosters_full.csv', current_yr)
+    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df, user_draft_results_df = load_attrition_data(
+        'cfb26_rosters_full.csv',
+        current_yr
+    )
 
     # --- 1B. Starter Inference Helpers ---
     def truthy_series(series):
@@ -12315,6 +12358,8 @@ with tabs[5]:
     for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df, incoming_df]:
         if 'Year' in df.columns:
             all_years.update(df['Year'].dropna().unique())
+    if not user_draft_results_df.empty and 'DraftYear' in user_draft_results_df.columns:
+        all_years.update(user_draft_results_df['DraftYear'].dropna().astype(int).tolist())
 
     available_years = sorted([int(y) for y in all_years if str(y).isdigit()], reverse=True)
     if not available_years:
@@ -12355,7 +12400,29 @@ with tabs[5]:
     team_tp = filter_team_year(tp_df, selected_team, recruiting_source_year)
     team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
 
-    team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
+    # Prefer actual draft results from cfb_user_draft_results.csv
+    team_actual_draft = pd.DataFrame()
+    if not user_draft_results_df.empty:
+        team_actual_draft = user_draft_results_df[
+            (user_draft_results_df['DraftYear'] == int(selected_year)) &
+            (user_draft_results_df['CollegeTeam'].astype(str).str.strip() == str(selected_team).strip())
+        ].copy()
+
+    if not team_actual_draft.empty:
+        team_nfl = pd.DataFrame({
+            'Year': team_actual_draft['DraftYear'],
+            'Team': team_actual_draft['CollegeTeam'],
+            'Player': team_actual_draft['Player'],
+            'Position': team_actual_draft['Pos'],
+            'OVR': team_actual_draft['OVR'],
+            'Round': team_actual_draft['DraftRound'],
+            'Left Early': False,
+            'Class': team_actual_draft['Class'],
+            'Was Starter': False
+        })
+    else:
+        team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
+
     team_transfers_all = filter_team_year(transfers_df, selected_team, selected_year)
     team_grads = filter_team_year(graduates_df, selected_team, selected_year)
 
@@ -12374,10 +12441,9 @@ with tabs[5]:
             .str.title()
         )
 
-        # ONLY actual transfers out
         team_transfers = team_transfers_all[
-    team_transfers_all['TransferStatus'].eq('Leaving')
-].drop_duplicates(subset=["Year", "Team", "Player"]).copy()
+            team_transfers_all['TransferStatus'].eq('Leaving')
+        ].drop_duplicates(subset=["Year", "Team", "Player"]).copy()
 
         team_transfer_stayed = team_transfers_all[
             team_transfers_all['TransferStatus'].eq('Staying')
