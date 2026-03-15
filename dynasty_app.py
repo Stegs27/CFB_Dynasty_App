@@ -11400,6 +11400,16 @@ with tabs[9]:
         with c3:
             st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
 
+        a1, a2 = st.columns([1, 3])
+
+        with a1:
+            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_public_btn"):
+                enable_draft_audio()
+                st.success("Draft audio enabled for this session.")
+
+        with a2:
+            st.caption("Click this once before replaying the draft if your browser blocks sound.")
+
         if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_public"):
             if latest_saved_draft_year is None:
                 st.warning("No saved draft exists yet.")
