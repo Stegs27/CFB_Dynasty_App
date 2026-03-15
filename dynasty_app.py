@@ -1621,8 +1621,14 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     source_meta = source_meta[["PlayerID", "DraftSource", "TrackStoryline"]].drop_duplicates()
     generated_new = generated_new.merge(source_meta, on="PlayerID", how="left", suffixes=("", "_src"))
 
-    generated_new["DraftSource"] = generated_new["DraftSource"].fillna("cpu_pool")
-    generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("No")
+    generated_new["DraftSource"] = generated_new["DraftSource"].fillna(
+    generated_new["TrackStoryline"].astype(str).str.upper().map({
+        "YES": "user_results",
+        "NO": "cpu_pool"
+    })
+).fillna("cpu_pool")
+
+generated_new["TrackStoryline"] = generated_new["TrackStoryline"].fillna("No")
     generated_new["OriginalPick"] = pd.NA
     generated_new["WasTrade"] = "No"
     generated_new["TradeNote"] = ""
