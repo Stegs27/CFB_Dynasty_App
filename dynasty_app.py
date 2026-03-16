@@ -1087,12 +1087,12 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 header_ph.markdown(
                     f"""
                     <div style="background:linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.10); border-left:8px solid #22c55e; border-radius:14px; padding:14px 18px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px;">
                             <div>
                                 <div style="font-size:0.78rem; color:#86efac; text-transform:uppercase; letter-spacing:1.1px; font-weight:800;">NFL Draft • Round 1</div>
-                                <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:4px;">Pick #{overall_pick} is in</div>
+                                <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:8px; line-height:1.15;">Pick #{overall_pick} is in</div>
                             </div>
-                            <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; margin-top:2px;">
                                 <span style="display:inline-block;font-size:0.78rem;color:#dcfce7;font-weight:900;padding:6px 10px;border-radius:999px;background:rgba(34,197,94,0.18);border:1px solid rgba(34,197,94,0.35);white-space:nowrap;">USER PICK</span>
                                 <span style="display:inline-block;font-size:0.82rem;color:#fef3c7;font-weight:800;padding:6px 10px;border-radius:999px;background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.24);white-space:nowrap;">On the Clock</span>
                             </div>
@@ -1105,12 +1105,12 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 header_ph.markdown(
                     f"""
                     <div style="background:linear-gradient(135deg, rgba(245,158,11,0.20), rgba(255,255,255,0.03)); border:1px solid rgba(255,255,255,0.10); border-left:8px solid #f59e0b; border-radius:14px; padding:14px 18px; margin-bottom:12px; box-shadow:0 6px 14px rgba(0,0,0,0.35);">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:14px;">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px;">
                             <div>
                                 <div style="font-size:0.78rem; color:#fcd34d; text-transform:uppercase; letter-spacing:1.1px; font-weight:800;">NFL Draft • Round 1</div>
-                                <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:4px;">Pick #{overall_pick} is in</div>
+                                <div style="font-size:1.65rem; font-weight:900; color:#ffffff; margin-top:8px; line-height:1.15;">Pick #{overall_pick} is in</div>
                             </div>
-                            <div>
+                            <div style="margin-top:2px;">
                                 <span style="display:inline-block;font-size:0.82rem;color:#fef3c7;font-weight:800;padding:6px 10px;border-radius:999px;background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.24);white-space:nowrap;">On the Clock</span>
                             </div>
                         </div>
