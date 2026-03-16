@@ -13058,11 +13058,15 @@ with tabs[9]:
 
                 # Featured alumni cards
                 st.markdown("#### Featured Alumni")
-                featured = drafted_here.head(6).copy()
+                featured = drafted_here.sort_values(
+    ["GeneratedOverallPick", "PeakOVR"],
+    ascending=[True, False]
+).head(6).copy()
 
                 for _, r in featured.iterrows():
                     school = str(r.get("CollegeTeam", ""))
                     nfl_team = str(r.get("GeneratedNFLTeam", ""))
+                    college_user = str(r.get("CollegeUser", "")).strip()
                     school_logo = get_school_logo_html(school, width=42, margin="0 10px 0 0")
                     nfl_logo = get_nfl_logo_html(nfl_team, width=42, margin="0 0 0 10px")
                     draft_source = str(r.get("DraftSource", "user_results")).strip().lower()
@@ -13070,7 +13074,7 @@ with tabs[9]:
                     badge_html = (
                         '<span style="display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">League Prospect</span>'
                         if draft_source == "background_r1"
-                        else f'<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(user_name) if user_name else "Tracked Player"}</span>'
+                        else f'<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(college_user) if college_user else "Tracked Player"}</span>'
                     )
 
                     st.markdown(
