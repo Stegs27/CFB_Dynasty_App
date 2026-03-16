@@ -12179,6 +12179,7 @@ with tabs[9]:
     nfl_story = universe["nfl_story"]
     nfl_settings = universe["nfl_settings"]
     nfl_standings_hist = universe["nfl_standings_hist"]
+    nfl_awards_hist = universe["nfl_awards_hist"]
 
     is_commissioner = False
 
@@ -12446,6 +12447,7 @@ with tabs[9]:
     nfl_tabs = st.tabs([
         "📦 Draft Central",
         "🏁 Season Recap",
+        "🏅 Awards",
         "👤 Alumni Tracker",
         "🏆 Super Bowl History",
         "📰 Storylines",
@@ -12744,8 +12746,169 @@ with tabs[9]:
                             "CareerValue": st.column_config.NumberColumn(format="%.1f"),
                         }
                     )
-    # ── Alumni Tracker ────────────────────────────────────────────────
+                    
+                    
+# ── Awards ───────────────────────────────────────────────────────
     with nfl_tabs[2]:
+        st.subheader("🏅 NFL Awards")
+
+        if nfl_awards_hist.empty:
+            st.info("No NFL awards have been generated yet.")
+        else:
+            award_seasons = sorted(
+                pd.to_numeric(nfl_awards_hist["Season"], errors="coerce")
+                .dropna()
+                .astype(int)
+                .unique()
+                .tolist()
+            )
+
+            if not award_seasons:
+                st.info("No NFL awards have been generated yet.")
+            else:
+                sel_award_season = st.selectbox(
+                    "Award Season",
+                    award_seasons,
+                    index=len(award_seasons) - 1,
+                    key="nfl_awards_season_select"
+                )
+
+                awards_df = nfl_awards_hist.copy()
+                awards_df["Season"] = pd.to_numeric(awards_df["Season"], errors="coerce")
+                awards_df = awards_df[
+                    awards_df["Season"].fillna(-1).astype(int) == int(sel_award_season)
+                ].copy()
+
+                if awards_df.empty:
+                    st.info("No awards found for that season.")
+                else:
+                    draft_lookup = {}
+                    if nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                        for _, dr in nfl_draft_hist.iterrows():
+                            draft_lookup[str(dr.get("PlayerID", ""))] = {
+                                "CollegeTeam": dr.get("CollegeTeam", ""),
+                                "CollegeUser": dr.get("CollegeUser", "")
+                            }
+
+                    awards_df["CollegeTeam"] = awards_df["PlayerID"].map(
+                        lambda x: draft_lookup.get(str(x), {}).get("CollegeTeam", "")
+                    )
+                    awards_df["CollegeUser"] = awards_df["PlayerID"].map(
+                        lambda x: draft_lookup.get(str(x), {}).get("CollegeUser", "")
+                    )
+
+                    major_awards = awards_df[
+                        awards_df["Award"].astype(str).isin([
+                            "NFL MVP",
+                            "Offensive Rookie of the Year",
+                            "Defensive Rookie of the Year"
+                        ])
+                    ].copy()
+
+                    if not major_awards.empty:
+                        st.markdown("#### Major Awards")
+
+                        for _, r in major_awards.iterrows():
+                            nfl_team = str(r.get("NFLTeam", ""))
+                            school = str(r.get("CollegeTeam", ""))
+                            player = str(r.get("Player", ""))
+                            award = str(r.get("Award", ""))
+                            notes = str(r.get("Notes", ""))
+                            college_user = clean_display(r.get("CollegeUser", ""), "")
+
+                            nfl_logo = get_nfl_logo_html(nfl_team, width=42, margin="0 0 0 10px")
+                            school_logo = get_school_logo_html(school, width=42, margin="0 10px 0 0")
+
+                            user_badge = ""
+                            if college_user:
+                                user_badge = f"""
+                                <div style="margin-top:8px;">
+                                    <span style="display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;">{html.escape(college_user)}</span>
+                                </div>
+                                """
+
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    padding:1rem 1rem;
+                                    border-radius:14px;
+                                    margin-bottom:0.85rem;
+                                    background:linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+                                    border-left:5px solid #eab308;
+                                ">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                                        <div style="display:flex; align-items:center; min-width:0;">
+                                            {school_logo}
+                                            <div>
+                                                <div style="font-size:0.8rem; color:#fcd34d; text-transform:uppercase; letter-spacing:1px; font-weight:800;">
+                                                    {html.escape(award)}
+                                                </div>
+                                                <div style="font-weight:900; font-size:1.05rem; color:#ffffff; margin-top:2px;">
+                                                    {html.escape(player)}
+                                                </div>
+                                                <div style="font-size:0.9rem; color:#d1d5db;">
+                                                    {html.escape(school)} • {html.escape(str(r.get("Pos", "")))} • {html.escape(nfl_team)}
+                                                </div>
+                                                <div style="font-size:0.86rem; color:#fde68a; margin-top:4px;">
+                                                    {html.escape(notes)}
+                                                </div>
+                                                {user_badge}
+                                            </div>
+                                        </div>
+                                        <div style="display:flex; align-items:center;">
+                                            {nfl_logo}
+                                        </div>
+                                    </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+
+                    st.markdown("#### Awards Table")
+
+                    awards_show = awards_df.copy()
+                    awards_show.insert(1, "NFL Logo", awards_show["NFLTeam"].map(get_nfl_logo_src))
+                    awards_show.insert(5, "School Logo", awards_show["CollegeTeam"].map(get_school_logo_src))
+
+                    awards_show = awards_show[[
+                        "Award", "Player", "NFL Logo", "NFLTeam", "Pos",
+                        "School Logo", "CollegeTeam", "CollegeUser", "Result", "Notes"
+                    ]].copy().rename(columns={
+                        "NFLTeam": "NFL Team",
+                        "CollegeTeam": "School",
+                        "CollegeUser": "User"
+                    })
+
+                    st.dataframe(
+                        awards_show,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_config={
+                            "NFL Logo": st.column_config.ImageColumn(""),
+                            "School Logo": st.column_config.ImageColumn(""),
+                        }
+                    )
+
+                    st.markdown("#### Award Counts by NFL Team")
+                    team_award_counts = (
+                        awards_df.groupby("NFLTeam")
+                        .size()
+                        .reset_index(name="Awards")
+                        .sort_values(["Awards", "NFLTeam"], ascending=[False, True])
+                    )
+                    team_award_counts.insert(1, "Logo", team_award_counts["NFLTeam"].map(get_nfl_logo_src))
+
+                    st.dataframe(
+                        team_award_counts,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_config={
+                            "Logo": st.column_config.ImageColumn("")
+                        }
+                    )
+                                        
+    # ── Alumni Tracker ────────────────────────────────────────────────
+    with nfl_tabs[3]:
         st.subheader("👤 Alumni Tracker")
 
         if nfl_draft_hist.empty:
@@ -12801,7 +12964,7 @@ with tabs[9]:
             )
 
     # ── Super Bowl History ────────────────────────────────────────────
-    with nfl_tabs[3]:
+    with nfl_tabs[4]:
         st.subheader("🏆 Super Bowl History")
 
         if nfl_super_bowl.empty:
@@ -12840,7 +13003,7 @@ with tabs[9]:
             )
 
     # ── Storylines ────────────────────────────────────────────────────
-    with nfl_tabs[4]:
+    with nfl_tabs[5]:
         st.subheader("📰 Storylines")
 
         if nfl_story.empty and not nfl_draft_hist.empty:
@@ -12945,7 +13108,7 @@ with tabs[9]:
                 )
 
     # ── NFL Teams ─────────────────────────────────────────────────────
-    with nfl_tabs[5]:
+    with nfl_tabs[6]:
         st.subheader("🏟️ NFL Teams")
 
         if nfl_roster.empty:
