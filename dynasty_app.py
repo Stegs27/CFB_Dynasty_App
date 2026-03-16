@@ -182,7 +182,7 @@ NFL_PLAYOFF_HISTORY_COLS = [
 ]
 
 NFL_STANDINGS_HISTORY_COLS = [
-    "Season", "Team", "Wins", "Losses", "WinPct",
+    "Season", "Team", "Conference", "Wins", "Losses", "WinPct",
     "Seed", "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "DepthScore", "StarPower"
 ]
 
@@ -2199,17 +2199,68 @@ def get_latest_completed_draft_year():
     years = pd.to_numeric(df["DraftYear"], errors="coerce").dropna()
     return int(years.max()) if not years.empty else None
 
+def get_nfl_conference(team_name):
+    name = str(team_name).strip().lower()
+
+    if not name:
+        return ""
+
+    afc_full = {
+        "buffalo bills", "miami dolphins", "new england patriots", "new york jets",
+        "baltimore ravens", "cincinnati bengals", "cleveland browns", "pittsburgh steelers",
+        "houston texans", "indianapolis colts", "jacksonville jaguars", "tennessee titans",
+        "denver broncos", "kansas city chiefs", "las vegas raiders", "los angeles chargers"
+    }
+
+    nfc_full = {
+        "dallas cowboys", "new york giants", "philadelphia eagles", "washington commanders",
+        "chicago bears", "detroit lions", "green bay packers", "minnesota vikings",
+        "atlanta falcons", "carolina panthers", "new orleans saints", "tampa bay buccaneers",
+        "arizona cardinals", "los angeles rams", "san francisco 49ers", "seattle seahawks"
+    }
+
+    afc_short = {
+        "bills", "dolphins", "patriots", "jets",
+        "ravens", "bengals", "browns", "steelers",
+        "texans", "colts", "jaguars", "titans",
+        "broncos", "chiefs", "raiders", "chargers"
+    }
+
+    nfc_short = {
+        "cowboys", "giants", "eagles", "commanders",
+        "bears", "lions", "packers", "vikings",
+        "falcons", "panthers", "saints", "buccaneers", "bucs",
+        "cardinals", "rams", "49ers", "seahawks"
+    }
+
+    if name in afc_full or name in afc_short:
+        return "AFC"
+    if name in nfc_full or name in nfc_short:
+        return "NFC"
+
+    # fallback contains match for names like "Chicago Bears Team"
+    for token in afc_short:
+        if token in name:
+            return "AFC"
+    for token in nfc_short:
+        if token in name:
+            return "NFC"
+
+    return ""
 
 def build_nfl_team_strengths(nfl_roster_df):
     if nfl_roster_df is None or nfl_roster_df.empty:
         return pd.DataFrame(columns=[
-            "Team", "OffenseScore", "DefenseScore", "QBScore", "StarPower", "DepthScore", "TeamPower"
+            "Team", "Conference", "OffenseScore", "DefenseScore",
+            "QBScore", "StarPower", "DepthScore", "TeamPower"
         ])
 
     df = nfl_roster_df.copy()
+
     for col in ["Team", "Pos", "Name"]:
         if col not in df.columns:
             df[col] = ""
+
     for col in ["OVR", "SPD", "ACC", "AWR", "Age"]:
         if col not in df.columns:
             df[col] = 0
@@ -2218,14 +2269,17 @@ def build_nfl_team_strengths(nfl_roster_df):
     df["SPD"] = pd.to_numeric(df["SPD"], errors="coerce").fillna(0)
     df["ACC"] = pd.to_numeric(df["ACC"], errors="coerce").fillna(0)
     df["AWR"] = pd.to_numeric(df["AWR"], errors="coerce").fillna(0)
+    df["Age"] = pd.to_numeric(df["Age"], errors="coerce").fillna(25)
     df["PosBucket"] = df["Pos"].map(clean_bucket)
 
     rows = []
+
     for team in sorted(df["Team"].dropna().astype(str).unique().tolist()):
         team_df = df[df["Team"].astype(str) == str(team)].copy()
 
         qb_df = team_df[team_df["PosBucket"] == "QB"].sort_values("OVR", ascending=False)
         qb1 = safe_num(qb_df["OVR"].iloc[0], 70) if not qb_df.empty else 70
+        qb_score = round(qb1, 2)
 
         off_buckets = ["QB", "RB", "WR", "TE", "OL"]
         def_buckets = ["EDGE", "IDL", "LB", "CB", "S"]
@@ -2260,10 +2314,11 @@ def build_nfl_team_strengths(nfl_roster_df):
 
         rows.append({
             "Team": team,
+            "Conference": get_nfl_conference(team),
             "OffenseScore": offense_score,
             "DefenseScore": defense_score,
-            "QBScore": round(qb1, 2),
-            "StarPower": int(star_power),
+            "QBScore": qb_score,
+            "StarPower": star_power,
             "DepthScore": depth_score,
             "TeamPower": team_power
         })
@@ -2274,7 +2329,8 @@ def build_nfl_team_strengths(nfl_roster_df):
 def simulate_nfl_regular_season(team_strength_df, season_year, games_per_team=17):
     if team_strength_df is None or team_strength_df.empty:
         return pd.DataFrame(columns=[
-            "Season", "Team", "Wins", "Losses", "WinPct", "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "Seed"
+            "Season", "Team", "Conference", "Wins", "Losses", "WinPct",
+            "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "DepthScore", "StarPower", "Seed"
         ])
 
     teams = team_strength_df["Team"].dropna().astype(str).tolist()
@@ -2309,8 +2365,44 @@ def simulate_nfl_regular_season(team_strength_df, season_year, games_per_team=17
         rows.append(row)
 
     out = pd.DataFrame(rows)
-    out = out.sort_values(["Wins", "TeamPower", "QBScore"], ascending=[False, False, False]).reset_index(drop=True)
-    out["Seed"] = range(1, len(out) + 1)
+
+    if "Conference" not in out.columns:
+        out["Conference"] = out["Team"].map(get_nfl_conference)
+
+    out["Conference"] = out["Conference"].astype(str).str.upper().str.strip()
+
+    seeded_frames = []
+    for conf in ["AFC", "NFC"]:
+        conf_df = out[out["Conference"] == conf].copy()
+        if conf_df.empty:
+            continue
+
+        conf_df = conf_df.sort_values(
+            ["Wins", "TeamPower", "QBScore", "Team"],
+            ascending=[False, False, False, True]
+        ).reset_index(drop=True)
+
+        conf_df["Seed"] = range(1, len(conf_df) + 1)
+        seeded_frames.append(conf_df)
+
+    if seeded_frames:
+        out = pd.concat(seeded_frames, ignore_index=True)
+    else:
+        out = out.sort_values(
+            ["Wins", "TeamPower", "QBScore", "Team"],
+            ascending=[False, False, False, True]
+        ).reset_index(drop=True)
+        out["Seed"] = range(1, len(out) + 1)
+
+    wanted_cols = [
+        "Season", "Team", "Conference", "Wins", "Losses", "WinPct",
+        "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "DepthScore", "StarPower", "Seed"
+    ]
+    for col in wanted_cols:
+        if col not in out.columns:
+            out[col] = pd.NA
+
+    out = out[wanted_cols].copy()
     return out
 
 
@@ -2336,61 +2428,109 @@ def simulate_playoff_game(team_a, team_b, power_map):
 
 def simulate_nfl_playoffs(standings_df, season_year):
     if standings_df is None or standings_df.empty:
-        return None, None, None, None
+        return None, None, None, pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
 
-    playoff_df = standings_df.sort_values(["Seed"], ascending=[True]).head(14).copy()
-    if playoff_df.empty:
-        return None, None, None, None
+    work = standings_df.copy()
+    if "Conference" not in work.columns:
+        return None, None, None, pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
 
-    power_map = dict(zip(standings_df["Team"], standings_df["TeamPower"]))
+    work["Wins"] = pd.to_numeric(work["Wins"], errors="coerce").fillna(0)
+    work["TeamPower"] = pd.to_numeric(work["TeamPower"], errors="coerce").fillna(0)
 
-    current = playoff_df["Team"].tolist()
-    round_name = "Wild Card"
-    playoff_log = []
+    playoff_rows = []
 
-    while len(current) > 1:
-        next_round = []
-        pairings = []
+    def simulate_game(team_a_row, team_b_row, round_name):
+        team_a = str(team_a_row["Team"])
+        team_b = str(team_b_row["Team"])
 
-        if len(current) % 2 == 1:
-            bye_team = current[0]
-            next_round.append(bye_team)
-            current = current[1:]
+        power_a = safe_num(team_a_row.get("TeamPower", 75), 75)
+        power_b = safe_num(team_b_row.get("TeamPower", 75), 75)
 
-        for i in range(0, len(current), 2):
-            if i + 1 < len(current):
-                pairings.append((current[i], current[i + 1]))
+        score_a = int(round(random.gauss(21 + (power_a - 75) * 0.35, 6)))
+        score_b = int(round(random.gauss(21 + (power_b - 75) * 0.35, 6)))
 
-        for team_a, team_b in pairings:
-            winner, loser, score = simulate_playoff_game(team_a, team_b, power_map)
-            playoff_log.append({
-                "Season": int(season_year),
-                "Round": round_name,
-                "Winner": winner,
-                "Loser": loser,
-                "Score": score
-            })
-            next_round.append(winner)
+        score_a = max(10, score_a)
+        score_b = max(10, score_b)
 
-        current = next_round
-        if len(current) == 8:
-            round_name = "Divisional"
-        elif len(current) == 4:
-            round_name = "Conference Championship"
-        elif len(current) == 2:
-            round_name = "Super Bowl"
+        if score_a == score_b:
+            if power_a >= power_b:
+                score_a += 3
+            else:
+                score_b += 3
 
-    champion = current[0]
-    super_bowl_rows = [r for r in playoff_log if r["Round"] == "Super Bowl"]
-    if super_bowl_rows:
-        sb = super_bowl_rows[0]
-        runner_up = sb["Loser"]
-        score = sb["Score"]
+        if score_a > score_b:
+            winner, loser = team_a, team_b
+            winner_row = team_a_row
+        else:
+            winner, loser = team_b, team_a
+            winner_row = team_b_row
+
+        playoff_rows.append({
+            "Season": int(season_year),
+            "Round": round_name,
+            "Winner": winner,
+            "Loser": loser,
+            "Score": f"{max(score_a, score_b)}-{min(score_a, score_b)}"
+        })
+
+        return winner_row
+
+    def run_conference_bracket(conf_df):
+        conf_df = conf_df.sort_values(
+            ["Wins", "TeamPower", "Team"],
+            ascending=[False, False, True]
+        ).head(7).copy().reset_index(drop=True)
+
+        if len(conf_df) < 7:
+            return None
+
+        conf_df["Seed"] = range(1, len(conf_df) + 1)
+        seed_map = {int(r["Seed"]): r for _, r in conf_df.iterrows()}
+
+        wc1_winner = simulate_game(seed_map[2], seed_map[7], "Wild Card")
+        wc2_winner = simulate_game(seed_map[3], seed_map[6], "Wild Card")
+        wc3_winner = simulate_game(seed_map[4], seed_map[5], "Wild Card")
+
+        winners = [wc1_winner, wc2_winner, wc3_winner]
+        winners = sorted(winners, key=lambda r: int(r["Seed"]))
+
+        div1_winner = simulate_game(seed_map[1], winners[-1], "Divisional")
+        div2_winner = simulate_game(winners[0], winners[1], "Divisional")
+
+        conf_winner = simulate_game(div1_winner, div2_winner, "Conference Championship")
+        return conf_winner
+
+    work["Conference"] = work["Conference"].astype(str).str.upper().str.strip()
+
+    afc_df = work[work["Conference"] == "AFC"].copy()
+    nfc_df = work[work["Conference"] == "NFC"].copy()
+
+    if afc_df.empty or nfc_df.empty:
+        print("PLAYOFF CONF ERROR:", work[["Team", "Conference"]].to_dict("records"))
+        return None, None, None, pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+
+    if afc_df.empty or nfc_df.empty:
+        return None, None, None, pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+
+    afc_champ = run_conference_bracket(afc_df)
+    nfc_champ = run_conference_bracket(nfc_df)
+
+    if afc_champ is None or nfc_champ is None:
+        return None, None, None, pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+
+    super_bowl_winner = simulate_game(afc_champ, nfc_champ, "Super Bowl")
+    champion = str(super_bowl_winner["Team"])
+
+    if champion == str(afc_champ["Team"]):
+        runner_up = str(nfc_champ["Team"])
     else:
-        runner_up = playoff_df.iloc[1]["Team"] if len(playoff_df) > 1 else "Unknown Team"
-        score = f"{champion} 24, {runner_up} 20"
+        runner_up = str(afc_champ["Team"])
 
-    return champion, runner_up, score, pd.DataFrame(playoff_log)
+    playoff_df = pd.DataFrame(playoff_rows, columns=NFL_PLAYOFF_HISTORY_COLS)
+    sb_row = playoff_df[playoff_df["Round"] == "Super Bowl"].tail(1)
+    score = sb_row.iloc[0]["Score"] if not sb_row.empty else ""
+
+    return champion, runner_up, score, playoff_df
 
 
 def choose_super_bowl_mvp(champion, player_season_rows):
@@ -2590,6 +2730,9 @@ def simulate_nfl_season(season_year=None):
         return None, "NFL roster data is missing, so the season could not be simulated."
 
     standings_df = simulate_nfl_regular_season(team_strength_df, season_year=season_year, games_per_team=17)
+    
+    print("STANDINGS TEAM / CONF:")
+print(standings_df[["Team", "Conference", "Seed"]].sort_values(["Conference", "Seed"]).to_dict("records"))
     
     existing_standings = pd.read_csv("nfl_standings_history.csv") if os.path.exists("nfl_standings_history.csv") else pd.DataFrame(columns=NFL_STANDINGS_HISTORY_COLS)
 
@@ -12875,63 +13018,46 @@ with tabs[9]:
                     ].copy()
 
                     if not major_awards.empty:
-                        st.markdown("#### Major Awards")
+                    st.markdown("#### Major Awards")
 
-                        for _, r in major_awards.iterrows():
-                            nfl_team = str(r.get("NFLTeam", ""))
-                            school = str(r.get("CollegeTeam", ""))
-                            player = str(r.get("Player", ""))
-                            award = str(r.get("Award", ""))
-                            notes = str(r.get("Notes", ""))
-                            college_user = clean_display(r.get("CollegeUser", ""), "")
+                    for _, r in major_awards.iterrows():
+                        nfl_team = str(r.get("NFLTeam", ""))
+                        school = str(r.get("CollegeTeam", ""))
+                        player = str(r.get("Player", ""))
+                        award = str(r.get("Award", ""))
+                        notes = str(r.get("Notes", ""))
+                        college_user = clean_display(r.get("CollegeUser", ""), "")
 
-                            nfl_logo = get_nfl_logo_html(nfl_team, width=42, margin="0 0 0 10px")
-                            school_logo = get_school_logo_html(school, width=42, margin="0 10px 0 0")
+                        school_logo_src = get_school_logo_src(school)
+                        nfl_logo_src = get_nfl_logo_src(nfl_team)
 
-                            user_badge = ""
+                        c1, c2 = st.columns([5, 1])
+
+                        with c1:
+                            if school_logo_src:
+                                st.image(school_logo_src, width=42)
+                            st.markdown(f"**{award}**")
+                            st.markdown(f"### {player}")
+                            st.write(f"{school} • {r.get('Pos', '')} • {nfl_team}")
+                            if notes:
+                                st.caption(notes)
+
                             if college_user:
-                                user_badge = f"""
-                                <div style="margin-top:8px;">
-                                    <span style="display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;">{html.escape(college_user)}</span>
-                                </div>
-                                """
+                                st.markdown(
+                                    f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(college_user)}</span>",
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                st.markdown(
+                                    "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
+                                    unsafe_allow_html=True
+                                )
 
-                            st.markdown(
-                                f"""
-                                <div style="
-                                    padding:1rem 1rem;
-                                    border-radius:14px;
-                                    margin-bottom:0.85rem;
-                                    background:linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-                                    border-left:5px solid #eab308;
-                                ">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                                        <div style="display:flex; align-items:center; min-width:0;">
-                                            {school_logo}
-                                            <div>
-                                                <div style="font-size:0.8rem; color:#fcd34d; text-transform:uppercase; letter-spacing:1px; font-weight:800;">
-                                                    {html.escape(award)}
-                                                </div>
-                                                <div style="font-weight:900; font-size:1.05rem; color:#ffffff; margin-top:2px;">
-                                                    {html.escape(player)}
-                                                </div>
-                                                <div style="font-size:0.9rem; color:#d1d5db;">
-                                                    {html.escape(school)} • {html.escape(str(r.get("Pos", "")))} • {html.escape(nfl_team)}
-                                                </div>
-                                                <div style="font-size:0.86rem; color:#fde68a; margin-top:4px;">
-                                                    {html.escape(notes)}
-                                                </div>
-                                                {user_badge}
-                                            </div>
-                                        </div>
-                                        <div style="display:flex; align-items:center;">
-                                            {nfl_logo}
-                                        </div>
-                                    </div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True
-                            )
+                        with c2:
+                            if nfl_logo_src:
+                                st.image(nfl_logo_src, width=42)
+
+                        st.markdown("---")
 
                     st.markdown("#### Awards Table")
 
