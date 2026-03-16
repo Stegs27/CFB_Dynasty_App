@@ -11320,6 +11320,15 @@ with tabs[9]:
                 key="nfl_allow_rerun_latest"
             )
 
+        audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
+
+        with audio_c:
+            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn_commish"):
+                enable_draft_audio()
+                st.success("Draft audio enabled for this session.")
+
+        st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
+
         b1, b2, b3 = st.columns(3)
 
         with b1:
@@ -11338,50 +11347,6 @@ with tabs[9]:
 
                         if status_msg and "officially added" in status_msg.lower():
                             existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists("nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                            seed_story_events_from_draft_class(just_added_class, existing_story)
-
-                    if status_msg:
-                        if "already locked in" in status_msg.lower():
-                            st.info(status_msg)
-                        elif "officially added" in status_msg.lower():
-                            st.success(status_msg)
-                        else:
-                            st.warning(status_msg)
-
-                except Exception as e:
-                    st.error(f"NFL draft error: {type(e).__name__}: {e}")
-                    
-        audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
-
-        with audio_c:
-            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn"):
-                enable_draft_audio()
-                st.success("Draft audio enabled for this session.")
-
-        st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
-
-        b1, b2, b3 = st.columns(3)
-
-        with b1:
-            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft"):
-                try:
-                    nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
-                        live_mode=False,
-                        speed_mode=reveal_speed,
-                        force_latest=False
-                    )
-
-                    if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                        just_added_class = nfl_draft_hist[
-                            pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
-                        ].copy()
-
-                        if status_msg and "officially added" in status_msg.lower():
-                            existing_story = (
-                                pd.read_csv("nfl_story_events.csv")
-                                if os.path.exists("nfl_story_events.csv")
-                                else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                            )
                             seed_story_events_from_draft_class(just_added_class, existing_story)
 
                     if status_msg:
