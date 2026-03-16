@@ -13214,49 +13214,36 @@ with tabs[9]:
             for _, r in fallback.iterrows():
                 school = str(r.get("CollegeTeam", ""))
                 nfl_team = str(r.get("GeneratedNFLTeam", ""))
+                headline = f"{str(r.get('Player', ''))} lands with the {nfl_team}"
+                desc = (
+                    f"{school} • {str(r.get('Pos', ''))} / {str(r.get('PosBucket', ''))} • "
+                    f"Round {int(safe_num(r.get('DraftRoundCanon', 0), 0))} • "
+                    f"Pick {int(safe_num(r.get('GeneratedOverallPick', 0), 0))} • "
+                    f"{str(r.get('StoryTag', ''))}"
+                )
+
                 school_logo_src = get_school_logo_src(school)
                 nfl_logo_src = get_nfl_logo_src(nfl_team)
 
-                school_logo_html = (
-                    f'<img src="{school_logo_src}" style="width:42px;height:42px;object-fit:contain;margin-right:10px;" />'
-                    if school_logo_src else ""
-                )
-                nfl_logo_html = (
-                    f'<img src="{nfl_logo_src}" style="width:42px;height:42px;object-fit:contain;margin-left:10px;" />'
-                    if nfl_logo_src else ""
-                )
-
                 st.markdown(
-                    f"""
-                    <div style="
-                        padding:0.95rem 1rem;
-                        border-left:5px solid #4f46e5;
-                        background:#4f46e510;
-                        border-radius:12px;
-                        margin-bottom:0.75rem;
-                    ">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                            <div style="display:flex; align-items:center; min-width:0;">
-                                {school_logo_html}
-                                <div style="min-width:0;">
-                                    <div style="font-weight:800; font-size:1rem; color:#ffffff;">
-                                        {html.escape(str(r.get("Player", "")))} lands with the {html.escape(nfl_team)}
-                                    </div>
-                                    <div style="font-size:0.9rem; opacity:0.9; color:#d1d5db;">
-                                        {html.escape(school)} • {html.escape(str(r.get("Pos", "")))} / {html.escape(str(r.get("PosBucket", "")))} •
-                                        Round {int(safe_num(r.get("DraftRoundCanon", 0), 0))} • Pick {int(safe_num(r.get("GeneratedOverallPick", 0), 0))} •
-                                        {html.escape(str(r.get("StoryTag", "")))}
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="display:flex; align-items:center;">
-                                {nfl_logo_html}
-                            </div>
-                        </div>
-                    </div>
-                    """,
+                    "<div style='padding:0.75rem 0.9rem;border-left:5px solid #4f46e5;background:#4f46e510;border-radius:12px;margin-bottom:0.75rem;'>",
                     unsafe_allow_html=True
                 )
+                c1, c2, c3 = st.columns([1, 10, 1])
+
+                with c1:
+                    if school_logo_src:
+                        st.image(school_logo_src, width=42)
+
+                with c2:
+                    st.markdown(f"**{headline}**")
+                    st.caption(desc)
+
+                with c3:
+                    if nfl_logo_src:
+                        st.image(nfl_logo_src, width=42)
+
+                st.markdown("</div>", unsafe_allow_html=True)
 
         elif nfl_story.empty:
             st.info("No story events yet.")
@@ -13269,8 +13256,7 @@ with tabs[9]:
 
             draft_lookup = {}
             if nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                tmp_lookup = nfl_draft_hist.copy()
-                for _, dr in tmp_lookup.iterrows():
+                for _, dr in nfl_draft_hist.iterrows():
                     draft_lookup[str(dr.get("PlayerID", ""))] = {
                         "CollegeTeam": dr.get("CollegeTeam", ""),
                         "CollegeUser": dr.get("CollegeUser", "")
@@ -13285,67 +13271,43 @@ with tabs[9]:
                 school_logo_src = get_school_logo_src(school)
                 nfl_logo_src = get_nfl_logo_src(nfl_team)
 
-                school_logo_html = (
-                    f'<img src="{school_logo_src}" style="width:42px;height:42px;object-fit:contain;margin-right:10px;" />'
-                    if school_logo_src else ""
-                )
-                nfl_logo_html = (
-                    f'<img src="{nfl_logo_src}" style="width:42px;height:42px;object-fit:contain;margin-left:10px;" />'
-                    if nfl_logo_src else ""
-                )
-
                 event_type = str(r.get("EventType", "")).strip()
                 headline = str(r.get("Headline", "")).strip()
                 description = str(r.get("Description", "")).strip()
-
-                if college_user:
-                    badge_html = (
-                        f'<span style="display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;'
-                        f'border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;'
-                        f'padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(college_user)}</span>'
-                    )
-                else:
-                    badge_html = (
-                        '<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;'
-                        'border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;'
-                        'padding:4px 8px;border-radius:999px;margin-top:8px;">CPU</span>'
-                    )
 
                 border_color = "#22c55e" if event_type == "Award" else "#4f46e5" if event_type == "SeasonOutcome" else "#eab308" if event_type == "SuperBowl" else "#334155"
                 bg_color = "rgba(34,197,94,0.08)" if event_type == "Award" else "rgba(79,70,229,0.08)" if event_type == "SeasonOutcome" else "rgba(234,179,8,0.08)" if event_type == "SuperBowl" else "rgba(148,163,184,0.08)"
 
                 st.markdown(
-                    f"""
-                    <div style="
-                        padding:0.95rem 1rem;
-                        border-left:5px solid {border_color};
-                        background:{bg_color};
-                        border-radius:12px;
-                        margin-bottom:0.75rem;
-                    ">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                            <div style="display:flex; align-items:center; min-width:0;">
-                                {school_logo_html}
-                                <div style="min-width:0;">
-                                    <div style="font-weight:800; font-size:1rem; color:#ffffff;">
-                                        {html.escape(headline)}
-                                    </div>
-                                    <div style="font-size:0.9rem; opacity:0.9; color:#d1d5db; margin-top:4px;">
-                                        {html.escape(description)}
-                                    </div>
-                                    <div style="margin-top:8px;">
-                                        {badge_html}
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="display:flex; align-items:center;">
-                                {nfl_logo_html}
-                            </div>
-                        </div>
-                    </div>
-                    """,
+                    f"<div style='padding:0.75rem 0.9rem;border-left:5px solid {border_color};background:{bg_color};border-radius:12px;margin-bottom:0.75rem;'>",
                     unsafe_allow_html=True
                 )
+                c1, c2, c3 = st.columns([1, 10, 1])
+
+                with c1:
+                    if school_logo_src:
+                        st.image(school_logo_src, width=42)
+
+                with c2:
+                    st.markdown(f"**{headline}**")
+                    st.caption(description)
+
+                    if college_user:
+                        st.markdown(
+                            f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(college_user)}</span>",
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
+                            unsafe_allow_html=True
+                        )
+
+                with c3:
+                    if nfl_logo_src:
+                        st.image(nfl_logo_src, width=42)
+
+                st.markdown("</div>", unsafe_allow_html=True)
 
     # ── NFL Teams ─────────────────────────────────────────────────────
     with nfl_tabs[6]:
