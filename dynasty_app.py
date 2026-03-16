@@ -12200,6 +12200,10 @@ with tabs[9]:
             yr_df = nfl_draft_hist[nfl_draft_hist["DraftYear"] == sel_year].copy()
             yr_df = yr_df.sort_values(["DraftRoundCanon", "GeneratedOverallPick"])
 
+            tracked_yr_df = yr_df[
+                yr_df["DraftSource"].astype(str).str.strip().str.lower().eq("user_results")
+            ].copy()
+
             k1, k2, k3, k4, k5 = st.columns(5)
             with k1:
                 st.metric("Players Drafted", len(yr_df))
@@ -12209,14 +12213,23 @@ with tabs[9]:
                 top_user = yr_df["CollegeUser"].value_counts().idxmax() if not yr_df["CollegeUser"].dropna().empty else "—"
                 st.metric("Top User Pipeline", top_user)
             with k4:
-                best_pick = int(pd.to_numeric(yr_df["GeneratedOverallPick"], errors="coerce").min()) if not yr_df.empty else 0
-                st.metric("Earliest Generated Pick", best_pick if best_pick else "—")
+                if not tracked_yr_df.empty:
+                    best_pick = int(pd.to_numeric(tracked_yr_df["GeneratedOverallPick"], errors="coerce").min())
+                else:
+                    best_pick = int(pd.to_numeric(yr_df["GeneratedOverallPick"], errors="coerce").min()) if not yr_df.empty else 0
+                st.metric("Earliest User Pick", best_pick if best_pick else "—")
             with k5:
                 top_bucket = yr_df["PosBucket"].value_counts().idxmax() if not yr_df["PosBucket"].dropna().empty else "—"
                 st.metric("Top Position Bucket", top_bucket)
 
-            if not yr_df.empty:
+            if not tracked_yr_df.empty:
+                top_pick = tracked_yr_df.sort_values("GeneratedOverallPick", ascending=True).iloc[0]
+            elif not yr_df.empty:
                 top_pick = yr_df.sort_values("GeneratedOverallPick", ascending=True).iloc[0]
+            else:
+                top_pick = None
+
+            if top_pick is not None:
 
                 school = str(top_pick.get("CollegeTeam", ""))
                 nfl_team = str(top_pick.get("GeneratedNFLTeam", ""))
