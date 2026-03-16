@@ -2734,7 +2734,7 @@ def simulate_nfl_season(season_year=None):
     print("STANDINGS TEAM / CONF:")
 print(standings_df[["Team", "Conference", "Seed"]].sort_values(["Conference", "Seed"]).to_dict("records"))
     
-    existing_standings = pd.read_csv("nfl_standings_history.csv") if os.path.exists("nfl_standings_history.csv") else pd.DataFrame(columns=NFL_STANDINGS_HISTORY_COLS)
+existing_standings = pd.read_csv("nfl_standings_history.csv") if os.path.exists("nfl_standings_history.csv") else pd.DataFrame(columns=NFL_STANDINGS_HISTORY_COLS)
 
     if not existing_standings.empty and "Season" in existing_standings.columns:
         existing_standings["Season"] = pd.to_numeric(existing_standings["Season"], errors="coerce")
