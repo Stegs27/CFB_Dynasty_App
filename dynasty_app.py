@@ -11310,7 +11310,7 @@ with tabs[9]:
         b1, b2, b3 = st.columns(3)
 
         with b1:
-            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft"):
+            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft_btn_commish"):
                 try:
                     nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
                         live_mode=False,
