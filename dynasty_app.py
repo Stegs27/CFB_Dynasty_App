@@ -13022,46 +13022,46 @@ with tabs[9]:
                     ].copy()
 
                     if not major_awards.empty:
-                    st.markdown("#### Major Awards")
+                        st.markdown("#### Major Awards")
 
-                    for _, r in major_awards.iterrows():
-                        nfl_team = str(r.get("NFLTeam", ""))
-                        school = str(r.get("CollegeTeam", ""))
-                        player = str(r.get("Player", ""))
-                        award = str(r.get("Award", ""))
-                        notes = str(r.get("Notes", ""))
-                        college_user = clean_display(r.get("CollegeUser", ""), "")
+                        for _, r in major_awards.iterrows():
+                            nfl_team = str(r.get("NFLTeam", ""))
+                            school = str(r.get("CollegeTeam", ""))
+                            player = str(r.get("Player", ""))
+                            award = str(r.get("Award", ""))
+                            notes = str(r.get("Notes", ""))
+                            college_user = clean_display(r.get("CollegeUser", ""), "")
 
-                        school_logo_src = get_school_logo_src(school)
-                        nfl_logo_src = get_nfl_logo_src(nfl_team)
+                            school_logo_src = get_school_logo_src(school)
+                            nfl_logo_src = get_nfl_logo_src(nfl_team)
 
-                        c1, c2 = st.columns([5, 1])
+                            c1, c2 = st.columns([5, 1])
 
-                        with c1:
-                            if school_logo_src:
-                                st.image(school_logo_src, width=42)
-                            st.markdown(f"**{award}**")
-                            st.markdown(f"### {player}")
-                            st.write(f"{school} • {r.get('Pos', '')} • {nfl_team}")
-                            if notes:
-                                st.caption(notes)
+                            with c1:
+                                if school_logo_src:
+                                    st.image(school_logo_src, width=42)
+                                st.markdown(f"**{award}**")
+                                st.markdown(f"### {player}")
+                                st.write(f"{school} • {r.get('Pos', '')} • {nfl_team}")
+                                if notes:
+                                    st.caption(notes)
 
-                            if college_user:
-                                st.markdown(
-                                    f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(college_user)}</span>",
-                                    unsafe_allow_html=True
-                                )
-                            else:
-                                st.markdown(
-                                    "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
-                                    unsafe_allow_html=True
-                                )
+                                if college_user:
+                                    st.markdown(
+                                        f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(college_user)}</span>",
+                                        unsafe_allow_html=True
+                                    )
+                                else:
+                                    st.markdown(
+                                        "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
+                                        unsafe_allow_html=True
+                                    )
 
-                        with c2:
-                            if nfl_logo_src:
-                                st.image(nfl_logo_src, width=42)
+                            with c2:
+                                if nfl_logo_src:
+                                    st.image(nfl_logo_src, width=42)
 
-                        st.markdown("---")
+                            st.markdown("---")
 
                     st.markdown("#### Awards Table")
 
