@@ -1139,65 +1139,46 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
             time.sleep(speeds["suspense"])
 
-            school_logo_src = get_school_logo_src(school) or ""
-            nfl_logo_src = get_nfl_logo_src(nfl_team) or ""
+            with card_ph.container():
+                school_logo_src = get_school_logo_src(school)
+                nfl_logo_src = get_nfl_logo_src(nfl_team)
 
-            school_logo_html = (
-                f"<img src='{school_logo_src}' style='width:64px;height:64px;object-fit:contain;display:block;margin:0 auto 10px auto;'>"
-                if school_logo_src else ""
-            )
-            nfl_logo_html = (
-                f"<img src='{nfl_logo_src}' style='width:64px;height:64px;object-fit:contain;display:block;margin:0 auto 10px auto;'>"
-                if nfl_logo_src else ""
-            )
+                top_left, top_mid, top_right = st.columns([1, 2, 1])
 
-            user_html = f"<div style='font-size:0.92rem;color:#cbd5e1;margin-top:4px;'>{html.escape(college_user)}</div>" if college_user else ""
-            source_html = f"<div style='font-size:0.82rem;color:#94a3b8;margin-top:4px;'>{html.escape(source_label)}</div>" if source_label else ""
-            role_line = f"{rookie_role} • {career_tier} ceiling".strip(" •")
-            role_html = f"<div style='font-size:0.95rem;color:#cbd5e1;margin-top:6px;'>{html.escape(role_line)}</div>" if role_line else ""
-            story_html = f"<div style='font-size:0.88rem;color:#94a3b8;margin-top:8px;'>{html.escape(story_tag)}</div>" if story_tag else ""
+                with top_left:
+                    if school_logo_src:
+                        st.image(school_logo_src, width=64)
 
-            card_ph.markdown(
-                f"""
-                <div style="
-                    width:100%;
-                    display:flex;
-                    justify-content:space-between;
-                    align-items:flex-start;
-                    gap:18px;
-                    background:linear-gradient(180deg, rgba(2,6,23,0.92), rgba(15,23,42,0.90));
-                    border:1px solid rgba(255,255,255,0.08);
-                    border-radius:18px;
-                    padding:20px 18px;
-                    margin-bottom:14px;
-                    box-shadow:0 10px 24px rgba(0,0,0,0.45);
-                ">
-                    <div style="width:28%; text-align:center;">
-                        {school_logo_html}
-                        <div style="font-size:0.75rem;color:#94a3b8;letter-spacing:1px;font-weight:800;">FROM</div>
-                        <div style="font-size:1.05rem;color:#ffffff;font-weight:800;margin-top:4px;">{html.escape(school)}</div>
-                        {user_html}
-                        {source_html}
-                    </div>
+                with top_mid:
+                    st.caption("SELECTED")
+                    st.markdown(f"## {player}")
+                    st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
 
-                    <div style="width:44%; text-align:center;">
-                        <div style="font-size:0.75rem;color:#94a3b8;letter-spacing:1px;font-weight:800;">SELECTED</div>
-                        <div style="font-size:1.8rem;color:#ffffff;font-weight:900;margin-top:6px;">{html.escape(player)}</div>
-                        <div style="font-size:1rem;color:#e5e7eb;margin-top:8px;">{html.escape(pos)} / {html.escape(pos_bucket)} • {ovr} OVR</div>
-                        {role_html}
-                        {story_html}
-                    </div>
+                    role_line = f"{rookie_role} • {career_tier} ceiling".strip(" •")
+                    if role_line:
+                        st.write(role_line)
 
-                    <div style="width:28%; text-align:center;">
-                        {nfl_logo_html}
-                        <div style="font-size:0.75rem;color:#94a3b8;letter-spacing:1px;font-weight:800;">TO</div>
-                        <div style="font-size:1.05rem;color:#ffffff;font-weight:800;margin-top:4px;">{html.escape(nfl_team)}</div>
-                        <div style="font-size:0.92rem;color:#cbd5e1;margin-top:4px;">Round 1 • Pick {overall_pick}</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    if story_tag:
+                        st.caption(story_tag)
+
+                with top_right:
+                    if nfl_logo_src:
+                        st.image(nfl_logo_src, width=64)
+
+                info_left, info_right = st.columns(2)
+
+                with info_left:
+                    st.caption("FROM")
+                    st.markdown(f"**{school}**")
+                    if college_user:
+                        st.write(college_user)
+                    if source_label:
+                        st.caption(source_label)
+
+                with info_right:
+                    st.caption("TO")
+                    st.markdown(f"**{nfl_team}**")
+                    st.write(f"Round 1 • Pick {overall_pick}")
 
         else:
             if not day2_banner_shown:
