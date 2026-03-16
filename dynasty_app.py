@@ -1147,9 +1147,15 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with top_left:
                     if school_logo_src:
-                        l1, l2, l3 = st.columns([1, 2, 1])
-                        with l2:
-                            st.image(school_logo_src, width=64)
+                        school_logo_uri = file_to_data_uri(school_logo_src) if os.path.exists(str(school_logo_src)) else str(school_logo_src)
+                        st.markdown(
+                            f"""
+                            <div style="width:100%; display:flex; justify-content:center; margin-bottom:10px;">
+                                <img src="{school_logo_uri}" style="width:64px; height:64px; object-fit:contain;" />
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
                 with top_mid:
                     st.caption("SELECTED")
@@ -1165,9 +1171,15 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with top_right:
                     if nfl_logo_src:
-                        r1, r2, r3 = st.columns([1, 2, 1])
-                        with r2:
-                            st.image(nfl_logo_src, width=64)
+                        nfl_logo_uri = file_to_data_uri(nfl_logo_src) if os.path.exists(str(nfl_logo_src)) else str(nfl_logo_src)
+                        st.markdown(
+                            f"""
+                            <div style="width:100%; display:flex; justify-content:center; margin-bottom:10px;">
+                                <img src="{nfl_logo_uri}" style="width:64px; height:64px; object-fit:contain;" />
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
                 info_left, info_right = st.columns(2)
 
