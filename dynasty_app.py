@@ -1777,56 +1777,13 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
                     else nfl_team_list[(round_pick - 1) % len(nfl_team_list)]
                 )
 
-                candidate_rows = []
-                for _, cand in remaining_players.iterrows():
-                    bucket = clean_bucket(cand.get("PosBucket", cand.get("Pos", "")))
-                    need_row = team_needs[
-                        (team_needs["NFLTeam"].astype(str) == str(drafting_team)) &
-                        (team_needs["PosBucket"].astype(str) == str(bucket))
-                    ]
-
-                    need_score = safe_num(
-                        need_row.iloc[0]["NeedScore"] if not need_row.empty else 0,
-                        0
-                    )
-
-                    qb_penalty = 0
-
-            if bucket == "QB":
-                team_qb_room = nfl_roster[
-                    (nfl_roster["Team"].astype(str).str.strip() == str(drafting_team).strip()) &
-                    (nfl_roster["Pos"].astype(str).map(clean_bucket) == "QB")
-                ].copy()
-
-                if not team_qb_room.empty:
-                    team_qb_room["OVR"] = pd.to_numeric(team_qb_room["OVR"], errors="coerce").fillna(0)
-                    if "Age" not in team_qb_room.columns:
-                        team_qb_room["Age"] = 25
-                    team_qb_room["Age"] = pd.to_numeric(team_qb_room["Age"], errors="coerce").fillna(25)
-
-                    young_qb_df = team_qb_room[team_qb_room["Age"] <= 27].copy()
-                    young_qb_best_ovr = safe_num(young_qb_df["OVR"].max(), 0) if not young_qb_df.empty else 0
-
-                    if young_qb_best_ovr >= 78:
-                        qb_penalty = 18
-                    elif young_qb_best_ovr >= 74:
-                        qb_penalty = 10
-
-            fit_score = (
-                safe_num(cand.get("DraftValueScore", 0), 0) * 0.68 +
-                safe_num(cand.get("OVR", 0), 0) * 0.17 +
-                need_score * 0.15 -
-                qb_penalty
-            )
-
-                    cand_copy = cand.copy()
-                    cand_copy["__fit_score"] = fit_score
-                    candidate_rows.append(cand_copy)
-
-                candidate_df = pd.DataFrame(candidate_rows).sort_values(
-                    ["__fit_score", "OVR", "DraftValueScore"],
-                    ascending=[False, False, False]
-                )
+               candidate_rows = []
+            for _, cand in remaining_players.iterrows():
+                bucket = clean_bucket(cand.get("PosBucket", cand.get("Pos", "")))
+                need_row = team_needs[
+                    (team_needs["NFLTeam"].astype(str).str.strip() == str(drafting_team).strip()) &
+                    (team_needs["PosBucket"].astype(str).str.strip() == str(bucket).strip())
+                ]
 
                 row = candidate_df.iloc[0].copy()
                 row["GeneratedNFLTeam"] = drafting_team
