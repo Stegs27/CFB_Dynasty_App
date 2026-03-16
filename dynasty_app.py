@@ -12520,9 +12520,20 @@ with tabs[9]:
                     st.markdown(f"**{school}**")
                     st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
                     if draft_source == "background_r1":
-                        st.caption("League Prospect")
-                    else:
-                        st.caption(user_name if user_name else "Tracked Player")
+    st.markdown(
+        "<span style='display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>League Prospect</span>",
+        unsafe_allow_html=True
+    )
+elif user_name:
+    st.markdown(
+        f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(user_name)}</span>",
+        unsafe_allow_html=True
+    )
+else:
+    st.markdown(
+        "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
+        unsafe_allow_html=True
+    )
 
                 with mid:
                     st.caption("EARLIEST USER PICK")
@@ -13753,11 +13764,24 @@ with tabs[5]:
     confirmed_current_names = set(confirmed_current_nfl['Player'].astype(str).tolist()) if 'Player' in confirmed_current_nfl.columns else set()
 
     possible_early_df = pd.DataFrame(columns=['Team', 'Player', 'Pos', 'Year', 'OVR', 'Draft Projection', 'Status', 'Confirmed Risk'])
-    confirmed_live_df = pd.DataFrame(columns=['Team', 'Player', 'Pos', 'Year', 'OVR', 'Draft Projection', 'Status', 'Confirmed Risk'])
+    confirmed_live_df = pd.DataFrame(columns=[
+        'Team', 'Player', 'Pos', 'Year', 'OVR',
+        'Draft Projection', 'Status', 'Confirmed Risk'
+    ])
 
-    # If actual draft results exist for this team/year, show those as confirmed
+    grad_confirmed_df = pd.DataFrame(columns=confirmed_live_df.columns)
+
+    if not team_preds.empty:
+        grad_confirmed_df = team_preds[team_preds['Status'] == 'Graduating'].copy()
+
+        if not grad_confirmed_df.empty:
+            if 'Draft Projection' not in grad_confirmed_df.columns:
+                grad_confirmed_df['Draft Projection'] = "—"
+            grad_confirmed_df['Confirmed Risk'] = 'Confirmed Departure'
+
+    # If actual draft results exist for this team/year, add those as confirmed too
     if not team_actual_draft.empty:
-        confirmed_live_df = pd.DataFrame({
+        drafted_confirmed_df = pd.DataFrame({
             'Team': team_actual_draft['CollegeTeam'],
             'Player': team_actual_draft['Player'],
             'Pos': team_actual_draft['Pos'],
@@ -13770,22 +13794,42 @@ with tabs[5]:
             'Confirmed Risk': 'Confirmed Departure'
         })
 
+        confirmed_live_df = pd.concat(
+            [drafted_confirmed_df, grad_confirmed_df],
+            ignore_index=True,
+            sort=False
+        ).drop_duplicates(subset=['Player'], keep='first').copy()
+
         # Once actual draft results exist, only keep projected early-leavers
-        # who are not already in the actual drafted list
+        # who are not already in the actual drafted list or graduating list
         if not team_preds.empty:
+            confirmed_names_for_filter = set()
+            if 'Player' in confirmed_live_df.columns:
+                confirmed_names_for_filter = set(
+                    confirmed_live_df['Player'].astype(str).str.strip().tolist()
+                )
+
             possible_early_df = team_preds[team_preds['Status'] == '🚨 Leaving Early Risk'].copy()
             if 'Player' in possible_early_df.columns:
                 possible_early_df = possible_early_df[
-                    ~possible_early_df['Player'].astype(str).isin(confirmed_current_names)
+                    ~possible_early_df['Player'].astype(str).str.strip().isin(confirmed_names_for_filter)
                 ].copy()
+
     else:
+        confirmed_live_df = grad_confirmed_df.copy()
+
         if not team_preds.empty:
-            confirmed_live_df = team_preds[team_preds['Status'] == 'Graduating'].copy()
+            confirmed_names_for_filter = set()
+            if 'Player' in confirmed_live_df.columns:
+                confirmed_names_for_filter = set(
+                    confirmed_live_df['Player'].astype(str).str.strip().tolist()
+                )
+
             possible_early_df = team_preds[team_preds['Status'] == '🚨 Leaving Early Risk'].copy()
 
             if 'Player' in possible_early_df.columns:
                 possible_early_df = possible_early_df[
-                    ~possible_early_df['Player'].astype(str).isin(confirmed_current_names)
+                    ~possible_early_df['Player'].astype(str).str.strip().isin(confirmed_names_for_filter)
                 ].copy()
 
     # --- 6. Next Season Outlook & Dynamic Championship Odds ---
