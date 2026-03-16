@@ -13071,11 +13071,18 @@ with tabs[9]:
                     nfl_logo = get_nfl_logo_html(nfl_team, width=42, margin="0 0 0 10px")
                     draft_source = str(r.get("DraftSource", "user_results")).strip().lower()
 
-                    badge_html = (
-    '<span style="display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">League Prospect</span>'
-                        if draft_source == "background_r1"
-                        else f'<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(college_user) if college_user else "CPU"}</span>'
-)
+                    if draft_source == "background_r1":
+                        badge_html = (
+                            '<span style="display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">League Prospect</span>'
+                        )
+                    elif college_user:
+                        badge_html = (
+                            f'<span style="display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(college_user)}</span>'
+                        )
+                    else:
+                        badge_html = (
+                            '<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">CPU</span>'
+                        )
 
                     st.markdown(
                         f"""
