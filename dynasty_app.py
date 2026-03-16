@@ -11415,21 +11415,20 @@ with tabs[9]:
         with c3:
             st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
 
-        a1, a2 = st.columns([1, 3])
+        audio_l, audio_c, audio_r = st.columns([1, 1.4, 1])
 
-        with a1:
-            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_public_btn"):
+        with audio_c:
+            if st.button("▶️ Replay Saved Draft With Audio", use_container_width=True, key="replay_saved_draft_with_audio_public"):
                 enable_draft_audio()
-                st.success("Draft audio enabled for this session.")
+                if latest_saved_draft_year is None:
+                    st.warning("No saved draft exists yet.")
+                else:
+                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
 
-        with a2:
-            st.caption("Click this once before replaying the draft if your browser blocks sound.")
-
-        if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_public"):
-            if latest_saved_draft_year is None:
-                st.warning("No saved draft exists yet.")
-            else:
-                replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
+        st.markdown(
+            "<div style='text-align:center;color:#9ca3af;font-size:0.9rem;'>This button enables audio and starts the replay in one click.</div>",
+            unsafe_allow_html=True
+        )
 
         st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
 
