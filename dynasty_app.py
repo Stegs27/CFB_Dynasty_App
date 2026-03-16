@@ -1421,6 +1421,12 @@ def replay_saved_nfl_draft(draft_year, speed_mode="Broadcast"):
         return
 
     live_reveal_nfl_draft(replay_df, speed_mode=speed_mode)
+    
+def normalize_nfl_team_key(team_name):
+    slug = get_nfl_logo_slug(team_name)
+    if slug:
+        return slug
+    return str(team_name).strip().lower()
 
 def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_latest=False):
     universe = load_nfl_universe_data()
@@ -1631,13 +1637,15 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
             )
 
             drafting_team = trade_team
+            drafting_team_key = normalize_nfl_team_key(drafting_team)
 
             candidate_rows = []
             for _, cand in remaining_players.iterrows():
                 bucket = clean_bucket(cand.get("PosBucket", cand.get("Pos", "")))
+
                 need_row = team_needs[
-                    (team_needs["NFLTeam"].astype(str) == str(drafting_team)) &
-                    (team_needs["PosBucket"].astype(str) == str(bucket))
+                    (team_needs["NFLTeam"].astype(str).map(normalize_nfl_team_key) == drafting_team_key) &
+                    (team_needs["PosBucket"].astype(str).str.strip() == str(bucket).strip())
                 ]
 
                 need_score = safe_num(
@@ -1649,8 +1657,11 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
 
                 if bucket == "QB":
                     team_qb_room = nfl_roster[
-                        (nfl_roster["Team"].astype(str).str.strip() == str(drafting_team).strip()) &
-                        (nfl_roster["Pos"].astype(str).map(clean_bucket) == "QB")
+                        nfl_roster["Team"].astype(str).map(normalize_nfl_team_key) == drafting_team_key
+                    ].copy()
+
+                    team_qb_room = team_qb_room[
+                        team_qb_room["Pos"].astype(str).map(clean_bucket) == "QB"
                     ].copy()
 
                     if not team_qb_room.empty:
@@ -1659,16 +1670,16 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
                             team_qb_room["Age"] = 25
                         team_qb_room["Age"] = pd.to_numeric(team_qb_room["Age"], errors="coerce").fillna(25)
 
-                        best_qb_ovr = safe_num(team_qb_room["OVR"].max(), 70)
                         young_qb_df = team_qb_room[team_qb_room["Age"] <= 27].copy()
                         young_qb_best_ovr = safe_num(young_qb_df["OVR"].max(), 0) if not young_qb_df.empty else 0
 
-                        # Hard stop: do not take a Round 1 QB if team already has a young capable starter
+                        top2_avg = safe_num(team_qb_room["OVR"].nlargest(2).mean(), 0)
+
+                        # Hard stop for teams that already have a young good QB
                         if young_qb_best_ovr >= 78:
                             disqualify_qb = True
 
-                        # Also block if the room has two playable QBs already
-                        top2_avg = safe_num(team_qb_room["OVR"].nlargest(2).mean(), 0)
+                        # Also block if QB room is already stable
                         if len(team_qb_room) >= 2 and top2_avg >= 75:
                             disqualify_qb = True
 
