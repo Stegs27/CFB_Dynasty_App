@@ -11238,7 +11238,20 @@ with tabs[12]:
 # NFL UNIVERSE
 # ──────────────────────────────────────────────────────────────────────
 with tabs[9]:
-    st.header("🏈 NFL Universe")
+    nfl_universe_logo_path = "_NFL_logo.png"
+    if os.path.exists(nfl_universe_logo_path):
+        logo_uri = file_to_data_uri(nfl_universe_logo_path)
+        st.markdown(
+            f"""
+            <div style="display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:8px;">
+                <img src="{logo_uri}" style="height:54px; object-fit:contain;" />
+                <h2 style="margin:0; padding:0;">NFL Universe</h2>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.header("NFL Universe")
     st.caption("Track where dynasty alumni land, how their NFL careers evolve, and who owns the fictional pro landscape.")
 
     universe = load_nfl_universe_data()
