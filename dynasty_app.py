@@ -1288,6 +1288,63 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     progress.progress(1.0, text="Draft reveal complete.")
     return df
 
+def clean_display(val, fallback=""):
+    if pd.isna(val):
+        return fallback
+    text = str(val).strip()
+    if text.lower() in {"nan", "none", "<na>"}:
+        return fallback
+    return text
+
+def draft_source_label(val):
+    text = clean_display(val).lower()
+    if text == "user_results":
+        return "Tracked"
+    if text == "cpu_pool":
+        return "CPU Pool"
+    return ""
+
+def get_latest_saved_draft_year():
+    if not os.path.exists("nfl_draft_history.csv"):
+        return None
+    try:
+        hist = pd.read_csv("nfl_draft_history.csv")
+    except Exception:
+        return None
+
+    if hist.empty or "DraftYear" not in hist.columns:
+        return None
+
+    years = pd.to_numeric(hist["DraftYear"], errors="coerce").dropna()
+    if years.empty:
+        return None
+
+    return int(years.astype(int).max())
+
+
+def replay_saved_nfl_draft(draft_year, speed_mode="Broadcast"):
+    if not os.path.exists("nfl_draft_history.csv"):
+        st.warning("No saved NFL draft history found yet.")
+        return
+
+    try:
+        hist = pd.read_csv("nfl_draft_history.csv")
+    except Exception:
+        st.warning("Could not read nfl_draft_history.csv.")
+        return
+
+    if hist.empty:
+        st.warning("NFL draft history is empty.")
+        return
+
+    hist["DraftYear"] = pd.to_numeric(hist["DraftYear"], errors="coerce")
+    replay_df = hist[hist["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
+
+    if replay_df.empty:
+        st.warning(f"No saved draft results found for {draft_year}.")
+        return
+
+    live_reveal_nfl_draft(replay_df, speed_mode=speed_mode)
 
 def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_latest=False):
     universe = load_nfl_universe_data()
@@ -3119,63 +3176,6 @@ def render_roster_matchup_tab():
     roster_a = enrich_roster(roster_a)
     roster_b = enrich_roster(roster_b)
     
-def clean_display(val, fallback=""):
-    if pd.isna(val):
-        return fallback
-    text = str(val).strip()
-    if text.lower() in {"nan", "none", "<na>"}:
-        return fallback
-    return text
-
-def draft_source_label(val):
-    text = clean_display(val).lower()
-    if text == "user_results":
-        return "Tracked"
-    if text == "cpu_pool":
-        return "CPU Pool"
-    return ""
-
-def get_latest_saved_draft_year():
-    if not os.path.exists("nfl_draft_history.csv"):
-        return None
-    try:
-        hist = pd.read_csv("nfl_draft_history.csv")
-    except Exception:
-        return None
-
-    if hist.empty or "DraftYear" not in hist.columns:
-        return None
-
-    years = pd.to_numeric(hist["DraftYear"], errors="coerce").dropna()
-    if years.empty:
-        return None
-
-    return int(years.astype(int).max())
-
-
-def replay_saved_nfl_draft(draft_year, speed_mode="Broadcast"):
-    if not os.path.exists("nfl_draft_history.csv"):
-        st.warning("No saved NFL draft history found yet.")
-        return
-
-    try:
-        hist = pd.read_csv("nfl_draft_history.csv")
-    except Exception:
-        st.warning("Could not read nfl_draft_history.csv.")
-        return
-
-    if hist.empty:
-        st.warning("NFL draft history is empty.")
-        return
-
-    hist["DraftYear"] = pd.to_numeric(hist["DraftYear"], errors="coerce")
-    replay_df = hist[hist["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
-
-    if replay_df.empty:
-        st.warning(f"No saved draft results found for {draft_year}.")
-        return
-
-    live_reveal_nfl_draft(replay_df, speed_mode=speed_mode)
 
     # ── TEAM HEADER ──────────────────────────────────────────────────────────
     h1, hm, h2 = st.columns([5, 1, 5])
