@@ -177,6 +177,10 @@ NFL_STORY_EVENTS_COLS = [
     "Description", "ImpactScore"
 ]
 
+NFL_STANDINGS_HISTORY_COLS = [
+    "Season", "Team", "Wins", "Losses", "WinPct",
+    "Seed", "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "DepthScore", "StarPower"
+]
 
 def ensure_csv_exists(path, columns, default_rows=None):
     if not os.path.exists(path):
@@ -628,6 +632,7 @@ def load_nfl_universe_data():
     ensure_csv_exists("nfl_player_history.csv", NFL_PLAYER_HISTORY_COLS)
     ensure_csv_exists("nfl_super_bowl_history.csv", NFL_SUPER_BOWL_HISTORY_COLS)
     ensure_csv_exists("nfl_story_events.csv", NFL_STORY_EVENTS_COLS)
+    ensure_csv_exists("nfl_standings_history.csv", NFL_STANDINGS_HISTORY_COLS)
     ensure_csv_exists("nfl_universe_settings.csv", NFL_UNIVERSE_SETTINGS_COLS, [{
         "CurrentNFLSeason": 2042,
         "LastCompletedDraftYear": 2041,
@@ -643,10 +648,17 @@ def load_nfl_universe_data():
         if col not in nfl_draft_hist.columns:
             nfl_draft_hist[col] = pd.NA
     nfl_draft_hist = nfl_draft_hist.reindex(columns=NFL_DRAFT_HISTORY_COLS)
+
     nfl_player_hist = pd.read_csv("nfl_player_history.csv")
     nfl_super_bowl = pd.read_csv("nfl_super_bowl_history.csv")
     nfl_story = pd.read_csv("nfl_story_events.csv")
     nfl_settings = pd.read_csv("nfl_universe_settings.csv")
+
+    nfl_standings_hist = pd.read_csv("nfl_standings_history.csv")
+    for col in NFL_STANDINGS_HISTORY_COLS:
+        if col not in nfl_standings_hist.columns:
+            nfl_standings_hist[col] = pd.NA
+    nfl_standings_hist = nfl_standings_hist.reindex(columns=NFL_STANDINGS_HISTORY_COLS)
 
     return {
         "nfl_roster": nfl_roster,
@@ -657,6 +669,7 @@ def load_nfl_universe_data():
         "nfl_super_bowl": nfl_super_bowl,
         "nfl_story": nfl_story,
         "nfl_settings": nfl_settings,
+        "nfl_standings_hist": nfl_standings_hist,
     }
 
 def render_centered_logo(src, width=64):
@@ -2448,6 +2461,23 @@ def simulate_nfl_season(season_year=None):
         return None, "NFL roster data is missing, so the season could not be simulated."
 
     standings_df = simulate_nfl_regular_season(team_strength_df, season_year=season_year, games_per_team=17)
+    
+    existing_standings = pd.read_csv("nfl_standings_history.csv") if os.path.exists("nfl_standings_history.csv") else pd.DataFrame(columns=NFL_STANDINGS_HISTORY_COLS)
+
+    if not existing_standings.empty and "Season" in existing_standings.columns:
+        existing_standings["Season"] = pd.to_numeric(existing_standings["Season"], errors="coerce")
+        existing_standings = existing_standings[
+            existing_standings["Season"].fillna(-1).astype(int) != int(season_year)
+        ].copy()
+
+    standings_to_save = standings_df.copy()
+    for col in NFL_STANDINGS_HISTORY_COLS:
+        if col not in standings_to_save.columns:
+            standings_to_save[col] = pd.NA
+    standings_to_save = standings_to_save[NFL_STANDINGS_HISTORY_COLS].copy()
+
+    standings_combined = pd.concat([existing_standings, standings_to_save], ignore_index=True)
+    standings_combined.to_csv("nfl_standings_history.csv", index=False)
 
     player_hist_combined = simulate_nfl_player_season(
         season_year=season_year,
@@ -2557,6 +2587,7 @@ def simulate_nfl_season(season_year=None):
     return {
         "season_year": season_year,
         "standings": standings_df,
+        "standings_history": standings_combined,
         "champion": champion,
         "runner_up": runner_up,
         "score": score,
@@ -11882,6 +11913,7 @@ with tabs[9]:
     nfl_super_bowl = universe["nfl_super_bowl"]
     nfl_story = universe["nfl_story"]
     nfl_settings = universe["nfl_settings"]
+    nfl_standings_hist = universe["nfl_standings_hist"]
 
     is_commissioner = False
 
@@ -12154,6 +12186,7 @@ else:
 
     nfl_tabs = st.tabs([
         "📦 Draft Central",
+        "🏁 Season Recap",
         "👤 Alumni Tracker",
         "🏆 Super Bowl History",
         "📰 Storylines",
@@ -12274,9 +12307,161 @@ else:
                 .sort_values(["Players", "FirstRounders"], ascending=False)
             )
             st.dataframe(user_sum, hide_index=True, use_container_width=True)
-
-    # ── Alumni Tracker ────────────────────────────────────────────────
+            
+# ── Season Recap ────────────────────────────────────────────────
     with nfl_tabs[1]:
+        st.subheader("🏁 NFL Season Recap")
+
+        if nfl_standings_hist.empty and nfl_super_bowl.empty:
+            st.info("No NFL season has been simulated yet.")
+        else:
+            available_seasons = set()
+
+            if nfl_standings_hist is not None and not nfl_standings_hist.empty and "Season" in nfl_standings_hist.columns:
+                available_seasons.update(
+                    pd.to_numeric(nfl_standings_hist["Season"], errors="coerce").dropna().astype(int).tolist()
+                )
+
+            if nfl_super_bowl is not None and not nfl_super_bowl.empty and "Season" in nfl_super_bowl.columns:
+                available_seasons.update(
+                    pd.to_numeric(nfl_super_bowl["Season"], errors="coerce").dropna().astype(int).tolist()
+                )
+
+            available_seasons = sorted(list(available_seasons))
+            if not available_seasons:
+                st.info("No NFL season recap data yet.")
+            else:
+                sel_season = st.selectbox(
+                    "Select NFL Season",
+                    available_seasons,
+                    index=len(available_seasons) - 1,
+                    key="nfl_season_recap_select"
+                )
+
+                season_standings = pd.DataFrame()
+                if nfl_standings_hist is not None and not nfl_standings_hist.empty:
+                    tmp = nfl_standings_hist.copy()
+                    tmp["Season"] = pd.to_numeric(tmp["Season"], errors="coerce")
+                    season_standings = tmp[tmp["Season"].fillna(-1).astype(int) == int(sel_season)].copy()
+
+                season_sb = pd.DataFrame()
+                if nfl_super_bowl is not None and not nfl_super_bowl.empty:
+                    tmp_sb = nfl_super_bowl.copy()
+                    tmp_sb["Season"] = pd.to_numeric(tmp_sb["Season"], errors="coerce")
+                    season_sb = tmp_sb[tmp_sb["Season"].fillna(-1).astype(int) == int(sel_season)].copy()
+
+                season_players = pd.DataFrame()
+                if nfl_player_hist is not None and not nfl_player_hist.empty:
+                    tmp_ph = nfl_player_hist.copy()
+                    tmp_ph["Season"] = pd.to_numeric(tmp_ph["Season"], errors="coerce")
+                    season_players = tmp_ph[tmp_ph["Season"].fillna(-1).astype(int) == int(sel_season)].copy()
+
+                if not season_sb.empty:
+                    sb_row = season_sb.iloc[0]
+                    champ = str(sb_row.get("Champion", "Unknown Team"))
+                    runner = str(sb_row.get("RunnerUp", "Unknown Team"))
+                    score = str(sb_row.get("Score", ""))
+                    mvp = str(sb_row.get("MVP", ""))
+                    headline = str(sb_row.get("Headline", ""))
+
+                    champ_logo = get_nfl_logo_src(champ)
+                    runner_logo = get_nfl_logo_src(runner)
+
+                    c_left, c_mid, c_right = st.columns([1.2, 1.5, 1.2])
+
+                    with c_left:
+                        if champ_logo:
+                            st.image(champ_logo, width=64)
+                        st.caption("CHAMPION")
+                        st.markdown(f"**{champ}**")
+
+                    with c_mid:
+                        st.caption("SUPER BOWL")
+                        st.markdown(f"## {sel_season}")
+                        if score:
+                            st.write(score)
+                        if mvp:
+                            st.write(f"MVP: {mvp}")
+                        if headline:
+                            st.caption(headline)
+
+                    with c_right:
+                        if runner_logo:
+                            st.image(runner_logo, width=64)
+                        st.caption("RUNNER-UP")
+                        st.markdown(f"**{runner}**")
+
+                if not season_standings.empty:
+                    st.markdown("#### Final Standings")
+
+                    standings_show = season_standings.copy().sort_values(
+                        ["Seed", "Wins", "TeamPower"],
+                        ascending=[True, False, False]
+                    )
+
+                    standings_show.insert(1, "Logo", standings_show["Team"].map(get_nfl_logo_src))
+
+                    standings_show = standings_show[[
+                        "Seed", "Logo", "Team", "Wins", "Losses", "WinPct",
+                        "TeamPower", "QBScore", "OffenseScore", "DefenseScore", "StarPower"
+                    ]]
+
+                    st.dataframe(
+                        standings_show,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_config={
+                            "Logo": st.column_config.ImageColumn(""),
+                            "WinPct": st.column_config.NumberColumn(format="%.3f"),
+                            "TeamPower": st.column_config.NumberColumn(format="%.1f"),
+                            "QBScore": st.column_config.NumberColumn(format="%.1f"),
+                            "OffenseScore": st.column_config.NumberColumn(format="%.1f"),
+                            "DefenseScore": st.column_config.NumberColumn(format="%.1f"),
+                        }
+                    )
+
+                if not season_players.empty:
+                    st.markdown("#### Top Alumni Seasons")
+
+                    season_players["CareerValue"] = pd.to_numeric(season_players["CareerValue"], errors="coerce").fillna(0)
+                    season_players["OverallEnd"] = pd.to_numeric(season_players["OverallEnd"], errors="coerce").fillna(0)
+
+                    top_alumni = season_players.sort_values(
+                        ["CareerValue", "OverallEnd"],
+                        ascending=[False, False]
+                    ).head(15).copy()
+
+                    draft_lookup = {}
+                    if nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                        for _, dr in nfl_draft_hist.iterrows():
+                            draft_lookup[str(dr.get("PlayerID", ""))] = {
+                                "CollegeTeam": dr.get("CollegeTeam", ""),
+                                "CollegeUser": dr.get("CollegeUser", "")
+                            }
+
+                    top_alumni["CollegeTeam"] = top_alumni["PlayerID"].map(lambda x: draft_lookup.get(str(x), {}).get("CollegeTeam", ""))
+                    top_alumni["CollegeUser"] = top_alumni["PlayerID"].map(lambda x: draft_lookup.get(str(x), {}).get("CollegeUser", ""))
+                    top_alumni.insert(1, "NFL Logo", top_alumni["NFLTeam"].map(get_nfl_logo_src))
+                    top_alumni.insert(4, "School Logo", top_alumni["CollegeTeam"].map(get_school_logo_src))
+
+                    top_alumni = top_alumni[[
+                        "Player", "NFL Logo", "NFLTeam", "School Logo", "CollegeTeam", "CollegeUser",
+                        "Pos", "Role", "OverallEnd", "Games", "Starts", "StatLine",
+                        "ProBowl", "AllPro", "SuperBowlWin", "CareerValue"
+                    ]]
+
+                    st.dataframe(
+                        top_alumni,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_config={
+                            "NFL Logo": st.column_config.ImageColumn(""),
+                            "School Logo": st.column_config.ImageColumn(""),
+                            "CareerValue": st.column_config.NumberColumn(format="%.1f"),
+                        }
+                    )
+    # ── Alumni Tracker ────────────────────────────────────────────────
+    with nfl_tabs[2]:
         st.subheader("👤 Alumni Tracker")
 
         if nfl_draft_hist.empty:
@@ -12332,7 +12517,7 @@ else:
             )
 
     # ── Super Bowl History ────────────────────────────────────────────
-    with nfl_tabs[2]:
+    with nfl_tabs[3]:
         st.subheader("🏆 Super Bowl History")
 
         if nfl_super_bowl.empty:
@@ -12371,7 +12556,7 @@ else:
             )
 
     # ── Storylines ────────────────────────────────────────────────────
-    with nfl_tabs[3]:
+    with nfl_tabs[4]:
         st.subheader("📰 Storylines")
 
         if nfl_story.empty and not nfl_draft_hist.empty:
@@ -12476,7 +12661,7 @@ else:
                 )
 
     # ── NFL Teams ─────────────────────────────────────────────────────
-    with nfl_tabs[4]:
+    with nfl_tabs[5]:
         st.subheader("🏟️ NFL Teams")
 
         if nfl_roster.empty:
