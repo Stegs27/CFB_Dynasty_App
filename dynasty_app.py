@@ -1147,7 +1147,9 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with top_left:
                     if school_logo_src:
-                        st.image(school_logo_src, width=64)
+                        l1, l2, l3 = st.columns([1, 2, 1])
+                        with l2:
+                            st.image(school_logo_src, width=64)
 
                 with top_mid:
                     st.caption("SELECTED")
@@ -1163,7 +1165,9 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with top_right:
                     if nfl_logo_src:
-                        st.image(nfl_logo_src, width=64)
+                        r1, r2, r3 = st.columns([1, 2, 1])
+                        with r2:
+                            st.image(nfl_logo_src, width=64)
 
                 info_left, info_right = st.columns(2)
 
