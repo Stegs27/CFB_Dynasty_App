@@ -1144,7 +1144,10 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with left:
                     school_logo_src = get_school_logo_src(school)
-                    render_centered_logo(school_logo_src, width=64)
+                    if school_logo_src:
+                        l1, l2, l3 = st.columns([1, 2, 1])
+                        with l2:
+                            st.image(school_logo_src, width=64)
                     st.caption("FROM")
                     st.markdown(f"**{school}**")
                     if college_user:
@@ -1164,7 +1167,10 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
                 with right:
                     nfl_logo_src = get_nfl_logo_src(nfl_team)
-                    render_centered_logo(nfl_logo_src, width=64)
+                    if nfl_logo_src:
+                        r1, r2, r3 = st.columns([1, 2, 1])
+                        with r2:
+                            st.image(nfl_logo_src, width=64)
                     st.caption("TO")
                     st.markdown(f"**{nfl_team}**")
                     st.write(f"Round 1 • Pick {overall_pick}")
