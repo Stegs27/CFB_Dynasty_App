@@ -1445,6 +1445,7 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
 
     assigned_round_rows = []
 
+    # --- ROUND 1 ---
     if not r1.empty:
         r1 = r1.sort_values(["OVR", "DraftValueScore"], ascending=[False, False]).reset_index(drop=True)
 
@@ -1452,9 +1453,11 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
         used_player_ids = set()
 
         max_r1 = min(32, len(r1))
+        round1_pool = r1.head(max_r1).copy()
+
         for pick_num in range(1, max_r1 + 1):
             current_team = available_order[0] if available_order else f"Team {pick_num}"
-            remaining_players = r1[~r1["PlayerID"].isin(used_player_ids)].copy()
+            remaining_players = round1_pool[~round1_pool["PlayerID"].isin(used_player_ids)].copy()
 
             if remaining_players.empty:
                 break
@@ -1511,6 +1514,7 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
             if drafting_team in available_order:
                 available_order.remove(drafting_team)
 
+    # --- LATER ROUNDS ---
     later_assigned = []
     if not later.empty:
         later = later.sort_values(
@@ -1524,16 +1528,43 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
 
         for rnd in sorted(later["DraftRoundCanon"].dropna().unique().tolist()):
             rnd = int(rnd)
-            rnd_df = later[
+
+            rnd_df_all = later[
                 (pd.to_numeric(later["DraftRoundCanon"], errors="coerce").fillna(0).astype(int) == rnd) &
                 (~later["PlayerID"].isin(used_player_ids))
             ].copy()
 
-            if rnd_df.empty:
+            if rnd_df_all.empty:
                 continue
 
             pick_start = ROUND_START.get(rnd, 0)
             pick_end = ROUND_END.get(rnd, 0)
+            round_capacity = max(0, pick_end - pick_start + 1)
+
+            # Guarantee all tracked/user-listed players assigned to this round make the pool,
+            # but do not force them to the top of the round.
+            user_round_df = rnd_df_all[
+                rnd_df_all["DraftSource"].astype(str).str.strip().str.lower() == "user_results"
+            ].copy()
+
+            cpu_round_df = rnd_df_all[
+                rnd_df_all["DraftSource"].astype(str).str.strip().str.lower() != "user_results"
+            ].copy()
+
+            cpu_round_df = cpu_round_df.sort_values(
+                ["OVR", "DraftValueScore", "Player"],
+                ascending=[False, False, True]
+            ).reset_index(drop=True)
+
+            cpu_needed = max(0, round_capacity - len(user_round_df))
+            round_pool = pd.concat(
+                [user_round_df, cpu_round_df.head(cpu_needed)],
+                ignore_index=True,
+                sort=False
+            ).drop_duplicates(subset=["PlayerID"], keep="first").copy()
+
+            if round_pool.empty:
+                continue
 
             nfl_team_list = sorted(nfl_roster["Team"].dropna().astype(str).unique().tolist())
             if not nfl_team_list:
@@ -1544,9 +1575,9 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
 
             for overall_pick in range(
                 pick_start,
-                min(pick_end, pick_start + len(rnd_df) - 1) + 1
+                min(pick_end, pick_start + len(round_pool) - 1) + 1
             ):
-                remaining_players = rnd_df[~rnd_df["PlayerID"].isin(used_player_ids)].copy()
+                remaining_players = round_pool[~round_pool["PlayerID"].isin(used_player_ids)].copy()
                 if remaining_players.empty:
                     break
 
