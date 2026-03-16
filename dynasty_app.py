@@ -1979,6 +1979,586 @@ def replay_saved_nfl_draft(draft_year, speed_mode="Broadcast"):
         return
 
     live_reveal_nfl_draft(replay_df, speed_mode=speed_mode)
+    
+import math
+
+def get_current_nfl_season():
+    if not os.path.exists("nfl_universe_settings.csv"):
+        return 2042
+    try:
+        s = pd.read_csv("nfl_universe_settings.csv")
+        if s.empty or "CurrentNFLSeason" not in s.columns:
+            return 2042
+        val = pd.to_numeric(s["CurrentNFLSeason"], errors="coerce").dropna()
+        return int(val.iloc[0]) if not val.empty else 2042
+    except Exception:
+        return 2042
+
+
+def save_nfl_universe_settings(current_season=None, last_draft_year=None, last_super_bowl_season=None):
+    ensure_csv_exists("nfl_universe_settings.csv", NFL_UNIVERSE_SETTINGS_COLS, [{
+        "CurrentNFLSeason": 2042,
+        "LastCompletedDraftYear": 2041,
+        "LastCompletedSuperBowlSeason": 2041,
+        "UniverseVersion": 1
+    }])
+
+    try:
+        s = pd.read_csv("nfl_universe_settings.csv")
+    except Exception:
+        s = pd.DataFrame([{
+            "CurrentNFLSeason": 2042,
+            "LastCompletedDraftYear": 2041,
+            "LastCompletedSuperBowlSeason": 2041,
+            "UniverseVersion": 1
+        }])
+
+    if s.empty:
+        s = pd.DataFrame([{
+            "CurrentNFLSeason": 2042,
+            "LastCompletedDraftYear": 2041,
+            "LastCompletedSuperBowlSeason": 2041,
+            "UniverseVersion": 1
+        }])
+
+    for col in NFL_UNIVERSE_SETTINGS_COLS:
+        if col not in s.columns:
+            s[col] = pd.NA
+
+    if current_season is not None:
+        s.loc[0, "CurrentNFLSeason"] = int(current_season)
+    if last_draft_year is not None:
+        s.loc[0, "LastCompletedDraftYear"] = int(last_draft_year)
+    if last_super_bowl_season is not None:
+        s.loc[0, "LastCompletedSuperBowlSeason"] = int(last_super_bowl_season)
+
+    if pd.isna(s.loc[0, "UniverseVersion"]):
+        s.loc[0, "UniverseVersion"] = 1
+
+    s = s[NFL_UNIVERSE_SETTINGS_COLS].copy()
+    s.to_csv("nfl_universe_settings.csv", index=False)
+
+
+def get_latest_completed_draft_year():
+    if not os.path.exists("nfl_draft_history.csv"):
+        return None
+    try:
+        df = pd.read_csv("nfl_draft_history.csv")
+    except Exception:
+        return None
+    if df.empty or "DraftYear" not in df.columns:
+        return None
+    years = pd.to_numeric(df["DraftYear"], errors="coerce").dropna()
+    return int(years.max()) if not years.empty else None
+
+
+def build_nfl_team_strengths(nfl_roster_df):
+    if nfl_roster_df is None or nfl_roster_df.empty:
+        return pd.DataFrame(columns=[
+            "Team", "OffenseScore", "DefenseScore", "QBScore", "StarPower", "DepthScore", "TeamPower"
+        ])
+
+    df = nfl_roster_df.copy()
+    for col in ["Team", "Pos", "Name"]:
+        if col not in df.columns:
+            df[col] = ""
+    for col in ["OVR", "SPD", "ACC", "AWR", "Age"]:
+        if col not in df.columns:
+            df[col] = 0
+
+    df["OVR"] = pd.to_numeric(df["OVR"], errors="coerce").fillna(0)
+    df["SPD"] = pd.to_numeric(df["SPD"], errors="coerce").fillna(0)
+    df["ACC"] = pd.to_numeric(df["ACC"], errors="coerce").fillna(0)
+    df["AWR"] = pd.to_numeric(df["AWR"], errors="coerce").fillna(0)
+    df["PosBucket"] = df["Pos"].map(clean_bucket)
+
+    rows = []
+    for team in sorted(df["Team"].dropna().astype(str).unique().tolist()):
+        team_df = df[df["Team"].astype(str) == str(team)].copy()
+
+        qb_df = team_df[team_df["PosBucket"] == "QB"].sort_values("OVR", ascending=False)
+        qb1 = safe_num(qb_df["OVR"].iloc[0], 70) if not qb_df.empty else 70
+
+        off_buckets = ["QB", "RB", "WR", "TE", "OL"]
+        def_buckets = ["EDGE", "IDL", "LB", "CB", "S"]
+
+        offense_df = team_df[team_df["PosBucket"].isin(off_buckets)].copy()
+        defense_df = team_df[team_df["PosBucket"].isin(def_buckets)].copy()
+
+        offense_score = round(
+            safe_num(offense_df["OVR"].nlargest(10).mean(), 72) * 0.78 +
+            safe_num(offense_df["SPD"].nlargest(8).mean(), 72) * 0.10 +
+            qb1 * 0.12,
+            2
+        )
+
+        defense_score = round(
+            safe_num(defense_df["OVR"].nlargest(11).mean(), 72) * 0.84 +
+            safe_num(defense_df["AWR"].nlargest(8).mean(), 72) * 0.16,
+            2
+        )
+
+        star_power = int((team_df["OVR"] >= 90).sum())
+        depth_score = round(safe_num(team_df["OVR"].nlargest(20).mean(), 72), 2)
+
+        team_power = round(
+            offense_score * 0.42 +
+            defense_score * 0.40 +
+            qb1 * 0.10 +
+            depth_score * 0.05 +
+            star_power * 0.35,
+            2
+        )
+
+        rows.append({
+            "Team": team,
+            "OffenseScore": offense_score,
+            "DefenseScore": defense_score,
+            "QBScore": round(qb1, 2),
+            "StarPower": int(star_power),
+            "DepthScore": depth_score,
+            "TeamPower": team_power
+        })
+
+    return pd.DataFrame(rows)
+
+
+def simulate_nfl_regular_season(team_strength_df, season_year, games_per_team=17):
+    if team_strength_df is None or team_strength_df.empty:
+        return pd.DataFrame(columns=[
+            "Season", "Team", "Wins", "Losses", "WinPct", "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "Seed"
+        ])
+
+    teams = team_strength_df["Team"].dropna().astype(str).tolist()
+    power_map = dict(zip(team_strength_df["Team"], team_strength_df["TeamPower"]))
+
+    rows = []
+    for team in teams:
+        opps = [t for t in teams if t != team]
+        wins = 0
+        losses = 0
+
+        sampled_opps = random.choices(opps, k=games_per_team)
+        for opp in sampled_opps:
+            team_power = safe_num(power_map.get(team, 75), 75)
+            opp_power = safe_num(power_map.get(opp, 75), 75)
+
+            diff = team_power - opp_power
+            win_prob = 1 / (1 + math.exp(-(diff / 5.5)))
+            win_prob = max(0.12, min(0.88, win_prob + random.uniform(-0.05, 0.05)))
+
+            if random.random() < win_prob:
+                wins += 1
+            else:
+                losses += 1
+
+        row = team_strength_df[team_strength_df["Team"] == team].iloc[0].to_dict()
+        row["Season"] = int(season_year)
+        row["Wins"] = int(wins)
+        row["Losses"] = int(losses)
+        row["WinPct"] = round(wins / max(1, wins + losses), 3)
+        row["Seed"] = pd.NA
+        rows.append(row)
+
+    out = pd.DataFrame(rows)
+    out = out.sort_values(["Wins", "TeamPower", "QBScore"], ascending=[False, False, False]).reset_index(drop=True)
+    out["Seed"] = range(1, len(out) + 1)
+    return out
+
+
+def simulate_playoff_game(team_a, team_b, power_map):
+    power_a = safe_num(power_map.get(team_a, 75), 75)
+    power_b = safe_num(power_map.get(team_b, 75), 75)
+
+    diff = power_a - power_b
+    win_prob_a = 1 / (1 + math.exp(-(diff / 4.8)))
+    win_prob_a = max(0.10, min(0.90, win_prob_a + random.uniform(-0.03, 0.03)))
+
+    winner = team_a if random.random() < win_prob_a else team_b
+    loser = team_b if winner == team_a else team_a
+
+    base_w = random.randint(20, 34)
+    base_l = random.randint(13, 30)
+    if base_l >= base_w:
+        base_l = max(10, base_w - random.randint(1, 9))
+
+    score = f"{winner} {base_w}, {loser} {base_l}"
+    return winner, loser, score
+
+
+def simulate_nfl_playoffs(standings_df, season_year):
+    if standings_df is None or standings_df.empty:
+        return None, None, None, None
+
+    playoff_df = standings_df.sort_values(["Seed"], ascending=[True]).head(14).copy()
+    if playoff_df.empty:
+        return None, None, None, None
+
+    power_map = dict(zip(standings_df["Team"], standings_df["TeamPower"]))
+
+    current = playoff_df["Team"].tolist()
+    round_name = "Wild Card"
+    playoff_log = []
+
+    while len(current) > 1:
+        next_round = []
+        pairings = []
+
+        if len(current) % 2 == 1:
+            bye_team = current[0]
+            next_round.append(bye_team)
+            current = current[1:]
+
+        for i in range(0, len(current), 2):
+            if i + 1 < len(current):
+                pairings.append((current[i], current[i + 1]))
+
+        for team_a, team_b in pairings:
+            winner, loser, score = simulate_playoff_game(team_a, team_b, power_map)
+            playoff_log.append({
+                "Season": int(season_year),
+                "Round": round_name,
+                "Winner": winner,
+                "Loser": loser,
+                "Score": score
+            })
+            next_round.append(winner)
+
+        current = next_round
+        if len(current) == 8:
+            round_name = "Divisional"
+        elif len(current) == 4:
+            round_name = "Conference Championship"
+        elif len(current) == 2:
+            round_name = "Super Bowl"
+
+    champion = current[0]
+    super_bowl_rows = [r for r in playoff_log if r["Round"] == "Super Bowl"]
+    if super_bowl_rows:
+        sb = super_bowl_rows[0]
+        runner_up = sb["Loser"]
+        score = sb["Score"]
+    else:
+        runner_up = playoff_df.iloc[1]["Team"] if len(playoff_df) > 1 else "Unknown Team"
+        score = f"{champion} 24, {runner_up} 20"
+
+    return champion, runner_up, score, pd.DataFrame(playoff_log)
+
+
+def choose_super_bowl_mvp(champion, player_season_rows):
+    if player_season_rows is None or player_season_rows.empty:
+        return "Team MVP", champion
+
+    team_df = player_season_rows[player_season_rows["NFLTeam"].astype(str) == str(champion)].copy()
+    if team_df.empty:
+        return "Team MVP", champion
+
+    team_df["CareerValue"] = pd.to_numeric(team_df["CareerValue"], errors="coerce").fillna(0)
+    team_df = team_df.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False])
+
+    top = team_df.iloc[0]
+    return str(top.get("Player", "Team MVP")), champion
+
+
+def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_df=None, existing_player_hist_df=None):
+    if nfl_draft_hist_df is None:
+        nfl_draft_hist_df = pd.read_csv("nfl_draft_history.csv") if os.path.exists("nfl_draft_history.csv") else pd.DataFrame()
+
+    if nfl_roster_df is None:
+        nfl_roster_df = pd.read_csv("NFLroster26_MASTER.csv") if os.path.exists("NFLroster26_MASTER.csv") else pd.DataFrame()
+
+    if existing_player_hist_df is None:
+        existing_player_hist_df = pd.read_csv("nfl_player_history.csv") if os.path.exists("nfl_player_history.csv") else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
+
+    if nfl_draft_hist_df is None or nfl_draft_hist_df.empty:
+        return existing_player_hist_df if existing_player_hist_df is not None else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
+
+    draft_df = nfl_draft_hist_df.copy()
+    draft_df["DraftYear"] = pd.to_numeric(draft_df["DraftYear"], errors="coerce")
+    draft_df = draft_df.dropna(subset=["DraftYear"]).copy()
+    if draft_df.empty:
+        return existing_player_hist_df
+
+    draft_df["DraftYear"] = draft_df["DraftYear"].astype(int)
+    eligible_players = draft_df[draft_df["DraftYear"] <= int(season_year)].copy()
+    if eligible_players.empty:
+        return existing_player_hist_df
+
+    rows = []
+    for _, r in eligible_players.iterrows():
+        draft_year = int(safe_num(r.get("DraftYear", season_year), season_year))
+        years_pro = max(1, int(season_year) - draft_year + 1)
+
+        player = str(r.get("Player", "Unknown Player"))
+        player_id = str(r.get("PlayerID", ""))
+        nfl_team = str(r.get("GeneratedNFLTeam", "Unknown Team"))
+        pos = str(r.get("Pos", ""))
+        bucket = str(r.get("PosBucket", clean_bucket(pos)))
+        rookie_role = str(r.get("RookieRole", "Depth Piece"))
+        career_tier = str(r.get("CareerTier", "Starter"))
+
+        base_ovr = int(safe_num(r.get("OVR", 75), 75))
+        peak_ovr = int(safe_num(r.get("PeakOVR", base_ovr + 3), base_ovr + 3))
+        round_num = int(safe_num(r.get("DraftRoundCanon", 7), 7))
+
+        age = 21 + years_pro
+        growth_curve = min(1.0, years_pro / 4.0)
+        tier_bonus_map = {
+            "Superstar": 1.00,
+            "Star": 0.85,
+            "Solid Starter": 0.72,
+            "Starter": 0.60,
+            "Rotation": 0.45,
+            "Fringe": 0.28,
+            "Bust": 0.18
+        }
+        tier_bonus = tier_bonus_map.get(career_tier, 0.55)
+
+        overall_start = int(round(base_ovr + (peak_ovr - base_ovr) * max(0, growth_curve - 0.18) * tier_bonus))
+        age_penalty = max(0, age - 29)
+        overall_end = max(60, min(99, int(round(overall_start + random.randint(-1, 3) - age_penalty * 0.5))))
+
+        if years_pro == 1:
+            role = rookie_role
+        else:
+            if career_tier in {"Superstar", "Star", "Solid Starter"}:
+                role = "Starter"
+            elif career_tier in {"Starter", "Rotation"}:
+                role = "Rotation"
+            else:
+                role = "Depth"
+
+        games = random.randint(11, 17)
+        starts = 0
+        if role in {"Starter", "QB Battle"}:
+            starts = random.randint(8, 17)
+        elif role in {"WR3", "CB3", "RB2", "TE2", "Starter Battle", "Primary Rotation", "Pass Rush Rotation", "DL Rotation", "LB Rotation", "DB Rotation", "Committee Back"}:
+            starts = random.randint(1, 9)
+        else:
+            starts = random.randint(0, 4)
+
+        stat_line = ""
+        if bucket == "QB":
+            pass_yds = int(300 + overall_end * 32 + starts * 55 + random.randint(-250, 350))
+            pass_tds = max(1, int(pass_yds / 180) + random.randint(-2, 4))
+            stat_line = f"{pass_yds} pass yds, {pass_tds} pass TD"
+        elif bucket == "RB":
+            rush_yds = int(120 + overall_end * 9 + games * 14 + random.randint(-120, 180))
+            rush_tds = max(0, int(rush_yds / 140) + random.randint(-1, 3))
+            stat_line = f"{rush_yds} rush yds, {rush_tds} rush TD"
+        elif bucket == "WR":
+            rec_yds = int(150 + overall_end * 11 + games * 18 + random.randint(-150, 220))
+            rec_tds = max(0, int(rec_yds / 170) + random.randint(-1, 3))
+            stat_line = f"{rec_yds} rec yds, {rec_tds} rec TD"
+        elif bucket == "TE":
+            rec_yds = int(100 + overall_end * 8 + games * 10 + random.randint(-90, 150))
+            rec_tds = max(0, int(rec_yds / 190) + random.randint(-1, 2))
+            stat_line = f"{rec_yds} rec yds, {rec_tds} rec TD"
+        elif bucket in {"EDGE", "IDL", "LB"}:
+            sacks = max(0, int((overall_end - 70) / 4) + random.randint(-2, 3))
+            tackles = int(22 + games * 2.4 + starts * 1.1 + random.randint(-10, 18))
+            stat_line = f"{tackles} tackles, {sacks} sacks"
+        elif bucket in {"CB", "S"}:
+            ints = max(0, int((overall_end - 72) / 7) + random.randint(-1, 3))
+            tackles = int(18 + games * 2.1 + starts * 1.0 + random.randint(-8, 15))
+            stat_line = f"{tackles} tackles, {ints} INT"
+        else:
+            stat_line = f"{games} games, {starts} starts"
+
+        pro_bowl = "Yes" if overall_end >= 90 and random.random() < 0.55 else "No"
+        all_pro = "Yes" if overall_end >= 93 and random.random() < 0.28 else "No"
+        mvp_votes = int(random.randint(1, 10)) if bucket == "QB" and overall_end >= 92 and random.random() < 0.22 else 0
+
+        career_value = round(
+            overall_end * 0.45 +
+            starts * 1.25 +
+            years_pro * 1.75 +
+            (8 if pro_bowl == "Yes" else 0) +
+            (10 if all_pro == "Yes" else 0) +
+            (mvp_votes * 1.5),
+            1
+        )
+
+        status = "Active"
+        if career_tier == "Bust" and years_pro >= 3 and overall_end < 74 and random.random() < 0.35:
+            status = "Fringe"
+        if age >= 33 and career_tier not in {"Superstar", "Star"} and random.random() < 0.30:
+            status = "Declining"
+
+        rows.append({
+            "Season": int(season_year),
+            "PlayerID": player_id,
+            "Player": player,
+            "NFLTeam": nfl_team,
+            "Pos": pos,
+            "PosBucket": bucket,
+            "Age": int(age),
+            "Role": role,
+            "OverallStart": int(overall_start),
+            "OverallEnd": int(overall_end),
+            "Games": int(games),
+            "Starts": int(starts),
+            "StatLine": stat_line,
+            "ProBowl": pro_bowl,
+            "AllPro": all_pro,
+            "MVPVotes": int(mvp_votes),
+            "SuperBowlWin": "No",
+            "SuperBowlAppear": "No",
+            "CareerValue": career_value,
+            "Status": status
+        })
+
+    new_df = pd.DataFrame(rows, columns=NFL_PLAYER_HISTORY_COLS)
+
+    existing_clean = existing_player_hist_df.copy() if existing_player_hist_df is not None else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
+    if not existing_clean.empty and "Season" in existing_clean.columns:
+        existing_clean["Season"] = pd.to_numeric(existing_clean["Season"], errors="coerce")
+        existing_clean = existing_clean[existing_clean["Season"].fillna(-1).astype(int) != int(season_year)].copy()
+
+    combined = pd.concat([existing_clean, new_df], ignore_index=True)
+    for col in NFL_PLAYER_HISTORY_COLS:
+        if col not in combined.columns:
+            combined[col] = pd.NA
+    combined = combined[NFL_PLAYER_HISTORY_COLS].copy()
+    combined.to_csv("nfl_player_history.csv", index=False)
+    return combined
+
+
+def simulate_nfl_season(season_year=None):
+    universe = load_nfl_universe_data()
+    nfl_roster = universe["nfl_roster"]
+    nfl_draft_hist = universe["nfl_draft_hist"]
+    nfl_player_hist = universe["nfl_player_hist"]
+    nfl_super_bowl = universe["nfl_super_bowl"]
+    nfl_story = universe["nfl_story"]
+
+    if season_year is None:
+        season_year = get_current_nfl_season()
+
+    season_year = int(season_year)
+
+    team_strength_df = build_nfl_team_strengths(nfl_roster)
+    if team_strength_df.empty:
+        return None, "NFL roster data is missing, so the season could not be simulated."
+
+    standings_df = simulate_nfl_regular_season(team_strength_df, season_year=season_year, games_per_team=17)
+
+    player_hist_combined = simulate_nfl_player_season(
+        season_year=season_year,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_roster_df=nfl_roster,
+        existing_player_hist_df=nfl_player_hist
+    )
+
+    champion, runner_up, score, playoff_log = simulate_nfl_playoffs(standings_df, season_year)
+    if champion is None:
+        return None, "Could not determine playoff results."
+
+    season_player_df = player_hist_combined[
+        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+    ].copy()
+
+    if not season_player_df.empty:
+        champ_mask = season_player_df["NFLTeam"].astype(str) == str(champion)
+        runner_mask = season_player_df["NFLTeam"].astype(str) == str(runner_up)
+        player_hist_combined.loc[season_player_df[champ_mask].index, "SuperBowlWin"] = "Yes"
+        player_hist_combined.loc[season_player_df[champ_mask].index, "SuperBowlAppear"] = "Yes"
+        player_hist_combined.loc[season_player_df[runner_mask].index, "SuperBowlAppear"] = "Yes"
+        player_hist_combined.to_csv("nfl_player_history.csv", index=False)
+
+    mvp_name, mvp_team = choose_super_bowl_mvp(champion, player_hist_combined[
+        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+    ].copy())
+
+    sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
+    new_sb_row = pd.DataFrame([{
+        "Season": int(season_year),
+        "Champion": champion,
+        "RunnerUp": runner_up,
+        "Score": score,
+        "MVP": mvp_name,
+        "MVPTeam": mvp_team,
+        "Headline": sb_headline
+    }])
+
+    existing_sb = nfl_super_bowl.copy() if nfl_super_bowl is not None else pd.DataFrame(columns=NFL_SUPER_BOWL_HISTORY_COLS)
+    if not existing_sb.empty and "Season" in existing_sb.columns:
+        existing_sb["Season"] = pd.to_numeric(existing_sb["Season"], errors="coerce")
+        existing_sb = existing_sb[existing_sb["Season"].fillna(-1).astype(int) != int(season_year)].copy()
+
+    sb_combined = pd.concat([existing_sb, new_sb_row], ignore_index=True)
+    for col in NFL_SUPER_BOWL_HISTORY_COLS:
+        if col not in sb_combined.columns:
+            sb_combined[col] = pd.NA
+    sb_combined = sb_combined[NFL_SUPER_BOWL_HISTORY_COLS].copy()
+    sb_combined.to_csv("nfl_super_bowl_history.csv", index=False)
+
+    season_story_rows = []
+    season_player_df = player_hist_combined[
+        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+    ].copy()
+
+    if not season_player_df.empty:
+        breakout_df = season_player_df.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(3)
+        for _, r in breakout_df.iterrows():
+            season_story_rows.append({
+                "Season": int(season_year),
+                "Week": 21,
+                "PlayerID": r.get("PlayerID", ""),
+                "Player": r.get("Player", ""),
+                "NFLTeam": r.get("NFLTeam", ""),
+                "EventType": "SeasonOutcome",
+                "Headline": f"{r.get('Player', '')} makes noise in year {max(1, season_year - int(get_latest_completed_draft_year() or season_year) + 1)}",
+                "Description": f"{r.get('NFLTeam', '')} {r.get('Pos', '')} posted {r.get('StatLine', '')}. Role: {r.get('Role', '')}.",
+                "ImpactScore": int(min(99, max(55, safe_num(r.get("CareerValue", 60), 60))))
+            })
+
+    season_story_rows.append({
+        "Season": int(season_year),
+        "Week": 22,
+        "PlayerID": "",
+        "Player": mvp_name,
+        "NFLTeam": champion,
+        "EventType": "SuperBowl",
+        "Headline": sb_headline,
+        "Description": f"{champion} beat {runner_up}. Super Bowl MVP: {mvp_name}. Final score: {score}.",
+        "ImpactScore": 99
+    })
+
+    existing_story = nfl_story.copy() if nfl_story is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+    if not existing_story.empty and "Season" in existing_story.columns:
+        existing_story["Season"] = pd.to_numeric(existing_story["Season"], errors="coerce")
+        existing_story = existing_story[
+            ~(
+                existing_story["Season"].fillna(-1).astype(int).eq(int(season_year)) &
+                existing_story["EventType"].astype(str).isin(["SeasonOutcome", "SuperBowl"])
+            )
+        ].copy()
+
+    story_combined = pd.concat([existing_story, pd.DataFrame(season_story_rows)], ignore_index=True)
+    for col in NFL_STORY_EVENTS_COLS:
+        if col not in story_combined.columns:
+            story_combined[col] = pd.NA
+    story_combined = story_combined[NFL_STORY_EVENTS_COLS].copy()
+    story_combined.to_csv("nfl_story_events.csv", index=False)
+
+    save_nfl_universe_settings(
+        current_season=season_year + 1,
+        last_draft_year=get_latest_completed_draft_year(),
+        last_super_bowl_season=season_year
+    )
+
+    return {
+        "season_year": season_year,
+        "standings": standings_df,
+        "champion": champion,
+        "runner_up": runner_up,
+        "score": score,
+        "super_bowl_history": sb_combined,
+        "player_history": player_hist_combined,
+        "story_events": story_combined,
+        "playoff_log": playoff_log
+    }, f"NFL season {season_year} simulated. Champion: {champion}."    
 
 # 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
 st.set_page_config(
@@ -11373,7 +11953,11 @@ with tabs[9]:
                         ].copy()
 
                         if status_msg and "officially added" in status_msg.lower():
-                            existing_story = pd.read_csv("nfl_story_events.csv") if os.path.exists("nfl_story_events.csv") else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                            existing_story = (
+                                pd.read_csv("nfl_story_events.csv")
+                                if os.path.exists("nfl_story_events.csv")
+                                else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                            )
                             seed_story_events_from_draft_class(just_added_class, existing_story)
 
                     if status_msg:
@@ -11423,6 +12007,19 @@ with tabs[9]:
 
                     except Exception as e:
                         st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
+
+        sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
+
+        with sim_c:
+            if st.button("🏆 Advance NFL Season", use_container_width=True, key="advance_nfl_season_btn_commish"):
+                try:
+                    sim_result, sim_msg = simulate_nfl_season()
+                    if sim_result is None:
+                        st.warning(sim_msg)
+                    else:
+                        st.success(sim_msg)
+                except Exception as e:
+                    st.error(f"NFL season sim error: {type(e).__name__}: {e}")
 
     else:
         c1, c2, c3 = st.columns(3)
