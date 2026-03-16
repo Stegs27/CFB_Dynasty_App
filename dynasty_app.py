@@ -177,6 +177,10 @@ NFL_STORY_EVENTS_COLS = [
     "Description", "ImpactScore"
 ]
 
+NFL_PLAYOFF_HISTORY_COLS = [
+    "Season", "Round", "Winner", "Loser", "Score"
+]
+
 NFL_STANDINGS_HISTORY_COLS = [
     "Season", "Team", "Wins", "Losses", "WinPct",
     "Seed", "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "DepthScore", "StarPower"
@@ -673,6 +677,7 @@ def load_nfl_universe_data():
     ensure_csv_exists("nfl_story_events.csv", NFL_STORY_EVENTS_COLS)
     ensure_csv_exists("nfl_standings_history.csv", NFL_STANDINGS_HISTORY_COLS)
     ensure_csv_exists("nfl_awards_history.csv", NFL_AWARDS_HISTORY_COLS)
+    ensure_csv_exists("nfl_playoff_history.csv", NFL_PLAYOFF_HISTORY_COLS)
     ensure_csv_exists("nfl_universe_settings.csv", NFL_UNIVERSE_SETTINGS_COLS, [{
         "CurrentNFLSeason": 2042,
         "LastCompletedDraftYear": 2041,
@@ -683,6 +688,7 @@ def load_nfl_universe_data():
     nfl_roster = pd.read_csv("NFLroster26_MASTER.csv") if os.path.exists("NFLroster26_MASTER.csv") else pd.DataFrame()
     cfb_roster = pd.read_csv("cfb26_rosters_full.csv") if os.path.exists("cfb26_rosters_full.csv") else pd.DataFrame()
     cfb_draft = pd.read_csv("cfb_user_draft_results.csv")
+
     nfl_draft_hist = pd.read_csv("nfl_draft_history.csv")
     for col in NFL_DRAFT_HISTORY_COLS:
         if col not in nfl_draft_hist.columns:
@@ -706,6 +712,12 @@ def load_nfl_universe_data():
             nfl_awards_hist[col] = pd.NA
     nfl_awards_hist = nfl_awards_hist.reindex(columns=NFL_AWARDS_HISTORY_COLS)
 
+    nfl_playoff_hist = pd.read_csv("nfl_playoff_history.csv")
+    for col in NFL_PLAYOFF_HISTORY_COLS:
+        if col not in nfl_playoff_hist.columns:
+            nfl_playoff_hist[col] = pd.NA
+    nfl_playoff_hist = nfl_playoff_hist.reindex(columns=NFL_PLAYOFF_HISTORY_COLS)
+
     return {
         "nfl_roster": nfl_roster,
         "cfb_roster": cfb_roster,
@@ -717,6 +729,7 @@ def load_nfl_universe_data():
         "nfl_settings": nfl_settings,
         "nfl_standings_hist": nfl_standings_hist,
         "nfl_awards_hist": nfl_awards_hist,
+        "nfl_playoff_hist": nfl_playoff_hist,
     }
 
 def render_centered_logo(src, width=64):
@@ -2605,6 +2618,22 @@ def simulate_nfl_season(season_year=None):
     champion, runner_up, score, playoff_log = simulate_nfl_playoffs(standings_df, season_year)
     if champion is None:
         return None, "Could not determine playoff results."
+    existing_playoff = universe["nfl_playoff_hist"].copy() if universe["nfl_playoff_hist"] is not None else pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+
+    if not existing_playoff.empty and "Season" in existing_playoff.columns:
+        existing_playoff["Season"] = pd.to_numeric(existing_playoff["Season"], errors="coerce")
+        existing_playoff = existing_playoff[
+            existing_playoff["Season"].fillna(-1).astype(int) != int(season_year)
+        ].copy()
+
+    playoff_log_clean = playoff_log.copy() if playoff_log is not None else pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+    for col in NFL_PLAYOFF_HISTORY_COLS:
+        if col not in playoff_log_clean.columns:
+            playoff_log_clean[col] = pd.NA
+    playoff_log_clean = playoff_log_clean[NFL_PLAYOFF_HISTORY_COLS].copy()
+
+    playoff_combined = pd.concat([existing_playoff, playoff_log_clean], ignore_index=True)
+    playoff_combined.to_csv("nfl_playoff_history.csv", index=False)
 
     season_player_df = player_hist_combined[
         pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
@@ -2746,7 +2775,8 @@ def simulate_nfl_season(season_year=None):
         "player_history": player_hist_combined,
         "story_events": story_combined,
         "awards_history": awards_hist,
-        "playoff_log": playoff_log
+        "playoff_log": playoff_log,
+        "playoff_history": playoff_combined
     }, f"NFL season {season_year} simulated. Champion: {champion}."
     
 def simulate_nfl_awards(season_year, season_player_df, existing_awards_df=None):
@@ -12180,6 +12210,7 @@ with tabs[9]:
     nfl_settings = universe["nfl_settings"]
     nfl_standings_hist = universe["nfl_standings_hist"]
     nfl_awards_hist = universe["nfl_awards_hist"]
+    nfl_playoff_hist = universe["nfl_playoff_hist"]
 
     is_commissioner = False
 
@@ -12705,6 +12736,52 @@ with tabs[9]:
                             "DefenseScore": st.column_config.NumberColumn(format="%.1f"),
                         }
                     )
+
+                season_playoff = pd.DataFrame()
+                if nfl_playoff_hist is not None and not nfl_playoff_hist.empty:
+                    tmp_po = nfl_playoff_hist.copy()
+                    tmp_po["Season"] = pd.to_numeric(tmp_po["Season"], errors="coerce")
+                    season_playoff = tmp_po[
+                        tmp_po["Season"].fillna(-1).astype(int) == int(sel_season)
+                    ].copy()
+
+                if not season_playoff.empty:
+                    st.markdown("#### Playoff Path")
+
+                    round_order = {
+                        "Wild Card": 1,
+                        "Divisional": 2,
+                        "Conference Championship": 3,
+                        "Super Bowl": 4
+                    }
+
+                    season_playoff["__round_order"] = season_playoff["Round"].astype(str).map(round_order).fillna(99)
+                    season_playoff = season_playoff.sort_values(["__round_order", "Winner", "Loser"]).copy()
+
+                    for round_name in ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"]:
+                        round_df = season_playoff[season_playoff["Round"].astype(str) == round_name].copy()
+                        if round_df.empty:
+                            continue
+
+                        st.markdown(f"##### {round_name}")
+
+                        round_show = round_df.copy()
+                        round_show.insert(1, "Winner Logo", round_show["Winner"].map(get_nfl_logo_src))
+                        round_show.insert(4, "Loser Logo", round_show["Loser"].map(get_nfl_logo_src))
+
+                        round_show = round_show[[
+                            "Winner", "Winner Logo", "Score", "Loser", "Loser Logo"
+                        ]]
+
+                        st.dataframe(
+                            round_show,
+                            hide_index=True,
+                            use_container_width=True,
+                            column_config={
+                                "Winner Logo": st.column_config.ImageColumn(""),
+                                "Loser Logo": st.column_config.ImageColumn(""),
+                            }
+                        )
 
                 if not season_players.empty:
                     st.markdown("#### Top Alumni Seasons")
