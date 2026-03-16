@@ -12026,6 +12026,27 @@ with tabs[9]:
                         st.success(sim_msg)
                 except Exception as e:
                     st.error(f"NFL season sim error: {type(e).__name__}: {e}")
+                    
+                    settings_l, settings_c, settings_r = st.columns([1, 1.4, 1])
+
+        with settings_c:
+            if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
+                try:
+                    initialize_nfl_universe_settings()
+                    st.success("nfl_universe_settings.csv created.")
+                except Exception as e:
+                    st.error(f"Settings file create error: {type(e).__name__}: {e}")
+
+        if os.path.exists("nfl_universe_settings.csv"):
+            with open("nfl_universe_settings.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download NFL Settings",
+                    data=f.read(),
+                    file_name="nfl_universe_settings.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_universe_settings"
+                )
 
     else:
         c1, c2, c3 = st.columns(3)
