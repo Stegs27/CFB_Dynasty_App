@@ -22,6 +22,22 @@ import streamlit as st
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — HELPERS / CONFIG
 # ──────────────────────────────────────────────────────────────────────
+def initialize_nfl_universe_settings():
+    default_df = pd.DataFrame([{
+        "CurrentNFLSeason": 2042,
+        "LastCompletedDraftYear": 2041,
+        "LastCompletedSuperBowlSeason": 2041,
+        "UniverseVersion": 1
+    }])
+
+    for col in NFL_UNIVERSE_SETTINGS_COLS:
+        if col not in default_df.columns:
+            default_df[col] = pd.NA
+
+    default_df = default_df[NFL_UNIVERSE_SETTINGS_COLS].copy()
+    default_df.to_csv("nfl_universe_settings.csv", index=False)
+    return default_df
+
 def render_centered_logo(src, width=64):
     if not src:
         return
@@ -1984,42 +2000,32 @@ import math
 
 def get_current_nfl_season():
     if not os.path.exists("nfl_universe_settings.csv"):
+        initialize_nfl_universe_settings()
         return 2042
+
     try:
         s = pd.read_csv("nfl_universe_settings.csv")
         if s.empty or "CurrentNFLSeason" not in s.columns:
+            initialize_nfl_universe_settings()
             return 2042
         val = pd.to_numeric(s["CurrentNFLSeason"], errors="coerce").dropna()
         return int(val.iloc[0]) if not val.empty else 2042
     except Exception:
+        initialize_nfl_universe_settings()
         return 2042
 
 
 def save_nfl_universe_settings(current_season=None, last_draft_year=None, last_super_bowl_season=None):
-    ensure_csv_exists("nfl_universe_settings.csv", NFL_UNIVERSE_SETTINGS_COLS, [{
-        "CurrentNFLSeason": 2042,
-        "LastCompletedDraftYear": 2041,
-        "LastCompletedSuperBowlSeason": 2041,
-        "UniverseVersion": 1
-    }])
-
-    try:
-        s = pd.read_csv("nfl_universe_settings.csv")
-    except Exception:
-        s = pd.DataFrame([{
-            "CurrentNFLSeason": 2042,
-            "LastCompletedDraftYear": 2041,
-            "LastCompletedSuperBowlSeason": 2041,
-            "UniverseVersion": 1
-        }])
+    if not os.path.exists("nfl_universe_settings.csv"):
+        s = initialize_nfl_universe_settings()
+    else:
+        try:
+            s = pd.read_csv("nfl_universe_settings.csv")
+        except Exception:
+            s = initialize_nfl_universe_settings()
 
     if s.empty:
-        s = pd.DataFrame([{
-            "CurrentNFLSeason": 2042,
-            "LastCompletedDraftYear": 2041,
-            "LastCompletedSuperBowlSeason": 2041,
-            "UniverseVersion": 1
-        }])
+        s = initialize_nfl_universe_settings()
 
     for col in NFL_UNIVERSE_SETTINGS_COLS:
         if col not in s.columns:
