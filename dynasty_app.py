@@ -12499,7 +12499,7 @@ with tabs[9]:
                 school = str(top_pick.get("CollegeTeam", ""))
                 nfl_team = str(top_pick.get("GeneratedNFLTeam", ""))
                 player = str(top_pick.get("Player", ""))
-                user_name = str(top_pick.get("CollegeUser", "")).strip()
+                user_name = clean_display(top_pick.get("CollegeUser", ""), "")
                 pos = str(top_pick.get("Pos", ""))
                 pos_bucket = str(top_pick.get("PosBucket", ""))
                 rookie_role = str(top_pick.get("RookieRole", ""))
@@ -12519,21 +12519,22 @@ with tabs[9]:
                     st.caption("TOP USER PICK SCHOOL")
                     st.markdown(f"**{school}**")
                     st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
+
                     if draft_source == "background_r1":
-    st.markdown(
-        "<span style='display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>League Prospect</span>",
-        unsafe_allow_html=True
-    )
-elif user_name:
-    st.markdown(
-        f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(user_name)}</span>",
-        unsafe_allow_html=True
-    )
-else:
-    st.markdown(
-        "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
-        unsafe_allow_html=True
-    )
+                        st.markdown(
+                            "<span style='display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>League Prospect</span>",
+                            unsafe_allow_html=True
+                        )
+                    elif user_name:
+                        st.markdown(
+                            f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(user_name)}</span>",
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
+                            unsafe_allow_html=True
+                        )
 
                 with mid:
                     st.caption("EARLIEST USER PICK")
