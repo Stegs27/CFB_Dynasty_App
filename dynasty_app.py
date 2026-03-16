@@ -2653,15 +2653,6 @@ def simulate_nfl_season(season_year=None):
         player_hist_combined.loc[season_player_df[runner_mask].index, "SuperBowlAppear"] = "Yes"
         player_hist_combined.to_csv("nfl_player_history.csv", index=False)
 
-
-    if not season_player_df.empty:
-        champ_mask = season_player_df["NFLTeam"].astype(str) == str(champion)
-        runner_mask = season_player_df["NFLTeam"].astype(str) == str(runner_up)
-        player_hist_combined.loc[season_player_df[champ_mask].index, "SuperBowlWin"] = "Yes"
-        player_hist_combined.loc[season_player_df[champ_mask].index, "SuperBowlAppear"] = "Yes"
-        player_hist_combined.loc[season_player_df[runner_mask].index, "SuperBowlAppear"] = "Yes"
-        player_hist_combined.to_csv("nfl_player_history.csv", index=False)
-
     mvp_name, mvp_team = choose_super_bowl_mvp(champion, player_hist_combined[
         pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
     ].copy())
@@ -12353,6 +12344,7 @@ with tabs[9]:
                         st.warning(sim_msg)
                     else:
                         st.success(sim_msg)
+                        st.rerun()
                 except Exception as e:
                     st.error(f"NFL season sim error: {type(e).__name__}: {e}")
 
