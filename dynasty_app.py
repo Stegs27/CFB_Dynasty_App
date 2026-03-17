@@ -3071,11 +3071,33 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
     # Start from original NFL master as filler/base
     current_rows = []
     for _, r in base_roster.iterrows():
+        base_name = ""
+        for candidate_col in ["Name", "Player", "FullName", "PlayerName", "PLAYER", "NAME"]:
+            if candidate_col in r and pd.notna(r.get(candidate_col)) and str(r.get(candidate_col)).strip():
+                base_name = str(r.get(candidate_col)).strip()
+                break
+
+        if not base_name:
+            first_name = ""
+            last_name = ""
+            for first_col in ["FirstName", "First", "FIRSTNAME", "FIRST"]:
+                if first_col in r and pd.notna(r.get(first_col)) and str(r.get(first_col)).strip():
+                    first_name = str(r.get(first_col)).strip()
+                    break
+            for last_col in ["LastName", "Last", "LASTNAME", "LAST"]:
+                if last_col in r and pd.notna(r.get(last_col)) and str(r.get(last_col)).strip():
+                    last_name = str(r.get(last_col)).strip()
+                    break
+            base_name = f"{first_name} {last_name}".strip()
+
+        if not base_name:
+            base_name = f"{str(r.get('Pos', '')).strip()} Player"
+
         current_rows.append({
             "Season": season_year,
             "Team": r.get("Team", ""),
             "PlayerID": "",
-            "Name": r.get("Name", r.get("Player", "")),
+            "Name": base_name,
             "Pos": r.get("Pos", ""),
             "PosBucket": r.get("PosBucket", ""),
             "OVR": int(round(safe_num(r.get("OVR", 70), 70))),
