@@ -547,7 +547,6 @@ def build_nfl_team_needs(nfl_roster_df):
     df["Age"] = pd.to_numeric(df["Age"], errors="coerce").fillna(25)
     df["PosBucket"] = df["Pos"].map(clean_bucket)
 
-    # Room targets / starter counts
     room_targets = {
         "QB": 3,
         "RB": 4,
@@ -590,6 +589,103 @@ def build_nfl_team_needs(nfl_roster_df):
 
     rows = []
 
+    for team in sorted(df["Team"].dropna().astype(str).unique().tolist()):
+        team_df = df[df["Team"].astype(str) == str(team)].copy()
+
+        for bucket, room_target in room_targets.items():
+            room = team_df[team_df["PosBucket"].astype(str) == str(bucket)].copy()
+            room = room.sort_values(["OVR", "Age"], ascending=[False, True]).reset_index(drop=True)
+
+            starter_n = starter_counts.get(bucket, 1)
+
+            starter_ovr = safe_num(room["OVR"].iloc[0], 68) if not room.empty else 68
+            starter_age = safe_num(room["Age"].iloc[0], 25) if not room.empty else 25
+            depth_count = int(len(room))
+
+            top_starters = room.head(starter_n).copy()
+            top_depth = room.head(min(room_target, len(room))).copy()
+
+            starter_avg = safe_num(top_starters["OVR"].mean(), starter_ovr if not room.empty else 68)
+            depth_avg = safe_num(top_depth["OVR"].mean(), starter_avg if not top_starters.empty else 68)
+
+            need = 0.0
+
+            if bucket == "QB":
+                if starter_ovr <= 72:
+                    need += 42
+                elif starter_ovr <= 76:
+                    need += 30
+                elif starter_ovr <= 80:
+                    need += 18
+                elif starter_ovr <= 84:
+                    need += 8
+
+                if starter_ovr >= 95 and starter_age <= 31:
+                    need -= 50
+                elif starter_ovr >= 90 and starter_age <= 32:
+                    need -= 40
+                elif starter_ovr >= 85 and starter_age <= 30:
+                    need -= 28
+                elif starter_ovr >= 82 and starter_age <= 28:
+                    need -= 18
+
+            else:
+                if starter_avg <= 70:
+                    need += 26
+                elif starter_avg <= 74:
+                    need += 18
+                elif starter_avg <= 78:
+                    need += 10
+                elif starter_avg <= 82:
+                    need += 4
+
+                if starter_age >= 32:
+                    need += 5
+                elif starter_age >= 30:
+                    need += 2
+
+                if starter_avg >= 90:
+                    need -= 18
+                elif starter_avg >= 86:
+                    need -= 10
+
+            missing_depth = max(0, room_target - depth_count)
+            need += missing_depth * 4.5
+
+            if depth_count > 0:
+                if depth_avg <= 68:
+                    need += 6
+                elif depth_avg <= 72:
+                    need += 3
+                elif depth_avg >= 84:
+                    need -= 4
+
+            if depth_count >= room_target:
+                if starter_avg >= 84 and depth_avg >= 78:
+                    need -= 8
+                if starter_avg >= 88 and depth_avg >= 80:
+                    need -= 6
+
+            need *= premium_weight.get(bucket, 1.0)
+            need = round(max(0, min(99, need)), 2)
+
+            rows.append({
+                "NFLTeam": team,
+                "PosBucket": bucket,
+                "NeedScore": need,
+                "StarterOVR": round(float(starter_ovr), 2),
+                "StarterAge": round(float(starter_age), 2),
+                "DepthCount": depth_count
+            })
+
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return pd.DataFrame(columns=[
+            "NFLTeam", "PosBucket", "NeedScore", "StarterOVR", "StarterAge", "DepthCount"
+        ])
+
+    out = out.sort_values(["NFLTeam", "NeedScore"], ascending=[True, False]).reset_index(drop=True)
+    return out
 
 def assign_career_tier(round_num):
     r = random.random()
