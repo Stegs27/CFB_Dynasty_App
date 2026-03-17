@@ -2903,25 +2903,26 @@ def should_retire_nfl_player(age, overall_end, pro_outcome, pos_bucket):
     pro_outcome = str(pro_outcome).strip()
     pos_bucket = str(pos_bucket).strip().upper()
 
-    if age >= 37:
+    if age >= 38:
         return True
 
-    if age >= 35:
-        if pro_outcome in {"Superstar", "Star"} and overall_end >= 86 and pos_bucket == "QB":
-            return random.random() < 0.20
-        if pro_outcome in {"Superstar", "Star"} and overall_end >= 84:
-            return random.random() < 0.30
-        return random.random() < 0.65
-
-    if age >= 33:
-        if pro_outcome in {"Superstar", "Star"} and overall_end >= 88 and pos_bucket == "QB":
-            return random.random() < 0.08
-        if overall_end < 78:
+    if age >= 36:
+        if pos_bucket == "QB" and pro_outcome in {"Superstar", "Star"} and overall_end >= 84:
             return random.random() < 0.35
-        return random.random() < 0.15
+        return random.random() < 0.75
 
-    if age >= 31 and overall_end < 74 and pro_outcome in {"Bust", "Developmental"}:
-        return random.random() < 0.18
+    if age >= 34:
+        if pos_bucket == "QB" and pro_outcome in {"Superstar", "Star"} and overall_end >= 86:
+            return random.random() < 0.18
+        if overall_end < 80:
+            return random.random() < 0.50
+        return random.random() < 0.28
+
+    if age >= 32:
+        if overall_end < 74 and pro_outcome in {"Bust", "Developmental"}:
+            return random.random() < 0.30
+        if pos_bucket in {"RB", "LB", "EDGE", "IDL"} and overall_end < 78:
+            return random.random() < 0.18
 
     return False
 
@@ -3213,20 +3214,15 @@ def calc_udfa_entry_ovr(cfb_ovr, pos_bucket=""):
 
     return int(max(58, min(76, nfl_ovr)))
     
-def build_udfa_pool_for_season(season_year, cfb_draft_df, nfl_draft_hist_df):
+def build_udfa_pool_for_season(season_year, cfb_roster_df, nfl_draft_hist_df):
     season_year = int(season_year)
 
-    if cfb_draft_df is None or cfb_draft_df.empty:
+    if cfb_roster_df is None or cfb_roster_df.empty:
         return pd.DataFrame()
 
-    work = cfb_draft_df.copy()
-    work["DraftYear"] = pd.to_numeric(work.get("DraftYear"), errors="coerce")
-    work = work[work["DraftYear"].fillna(-1).astype(int) == int(season_year - 1)].copy()
+    work = cfb_roster_df.copy()
 
-    if work.empty:
-        return pd.DataFrame()
-
-    for col in ["Player", "CollegeTeam", "CollegeUser", "Pos", "Class"]:
+    for col in ["Name", "Team", "Pos", "Year"]:
         if col not in work.columns:
             work[col] = ""
         work[col] = work[col].fillna("").astype(str).str.strip()
@@ -3235,9 +3231,20 @@ def build_udfa_pool_for_season(season_year, cfb_draft_df, nfl_draft_hist_df):
         work["OVR"] = 0
     work["OVR"] = pd.to_numeric(work["OVR"], errors="coerce").fillna(0)
 
+    # Only realistic NFL-entry candidates
+    work = work[work["Year"].astype(str).isin(["SR", "JR", "RS SR", "RS JR"])].copy()
+
+    if work.empty:
+        return pd.DataFrame()
+
+    work["Player"] = work["Name"]
+    work["CollegeTeam"] = work["Team"]
+    work["CollegeUser"] = work.get("User", "")
+    work["PosBucket"] = work["Pos"].map(clean_bucket)
+
     work["PlayerID"] = work.apply(
         lambda r: build_player_id(
-            int(safe_num(r.get("DraftYear", season_year - 1), season_year - 1)),
+            int(season_year - 1),
             r.get("CollegeTeam", ""),
             r.get("Player", ""),
             r.get("Pos", "")
@@ -3255,7 +3262,6 @@ def build_udfa_pool_for_season(season_year, cfb_draft_df, nfl_draft_hist_df):
     if udfa_df.empty:
         return pd.DataFrame()
 
-    udfa_df["PosBucket"] = udfa_df["Pos"].map(clean_bucket)
     udfa_df["NFLUdfaOVR"] = udfa_df.apply(
         lambda r: calc_udfa_entry_ovr(
             cfb_ovr=safe_num(r.get("OVR", 75), 75),
@@ -3271,7 +3277,7 @@ def build_udfa_pool_for_season(season_year, cfb_draft_df, nfl_draft_hist_df):
 
     return udfa_df
 
-def run_nfl_offseason_roster_maintenance(season_year, current_roster_df, cfb_draft_df=None, nfl_draft_hist_df=None):
+def run_nfl_offseason_roster_maintenance(season_year, current_roster_df, cfb_roster_df=None, nfl_draft_hist_df=None):
     season_year = int(season_year)
 
     if current_roster_df is None or current_roster_df.empty:
@@ -3304,7 +3310,7 @@ def run_nfl_offseason_roster_maintenance(season_year, current_roster_df, cfb_dra
 
     udfa_pool = build_udfa_pool_for_season(
         season_year=season_year,
-        cfb_draft_df=cfb_draft_df,
+        cfb_roster_df=cfb_roster_df,
         nfl_draft_hist_df=nfl_draft_hist_df
     )
 
@@ -3351,7 +3357,8 @@ def run_nfl_offseason_roster_maintenance(season_year, current_roster_df, cfb_dra
                     })
                     udfa_used_ids.add(str(ur.get("PlayerID", "")))
 
-                needed = max(0, needed - len(udfa_room.head(needed)))
+                udfa_taken = min(len(udfa_room), needed)
+                needed = max(0, needed - udfa_taken)
 
             # 2) Remaining holes get veteran filler
             for idx in range(1, needed + 1):
@@ -3362,7 +3369,7 @@ def run_nfl_offseason_roster_maintenance(season_year, current_roster_df, cfb_dra
                     "Season": season_year,
                     "Team": team,
                     "PlayerID": f"FA_{season_year}_{normalize_key(team)}_{pos_bucket}_{idx}_{random.randint(1000,9999)}",
-                    "Name": f"{team} Veteran {pos_bucket} {idx}",
+                    "Name": f"Veteran {pos_bucket} {idx}",
                     "Pos": pos_bucket,
                     "PosBucket": pos_bucket,
                     "OVR": fill_ovr,
