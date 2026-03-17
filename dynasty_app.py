@@ -3390,7 +3390,8 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
 
     if existing_current_rosters_df is None:
         existing_current_rosters_df = pd.read_csv("nfl_current_rosters.csv") if os.path.exists("nfl_current_rosters.csv") else pd.DataFrame(columns=NFL_CURRENT_ROSTER_COLS)
-        prior_current = existing_current_rosters_df.copy()
+
+    prior_current = existing_current_rosters_df.copy()
     if not prior_current.empty and "Season" in prior_current.columns:
         prior_current["Season"] = pd.to_numeric(prior_current["Season"], errors="coerce")
         prior_current = prior_current[
@@ -3508,7 +3509,6 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
         dynasty_df = pd.DataFrame(dynasty_rows, columns=NFL_CURRENT_ROSTER_COLS)
 
         if not dynasty_df.empty:
-            # Remove base filler rows when dynasty player with same name/team exists
             dynasty_keys = set(
                 dynasty_df.apply(lambda r: f"{str(r.get('Team','')).strip().lower()}||{str(r.get('Name','')).strip().lower()}", axis=1).tolist()
             )
