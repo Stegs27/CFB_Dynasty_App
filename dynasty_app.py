@@ -14290,36 +14290,51 @@ with tabs[9]:
                             notes = str(r.get("Notes", ""))
                             college_user = clean_display(r.get("CollegeUser", ""), "")
 
-                            school_logo_src = get_school_logo_src(school)
-                            nfl_logo_src = get_nfl_logo_src(nfl_team)
+                            school_logo = get_school_logo_html(school, width=42, margin="0 10px 0 0")
+                            nfl_logo = get_nfl_logo_html(nfl_team, width=42, margin="0 0 0 10px")
 
-                            c1, c2 = st.columns([5, 1])
+                            badge_html = (
+                                f'<span style="display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(college_user)}</span>'
+                                if college_user
+                                else '<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">CPU</span>'
+                            )
 
-                            with c1:
-                                if school_logo_src:
-                                    st.image(school_logo_src, width=42)
-                                st.markdown(f"**{award}**")
-                                st.markdown(f"### {player}")
-                                st.write(f"{school} • {r.get('Pos', '')} • {nfl_team}")
-                                if notes:
-                                    st.caption(notes)
-
-                                if college_user:
-                                    st.markdown(
-                                        f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(college_user)}</span>",
-                                        unsafe_allow_html=True
-                                    )
-                                else:
-                                    st.markdown(
-                                        "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
-                                        unsafe_allow_html=True
-                                    )
-
-                            with c2:
-                                if nfl_logo_src:
-                                    st.image(nfl_logo_src, width=42)
-
-                            st.markdown("---")
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    padding:0.9rem 1rem;
+                                    border-radius:12px;
+                                    margin-bottom:0.75rem;
+                                    background:linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+                                    border-left:5px solid #eab308;
+                                ">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                                        <div style="display:flex; align-items:center; min-width:0;">
+                                            {school_logo}
+                                            <div>
+                                                <div style="font-weight:800; font-size:1rem; color:#ffffff;">
+                                                    {html.escape(player)}
+                                                </div>
+                                                <div style="font-size:0.9rem; color:#facc15; font-weight:700;">
+                                                    {html.escape(award)}
+                                                </div>
+                                                <div style="font-size:0.9rem; color:#d1d5db; margin-top:4px;">
+                                                    {html.escape(school)} • {html.escape(str(r.get("Pos", "")))} • {html.escape(nfl_team)}
+                                                </div>
+                                                <div style="font-size:0.86rem; color:#cbd5e1; margin-top:4px;">
+                                                    {html.escape(notes)}
+                                                </div>
+                                                {badge_html}
+                                            </div>
+                                        </div>
+                                        <div style="display:flex; align-items:center;">
+                                            {nfl_logo}
+                                        </div>
+                                    </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
 
                     st.markdown("#### Awards Table")
 
@@ -15055,6 +15070,83 @@ with tabs[9]:
                         """,
                         unsafe_allow_html=True
                     )
+
+st.markdown("#### Recent Team Transactions")
+
+            current_nfl_season = get_current_nfl_season()
+            prior_nfl_season = max(0, int(current_nfl_season) - 1)
+
+            current_roster_team = pd.DataFrame()
+            if nfl_current_rosters is not None and not nfl_current_rosters.empty:
+                current_roster_team = nfl_current_rosters[
+                    nfl_current_rosters["Team"].astype(str).map(normalize_nfl_team_key) == selected_team_key
+                ].copy()
+
+                if "Season" in current_roster_team.columns:
+                    current_roster_team["Season"] = pd.to_numeric(current_roster_team["Season"], errors="coerce")
+                    current_roster_team = current_roster_team[
+                        current_roster_team["Season"].fillna(-1).astype(int) == int(current_nfl_season)
+                    ].copy()
+
+            additions_df = pd.DataFrame()
+            if not current_roster_team.empty and "Source" in current_roster_team.columns:
+                additions_df = current_roster_team[
+                    current_roster_team["Source"].astype(str).isin(["dynasty_player", "udfa_fill", "free_agent_fill"])
+                ].copy()
+
+                if "Name" in additions_df.columns and "Player" not in additions_df.columns:
+                    additions_df["Player"] = additions_df["Name"]
+                elif "Name" in additions_df.columns:
+                    additions_df["Player"] = additions_df["Player"].where(
+                        additions_df["Player"].notna() & (additions_df["Player"].astype(str).str.strip() != ""),
+                        additions_df["Name"]
+                    )
+
+                additions_df["SourceLabel"] = additions_df["Source"].astype(str).replace({
+                    "dynasty_player": "Drafted / Dynasty Add",
+                    "udfa_fill": "UDFA Add",
+                    "free_agent_fill": "Veteran Fill"
+                })
+
+                additions_df["OVR"] = pd.to_numeric(additions_df["OVR"], errors="coerce").fillna(0)
+                additions_df = additions_df.sort_values(["OVR", "Player"], ascending=[False, True]).copy()
+
+            if additions_df.empty:
+                st.caption("No recent additions found for this team.")
+            else:
+                add_show = additions_df[[
+                    c for c in ["Player", "Pos", "OVR", "Age", "SourceLabel", "CollegeTeam", "CollegeUser"] if c in additions_df.columns
+                ]].copy().rename(columns={
+                    "SourceLabel": "Move",
+                    "CollegeTeam": "School",
+                    "CollegeUser": "User"
+                })
+
+                st.dataframe(add_show.head(20), hide_index=True, use_container_width=True)
+
+            st.markdown("#### Recent Team Losses")
+
+            team_losses = pd.DataFrame()
+            if nfl_player_hist is not None and not nfl_player_hist.empty:
+                hist_tmp = nfl_player_hist.copy()
+                hist_tmp["Season"] = pd.to_numeric(hist_tmp["Season"], errors="coerce")
+
+                team_losses = hist_tmp[
+                    (hist_tmp["NFLTeam"].astype(str).map(normalize_nfl_team_key) == selected_team_key) &
+                    (hist_tmp["Season"].fillna(-1).astype(int) == int(prior_nfl_season)) &
+                    (hist_tmp["Status"].astype(str).isin(["Retired", "Out of League"]))
+                ].copy()
+
+            if team_losses.empty:
+                st.caption("No recent losses recorded for this team.")
+            else:
+                loss_show = team_losses[[
+                    c for c in ["Player", "Pos", "Age", "OverallEnd", "Status"] if c in team_losses.columns
+                ]].copy().rename(columns={
+                    "OverallEnd": "Last OVR"
+                })
+
+                st.dataframe(loss_show.head(20), hide_index=True, use_container_width=True)
 
 # --- ROSTER ATTRITION ---
 with tabs[5]:
