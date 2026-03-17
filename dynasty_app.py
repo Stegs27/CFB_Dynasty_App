@@ -14076,11 +14076,8 @@ with tabs[9]:
                     mvp = str(sb_row.get("MVP", ""))
                     headline = str(sb_row.get("Headline", ""))
 
-                    champ_logo = get_nfl_logo_html(champ, width=54, margin="0 12px 0 0")
-                    runner_logo = get_nfl_logo_html(runner, width=54, margin="0 0 0 12px")
-
                     st.markdown(
-                        f"""
+                        """
                         <div style="
                             padding:1rem 1.1rem;
                             border-radius:16px;
@@ -14089,58 +14086,34 @@ with tabs[9]:
                             border:1px solid rgba(234,179,8,0.28);
                             box-shadow:0 8px 24px rgba(0,0,0,0.18);
                         ">
-                            <div style="font-size:0.8rem; color:#fcd34d; text-transform:uppercase; letter-spacing:1px; font-weight:800;">
-                                Super Bowl Result
-                            </div>
-
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:14px; margin-top:10px;">
-                                <div style="display:flex; align-items:center; min-width:0; flex:1;">
-                                    {champ_logo}
-                                    <div>
-                                        <div style="font-size:1.25rem; font-weight:900; color:#ffffff;">
-                                            {html.escape(champ)}
-                                        </div>
-                                        <div style="font-size:0.88rem; color:#fde68a;">
-                                            Champion
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div style="text-align:center; min-width:140px;">
-                                    <div style="font-size:1.9rem; font-weight:900; color:#ffffff;">
-                                        {html.escape(score)}
-                                    </div>
-                                    <div style="font-size:0.82rem; color:#d1d5db;">
-                                        Final Score
-                                    </div>
-                                </div>
-
-                                <div style="display:flex; align-items:center; justify-content:flex-end; min-width:0; flex:1;">
-                                    <div style="text-align:right;">
-                                        <div style="font-size:1.25rem; font-weight:900; color:#ffffff;">
-                                            {html.escape(runner)}
-                                        </div>
-                                        <div style="font-size:0.88rem; color:#cbd5e1;">
-                                            Runner-Up
-                                        </div>
-                                    </div>
-                                    {runner_logo}
-                                </div>
-                            </div>
-
-                            <div style="margin-top:12px; font-size:0.94rem; color:#e5e7eb;">
-                                {html.escape(headline)}
-                            </div>
-
-                            <div style="margin-top:10px;">
-                                <span style="display:inline-block;background:rgba(234,179,8,0.18);color:#fef3c7;border:1px solid rgba(234,179,8,0.35);font-size:0.8rem;font-weight:800;padding:5px 10px;border-radius:999px;">
-                                    Super Bowl MVP: {html.escape(mvp)}
-                                </span>
-                            </div>
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
+
+                    sb_l, sb_m, sb_r = st.columns([1.3, 1.6, 1.3])
+
+                    with sb_l:
+                        champ_logo = get_nfl_logo_src(champ)
+                        if champ_logo:
+                            st.image(champ_logo, width=64)
+                        st.caption("CHAMPION")
+                        st.markdown(f"**{champ}**")
+
+                    with sb_m:
+                        st.caption("SUPER BOWL RESULT")
+                        st.markdown(f"## {score}" if score else "## —")
+                        if headline:
+                            st.write(headline)
+                        if mvp:
+                            st.markdown(f"**Super Bowl MVP:** {mvp}")
+
+                    with sb_r:
+                        runner_logo = get_nfl_logo_src(runner)
+                        if runner_logo:
+                            st.image(runner_logo, width=64)
+                        st.caption("RUNNER-UP")
+                        st.markdown(f"**{runner}**")
 
                 if not season_standings.empty:
                     st.markdown("#### Final Standings")
