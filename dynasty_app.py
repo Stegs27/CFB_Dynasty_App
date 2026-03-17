@@ -14282,44 +14282,73 @@ with tabs[9]:
                     mvp = str(sb_row.get("MVP", ""))
                     headline = str(sb_row.get("Headline", ""))
 
+                    champ_logo = get_nfl_logo_src(champ)
+                    runner_logo = get_nfl_logo_src(runner)
+
                     st.markdown(
                         """
                         <div style="
+                            margin:0.75rem 0 1.1rem 0;
                             padding:1rem 1.1rem;
-                            border-radius:16px;
-                            margin-bottom:1rem;
-                            background:linear-gradient(135deg, rgba(234,179,8,0.16), rgba(255,255,255,0.04));
-                            border:1px solid rgba(234,179,8,0.28);
-                            box-shadow:0 8px 24px rgba(0,0,0,0.18);
+                            border-radius:18px;
+                            background:linear-gradient(135deg, rgba(234,179,8,0.14), rgba(255,255,255,0.03));
+                            border:1px solid rgba(234,179,8,0.22);
                         ">
-                        </div>
                         """,
                         unsafe_allow_html=True
                     )
 
-                    sb_l, sb_m, sb_r = st.columns([1.3, 1.6, 1.3])
+                    top_a, top_b, top_c = st.columns([1.2, 1.6, 1.2])
 
-                    with sb_l:
-                        champ_logo = get_nfl_logo_src(champ)
+                    with top_a:
+                        st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
                         if champ_logo:
-                            st.image(champ_logo, width=64)
+                            st.image(champ_logo, width=70)
                         st.caption("CHAMPION")
-                        st.markdown(f"**{champ}**")
+                        st.markdown(f"### {champ}")
+                        st.markdown("</div>", unsafe_allow_html=True)
 
-                    with sb_m:
-                        st.caption("SUPER BOWL RESULT")
-                        st.markdown(f"## {score}" if score else "## —")
+                    with top_b:
+                        st.markdown("<div style='text-align:center; padding-top:0.25rem;'>", unsafe_allow_html=True)
+                        st.caption("SUPER BOWL")
+                        st.markdown(f"## {score if score else '—'}")
                         if headline:
                             st.write(headline)
                         if mvp:
-                            st.markdown(f"**Super Bowl MVP:** {mvp}")
+                            st.markdown(
+                                f"""
+                                <span style="
+                                    display:inline-block;
+                                    margin-top:6px;
+                                    background:rgba(234,179,8,0.18);
+                                    color:#fef3c7;
+                                    border:1px solid rgba(234,179,8,0.32);
+                                    font-size:0.82rem;
+                                    font-weight:800;
+                                    padding:6px 10px;
+                                    border-radius:999px;
+                                ">
+                                    Super Bowl MVP: {html.escape(mvp)}
+                                </span>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                        st.markdown("</div>", unsafe_allow_html=True)
 
-                    with sb_r:
-                        runner_logo = get_nfl_logo_src(runner)
+                    with top_c:
+                        st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
                         if runner_logo:
-                            st.image(runner_logo, width=64)
+                            st.image(runner_logo, width=70)
                         st.caption("RUNNER-UP")
-                        st.markdown(f"**{runner}**")
+                        st.markdown(f"### {runner}")
+                        st.markdown("</div>", unsafe_allow_html=True)
+
+                    st.markdown(
+                        """
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
                 if not season_standings.empty:
                     st.markdown("#### Final Standings")
