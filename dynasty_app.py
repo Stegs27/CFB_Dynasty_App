@@ -14574,8 +14574,8 @@ with tabs[9]:
                     score = str(sb_row.get("Score", ""))
                     mvp = str(sb_row.get("MVP", ""))
                     headline = str(sb_row.get("Headline", ""))
-                    game_moment = str(sb_row.get("GameMoment", ""))
-                    user_note = str(sb_row.get("UserAlumniNote", ""))
+                    game_moment = clean_display(sb_row.get("GameMoment", ""), "")
+user_note = clean_display(sb_row.get("UserAlumniNote", ""), "")
 
                     champ_logo = get_nfl_logo_src(champ)
                     runner_logo = get_nfl_logo_src(runner)
