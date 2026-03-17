@@ -3801,7 +3801,21 @@ def simulate_nfl_awards(season_year, season_player_df, existing_awards_df=None):
     rows = []
 
     # MVP
-    mvp_df = work.sort_values(["MVPVotes", "CareerValue", "OverallEnd"], ascending=[False, False, False])
+    work["MVPScore"] = work["MVPVotes"] * 3.5 + work["CareerValue"] * 0.9 + work["OverallEnd"] * 0.6
+
+    # Strong QB bias for MVP, like real NFL voting
+    work["MVPScore"] = work["MVPScore"] + work["PosBucket"].astype(str).map(
+        lambda p: 22 if p == "QB" else (6 if p in {"RB", "WR", "TE"} else 0)
+    )
+
+    # Extra bump for elite QB seasons
+    qb_mask = work["PosBucket"].astype(str) == "QB"
+    work.loc[qb_mask, "MVPScore"] = work.loc[qb_mask, "MVPScore"] + (
+        pd.to_numeric(work.loc[qb_mask, "OverallEnd"], errors="coerce").fillna(0) * 0.35
+    )
+
+    mvp_df = work.sort_values(["MVPScore", "MVPVotes", "CareerValue", "OverallEnd"], ascending=[False, False, False, False])
+
     if not mvp_df.empty:
         r = mvp_df.iloc[0]
         rows.append({
