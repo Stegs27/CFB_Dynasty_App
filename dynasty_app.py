@@ -3940,6 +3940,12 @@ def simulate_nfl_season(season_year=None):
         existing_awards_df=universe["nfl_awards_hist"]
     )
 
+
+    season_story_rows = []
+
+    season_player_df = player_hist_combined[
+        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+    ].copy()
     if not season_player_df.empty:
         breakout_df = season_player_df.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(3)
         for _, r in breakout_df.iterrows():
