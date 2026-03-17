@@ -9755,6 +9755,114 @@ for _inj_team in _INJURY_BULLETIN:
                 'logo_html': _ilh,
             })
 
+# ── 8. NFL UNIVERSE HONORS / SUPER BOWL ──────────────────────────────
+try:
+    # Super Bowl result
+    if os.path.exists('nfl_super_bowl_history.csv'):
+        _sb_df = pd.read_csv('nfl_super_bowl_history.csv')
+        if not _sb_df.empty:
+            _sb_df['Season'] = pd.to_numeric(_sb_df.get('Season'), errors='coerce')
+            _sb_df = _sb_df.dropna(subset=['Season']).sort_values('Season', ascending=False)
+
+            if not _sb_df.empty:
+                _sb = _sb_df.iloc[0]
+                _sb_season = int(_sb.get('Season', 0))
+                _sb_champ = str(_sb.get('Champion', '')).strip()
+                _sb_runner = str(_sb.get('RunnerUp', '')).strip()
+                _sb_score = str(_sb.get('Score', '')).strip()
+                _sb_mvp = str(_sb.get('MVP', '')).strip()
+
+                if _sb_champ and _sb_runner:
+                    _wl = get_header_logo(_sb_champ)
+                    _ll = get_header_logo(_sb_runner)
+                    _lh = (
+                        f'<div style="display:flex;justify-content:center;align-items:center;'
+                        f'gap:20px;margin-bottom:10px;">'
+                        f'<img src="{_wl}" style="width:55px;height:55px;object-fit:contain;">'
+                        f'<span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span>'
+                        f'<img src="{_ll}" style="width:55px;height:55px;object-fit:contain;"></div>'
+                    )
+
+                    _sb_blurb = f"{_sb_champ} won the Super Bowl"
+                    if _sb_score:
+                        _sb_blurb += f" by a score of {_sb_score}"
+                    if _sb_mvp and _sb_mvp.lower() != 'nan':
+                        _sb_blurb += f". {_sb_mvp} took home Super Bowl MVP."
+                    else:
+                        _sb_blurb += "."
+
+                    _all_headlines.append({
+                        'badge': 'NFL SUPER BOWL',
+                        'priority': 98,
+                        'text': f"Super Bowl {_sb_season}: {_sb_champ} {_sb_score} {_sb_runner}".strip(),
+                        'blurb': _sb_blurb,
+                        'logo_html': _lh,
+                    })
+
+    # NFL awards
+    if os.path.exists('nfl_awards_history.csv'):
+        _aw_df = pd.read_csv('nfl_awards_history.csv')
+        if not _aw_df.empty:
+            _aw_df['Season'] = pd.to_numeric(_aw_df.get('Season'), errors='coerce')
+            _aw_df = _aw_df.dropna(subset=['Season']).copy()
+
+            if not _aw_df.empty:
+                _latest_aw_season = int(_aw_df['Season'].astype(int).max())
+                _aw_df = _aw_df[
+                    (_aw_df['Season'].astype(int) == _latest_aw_season) &
+                    (_aw_df['Result'].astype(str).str.strip() == 'Winner')
+                ].copy()
+
+                _award_order = [
+                    ('NFL MVP', 'NFL MVP', 97),
+                    ('Offensive Player of the Year', 'OPOY', 96),
+                    ('Defensive Player of the Year', 'DPOY', 96),
+                    ('Offensive Rookie of the Year', 'OROY', 95),
+                    ('Defensive Rookie of the Year', 'DROY', 95),
+                ]
+
+                for _award_name, _award_short, _pri in _award_order:
+                    _row_df = _aw_df[_aw_df['Award'].astype(str).str.strip() == _award_name].copy()
+                    if _row_df.empty:
+                        continue
+
+                    _rw = _row_df.iloc[0]
+                    _player = str(_rw.get('Player', '')).strip()
+                    _team = str(_rw.get('NFLTeam', '')).strip()
+                    _pos = str(_rw.get('Pos', '')).strip()
+
+                    if not _player or _player.lower() == 'nan':
+                        continue
+
+                    _logo = get_nfl_logo_src(_team) if _team else None
+                    _lh = (
+                        f'<div style="text-align:center;margin-bottom:10px;"><img src="{_logo}" style="width:60px;height:60px;object-fit:contain;"></div>'
+                        if _logo else ''
+                    )
+
+                    _text = f"{_latest_aw_season} {_award_short}: {_player}"
+                    if _team and _pos:
+                        _text += f" ({_team}, {_pos})"
+                    elif _team:
+                        _text += f" ({_team})"
+
+                    _blurb = f"{_player} wins {_award_name}"
+                    if _team:
+                        _blurb += f" for {_team}"
+                    if _pos:
+                        _blurb += f" at {_pos}"
+                    _blurb += "."
+
+                    _all_headlines.append({
+                        'badge': _award_short,
+                        'priority': _pri,
+                        'text': _text,
+                        'blurb': _blurb,
+                        'logo_html': _lh,
+                    })
+except Exception:
+    pass
+
 # ── FALLBACK ──────────────────────────────────────────────────────────
 if not _all_headlines:
     _all_headlines.append({
