@@ -12987,8 +12987,9 @@ with tabs[9]:
     story_exists = os.path.exists("nfl_story_events.csv")
     sb_exists = os.path.exists("nfl_super_bowl_history.csv")
     player_hist_exists = os.path.exists("nfl_player_history.csv")
+    current_roster_exists = os.path.exists("nfl_current_rosters.csv")
 
-    s1, s2, s3, s4 = st.columns(4)
+    s1, s2, s3, s4, s5 = st.columns(5)
     with s1:
         st.caption(f"Draft History: {'✅' if draft_hist_exists else '❌'}")
     with s2:
@@ -12997,8 +12998,10 @@ with tabs[9]:
         st.caption(f"Super Bowl History: {'✅' if sb_exists else '❌'}")
     with s4:
         st.caption(f"Player History: {'✅' if player_hist_exists else '❌'}")
+    with s5:
+        st.caption(f"Current Rosters: {'✅' if current_roster_exists else '❌'}")
 
-    d1, d2, d3, d4 = st.columns(4)
+    d1, d2, d3, d4, d5 = st.columns(5)
 
     with d1:
         if draft_hist_exists:
@@ -13046,6 +13049,17 @@ with tabs[9]:
                     mime="text/csv",
                     use_container_width=True,
                     key="download_nfl_player_history"
+                )
+    with d5:
+        if current_roster_exists:
+            with open("nfl_current_rosters.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Current Rosters",
+                    data=f.read(),
+                    file_name="nfl_current_rosters.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_current_rosters"
                 )
 
     st.markdown("---")
