@@ -15070,8 +15070,8 @@ with tabs[9]:
                         """,
                         unsafe_allow_html=True
                     )
-
-st.markdown("#### Recent Team Transactions")
+                    
+                    st.markdown("#### Recent Team Transactions")
 
             current_nfl_season = get_current_nfl_season()
             prior_nfl_season = max(0, int(current_nfl_season) - 1)
@@ -15147,6 +15147,7 @@ st.markdown("#### Recent Team Transactions")
                 })
 
                 st.dataframe(loss_show.head(20), hide_index=True, use_container_width=True)
+
 
 # --- ROSTER ATTRITION ---
 with tabs[5]:
