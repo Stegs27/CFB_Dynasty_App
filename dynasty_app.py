@@ -2942,6 +2942,7 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
             "SuperBowlAppear": "No",
             "CareerValue": career_value,
             "Status": status
+        })
 
     new_df = pd.DataFrame(rows, columns=NFL_PLAYER_HISTORY_COLS)
 
