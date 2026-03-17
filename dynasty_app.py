@@ -111,7 +111,9 @@ def build_super_bowl_moment_text(player_name, team, pos_bucket, school="", stat_
     school = clean_display(school, "")
     stat_line = clean_display(stat_line, "")
 
-    school_tag = f" Former {school} star" if school else ""
+    school_tag = ""
+    if school:
+        school_tag = f" Former {school} star."
 
     if is_hero:
         if pos_bucket == "QB":
@@ -147,7 +149,46 @@ def build_super_bowl_moment_text(player_name, team, pos_bucket, school="", stat_
         else:
             templates = [
                 f"The defining moment came when {player_name} made the play that swung the game for {team}.{school_tag} He finished with {stat_line}.",
-                f"{player_name
+                f"{player_name} delivered the championship moment for {team}.{school_tag} He posted {stat_line}."
+            ]
+    else:
+        if pos_bucket == "QB":
+            templates = [
+                f"The turning point was a crushing mistake by {player_name} that swung the Super Bowl away from {team}.{school_tag} He finished with {stat_line}.",
+                f"{team} never fully recovered after the late-game error involving {player_name}.{school_tag} He ended the night with {stat_line}.",
+                f"The title slipped away when {player_name} could not recover from the biggest mistake of the game for {team}.{school_tag} He posted {stat_line}."
+            ]
+        elif pos_bucket == "RB":
+            templates = [
+                f"The game tilted when {team} could not lean on {player_name} in the biggest moment.{school_tag} He finished with {stat_line}.",
+                f"{team} lost control after a failed late rushing chance centered on {player_name}.{school_tag} He ended with {stat_line}.",
+                f"The Super Bowl turned when {player_name} and the run game stalled for {team}.{school_tag} His final line was {stat_line}."
+            ]
+        elif pos_bucket in {"WR", "TE"}:
+            templates = [
+                f"The turning point came on a missed receiving moment involving {player_name} for {team}.{school_tag} He finished with {stat_line}.",
+                f"{team} lost its grip on the game after the key pass play involving {player_name} broke down.{school_tag} He posted {stat_line}.",
+                f"The Super Bowl turned on a missed opportunity for {player_name} and {team}.{school_tag} He ended with {stat_line}."
+            ]
+        elif pos_bucket in {"EDGE", "IDL", "LB"}:
+            templates = [
+                f"The title slipped when {team} could not get the stop it needed, with {player_name} caught in the decisive sequence.{school_tag} He finished with {stat_line}.",
+                f"The biggest defensive breakdown of the night hit {team} at the wrong time, with {player_name} on the field for it.{school_tag} He posted {stat_line}.",
+                f"The turning point came when {team}'s front seven failed to close the door, and {player_name} was part of the costly sequence.{school_tag} He ended with {stat_line}."
+            ]
+        elif pos_bucket in {"CB", "S"}:
+            templates = [
+                f"The game turned on a coverage lapse involving {player_name} for {team}.{school_tag} He finished with {stat_line}.",
+                f"{team} lost the Super Bowl on a back-end breakdown that caught {player_name} in the spotlight.{school_tag} He posted {stat_line}.",
+                f"The decisive sequence went against {team}'s secondary, with {player_name} on the wrong side of it.{school_tag} He ended with {stat_line}."
+            ]
+        else:
+            templates = [
+                f"The turning point was a crushing mistake that swung the game away from {team}, with {player_name} caught in the moment.{school_tag} He finished with {stat_line}.",
+                f"{team} never fully recovered after the decisive mistake involving {player_name}.{school_tag} He posted {stat_line}."
+            ]
+
+    return random.choice(templates)
 
 def generate_super_bowl_signature_moment(champion, runner_up, score, season_player_df, nfl_draft_hist_df=None):
     champion = str(champion)
