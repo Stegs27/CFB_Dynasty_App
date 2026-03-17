@@ -153,7 +153,7 @@ CFB_USER_DRAFT_RESULTS_COLS = [
 
 NFL_DRAFT_HISTORY_COLS = [
     "DraftYear", "PlayerID", "Player", "CollegeTeam", "CollegeUser",
-    "Pos", "PosBucket", "Class", "OVR", "DraftRoundCanon",
+    "Pos", "PosBucket", "Class", "CollegeOVR", "OVR", "DraftRoundCanon",
     "GeneratedNFLTeam", "GeneratedRoundPick", "GeneratedOverallPick",
     "OriginalPick", "WasTrade", "TradeNote",
     "GenerationMethod", "DraftValueScore", "NeedScore", "CareerTier",
@@ -751,6 +751,55 @@ def render_centered_logo(src, width=64):
         """,
         unsafe_allow_html=True
     )
+    
+ def calc_nfl_rookie_entry_ovr(cfb_ovr, draft_round, pos_bucket=""):
+    cfb_ovr = safe_num(cfb_ovr, 80)
+    draft_round = int(safe_num(draft_round, 7))
+    pos_bucket = str(pos_bucket).strip().upper()
+
+    # Base translation from college to NFL rookie rating
+    if cfb_ovr >= 99:
+        rookie_ovr = random.randint(87, 89)
+    elif cfb_ovr >= 97:
+        rookie_ovr = random.randint(86, 88)
+    elif cfb_ovr >= 95:
+        rookie_ovr = random.randint(84, 86)
+    elif cfb_ovr >= 93:
+        rookie_ovr = random.randint(83, 85)
+    elif cfb_ovr >= 90:
+        rookie_ovr = random.randint(80, 83)
+    elif cfb_ovr >= 87:
+        rookie_ovr = random.randint(77, 81)
+    elif cfb_ovr >= 84:
+        rookie_ovr = random.randint(74, 79)
+    elif cfb_ovr >= 80:
+        rookie_ovr = random.randint(71, 76)
+    else:
+        rookie_ovr = random.randint(68, 73)
+
+    # Draft capital matters
+    round_bonus_map = {
+        1: 2.0,
+        2: 1.0,
+        3: 0.0,
+        4: -1.0,
+        5: -2.0,
+        6: -3.0,
+        7: -4.0
+    }
+    rookie_ovr += round_bonus_map.get(draft_round, -4.0)
+
+    # Position nuance
+    if pos_bucket == "QB":
+        rookie_ovr -= 1.0
+    elif pos_bucket in {"RB", "WR", "CB", "S"}:
+        rookie_ovr += 0.5
+    elif pos_bucket in {"OL", "IDL", "LB"}:
+        rookie_ovr -= 0.5
+
+    rookie_ovr = int(round(rookie_ovr))
+    rookie_ovr = max(68, min(89, rookie_ovr))
+    return rookie_ovr
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — DRAFT ENRICHMENT
 # ──────────────────────────────────────────────────────────────────────
@@ -869,7 +918,12 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
 
                 career_tier = assign_career_tier(rnd)
                 rookie_role = assign_rookie_role(rnd, need_score, bucket)
-                peak_ovr = estimate_peak_ovr(merged.get("OVR", 80), career_tier)
+                rookie_entry_ovr = calc_nfl_rookie_entry_ovr(
+                    cfb_ovr=safe_num(merged.get("OVR", 80), 80),
+                    draft_round=rnd,
+                    pos_bucket=bucket
+                )
+                peak_ovr = estimate_peak_ovr(rookie_entry_ovr, career_tier)
                 story_tag = generate_story_tag(bucket, career_tier, rnd)
 
                 enriched_rows.append({
@@ -881,7 +935,8 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
                     "Pos": merged.get("Pos", ""),
                     "PosBucket": bucket,
                     "Class": merged.get("Class", ""),
-                    "OVR": int(round(safe_num(merged.get("OVR", 80), 80))),
+                    "CollegeOVR": int(round(safe_num(merged.get("OVR", 80), 80))),
+                    "OVR": rookie_entry_ovr,
                     "DraftRoundCanon": rnd,
                     "GeneratedNFLTeam": chosen_team,
                     "GeneratedRoundPick": int(round_pick),
@@ -12679,6 +12734,7 @@ with tabs[9]:
                 story_tag = str(top_pick.get("StoryTag", ""))
                 pick_no = int(safe_num(top_pick.get("GeneratedOverallPick", 0), 0))
                 rnd = int(safe_num(top_pick.get("DraftRoundCanon", 0), 0))
+                college_ovr = int(safe_num(top_pick.get("CollegeOVR", 0), 0))
                 ovr = int(safe_num(top_pick.get("OVR", 0), 0))
                 draft_source = str(top_pick.get("DraftSource", "user_results")).strip().lower()
 
@@ -12690,7 +12746,7 @@ with tabs[9]:
                         st.image(school_logo_src, width=58)
                     st.caption("TOP USER PICK SCHOOL")
                     st.markdown(f"**{school}**")
-                    st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
+                    st.write(f"{pos} / {pos_bucket} • {college_ovr} CFB OVR • {ovr} NFL Rookie OVR")
 
                     if draft_source == "background_r1":
                         st.markdown(
@@ -12726,7 +12782,7 @@ with tabs[9]:
 
             view_cols = [
                 "GeneratedOverallPick", "DraftRoundCanon", "Player", "CollegeTeam", "CollegeUser",
-                "Pos", "PosBucket", "OVR", "GeneratedNFLTeam", "RookieRole", "CareerTier", "StoryTag"
+                "Pos", "PosBucket", "CollegeOVR", "OVR", "GeneratedNFLTeam", "RookieRole", "CareerTier", "StoryTag"
             ]
 
             show_df = yr_df[view_cols].copy().rename(columns={
@@ -12734,6 +12790,8 @@ with tabs[9]:
                 "DraftRoundCanon": "Rnd",
                 "CollegeTeam": "School",
                 "CollegeUser": "User",
+                "CollegeOVR": "College OVR",
+                "OVR": "NFL Rookie OVR",
                 "GeneratedNFLTeam": "NFL Team"
             })
 
