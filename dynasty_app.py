@@ -1903,6 +1903,9 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     round1_order = build_round1_pick_order(nfl_roster)
     team_needs = build_nfl_team_needs(nfl_roster)
 
+    if team_needs is None or team_needs.empty:
+        return existing_hist, newest_year, "Draft rerun stopped: build_nfl_team_needs returned no usable rows."
+
     r1 = generated_new[generated_new["DraftRoundCanon"] == 1].copy()
     later = generated_new[generated_new["DraftRoundCanon"] != 1].copy()
 
