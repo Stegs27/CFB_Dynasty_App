@@ -1618,6 +1618,54 @@ def normalize_nfl_team_key(team_name):
         return slug
     return str(team_name).strip().lower()
 
+def get_team_qb_block_level(team_name, nfl_roster_df, nfl_draft_hist_df=None, current_draft_year=None):
+    team_name = str(team_name).strip()
+
+    qb_room = pd.DataFrame()
+    if nfl_roster_df is not None and not nfl_roster_df.empty:
+        qb_room = nfl_roster_df[
+            (nfl_roster_df["Team"].astype(str).str.strip() == team_name) &
+            (nfl_roster_df["Pos"].astype(str).map(clean_bucket) == "QB")
+        ].copy()
+
+    if not qb_room.empty:
+        qb_room["OVR"] = pd.to_numeric(qb_room["OVR"], errors="coerce").fillna(0)
+        qb_room["Age"] = pd.to_numeric(qb_room.get("Age", 25), errors="coerce").fillna(25)
+
+        best_qb_ovr = safe_num(qb_room["OVR"].max(), 0)
+        youngest_top_qb_age = safe_num(
+            qb_room.sort_values(["OVR", "Age"], ascending=[False, True]).iloc[0]["Age"],
+            35
+        )
+
+        # Hard franchise QB block
+        if best_qb_ovr >= 95 and youngest_top_qb_age <= 35:
+            return "hard"
+        if best_qb_ovr >= 90 and youngest_top_qb_age <= 32:
+            return "hard"
+        if best_qb_ovr >= 85 and youngest_top_qb_age <= 30:
+            return "hard"
+        if best_qb_ovr >= 82 and youngest_top_qb_age <= 28:
+            return "medium"
+
+    # Recent draft investment check
+    if nfl_draft_hist_df is not None and not nfl_draft_hist_df.empty and current_draft_year is not None:
+        hist = nfl_draft_hist_df.copy()
+        hist["DraftYear"] = pd.to_numeric(hist["DraftYear"], errors="coerce")
+        recent_qbs = hist[
+            (hist["GeneratedNFLTeam"].astype(str).str.strip() == team_name) &
+            (hist["PosBucket"].astype(str).str.strip() == "QB") &
+            (hist["DraftYear"].fillna(-1).astype(int) >= int(current_draft_year) - 2)
+        ].copy()
+
+        if not recent_qbs.empty:
+            best_recent_round = pd.to_numeric(recent_qbs["DraftRoundCanon"], errors="coerce").fillna(7).min()
+            if best_recent_round <= 2:
+                return "hard"
+            return "medium"
+
+    return "none"
+
 def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_latest=False):
     universe = load_nfl_universe_data()
     cfb_draft = universe["cfb_draft"]
@@ -1846,31 +1894,17 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
                 disqualify_qb = False
 
                 if bucket == "QB":
-                    team_qb_room = nfl_roster[
-                        nfl_roster["Team"].astype(str).map(normalize_nfl_team_key) == drafting_team_key
-                    ].copy()
+                    qb_block_level = get_team_qb_block_level(
+                        team_name=drafting_team,
+                        nfl_roster_df=nfl_roster,
+                        nfl_draft_hist_df=existing_hist,
+                        current_draft_year=newest_year
+                    )
 
-                    team_qb_room = team_qb_room[
-                        team_qb_room["Pos"].astype(str).map(clean_bucket) == "QB"
-                    ].copy()
-
-                    if not team_qb_room.empty:
-                        team_qb_room["OVR"] = pd.to_numeric(team_qb_room["OVR"], errors="coerce").fillna(0)
-                        if "Age" not in team_qb_room.columns:
-                            team_qb_room["Age"] = 25
-                        team_qb_room["Age"] = pd.to_numeric(team_qb_room["Age"], errors="coerce").fillna(25)
-
-                        young_qb_df = team_qb_room[team_qb_room["Age"] <= 27].copy()
-                        young_qb_best_ovr = safe_num(young_qb_df["OVR"].max(), 0) if not young_qb_df.empty else 0
-
-                        top2_avg = safe_num(team_qb_room["OVR"].nlargest(2).mean(), 0)
-
-                        # Hard stop for teams that already have a young good QB
-                        if young_qb_best_ovr >= 78:
-                            disqualify_qb = True
-
-                        # Also block if QB room is already stable
-                        if len(team_qb_room) >= 2 and top2_avg >= 75:
+                    if qb_block_level == "hard":
+                        disqualify_qb = True
+                    elif qb_block_level == "medium":
+                        if int(safe_num(cand.get("DraftRoundCanon", 7), 7)) <= 1:
                             disqualify_qb = True
 
                 if disqualify_qb:
@@ -1996,27 +2030,17 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
                     qb_penalty = 0
 
                     if bucket == "QB":
-                        team_qb_room = nfl_roster[
-                            nfl_roster["Team"].astype(str).map(normalize_nfl_team_key) == drafting_team_key
-                        ].copy()
+                        qb_block_level = get_team_qb_block_level(
+                            team_name=drafting_team,
+                            nfl_roster_df=nfl_roster,
+                            nfl_draft_hist_df=existing_hist,
+                            current_draft_year=newest_year
+                        )
 
-                        team_qb_room = team_qb_room[
-                            team_qb_room["Pos"].astype(str).map(clean_bucket) == "QB"
-                        ].copy()
-
-                        if not team_qb_room.empty:
-                            team_qb_room["OVR"] = pd.to_numeric(team_qb_room["OVR"], errors="coerce").fillna(0)
-                            if "Age" not in team_qb_room.columns:
-                                team_qb_room["Age"] = 25
-                            team_qb_room["Age"] = pd.to_numeric(team_qb_room["Age"], errors="coerce").fillna(25)
-
-                            young_qb_df = team_qb_room[team_qb_room["Age"] <= 27].copy()
-                            young_qb_best_ovr = safe_num(young_qb_df["OVR"].max(), 0) if not young_qb_df.empty else 0
-
-                            if young_qb_best_ovr >= 78:
-                                qb_penalty = 18
-                            elif young_qb_best_ovr >= 74:
-                                qb_penalty = 10
+                        if qb_block_level == "hard":
+                            qb_penalty = 999
+                        elif qb_block_level == "medium":
+                            qb_penalty = 25
 
                     fit_score = (
                         safe_num(cand.get("DraftValueScore", 0), 0) * 0.68 +
