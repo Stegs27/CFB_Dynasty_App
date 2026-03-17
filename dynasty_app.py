@@ -14075,6 +14075,7 @@ with tabs[9]:
         "🏁 Season Recap",
         "🏅 Awards",
         "🧾 Offseason Recap",
+        "📚 NFL Player Database",
         "👤 Alumni Tracker",
         "🏆 Super Bowl History",
         "📰 Storylines",
@@ -14752,10 +14753,191 @@ with tabs[9]:
                             "udfa_fill": "UDFA"
                         })
 
-                    st.dataframe(rookie_show.head(50), hide_index=True, use_container_width=True)                                      
+                    st.dataframe(rookie_show.head(50), hide_index=True, use_container_width=True)          
+                    # ── NFL Player Database ───────────────────────────────────────────
+    with nfl_tabs[4]:
+        st.subheader("📚 NFL Player Database")
+
+        if nfl_player_hist is None or nfl_player_hist.empty:
+            st.info("No NFL player history exists yet.")
+        else:
+            db_hist = nfl_player_hist.copy()
+            db_hist["Season"] = pd.to_numeric(db_hist["Season"], errors="coerce")
+            db_hist["Age"] = pd.to_numeric(db_hist.get("Age", 0), errors="coerce")
+            db_hist["OverallStart"] = pd.to_numeric(db_hist.get("OverallStart", 0), errors="coerce")
+            db_hist["OverallEnd"] = pd.to_numeric(db_hist.get("OverallEnd", 0), errors="coerce")
+            db_hist["CareerValue"] = pd.to_numeric(db_hist.get("CareerValue", 0), errors="coerce")
+
+            draft_lookup = {}
+            if nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                for _, dr in nfl_draft_hist.iterrows():
+                    draft_lookup[str(dr.get("PlayerID", ""))] = {
+                        "CollegeTeam": dr.get("CollegeTeam", ""),
+                        "CollegeUser": dr.get("CollegeUser", ""),
+                        "DraftYear": dr.get("DraftYear", ""),
+                        "DraftRoundCanon": dr.get("DraftRoundCanon", ""),
+                        "GeneratedOverallPick": dr.get("GeneratedOverallPick", ""),
+                        "OVR": dr.get("OVR", ""),
+                        "PeakOVR": dr.get("PeakOVR", ""),
+                        "CareerTier": dr.get("CareerTier", ""),
+                        "RookieRole": dr.get("RookieRole", ""),
+                        "DraftSource": dr.get("DraftSource", "")
+                    }
+
+            latest_rows = db_hist.sort_values(["PlayerID", "Season"]).drop_duplicates(subset=["PlayerID"], keep="last").copy()
+            latest_rows["PlayerLabel"] = latest_rows.apply(
+                lambda r: f"{r.get('Player', 'Unknown')} | {r.get('NFLTeam', '')} | {r.get('Pos', '')}",
+                axis=1
+            )
+
+            search_text = st.text_input("Search Player", key="nfl_player_db_search").strip().lower()
+
+            filtered_latest = latest_rows.copy()
+            if search_text:
+                filtered_latest = filtered_latest[
+                    filtered_latest["PlayerLabel"].astype(str).str.lower().str.contains(search_text, na=False)
+                ].copy()
+
+            filtered_latest = filtered_latest.sort_values(["Player", "NFLTeam"], ascending=[True, True]).copy()
+
+            if filtered_latest.empty:
+                st.info("No players match that search.")
+            else:
+                selected_label = st.selectbox(
+                    "Select NFL Player",
+                    filtered_latest["PlayerLabel"].tolist(),
+                    key="nfl_player_db_select"
+                )
+
+                selected_row = filtered_latest[filtered_latest["PlayerLabel"] == selected_label].iloc[0].copy()
+                selected_player_id = str(selected_row.get("PlayerID", ""))
+
+                player_hist_df = db_hist[
+                    db_hist["PlayerID"].astype(str) == selected_player_id
+                ].copy().sort_values("Season")
+
+                draft_meta = draft_lookup.get(selected_player_id, {})
+                school = clean_display(draft_meta.get("CollegeTeam", ""), "")
+                college_user = clean_display(draft_meta.get("CollegeUser", ""), "")
+                current_team = clean_display(selected_row.get("NFLTeam", ""), "")
+                player_name = clean_display(selected_row.get("Player", "Unknown Player"), "Unknown Player")
+                pos = clean_display(selected_row.get("Pos", ""), "")
+                current_age = int(safe_num(selected_row.get("Age", 0), 0))
+                current_status = clean_display(selected_row.get("Status", ""), "")
+                draft_year = clean_display(draft_meta.get("DraftYear", ""), "")
+                draft_round = clean_display(draft_meta.get("DraftRoundCanon", ""), "")
+                draft_pick = clean_display(draft_meta.get("GeneratedOverallPick", ""), "")
+                rookie_ovr = clean_display(draft_meta.get("OVR", ""), "")
+                peak_ovr = clean_display(draft_meta.get("PeakOVR", ""), "")
+                career_tier = clean_display(draft_meta.get("CareerTier", ""), "")
+                rookie_role = clean_display(draft_meta.get("RookieRole", ""), "")
+
+                school_logo_src = get_school_logo_src(school) if school else None
+                team_logo_src = get_nfl_logo_src(current_team) if current_team else None
+
+                h1, h2, h3 = st.columns([1, 4, 1])
+
+                with h1:
+                    if school_logo_src:
+                        st.image(school_logo_src, width=58)
+
+                with h2:
+                    st.markdown(f"### {player_name}")
+                    meta_line = f"{current_team} • {pos}"
+                    if school:
+                        meta_line += f" • {school}"
+                    st.caption(meta_line)
+
+                    badge_text = college_user if college_user else ("NFL Vet" if not school else "CPU")
+                    badge_bg = "rgba(34,197,94,0.18)" if college_user else "rgba(59,130,246,0.18)"
+                    badge_fg = "#dcfce7" if college_user else "#dbeafe"
+                    badge_bd = "rgba(34,197,94,0.35)" if college_user else "rgba(59,130,246,0.30)"
+
+                    st.markdown(
+                        f"""
+                        <span style="display:inline-block;background:{badge_bg};color:{badge_fg};border:1px solid {badge_bd};font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;">
+                            {html.escape(badge_text)}
+                        </span>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                with h3:
+                    if team_logo_src:
+                        st.image(team_logo_src, width=58)
+
+                k1, k2, k3, k4, k5, k6 = st.columns(6)
+                with k1:
+                    st.metric("Age", current_age if current_age else "—")
+                with k2:
+                    st.metric("Status", current_status if current_status else "—")
+                with k3:
+                    st.metric("Draft Yr", draft_year if draft_year else "—")
+                with k4:
+                    st.metric("Rnd/Pick", f"{draft_round}/{draft_pick}" if draft_round and draft_pick else (draft_round if draft_round else "—"))
+                with k5:
+                    st.metric("Rookie OVR", rookie_ovr if rookie_ovr else "—")
+                with k6:
+                    st.metric("Peak OVR", peak_ovr if peak_ovr else "—")
+
+                s1, s2, s3, s4, s5 = st.columns(5)
+                with s1:
+                    st.metric("Seasons", len(player_hist_df))
+                with s2:
+                    st.metric("Pro Bowls", int((player_hist_df.get("ProBowl", pd.Series(dtype=str)).astype(str) == "Yes").sum()))
+                with s3:
+                    st.metric("All-Pros", int((player_hist_df.get("AllPro", pd.Series(dtype=str)).astype(str) == "Yes").sum()))
+                with s4:
+                    st.metric("SB Wins", int((player_hist_df.get("SuperBowlWin", pd.Series(dtype=str)).astype(str) == "Yes").sum()))
+                with s5:
+                    st.metric("Best OVR", int(player_hist_df["OverallEnd"].max()) if not player_hist_df.empty else "—")
+
+                info_cols = st.columns(2)
+                with info_cols[0]:
+                    st.markdown("#### Draft / Career Info")
+                    st.write(f"Career Tier: {career_tier if career_tier else '—'}")
+                    st.write(f"Rookie Role: {rookie_role if rookie_role else '—'}")
+
+                with info_cols[1]:
+                    st.markdown("#### Awards Summary")
+                    player_awards = pd.DataFrame()
+                    if nfl_awards_hist is not None and not nfl_awards_hist.empty:
+                        player_awards = nfl_awards_hist[
+                            nfl_awards_hist["PlayerID"].astype(str) == selected_player_id
+                        ].copy()
+
+                    if player_awards.empty:
+                        st.caption("No awards recorded.")
+                    else:
+                        award_counts = player_awards["Award"].astype(str).value_counts().reset_index()
+                        award_counts.columns = ["Award", "Count"]
+                        st.dataframe(award_counts, hide_index=True, use_container_width=True)
+
+                st.markdown("#### Season-by-Season Career Log")
+
+                if player_hist_df.empty:
+                    st.info("No season history recorded for this player.")
+                else:
+                    history_show = player_hist_df[[
+                        c for c in [
+                            "Season", "NFLTeam", "Pos", "Age", "Role",
+                            "OverallStart", "OverallEnd", "Games", "Starts",
+                            "StatLine", "ProBowl", "AllPro",
+                            "SuperBowlAppear", "SuperBowlWin", "Status", "CareerValue"
+                        ] if c in player_hist_df.columns
+                    ]].copy()
+
+                    st.dataframe(
+                        history_show,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_config={
+                            "CareerValue": st.column_config.NumberColumn(format="%.1f")
+                        }
+                    )                        
                                                                                                                   
     # ── Alumni Tracker ────────────────────────────────────────────────
-    with nfl_tabs[4]:
+    with nfl_tabs[5]:
         st.subheader("👤 Alumni Tracker")
 
         if nfl_draft_hist.empty:
@@ -14811,7 +14993,7 @@ with tabs[9]:
             )
 
     # ── Super Bowl History ────────────────────────────────────────────
-    with nfl_tabs[5]:
+    with nfl_tabs[6]:
         st.subheader("🏆 Super Bowl History")
 
         if nfl_super_bowl.empty:
@@ -14850,7 +15032,7 @@ with tabs[9]:
             )
 
 # ── Storylines ────────────────────────────────────────────────────
-    with nfl_tabs[6]:
+    with nfl_tabs[7]:
         st.subheader("📰 Storylines")
 
         if nfl_story.empty and not nfl_draft_hist.empty:
@@ -14958,7 +15140,7 @@ with tabs[9]:
                 st.markdown("</div>", unsafe_allow_html=True)
 
     # ── NFL Teams ─────────────────────────────────────────────────────
-    with nfl_tabs[7]:
+    with nfl_tabs[8]:
         st.subheader("🏟️ NFL Teams")
 
         if nfl_roster.empty:
