@@ -3295,7 +3295,7 @@ def simulate_nfl_season(season_year=None):
 
     sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
 
-new_sb_row = pd.DataFrame([{
+    new_sb_row = pd.DataFrame([{
         "Season": int(season_year),
         "Champion": champion,
         "RunnerUp": runner_up,
