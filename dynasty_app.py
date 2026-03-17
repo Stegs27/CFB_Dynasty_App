@@ -14215,25 +14215,50 @@ with tabs[9]:
                 unsafe_allow_html=True
             )
 
-            roster_source_df = nfl_current_rosters.copy() if nfl_current_rosters is not None and not nfl_current_rosters.empty else nfl_roster.copy()
+            selected_team_key = normalize_nfl_team_key(sel_nfl_team)
 
-            if "Player" not in roster_source_df.columns:
-                roster_source_df["Player"] = pd.NA
-            if "Name" not in roster_source_df.columns:
-                roster_source_df["Name"] = pd.NA
+            roster_source_df = nfl_current_rosters.copy() if nfl_current_rosters is not None and not nfl_current_rosters.empty else pd.DataFrame()
+            fallback_roster_df = nfl_roster.copy() if nfl_roster is not None and not nfl_roster.empty else pd.DataFrame()
 
-            roster_source_df["Player"] = roster_source_df["Player"].where(
-                roster_source_df["Player"].notna() & (roster_source_df["Player"].astype(str).str.strip() != ""),
-                roster_source_df["Name"]
-            )
+            def _prepare_roster_df(df):
+                if df is None or df.empty:
+                    return pd.DataFrame()
 
-            roster_source_df["Player"] = roster_source_df["Player"].fillna("Unknown Player")
+                df = df.copy()
 
-            roster_team = roster_source_df[
-                roster_source_df["Team"].astype(str) == sel_nfl_team
-            ].copy().sort_values("OVR", ascending=False)
+                if "Player" not in df.columns:
+                    df["Player"] = pd.NA
+                if "Name" not in df.columns:
+                    df["Name"] = pd.NA
 
-            roster_team["PosBucket"] = roster_team["Pos"].map(clean_bucket)
+                df["Player"] = df["Player"].where(
+                    df["Player"].notna() & (df["Player"].astype(str).str.strip() != ""),
+                    df["Name"]
+                )
+
+                if "Pos" not in df.columns:
+                    df["Pos"] = ""
+
+                df["Player"] = df["Player"].fillna("Unknown Player")
+                df["PosBucket"] = df["Pos"].map(clean_bucket)
+                return df
+
+            roster_source_df = _prepare_roster_df(roster_source_df)
+            fallback_roster_df = _prepare_roster_df(fallback_roster_df)
+
+            roster_team = pd.DataFrame()
+            if not roster_source_df.empty and "Team" in roster_source_df.columns:
+                roster_team = roster_source_df[
+                    roster_source_df["Team"].astype(str).map(normalize_nfl_team_key) == selected_team_key
+                ].copy()
+
+            if roster_team.empty and not fallback_roster_df.empty and "Team" in fallback_roster_df.columns:
+                roster_team = fallback_roster_df[
+                    fallback_roster_df["Team"].astype(str).map(normalize_nfl_team_key) == selected_team_key
+                ].copy()
+
+            if not roster_team.empty:
+                roster_team = roster_team.sort_values("OVR", ascending=False).copy()
 
             drafted_here = pd.DataFrame()
             if not nfl_draft_hist.empty:
