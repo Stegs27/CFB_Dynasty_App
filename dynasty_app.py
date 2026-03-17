@@ -580,10 +580,15 @@ def build_nfl_team_needs(nfl_roster_df):
         "EDGE": 1.18,
         "CB": 1.12,
         "WR": 1.10,
-        "LT": 1.15,  # harmless if not used
+        "LT": 1.15,
         "S": 1.00,
         "RB": 0.95,
-        "TE":
+        "TE": 0.95,
+        "IDL": 1.00,
+        "LB": 0.98
+    }
+
+    rows = []
 
 
 def assign_career_tier(round_num):
