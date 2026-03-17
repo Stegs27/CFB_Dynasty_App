@@ -64,7 +64,6 @@ if "draft_audio_enabled" not in st.session_state:
 def enable_draft_audio():
     st.session_state["draft_audio_enabled"] = True
 
-def simulate_nfl_season(season_year=None):
 def generate_super_bowl_signature_moment(champion, runner_up, score, season_player_df, nfl_draft_hist_df=None):
     champion = str(champion)
     runner_up = str(runner_up)
