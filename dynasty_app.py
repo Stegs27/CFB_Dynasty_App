@@ -3214,6 +3214,41 @@ def calc_udfa_entry_ovr(cfb_ovr, pos_bucket=""):
 
     return int(max(58, min(76, nfl_ovr)))
     
+def assign_udfa_hidden_traits(cfb_ovr, pos_bucket="", awr=75, spd=75, age=22):
+    cfb_ovr = safe_num(cfb_ovr, 78)
+    awr = safe_num(awr, 75)
+    spd = safe_num(spd, 75)
+    age = safe_num(age, 22)
+    pos_bucket = str(pos_bucket).strip().upper()
+
+    score = 0.0
+    score += (cfb_ovr - 78) * 1.0
+    score += (awr - 75) * 0.45
+    score += (spd - 75) * 0.20
+
+    if pos_bucket == "QB":
+        score += random.uniform(-8, 6)
+    elif pos_bucket in {"WR", "CB", "EDGE"}:
+        score += random.uniform(-7, 6)
+    else:
+        score += random.uniform(-6, 5)
+
+    if age <= 21:
+        score += random.uniform(-2, 3)
+    elif age >= 24:
+        score += random.uniform(-1, 1)
+
+    if score >= 24:
+        return "Star", "Fast Rise"
+    elif score >= 17:
+        return "Impact Starter", "Steady Rise"
+    elif score >= 10:
+        return "Steady Starter", "Normal"
+    elif score >= 4:
+        return "Developmental", "Slow Burn"
+    else:
+        return "Bust", "Flat"
+
 def build_udfa_pool_for_season(season_year, cfb_roster_df, nfl_draft_hist_df):
     season_year = int(season_year)
 
