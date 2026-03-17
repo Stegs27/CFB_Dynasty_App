@@ -834,30 +834,34 @@ def calc_nfl_rookie_entry_ovr(cfb_ovr, draft_round, pos_bucket=""):
     draft_round = int(safe_num(draft_round, 7))
     pos_bucket = str(pos_bucket).strip().upper()
 
-    # Base translation from college to NFL rookie rating
+    # Lower overall entry curve: most rookies should not arrive as stars
     if cfb_ovr >= 99:
-        rookie_ovr = random.randint(87, 89)
+        rookie_ovr = random.randint(82, 84)
+        if random.random() < 0.12:
+            rookie_ovr = random.randint(85, 86)
     elif cfb_ovr >= 97:
-        rookie_ovr = random.randint(86, 88)
+        rookie_ovr = random.randint(81, 84)
+        if random.random() < 0.08:
+            rookie_ovr = 85
     elif cfb_ovr >= 95:
-        rookie_ovr = random.randint(84, 86)
-    elif cfb_ovr >= 93:
-        rookie_ovr = random.randint(83, 85)
-    elif cfb_ovr >= 90:
         rookie_ovr = random.randint(80, 83)
-    elif cfb_ovr >= 87:
+    elif cfb_ovr >= 93:
+        rookie_ovr = random.randint(79, 82)
+    elif cfb_ovr >= 90:
         rookie_ovr = random.randint(77, 81)
+    elif cfb_ovr >= 87:
+        rookie_ovr = random.randint(75, 79)
     elif cfb_ovr >= 84:
-        rookie_ovr = random.randint(74, 79)
+        rookie_ovr = random.randint(73, 77)
     elif cfb_ovr >= 80:
-        rookie_ovr = random.randint(71, 76)
+        rookie_ovr = random.randint(70, 75)
     else:
-        rookie_ovr = random.randint(68, 73)
+        rookie_ovr = random.randint(66, 72)
 
-    # Draft capital matters
+    # Draft capital matters, but less than before
     round_bonus_map = {
-        1: 2.0,
-        2: 1.0,
+        1: 1.5,
+        2: 0.5,
         3: 0.0,
         4: -1.0,
         5: -2.0,
@@ -875,7 +879,15 @@ def calc_nfl_rookie_entry_ovr(cfb_ovr, draft_round, pos_bucket=""):
         rookie_ovr -= 0.5
 
     rookie_ovr = int(round(rookie_ovr))
-    rookie_ovr = max(68, min(89, rookie_ovr))
+
+    # Hard cap with very rare elite exceptions
+    if rookie_ovr > 84:
+        if random.random() < 0.08:
+            rookie_ovr = min(86, rookie_ovr)
+        else:
+            rookie_ovr = 84
+
+    rookie_ovr = max(64, min(86, rookie_ovr))
     return rookie_ovr
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — DRAFT ENRICHMENT
