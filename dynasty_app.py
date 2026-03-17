@@ -14575,7 +14575,7 @@ with tabs[9]:
                     mvp = str(sb_row.get("MVP", ""))
                     headline = str(sb_row.get("Headline", ""))
                     game_moment = clean_display(sb_row.get("GameMoment", ""), "")
-user_note = clean_display(sb_row.get("UserAlumniNote", ""), "")
+                    user_note = clean_display(sb_row.get("UserAlumniNote", ""), "")
 
                     champ_logo = get_nfl_logo_src(champ)
                     runner_logo = get_nfl_logo_src(runner)
@@ -14599,12 +14599,6 @@ user_note = clean_display(sb_row.get("UserAlumniNote", ""), "")
                         st.markdown(f"# {score if score else '—'}")
                         st.write(short_headline)
 
-                        if game_moment:
-                            st.caption(game_moment)
-
-                        if user_note:
-                            st.caption(user_note)
-
                         if mvp:
                             st.markdown(
                                 f"""
@@ -14625,6 +14619,12 @@ user_note = clean_display(sb_row.get("UserAlumniNote", ""), "")
                                 """,
                                 unsafe_allow_html=True
                             )
+
+                        if game_moment:
+                            st.caption(game_moment)
+
+                        if user_note:
+                            st.caption(user_note)
 
                     with sb_right:
                         c1, c2, c3 = st.columns([1, 2, 1])
