@@ -9525,13 +9525,17 @@ _heisman_won_this_year = False
 try:
     _hh_check = pd.read_csv('Heisman_History.csv')
     _hh_check['YEAR'] = pd.to_numeric(_hh_check['YEAR'], errors='coerce')
+
     if CURRENT_YEAR in _hh_check['YEAR'].values:
         _heisman_won_this_year = True
-        _hw_row = _hh_check[_hh_check['YEAR'] == CURRENT_YEAR].iloc[0]
+
+        _hw_rows = _hh_check[_hh_check['YEAR'] == CURRENT_YEAR].copy()
+        _hw_row = _hw_rows.tail(1).iloc[0]
+
         _hwn = str(_hw_row.get('NAME', '')).strip()
         _hwt = str(_hw_row.get('TEAM', '')).strip()
         _hwu = str(_hw_row.get('USER', '')).strip()
-        _hwp = str(_hw_row.get('POS', '')).strip()
+        _hwp = str(_hw_row.get('POS', _hw_row.get('Position', ''))).strip()
 
         if _hwn and _hwn.lower() != 'nan':
             _hl = get_header_logo(_hwt)
@@ -9550,32 +9554,23 @@ try:
                 _blurb = f"{_hwt} takes home the hardware. The dynasty grows."
 
             if not any(
-    str(h.get('badge', '')).strip() == 'HEISMAN WINNER'
-    for h in _all_headlines
-):
-    _all_headlines.append({
-        'badge': 'HEISMAN WINNER',
-        'priority': 69,
-        'text': _text,
-        'blurb': _blurb,
-        'logo_html': _lh,
-    })
-        _hwn = str(_hw_row.get('NAME', '')).strip()
-        _hwt = str(_hw_row.get('TEAM', '')).strip()
-        _hwu = str(_hw_row.get('USER', '')).strip()
-        if _hwn and _hwn.lower() != 'nan':
-            _hl = get_header_logo(_hwt)
-            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
-            _all_headlines.append({
-                'badge': 'HEISMAN WINNER', 'priority': 69,
-                'text': f"{_hwn} wins the {CURRENT_YEAR} Heisman Trophy",
-                'blurb': f"{_hwt} ({_hwu}) takes home the hardware. The dynasty grows.",
-                'logo_html': _lh,
-            })
+                str(h.get('badge', '')).strip() == 'HEISMAN WINNER'
+                for h in _all_headlines
+            ):
+                _all_headlines.append({
+                    'badge': 'HEISMAN WINNER',
+                    'priority': 69,
+                    'text': _text,
+                    'blurb': _blurb,
+                    'logo_html': _lh,
+                })
 except Exception:
     pass
 
-if not _heisman_won_this_year:
+if not _heisman_won_this_year and not any(
+    str(h.get('badge', '')).strip() == 'HEISMAN WINNER'
+    for h in _all_headlines
+):
     # Show leader + their season stats from model_2041
     try:
         if not model_2041.empty and 'Heisman Player' in model_2041.columns:
@@ -9587,7 +9582,7 @@ if not _heisman_won_this_year:
                 if _hp and _hp.lower() not in ['tbd', 'nan']:
                     _hl = get_header_logo(_ht)
                     _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
-                    # Try to get most recent game stats from CPUscores
+
                     _recent_game_str = ''
                     try:
                         _cpu_s = pd.read_csv('CPUscores_MASTER.csv')
@@ -9597,11 +9592,12 @@ if not _heisman_won_this_year:
                         _cpu_s['Home Score'] = pd.to_numeric(_cpu_s['Home Score'], errors='coerce')
                         _ht_lower = _ht.strip().lower()
                         _cpu_cy = _cpu_s[_cpu_s['YEAR'] == CURRENT_YEAR].copy()
-                        # Games involving the Heisman leader's team
+
                         _ht_games = _cpu_cy[
                             (_cpu_cy['Visitor'].str.strip().str.lower() == _ht_lower) |
                             (_cpu_cy['Home'].str.strip().str.lower() == _ht_lower)
                         ].dropna(subset=['Vis Score', 'Home Score'])
+
                         if not _ht_games.empty:
                             _last_wk = _ht_games['Week'].max()
                             _lg = _ht_games[_ht_games['Week'] == _last_wk].iloc[0]
@@ -9613,6 +9609,7 @@ if not _heisman_won_this_year:
                             _recent_game_str = f" | Wk {int(_last_wk)}: {_res} {_tm_s}-{_op_s} vs {_opp}"
                     except Exception:
                         pass
+
                     _stats_display = _hs if _hs and _hs.lower() != 'nan' else 'Season leader'
                     _all_headlines.append({
                         'badge': 'HEISMAN WATCH',
@@ -9621,6 +9618,7 @@ if not _heisman_won_this_year:
                         'blurb': "The race for the bronze statue is heating up. No winner yet.",
                         'logo_html': _lh,
                     })
+                    break
     except Exception:
         pass
 
