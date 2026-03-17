@@ -9692,8 +9692,10 @@ except Exception:
 try:
     _dc = pd.read_csv('champs.csv')
     _dc['YEAR'] = pd.to_numeric(_dc['YEAR'], errors='coerce')
-    _dc_last = _dc[_dc['YEAR'] == CURRENT_YEAR - 1]
+    _dc_past = _dc[_dc['YEAR'] < CURRENT_YEAR].copy()
+    _dc_last = _dc_past.sort_values('YEAR', ascending=False).head(1)
     if not _dc_last.empty:
+        _dc_year = int(pd.to_numeric(_dc_last.iloc[0].get('YEAR'), errors='coerce'))
         _dc_team = str(_dc_last.iloc[0].get('Team', '')).strip()
         _dc_user = str(_dc_last.iloc[0].get('user', '')).strip()
         if _dc_team and _dc_team.lower() != 'nan':
@@ -9703,7 +9705,11 @@ try:
             _all_headlines.append({
                 'badge': 'DEFENDING CHAMPS', 'priority': 50,
                 'text': f"{_dc_team}{_dc_rk} enters {CURRENT_YEAR} with a target on their back",
-                'blurb': f"{_dc_user}'s {_dc_team} won it all last year. Can anyone knock them off the throne?",
+                'blurb': (
+                    f"{_dc_user}'s {_dc_team} won the {_dc_year} national title. Can anyone knock them off the throne?"
+                    if _dc_user and _dc_user.lower() != 'nan'
+                    else f"{_dc_team} won the {_dc_year} national title. Can anyone knock them off the throne?"
+                ),
                 'logo_html': _lh,
             })
 except Exception:
@@ -9748,50 +9754,101 @@ try:
 except Exception:
     pass
 
-# ── 7. INJURY BULLETIN (weeks_out > 4) ────────────────────────────────
-_INJURY_BULLETIN = [
-    {"user": "Mike",  "team": "San Jose State", "injuries": [
-        {"name": "M.Shorter",   "pos": "QB",   "ovr": 85, "injury": "Torn Pectoral",             "weeks": 27},
-        {"name": "D.Caplan",    "pos": "LT",   "ovr": 86, "injury": "Broken Collarbone",          "weeks": 4},
-    ]},
-    {"user": "Noah",  "team": "Texas Tech",     "injuries": [
-        {"name": "K.Cota",      "pos": "LT",   "ovr": 82, "injury": "Knee Cartilage Tear",        "weeks": 2},
-    ]},
-    {"user": "Josh",  "team": "USF",            "injuries": [
-        {"name": "T.Christmas", "pos": "RG",   "ovr": 76, "injury": "Dislocated Hip",              "weeks": 4},
-    ]},
-    {"user": "Devin", "team": "Bowling Green",  "injuries": [
-        {"name": "B.Franco",    "pos": "DT",   "ovr": 84, "injury": "Torn Pectoral",              "weeks": 24},
-    ]},
-    {"user": "Doug",  "team": "Florida",        "injuries": [
-        {"name": "S.Ivie",      "pos": "LEDG", "ovr": 80, "injury": "Dislocated Hip",              "weeks": 1},
-        {"name": "R.Casey",     "pos": "MIKE", "ovr": 87, "injury": "Fractured Shoulder Blade",    "weeks": 14},
-    ]},
-    {"user": "Nick",  "team": "Florida State",  "injuries": [
-        {"name": "S.Winterswyk","pos": "QB",   "ovr": 80, "injury": "Dislocated Elbow",            "weeks": 3},
-        {"name": "J.Fe'esago",  "pos": "WR",   "ovr": 90, "injury": "Torn Pectoral",               "weeks": 20},
-    ]},
-]
-for _inj_team in _INJURY_BULLETIN:
-    for _inj in _inj_team["injuries"]:
-        if _inj["weeks"] > 4:
-            _it  = _inj_team["team"]
-            _iu  = _inj_team["user"]
-            _iw  = _inj["weeks"]
-            _ip  = _inj["pos"]
-            _iname = _inj["name"]
-            _ii  = _inj["injury"]
-            _iovr = _inj["ovr"]
-            _il  = get_header_logo(_it)
+# ── 7. INJURY BULLETIN (from CSV) ─────────────────────────────────────
+try:
+    _inj_df = pd.read_csv('injury_bulletin.csv')
+    if not _inj_df.empty:
+        _inj_df['Year'] = pd.to_numeric(_inj_df.get('Year'), errors='coerce')
+        _inj_df['WeeksOut'] = pd.to_numeric(_inj_df.get('WeeksOut'), errors='coerce')
+        _inj_df['OVR'] = pd.to_numeric(_inj_df.get('OVR'), errors='coerce')
+
+        _inj_df = _inj_df[
+            (_inj_df['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
+            (_inj_df['WeeksOut'].fillna(0).astype(int) > 4)
+        ].copy()
+
+        _inj_df = _inj_df.sort_values(['WeeksOut', 'OVR'], ascending=[False, False])
+
+        for _, _inj in _inj_df.iterrows():
+            _it = str(_inj.get('Team', '')).strip()
+            _iu = str(_inj.get('User', '')).strip()
+            _iw = int(pd.to_numeric(_inj.get('WeeksOut'), errors='coerce') or 0)
+            _ip = str(_inj.get('Pos', '')).strip()
+            _iname = str(_inj.get('Player', '')).strip()
+            _ii = str(_inj.get('Injury', '')).strip()
+            _iovr = int(pd.to_numeric(_inj.get('OVR'), errors='coerce') or 0)
+
+            _il = get_header_logo(_it)
             _ilh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_il}" style="width:60px;height:60px;object-fit:contain;"></div>'
+
             _sev = "SEASON-ENDING" if _iw >= 20 else "LONG-TERM INJ"
-            _it_rk = _rk_inline(_it)
+
+            _role_map = {
+                "QB": "starting QB",
+                "HB": "starting RB",
+                "RB": "starting RB",
+                "FB": "starting RB",
+                "WR": "top WR",
+                "TE": "starting TE",
+                "LT": "starting LT",
+                "LG": "starting guard",
+                "C": "starting center",
+                "RG": "starting guard",
+                "RT": "starting RT",
+                "LEDG": "top pass rusher",
+                "REDG": "top pass rusher",
+                "EDGE": "top pass rusher",
+                "LE": "top pass rusher",
+                "RE": "top pass rusher",
+                "DT": "starting DT",
+                "IDL": "starting DT",
+                "MIKE": "starting linebacker",
+                "WILL": "starting linebacker",
+                "SAM": "starting linebacker",
+                "MLB": "starting linebacker",
+                "LOLB": "starting linebacker",
+                "ROLB": "starting linebacker",
+                "LB": "starting linebacker",
+                "CB": "starting corner",
+                "FS": "starting safety",
+                "SS": "starting safety",
+                "S": "starting safety",
+            }
+
+            _role_text = _role_map.get(_ip, f"key {_ip}")
+
+            if _iw >= 20:
+                _headline_options = [
+                    f"{_iu}'s season takes a hit — loses {_role_text} to {_ii}",
+                    f"{_iu} loses {_role_text} for the season — {_ii}",
+                    f"Disaster for {_iu} — {_role_text} done for the year with {_ii}",
+                ]
+                _blurb = (
+                    f"{_iu}'s {_it} will be without {_iname} ({_ip}, {_iovr} OVR) for the rest of the year "
+                    f"after a {_ii.lower()}."
+                )
+            else:
+                _headline_options = [
+                    f"{_iu} loses {_role_text} long term — {_ii}",
+                    f"{_iu}'s depth chart takes a hit — {_role_text} out with {_ii}",
+                    f"Big injury blow for {_iu} — {_role_text} sidelined by {_ii}",
+                ]
+                _blurb = (
+                    f"{_iu}'s {_it} is without {_iname} ({_ip}, {_iovr} OVR) for about {_iw} weeks "
+                    f"with a {_ii.lower()}."
+                )
+
+            _headline_text = random.choice(_headline_options)
+
             _all_headlines.append({
-                'badge': _sev, 'priority': 90,
-                'text': f"{_it}{_it_rk} | {_iname} ({_ip}, {_iovr} OVR) — {_ii} · {_iw} wks out",
-                'blurb': f"{_iu}'s {_it} is without {_iname} for {_iw} more weeks. The depth chart is being tested.",
+                'badge': _sev,
+                'priority': 90,
+                'text': _headline_text,
+                'blurb': _blurb,
                 'logo_html': _ilh,
             })
+except Exception:
+    pass
 
 # ── 8. NFL UNIVERSE HONORS / SUPER BOWL ──────────────────────────────
 try:
