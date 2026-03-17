@@ -14507,51 +14507,53 @@ with tabs[9]:
                             notes = str(r.get("Notes", ""))
                             college_user = clean_display(r.get("CollegeUser", ""), "")
 
-                            school_logo = get_school_logo_html(school, width=42, margin="0 10px 0 0")
-                            nfl_logo = get_nfl_logo_html(nfl_team, width=42, margin="0 0 0 10px")
+                            school_logo_src = get_school_logo_src(school)
+                            nfl_logo_src = get_nfl_logo_src(nfl_team)
 
-                            badge_html = (
-                                f'<span style="display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">{html.escape(college_user)}</span>'
-                                if college_user
-                                else '<span style="display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;">CPU</span>'
-                            )
+                            a1, a2 = st.columns([6, 1])
 
-                            st.markdown(
-                                f"""
-                                <div style="
-                                    padding:0.9rem 1rem;
-                                    border-radius:12px;
-                                    margin-bottom:0.75rem;
-                                    background:linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-                                    border-left:5px solid #eab308;
-                                ">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                                        <div style="display:flex; align-items:center; min-width:0;">
-                                            {school_logo}
-                                            <div>
-                                                <div style="font-weight:800; font-size:1rem; color:#ffffff;">
-                                                    {html.escape(player)}
-                                                </div>
-                                                <div style="font-size:0.9rem; color:#facc15; font-weight:700;">
-                                                    {html.escape(award)}
-                                                </div>
-                                                <div style="font-size:0.9rem; color:#d1d5db; margin-top:4px;">
-                                                    {html.escape(school)} • {html.escape(str(r.get("Pos", "")))} • {html.escape(nfl_team)}
-                                                </div>
-                                                <div style="font-size:0.86rem; color:#cbd5e1; margin-top:4px;">
-                                                    {html.escape(notes)}
-                                                </div>
-                                                {badge_html}
+                            with a1:
+                                left1, left2 = st.columns([1, 8])
+
+                                with left1:
+                                    if school_logo_src:
+                                        st.image(school_logo_src, width=42)
+
+                                with left2:
+                                    st.markdown(
+                                        f"""
+                                        <div style="
+                                            padding:0.9rem 1rem;
+                                            border-radius:12px;
+                                            margin-bottom:0.75rem;
+                                            background:linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+                                            border-left:5px solid #eab308;
+                                        ">
+                                            <div style="font-weight:800; font-size:1rem; color:#ffffff;">
+                                                {html.escape(player)}
+                                            </div>
+                                            <div style="font-size:0.9rem; color:#facc15; font-weight:700;">
+                                                {html.escape(award)}
+                                            </div>
+                                            <div style="font-size:0.9rem; color:#d1d5db; margin-top:4px;">
+                                                {html.escape(school)} • {html.escape(str(r.get("Pos", "")))} • {html.escape(nfl_team)}
+                                            </div>
+                                            <div style="font-size:0.86rem; color:#cbd5e1; margin-top:4px;">
+                                                {html.escape(notes)}
+                                            </div>
+                                            <div style="margin-top:8px;">
+                                                <span style="display:inline-block;background:{'rgba(34,197,94,0.18)' if college_user else 'rgba(59,130,246,0.18)'};color:{'#dcfce7' if college_user else '#dbeafe'};border:1px solid {'rgba(34,197,94,0.35)' if college_user else 'rgba(59,130,246,0.30)'};font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;">
+                                                    {html.escape(college_user) if college_user else 'CPU'}
+                                                </span>
                                             </div>
                                         </div>
-                                        <div style="display:flex; align-items:center;">
-                                            {nfl_logo}
-                                        </div>
-                                    </div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True
-                            )
+                                        """,
+                                        unsafe_allow_html=True
+                                    )
+
+                            with a2:
+                                if nfl_logo_src:
+                                    st.image(nfl_logo_src, width=42)
 
                     st.markdown("#### Awards Table")
 
