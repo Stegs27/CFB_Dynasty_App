@@ -2779,6 +2779,60 @@ def calc_nfl_progression_delta(age, years_pro, rookie_role, career_tier, pro_out
 
     return round(delta, 2)
 
+def should_retire_nfl_player(age, overall_end, pro_outcome, pos_bucket):
+    age = int(safe_num(age, 30))
+    overall_end = int(safe_num(overall_end, 75))
+    pro_outcome = str(pro_outcome).strip()
+    pos_bucket = str(pos_bucket).strip().upper()
+
+    if age >= 37:
+        return True
+
+    if age >= 35:
+        if pro_outcome in {"Superstar", "Star"} and overall_end >= 86 and pos_bucket == "QB":
+            return random.random() < 0.20
+        if pro_outcome in {"Superstar", "Star"} and overall_end >= 84:
+            return random.random() < 0.30
+        return random.random() < 0.65
+
+    if age >= 33:
+        if pro_outcome in {"Superstar", "Star"} and overall_end >= 88 and pos_bucket == "QB":
+            return random.random() < 0.08
+        if overall_end < 78:
+            return random.random() < 0.35
+        return random.random() < 0.15
+
+    if age >= 31 and overall_end < 74 and pro_outcome in {"Bust", "Developmental"}:
+        return random.random() < 0.18
+
+    return False
+
+
+def determine_nfl_player_status(age, years_pro, overall_end, pro_outcome, pos_bucket):
+    age = int(safe_num(age, 30))
+    years_pro = int(safe_num(years_pro, 1))
+    overall_end = int(safe_num(overall_end, 75))
+    pro_outcome = str(pro_outcome).strip()
+    pos_bucket = str(pos_bucket).strip().upper()
+
+    # Out of league / washout logic
+    if pro_outcome == "Bust" and years_pro >= 4 and overall_end <= 71 and random.random() < 0.45:
+        return "Out of League"
+
+    if pro_outcome in {"Bust", "Developmental"} and years_pro >= 6 and overall_end <= 69 and random.random() < 0.55:
+        return "Out of League"
+
+    if should_retire_nfl_player(age, overall_end, pro_outcome, pos_bucket):
+        return "Retired"
+
+    if age >= 33 and pro_outcome not in {"Superstar", "Star"} and random.random() < 0.30:
+        return "Declining"
+
+    if pro_outcome == "Bust" and years_pro >= 3 and overall_end < 74 and random.random() < 0.35:
+        return "Fringe"
+
+    return "Active"
+
 def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_df=None, existing_player_hist_df=None):
     if nfl_draft_hist_df is None:
         nfl_draft_hist_df = pd.read_csv("nfl_draft_history.csv") if os.path.exists("nfl_draft_history.csv") else pd.DataFrame()
@@ -2803,6 +2857,20 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
     if eligible_players.empty:
         return existing_player_hist_df
 
+    latest_status_map = {}
+    if existing_player_hist_df is not None and not existing_player_hist_df.empty:
+        hist_tmp = existing_player_hist_df.copy()
+        if "Season" in hist_tmp.columns:
+            hist_tmp["Season"] = pd.to_numeric(hist_tmp["Season"], errors="coerce")
+            hist_tmp = hist_tmp.sort_values(["PlayerID", "Season"])
+            latest_hist = hist_tmp.dropna(subset=["PlayerID"]).drop_duplicates(subset=["PlayerID"], keep="last")
+            latest_status_map = dict(
+                zip(
+                    latest_hist["PlayerID"].astype(str),
+                    latest_hist["Status"].astype(str)
+                )
+            )
+
     rows = []
     for _, r in eligible_players.iterrows():
         draft_year = int(safe_num(r.get("DraftYear", season_year), season_year))
@@ -2810,6 +2878,11 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
 
         player = str(r.get("Player", "Unknown Player"))
         player_id = str(r.get("PlayerID", ""))
+        prior_status = str(latest_status_map.get(player_id, "")).strip()
+
+        if prior_status in {"Retired", "Out of League"}:
+            continue
+
         nfl_team = str(r.get("GeneratedNFLTeam", "Unknown Team"))
         pos = str(r.get("Pos", ""))
         bucket = str(r.get("PosBucket", clean_bucket(pos)))
@@ -2912,11 +2985,13 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
             1
         )
 
-        status = "Active"
-        if pro_outcome == "Bust" and years_pro >= 3 and overall_end < 74 and random.random() < 0.35:
-            status = "Fringe"
-        if age >= 33 and pro_outcome not in {"Superstar", "Star"} and random.random() < 0.30:
-            status = "Declining"
+        status = determine_nfl_player_status(
+            age=age,
+            years_pro=years_pro,
+            overall_end=overall_end,
+            pro_outcome=pro_outcome,
+            pos_bucket=bucket
+        )
 
         rows.append({
             "Season": int(season_year),
@@ -3041,46 +3116,6 @@ def simulate_nfl_season(season_year=None):
     )
 
     if not season_player_df.empty:
-        champ_mask = season_player_df["NFLTeam"].astype(str) == str(champion)
-        runner_mask = season_player_df["NFLTeam"].astype(str) == str(runner_up)
-        player_hist_combined.loc[season_player_df[champ_mask].index, "SuperBowlWin"] = "Yes"
-        player_hist_combined.loc[season_player_df[champ_mask].index, "SuperBowlAppear"] = "Yes"
-        player_hist_combined.loc[season_player_df[runner_mask].index, "SuperBowlAppear"] = "Yes"
-        player_hist_combined.to_csv("nfl_player_history.csv", index=False)
-
-    mvp_name, mvp_team = choose_super_bowl_mvp(champion, player_hist_combined[
-        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
-    ].copy())
-
-    sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
-    new_sb_row = pd.DataFrame([{
-        "Season": int(season_year),
-        "Champion": champion,
-        "RunnerUp": runner_up,
-        "Score": score,
-        "MVP": mvp_name,
-        "MVPTeam": mvp_team,
-        "Headline": sb_headline
-    }])
-
-    existing_sb = nfl_super_bowl.copy() if nfl_super_bowl is not None else pd.DataFrame(columns=NFL_SUPER_BOWL_HISTORY_COLS)
-    if not existing_sb.empty and "Season" in existing_sb.columns:
-        existing_sb["Season"] = pd.to_numeric(existing_sb["Season"], errors="coerce")
-        existing_sb = existing_sb[existing_sb["Season"].fillna(-1).astype(int) != int(season_year)].copy()
-
-    sb_combined = pd.concat([existing_sb, new_sb_row], ignore_index=True)
-    for col in NFL_SUPER_BOWL_HISTORY_COLS:
-        if col not in sb_combined.columns:
-            sb_combined[col] = pd.NA
-    sb_combined = sb_combined[NFL_SUPER_BOWL_HISTORY_COLS].copy()
-    sb_combined.to_csv("nfl_super_bowl_history.csv", index=False)
-
-    season_story_rows = []
-    season_player_df = player_hist_combined[
-        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
-    ].copy()
-
-    if not season_player_df.empty:
         breakout_df = season_player_df.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(3)
         for _, r in breakout_df.iterrows():
             season_story_rows.append({
@@ -3092,7 +3127,35 @@ def simulate_nfl_season(season_year=None):
                 "EventType": "SeasonOutcome",
                 "Headline": f"{r.get('Player', '')} makes noise in year {max(1, season_year - int(get_latest_completed_draft_year() or season_year) + 1)}",
                 "Description": f"{r.get('NFLTeam', '')} {r.get('Pos', '')} posted {r.get('StatLine', '')}. Role: {r.get('Role', '')}.",
-                "ImpactScore": int(min(99, max(55, safe_num(r.get("CareerValue", 60), 60))))
+                "ImpactScore": int(min(99, max(55, safe_num(r.get('CareerValue', 60), 60))))
+            })
+
+        retired_df = season_player_df[season_player_df["Status"].astype(str) == "Retired"].copy().head(6)
+        for _, r in retired_df.iterrows():
+            season_story_rows.append({
+                "Season": int(season_year),
+                "Week": 24,
+                "PlayerID": r.get("PlayerID", ""),
+                "Player": r.get("Player", ""),
+                "NFLTeam": r.get("NFLTeam", ""),
+                "EventType": "Retirement",
+                "Headline": f"{r.get('Player', '')} calls it a career",
+                "Description": f"{r.get('NFLTeam', '')} {r.get('Pos', '')} retires after the {season_year} season.",
+                "ImpactScore": 80
+            })
+
+        out_df = season_player_df[season_player_df["Status"].astype(str) == "Out of League"].copy().head(6)
+        for _, r in out_df.iterrows():
+            season_story_rows.append({
+                "Season": int(season_year),
+                "Week": 24,
+                "PlayerID": r.get("PlayerID", ""),
+                "Player": r.get("Player", ""),
+                "NFLTeam": r.get("NFLTeam", ""),
+                "EventType": "RosterTurnover",
+                "Headline": f"{r.get('Player', '')} falls out of the league",
+                "Description": f"{r.get('NFLTeam', '')} {r.get('Pos', '')} is no longer holding a roster spot heading into next season.",
+                "ImpactScore": 66
             })
 
     season_awards = awards_hist[
