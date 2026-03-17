@@ -13618,9 +13618,9 @@ with tabs[9]:
                         st.warning(status_msg if status_msg else "Latest draft rerun complete.")
 
                     except Exception as e:
-            import traceback
-            st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
-            st.code(traceback.format_exc())
+                        import traceback
+                        st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
+                        st.code(traceback.format_exc())
 
         sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
 
