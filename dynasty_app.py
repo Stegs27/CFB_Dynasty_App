@@ -752,7 +752,7 @@ def render_centered_logo(src, width=64):
         unsafe_allow_html=True
     )
     
- def calc_nfl_rookie_entry_ovr(cfb_ovr, draft_round, pos_bucket=""):
+def calc_nfl_rookie_entry_ovr(cfb_ovr, draft_round, pos_bucket=""):
     cfb_ovr = safe_num(cfb_ovr, 80)
     draft_round = int(safe_num(draft_round, 7))
     pos_bucket = str(pos_bucket).strip().upper()
