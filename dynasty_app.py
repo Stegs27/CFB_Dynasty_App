@@ -509,17 +509,31 @@ def build_nfl_team_needs(nfl_df):
 
             # Smarter anti-repeat premium position logic
             if bucket == "QB":
-                # If a team already has a strong young QB, heavily suppress need
-                if starter_ovr >= 82 and starter_age <= 26:
-                    need -= 30.0
-                elif starter_ovr >= 78 and starter_age <= 28:
-                    need -= 18.0
+                # Strongly reward true QB need
+                if starter_ovr <= 74:
+                    need += 28.0
+                elif starter_ovr <= 78:
+                    need += 18.0
+                elif starter_ovr <= 82:
+                    need += 8.0
 
-                # If they have two playable QBs, suppress more
+                # Suppress when team already has a real franchise or young starter
+                if starter_ovr >= 95 and starter_age <= 31:
+                    need -= 45.0
+                elif starter_ovr >= 90 and starter_age <= 32:
+                    need -= 35.0
+                elif starter_ovr >= 85 and starter_age <= 30:
+                    need -= 25.0
+                elif starter_ovr >= 82 and starter_age <= 28:
+                    need -= 15.0
+
+                # Stable room suppression
                 if depth_count >= 2:
                     top2_avg = safe_num(pd.to_numeric(room["OVR"], errors="coerce").head(2).mean(), 70)
-                    if top2_avg >= 76:
-                        need -= 10.0
+                    if top2_avg >= 80:
+                        need -= 12.0
+                    elif top2_avg >= 76:
+                        need -= 6.0
 
             if bucket == "RB":
                 if starter_ovr >= 84 and starter_age <= 27:
@@ -1670,7 +1684,14 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     universe = load_nfl_universe_data()
     cfb_draft = universe["cfb_draft"]
     cfb_roster = universe["cfb_roster"]
-    nfl_roster = universe["nfl_roster"]
+    base_nfl_roster = universe["nfl_roster"]
+    nfl_roster = (
+        universe["nfl_current_rosters"].copy()
+        if "nfl_current_rosters" in universe
+        and universe["nfl_current_rosters"] is not None
+        and not universe["nfl_current_rosters"].empty
+        else base_nfl_roster.copy()
+    )
     existing_hist = universe["nfl_draft_hist"]
 
     if cfb_draft is None or cfb_draft.empty:
