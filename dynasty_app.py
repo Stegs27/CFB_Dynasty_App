@@ -3075,7 +3075,7 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
             "Season": season_year,
             "Team": r.get("Team", ""),
             "PlayerID": "",
-            "Name": r.get("Name", ""),
+            "Name": r.get("Name", r.get("Player", "")),
             "Pos": r.get("Pos", ""),
             "PosBucket": r.get("PosBucket", ""),
             "OVR": int(round(safe_num(r.get("OVR", 70), 70))),
@@ -13841,12 +13841,22 @@ with tabs[9]:
 
             roster_source_df = nfl_current_rosters.copy() if nfl_current_rosters is not None and not nfl_current_rosters.empty else nfl_roster.copy()
 
-            if "Name" in roster_source_df.columns and "Player" not in roster_source_df.columns:
-                roster_source_df["Player"] = roster_source_df["Name"]
+            if "Player" not in roster_source_df.columns:
+                roster_source_df["Player"] = pd.NA
+            if "Name" not in roster_source_df.columns:
+                roster_source_df["Name"] = pd.NA
+
+            roster_source_df["Player"] = roster_source_df["Player"].where(
+                roster_source_df["Player"].notna() & (roster_source_df["Player"].astype(str).str.strip() != ""),
+                roster_source_df["Name"]
+            )
+
+            roster_source_df["Player"] = roster_source_df["Player"].fillna("Unknown Player")
 
             roster_team = roster_source_df[
                 roster_source_df["Team"].astype(str) == sel_nfl_team
             ].copy().sort_values("OVR", ascending=False)
+
             roster_team["PosBucket"] = roster_team["Pos"].map(clean_bucket)
 
             drafted_here = pd.DataFrame()
