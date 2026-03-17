@@ -163,6 +163,11 @@ NFL_DRAFT_HISTORY_COLS = [
     "IsCanonRound", "IsCanonTeam", "IsCanonPick"
 ]
 
+NFL_CURRENT_ROSTER_COLS = [
+    "Season", "Team", "PlayerID", "Name", "Pos", "PosBucket",
+    "OVR", "Age", "Status", "Source", "CollegeTeam", "CollegeUser"
+]
+
 NFL_PLAYER_HISTORY_COLS = [
     "Season", "PlayerID", "Player", "NFLTeam", "Pos", "PosBucket", "Age", "Role",
     "OverallStart", "OverallEnd", "PeakOVR", "ProOutcome", "DevelopmentCurve",
@@ -680,6 +685,7 @@ def load_nfl_universe_data():
     ensure_csv_exists("nfl_standings_history.csv", NFL_STANDINGS_HISTORY_COLS)
     ensure_csv_exists("nfl_awards_history.csv", NFL_AWARDS_HISTORY_COLS)
     ensure_csv_exists("nfl_playoff_history.csv", NFL_PLAYOFF_HISTORY_COLS)
+    ensure_csv_exists("nfl_current_rosters.csv", NFL_CURRENT_ROSTER_COLS)
     ensure_csv_exists("nfl_universe_settings.csv", NFL_UNIVERSE_SETTINGS_COLS, [{
         "CurrentNFLSeason": 2042,
         "LastCompletedDraftYear": 2041,
@@ -696,6 +702,12 @@ def load_nfl_universe_data():
         if col not in nfl_draft_hist.columns:
             nfl_draft_hist[col] = pd.NA
     nfl_draft_hist = nfl_draft_hist.reindex(columns=NFL_DRAFT_HISTORY_COLS)
+    
+    nfl_current_rosters = pd.read_csv("nfl_current_rosters.csv")
+    for col in NFL_CURRENT_ROSTER_COLS:
+        if col not in nfl_current_rosters.columns:
+            nfl_current_rosters[col] = pd.NA
+    nfl_current_rosters = nfl_current_rosters.reindex(columns=NFL_CURRENT_ROSTER_COLS)
 
     nfl_player_hist = pd.read_csv("nfl_player_history.csv")
     nfl_super_bowl = pd.read_csv("nfl_super_bowl_history.csv")
@@ -732,6 +744,7 @@ def load_nfl_universe_data():
         "nfl_standings_hist": nfl_standings_hist,
         "nfl_awards_hist": nfl_awards_hist,
         "nfl_playoff_hist": nfl_playoff_hist,
+        "nfl_current_rosters": nfl_current_rosters,
     }
 
 def render_centered_logo(src, width=64):
@@ -3034,6 +3047,111 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
     combined.to_csv("nfl_player_history.csv", index=False)
     return combined
 
+def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hist_df, nfl_player_hist_df, existing_current_rosters_df=None):
+    season_year = int(season_year)
+
+    if existing_current_rosters_df is None:
+        existing_current_rosters_df = pd.read_csv("nfl_current_rosters.csv") if os.path.exists("nfl_current_rosters.csv") else pd.DataFrame(columns=NFL_CURRENT_ROSTER_COLS)
+
+    base_roster = nfl_roster_df.copy() if nfl_roster_df is not None else pd.DataFrame()
+    if base_roster.empty:
+        return pd.DataFrame(columns=NFL_CURRENT_ROSTER_COLS)
+
+    for col in ["Team", "Name", "Pos"]:
+        if col not in base_roster.columns:
+            base_roster[col] = ""
+    for col in ["OVR", "Age"]:
+        if col not in base_roster.columns:
+            base_roster[col] = 0
+
+    base_roster["OVR"] = pd.to_numeric(base_roster["OVR"], errors="coerce").fillna(70)
+    base_roster["Age"] = pd.to_numeric(base_roster["Age"], errors="coerce").fillna(25)
+    base_roster["PosBucket"] = base_roster["Pos"].map(clean_bucket)
+
+    # Start from original NFL master as filler/base
+    current_rows = []
+    for _, r in base_roster.iterrows():
+        current_rows.append({
+            "Season": season_year,
+            "Team": r.get("Team", ""),
+            "PlayerID": "",
+            "Name": r.get("Name", ""),
+            "Pos": r.get("Pos", ""),
+            "PosBucket": r.get("PosBucket", ""),
+            "OVR": int(round(safe_num(r.get("OVR", 70), 70))),
+            "Age": int(round(safe_num(r.get("Age", 25), 25))),
+            "Status": "Active",
+            "Source": "base_nfl_roster",
+            "CollegeTeam": "",
+            "CollegeUser": ""
+        })
+
+    current_df = pd.DataFrame(current_rows, columns=NFL_CURRENT_ROSTER_COLS)
+
+    # Latest dynasty player state up to this season
+    hist = nfl_player_hist_df.copy() if nfl_player_hist_df is not None else pd.DataFrame()
+    if not hist.empty:
+        hist["Season"] = pd.to_numeric(hist["Season"], errors="coerce")
+        hist = hist[hist["Season"].fillna(-1).astype(int) <= season_year].copy()
+        hist = hist.sort_values(["PlayerID", "Season"]).drop_duplicates(subset=["PlayerID"], keep="last")
+
+    draft = nfl_draft_hist_df.copy() if nfl_draft_hist_df is not None else pd.DataFrame()
+    if not draft.empty:
+        draft["DraftYear"] = pd.to_numeric(draft["DraftYear"], errors="coerce")
+        draft = draft[draft["DraftYear"].fillna(9999).astype(int) <= season_year].copy()
+
+    if not draft.empty:
+        draft_lookup = {
+            str(r.get("PlayerID", "")): r
+            for _, r in draft.iterrows()
+        }
+
+        dynasty_rows = []
+        for _, pr in hist.iterrows():
+            player_id = str(pr.get("PlayerID", "")).strip()
+            if not player_id:
+                continue
+
+            status = str(pr.get("Status", "Active")).strip()
+            if status in {"Retired", "Out of League"}:
+                continue
+
+            dr = draft_lookup.get(player_id, {})
+            dynasty_rows.append({
+                "Season": season_year,
+                "Team": pr.get("NFLTeam", dr.get("GeneratedNFLTeam", "")),
+                "PlayerID": player_id,
+                "Name": pr.get("Player", dr.get("Player", "")),
+                "Pos": pr.get("Pos", dr.get("Pos", "")),
+                "PosBucket": pr.get("PosBucket", dr.get("PosBucket", clean_bucket(pr.get("Pos", dr.get("Pos", ""))))),
+                "OVR": int(round(safe_num(pr.get("OverallEnd", dr.get("OVR", 72)), 72))),
+                "Age": int(round(safe_num(pr.get("Age", 24), 24))),
+                "Status": status if status else "Active",
+                "Source": "dynasty_player",
+                "CollegeTeam": dr.get("CollegeTeam", ""),
+                "CollegeUser": dr.get("CollegeUser", "")
+            })
+
+        dynasty_df = pd.DataFrame(dynasty_rows, columns=NFL_CURRENT_ROSTER_COLS)
+
+        if not dynasty_df.empty:
+            # Remove base filler rows when dynasty player with same name/team exists
+            dynasty_keys = set(
+                dynasty_df.apply(lambda r: f"{str(r.get('Team','')).strip().lower()}||{str(r.get('Name','')).strip().lower()}", axis=1).tolist()
+            )
+            current_df["__key"] = current_df.apply(lambda r: f"{str(r.get('Team','')).strip().lower()}||{str(r.get('Name','')).strip().lower()}", axis=1)
+            current_df = current_df[~current_df["__key"].isin(dynasty_keys)].copy()
+            current_df = current_df.drop(columns="__key", errors="ignore")
+
+            current_df = pd.concat([current_df, dynasty_df], ignore_index=True)
+
+    for col in NFL_CURRENT_ROSTER_COLS:
+        if col not in current_df.columns:
+            current_df[col] = pd.NA
+
+    current_df = current_df[NFL_CURRENT_ROSTER_COLS].copy()
+    current_df.to_csv("nfl_current_rosters.csv", index=False)
+    return current_df
 
 def simulate_nfl_season(season_year=None):
     universe = load_nfl_universe_data()
@@ -3048,7 +3166,15 @@ def simulate_nfl_season(season_year=None):
 
     season_year = int(season_year)
 
-    team_strength_df = build_nfl_team_strengths(nfl_roster)
+    nfl_current_roster = build_nfl_current_roster_for_season(
+        season_year=season_year,
+        nfl_roster_df=nfl_roster,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_player_hist_df=nfl_player_hist,
+        existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
+    )
+
+    team_strength_df = build_nfl_team_strengths(nfl_current_roster)
     if team_strength_df.empty:
         return None, "NFL roster data is missing, so the season could not be simulated."
 
@@ -12646,6 +12772,7 @@ with tabs[9]:
     nfl_roster = universe["nfl_roster"]
     cfb_draft = universe["cfb_draft"]
     nfl_draft_hist = universe["nfl_draft_hist"]
+    nfl_current_rosters = universe["nfl_current_rosters"]
 
     for col in NFL_DRAFT_HISTORY_COLS:
         if col not in nfl_draft_hist.columns:
@@ -13663,8 +13790,14 @@ with tabs[9]:
                 unsafe_allow_html=True
             )
 
-            roster_team = nfl_roster[nfl_roster["Team"].astype(str) == sel_nfl_team].copy().sort_values("OVR",
-                                                                                                        ascending=False)
+            roster_source_df = nfl_current_rosters.copy() if nfl_current_rosters is not None and not nfl_current_rosters.empty else nfl_roster.copy()
+
+            if "Name" in roster_source_df.columns and "Player" not in roster_source_df.columns:
+                roster_source_df["Player"] = roster_source_df["Name"]
+
+            roster_team = roster_source_df[
+                roster_source_df["Team"].astype(str) == sel_nfl_team
+            ].copy().sort_values("OVR", ascending=False)
             roster_team["PosBucket"] = roster_team["Pos"].map(clean_bucket)
 
             drafted_here = pd.DataFrame()
