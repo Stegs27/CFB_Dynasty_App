@@ -3829,6 +3829,72 @@ def simulate_nfl_awards(season_year, season_player_df, existing_awards_df=None):
             "Notes": r.get("StatLine", "")
         })
 
+    # Offensive Player of the Year / Defensive Player of the Year
+    offense_buckets = {"QB", "RB", "WR", "TE", "OL"}
+    defense_buckets = {"EDGE", "IDL", "LB", "CB", "S"}
+
+    opoy_pool = work[work["PosBucket"].astype(str).isin(offense_buckets)].copy()
+    dpoy_pool = work[work["PosBucket"].astype(str).isin(defense_buckets)].copy()
+
+    if not opoy_pool.empty:
+        opoy_pool["OPOYScore"] = (
+            pd.to_numeric(opoy_pool["CareerValue"], errors="coerce").fillna(0) * 1.0 +
+            pd.to_numeric(opoy_pool["OverallEnd"], errors="coerce").fillna(0) * 0.7
+        )
+
+        # Slight nudge away from MVP being the only QB award,
+        # but QBs can still win OPOY with huge seasons.
+        opoy_pool["OPOYScore"] = opoy_pool["OPOYScore"] + opoy_pool["PosBucket"].astype(str).map(
+            lambda p: 2 if p in {"RB", "WR", "TE"} else 0
+        )
+
+        opoy_df = opoy_pool.sort_values(
+            ["OPOYScore", "CareerValue", "OverallEnd"],
+            ascending=[False, False, False]
+        )
+
+        if not opoy_df.empty:
+            r = opoy_df.iloc[0]
+            rows.append({
+                "Season": int(season_year),
+                "Award": "Offensive Player of the Year",
+                "PlayerID": r.get("PlayerID", ""),
+                "Player": r.get("Player", ""),
+                "NFLTeam": r.get("NFLTeam", ""),
+                "Pos": r.get("Pos", ""),
+                "Result": "Winner",
+                "Notes": r.get("StatLine", "")
+            })
+
+    if not dpoy_pool.empty:
+        dpoy_pool["DPOYScore"] = (
+            pd.to_numeric(dpoy_pool["CareerValue"], errors="coerce").fillna(0) * 1.0 +
+            pd.to_numeric(dpoy_pool["OverallEnd"], errors="coerce").fillna(0) * 0.8
+        )
+
+        # Slight edge-rusher / linebacker weighting
+        dpoy_pool["DPOYScore"] = dpoy_pool["DPOYScore"] + dpoy_pool["PosBucket"].astype(str).map(
+            lambda p: 2 if p in {"EDGE", "LB"} else 0
+        )
+
+        dpoy_df = dpoy_pool.sort_values(
+            ["DPOYScore", "CareerValue", "OverallEnd"],
+            ascending=[False, False, False]
+        )
+
+        if not dpoy_df.empty:
+            r = dpoy_df.iloc[0]
+            rows.append({
+                "Season": int(season_year),
+                "Award": "Defensive Player of the Year",
+                "PlayerID": r.get("PlayerID", ""),
+                "Player": r.get("Player", ""),
+                "NFLTeam": r.get("NFLTeam", ""),
+                "Pos": r.get("Pos", ""),
+                "Result": "Winner",
+                "Notes": r.get("StatLine", "")
+            })
+
     # Rookie awards
     rookies = work[work["Age"].fillna(99).astype(int) <= 22].copy()
     if not rookies.empty:
@@ -13507,6 +13573,7 @@ with tabs[9]:
         "📦 Draft Central",
         "🏁 Season Recap",
         "🏅 Awards",
+        "🧾 Offseason Recap",
         "👤 Alumni Tracker",
         "🏆 Super Bowl History",
         "📰 Storylines",
@@ -13907,12 +13974,14 @@ with tabs[9]:
                     )
 
                     major_awards = awards_df[
-                        awards_df["Award"].astype(str).isin([
-                            "NFL MVP",
-                            "Offensive Rookie of the Year",
-                            "Defensive Rookie of the Year"
-                        ])
-                    ].copy()
+                            awards_df["Award"].astype(str).isin([
+                                "NFL MVP",
+                                "Offensive Player of the Year",
+                                "Defensive Player of the Year",
+                                "Offensive Rookie of the Year",
+                                "Defensive Rookie of the Year"
+                            ])
+                        ].copy()
 
                     if not major_awards.empty:
                         st.markdown("#### Major Awards")
@@ -13998,9 +14067,165 @@ with tabs[9]:
                             "Logo": st.column_config.ImageColumn("")
                         }
                     )
-                                        
-    # ── Alumni Tracker ────────────────────────────────────────────────
+
+# ── Offseason Recap ───────────────────────────────────────────────
     with nfl_tabs[3]:
+        st.subheader("🧾 NFL Offseason Recap")
+
+        offseason_season = get_current_nfl_season()
+
+        if nfl_current_rosters is None or nfl_current_rosters.empty:
+            st.info("No offseason roster data is available yet.")
+        else:
+            offseason_roster = nfl_current_rosters.copy()
+            if "Season" in offseason_roster.columns:
+                offseason_roster["Season"] = pd.to_numeric(offseason_roster["Season"], errors="coerce")
+                available_roster_seasons = sorted(
+                    offseason_roster["Season"].dropna().astype(int).unique().tolist()
+                )
+            else:
+                available_roster_seasons = []
+
+            if not available_roster_seasons:
+                st.info("No offseason roster data is available yet.")
+            else:
+                sel_offseason_year = st.selectbox(
+                    "Offseason For Season",
+                    available_roster_seasons,
+                    index=len(available_roster_seasons) - 1,
+                    key="nfl_offseason_recap_year"
+                )
+
+                roster_year_df = offseason_roster[
+                    offseason_roster["Season"].fillna(-1).astype(int) == int(sel_offseason_year)
+                ].copy()
+
+                player_hist_work = nfl_player_hist.copy() if nfl_player_hist is not None else pd.DataFrame()
+                if not player_hist_work.empty and "Season" in player_hist_work.columns:
+                    player_hist_work["Season"] = pd.to_numeric(player_hist_work["Season"], errors="coerce")
+
+                prior_season = int(sel_offseason_year) - 1
+                prior_hist_df = player_hist_work[
+                    player_hist_work["Season"].fillna(-1).astype(int) == prior_season
+                ].copy() if not player_hist_work.empty else pd.DataFrame()
+
+                retire_df = prior_hist_df[
+                    prior_hist_df["Status"].astype(str) == "Retired"
+                ].copy() if not prior_hist_df.empty else pd.DataFrame()
+
+                out_df = prior_hist_df[
+                    prior_hist_df["Status"].astype(str) == "Out of League"
+                ].copy() if not prior_hist_df.empty else pd.DataFrame()
+
+                udfa_df = roster_year_df[
+                    roster_year_df["Source"].astype(str) == "udfa_fill"
+                ].copy() if not roster_year_df.empty and "Source" in roster_year_df.columns else pd.DataFrame()
+
+                vet_fill_df = roster_year_df[
+                    roster_year_df["Source"].astype(str) == "free_agent_fill"
+                ].copy() if not roster_year_df.empty and "Source" in roster_year_df.columns else pd.DataFrame()
+
+                rookie_add_df = roster_year_df[
+                    roster_year_df["Source"].astype(str).isin(["dynasty_player", "udfa_fill"])
+                ].copy() if not roster_year_df.empty and "Source" in roster_year_df.columns else pd.DataFrame()
+
+                k1, k2, k3, k4, k5 = st.columns(5)
+                with k1:
+                    st.metric("Retirements", len(retire_df))
+                with k2:
+                    st.metric("Out of League", len(out_df))
+                with k3:
+                    st.metric("UDFA Adds", len(udfa_df))
+                with k4:
+                    st.metric("Veteran Fill Adds", len(vet_fill_df))
+                with k5:
+                    st.metric("Dynasty / UDFA Adds", len(rookie_add_df))
+
+                c1, c2 = st.columns(2)
+
+                with c1:
+                    st.markdown("#### Retirements")
+                    if retire_df.empty:
+                        st.caption("No retirements recorded.")
+                    else:
+                        retire_show = retire_df.copy()
+                        retire_show = retire_show[[
+                            c for c in ["Player", "NFLTeam", "Pos", "Age", "OverallEnd", "Status"] if c in retire_show.columns
+                        ]]
+                        st.dataframe(retire_show.head(20), hide_index=True, use_container_width=True)
+
+                with c2:
+                    st.markdown("#### Out of League")
+                    if out_df.empty:
+                        st.caption("No washouts recorded.")
+                    else:
+                        out_show = out_df.copy()
+                        out_show = out_show[[
+                            c for c in ["Player", "NFLTeam", "Pos", "Age", "OverallEnd", "Status"] if c in out_show.columns
+                        ]]
+                        st.dataframe(out_show.head(20), hide_index=True, use_container_width=True)
+
+                c3, c4 = st.columns(2)
+
+                with c3:
+                    st.markdown("#### UDFA Signings")
+                    if udfa_df.empty:
+                        st.caption("No UDFA additions recorded.")
+                    else:
+                        udfa_show = udfa_df.copy()
+                        if "Name" in udfa_show.columns and "Player" not in udfa_show.columns:
+                            udfa_show["Player"] = udfa_show["Name"]
+                        udfa_show = udfa_show[[
+                            c for c in ["Player", "Team", "Pos", "OVR", "Age", "CollegeTeam", "CollegeUser"] if c in udfa_show.columns
+                        ]]
+                        udfa_show = udfa_show.rename(columns={"Team": "NFL Team", "CollegeTeam": "School", "CollegeUser": "User"})
+                        st.dataframe(udfa_show.head(25), hide_index=True, use_container_width=True)
+
+                with c4:
+                    st.markdown("#### Veteran Fill Signings")
+                    if vet_fill_df.empty:
+                        st.caption("No veteran fill additions recorded.")
+                    else:
+                        vet_show = vet_fill_df.copy()
+                        if "Name" in vet_show.columns and "Player" not in vet_show.columns:
+                            vet_show["Player"] = vet_show["Name"]
+                        vet_show = vet_show[[
+                            c for c in ["Player", "Team", "Pos", "OVR", "Age", "Source"] if c in vet_show.columns
+                        ]]
+                        vet_show = vet_show.rename(columns={"Team": "NFL Team"})
+                        if "Source" in vet_show.columns:
+                            vet_show["Source"] = vet_show["Source"].replace({"free_agent_fill": "Veteran Fill"})
+                        st.dataframe(vet_show.head(25), hide_index=True, use_container_width=True)
+
+                st.markdown("#### Top Rookie / New Additions by Team")
+                if rookie_add_df.empty:
+                    st.caption("No new additions found.")
+                else:
+                    rookie_show = rookie_add_df.copy()
+                    if "Name" in rookie_show.columns and "Player" not in rookie_show.columns:
+                        rookie_show["Player"] = rookie_show["Name"]
+
+                    rookie_show["OVR"] = pd.to_numeric(rookie_show["OVR"], errors="coerce").fillna(0)
+                    rookie_show = rookie_show.sort_values(["Team", "OVR"], ascending=[True, False]).copy()
+
+                    rookie_show = rookie_show[[
+                        c for c in ["Team", "Player", "Pos", "OVR", "Age", "Source", "CollegeTeam", "CollegeUser"] if c in rookie_show.columns
+                    ]].rename(columns={
+                        "Team": "NFL Team",
+                        "CollegeTeam": "School",
+                        "CollegeUser": "User"
+                    })
+
+                    if "Source" in rookie_show.columns:
+                        rookie_show["Source"] = rookie_show["Source"].replace({
+                            "dynasty_player": "Drafted Dynasty",
+                            "udfa_fill": "UDFA"
+                        })
+
+                    st.dataframe(rookie_show.head(50), hide_index=True, use_container_width=True)                                      
+                                                                                                                  
+    # ── Alumni Tracker ────────────────────────────────────────────────
+    with nfl_tabs[4]:
         st.subheader("👤 Alumni Tracker")
 
         if nfl_draft_hist.empty:
@@ -14056,7 +14281,7 @@ with tabs[9]:
             )
 
     # ── Super Bowl History ────────────────────────────────────────────
-    with nfl_tabs[4]:
+    with nfl_tabs[5]:
         st.subheader("🏆 Super Bowl History")
 
         if nfl_super_bowl.empty:
@@ -14095,7 +14320,7 @@ with tabs[9]:
             )
 
 # ── Storylines ────────────────────────────────────────────────────
-    with nfl_tabs[5]:
+    with nfl_tabs[6]:
         st.subheader("📰 Storylines")
 
         if nfl_story.empty and not nfl_draft_hist.empty:
@@ -14203,7 +14428,7 @@ with tabs[9]:
                 st.markdown("</div>", unsafe_allow_html=True)
 
     # ── NFL Teams ─────────────────────────────────────────────────────
-    with nfl_tabs[6]:
+    with nfl_tabs[7]:
         st.subheader("🏟️ NFL Teams")
 
         if nfl_roster.empty:
