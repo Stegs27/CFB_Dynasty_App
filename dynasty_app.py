@@ -111,84 +111,124 @@ def build_super_bowl_moment_text(player_name, team, pos_bucket, school="", stat_
     school = clean_display(school, "")
     stat_line = clean_display(stat_line, "")
 
-    school_tag = ""
-    if school:
-        school_tag = f" Former {school} star."
+    school_tag = f" Former {school} star." if school else ""
 
-    if is_hero:
-        if pos_bucket == "QB":
-            templates = [
-                f"The defining moment came when {player_name} led a championship-clinching drive for {team}.{school_tag} {player_name} finished with {stat_line}.",
-                f"{player_name} delivered the throw that broke the game open for {team}.{school_tag} He closed the Super Bowl with {stat_line}.",
-                f"The Super Bowl swung on {player_name}'s late-game poise for {team}.{school_tag} He posted {stat_line}."
-            ]
-        elif pos_bucket == "RB":
-            templates = [
-                f"The game turned when {player_name} ripped off the decisive scoring run for {team}.{school_tag} He finished with {stat_line}.",
-                f"{player_name} wore down the defense and iced the Super Bowl for {team}.{school_tag} His line: {stat_line}.",
-                f"The title-clinching sequence belonged to {player_name}, who powered {team} to the finish.{school_tag} He posted {stat_line}."
-            ]
-        elif pos_bucket in {"WR", "TE"}:
-            templates = [
-                f"The signature play came when {player_name} made the biggest catch of the night for {team}.{school_tag} He finished with {stat_line}.",
-                f"{player_name} delivered the moment that broke the Super Bowl open for {team}.{school_tag} He ended with {stat_line}.",
-                f"The championship swung on a clutch grab from {player_name} for {team}.{school_tag} He posted {stat_line}."
-            ]
-        elif pos_bucket in {"EDGE", "IDL", "LB"}:
-            templates = [
-                f"The turning point came when {player_name} blew up the pocket for {team} and changed the game.{school_tag} He finished with {stat_line}.",
-                f"{player_name} delivered the defensive play that sealed the title for {team}.{school_tag} He posted {stat_line}.",
-                f"The Super Bowl flipped when {player_name} made a game-changing stop for {team}.{school_tag} His final line was {stat_line}."
-            ]
-        elif pos_bucket in {"CB", "S"}:
-            templates = [
-                f"The defining moment came when {player_name} shut the door in coverage for {team}.{school_tag} He finished with {stat_line}.",
-                f"{player_name} made the secondary play that sealed the championship for {team}.{school_tag} He posted {stat_line}.",
-                f"The game swung on a back-end defensive play from {player_name} for {team}.{school_tag} He ended with {stat_line}."
-            ]
-        else:
-            templates = [
-                f"The defining moment came when {player_name} made the play that swung the game for {team}.{school_tag} He finished with {stat_line}.",
-                f"{player_name} delivered the championship moment for {team}.{school_tag} He posted {stat_line}."
-            ]
-    else:
-        if pos_bucket == "QB":
-            templates = [
-                f"The turning point was a crushing mistake by {player_name} that swung the Super Bowl away from {team}.{school_tag} He finished with {stat_line}.",
-                f"{team} never fully recovered after the late-game error involving {player_name}.{school_tag} He ended the night with {stat_line}.",
-                f"The title slipped away when {player_name} could not recover from the biggest mistake of the game for {team}.{school_tag} He posted {stat_line}."
-            ]
-        elif pos_bucket == "RB":
-            templates = [
-                f"The game tilted when {team} could not lean on {player_name} in the biggest moment.{school_tag} He finished with {stat_line}.",
-                f"{team} lost control after a failed late rushing chance centered on {player_name}.{school_tag} He ended with {stat_line}.",
-                f"The Super Bowl turned when {player_name} and the run game stalled for {team}.{school_tag} His final line was {stat_line}."
-            ]
-        elif pos_bucket in {"WR", "TE"}:
-            templates = [
-                f"The turning point came on a missed receiving moment involving {player_name} for {team}.{school_tag} He finished with {stat_line}.",
-                f"{team} lost its grip on the game after the key pass play involving {player_name} broke down.{school_tag} He posted {stat_line}.",
-                f"The Super Bowl turned on a missed opportunity for {player_name} and {team}.{school_tag} He ended with {stat_line}."
-            ]
-        elif pos_bucket in {"EDGE", "IDL", "LB"}:
-            templates = [
-                f"The title slipped when {team} could not get the stop it needed, with {player_name} caught in the decisive sequence.{school_tag} He finished with {stat_line}.",
-                f"The biggest defensive breakdown of the night hit {team} at the wrong time, with {player_name} on the field for it.{school_tag} He posted {stat_line}.",
-                f"The turning point came when {team}'s front seven failed to close the door, and {player_name} was part of the costly sequence.{school_tag} He ended with {stat_line}."
-            ]
-        elif pos_bucket in {"CB", "S"}:
-            templates = [
-                f"The game turned on a coverage lapse involving {player_name} for {team}.{school_tag} He finished with {stat_line}.",
-                f"{team} lost the Super Bowl on a back-end breakdown that caught {player_name} in the spotlight.{school_tag} He posted {stat_line}.",
-                f"The decisive sequence went against {team}'s secondary, with {player_name} on the wrong side of it.{school_tag} He ended with {stat_line}."
-            ]
-        else:
-            templates = [
-                f"The turning point was a crushing mistake that swung the game away from {team}, with {player_name} caught in the moment.{school_tag} He finished with {stat_line}.",
-                f"{team} never fully recovered after the decisive mistake involving {player_name}.{school_tag} He posted {stat_line}."
-            ]
+    hero_templates = {
+        "QB": [
+            f"The defining moment came when {player_name} led a championship-clinching drive for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} delivered the dagger touchdown throw that broke the game open for {team}.{school_tag} He closed the night with {stat_line}.",
+            f"The Super Bowl swung when {player_name} calmly converted the biggest late-game series for {team}.{school_tag} He posted {stat_line}.",
+            f"{player_name} authored the drive everyone will remember, marching {team} to the decisive score.{school_tag} He finished with {stat_line}."
+        ],
+        "RB": [
+            f"The game turned when {player_name} ripped off the decisive scoring run for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} iced the Super Bowl by grinding out the final crushing series for {team}.{school_tag} His line: {stat_line}.",
+            f"The title-clinching moment belonged to {player_name}, who punched in the score that changed everything for {team}.{school_tag} He posted {stat_line}.",
+            f"{player_name} broke the game open with the kind of late run that ends championships.{school_tag} He finished with {stat_line}."
+        ],
+        "WR": [
+            f"The signature play came when {player_name} made the biggest catch of the night for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} delivered the sideline grab that changed the Super Bowl for {team}.{school_tag} He ended with {stat_line}.",
+            f"The championship swung on a clutch catch from {player_name} for {team}.{school_tag} He posted {stat_line}.",
+            f"{player_name} gave {team} its defining highlight with a huge downfield strike in the biggest moment.{school_tag} He finished with {stat_line}."
+        ],
+        "TE": [
+            f"The signature play came when {player_name} found space in traffic for the biggest catch of the night for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} delivered the red-zone play that changed the game for {team}.{school_tag} He ended with {stat_line}.",
+            f"The title swung when {team} leaned on {player_name} in the most important moment of the Super Bowl.{school_tag} He posted {stat_line}."
+        ],
+        "EDGE": [
+            f"The turning point came when {player_name} blew up the pocket for {team} and changed the game.{school_tag} He finished with {stat_line}.",
+            f"{player_name} delivered the strip-sack moment that sealed the title for {team}.{school_tag} He posted {stat_line}.",
+            f"The Super Bowl flipped when {player_name} crashed through for the biggest pressure of the night for {team}.{school_tag} His final line was {stat_line}.",
+            f"{team} seized control the moment {player_name} wrecked the decisive passing play.{school_tag} He finished with {stat_line}."
+        ],
+        "IDL": [
+            f"The turning point came when {player_name} collapsed the middle for {team} and wrecked the biggest play of the game.{school_tag} He finished with {stat_line}.",
+            f"{player_name} changed the Super Bowl by blowing up the interior on the decisive series for {team}.{school_tag} He posted {stat_line}.",
+            f"The title swung when {player_name} disrupted the play that {team} needed most.{school_tag} He ended with {stat_line}."
+        ],
+        "LB": [
+            f"The Super Bowl turned when {player_name} made the stop that every defender dreams about for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} delivered the fourth-down stop that changed the game for {team}.{school_tag} He posted {stat_line}.",
+            f"The defining defensive play belonged to {player_name}, who shut the door for {team}.{school_tag} He ended with {stat_line}."
+        ],
+        "CB": [
+            f"The defining moment came when {player_name} broke up the biggest pass of the night for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} made the game-sealing play in coverage for {team}.{school_tag} He posted {stat_line}.",
+            f"The title swung on a back-end defensive gem from {player_name} for {team}.{school_tag} He ended with {stat_line}.",
+            f"{player_name} slammed the door on the decisive throw and gave {team} its championship moment.{school_tag} He finished with {stat_line}."
+        ],
+        "S": [
+            f"The defining moment came when {player_name} erased the final threat for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} delivered the game-sealing interception for {team}.{school_tag} He posted {stat_line}.",
+            f"The Super Bowl turned on a last-line defensive play from {player_name} for {team}.{school_tag} He ended with {stat_line}."
+        ],
+        "OTHER": [
+            f"The defining moment came when {player_name} made the play that swung the game for {team}.{school_tag} He finished with {stat_line}.",
+            f"{player_name} delivered the championship moment for {team}.{school_tag} He posted {stat_line}."
+        ]
+    }
 
-    return random.choice(templates)
+    fail_templates = {
+        "QB": [
+            f"The turning point was a crushing mistake by {player_name} that swung the Super Bowl away from {team}.{school_tag} He finished with {stat_line}.",
+            f"{team} never fully recovered after the late-game error involving {player_name}.{school_tag} He ended the night with {stat_line}.",
+            f"The title slipped away when {player_name} forced the biggest throw of the game for {team}.{school_tag} He posted {stat_line}.",
+            f"{team} lost control the moment the pressure finally got to {player_name} in the decisive sequence.{school_tag} He finished with {stat_line}."
+        ],
+        "RB": [
+            f"The game tilted when {team} could not lean on {player_name} in the biggest moment.{school_tag} He finished with {stat_line}.",
+            f"{team} lost control after a failed late rushing chance centered on {player_name}.{school_tag} He ended with {stat_line}.",
+            f"The Super Bowl turned when {player_name} and the run game stalled for {team}.{school_tag} His final line was {stat_line}.",
+            f"{team} never recovered after the backfield mistake involving {player_name} in the biggest spot of the game.{school_tag} He finished with {stat_line}."
+        ],
+        "WR": [
+            f"The turning point came on a missed receiving moment involving {player_name} for {team}.{school_tag} He finished with {stat_line}.",
+            f"{team} lost its grip on the game after the key pass play involving {player_name} broke down.{school_tag} He posted {stat_line}.",
+            f"The Super Bowl turned on a missed opportunity for {player_name} and {team}.{school_tag} He ended with {stat_line}.",
+            f"The biggest missed chance of the night landed on {player_name} for {team}.{school_tag} He finished with {stat_line}."
+        ],
+        "TE": [
+            f"The turning point came on a red-zone miss involving {player_name} for {team}.{school_tag} He finished with {stat_line}.",
+            f"{team} let the moment slip away when the key play to {player_name} failed to connect.{school_tag} He posted {stat_line}.",
+            f"The Super Bowl turned on a missed chance for {player_name} in the biggest moment for {team}.{school_tag} He ended with {stat_line}."
+        ],
+        "EDGE": [
+            f"The title slipped when {team} could not get the pressure it needed, with {player_name} caught in the decisive sequence.{school_tag} He finished with {stat_line}.",
+            f"The biggest pass-rush miss of the night hurt {team} at the worst time, and {player_name} was part of it.{school_tag} He posted {stat_line}.",
+            f"The turning point came when {team} failed to close the pocket, leaving {player_name} on the wrong side of the moment.{school_tag} He ended with {stat_line}."
+        ],
+        "IDL": [
+            f"The title slipped when {team} failed to control the middle in the decisive moment, with {player_name} involved in the breakdown.{school_tag} He finished with {stat_line}.",
+            f"The biggest defensive lapse up front hurt {team} at the wrong time, with {player_name} caught in the sequence.{school_tag} He posted {stat_line}.",
+            f"The turning point came when {team} could not hold the interior, and {player_name} was part of the costly moment.{school_tag} He ended with {stat_line}."
+        ],
+        "LB": [
+            f"The turning point came when {team} could not get the stop it needed, with {player_name} caught in the decisive sequence.{school_tag} He finished with {stat_line}.",
+            f"The biggest defensive miss of the night hit {team} at the wrong time, with {player_name} on the field for it.{school_tag} He posted {stat_line}.",
+            f"The Super Bowl turned when the final stop never came for {team}, and {player_name} was part of the moment.{school_tag} He ended with {stat_line}."
+        ],
+        "CB": [
+            f"The game turned on a coverage lapse involving {player_name} for {team}.{school_tag} He finished with {stat_line}.",
+            f"{team} lost the Super Bowl on a back-end breakdown that caught {player_name} in the spotlight.{school_tag} He posted {stat_line}.",
+            f"The decisive sequence went against {team}'s secondary, with {player_name} on the wrong side of it.{school_tag} He ended with {stat_line}.",
+            f"The title slipped away when the biggest throw of the game got behind {player_name}.{school_tag} He finished with {stat_line}."
+        ],
+        "S": [
+            f"The game turned when the last line of defense broke the wrong way for {team}, with {player_name} caught in the moment.{school_tag} He finished with {stat_line}.",
+            f"{team} lost its grip on the Super Bowl after a deep mistake involving {player_name}.{school_tag} He posted {stat_line}.",
+            f"The decisive play went against {team}'s safety help, leaving {player_name} in the spotlight.{school_tag} He ended with {stat_line}."
+        ],
+        "OTHER": [
+            f"The turning point was a crushing mistake that swung the game away from {team}, with {player_name} caught in the moment.{school_tag} He finished with {stat_line}.",
+            f"{team} never fully recovered after the decisive mistake involving {player_name}.{school_tag} He posted {stat_line}."
+        ]
+    }
+
+    key = pos_bucket if pos_bucket in hero_templates else "OTHER"
+    pool = hero_templates[key] if is_hero else fail_templates[key]
+    return random.choice(pool)
 
 def generate_super_bowl_signature_moment(champion, runner_up, score, season_player_df, nfl_draft_hist_df=None):
     champion = str(champion)
@@ -257,24 +297,34 @@ def generate_super_bowl_signature_moment(champion, runner_up, score, season_play
 
     used_player = ""
 
-    # Prefer a user alumni hero from the champion
     user_champs = user_pool[user_pool["NFLTeam"].astype(str) == champion].copy()
-    if not user_champs.empty:
-        hero = user_champs.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).iloc[0]
-        used_player = clean_display(hero.get("Player", ""), "")
-        return make_hero_line(hero), used_player
-
-    # Otherwise, prefer the best overall champion player
     champ_pool = game_pool[game_pool["NFLTeam"].astype(str) == champion].copy()
-    if not champ_pool.empty:
-        hero = champ_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).iloc[0]
+    runner_pool = game_pool[game_pool["NFLTeam"].astype(str) == runner_up].copy()
+
+    # 60%: user alumni hero if available
+    if not user_champs.empty and random.random() < 0.60:
+        hero_pool = user_champs.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(3).copy()
+        hero = hero_pool.sample(1).iloc[0]
         used_player = clean_display(hero.get("Player", ""), "")
         return make_hero_line(hero), used_player
 
-    # Fallback failure from runner-up
-    runner_pool = game_pool[game_pool["NFLTeam"].astype(str) == runner_up].copy()
+    # 25%: runner-up failure moment if available
+    if not runner_pool.empty and random.random() < 0.25:
+        fail_pool = runner_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[True, True]).head(3).copy()
+        fail = fail_pool.sample(1).iloc[0]
+        used_player = clean_display(fail.get("Player", ""), "")
+        return make_failure_line(fail), used_player
+
+    # Otherwise use one of the champion's best performers
+    if not champ_pool.empty:
+        hero_pool = champ_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(4).copy()
+        hero = hero_pool.sample(1).iloc[0]
+        used_player = clean_display(hero.get("Player", ""), "")
+        return make_hero_line(hero), used_player
+
     if not runner_pool.empty:
-        fail = runner_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[True, True]).iloc[0]
+        fail_pool = runner_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[True, True]).head(4).copy()
+        fail = fail_pool.sample(1).iloc[0]
         used_player = clean_display(fail.get("Player", ""), "")
         return make_failure_line(fail), used_player
 
@@ -331,13 +381,27 @@ def generate_super_bowl_user_alumni_note(champion, runner_up, season_player_df, 
     pos_bucket = clean_display(r.get("PosBucket", clean_bucket(r.get("Pos", ""))), "")
 
     if pos_bucket == "QB":
-        return f"User alumni note: {player} ({school}, {user}) also had a major hand in the game for {team}, finishing with {stat}."
+        options = [
+            f"User alumni note: {player} ({school}, {user}) also had a major hand in the game for {team}, finishing with {stat}.",
+            f"User alumni note: {player} ({school}, {user}) also helped drive the offense for {team} with {stat}.",
+        ]
     elif pos_bucket in {"RB", "WR", "TE"}:
-        return f"User alumni note: {player} ({school}, {user}) also produced in the Super Bowl for {team} with {stat}."
+        options = [
+            f"User alumni note: {player} ({school}, {user}) also produced in the Super Bowl for {team} with {stat}.",
+            f"User alumni note: {player} ({school}, {user}) also contributed key offense for {team}, posting {stat}.",
+        ]
     elif pos_bucket in {"EDGE", "IDL", "LB", "CB", "S"}:
-        return f"User alumni note: {player} ({school}, {user}) also showed up defensively for {team}, posting {stat}."
+        options = [
+            f"User alumni note: {player} ({school}, {user}) also showed up defensively for {team}, posting {stat}.",
+            f"User alumni note: {player} ({school}, {user}) also made his presence felt on defense for {team} with {stat}.",
+        ]
     else:
-        return f"User alumni note: {player} ({school}, {user}) also contributed for {team} with {stat}."
+        options = [
+            f"User alumni note: {player} ({school}, {user}) also contributed for {team} with {stat}.",
+            f"User alumni note: {player} ({school}, {user}) also played a part in the Super Bowl for {team}, finishing with {stat}.",
+        ]
+
+    return random.choice(options)
 
 def play_user_pick_chime(audio_path="espn_chime.mp3"):
     try:
