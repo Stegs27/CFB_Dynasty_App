@@ -64,6 +64,91 @@ if "draft_audio_enabled" not in st.session_state:
 def enable_draft_audio():
     st.session_state["draft_audio_enabled"] = True
 
+def generate_super_bowl_game_statline(row):
+    pos = clean_display(row.get("Pos", ""), "")
+    bucket = clean_display(row.get("PosBucket", clean_bucket(pos)), "")
+    overall = int(safe_num(row.get("OverallEnd", 75), 75))
+
+    if bucket == "QB":
+        pass_yds = max(120, int(random.gauss(220 + (overall - 75) * 4.5, 35)))
+        pass_tds = max(0, min(5, int(random.gauss(1.6 + max(0, overall - 80) / 12, 0.9))))
+        ints = max(0, min(3, int(random.gauss(0.8, 0.8))))
+        return f"{pass_yds} pass yds, {pass_tds} pass TD, {ints} INT"
+
+    if bucket == "RB":
+        rush_yds = max(25, int(random.gauss(70 + (overall - 75) * 2.2, 22)))
+        rush_tds = max(0, min(3, int(random.gauss(0.8, 0.8))))
+        return f"{rush_yds} rush yds, {rush_tds} rush TD"
+
+    if bucket == "WR":
+        rec_yds = max(20, int(random.gauss(85 + (overall - 75) * 2.5, 28)))
+        rec_tds = max(0, min(3, int(random.gauss(0.7, 0.8))))
+        return f"{rec_yds} rec yds, {rec_tds} rec TD"
+
+    if bucket == "TE":
+        rec_yds = max(15, int(random.gauss(55 + (overall - 75) * 1.8, 20)))
+        rec_tds = max(0, min(2, int(random.gauss(0.5, 0.7))))
+        return f"{rec_yds} rec yds, {rec_tds} rec TD"
+
+    if bucket in {"EDGE", "IDL", "LB"}:
+        tackles = max(2, int(random.gauss(6 + max(0, overall - 75) / 6, 2)))
+        sacks = max(0, min(3, int(random.gauss(0.8 + max(0, overall - 85) / 15, 0.8))))
+        return f"{tackles} tackles, {sacks} sacks"
+
+    if bucket in {"CB", "S"}:
+        tackles = max(2, int(random.gauss(5 + max(0, overall - 75) / 7, 2)))
+        ints = max(0, min(2, int(random.gauss(0.35 + max(0, overall - 88) / 25, 0.5))))
+        return f"{tackles} tackles, {ints} INT"
+
+    games = 1
+    starts = 1 if overall >= 74 else 0
+    return f"{games} game, {starts} start"
+
+def build_super_bowl_moment_text(player_name, team, pos_bucket, school="", stat_line="", is_hero=True):
+    player_name = clean_display(player_name, "Unknown Player")
+    team = clean_display(team, "")
+    pos_bucket = clean_display(pos_bucket, "")
+    school = clean_display(school, "")
+    stat_line = clean_display(stat_line, "")
+
+    school_tag = f" Former {school} star" if school else ""
+
+    if is_hero:
+        if pos_bucket == "QB":
+            templates = [
+                f"The defining moment came when {player_name} led a championship-clinching drive for {team}.{school_tag} {player_name} finished with {stat_line}.",
+                f"{player_name} delivered the throw that broke the game open for {team}.{school_tag} He closed the Super Bowl with {stat_line}.",
+                f"The Super Bowl swung on {player_name}'s late-game poise for {team}.{school_tag} He posted {stat_line}."
+            ]
+        elif pos_bucket == "RB":
+            templates = [
+                f"The game turned when {player_name} ripped off the decisive scoring run for {team}.{school_tag} He finished with {stat_line}.",
+                f"{player_name} wore down the defense and iced the Super Bowl for {team}.{school_tag} His line: {stat_line}.",
+                f"The title-clinching sequence belonged to {player_name}, who powered {team} to the finish.{school_tag} He posted {stat_line}."
+            ]
+        elif pos_bucket in {"WR", "TE"}:
+            templates = [
+                f"The signature play came when {player_name} made the biggest catch of the night for {team}.{school_tag} He finished with {stat_line}.",
+                f"{player_name} delivered the moment that broke the Super Bowl open for {team}.{school_tag} He ended with {stat_line}.",
+                f"The championship swung on a clutch grab from {player_name} for {team}.{school_tag} He posted {stat_line}."
+            ]
+        elif pos_bucket in {"EDGE", "IDL", "LB"}:
+            templates = [
+                f"The turning point came when {player_name} blew up the pocket for {team} and changed the game.{school_tag} He finished with {stat_line}.",
+                f"{player_name} delivered the defensive play that sealed the title for {team}.{school_tag} He posted {stat_line}.",
+                f"The Super Bowl flipped when {player_name} made a game-changing stop for {team}.{school_tag} His final line was {stat_line}."
+            ]
+        elif pos_bucket in {"CB", "S"}:
+            templates = [
+                f"The defining moment came when {player_name} shut the door in coverage for {team}.{school_tag} He finished with {stat_line}.",
+                f"{player_name} made the secondary play that sealed the championship for {team}.{school_tag} He posted {stat_line}.",
+                f"The game swung on a back-end defensive play from {player_name} for {team}.{school_tag} He ended with {stat_line}."
+            ]
+        else:
+            templates = [
+                f"The defining moment came when {player_name} made the play that swung the game for {team}.{school_tag} He finished with {stat_line}.",
+                f"{player_name
+
 def generate_super_bowl_signature_moment(champion, runner_up, score, season_player_df, nfl_draft_hist_df=None):
     champion = str(champion)
     runner_up = str(runner_up)
@@ -102,25 +187,31 @@ def generate_super_bowl_signature_moment(champion, runner_up, score, season_play
             "player": clean_display(row.get("Player", ""), "Unknown Player"),
             "team": clean_display(row.get("NFLTeam", ""), ""),
             "pos": clean_display(row.get("Pos", ""), ""),
-            "stat": clean_display(row.get("StatLine", ""), ""),
+            "stat": generate_super_bowl_game_statline(row),
             "school": clean_display(meta.get("CollegeTeam", ""), ""),
             "user": clean_display(meta.get("CollegeUser", ""), "")
         }
 
     def make_hero_line(row):
         m = player_meta(row)
-        school_tag = f" Former {m['school']} star" if m["school"] else ""
-        return (
-            f"The defining moment came when {m['player']} and the {m['team']} delivered the play that swung the game."
-            f"{school_tag} {m['player']} finished with {m['stat']}."
+        return build_super_bowl_moment_text(
+            player_name=m["player"],
+            team=m["team"],
+            pos_bucket=clean_display(row.get("PosBucket", clean_bucket(row.get("Pos", ""))), ""),
+            school=m["school"],
+            stat_line=m["stat"],
+            is_hero=True
         )
 
     def make_failure_line(row):
         m = player_meta(row)
-        school_tag = f" Former {m['school']} standout" if m["school"] else ""
-        return (
-            f"The turning point was a crushing mistake by {m['team']} that flipped the game late."
-            f"{school_tag} {m['player']} was on the wrong side of the moment after posting {m['stat']}."
+        return build_super_bowl_moment_text(
+            player_name=m["player"],
+            team=m["team"],
+            pos_bucket=clean_display(row.get("PosBucket", clean_bucket(row.get("Pos", ""))), ""),
+            school=m["school"],
+            stat_line=m["stat"],
+            is_hero=False
         )
 
     used_player = ""
@@ -192,11 +283,21 @@ def generate_super_bowl_user_alumni_note(champion, runner_up, season_player_df, 
     r, meta = user_rows[0]
     player = clean_display(r.get("Player", ""), "")
     team = clean_display(r.get("NFLTeam", ""), "")
-    stat = clean_display(r.get("StatLine", ""), "")
+    stat = generate_super_bowl_game_statline(r)
     school = clean_display(meta.get("CollegeTeam", ""), "")
     user = clean_display(meta.get("CollegeUser", ""), "")
 
-    return f"User alumni note: {player} ({school}, {user}) also featured for the {team} with {stat}."
+    pos_bucket = clean_display(r.get("PosBucket", clean_bucket(r.get("Pos", ""))), "")
+
+    if pos_bucket == "QB":
+        return f"User alumni note: {player} ({school}, {user}) also had a major hand in the game for {team}, finishing with {stat}."
+    elif pos_bucket in {"RB", "WR", "TE"}:
+        return f"User alumni note: {player} ({school}, {user}) also produced in the Super Bowl for {team} with {stat}."
+    elif pos_bucket in {"EDGE", "IDL", "LB", "CB", "S"}:
+        return f"User alumni note: {player} ({school}, {user}) also showed up defensively for {team}, posting {stat}."
+    else:
+        return f"User alumni note: {player} ({school}, {user}) also contributed for {team} with {stat}."
+
 def play_user_pick_chime(audio_path="espn_chime.mp3"):
     try:
         if not st.session_state.get("draft_audio_enabled", False):
