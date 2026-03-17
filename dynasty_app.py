@@ -9531,11 +9531,39 @@ try:
         _hwn = str(_hw_row.get('NAME', '')).strip()
         _hwt = str(_hw_row.get('TEAM', '')).strip()
         _hwu = str(_hw_row.get('USER', '')).strip()
+        _hwp = str(_hw_row.get('POS', '')).strip()
+
+        if _hwn and _hwn.lower() != 'nan':
+            _hl = get_header_logo(_hwt)
+            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
+
+            _text = f"{_hwn}"
+            if _hwt and _hwp and _hwp.lower() != 'nan':
+                _text += f" ({_hwt}, {_hwp}) wins the {CURRENT_YEAR} Heisman Trophy"
+            elif _hwt:
+                _text += f" ({_hwt}) wins the {CURRENT_YEAR} Heisman Trophy"
+            else:
+                _text += f" wins the {CURRENT_YEAR} Heisman Trophy"
+
+            _blurb = f"{_hwt} ({_hwu}) takes home the hardware. The dynasty grows."
+            if not _hwu or _hwu.lower() == 'nan':
+                _blurb = f"{_hwt} takes home the hardware. The dynasty grows."
+
+            _all_headlines.append({
+                'badge': 'HEISMAN WINNER',
+                'priority': 69,
+                'text': _text,
+                'blurb': _blurb,
+                'logo_html': _lh,
+            })
+        _hwn = str(_hw_row.get('NAME', '')).strip()
+        _hwt = str(_hw_row.get('TEAM', '')).strip()
+        _hwu = str(_hw_row.get('USER', '')).strip()
         if _hwn and _hwn.lower() != 'nan':
             _hl = get_header_logo(_hwt)
             _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
             _all_headlines.append({
-                'badge': 'HEISMAN WINNER', 'priority': 95,
+                'badge': 'HEISMAN WINNER', 'priority': 69,
                 'text': f"{_hwn} wins the {CURRENT_YEAR} Heisman Trophy",
                 'blurb': f"{_hwt} ({_hwu}) takes home the hardware. The dynasty grows.",
                 'logo_html': _lh,
