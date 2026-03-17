@@ -3297,6 +3297,13 @@ def build_udfa_pool_for_season(season_year, cfb_roster_df, nfl_draft_hist_df):
 
         cpu_udfa = cpu_pool[~cpu_pool["PlayerID"].astype(str).isin(drafted_ids)].copy()
         if not cpu_udfa.empty:
+            cpu_udfa["CollegeUser"] = (
+                cpu_udfa.get("CollegeUser", "")
+                .fillna("")
+                .astype(str)
+                .replace(["nan", "None", "none", "<NA>"], "")
+                .str.strip()
+            )
             cpu_udfa["NFLUdfaOVR"] = cpu_udfa.apply(
                 lambda r: calc_udfa_entry_ovr(
                     cfb_ovr=safe_num(r.get("OVR", 75), 75),
@@ -3372,7 +3379,13 @@ def build_udfa_pool_for_season(season_year, cfb_roster_df, nfl_draft_hist_df):
         if not roster.empty:
             roster["Player"] = roster["Name"]
             roster["CollegeTeam"] = roster["Team"]
-            roster["CollegeUser"] = roster["User"]
+            roster["CollegeUser"] = (
+                roster.get("User", "")
+                .fillna("")
+                .astype(str)
+                .replace(["nan", "None", "none", "<NA>"], "")
+                .str.strip()
+            )
             roster["PosBucket"] = roster["Pos"].map(clean_bucket)
             roster["DraftYear"] = int(season_year - 1)
             roster["Class"] = roster["Year"]
@@ -3437,6 +3450,28 @@ def build_udfa_pool_for_season(season_year, cfb_roster_df, nfl_draft_hist_df):
     ).reset_index(drop=True)
 
     return udfa_df
+
+NFL_FA_FIRST_NAMES = [
+    "Marcus", "Darius", "Trevor", "Jalen", "Malik", "Andre", "Tyler", "Jordan",
+    "Chris", "Brandon", "Devin", "Xavier", "Tyrone", "Noah", "Javon", "Kendall",
+    "Isaiah", "Cameron", "Micah", "Elijah", "Rashad", "Trey", "Avery", "Donovan"
+]
+
+NFL_FA_LAST_NAMES = [
+    "Hawkins", "Morrison", "Daniels", "Bennett", "Carter", "Wallace", "Holmes", "Bryant",
+    "Foster", "Shelton", "Greene", "Patterson", "Mason", "Reed", "Porter", "Banks",
+    "Vaughn", "Collins", "Hayes", "Murray", "Sutton", "Webb", "Barber", "Gibson"
+]
+
+def generate_nfl_free_agent_name(used_names=None):
+    used_names = used_names or set()
+
+    for _ in range(100):
+        full_name = f"{random.choice(NFL_FA_FIRST_NAMES)} {random.choice(NFL_FA_LAST_NAMES)}"
+        if full_name.strip().lower() not in used_names:
+            return full_name
+
+    return f"Free Agent {random.randint(100, 999)}"
 
 def run_nfl_offseason_roster_maintenance(season_year, current_roster_df, cfb_roster_df=None, nfl_draft_hist_df=None):
     season_year = int(season_year)
@@ -3526,11 +3561,16 @@ def run_nfl_offseason_roster_maintenance(season_year, current_roster_df, cfb_ros
                 fill_ovr = get_free_agent_fill_ovr(team_strength, pos_bucket)
                 fill_age = random.randint(24, 31)
 
+                used_names = set(
+                    work.get("Name", pd.Series(dtype=str)).dropna().astype(str).str.strip().str.lower().tolist()
+                )
+                fa_name = generate_nfl_free_agent_name(used_names)
+
                 fill_rows.append({
                     "Season": season_year,
                     "Team": team,
                     "PlayerID": f"FA_{season_year}_{normalize_key(team)}_{pos_bucket}_{idx}_{random.randint(1000,9999)}",
-                    "Name": f"Veteran {pos_bucket} {idx}",
+                    "Name": fa_name,
                     "Pos": pos_bucket,
                     "PosBucket": pos_bucket,
                     "OVR": fill_ovr,
