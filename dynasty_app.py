@@ -14219,14 +14219,19 @@ with tabs[9]:
 
             selected_team_key = normalize_nfl_team_key(sel_nfl_team)
 
-            roster_source_df = nfl_current_rosters.copy() if nfl_current_rosters is not None and not nfl_current_rosters.empty else pd.DataFrame()
-            fallback_roster_df = nfl_roster.copy() if nfl_roster is not None and not nfl_roster.empty else pd.DataFrame()
+            selected_team_key = normalize_nfl_team_key(sel_nfl_team)
 
-            def _prepare_roster_df(df):
+            current_roster_df = nfl_current_rosters.copy() if nfl_current_rosters is not None and not nfl_current_rosters.empty else pd.DataFrame()
+            base_roster_df = nfl_roster.copy() if nfl_roster is not None and not nfl_roster.empty else pd.DataFrame()
+
+            def _prep_roster(df):
                 if df is None or df.empty:
                     return pd.DataFrame()
 
                 df = df.copy()
+
+                if "Team" not in df.columns:
+                    df["Team"] = ""
 
                 if "Player" not in df.columns:
                     df["Player"] = pd.NA
@@ -14237,32 +14242,35 @@ with tabs[9]:
                     df["Player"].notna() & (df["Player"].astype(str).str.strip() != ""),
                     df["Name"]
                 )
+                df["Player"] = df["Player"].fillna("Unknown Player")
 
                 if "Pos" not in df.columns:
                     df["Pos"] = ""
 
-                df["Player"] = df["Player"].fillna("Unknown Player")
+                if "OVR" not in df.columns:
+                    df["OVR"] = 0
+                df["OVR"] = pd.to_numeric(df["OVR"], errors="coerce").fillna(0)
+
+                df["__team_key"] = df["Team"].astype(str).map(normalize_nfl_team_key)
                 df["PosBucket"] = df["Pos"].map(clean_bucket)
                 return df
 
-            roster_source_df = _prepare_roster_df(roster_source_df)
-            fallback_roster_df = _prepare_roster_df(fallback_roster_df)
+            current_roster_df = _prep_roster(current_roster_df)
+            base_roster_df = _prep_roster(base_roster_df)
 
-            roster_team = pd.DataFrame()
-            if not roster_source_df.empty and "Team" in roster_source_df.columns:
-                roster_team = roster_source_df[
-                    roster_source_df["Team"].astype(str).map(normalize_nfl_team_key) == selected_team_key
-                ].copy()
+            roster_team_current = current_roster_df[
+                current_roster_df["__team_key"] == selected_team_key
+            ].copy() if not current_roster_df.empty else pd.DataFrame()
 
-            if roster_team.empty and not fallback_roster_df.empty and "Team" in fallback_roster_df.columns:
-                roster_team = fallback_roster_df[
-                    fallback_roster_df["Team"].astype(str).map(normalize_nfl_team_key) == selected_team_key
-                ].copy()
+            roster_team_base = base_roster_df[
+                base_roster_df["__team_key"] == selected_team_key
+            ].copy() if not base_roster_df.empty else pd.DataFrame()
+
+            roster_team = roster_team_current.copy() if not roster_team_current.empty else roster_team_base.copy()
 
             if not roster_team.empty:
                 roster_team = roster_team.sort_values("OVR", ascending=False).copy()
-
-            drafted_here = pd.DataFrame()
+                roster_team = roster_team.drop(columns=["__team_key"], errors="ignore")
             if not nfl_draft_hist.empty:
                 drafted_here = nfl_draft_hist[nfl_draft_hist["GeneratedNFLTeam"].astype(str) == sel_nfl_team].copy()
                 drafted_here = drafted_here.sort_values(["DraftYear", "GeneratedOverallPick"], ascending=[False, True])
