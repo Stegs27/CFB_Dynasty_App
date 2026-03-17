@@ -9714,9 +9714,9 @@ try:
     _rh_cy = _rh[_rh['Year'] == CURRENT_YEAR].copy()
     if not _rh_cy.empty:
         _rh_cy = _rh_cy.sort_values('Points', ascending=False).reset_index(drop=True)
-        _top10_rec = _rh_cy.head(10)
-        # One headline per top-10 team
-        for _ri, _rrow in _top10_rec.iterrows():
+        _top5_rec = _rh_cy.head(5)
+        # One headline per top-5 team
+        for _ri, _rrow in _top5_rec.iterrows():
             _rt = str(_rrow.get('Team', '')).strip()
             _ru = str(_rrow.get('User', '')).strip()
             _rpts = float(_rrow.get('Points', 0))
