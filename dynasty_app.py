@@ -428,12 +428,60 @@ def get_nfl_logo_html(team_name, width=52, margin="0"):
 
 
 def get_nfl_logo_src(team_name):
-    if 'image_file_to_data_uri' in globals():
-        local_path = get_nfl_logo_path(team_name)
-        if local_path:
-            uri = image_file_to_data_uri(local_path)
-            if uri:
-                return uri
+    team = str(team_name).strip().lower()
+
+    team_aliases = {
+        "cardinals": "cardinals",
+        "falcons": "falcons",
+        "ravens": "ravens",
+        "bills": "bills",
+        "panthers": "panthers",
+        "bears": "bears",
+        "bengals": "bengals",
+        "browns": "browns",
+        "cowboys": "cowboys",
+        "broncos": "broncos",
+        "lions": "lions",
+        "packers": "packers",
+        "texans": "texans",
+        "colts": "colts",
+        "jaguars": "jaguars",
+        "chiefs": "chiefs",
+        "raiders": "raiders",
+        "chargers": "chargers",
+        "rams": "rams",
+        "dolphins": "dolphins",
+        "vikings": "vikings",
+        "patriots": "patriots",
+        "saints": "saints",
+        "giants": "giants",
+        "jets": "jets",
+        "eagles": "eagles",
+        "steelers": "steelers",
+        "49ers": "49ers",
+        "seahawks": "seahawks",
+        "buccaneers": "buccaneers",
+        "bucs": "buccaneers",
+        "titans": "titans",
+        "commanders": "commanders",
+        "washington commanders": "commanders",
+        "washington": "commanders"
+    }
+
+    slug = team_aliases.get(team, team)
+
+    local_candidates = [
+        f"{slug}.png",
+        f"_{slug}.png",
+        f"nfl_{slug}.png",
+        os.path.join("logos", f"{slug}.png"),
+        os.path.join("assets", "logos", f"{slug}.png"),
+    ]
+
+    for path in local_candidates:
+        if os.path.exists(path):
+            return image_file_to_data_uri(path)
+
     return None
 
 
