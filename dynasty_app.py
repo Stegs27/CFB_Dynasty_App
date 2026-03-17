@@ -524,93 +524,66 @@ def calc_draft_value(row):
     return round((ovr * 0.70) + (awr * 0.08) + athletic_bonus + pos_bonus + class_bonus + variance, 2)
 
 
-def build_nfl_team_needs(nfl_df):
-    if nfl_df is None or nfl_df.empty:
-        return pd.DataFrame(columns=["NFLTeam", "PosBucket", "NeedScore", "StarterOVR", "StarterAge", "DepthCount"])
+def build_nfl_team_needs(nfl_roster_df):
+    if nfl_roster_df is None or nfl_roster_df.empty:
+        return pd.DataFrame(columns=[
+            "NFLTeam", "PosBucket", "NeedScore", "StarterOVR", "StarterAge", "DepthCount"
+        ])
 
-    work = nfl_df.copy()
-    work["PosBucket"] = work["Pos"].map(clean_bucket)
+    df = nfl_roster_df.copy()
 
-    if "Age" not in work.columns:
-        work["Age"] = 25
-    work["Age"] = pd.to_numeric(work["Age"], errors="coerce").fillna(25)
+    if "Team" not in df.columns:
+        df["Team"] = ""
+    if "Pos" not in df.columns:
+        df["Pos"] = ""
+    if "OVR" not in df.columns:
+        df["OVR"] = 70
+    if "Age" not in df.columns:
+        df["Age"] = 25
 
-    rows = []
-    all_buckets = ["QB", "RB", "WR", "TE", "OL", "EDGE", "IDL", "LB", "CB", "S"]
+    df["Team"] = df["Team"].fillna("").astype(str).str.strip()
+    df["Pos"] = df["Pos"].fillna("").astype(str).str.strip()
+    df["OVR"] = pd.to_numeric(df["OVR"], errors="coerce").fillna(70)
+    df["Age"] = pd.to_numeric(df["Age"], errors="coerce").fillna(25)
+    df["PosBucket"] = df["Pos"].map(clean_bucket)
 
-    for team in sorted(work["Team"].dropna().astype(str).unique()):
-        team_df = work[work["Team"].astype(str) == str(team)].copy()
+    # Room targets / starter counts
+    room_targets = {
+        "QB": 3,
+        "RB": 4,
+        "WR": 6,
+        "TE": 3,
+        "OL": 9,
+        "EDGE": 4,
+        "IDL": 4,
+        "LB": 5,
+        "CB": 5,
+        "S": 4
+    }
 
-        for bucket in all_buckets:
-            room = team_df[team_df["PosBucket"] == bucket].copy().sort_values("OVR", ascending=False)
+    starter_counts = {
+        "QB": 1,
+        "RB": 1,
+        "WR": 3,
+        "TE": 1,
+        "OL": 5,
+        "EDGE": 2,
+        "IDL": 2,
+        "LB": 3,
+        "CB": 2,
+        "S": 2
+    }
 
-            starter_ovr = safe_num(room["OVR"].iloc[0], 60.0) if len(room) >= 1 else 60.0
-            starter_age = safe_num(room["Age"].iloc[0], 25.0) if len(room) >= 1 else 25.0
-            room_avg = safe_num(pd.to_numeric(room["OVR"], errors="coerce").head(3).mean(), 60.0) if len(room) else 60.0
-            depth_count = int(len(room))
-
-            need = 0.0
-            need += max(0, 82 - starter_ovr) * 2.0
-            need += max(0, 75 - room_avg) * 1.2
-            need += 8.0 if starter_age >= 29 else 0.0
-            need += 6.0 if depth_count <= 2 else 0.0
-
-            # Smarter anti-repeat premium position logic
-            if bucket == "QB":
-                # Strongly reward true QB need
-                if starter_ovr <= 74:
-                    need += 28.0
-                elif starter_ovr <= 78:
-                    need += 18.0
-                elif starter_ovr <= 82:
-                    need += 8.0
-
-                # Suppress when team already has a real franchise or young starter
-                if starter_ovr >= 95 and starter_age <= 31:
-                    need -= 45.0
-                elif starter_ovr >= 90 and starter_age <= 32:
-                    need -= 35.0
-                elif starter_ovr >= 85 and starter_age <= 30:
-                    need -= 25.0
-                elif starter_ovr >= 82 and starter_age <= 28:
-                    need -= 15.0
-
-                # Stable room suppression
-                if depth_count >= 2:
-                    top2_avg = safe_num(pd.to_numeric(room["OVR"], errors="coerce").head(2).mean(), 70)
-                    if top2_avg >= 80:
-                        need -= 12.0
-                    elif top2_avg >= 76:
-                        need -= 6.0
-
-            if bucket == "RB":
-                if starter_ovr >= 84 and starter_age <= 27:
-                    need -= 8.0
-
-            if bucket == "WR":
-                if depth_count >= 4 and room_avg >= 80:
-                    need -= 6.0
-
-            if bucket == "CB":
-                if depth_count >= 4 and room_avg >= 79:
-                    need -= 6.0
-
-            if bucket == "OL":
-                if depth_count >= 6 and room_avg >= 78:
-                    need -= 5.0
-
-            need = max(0.0, round(need, 2))
-
-            rows.append({
-                "NFLTeam": team,
-                "PosBucket": bucket,
-                "NeedScore": need,
-                "StarterOVR": starter_ovr,
-                "StarterAge": starter_age,
-                "DepthCount": depth_count
-            })
-
-    return pd.DataFrame(rows)
+    premium_weight = {
+        "QB": 1.55,
+        "OL": 1.20,
+        "EDGE": 1.18,
+        "CB": 1.12,
+        "WR": 1.10,
+        "LT": 1.15,  # harmless if not used
+        "S": 1.00,
+        "RB": 0.95,
+        "TE":
 
 
 def assign_career_tier(round_num):
@@ -14738,48 +14711,130 @@ with tabs[9]:
             left, right = st.columns([1.2, 1])
 
             with left:
-                st.markdown("#### Current Top Roster")
+                st.markdown("#### Projected Starters")
 
                 if roster_team.empty:
                     st.caption("No roster rows found for this team.")
                 else:
-                    show_cols = [c for c in ["Player", "Pos", "PosBucket", "OVR", "Age", "Status", "Source", "SPD", "ACC", "AWR"] if c in roster_team.columns]
-                    roster_show = roster_team[show_cols].head(20).copy()
-
-                    if "Source" in roster_show.columns:
-                        roster_show["Source"] = roster_show["Source"].replace({
-                            "dynasty_player": "Dynasty",
-                            "base_nfl_roster": "Base",
-                            "free_agent_fill": "Veteran Fill",
-                            "udfa_fill": "UDFA"
-                        })
-
-                    roster_logo_src = get_nfl_logo_src(sel_nfl_team)
-                    roster_show.insert(0, "Team Logo", roster_logo_src if roster_logo_src else "")
-
-                    st.dataframe(
-                        roster_show,
-                        hide_index=True,
-                        use_container_width=True,
-                        column_config={
-                            "Team Logo": st.column_config.ImageColumn("")
-                        }
-                    )
-
-            with right:
-                st.markdown("#### Team Need Profile")
-                need_show = team_needs[team_needs["NFLTeam"] == sel_nfl_team].copy()
-                need_show = need_show.sort_values("NeedScore", ascending=False)
-                need_show.insert(0, "Team Logo", get_nfl_logo_src(sel_nfl_team))
-
-                st.dataframe(
-                    need_show[["Team Logo", "PosBucket", "NeedScore", "StarterOVR", "StarterAge", "DepthCount"]],
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "Team Logo": st.column_config.ImageColumn("")
+                    starter_targets = {
+                        "QB": 1,
+                        "RB": 1,
+                        "WR": 3,
+                        "TE": 1,
+                        "OL": 5,
+                        "EDGE": 2,
+                        "IDL": 2,
+                        "LB": 3,
+                        "CB": 2,
+                        "S": 2
                     }
-                )
+
+                    roster_work = roster_team.copy()
+                    roster_work["OVR"] = pd.to_numeric(roster_work["OVR"], errors="coerce").fillna(0)
+                    roster_work["Age"] = pd.to_numeric(roster_work.get("Age", 25), errors="coerce").fillna(25)
+
+                    starter_frames = []
+                    for bucket, starter_n in starter_targets.items():
+                        room_df = roster_work[
+                            roster_work["PosBucket"].astype(str) == str(bucket)
+                        ].copy().sort_values(["OVR", "Age"], ascending=[False, True])
+
+                        if room_df.empty:
+                            continue
+
+                        starter_frames.append(room_df.head(starter_n).copy())
+
+                    starters_df = pd.concat(starter_frames, ignore_index=True) if starter_frames else pd.DataFrame()
+
+                    if starters_df.empty:
+                        st.caption("No projected starters found.")
+                    else:
+                        show_cols = [c for c in ["Player", "Pos", "PosBucket", "OVR", "Age", "Status", "Source"] if c in starters_df.columns]
+                        starters_show = starters_df[show_cols].copy()
+
+                        if "Source" in starters_show.columns:
+                            starters_show["Source"] = starters_show["Source"].replace({
+                                "dynasty_player": "Dynasty",
+                                "base_nfl_roster": "Base",
+                                "free_agent_fill": "Veteran Fill",
+                                "udfa_fill": "UDFA"
+                            })
+
+                        roster_logo_src = get_nfl_logo_src(sel_nfl_team)
+                        starters_show.insert(0, "Team Logo", roster_logo_src if roster_logo_src else "")
+
+                        st.dataframe(
+                            starters_show,
+                            hide_index=True,
+                            use_container_width=True,
+                            column_config={
+                                "Team Logo": st.column_config.ImageColumn("")
+                            }
+                        )
+
+                    st.markdown("#### Depth / Reserves")
+
+                    if starters_df.empty:
+                        depth_df = roster_work.copy()
+                    else:
+                        starter_keys = set(
+                            starters_df.apply(
+                                lambda r: f"{str(r.get('Player','')).strip().lower()}||{str(r.get('PosBucket','')).strip().upper()}",
+                                axis=1
+                            ).tolist()
+                        )
+
+                        roster_work["__starter_key"] = roster_work.apply(
+                            lambda r: f"{str(r.get('Player','')).strip().lower()}||{str(r.get('PosBucket','')).strip().upper()}",
+                            axis=1
+                        )
+
+                        used_keys = set()
+                        starter_key_multiset = {}
+                        for key in starters_df.apply(
+                            lambda r: f"{str(r.get('Player','')).strip().lower()}||{str(r.get('PosBucket','')).strip().upper()}",
+                            axis=1
+                        ).tolist():
+                            starter_key_multiset[key] = starter_key_multiset.get(key, 0) + 1
+
+                        keep_rows = []
+                        seen_counts = {}
+                        for _, rr in roster_work.iterrows():
+                            key = rr["__starter_key"]
+                            seen_counts[key] = seen_counts.get(key, 0) + 1
+                            if seen_counts[key] > starter_key_multiset.get(key, 0):
+                                keep_rows.append(True)
+                            else:
+                                keep_rows.append(False)
+
+                        depth_df = roster_work[keep_rows].copy()
+                        depth_df = depth_df.drop(columns=["__starter_key"], errors="ignore")
+
+                    if depth_df.empty:
+                        st.caption("No depth/reserve players found.")
+                    else:
+                        depth_show_cols = [c for c in ["Player", "Pos", "PosBucket", "OVR", "Age", "Status", "Source"] if c in depth_df.columns]
+                        depth_show = depth_df[depth_show_cols].head(25).copy()
+
+                        if "Source" in depth_show.columns:
+                            depth_show["Source"] = depth_show["Source"].replace({
+                                "dynasty_player": "Dynasty",
+                                "base_nfl_roster": "Base",
+                                "free_agent_fill": "Veteran Fill",
+                                "udfa_fill": "UDFA"
+                            })
+
+                        roster_logo_src = get_nfl_logo_src(sel_nfl_team)
+                        depth_show.insert(0, "Team Logo", roster_logo_src if roster_logo_src else "")
+
+                        st.dataframe(
+                            depth_show,
+                            hide_index=True,
+                            use_container_width=True,
+                            column_config={
+                                "Team Logo": st.column_config.ImageColumn("")
+                            }
+                        )
 
             st.markdown("#### Dynasty Alumni on This Team")
             if drafted_here.empty:
