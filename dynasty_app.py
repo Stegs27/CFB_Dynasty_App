@@ -1982,7 +1982,11 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
                 cand_copy["__fit_score"] = fit_score
                 candidate_rows.append(cand_copy)
 
-            candidate_df = pd.DataFrame(candidate_rows).sort_values(
+            candidate_df = pd.DataFrame(candidate_rows)
+            if candidate_df.empty:
+                continue
+
+            candidate_df = candidate_df.sort_values(
                 ["__fit_score", "OVR", "DraftValueScore"],
                 ascending=[False, False, False]
             )
@@ -2115,7 +2119,11 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
                     cand_copy["__fit_score"] = fit_score
                     candidate_rows.append(cand_copy)
 
-                candidate_df = pd.DataFrame(candidate_rows).sort_values(
+                candidate_df = pd.DataFrame(candidate_rows)
+                if candidate_df.empty:
+                    continue
+
+                candidate_df = candidate_df.sort_values(
                     ["__fit_score", "OVR", "DraftValueScore"],
                     ascending=[False, False, False]
                 )
