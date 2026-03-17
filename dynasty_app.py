@@ -14261,7 +14261,7 @@ with tabs[9]:
 
             if not roster_team.empty:
                 roster_team = roster_team.sort_values("OVR", ascending=False).copy()
-                return df
+            return df
 
             roster_source_df = _prepare_roster_df(roster_source_df)
             fallback_roster_df = _prepare_roster_df(fallback_roster_df)
