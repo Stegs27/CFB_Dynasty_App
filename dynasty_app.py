@@ -8688,7 +8688,7 @@ tabs = st.tabs([
     "🚪 Roster Attrition",      # tabs[5]
     "🎯 Roster Matchup",        # tabs[6]
     "📊 Team Overview",         # tabs[7]
-    "🏈 Recruiting Rankings",   # tabs[8]
+    "🥇 Recruiting Rankings",   # tabs[8]
     "🏈 NFL Universe",          # tabs[9]
     "⚔️ H2H Matrix",            # tabs[10]
     "🎬 ISPN Classics",         # tabs[11]
