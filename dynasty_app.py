@@ -164,8 +164,9 @@ NFL_DRAFT_HISTORY_COLS = [
 ]
 
 NFL_PLAYER_HISTORY_COLS = [
-    "Season", "PlayerID", "Player", "NFLTeam", "Pos", "PosBucket", "Age", "Role", "OverallStart",
-    "OverallEnd", "Games", "Starts", "StatLine", "ProBowl", "AllPro", "MVPVotes",
+    "Season", "PlayerID", "Player", "NFLTeam", "Pos", "PosBucket", "Age", "Role",
+    "OverallStart", "OverallEnd", "PeakOVR", "ProOutcome", "DevelopmentCurve",
+    "Games", "Starts", "StatLine", "ProBowl", "AllPro", "MVPVotes",
     "SuperBowlWin", "SuperBowlAppear", "CareerValue", "Status"
 ]
 
@@ -813,35 +814,66 @@ def assign_pro_outcome(cfb_ovr, draft_round, pos_bucket="", awr=75, spd=75, age=
     pos_bucket = str(pos_bucket).strip().upper()
 
     score = 0.0
+    score += (cfb_ovr - 80) * 1.2
+    score += max(0, 8 - draft_round) * 1.8
+    score += (awr - 75) * 0.45
+    score += (spd - 75) * 0.20
 
-    score += (cfb_ovr - 80) * 1.6
-    score += max(0, 8 - draft_round) * 2.2
-    score += (awr - 75) * 0.7
-    score += (spd - 75) * 0.25
+    volatility = 0.0
+    if pos_bucket == "QB":
+        volatility = random.uniform(-10, 8)
+    elif pos_bucket in {"WR", "CB", "EDGE"}:
+        volatility = random.uniform(-8, 7)
+    elif pos_bucket in {"RB", "S", "LB"}:
+        volatility = random.uniform(-6, 5)
+    else:
+        volatility = random.uniform(-5, 4)
 
     if age <= 21:
-        score += random.uniform(-3, 5)
+        volatility += random.uniform(-3, 3)
     elif age >= 24:
-        score += random.uniform(-1, 2)
+        volatility += random.uniform(-1, 1)
+
+    score += volatility
+
+    bust_roll = random.random()
+
+    if draft_round == 1:
+        if cfb_ovr >= 95:
+            if bust_roll < 0.05:
+                return "Bust", "Flat"
+            elif bust_roll < 0.16:
+                return "Developmental", "Slow Burn"
+        elif cfb_ovr >= 90:
+            if bust_roll < 0.08:
+                return "Bust", "Flat"
+            elif bust_roll < 0.24:
+                return "Developmental", "Slow Burn"
+        else:
+            if bust_roll < 0.12:
+                return "Bust", "Flat"
+            elif bust_roll < 0.30:
+                return "Developmental", "Slow Burn"
+
+    elif draft_round in {2, 3}:
+        if bust_roll < 0.14:
+            return "Bust", "Flat"
+        elif bust_roll < 0.34:
+            return "Developmental", "Slow Burn"
+
     else:
-        score += random.uniform(-2, 3)
+        if bust_roll < 0.22:
+            return "Bust", "Flat"
+        elif bust_roll < 0.48:
+            return "Developmental", "Slow Burn"
 
-    if pos_bucket == "QB":
-        score += random.uniform(-6, 4)
-    elif pos_bucket in {"WR", "CB", "EDGE"}:
-        score += random.uniform(-4, 4)
-    elif pos_bucket in {"OL", "TE", "LB"}:
-        score += random.uniform(-2, 3)
-
-    score += random.uniform(-8, 8)
-
-    if score >= 42:
+    if score >= 34:
         return "Superstar", "Fast Rise"
-    elif score >= 32:
+    elif score >= 26:
         return "Star", "Fast Rise"
-    elif score >= 22:
+    elif score >= 18:
         return "Impact Starter", "Steady Rise"
-    elif score >= 12:
+    elif score >= 10:
         return "Steady Starter", "Normal"
     elif score >= 4:
         return "Developmental", "Slow Burn"
@@ -862,11 +894,11 @@ def estimate_peak_ovr_from_outcome(rookie_ovr, pro_outcome):
     elif outcome == "Steady Starter":
         peak = rookie_ovr + random.randint(2, 5)
     elif outcome == "Developmental":
-        peak = rookie_ovr + random.randint(1, 4)
-    else:
-        peak = rookie_ovr + random.randint(-3, 1)
+        peak = rookie_ovr + random.randint(0, 3)
+    else:  # Bust
+        peak = rookie_ovr + random.randint(-6, 0)
 
-    return max(68, min(99, peak))
+    return max(62, min(99, peak))
 
 def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
     if cfb_draft_df is None or cfb_draft_df.empty:
@@ -2679,6 +2711,73 @@ def choose_super_bowl_mvp(champion, player_season_rows):
     top = team_df.iloc[0]
     return str(top.get("Player", "Team MVP")), champion
 
+def calc_nfl_progression_delta(age, years_pro, rookie_role, career_tier, pro_outcome, development_curve):
+    age = int(safe_num(age, 23))
+    years_pro = int(safe_num(years_pro, 1))
+    rookie_role = str(rookie_role).strip()
+    career_tier = str(career_tier).strip()
+    pro_outcome = str(pro_outcome).strip()
+    development_curve = str(development_curve).strip()
+
+    delta = 0.0
+
+    # Age curve
+    if age <= 22:
+        delta += random.uniform(1.5, 4.0)
+    elif age <= 24:
+        delta += random.uniform(1.0, 3.0)
+    elif age <= 27:
+        delta += random.uniform(0.0, 1.5)
+    elif age <= 29:
+        delta += random.uniform(-0.5, 0.8)
+    elif age <= 31:
+        delta += random.uniform(-1.5, 0.2)
+    else:
+        delta += random.uniform(-3.0, -0.5)
+
+    # Development path
+    if development_curve == "Fast Rise":
+        if years_pro <= 3:
+            delta += random.uniform(1.0, 2.5)
+    elif development_curve == "Steady Rise":
+        if years_pro <= 4:
+            delta += random.uniform(0.5, 1.5)
+    elif development_curve == "Slow Burn":
+        if years_pro <= 2:
+            delta += random.uniform(-1.0, 0.5)
+        elif years_pro <= 5:
+            delta += random.uniform(0.5, 2.0)
+    elif development_curve == "Flat":
+        delta += random.uniform(-1.0, 0.5)
+
+    # Outcome influence
+    if pro_outcome == "Superstar":
+        delta += random.uniform(0.8, 2.0)
+    elif pro_outcome == "Star":
+        delta += random.uniform(0.4, 1.4)
+    elif pro_outcome == "Impact Starter":
+        delta += random.uniform(0.1, 1.0)
+    elif pro_outcome == "Steady Starter":
+        delta += random.uniform(-0.2, 0.8)
+    elif pro_outcome == "Developmental":
+        delta += random.uniform(-0.5, 1.0)
+    elif pro_outcome == "Bust":
+        delta += random.uniform(-2.2, -0.2)
+
+    # Role / tier nudges
+    if rookie_role in {"Day 1 Starter", "Featured Rookie"}:
+        delta += random.uniform(0.2, 1.0)
+    elif rookie_role in {"Depth Piece", "Bench Development"}:
+        delta += random.uniform(-0.4, 0.3)
+
+    if career_tier == "Superstar":
+        delta += random.uniform(0.4, 1.0)
+    elif career_tier == "Star":
+        delta += random.uniform(0.2, 0.8)
+    elif career_tier == "Depth":
+        delta += random.uniform(-0.5, 0.2)
+
+    return round(delta, 2)
 
 def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_df=None, existing_player_hist_df=None):
     if nfl_draft_hist_df is None:
@@ -2716,34 +2815,48 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
         bucket = str(r.get("PosBucket", clean_bucket(pos)))
         rookie_role = str(r.get("RookieRole", "Depth Piece"))
         career_tier = str(r.get("CareerTier", "Starter"))
+        pro_outcome = str(r.get("ProOutcome", "Steady Starter")).strip()
+        development_curve = str(r.get("DevelopmentCurve", "Normal")).strip()
 
-        base_ovr = int(safe_num(r.get("OVR", 75), 75))
-        peak_ovr = int(safe_num(r.get("PeakOVR", base_ovr + 3), base_ovr + 3))
+        rookie_entry_ovr = int(safe_num(r.get("OVR", 75), 75))
+        peak_ovr = int(safe_num(r.get("PeakOVR", rookie_entry_ovr + 3), rookie_entry_ovr + 3))
         round_num = int(safe_num(r.get("DraftRoundCanon", 7), 7))
 
         age = 21 + years_pro
-        growth_curve = min(1.0, years_pro / 4.0)
-        tier_bonus_map = {
-            "Superstar": 1.00,
-            "Star": 0.85,
-            "Solid Starter": 0.72,
-            "Starter": 0.60,
-            "Rotation": 0.45,
-            "Fringe": 0.28,
-            "Bust": 0.18
-        }
-        tier_bonus = tier_bonus_map.get(career_tier, 0.55)
 
-        overall_start = int(round(base_ovr + (peak_ovr - base_ovr) * max(0, growth_curve - 0.18) * tier_bonus))
-        age_penalty = max(0, age - 29)
-        overall_end = max(60, min(99, int(round(overall_start + random.randint(-1, 3) - age_penalty * 0.5))))
+        overall_start = rookie_entry_ovr
+        if years_pro > 1:
+            prior_rows = existing_player_hist_df[
+                existing_player_hist_df["PlayerID"].astype(str) == str(player_id)
+            ].copy() if existing_player_hist_df is not None and not existing_player_hist_df.empty else pd.DataFrame()
+
+            if not prior_rows.empty and "Season" in prior_rows.columns:
+                prior_rows["Season"] = pd.to_numeric(prior_rows["Season"], errors="coerce")
+                prior_rows = prior_rows[
+                    prior_rows["Season"].fillna(-1).astype(int) < int(season_year)
+                ].sort_values("Season")
+
+                if not prior_rows.empty:
+                    overall_start = int(safe_num(prior_rows.iloc[-1].get("OverallEnd", rookie_entry_ovr), rookie_entry_ovr))
+
+        progression_delta = calc_nfl_progression_delta(
+            age=age,
+            years_pro=years_pro,
+            rookie_role=rookie_role,
+            career_tier=career_tier,
+            pro_outcome=pro_outcome,
+            development_curve=development_curve
+        )
+
+        overall_end = int(round(overall_start + progression_delta))
+        overall_end = max(62, min(peak_ovr, overall_end))
 
         if years_pro == 1:
             role = rookie_role
         else:
-            if career_tier in {"Superstar", "Star", "Solid Starter"}:
+            if pro_outcome in {"Superstar", "Star", "Impact Starter"}:
                 role = "Starter"
-            elif career_tier in {"Starter", "Rotation"}:
+            elif pro_outcome in {"Steady Starter", "Developmental"}:
                 role = "Rotation"
             else:
                 role = "Depth"
@@ -2752,7 +2865,7 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
         starts = 0
         if role in {"Starter", "QB Battle"}:
             starts = random.randint(8, 17)
-        elif role in {"WR3", "CB3", "RB2", "TE2", "Starter Battle", "Primary Rotation", "Pass Rush Rotation", "DL Rotation", "LB Rotation", "DB Rotation", "Committee Back"}:
+        elif role in {"WR3", "CB3", "RB2", "TE2", "Starter Battle", "Primary Rotation", "Pass Rush Rotation", "DL Rotation", "LB Rotation", "DB Rotation", "Committee Back", "Rotation"}:
             starts = random.randint(1, 9)
         else:
             starts = random.randint(0, 4)
@@ -2785,9 +2898,9 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
         else:
             stat_line = f"{games} games, {starts} starts"
 
-        pro_bowl = "Yes" if overall_end >= 90 and random.random() < 0.55 else "No"
-        all_pro = "Yes" if overall_end >= 93 and random.random() < 0.28 else "No"
-        mvp_votes = int(random.randint(1, 10)) if bucket == "QB" and overall_end >= 92 and random.random() < 0.22 else 0
+        pro_bowl = "Yes" if overall_end >= 90 and pro_outcome in {"Superstar", "Star", "Impact Starter"} and random.random() < 0.55 else "No"
+        all_pro = "Yes" if overall_end >= 93 and pro_outcome in {"Superstar", "Star"} and random.random() < 0.28 else "No"
+        mvp_votes = int(random.randint(1, 10)) if bucket == "QB" and overall_end >= 92 and pro_outcome in {"Superstar", "Star"} and random.random() < 0.22 else 0
 
         career_value = round(
             overall_end * 0.45 +
@@ -2800,9 +2913,9 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
         )
 
         status = "Active"
-        if career_tier == "Bust" and years_pro >= 3 and overall_end < 74 and random.random() < 0.35:
+        if pro_outcome == "Bust" and years_pro >= 3 and overall_end < 74 and random.random() < 0.35:
             status = "Fringe"
-        if age >= 33 and career_tier not in {"Superstar", "Star"} and random.random() < 0.30:
+        if age >= 33 and pro_outcome not in {"Superstar", "Star"} and random.random() < 0.30:
             status = "Declining"
 
         rows.append({
@@ -2816,6 +2929,9 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
             "Role": role,
             "OverallStart": int(overall_start),
             "OverallEnd": int(overall_end),
+            "PeakOVR": int(peak_ovr),
+            "ProOutcome": pro_outcome,
+            "DevelopmentCurve": development_curve,
             "Games": int(games),
             "Starts": int(starts),
             "StatLine": stat_line,
@@ -2826,7 +2942,6 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
             "SuperBowlAppear": "No",
             "CareerValue": career_value,
             "Status": status
-        })
 
     new_df = pd.DataFrame(rows, columns=NFL_PLAYER_HISTORY_COLS)
 
@@ -12860,7 +12975,7 @@ with tabs[9]:
             view_cols = [
                 "GeneratedOverallPick", "DraftRoundCanon", "Player", "CollegeTeam", "CollegeUser",
                 "Pos", "PosBucket", "CollegeOVR", "OVR", "GeneratedNFLTeam",
-                "RookieRole", "CareerTier", "ProOutcome", "DevelopmentCurve", "StoryTag"
+                "RookieRole", "CareerTier", "StoryTag"
             ]
 
             show_df = yr_df[view_cols].copy().rename(columns={
@@ -12871,8 +12986,6 @@ with tabs[9]:
                 "CollegeOVR": "College OVR",
                 "OVR": "NFL Rookie OVR",
                 "GeneratedNFLTeam": "NFL Team",
-                "ProOutcome": "Pro Outcome",
-                "DevelopmentCurve": "Dev Curve"
             })
 
             show_df.insert(3, "School Logo", show_df["School"].map(get_school_logo_src))
