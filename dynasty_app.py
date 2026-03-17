@@ -3536,6 +3536,7 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
 def simulate_nfl_season(season_year=None):
     universe = load_nfl_universe_data()
     nfl_roster = universe["nfl_roster"]
+    cfb_roster = universe["cfb_roster"]
     nfl_draft_hist = universe["nfl_draft_hist"]
     nfl_player_hist = universe["nfl_player_hist"]
     nfl_super_bowl = universe["nfl_super_bowl"]
@@ -3759,7 +3760,7 @@ def simulate_nfl_season(season_year=None):
     next_season_roster = run_nfl_offseason_roster_maintenance(
         season_year=season_year + 1,
         current_roster_df=next_season_roster,
-        cfb_draft_df=cfb_draft,
+        cfb_roster_df=cfb_roster,
         nfl_draft_hist_df=nfl_draft_hist
     )
 
