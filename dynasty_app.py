@@ -64,6 +64,140 @@ if "draft_audio_enabled" not in st.session_state:
 def enable_draft_audio():
     st.session_state["draft_audio_enabled"] = True
 
+def simulate_nfl_season(season_year=None):
+def generate_super_bowl_signature_moment(champion, runner_up, score, season_player_df, nfl_draft_hist_df=None):
+    champion = str(champion)
+    runner_up = str(runner_up)
+    score = str(score)
+
+    if season_player_df is None or season_player_df.empty:
+        return f"{champion} made the final drive stand up in a gritty {score} Super Bowl win.", ""
+
+    game_pool = season_player_df[
+        season_player_df["NFLTeam"].astype(str).isin([champion, runner_up])
+    ].copy()
+
+    if game_pool.empty:
+        return f"{champion} made the final drive stand up in a gritty {score} Super Bowl win.", ""
+
+    draft_lookup = {}
+    if nfl_draft_hist_df is not None and not nfl_draft_hist_df.empty:
+        for _, dr in nfl_draft_hist_df.iterrows():
+            draft_lookup[str(dr.get("PlayerID", ""))] = {
+                "CollegeTeam": clean_display(dr.get("CollegeTeam", ""), ""),
+                "CollegeUser": clean_display(dr.get("CollegeUser", ""), "")
+            }
+
+    game_pool["CareerValue"] = pd.to_numeric(game_pool.get("CareerValue", 0), errors="coerce").fillna(0)
+    game_pool["OverallEnd"] = pd.to_numeric(game_pool.get("OverallEnd", 0), errors="coerce").fillna(0)
+
+    def is_user_alum(row):
+        meta = draft_lookup.get(str(row.get("PlayerID", "")), {})
+        return clean_display(meta.get("CollegeUser", ""), "") != ""
+
+    user_pool = game_pool[game_pool.apply(is_user_alum, axis=1)].copy()
+
+    def player_meta(row):
+        meta = draft_lookup.get(str(row.get("PlayerID", "")), {})
+        return {
+            "player": clean_display(row.get("Player", ""), "Unknown Player"),
+            "team": clean_display(row.get("NFLTeam", ""), ""),
+            "pos": clean_display(row.get("Pos", ""), ""),
+            "stat": clean_display(row.get("StatLine", ""), ""),
+            "school": clean_display(meta.get("CollegeTeam", ""), ""),
+            "user": clean_display(meta.get("CollegeUser", ""), "")
+        }
+
+    def make_hero_line(row):
+        m = player_meta(row)
+        school_tag = f" Former {m['school']} star" if m["school"] else ""
+        return (
+            f"The defining moment came when {m['player']} and the {m['team']} delivered the play that swung the game."
+            f"{school_tag} {m['player']} finished with {m['stat']}."
+        )
+
+    def make_failure_line(row):
+        m = player_meta(row)
+        school_tag = f" Former {m['school']} standout" if m["school"] else ""
+        return (
+            f"The turning point was a crushing mistake by {m['team']} that flipped the game late."
+            f"{school_tag} {m['player']} was on the wrong side of the moment after posting {m['stat']}."
+        )
+
+    used_player = ""
+
+    # Prefer a user alumni hero from the champion
+    user_champs = user_pool[user_pool["NFLTeam"].astype(str) == champion].copy()
+    if not user_champs.empty:
+        hero = user_champs.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).iloc[0]
+        used_player = clean_display(hero.get("Player", ""), "")
+        return make_hero_line(hero), used_player
+
+    # Otherwise, prefer the best overall champion player
+    champ_pool = game_pool[game_pool["NFLTeam"].astype(str) == champion].copy()
+    if not champ_pool.empty:
+        hero = champ_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).iloc[0]
+        used_player = clean_display(hero.get("Player", ""), "")
+        return make_hero_line(hero), used_player
+
+    # Fallback failure from runner-up
+    runner_pool = game_pool[game_pool["NFLTeam"].astype(str) == runner_up].copy()
+    if not runner_pool.empty:
+        fail = runner_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[True, True]).iloc[0]
+        used_player = clean_display(fail.get("Player", ""), "")
+        return make_failure_line(fail), used_player
+
+    return f"{champion} made the final drive stand up in a gritty {score} Super Bowl win.", used_player
+
+def generate_super_bowl_user_alumni_note(champion, runner_up, season_player_df, nfl_draft_hist_df=None, already_used_player=""):
+    if season_player_df is None or season_player_df.empty or nfl_draft_hist_df is None or nfl_draft_hist_df.empty:
+        return ""
+
+    game_pool = season_player_df[
+        season_player_df["NFLTeam"].astype(str).isin([str(champion), str(runner_up)])
+    ].copy()
+
+    if game_pool.empty:
+        return ""
+
+    draft_lookup = {}
+    for _, dr in nfl_draft_hist_df.iterrows():
+        draft_lookup[str(dr.get("PlayerID", ""))] = {
+            "CollegeTeam": clean_display(dr.get("CollegeTeam", ""), ""),
+            "CollegeUser": clean_display(dr.get("CollegeUser", ""), "")
+        }
+
+    game_pool["CareerValue"] = pd.to_numeric(game_pool.get("CareerValue", 0), errors="coerce").fillna(0)
+    game_pool["OverallEnd"] = pd.to_numeric(game_pool.get("OverallEnd", 0), errors="coerce").fillna(0)
+
+    user_rows = []
+    for _, r in game_pool.iterrows():
+        meta = draft_lookup.get(str(r.get("PlayerID", "")), {})
+        if clean_display(meta.get("CollegeUser", ""), ""):
+            player_name = clean_display(r.get("Player", ""), "")
+            if player_name and player_name != already_used_player:
+                user_rows.append((r, meta))
+
+    if not user_rows:
+        return ""
+
+    user_rows = sorted(
+        user_rows,
+        key=lambda x: (
+            safe_num(x[0].get("CareerValue", 0), 0),
+            safe_num(x[0].get("OverallEnd", 0), 0)
+        ),
+        reverse=True
+    )
+
+    r, meta = user_rows[0]
+    player = clean_display(r.get("Player", ""), "")
+    team = clean_display(r.get("NFLTeam", ""), "")
+    stat = clean_display(r.get("StatLine", ""), "")
+    school = clean_display(meta.get("CollegeTeam", ""), "")
+    user = clean_display(meta.get("CollegeUser", ""), "")
+
+    return f"User alumni note: {player} ({school}, {user}) also featured for the {team} with {stat}."
 def play_user_pick_chime(audio_path="espn_chime.mp3"):
     try:
         if not st.session_state.get("draft_audio_enabled", False):
@@ -176,7 +310,8 @@ NFL_PLAYER_HISTORY_COLS = [
 ]
 
 NFL_SUPER_BOWL_HISTORY_COLS = [
-    "Season", "Champion", "RunnerUp", "Score", "MVP", "MVPTeam", "Headline"
+    "Season", "Champion", "RunnerUp", "Score", "MVP", "MVPTeam", "Headline",
+    "GameMoment", "UserAlumniNote"
 ]
 
 NFL_STORY_EVENTS_COLS = [
@@ -3989,14 +4124,29 @@ def simulate_nfl_season(season_year=None):
                 "ImpactScore": 66
             })
 
-    mvp_name, mvp_team = choose_super_bowl_mvp(
-        champion,
-        player_hist_combined[
-            pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
-        ].copy()
-    )
+    sb_season_pool = player_hist_combined[
+        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+    ].copy()
+
+    mvp_name, mvp_team = choose_super_bowl_mvp(champion, sb_season_pool.copy())
 
     sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
+
+    sb_signature_moment, sb_used_player = generate_super_bowl_signature_moment(
+        champion=champion,
+        runner_up=runner_up,
+        score=score,
+        season_player_df=sb_season_pool,
+        nfl_draft_hist_df=nfl_draft_hist
+    )
+
+    sb_user_note = generate_super_bowl_user_alumni_note(
+        champion=champion,
+        runner_up=runner_up,
+        season_player_df=sb_season_pool,
+        nfl_draft_hist_df=nfl_draft_hist,
+        already_used_player=sb_used_player
+    )
 
     new_sb_row = pd.DataFrame([{
         "Season": int(season_year),
@@ -4005,7 +4155,9 @@ def simulate_nfl_season(season_year=None):
         "Score": score,
         "MVP": mvp_name,
         "MVPTeam": mvp_team,
-        "Headline": sb_headline
+        "Headline": sb_headline,
+        "GameMoment": sb_signature_moment,
+        "UserAlumniNote": sb_user_note
     }])
 
     existing_sb = nfl_super_bowl.copy() if nfl_super_bowl is not None else pd.DataFrame(columns=NFL_SUPER_BOWL_HISTORY_COLS)
@@ -14281,6 +14433,8 @@ with tabs[9]:
                     score = str(sb_row.get("Score", ""))
                     mvp = str(sb_row.get("MVP", ""))
                     headline = str(sb_row.get("Headline", ""))
+                    game_moment = str(sb_row.get("GameMoment", ""))
+                    user_note = str(sb_row.get("UserAlumniNote", ""))
 
                     champ_logo = get_nfl_logo_src(champ)
                     runner_logo = get_nfl_logo_src(runner)
@@ -14303,6 +14457,12 @@ with tabs[9]:
                         st.caption("FINAL")
                         st.markdown(f"# {score if score else '—'}")
                         st.write(short_headline)
+
+                        if game_moment:
+                            st.caption(game_moment)
+
+                        if user_note:
+                            st.caption(user_note)
 
                         if mvp:
                             st.markdown(
