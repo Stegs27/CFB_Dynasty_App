@@ -158,6 +158,7 @@ NFL_DRAFT_HISTORY_COLS = [
     "OriginalPick", "WasTrade", "TradeNote",
     "GenerationMethod", "DraftValueScore", "NeedScore", "CareerTier",
     "RookieRole", "PeakOVR", "StoryTag",
+    "ProOutcome", "DevelopmentCurve",
     "DraftSource", "TrackStoryline",
     "IsCanonRound", "IsCanonTeam", "IsCanonPick"
 ]
@@ -803,6 +804,69 @@ def calc_nfl_rookie_entry_ovr(cfb_ovr, draft_round, pos_bucket=""):
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE — DRAFT ENRICHMENT
 # ──────────────────────────────────────────────────────────────────────
+def assign_pro_outcome(cfb_ovr, draft_round, pos_bucket="", awr=75, spd=75, age=22):
+    cfb_ovr = safe_num(cfb_ovr, 80)
+    draft_round = int(safe_num(draft_round, 7))
+    awr = safe_num(awr, 75)
+    spd = safe_num(spd, 75)
+    age = safe_num(age, 22)
+    pos_bucket = str(pos_bucket).strip().upper()
+
+    score = 0.0
+
+    score += (cfb_ovr - 80) * 1.6
+    score += max(0, 8 - draft_round) * 2.2
+    score += (awr - 75) * 0.7
+    score += (spd - 75) * 0.25
+
+    if age <= 21:
+        score += random.uniform(-3, 5)
+    elif age >= 24:
+        score += random.uniform(-1, 2)
+    else:
+        score += random.uniform(-2, 3)
+
+    if pos_bucket == "QB":
+        score += random.uniform(-6, 4)
+    elif pos_bucket in {"WR", "CB", "EDGE"}:
+        score += random.uniform(-4, 4)
+    elif pos_bucket in {"OL", "TE", "LB"}:
+        score += random.uniform(-2, 3)
+
+    score += random.uniform(-8, 8)
+
+    if score >= 42:
+        return "Superstar", "Fast Rise"
+    elif score >= 32:
+        return "Star", "Fast Rise"
+    elif score >= 22:
+        return "Impact Starter", "Steady Rise"
+    elif score >= 12:
+        return "Steady Starter", "Normal"
+    elif score >= 4:
+        return "Developmental", "Slow Burn"
+    else:
+        return "Bust", "Flat"
+
+
+def estimate_peak_ovr_from_outcome(rookie_ovr, pro_outcome):
+    rookie_ovr = int(safe_num(rookie_ovr, 75))
+    outcome = str(pro_outcome).strip()
+
+    if outcome == "Superstar":
+        peak = rookie_ovr + random.randint(8, 13)
+    elif outcome == "Star":
+        peak = rookie_ovr + random.randint(6, 10)
+    elif outcome == "Impact Starter":
+        peak = rookie_ovr + random.randint(4, 7)
+    elif outcome == "Steady Starter":
+        peak = rookie_ovr + random.randint(2, 5)
+    elif outcome == "Developmental":
+        peak = rookie_ovr + random.randint(1, 4)
+    else:
+        peak = rookie_ovr + random.randint(-3, 1)
+
+    return max(68, min(99, peak))
 
 def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
     if cfb_draft_df is None or cfb_draft_df.empty:
@@ -923,7 +987,18 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
                     draft_round=rnd,
                     pos_bucket=bucket
                 )
-                peak_ovr = estimate_peak_ovr(rookie_entry_ovr, career_tier)
+                pro_outcome, development_curve = assign_pro_outcome(
+                    cfb_ovr=safe_num(merged.get("OVR", 80), 80),
+                    draft_round=rnd,
+                    pos_bucket=bucket,
+                    awr=safe_num(merged.get("AWR", 75), 75),
+                    spd=safe_num(merged.get("SPD", 75), 75),
+                    age=safe_num(merged.get("Age", 22), 22)
+                )
+                peak_ovr = estimate_peak_ovr_from_outcome(
+                    rookie_ovr=rookie_entry_ovr,
+                    pro_outcome=pro_outcome
+                )
                 story_tag = generate_story_tag(bucket, career_tier, rnd)
 
                 enriched_rows.append({
@@ -951,6 +1026,8 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
                     "RookieRole": rookie_role,
                     "PeakOVR": peak_ovr,
                     "StoryTag": story_tag,
+                    "ProOutcome": pro_outcome,
+                    "DevelopmentCurve": development_curve,
                     "DraftSource": row.get("DraftSource", "user_results"),
                     "TrackStoryline": row.get("TrackStoryline", "Yes"),
                     "IsCanonRound": "Yes",
@@ -1084,7 +1161,7 @@ def maybe_apply_round1_trade(current_pick, current_team, available_order, remain
     source_pick = int(chosen_pick)
     target_pick = int(current_pick)
     move_word = "up" if target_pick < source_pick else "down"
-    trade_note = f"{chosen_team} trades {move_word} from #{source_pick} to #{target_pick}"
+    trade_note = f"{chosen_team} traded {move_word} from #{source_pick} to #{target_pick}"
 
     return chosen_team, source_pick, "Yes", trade_note
 
@@ -1304,7 +1381,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
                 with top_mid:
                     st.caption("SELECTED")
                     st.markdown(f"## {player}")
-                    st.write(f"{pos} / {pos_bucket} • {ovr} OVR")
+                    st.write(f"{pos} / {pos_bucket} • {college_ovr} CFB OVR • {ovr} NFL Rookie OVR")
 
                     role_line = f"{rookie_role} • {career_tier} ceiling".strip(" •")
                     if role_line:
@@ -12782,7 +12859,8 @@ with tabs[9]:
 
             view_cols = [
                 "GeneratedOverallPick", "DraftRoundCanon", "Player", "CollegeTeam", "CollegeUser",
-                "Pos", "PosBucket", "CollegeOVR", "OVR", "GeneratedNFLTeam", "RookieRole", "CareerTier", "StoryTag"
+                "Pos", "PosBucket", "CollegeOVR", "OVR", "GeneratedNFLTeam",
+                "RookieRole", "CareerTier", "ProOutcome", "DevelopmentCurve", "StoryTag"
             ]
 
             show_df = yr_df[view_cols].copy().rename(columns={
@@ -12792,7 +12870,9 @@ with tabs[9]:
                 "CollegeUser": "User",
                 "CollegeOVR": "College OVR",
                 "OVR": "NFL Rookie OVR",
-                "GeneratedNFLTeam": "NFL Team"
+                "GeneratedNFLTeam": "NFL Team",
+                "ProOutcome": "Pro Outcome",
+                "DevelopmentCurve": "Dev Curve"
             })
 
             show_df.insert(3, "School Logo", show_df["School"].map(get_school_logo_src))
