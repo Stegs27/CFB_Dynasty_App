@@ -14261,24 +14261,6 @@ with tabs[9]:
 
             if not roster_team.empty:
                 roster_team = roster_team.sort_values("OVR", ascending=False).copy()
-            return df
-
-            roster_source_df = _prepare_roster_df(roster_source_df)
-            fallback_roster_df = _prepare_roster_df(fallback_roster_df)
-
-            roster_team = pd.DataFrame()
-            if not roster_source_df.empty and "Team" in roster_source_df.columns:
-                roster_team = roster_source_df[
-                    roster_source_df["Team"].astype(str).map(normalize_nfl_team_key) == selected_team_key
-                ].copy()
-
-            if roster_team.empty and not fallback_roster_df.empty and "Team" in fallback_roster_df.columns:
-                roster_team = fallback_roster_df[
-                    fallback_roster_df["Team"].astype(str).map(normalize_nfl_team_key) == selected_team_key
-                ].copy()
-
-            if not roster_team.empty:
-                roster_team = roster_team.sort_values("OVR", ascending=False).copy()
 
             drafted_here = pd.DataFrame()
             if not nfl_draft_hist.empty:
