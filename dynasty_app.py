@@ -3286,6 +3286,15 @@ def simulate_nfl_season(season_year=None):
                 "ImpactScore": 66
             })
 
+    mvp_name, mvp_team = choose_super_bowl_mvp(
+        champion,
+        player_hist_combined[
+            pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+        ].copy()
+    )
+
+    sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
+
     season_awards = awards_hist[
         pd.to_numeric(awards_hist["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
     ].copy()
