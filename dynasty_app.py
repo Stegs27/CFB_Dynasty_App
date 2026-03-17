@@ -14279,25 +14279,32 @@ with tabs[9]:
 
             with left:
                 st.markdown("#### Current Top Roster")
-                show_cols = [c for c in ["Player", "Pos", "PosBucket", "OVR", "Age", "Status", "Source", "SPD", "ACC", "AWR"] if c in roster_team.columns]
-                roster_show = roster_team[show_cols].head(20).copy()
-            if "Source" in roster_show.columns:
-                roster_show["Source"] = roster_show["Source"].replace({
-                    "dynasty_player": "Dynasty",
-                    "base_nfl_roster": "Base",
-                    "free_agent_fill": "Veteran Fill",
-                    "udfa_fill": "UDFA"
-                })
-                roster_show.insert(0, "Team Logo", get_nfl_logo_src(sel_nfl_team))
 
-                st.dataframe(
-                    roster_show,
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "Team Logo": st.column_config.ImageColumn("")
-                    }
-                )
+                if roster_team.empty:
+                    st.caption("No roster rows found for this team.")
+                else:
+                    show_cols = [c for c in ["Player", "Pos", "PosBucket", "OVR", "Age", "Status", "Source", "SPD", "ACC", "AWR"] if c in roster_team.columns]
+                    roster_show = roster_team[show_cols].head(20).copy()
+
+                    if "Source" in roster_show.columns:
+                        roster_show["Source"] = roster_show["Source"].replace({
+                            "dynasty_player": "Dynasty",
+                            "base_nfl_roster": "Base",
+                            "free_agent_fill": "Veteran Fill",
+                            "udfa_fill": "UDFA"
+                        })
+
+                    roster_logo_src = get_nfl_logo_src(sel_nfl_team)
+                    roster_show.insert(0, "Team Logo", roster_logo_src if roster_logo_src else "")
+
+                    st.dataframe(
+                        roster_show,
+                        hide_index=True,
+                        use_container_width=True,
+                        column_config={
+                            "Team Logo": st.column_config.ImageColumn("")
+                        }
+                    )
 
             with right:
                 st.markdown("#### Team Need Profile")
