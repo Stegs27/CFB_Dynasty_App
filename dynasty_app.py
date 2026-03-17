@@ -3217,58 +3217,184 @@ def calc_udfa_entry_ovr(cfb_ovr, pos_bucket=""):
 def build_udfa_pool_for_season(season_year, cfb_roster_df, nfl_draft_hist_df):
     season_year = int(season_year)
 
-    if cfb_roster_df is None or cfb_roster_df.empty:
-        return pd.DataFrame()
-
-    work = cfb_roster_df.copy()
-
-    for col in ["Name", "Team", "Pos", "Year"]:
-        if col not in work.columns:
-            work[col] = ""
-        work[col] = work[col].fillna("").astype(str).str.strip()
-
-    if "OVR" not in work.columns:
-        work["OVR"] = 0
-    work["OVR"] = pd.to_numeric(work["OVR"], errors="coerce").fillna(0)
-
-    # Only realistic NFL-entry candidates
-    work = work[work["Year"].astype(str).isin(["SR", "JR", "RS SR", "RS JR"])].copy()
-
-    if work.empty:
-        return pd.DataFrame()
-
-    work["Player"] = work["Name"]
-    work["CollegeTeam"] = work["Team"]
-    work["CollegeUser"] = work.get("User", "")
-    work["PosBucket"] = work["Pos"].map(clean_bucket)
-
-    work["PlayerID"] = work.apply(
-        lambda r: build_player_id(
-            int(season_year - 1),
-            r.get("CollegeTeam", ""),
-            r.get("Player", ""),
-            r.get("Pos", "")
-        ),
-        axis=1
-    )
-
     drafted_ids = set()
-    if nfl_draft_hist_df is not None and not nfl_draft_hist_df.empty:
+    if nfl_draft_hist_df is not None and not nfl_draft_hist_df.empty and "PlayerID" in nfl_draft_hist_df.columns:
         drafted_ids = set(
             nfl_draft_hist_df["PlayerID"].dropna().astype(str).tolist()
         )
 
-    udfa_df = work[~work["PlayerID"].astype(str).isin(drafted_ids)].copy()
-    if udfa_df.empty:
+    udfa_frames = []
+
+    # ------------------------------------------------------------
+    # SOURCE 1: cpu_draft_pool.csv players from previous class who were not drafted
+    # ------------------------------------------------------------
+    try:
+        cpu_pool = pd.read_csv("cpu_draft_pool.csv")
+    except Exception:
+        cpu_pool = pd.DataFrame()
+
+    if not cpu_pool.empty:
+        cpu_pool["DraftYear"] = pd.to_numeric(cpu_pool.get("DraftYear"), errors="coerce")
+        cpu_pool = cpu_pool[
+            cpu_pool["DraftYear"].fillna(-1).astype(int) == int(season_year - 1)
+        ].copy()
+
+        for col in ["Player", "CollegeTeam", "CollegeUser", "Pos", "Class"]:
+            if col not in cpu_pool.columns:
+                cpu_pool[col] = ""
+            cpu_pool[col] = cpu_pool[col].fillna("").astype(str).str.strip()
+
+        for col in ["OVR", "AWR", "SPD", "Age"]:
+            if col not in cpu_pool.columns:
+                cpu_pool[col] = 0
+            cpu_pool[col] = pd.to_numeric(cpu_pool[col], errors="coerce").fillna(0)
+
+        cpu_pool["PosBucket"] = cpu_pool["Pos"].map(clean_bucket)
+        cpu_pool["PlayerID"] = cpu_pool.apply(
+            lambda r: build_player_id(
+                int(safe_num(r.get("DraftYear", season_year - 1), season_year - 1)),
+                r.get("CollegeTeam", ""),
+                r.get("Player", ""),
+                r.get("Pos", "")
+            ),
+            axis=1
+        )
+
+        cpu_udfa = cpu_pool[~cpu_pool["PlayerID"].astype(str).isin(drafted_ids)].copy()
+        if not cpu_udfa.empty:
+            cpu_udfa["NFLUdfaOVR"] = cpu_udfa.apply(
+                lambda r: calc_udfa_entry_ovr(
+                    cfb_ovr=safe_num(r.get("OVR", 75), 75),
+                    pos_bucket=r.get("PosBucket", "")
+                ),
+                axis=1
+            )
+
+            cpu_traits = cpu_udfa.apply(
+                lambda r: assign_udfa_hidden_traits(
+                    cfb_ovr=safe_num(r.get("OVR", 75), 75),
+                    pos_bucket=r.get("PosBucket", ""),
+                    awr=safe_num(r.get("AWR", 75), 75),
+                    spd=safe_num(r.get("SPD", 75), 75),
+                    age=safe_num(r.get("Age", 22), 22)
+                ),
+                axis=1
+            )
+
+            cpu_udfa["ProOutcome"] = cpu_traits.map(lambda x: x[0] if isinstance(x, tuple) else "Developmental")
+            cpu_udfa["DevelopmentCurve"] = cpu_traits.map(lambda x: x[1] if isinstance(x, tuple) else "Slow Burn")
+            cpu_udfa["PeakOVR"] = cpu_udfa.apply(
+                lambda r: estimate_peak_ovr_from_outcome(
+                    rookie_ovr=safe_num(r.get("NFLUdfaOVR", 66), 66),
+                    pro_outcome=r.get("ProOutcome", "Developmental")
+                ),
+                axis=1
+            )
+
+            udfa_frames.append(cpu_udfa)
+
+    # ------------------------------------------------------------
+    # SOURCE 2: cfb26_rosters_full.csv seniors / RS seniors not drafted
+    # ------------------------------------------------------------
+    if cfb_roster_df is not None and not cfb_roster_df.empty:
+        roster = cfb_roster_df.copy()
+
+        if "Name" not in roster.columns:
+            roster["Name"] = ""
+        if "Team" not in roster.columns:
+            roster["Team"] = ""
+        if "Pos" not in roster.columns:
+            roster["Pos"] = ""
+        if "Year" not in roster.columns:
+            roster["Year"] = ""
+        if "OVR" not in roster.columns:
+            roster["OVR"] = 0
+        if "AWR" not in roster.columns:
+            roster["AWR"] = 75
+        if "SPD" not in roster.columns:
+            roster["SPD"] = 75
+        if "Age" not in roster.columns:
+            roster["Age"] = 22
+        if "User" not in roster.columns:
+            roster["User"] = ""
+
+        for col in ["Name", "Team", "Pos", "Year", "User"]:
+            roster[col] = roster[col].fillna("").astype(str).str.strip()
+
+        for col in ["OVR", "AWR", "SPD", "Age"]:
+            roster[col] = pd.to_numeric(roster[col], errors="coerce").fillna(0)
+
+        roster = roster[
+            roster["Year"].astype(str).isin({"SR", "RS SR"})
+        ].copy()
+
+        roster = roster[
+            (roster["Name"].astype(str).str.strip() != "") &
+            (roster["Team"].astype(str).str.strip() != "") &
+            (roster["Pos"].astype(str).str.strip() != "")
+        ].copy()
+
+        if not roster.empty:
+            roster["Player"] = roster["Name"]
+            roster["CollegeTeam"] = roster["Team"]
+            roster["CollegeUser"] = roster["User"]
+            roster["PosBucket"] = roster["Pos"].map(clean_bucket)
+            roster["DraftYear"] = int(season_year - 1)
+            roster["Class"] = roster["Year"]
+
+            roster["PlayerID"] = roster.apply(
+                lambda r: build_player_id(
+                    int(season_year - 1),
+                    r.get("CollegeTeam", ""),
+                    r.get("Player", ""),
+                    r.get("Pos", "")
+                ),
+                axis=1
+            )
+
+            roster_udfa = roster[~roster["PlayerID"].astype(str).isin(drafted_ids)].copy()
+            if not roster_udfa.empty:
+                roster_udfa["NFLUdfaOVR"] = roster_udfa.apply(
+                    lambda r: calc_udfa_entry_ovr(
+                        cfb_ovr=safe_num(r.get("OVR", 75), 75),
+                        pos_bucket=r.get("PosBucket", "")
+                    ),
+                    axis=1
+                )
+
+                roster_traits = roster_udfa.apply(
+                    lambda r: assign_udfa_hidden_traits(
+                        cfb_ovr=safe_num(r.get("OVR", 75), 75),
+                        pos_bucket=r.get("PosBucket", ""),
+                        awr=safe_num(r.get("AWR", 75), 75),
+                        spd=safe_num(r.get("SPD", 75), 75),
+                        age=safe_num(r.get("Age", 22), 22)
+                    ),
+                    axis=1
+                )
+
+                roster_udfa["ProOutcome"] = roster_traits.map(lambda x: x[0] if isinstance(x, tuple) else "Developmental")
+                roster_udfa["DevelopmentCurve"] = roster_traits.map(lambda x: x[1] if isinstance(x, tuple) else "Slow Burn")
+                roster_udfa["PeakOVR"] = roster_udfa.apply(
+                    lambda r: estimate_peak_ovr_from_outcome(
+                        rookie_ovr=safe_num(r.get("NFLUdfaOVR", 66), 66),
+                        pro_outcome=r.get("ProOutcome", "Developmental")
+                    ),
+                    axis=1
+                )
+
+                udfa_frames.append(roster_udfa)
+
+    if not udfa_frames:
         return pd.DataFrame()
 
-    udfa_df["NFLUdfaOVR"] = udfa_df.apply(
-        lambda r: calc_udfa_entry_ovr(
-            cfb_ovr=safe_num(r.get("OVR", 75), 75),
-            pos_bucket=r.get("PosBucket", "")
-        ),
-        axis=1
-    )
+    udfa_df = pd.concat(udfa_frames, ignore_index=True, sort=False)
+
+    # De-dupe by PlayerID, keeping stronger NFL UDFA entry value
+    udfa_df = udfa_df.sort_values(
+        ["PlayerID", "NFLUdfaOVR", "OVR", "Player"],
+        ascending=[True, False, False, True]
+    ).drop_duplicates(subset=["PlayerID"], keep="first").copy()
 
     udfa_df = udfa_df.sort_values(
         ["NFLUdfaOVR", "OVR", "Player"],
