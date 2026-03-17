@@ -9549,13 +9549,17 @@ try:
             if not _hwu or _hwu.lower() == 'nan':
                 _blurb = f"{_hwt} takes home the hardware. The dynasty grows."
 
-            _all_headlines.append({
-                'badge': 'HEISMAN WINNER',
-                'priority': 69,
-                'text': _text,
-                'blurb': _blurb,
-                'logo_html': _lh,
-            })
+            if not any(
+    str(h.get('badge', '')).strip() == 'HEISMAN WINNER'
+    for h in _all_headlines
+):
+    _all_headlines.append({
+        'badge': 'HEISMAN WINNER',
+        'priority': 69,
+        'text': _text,
+        'blurb': _blurb,
+        'logo_html': _lh,
+    })
         _hwn = str(_hw_row.get('NAME', '')).strip()
         _hwt = str(_hw_row.get('TEAM', '')).strip()
         _hwu = str(_hw_row.get('USER', '')).strip()
