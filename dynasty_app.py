@@ -3234,6 +3234,8 @@ def simulate_nfl_season(season_year=None):
     season_player_df = player_hist_combined[
         pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
     ].copy()
+    
+    season_story_rows = []
 
     awards_hist = simulate_nfl_awards(
         season_year=season_year,
