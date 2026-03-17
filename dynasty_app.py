@@ -3295,6 +3295,30 @@ def simulate_nfl_season(season_year=None):
 
     sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
 
+new_sb_row = pd.DataFrame([{
+        "Season": int(season_year),
+        "Champion": champion,
+        "RunnerUp": runner_up,
+        "Score": score,
+        "MVP": mvp_name,
+        "MVPTeam": mvp_team,
+        "Headline": sb_headline
+    }])
+
+    existing_sb = nfl_super_bowl.copy() if nfl_super_bowl is not None else pd.DataFrame(columns=NFL_SUPER_BOWL_HISTORY_COLS)
+    if not existing_sb.empty and "Season" in existing_sb.columns:
+        existing_sb["Season"] = pd.to_numeric(existing_sb["Season"], errors="coerce")
+        existing_sb = existing_sb[
+            existing_sb["Season"].fillna(-1).astype(int) != int(season_year)
+        ].copy()
+
+    sb_combined = pd.concat([existing_sb, new_sb_row], ignore_index=True)
+    for col in NFL_SUPER_BOWL_HISTORY_COLS:
+        if col not in sb_combined.columns:
+            sb_combined[col] = pd.NA
+    sb_combined = sb_combined[NFL_SUPER_BOWL_HISTORY_COLS].copy()
+    sb_combined.to_csv("nfl_super_bowl_history.csv", index=False)
+
     season_awards = awards_hist[
         pd.to_numeric(awards_hist["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
     ].copy()
