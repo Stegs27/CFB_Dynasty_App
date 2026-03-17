@@ -14198,7 +14198,7 @@ with tabs[9]:
                 st.markdown("#### Current Top Roster")
                 show_cols = [c for c in ["Player", "Pos", "PosBucket", "OVR", "Age", "Status", "Source", "SPD", "ACC", "AWR"] if c in roster_team.columns]
                 roster_show = roster_team[show_cols].head(20).copy()
-                if "Source" in roster_show.columns:
+            if "Source" in roster_show.columns:
                 roster_show["Source"] = roster_show["Source"].replace({
                     "dynasty_player": "Dynasty",
                     "base_nfl_roster": "Base",
