@@ -9424,9 +9424,17 @@ try:
         if not _b_df.empty:
             _round_map = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
             _b_df['_rsort'] = _b_df['ROUND'].map(_round_map).fillna(0)
+
             _cy_games = _b_df[
                 (_b_df['YEAR'] == CURRENT_YEAR) & (_b_df['COMPLETED'] == 1)
-            ].copy().sort_values(['_rsort', 'GAME_ID'], ascending=True)
+            ].copy()
+
+            if not _cy_games.empty:
+                _latest_round_sort = _cy_games['_rsort'].max()
+                _cy_games = _cy_games[
+                    _cy_games['_rsort'] == _latest_round_sort
+                ].copy().sort_values(['GAME_ID'], ascending=True)
+
             for _, _gm in _cy_games.iterrows():
                 t1 = str(_gm.get('TEAM1', '')).strip()
                 t2 = str(_gm.get('TEAM2', '')).strip()
