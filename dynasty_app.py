@@ -690,6 +690,91 @@ def get_school_logo_src(team_name):
                 return uri
     return None
 
+def advance_nfl_universe_one_year(speed_mode="Broadcast", rerun_latest_draft=False):
+    try:
+        universe = load_nfl_universe_data()
+
+        cfb_draft = universe.get("cfb_draft", pd.DataFrame())
+        cfb_roster = universe.get("cfb_roster", pd.DataFrame())
+        nfl_roster = universe.get("nfl_roster", pd.DataFrame())
+        nfl_draft_hist = universe.get("nfl_draft_hist", pd.DataFrame())
+        nfl_player_hist = universe.get("nfl_player_hist", pd.DataFrame())
+        nfl_super_bowl = universe.get("nfl_super_bowl", pd.DataFrame())
+        nfl_story = universe.get("nfl_story", pd.DataFrame())
+        nfl_current_rosters = universe.get("nfl_current_rosters", pd.DataFrame())
+        nfl_awards_hist = universe.get("nfl_awards_hist", pd.DataFrame())
+        nfl_playoff_hist = universe.get("nfl_playoff_hist", pd.DataFrame())
+
+        status_lines = []
+
+        # Step 1: lock / rerun newest draft class
+        updated_draft_hist, processed_year, draft_msg = refresh_nfl_draft_history(
+            live_mode=False,
+            speed_mode=speed_mode,
+            force_latest=rerun_latest_draft
+        )
+        if draft_msg:
+            status_lines.append(draft_msg)
+
+        # reload after draft refresh
+        universe = load_nfl_universe_data()
+        nfl_draft_hist = universe.get("nfl_draft_hist", pd.DataFrame())
+        nfl_current_rosters = universe.get("nfl_current_rosters", pd.DataFrame())
+        nfl_player_hist = universe.get("nfl_player_hist", pd.DataFrame())
+
+        # Step 2: refresh current rosters before season
+        try:
+            refreshed_rosters = build_nfl_current_rosters(
+                season_year=get_current_nfl_season(),
+                nfl_roster_df=universe.get("nfl_roster", pd.DataFrame()),
+                nfl_draft_hist_df=nfl_draft_hist,
+                nfl_player_hist_df=nfl_player_hist,
+                existing_current_rosters_df=nfl_current_rosters
+            )
+
+            if refreshed_rosters is not None and not refreshed_rosters.empty:
+                for col in NFL_CURRENT_ROSTER_COLS:
+                    if col not in refreshed_rosters.columns:
+                        refreshed_rosters[col] = pd.NA
+                refreshed_rosters = refreshed_rosters[NFL_CURRENT_ROSTER_COLS].copy()
+                refreshed_rosters.to_csv("nfl_current_rosters.csv", index=False)
+                status_lines.append(f"Current NFL rosters refreshed for {get_current_nfl_season()}.")
+        except Exception as e:
+            status_lines.append(f"Roster refresh warning: {type(e).__name__}: {e}")
+
+        # Step 3: simulate season
+        sim_result, sim_msg = simulate_nfl_season()
+        if sim_msg:
+            status_lines.append(sim_msg)
+
+        if sim_result is None:
+            return None, " | ".join(status_lines)
+
+        # Step 4: refresh next-season current rosters after offseason maintenance
+        try:
+            universe = load_nfl_universe_data()
+            refreshed_postseason_rosters = build_nfl_current_rosters(
+                season_year=get_current_nfl_season(),
+                nfl_roster_df=universe.get("nfl_roster", pd.DataFrame()),
+                nfl_draft_hist_df=universe.get("nfl_draft_hist", pd.DataFrame()),
+                nfl_player_hist_df=universe.get("nfl_player_hist", pd.DataFrame()),
+                existing_current_rosters_df=universe.get("nfl_current_rosters", pd.DataFrame())
+            )
+
+            if refreshed_postseason_rosters is not None and not refreshed_postseason_rosters.empty:
+                for col in NFL_CURRENT_ROSTER_COLS:
+                    if col not in refreshed_postseason_rosters.columns:
+                        refreshed_postseason_rosters[col] = pd.NA
+                refreshed_postseason_rosters = refreshed_postseason_rosters[NFL_CURRENT_ROSTER_COLS].copy()
+                refreshed_postseason_rosters.to_csv("nfl_current_rosters.csv", index=False)
+                status_lines.append(f"Postseason/offseason rosters refreshed for {get_current_nfl_season()}.")
+        except Exception as e:
+            status_lines.append(f"Postseason roster refresh warning: {type(e).__name__}: {e}")
+
+        return sim_result, " | ".join(status_lines)
+
+    except Exception as e:
+        return None, f"NFL year advance error: {type(e).__name__}: {e}"
 
 def get_nfl_logo_slug(team_name):
     name = str(team_name).strip().lower()
@@ -14357,6 +14442,7 @@ with tabs[9]:
         )
     else:
         st.header("NFL Universe")
+
     st.caption("Track where dynasty alumni land, how their NFL careers evolve, and who owns the fictional pro landscape.")
 
     universe = load_nfl_universe_data()
@@ -14368,7 +14454,6 @@ with tabs[9]:
     for col in NFL_DRAFT_HISTORY_COLS:
         if col not in nfl_draft_hist.columns:
             nfl_draft_hist[col] = pd.NA
-
     nfl_draft_hist = nfl_draft_hist.reindex(columns=NFL_DRAFT_HISTORY_COLS)
 
     nfl_player_hist = universe["nfl_player_hist"]
@@ -14574,6 +14659,32 @@ with tabs[9]:
         st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
 
     st.markdown("---")
+
+    advance_l, advance_c, advance_r = st.columns([1, 1.4, 1])
+
+    with advance_c:
+        rerun_latest_draft = st.checkbox(
+            "Rerun latest draft class before advancing",
+            value=False,
+            key="nfl_rerun_latest_before_advance"
+        )
+
+        if st.button("Advance Full NFL Year", use_container_width=True, key="advance_full_nfl_year_btn"):
+            try:
+                result, msg = advance_nfl_universe_one_year(
+                    speed_mode="Broadcast",
+                    rerun_latest_draft=rerun_latest_draft
+                )
+
+                if result is not None:
+                    st.success(msg if msg else "NFL universe advanced successfully.")
+                    st.rerun()
+                else:
+                    st.error(msg if msg else "NFL universe advance failed.")
+            except Exception as e:
+                import traceback
+                st.error(f"NFL universe advance failed: {type(e).__name__}: {e}")
+                st.code(traceback.format_exc())
 
     # ── NFL Universe file status / downloads ──────────────────────────
     draft_hist_exists = os.path.exists("nfl_draft_history.csv")
