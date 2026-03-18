@@ -9942,40 +9942,82 @@ try:
 except Exception:
     pass
 
-# ── 6. TOP 10 RECRUITING CLASSES ─────────────────────────────────────
+# ── 6. USER RECRUITING CLASSES ─────────────────────────────────────
 try:
-    _rh = pd.read_csv('recruiting_high_school_history.csv')
+    _rh = pd.read_csv('recruiting_high_school_history.csv').copy()
+
+    if 'YEAR' in _rh.columns and 'Year' not in _rh.columns:
+        _rh['Year'] = _rh['YEAR']
+    if 'TEAM' in _rh.columns and 'Team' not in _rh.columns:
+        _rh['Team'] = _rh['TEAM']
+    if 'USER' in _rh.columns and 'User' not in _rh.columns:
+        _rh['User'] = _rh['USER']
+    if 'RANK' in _rh.columns and 'Rank' not in _rh.columns:
+        _rh['Rank'] = _rh['RANK']
+    if 'PTS' in _rh.columns and 'Points' not in _rh.columns:
+        _rh['Points'] = _rh['PTS']
+    if 'TOTAL' in _rh.columns and 'TotalCommits' not in _rh.columns:
+        _rh['TotalCommits'] = _rh['TOTAL']
+    if '5_STAR' in _rh.columns and 'FiveStar' not in _rh.columns:
+        _rh['FiveStar'] = _rh['5_STAR']
+    if '4_STAR' in _rh.columns and 'FourStar' not in _rh.columns:
+        _rh['FourStar'] = _rh['4_STAR']
+    if '3_STAR' in _rh.columns and 'ThreeStar' not in _rh.columns:
+        _rh['ThreeStar'] = _rh['3_STAR']
+
     _rh['Year'] = pd.to_numeric(_rh['Year'], errors='coerce')
-    _rh_cy = _rh[_rh['Year'] == CURRENT_YEAR].copy()
+    _rh['Rank'] = pd.to_numeric(_rh['Rank'], errors='coerce')
+    _rh['Points'] = pd.to_numeric(_rh['Points'], errors='coerce')
+    _rh['TotalCommits'] = pd.to_numeric(_rh['TotalCommits'], errors='coerce')
+    _rh['FiveStar'] = pd.to_numeric(_rh['FiveStar'], errors='coerce').fillna(0)
+    _rh['FourStar'] = pd.to_numeric(_rh['FourStar'], errors='coerce').fillna(0)
+    _rh['ThreeStar'] = pd.to_numeric(_rh['ThreeStar'], errors='coerce').fillna(0)
+
+    if 'USER_TEAMS' in globals():
+        _user_team_list = list(USER_TEAMS.values())
+    else:
+        _user_team_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
+
+    _rh_cy = _rh[
+        (_rh['Year'] == CURRENT_YEAR) &
+        (_rh['Team'].astype(str).isin(_user_team_list))
+    ].copy()
+
     if not _rh_cy.empty:
-        _rh_cy = _rh_cy.sort_values('Points', ascending=False).reset_index(drop=True)
-        _top5_rec = _rh_cy.head(5)
-        # One headline per top-5 team
-        for _ri, _rrow in _top5_rec.iterrows():
+        _rh_cy = _rh_cy.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
+
+        for _, _rrow in _rh_cy.iterrows():
             _rt = str(_rrow.get('Team', '')).strip()
             _ru = str(_rrow.get('User', '')).strip()
-            _rpts = float(_rrow.get('Points', 0))
-            _r5 = int(_rrow.get('FiveStar', 0))
-            _r4 = int(_rrow.get('FourStar', 0))
-            _r3 = int(_rrow.get('ThreeStar', 0))
-            _rtc = int(_rrow.get('TotalCommits', 0))
-            _rrank = _ri + 1
+            _rpts = float(_rrow.get('Points', 0)) if not pd.isna(_rrow.get('Points', pd.NA)) else 0.0
+            _r5 = int(_rrow.get('FiveStar', 0) or 0)
+            _r4 = int(_rrow.get('FourStar', 0) or 0)
+            _r3 = int(_rrow.get('ThreeStar', 0) or 0)
+            _rtc = int(_rrow.get('TotalCommits', 0) or 0)
+            _rec_rank_num = int(_rrow.get('Rank', 999)) if not pd.isna(_rrow.get('Rank', pd.NA)) else 999
+
             if not _rt or _rt.lower() == 'nan':
                 continue
+
             _rl = get_header_logo(_rt)
             _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_rl}" style="width:60px;height:60px;object-fit:contain;"></div>'
-            _star_str = ''
-            if _r5 > 0: _star_str += f"{_r5}⭐⭐⭐⭐⭐ "
-            if _r4 > 0: _star_str += f"{_r4}⭐⭐⭐⭐ "
-            _star_str = _star_str.strip() or f"{_r3}⭐⭐⭐"
-            # Use overall recruiting rank from csv if available, else use sorted index
-            _rec_rank_col = _rrow.get('Rank', _rrank)
-            _rec_rank_num = int(_rec_rank_col) if not pd.isna(_rec_rank_col) else _rrank
+
+            _star_parts = []
+            if _r5 > 0:
+                _star_parts.append(f"{_r5}⭐⭐⭐⭐⭐")
+            if _r4 > 0:
+                _star_parts.append(f"{_r4}⭐⭐⭐⭐")
+            if _r3 > 0 and not _star_parts:
+                _star_parts.append(f"{_r3}⭐⭐⭐")
+            _star_str = " · ".join(_star_parts) if _star_parts else "Class loaded"
+
+            _owner_prefix = f"{_ru}'s " if _ru and _ru.lower() != 'nan' else ""
+
             _all_headlines.append({
-                'badge': f'RECRUITING #{_rec_rank_num}',
+                'badge': f'USER RECRUITING #{_rec_rank_num}',
                 'priority': 44,
-                'text': f"{_rt} — {_star_str} · {round(_rpts,1)} pts · {_rtc} commits",
-                'blurb': f"{_ru}'s {CURRENT_YEAR} class ranked #{_rec_rank_num} nationally. The pipeline is loaded.",
+                'text': f"{_rt} — #{_rec_rank_num} nationally · {_star_str} · {round(_rpts, 1)} pts · {_rtc} commits",
+                'blurb': f"{_owner_prefix}{CURRENT_YEAR} HS class for {_rt} checked in at #{_rec_rank_num} nationally.",
                 'logo_html': _lh,
             })
 except Exception:
