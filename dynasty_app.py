@@ -230,6 +230,35 @@ def build_super_bowl_moment_text(player_name, team, pos_bucket, school="", stat_
     pool = hero_templates[key] if is_hero else fail_templates[key]
     return random.choice(pool)
 
+import zipfile
+from io import BytesIO
+
+NFL_EXPORT_FILES = [
+    "nfl_draft_history.csv",
+    "nfl_story_events.csv",
+    "nfl_super_bowl_history.csv",
+    "nfl_player_history.csv",
+    "nfl_current_rosters.csv",
+    "nfl_awards_history.csv",
+    "nfl_playoff_history.csv",
+    "nfl_standings_history.csv",
+    "nfl_universe_settings.csv",
+    "injury_bulletin.csv",
+]
+
+def build_nfl_export_zip():
+    buffer = BytesIO()
+    included_files = []
+
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for file_name in NFL_EXPORT_FILES:
+            if os.path.exists(file_name):
+                zf.write(file_name, arcname=file_name)
+                included_files.append(file_name)
+
+    buffer.seek(0)
+    return buffer.getvalue(), included_files
+
 def score_super_bowl_moment_candidate(row):
     pos_bucket = clean_display(row.get("PosBucket", clean_bucket(row.get("Pos", ""))), "")
     role = clean_display(row.get("Role", ""), "")
@@ -14741,7 +14770,24 @@ with tabs[9]:
                     use_container_width=True,
                     key="download_nfl_universe_settings"
                 )
+    zip_bytes, included_files = build_nfl_export_zip()
 
+        zip_l, zip_c, zip_r = st.columns([1, 1.4, 1])
+
+        with zip_c:
+            st.download_button(
+                label="📦 Download All NFL CSVs (ZIP)",
+                data=zip_bytes,
+                file_name=f"nfl_universe_export_{get_current_nfl_season()}.zip",
+                mime="application/zip",
+                use_container_width=True,
+                key="download_all_nfl_csvs_zip"
+            )
+
+        if included_files:
+            st.caption("Included: " + ", ".join(included_files))
+        else:
+            st.warning("No NFL CSV files were found to export.")
     else:
         c1, c2, c3 = st.columns(3)
 
