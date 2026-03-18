@@ -13562,19 +13562,6 @@ with tabs[9]:
             _top5 = int((_rank_vals <= 5).sum()) if not _rank_vals.empty else 0
             _path = round((_ranked * 7) + (_top10 * 6) + (_top5 * 5) + (_wins * 1.5), 1)
 
-            def _sos_tier(_v):
-                if pd.isna(_v):
-                    return "—"
-                if _v >= 10:
-                    return "Brutal"
-                elif _v >= 8:
-                    return "Tough"
-                elif _v >= 6:
-                    return "Solid"
-                elif _v >= 4:
-                    return "Manageable"
-                return "Soft"
-
             if _path >= 90:
                 _tier = "Historic"
             elif _path >= 65:
@@ -13639,7 +13626,6 @@ with tabs[9]:
                 'Wins': _wins,
                 'Losses': _losses,
                 'SOS': _sos,
-                'SOS Tier': _sos_tier(_sos),
                 'Hardest Path': _path,
                 'Path Tier': _tier,
                 'Final Rank': (int(_final_rank) if pd.notna(_final_rank) else np.nan),
@@ -13658,6 +13644,39 @@ with tabs[9]:
         _legacy_rows = [_season_metrics(target, _yr) for _yr in _coach_years]
         legacy_df = pd.DataFrame(_legacy_rows).sort_values('Year')
 
+        def _sos_tier(x):
+            try:
+                x = float(x)
+            except Exception:
+                return "—"
+            if x < 4:
+                return "Soft"
+            if x < 6:
+                return "Manageable"
+            if x < 8:
+                return "Solid"
+            if x < 10:
+                return "Tough"
+            return "Brutal"
+
+        def _path_tier_from_score(x):
+            try:
+                x = float(x)
+            except Exception:
+                return "—"
+            if x < 25:
+                return "Manageable"
+            if x < 50:
+                return "Tough"
+            if x < 75:
+                return "Brutal"
+            return "Historic"
+
+        if not legacy_df.empty:
+            legacy_df['SOS Tier'] = legacy_df['SOS'].apply(_sos_tier) if 'SOS' in legacy_df.columns else "—"
+            if 'Path Tier' not in legacy_df.columns and 'Hardest Path' in legacy_df.columns:
+                legacy_df['Path Tier'] = legacy_df['Hardest Path'].apply(_path_tier_from_score)
+
         # ── Career cards ───────────────────────────────────────────────────────
         _schools = [str(t).strip() for t in pd.Series(list(_year_team.values())).dropna().unique() if str(t).strip()]
         _career_w = int(legacy_df['Wins'].sum()) if not legacy_df.empty else 0
@@ -13668,24 +13687,13 @@ with tabs[9]:
         _avg_sos = round(float(legacy_df['SOS'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['SOS'].dropna().any() else np.nan
         _avg_path = round(float(legacy_df['Hardest Path'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['Hardest Path'].dropna().any() else np.nan
         _avg_vs_proj = round(float((legacy_df['Actual Wins'].fillna(0) - legacy_df['Projected Wins'].fillna(0)).mean()), 1) if not legacy_df.empty and 'Projected Wins' in legacy_df.columns else np.nan
-        _avg_sos_tier = _sos_tier(_avg_sos) if pd.notna(_avg_sos) else "—"
-        if pd.isna(_avg_path):
-            _avg_path_tier = "—"
-        elif _avg_path >= 90:
-            _avg_path_tier = "Historic"
-        elif _avg_path >= 65:
-            _avg_path_tier = "Brutal"
-        elif _avg_path >= 40:
-            _avg_path_tier = "Tough"
-        else:
-            _avg_path_tier = "Manageable"
 
         mobile_metrics([
             {"label": "🏫 Schools", "value": str(len(_schools))},
             {"label": "📘 Career Record", "value": f"{_career_w}-{_career_l}"},
             {"label": "🏆 Natties", "value": str(_natties)},
-            {"label": "📐 AVG SOS", "value": (f"{_avg_sos:.1f} • {_avg_sos_tier}" if pd.notna(_avg_sos) else "—")},
-            {"label": "🪓 AVG PATH", "value": (f"{_avg_path:.1f} • {_avg_path_tier}" if pd.notna(_avg_path) else "—")},
+            {"label": "📐 AVG SOS", "value": f"{_avg_sos:.1f} • {_sos_tier(_avg_sos)}" if pd.notna(_avg_sos) else "—"},
+            {"label": "🪓 AVG PATH", "value": f"{_avg_path:.1f} • {_path_tier_from_score(_avg_path)}" if pd.notna(_avg_path) else "—"},
             {"label": "📈 VS PROJ WINS", "value": f"{_avg_vs_proj:+.1f}" if pd.notna(_avg_vs_proj) else "—"},
         ])
 
