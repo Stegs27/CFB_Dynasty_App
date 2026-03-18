@@ -13677,8 +13677,8 @@ with tabs[9]:
         st.caption("Natty Odds and CFP Make % use the preseason model — same numbers shown in Dynasty News. "
                    "Speed metrics marked (live) computed direct from roster CSV, matching Speed Freaks tab.")
 
-    # --- TALENT PROFILE ---
-with tabs[4]:
+    # --- SPEED FREAKS ---
+with tabs[7]:
         st.header("🔍 2041 Speed Freaks")
         st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
@@ -17642,7 +17642,7 @@ with tabs[5]:
             st.info("No underclassmen currently flagged as possible early leavers.")
 
     # --- ROSTER MATCHUP ---
-    with tabs[6]:
+    with tabs[8]:
         render_roster_matchup_tab()
 
     # --- SIDEBAR CONTENT ---
