@@ -10433,22 +10433,22 @@ st.markdown(f"""
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
     "🗞️ Dynasty News",          # tabs[0]
-    "📐 SOS & True Path",       # tabs[1]
-    "🏆 Who's In?",             # tabs[2]
-    "📺 Season Recap",          # tabs[3]
-    "🔍 Speed Freaks",          # tabs[4]
-    "🚪 Roster Attrition",      # tabs[5]
-    "🎯 Roster Matchup",        # tabs[6]
-    "📊 Team Overview",         # tabs[7]
-    "🥇 Recruiting Rankings",   # tabs[8]
-    "🏈 NFL Universe",          # tabs[9]
+    "🏈 NFL Universe",          # tabs[1]
+    "📐 SOS & True Path",       # tabs[2]
+    "🏆 Who's In?",             # tabs[3]
+    "🥇 Recruiting Rankings",   # tabs[4]
+     "🚪 Roster Attrition",      # tabs[5]
+    "📺 Season Recap",          # tabs[6]
+    "🔍 Speed Freaks",          # tabs[7]
+    "🎯 Roster Matchup",        # tabs[8]
+    "📊 Team Overview",         # tabs[9]
     "⚔️ H2H Matrix",            # tabs[10]
     "🎬 ISPN Classics",         # tabs[11]
     "🐐 GOAT Rankings",         # tabs[12]
 ])
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
-with tabs[1]:
+with tabs[2]:
         st.header("📐 SOS & True Path")
         st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
 
@@ -12166,7 +12166,7 @@ with tabs[0]:
 
 
     # --- WHO'S IN? ---
-with tabs[2]:
+with tabs[3]:
         st.header("🏆 Who's In? | CFP Bubble Watch")
         st.caption("Built from your uploaded CFP ranking screenshots, then sharpened with this app's SOS, resume, QB, recruiting, and roster-strength model. Current CFP standards are assumed: five highest-ranked conference champs get in, plus seven at-larges, with the top four seeds earning byes.")
 
@@ -12388,7 +12388,7 @@ with tabs[2]:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
 
         # --- RECRUITING RANKINGS ---
-with tabs[8]:
+with tabs[4]:
     st.header(f"🏈 {CURRENT_YEAR} Recruiting Final Rankings")
     st.caption("Final class rankings — high school, portal, and overall. Uses the uploaded recruiting history CSVs automatically.")
 
@@ -13052,7 +13052,7 @@ with tabs[10]:
             )
 
 # --- SEASON RECAP ---
-with tabs[3]:
+with tabs[6]:
     st.header("📺 Season Recap")
     sel_year = int(st.selectbox("Select Season", years, key="season_year"))
     y_data = scores[scores[meta['yr']].astype(int) == sel_year].copy()
@@ -13312,7 +13312,7 @@ with tabs[3]:
                 )
 
     # --- TEAM OVERVIEW ---
-with tabs[7]:
+with tabs[9]:
         st.header("📊 Team Analysis")
         st.caption("Live speed metrics from roster CSV. Team card record comes from CPUscores_MASTER.csv and CFP rank comes from cfp_rankings_history.csv. Odds match Dynasty News preseason model.")
 
@@ -13323,7 +13323,7 @@ with tabs[7]:
             setTimeout(function() {
                 try {
                     var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
-                    if (tabs && tabs[7]) { tabs[7].click(); }
+                    if (tabs && tabs[9]) { tabs[9].click(); }
                 } catch(e) {}
             }, 150);
             </script>
@@ -14486,7 +14486,7 @@ with tabs[12]:
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE
 # ──────────────────────────────────────────────────────────────────────
-with tabs[9]:
+with tabs[1]:
     nfl_universe_logo_path = "_NFL_logo.png"
     if os.path.exists(nfl_universe_logo_path):
         logo_uri = file_to_data_uri(nfl_universe_logo_path)
