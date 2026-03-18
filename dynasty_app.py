@@ -12396,152 +12396,151 @@ with tabs[2]:
             st.success(f"That's a résumé steroid shot. A top-12 win would give {sim_team} a real committee argument and bye-path juice.")
         else:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
-    # --- RECRUITING RANKINGS ---
+
+        # --- RECRUITING RANKINGS ---
 with tabs[8]:
-        st.header(f"🏈 {CURRENT_YEAR} Recruiting Final Rankings")
-        st.caption("Final class rankings — high school, portal, and overall. Uses the uploaded recruiting history CSVs automatically.")
+    st.header(f"🏈 {CURRENT_YEAR} Recruiting Final Rankings")
+    st.caption("Final class rankings — high school, portal, and overall. Uses the uploaded recruiting history CSVs automatically.")
 
-        recruit_year = CURRENT_YEAR
+    recruit_year = CURRENT_YEAR
 
-        # ── Load recruiting snapshots from history CSVs ──────────────────────
-        _hs_df = get_hs_recruiting_snapshot(recruit_year)
-        _portal_df = get_portal_recruiting_snapshot(recruit_year)
-        _overall_df = get_overall_recruiting_snapshot(recruit_year)
+    # ── Load recruiting snapshots from history CSVs ──────────────────────
+    _hs_df = get_hs_recruiting_snapshot(recruit_year)
+    _portal_df = get_portal_recruiting_snapshot(recruit_year)
+    _overall_df = get_overall_recruiting_snapshot(recruit_year)
 
-        def _empty_recruit_df():
-            return pd.DataFrame(columns=[
-                'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar',
-                'ThreeStar', 'TwoStar', 'OneStar', 'Points', 'BlueChipRatio', 'Logo'
-            ])
+    def _empty_recruit_df():
+        return pd.DataFrame(columns=[
+            'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar',
+            'ThreeStar', 'TwoStar', 'OneStar', 'Points', 'BlueChipRatio', 'Logo'
+        ])
 
-        def _prep_recruit_df(df):
-            if df is None or df.empty:
-                return _empty_recruit_df()
+    def _prep_recruit_df(df):
+        if df is None or df.empty:
+            return _empty_recruit_df()
 
-            df = df.copy()
-            defaults = {
-                'Rank': 0,
-                'Team': '',
-                'User': '',
-                'TotalCommits': 0,
-                'FiveStar': 0,
-                'FourStar': 0,
-                'ThreeStar': 0,
-                'TwoStar': 0,
-                'OneStar': 0,
-                'Points': 0.0,
-            }
-            for col, default in defaults.items():
-                if col not in df.columns:
-                    df[col] = default
-
-            df['Rank'] = pd.to_numeric(df['Rank'], errors='coerce').fillna(0).astype(int)
-            for col in ['TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar']:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-            df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
-            df['Team'] = df['Team'].astype(str).str.strip()
-            df['User'] = df['User'].fillna('').astype(str).str.strip()
-
-            if 'BlueChipRatio' not in df.columns:
-                df['BlueChipRatio'] = ((df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)).round(3)
-            else:
-                df['BlueChipRatio'] = pd.to_numeric(df['BlueChipRatio'], errors='coerce').fillna(0.0)
-
-            if 'Logo' not in df.columns:
-                df['Logo'] = df['Team'].apply(get_logo_source)
-
-            return df.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
-
-        _hs_df = _prep_recruit_df(_hs_df)
-        _portal_df = _prep_recruit_df(_portal_df)
-        _overall_df = _prep_recruit_df(_overall_df)
-
-        if _hs_df.empty and _portal_df.empty and _overall_df.empty:
-            st.warning(f"No recruiting data found for {recruit_year}.")
-        else:
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                st.metric("HS Teams Ranked", len(_hs_df))
-            with c2:
-                st.metric("Portal Teams Ranked", len(_portal_df))
-            with c3:
-                st.metric("Overall Teams Ranked", len(_overall_df))
-            with c4:
-                st.metric("Year", recruit_year)
-
-        st.markdown("---")
-
-        # ── USER TEAMS SPOTLIGHT ──────────────────────────────────────────────
-        st.subheader(f"👑 User Coaches — {recruit_year} Class Snapshot")
-        _user_teams_map = {
-            str(r['USER']).strip(): str(r['TEAM']).strip()
-            for _, r in model_2041.iterrows()
+        df = df.copy()
+        defaults = {
+            'Rank': 0,
+            'Team': '',
+            'User': '',
+            'TotalCommits': 0,
+            'FiveStar': 0,
+            'FourStar': 0,
+            'ThreeStar': 0,
+            'TwoStar': 0,
+            'OneStar': 0,
+            'Points': 0.0,
         }
-        _team_to_user = {team: user for user, team in _user_teams_map.items()}
+        for col, default in defaults.items():
+            if col not in df.columns:
+                df[col] = default
 
-        for _df in (_hs_df, _portal_df, _overall_df):
-            if not _df.empty:
-                # Only current 2041 user-controlled teams get a user name.
-                # Former schools should stay blank in the full recruiting tables.
-                _df['User'] = _df['Team'].astype(str).str.strip().map(_team_to_user).fillna('')
+        df['Rank'] = pd.to_numeric(df['Rank'], errors='coerce').fillna(0).astype(int)
+        for col in ['TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+        df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
+        df['Team'] = df['Team'].astype(str).str.strip()
+        df['User'] = df['User'].fillna('').astype(str).str.strip()
 
-        _hs_lookup = {str(r['Team']).strip(): r for _, r in _hs_df.iterrows()}
-        _portal_lookup = {str(r['Team']).strip(): r for _, r in _portal_df.iterrows()}
-        _overall_lookup = {str(r['Team']).strip(): r for _, r in _overall_df.iterrows()}
+        if 'BlueChipRatio' not in df.columns:
+            df['BlueChipRatio'] = ((df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)).round(3)
+        else:
+            df['BlueChipRatio'] = pd.to_numeric(df['BlueChipRatio'], errors='coerce').fillna(0.0)
 
-        def _row_has_recruit_data(_row):
-            if _row is None:
-                return False
+        if 'Logo' not in df.columns:
+            df['Logo'] = df['Team'].apply(get_logo_source)
+
+        return df.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
+
+    _hs_df = _prep_recruit_df(_hs_df)
+    _portal_df = _prep_recruit_df(_portal_df)
+    _overall_df = _prep_recruit_df(_overall_df)
+
+    if _hs_df.empty and _portal_df.empty and _overall_df.empty:
+        st.warning(f"No recruiting data found for {recruit_year}.")
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("HS Teams Ranked", len(_hs_df))
+        with c2:
+            st.metric("Portal Teams Ranked", len(_portal_df))
+        with c3:
+            st.metric("Overall Teams Ranked", len(_overall_df))
+        with c4:
+            st.metric("Year", recruit_year)
+
+    st.markdown("---")
+
+    # ── USER TEAMS SPOTLIGHT ──────────────────────────────────────────────
+    st.subheader(f"👑 User Coaches — {recruit_year} Class Snapshot")
+    _user_teams_map = {
+        str(r['USER']).strip(): str(r['TEAM']).strip()
+        for _, r in model_2041.iterrows()
+    }
+    _team_to_user = {team: user for user, team in _user_teams_map.items()}
+
+    for _df in (_hs_df, _portal_df, _overall_df):
+        if not _df.empty:
+            _df['User'] = _df['Team'].astype(str).str.strip().map(_team_to_user).fillna('')
+
+    _hs_lookup = {str(r['Team']).strip(): r for _, r in _hs_df.iterrows()}
+    _portal_lookup = {str(r['Team']).strip(): r for _, r in _portal_df.iterrows()}
+    _overall_lookup = {str(r['Team']).strip(): r for _, r in _overall_df.iterrows()}
+
+    def _row_has_recruit_data(_row):
+        if _row is None:
+            return False
+        try:
+            _pts = pd.to_numeric(_row.get('Points', np.nan), errors='coerce')
+        except Exception:
+            _pts = np.nan
+        try:
+            _commits = pd.to_numeric(_row.get('TotalCommits', np.nan), errors='coerce')
+        except Exception:
+            _commits = np.nan
+        return (pd.notna(_pts) and float(_pts) > 0) or (pd.notna(_commits) and float(_commits) > 0)
+
+    _user_rows = []
+    for _usr, _tm in sorted(_user_teams_map.items()):
+        _hs_row = _hs_lookup.get(_tm)
+        _portal_row = _portal_lookup.get(_tm)
+        _overall_row = _overall_lookup.get(_tm)
+        _effective_overall_row = _overall_row if _row_has_recruit_data(_overall_row) else _hs_row
+        _user_rows.append({
+            'Coach': _usr,
+            'Team': _tm,
+            'HS Rank': int(_hs_row['Rank']) if _hs_row is not None and pd.notna(_hs_row['Rank']) else None,
+            'HS Points': round(float(_hs_row['Points']), 2) if _hs_row is not None and pd.notna(_hs_row['Points']) else 0.0,
+            'Portal Rank': int(_portal_row['Rank']) if _portal_row is not None and pd.notna(_portal_row['Rank']) else None,
+            'Portal Points': round(float(_portal_row['Points']), 2) if _portal_row is not None and pd.notna(_portal_row['Points']) else 0.0,
+            'Overall Rank': int(_effective_overall_row['Rank']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['Rank']) else None,
+            'Overall Points': round(float(_effective_overall_row['Points']), 2) if _effective_overall_row is not None and pd.notna(_effective_overall_row['Points']) else 0.0,
+            'Total Commits': int(_effective_overall_row['TotalCommits']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['TotalCommits']) else 0,
+            '5★': int(_effective_overall_row['FiveStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['FiveStar']) else 0,
+            '4★': int(_effective_overall_row['FourStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['FourStar']) else 0,
+            '3★': int(_effective_overall_row['ThreeStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['ThreeStar']) else 0,
+            'Blue Chip %': round(float(_effective_overall_row['BlueChipRatio']) * 100, 1) if _effective_overall_row is not None and pd.notna(_effective_overall_row.get('BlueChipRatio', np.nan)) else 0.0,
+        })
+
+    if _user_rows:
+        _user_df = pd.DataFrame(_user_rows).sort_values(['Overall Rank', 'HS Rank'], ascending=[True, True], na_position='last')
+
+        def _fmt_rank(val):
             try:
-                _pts = pd.to_numeric(_row.get('Points', np.nan), errors='coerce')
-            except Exception:
-                _pts = np.nan
-            try:
-                _commits = pd.to_numeric(_row.get('TotalCommits', np.nan), errors='coerce')
-            except Exception:
-                _commits = np.nan
-            return (pd.notna(_pts) and float(_pts) > 0) or (pd.notna(_commits) and float(_commits) > 0)
-
-        _user_rows = []
-        for _usr, _tm in sorted(_user_teams_map.items()):
-            _hs_row = _hs_lookup.get(_tm)
-            _portal_row = _portal_lookup.get(_tm)
-            _overall_row = _overall_lookup.get(_tm)
-            _effective_overall_row = _overall_row if _row_has_recruit_data(_overall_row) else _hs_row
-            _user_rows.append({
-                'Coach': _usr,
-                'Team': _tm,
-                'HS Rank': int(_hs_row['Rank']) if _hs_row is not None and pd.notna(_hs_row['Rank']) else None,
-                'HS Points': round(float(_hs_row['Points']), 2) if _hs_row is not None and pd.notna(_hs_row['Points']) else 0.0,
-                'Portal Rank': int(_portal_row['Rank']) if _portal_row is not None and pd.notna(_portal_row['Rank']) else None,
-                'Portal Points': round(float(_portal_row['Points']), 2) if _portal_row is not None and pd.notna(_portal_row['Points']) else 0.0,
-                'Overall Rank': int(_effective_overall_row['Rank']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['Rank']) else None,
-                'Overall Points': round(float(_effective_overall_row['Points']), 2) if _effective_overall_row is not None and pd.notna(_effective_overall_row['Points']) else 0.0,
-                'Total Commits': int(_effective_overall_row['TotalCommits']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['TotalCommits']) else 0,
-                '5★': int(_effective_overall_row['FiveStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['FiveStar']) else 0,
-                '4★': int(_effective_overall_row['FourStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['FourStar']) else 0,
-                '3★': int(_effective_overall_row['ThreeStar']) if _effective_overall_row is not None and pd.notna(_effective_overall_row['ThreeStar']) else 0,
-                'Blue Chip %': round(float(_effective_overall_row['BlueChipRatio']) * 100, 1) if _effective_overall_row is not None and pd.notna(_effective_overall_row.get('BlueChipRatio', np.nan)) else 0.0,
-            })
-
-        if _user_rows:
-            _user_df = pd.DataFrame(_user_rows).sort_values(['Overall Rank', 'HS Rank'], ascending=[True, True], na_position='last')
-
-            def _fmt_rank(val):
-                try:
-                    if pd.isna(val):
-                        return '—'
-                    return f"#{int(val)}"
-                except Exception:
+                if pd.isna(val):
                     return '—'
+                return f"#{int(val)}"
+            except Exception:
+                return '—'
 
-            def _fmt_points(val):
-                try:
-                    return f"{float(val):.2f}"
-                except Exception:
-                    return '0.00'
+        def _fmt_points(val):
+            try:
+                return f"{float(val):.2f}"
+            except Exception:
+                return '0.00'
 
-            _cards_html = ["""<style>
+        _cards_html = ["""<style>
 .recruit-user-grid {
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
@@ -12664,107 +12663,168 @@ with tabs[8]:
 </style>
 <div class='recruit-user-grid'>"""]
 
-            for _, _r in _user_df.iterrows():
-                _team = str(_r['Team']).strip()
-                _coach = str(_r['Coach']).strip()
-                _primary = get_team_primary_color(_team)
-                _secondary = get_team_secondary_color(_team)
-                _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                _logo_html = f"<img src='{_logo_uri}' alt='{html.escape(_team)} logo'/>" if _logo_uri else "<span style='font-size:28px;'>🏈</span>"
-                _card_html = (
-                    f"<div class='recruit-user-card' style='border-left:5px solid {_primary};'>"
-                    f"<div class='recruit-user-top'>"
-                    f"<div class='recruit-user-logo-wrap' style='box-shadow:inset 0 0 0 1px {_primary}33;'>{_logo_html}</div>"
-                    f"<div style='min-width:0;'>"
-                    f"<div class='recruit-user-coach'>{html.escape(_coach)}</div>"
-                    f"<div class='recruit-user-team' style='color:{_primary};'>{html.escape(_team)}</div>"
-                    f"<div class='recruit-user-rankline'>Overall {_fmt_rank(_r['Overall Rank'])} · HS {_fmt_rank(_r['HS Rank'])} · Portal {_fmt_rank(_r['Portal Rank'])}</div>"
-                    f"</div>"
-                    f"</div>"
-                    f"<div class='recruit-user-metrics'>"
-                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{_fmt_points(_r['Overall Points'])}</div><div class='recruit-user-metric-label'>Overall Pts</div></div>"
-                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{int(_r['Total Commits'])}</div><div class='recruit-user-metric-label'>Commits</div></div>"
-                    f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{float(_r['Blue Chip %']):.1f}%</div><div class='recruit-user-metric-label'>Blue Chip</div></div>"
-                    f"</div>"
-                    f"<div class='recruit-user-bottom'>"
-                    f"<div class='recruit-user-chip'>5★ {int(_r['5★'])}</div>"
-                    f"<div class='recruit-user-chip'>4★ {int(_r['4★'])}</div>"
-                    f"<div class='recruit-user-chip'>3★ {int(_r['3★'])}</div>"
-                    f"<div class='recruit-user-chip'>HS {_fmt_points(_r['HS Points'])}</div>"
-                    f"</div>"
-                    f"<div class='recruit-user-footer'>"
-                    f"<span>Portal Pts: <strong style='color:{_secondary if _secondary != '#FFFFFF' else '#f8fafc'};'>{_fmt_points(_r['Portal Points'])}</strong></span>"
-                    f"<span>Class Year: <strong>{recruit_year}</strong></span>"
-                    f"</div>"
-                    f"</div>"
-                )
-                _cards_html.append(_card_html)
-
-            _cards_html.append("</div>")
-            st.markdown(''.join(_cards_html), unsafe_allow_html=True)
-        else:
-            st.caption("No user teams found in model_2041.")
-
-        st.markdown("---")
-        st.subheader("🕰️ Coach Recruiting History")
-        st.caption("Pick a current user coach to see every school they have coached and the class ranks they posted there over time. Lower rank = better class.")
-
-        _history_year_cols = [c for c in rec.columns if str(c).isdigit()] if rec is not None and not rec.empty else []
-        if _history_year_cols:
-            _history_year_cols = sorted(_history_year_cols, key=lambda x: int(str(x)))
-            _rec_hist = rec.copy()
-            _rec_hist['USER'] = _rec_hist['USER'].astype(str).str.strip().str.title()
-            _rec_hist['Teams'] = _rec_hist['Teams'].astype(str).str.strip().map(normalize_history_team_name)
-
-            _history_users = sorted(_user_teams_map.keys())
-            _hist_user = st.selectbox(
-                "Choose a coach",
-                _history_users,
-                key="coach_recruiting_history_user"
+        for _, _r in _user_df.iterrows():
+            _team = str(_r['Team']).strip()
+            _coach = str(_r['Coach']).strip()
+            _primary = get_team_primary_color(_team)
+            _secondary = get_team_secondary_color(_team)
+            _logo_uri = image_file_to_data_uri(get_logo_source(_team))
+            _logo_html = f"<img src='{_logo_uri}' alt='{html.escape(_team)} logo'/>" if _logo_uri else "<span style='font-size:28px;'>🏈</span>"
+            _card_html = (
+                f"<div class='recruit-user-card' style='border-left:5px solid {_primary};'>"
+                f"<div class='recruit-user-top'>"
+                f"<div class='recruit-user-logo-wrap' style='box-shadow:inset 0 0 0 1px {_primary}33;'>{_logo_html}</div>"
+                f"<div style='min-width:0;'>"
+                f"<div class='recruit-user-coach'>{html.escape(_coach)}</div>"
+                f"<div class='recruit-user-team' style='color:{_primary};'>{html.escape(_team)}</div>"
+                f"<div class='recruit-user-rankline'>Overall {_fmt_rank(_r['Overall Rank'])} · HS {_fmt_rank(_r['HS Rank'])} · Portal {_fmt_rank(_r['Portal Rank'])}</div>"
+                f"</div>"
+                f"</div>"
+                f"<div class='recruit-user-metrics'>"
+                f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{_fmt_points(_r['Overall Points'])}</div><div class='recruit-user-metric-label'>Overall Pts</div></div>"
+                f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{int(_r['Total Commits'])}</div><div class='recruit-user-metric-label'>Commits</div></div>"
+                f"<div class='recruit-user-metric'><div class='recruit-user-metric-value'>{float(_r['Blue Chip %']):.1f}%</div><div class='recruit-user-metric-label'>Blue Chip</div></div>"
+                f"</div>"
+                f"<div class='recruit-user-bottom'>"
+                f"<div class='recruit-user-chip'>5★ {int(_r['5★'])}</div>"
+                f"<div class='recruit-user-chip'>4★ {int(_r['4★'])}</div>"
+                f"<div class='recruit-user-chip'>3★ {int(_r['3★'])}</div>"
+                f"<div class='recruit-user-chip'>HS {_fmt_points(_r['HS Points'])}</div>"
+                f"</div>"
+                f"<div class='recruit-user-footer'>"
+                f"<span>Portal Pts: <strong style='color:{_secondary if _secondary != '#FFFFFF' else '#f8fafc'};'>{_fmt_points(_r['Portal Points'])}</strong></span>"
+                f"<span>Class Year: <strong>{recruit_year}</strong></span>"
+                f"</div>"
+                f"</div>"
             )
+            _cards_html.append(_card_html)
 
-            _coach_rows = _rec_hist[_rec_hist['USER'] == _hist_user].copy()
-            if _coach_rows.empty:
-                st.caption("No recruiting history found for that coach in recruiting.csv.")
-            else:
-                _school_cards = []
-                for _, _hr in _coach_rows.iterrows():
-                    _hist_team = str(_hr.get('Teams', '')).strip()
-                    if not _hist_team or _hist_team.lower() == 'nan':
-                        continue
-                    _year_vals = []
-                    for _yc in _history_year_cols:
-                        _v = _hr.get(_yc)
-                        if pd.notna(_v) and str(_v).strip() not in ('', 'nan', '', '-', '--'):
-                            try:
-                                _rank_val = int(float(_v))
-                                _year_vals.append({'Year': int(_yc), 'Class Rank': _rank_val})
-                            except Exception:
-                                pass
-                    if not _year_vals:
-                        continue
-                    _hist_df = pd.DataFrame(_year_vals).sort_values('Year', ascending=False).reset_index(drop=True)
-                    _best_rank = int(_hist_df['Class Rank'].min())
-                    _latest_rank = int(_hist_df.iloc[0]['Class Rank'])
-                    _years_span = sorted(_hist_df['Year'].astype(int).tolist())
-                    if len(_years_span) == 1:
-                        _years_label = str(_years_span[0])
-                    else:
-                        _years_label = f"{_years_span[0]}–{_years_span[-1]}"
-                    _school_cards.append({
-                        'team': _hist_team,
-                        'df': _hist_df,
-                        'best_rank': _best_rank,
-                        'latest_rank': _latest_rank,
-                        'years_label': _years_label,
-                        'classes': len(_hist_df),
-                    })
+        _cards_html.append("</div>")
+        st.markdown(''.join(_cards_html), unsafe_allow_html=True)
+    else:
+        st.caption("No user teams found in model_2041.")
 
-                if not _school_cards:
-                    st.caption("No historical class ranks found for that coach.")
+    st.markdown("---")
+
+    # ── CLASS RANKS HIGHER ───────────────────────────────────────────────
+    recruit_tabs = st.tabs(["🏫 High School", "🔁 Transfer Portal", "📊 Overall"])
+
+    with recruit_tabs[0]:
+        st.subheader(f"{recruit_year} High School Recruiting Rankings")
+        if _hs_df.empty:
+            st.info("No high school recruiting data available.")
+        else:
+            hs_display = _hs_df.rename(columns={
+                'TotalCommits': 'Total',
+                'FiveStar': '5★',
+                'FourStar': '4★',
+                'ThreeStar': '3★',
+                'TwoStar': '2★',
+                'OneStar': '1★',
+                'BlueChipRatio': 'Blue Chip Ratio',
+            })
+            render_recruiting_snapshot_table(hs_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
+            with st.expander("Show full HS table"):
+                st.dataframe(hs_display, hide_index=True, use_container_width=True)
+
+    with recruit_tabs[1]:
+        st.subheader(f"{recruit_year} Transfer Portal Rankings")
+        if _portal_df.empty:
+            st.info("No transfer portal recruiting data available for this year.")
+        else:
+            portal_display = _portal_df.rename(columns={
+                'TotalCommits': 'Total',
+                'FiveStar': '5★',
+                'FourStar': '4★',
+                'ThreeStar': '3★',
+                'TwoStar': '2★',
+                'OneStar': '1★',
+                'BlueChipRatio': 'Blue Chip Ratio',
+            })
+            render_recruiting_snapshot_table(portal_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
+            with st.expander("Show full portal table"):
+                st.dataframe(portal_display, hide_index=True, use_container_width=True)
+
+    with recruit_tabs[2]:
+        st.subheader(f"{recruit_year} Overall Recruiting Rankings")
+        if _overall_df.empty:
+            st.info("No overall recruiting data available.")
+        else:
+            overall_display = _overall_df.rename(columns={
+                'TotalCommits': 'Total',
+                'FiveStar': '5★',
+                'FourStar': '4★',
+                'ThreeStar': '3★',
+                'TwoStar': '2★',
+                'OneStar': '1★',
+                'BlueChipRatio': 'Blue Chip Ratio',
+            })
+            render_recruiting_snapshot_table(overall_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
+            with st.expander("Show full overall table"):
+                st.dataframe(overall_display, hide_index=True, use_container_width=True)
+
+    st.markdown("---")
+
+    # ── COACH HISTORY AT BOTTOM ─────────────────────────────────────────
+    st.subheader("🕰️ Coach Recruiting History")
+    st.caption("Pick a current user coach to see every school they have coached and the class ranks they posted there over time. Lower rank = better class.")
+
+    _history_year_cols = [c for c in rec.columns if str(c).isdigit()] if rec is not None and not rec.empty else []
+    if _history_year_cols:
+        _history_year_cols = sorted(_history_year_cols, key=lambda x: int(str(x)))
+        _rec_hist = rec.copy()
+        _rec_hist['USER'] = _rec_hist['USER'].astype(str).str.strip().str.title()
+        _rec_hist['Teams'] = _rec_hist['Teams'].astype(str).str.strip().map(normalize_history_team_name)
+
+        _history_users = sorted(_user_teams_map.keys())
+        _hist_user = st.selectbox(
+            "Choose a coach",
+            _history_users,
+            key="coach_recruiting_history_user"
+        )
+
+        _coach_rows = _rec_hist[_rec_hist['USER'] == _hist_user].copy()
+        if _coach_rows.empty:
+            st.caption("No recruiting history found for that coach in recruiting.csv.")
+        else:
+            _school_cards = []
+            for _, _hr in _coach_rows.iterrows():
+                _hist_team = str(_hr.get('Teams', '')).strip()
+                if not _hist_team or _hist_team.lower() == 'nan':
+                    continue
+                _year_vals = []
+                for _yc in _history_year_cols:
+                    _v = _hr.get(_yc)
+                    if pd.notna(_v) and str(_v).strip() not in ('', 'nan', '-', '--'):
+                        try:
+                            _rank_val = int(float(_v))
+                            _year_vals.append({'Year': int(_yc), 'Class Rank': _rank_val})
+                        except Exception:
+                            pass
+                if not _year_vals:
+                    continue
+                _hist_df = pd.DataFrame(_year_vals).sort_values('Year', ascending=False).reset_index(drop=True)
+                _best_rank = int(_hist_df['Class Rank'].min())
+                _latest_rank = int(_hist_df.iloc[0]['Class Rank'])
+                _years_span = sorted(_hist_df['Year'].astype(int).tolist())
+                if len(_years_span) == 1:
+                    _years_label = str(_years_span[0])
                 else:
-                    _school_cards = sorted(_school_cards, key=lambda x: x['df']['Year'].min())
-                    st.markdown("""<style>
+                    _years_label = f"{_years_span[0]}–{_years_span[-1]}"
+                _school_cards.append({
+                    'team': _hist_team,
+                    'df': _hist_df,
+                    'best_rank': _best_rank,
+                    'latest_rank': _latest_rank,
+                    'years_label': _years_label,
+                    'classes': len(_hist_df),
+                })
+
+            if not _school_cards:
+                st.caption("No historical class ranks found for that coach.")
+            else:
+                _school_cards = sorted(_school_cards, key=lambda x: x['df']['Year'].min())
+                st.markdown("""<style>
 .recruit-history-grid {
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
@@ -12801,13 +12861,13 @@ with tabs[8]:
     object-fit:contain;
 }
 .recruit-history-team {
-    font-size:1rem;
+    font-size:1.02rem;
     font-weight:900;
     line-height:1.1;
 }
 .recruit-history-sub {
     font-size:.76rem;
-    color:#cbd5e1;
+    color:#94a3b8;
     margin-top:3px;
 }
 .recruit-history-metrics {
@@ -12820,49 +12880,24 @@ with tabs[8]:
     background:rgba(15,23,42,.85);
     border:1px solid rgba(51,65,85,.9);
     border-radius:10px;
-    padding:8px 8px 7px 8px;
+    padding:8px;
     text-align:center;
 }
 .recruit-history-metric-value {
-    font-size:.98rem;
+    font-size:1rem;
     font-weight:900;
     color:#f8fafc;
 }
 .recruit-history-metric-label {
-    font-size:.62rem;
+    font-size:.63rem;
     color:#94a3b8;
     font-weight:700;
     text-transform:uppercase;
-    letter-spacing:.04em;
     margin-top:3px;
 }
-@media (max-width:640px) {
-    .recruit-history-grid { grid-template-columns:1fr; gap:10px; }
-}
 </style>""", unsafe_allow_html=True)
-                    _history_cards_html = ["<div class='recruit-history-grid'>"]
-                    for _card in _school_cards:
-                        _team = _card['team']
-                        _color = get_team_primary_color(_team)
-                        _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                        _logo_html = f"<img src='{_logo_uri}' alt='{html.escape(_team)} logo'/>" if _logo_uri else "<span style='font-size:28px;'>🏈</span>"
-                        _history_cards_html.append(
-                            f"<div class='recruit-history-card' style='border-left:5px solid {_color};'>"
-                            f"<div class='recruit-history-top'>"
-                            f"<div class='recruit-history-logo' style='box-shadow:inset 0 0 0 1px {_color}33;'>{_logo_html}</div>"
-                            f"<div style='min-width:0;'>"
-                            f"<div class='recruit-history-team' style='color:{_color};'>{html.escape(_team)}</div>"
-                            f"<div class='recruit-history-sub'>{_card['years_label']} · {_card['classes']} class{'es' if _card['classes'] != 1 else ''}</div>"
-                            f"</div></div>"
-                            f"<div class='recruit-history-metrics'>"
-                            f"<div class='recruit-history-metric'><div class='recruit-history-metric-value'>#{_card['latest_rank']}</div><div class='recruit-history-metric-label'>Latest</div></div>"
-                            f"<div class='recruit-history-metric'><div class='recruit-history-metric-value'>#{_card['best_rank']}</div><div class='recruit-history-metric-label'>Best</div></div>"
-                            f"<div class='recruit-history-metric'><div class='recruit-history-metric-value'>{_card['classes']}</div><div class='recruit-history-metric-label'>Classes</div></div>"
-                            f"</div>"
-                            f"</div>"
-                        )
-                    _history_cards_html.append("</div>")
-                    st.markdown(''.join(_history_cards_html), unsafe_allow_html=True)
+
+                # keep your existing card rendering code below this point
 
                     st.markdown(f"#### {_hist_user}'s class-by-class results")
                     for _card in _school_cards:
@@ -12883,62 +12918,6 @@ with tabs[8]:
             st.caption("No recruiting history columns found in recruiting.csv.")
 
         st.markdown("---")
-
-        recruit_tabs = st.tabs(["🏫 High School", "🔁 Transfer Portal", "📊 Overall"])
-
-        with recruit_tabs[0]:
-            st.subheader(f"{recruit_year} High School Recruiting Rankings")
-            if _hs_df.empty:
-                st.info("No high school recruiting data available.")
-            else:
-                hs_display = _hs_df.rename(columns={
-                    'TotalCommits': 'Total',
-                    'FiveStar': '5★',
-                    'FourStar': '4★',
-                    'ThreeStar': '3★',
-                    'TwoStar': '2★',
-                    'OneStar': '1★',
-                    'BlueChipRatio': 'Blue Chip Ratio',
-                })
-                render_recruiting_snapshot_table(hs_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
-                with st.expander("Show full HS table"):
-                    st.dataframe(hs_display, hide_index=True, use_container_width=True)
-
-        with recruit_tabs[1]:
-            st.subheader(f"{recruit_year} Transfer Portal Rankings")
-            if _portal_df.empty:
-                st.info("No transfer portal recruiting data available for this year.")
-            else:
-                portal_display = _portal_df.rename(columns={
-                    'TotalCommits': 'Total',
-                    'FiveStar': '5★',
-                    'FourStar': '4★',
-                    'ThreeStar': '3★',
-                    'TwoStar': '2★',
-                    'OneStar': '1★',
-                    'BlueChipRatio': 'Blue Chip Ratio',
-                })
-                render_recruiting_snapshot_table(portal_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
-                with st.expander("Show full portal table"):
-                    st.dataframe(portal_display, hide_index=True, use_container_width=True)
-
-        with recruit_tabs[2]:
-            st.subheader(f"{recruit_year} Overall Recruiting Rankings")
-            if _overall_df.empty:
-                st.info("No overall recruiting data available.")
-            else:
-                overall_display = _overall_df.rename(columns={
-                    'TotalCommits': 'Total',
-                    'FiveStar': '5★',
-                    'FourStar': '4★',
-                    'ThreeStar': '3★',
-                    'TwoStar': '2★',
-                    'OneStar': '1★',
-                    'BlueChipRatio': 'Blue Chip Ratio',
-                })
-                render_recruiting_snapshot_table(overall_display[['Rank', 'Team', 'Total', '5★', '4★', '3★', 'Points', 'Blue Chip Ratio']])
-                with st.expander("Show full overall table"):
-                    st.dataframe(overall_display, hide_index=True, use_container_width=True)
 
     # --- H2H MATRIX ---
 with tabs[10]:
