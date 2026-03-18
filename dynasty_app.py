@@ -9961,13 +9961,19 @@ try:
     else:
         _user_team_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
 
-    _rh_cy = _rh[_rh['Year'] == CURRENT_YEAR].copy()
-    if _rh_cy.empty:
-    _rh_cy = _rh[_rh['Year'] == CURRENT_YEAR - 1].copy()
+    _rh_cy = _rh[
+        (_rh['Year'] == CURRENT_YEAR) &
+        (_rh['Team'].isin(_user_team_list))
+    ].copy()
 
-    #st.write("DEBUG recruiting ticker rows", _rh_cy[['Year', 'Team', 'Rank', 'Points']])
+    if _rh_cy.empty:
+        _rh_cy = _rh[
+            (_rh['Year'] == CURRENT_YEAR - 1) &
+            (_rh['Team'].isin(_user_team_list))
+        ].copy()
 
     if not _rh_cy.empty:
+        _headline_year = int(pd.to_numeric(_rh_cy['Year'], errors='coerce').dropna().iloc[0])
         _rh_cy = _rh_cy.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
 
         for _, _rrow in _rh_cy.iterrows():
@@ -10001,7 +10007,7 @@ try:
                 'badge': f'USER CLASS #{_rec_rank_num}',
                 'priority': 44,
                 'text': f"{_rt} — #{_rec_rank_num} overall · {_star_str} · {round(_rpts, 1)} pts · {_rtc} commits",
-                'blurb': f"{_owner_prefix}{CURRENT_YEAR - 1} overall recruiting class for {_rt} finished #{_rec_rank_num} nationally.",
+                'blurb': f"{_owner_prefix}{_headline_year} overall recruiting class for {_rt} finished #{_rec_rank_num} nationally.",
                 'logo_html': _lh,
             })
 except Exception as e:
