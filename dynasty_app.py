@@ -4276,6 +4276,9 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
             if not player_id:
                 continue
 
+            if player_id.startswith("BASE::"):
+                continue
+
             status = str(pr.get("Status", "Active")).strip()
             if status in {"Retired", "Out of League"}:
                 continue
