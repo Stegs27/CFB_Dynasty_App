@@ -4182,19 +4182,13 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
     if existing_current_rosters_df is None:
         existing_current_rosters_df = pd.read_csv("nfl_current_rosters.csv") if os.path.exists("nfl_current_rosters.csv") else pd.DataFrame(columns=NFL_CURRENT_ROSTER_COLS)
 
-    prior_current = existing_current_rosters_df.copy()
-    if not prior_current.empty and "Season" in prior_current.columns:
-        prior_current["Season"] = pd.to_numeric(prior_current["Season"], errors="coerce")
-        prior_current = prior_current[
-            prior_current["Season"].fillna(-1).astype(int) == int(season_year)
-        ].copy()
+    existing_current = existing_current_rosters_df.copy()
 
-    if not prior_current.empty:
-        for col in NFL_CURRENT_ROSTER_COLS:
-            if col not in prior_current.columns:
-                prior_current[col] = pd.NA
-        prior_current = prior_current[NFL_CURRENT_ROSTER_COLS].copy()
-        return prior_current
+if not existing_current.empty and "Season" in existing_current.columns:
+    existing_current["Season"] = pd.to_numeric(existing_current["Season"], errors="coerce")
+    existing_current = existing_current[
+        existing_current["Season"].fillna(-1).astype(int) != int(season_year)
+    ].copy()
 
     base_roster = nfl_roster_df.copy() if nfl_roster_df is not None else pd.DataFrame()
     if base_roster.empty:
@@ -4314,8 +4308,21 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
             current_df[col] = pd.NA
 
     current_df = current_df[NFL_CURRENT_ROSTER_COLS].copy()
-    current_df.to_csv("nfl_current_rosters.csv", index=False)
-    return current_df
+
+if existing_current is not None and not existing_current.empty:
+    for col in NFL_CURRENT_ROSTER_COLS:
+        if col not in existing_current.columns:
+            existing_current[col] = pd.NA
+    existing_current = existing_current[NFL_CURRENT_ROSTER_COLS].copy()
+    current_df = pd.concat([existing_current, current_df], ignore_index=True)
+
+current_df.to_csv("nfl_current_rosters.csv", index=False)
+
+season_df = current_df[
+    pd.to_numeric(current_df["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+].copy()
+
+return season_df
 
 def simulate_nfl_season(season_year=None):
     universe = load_nfl_universe_data()
