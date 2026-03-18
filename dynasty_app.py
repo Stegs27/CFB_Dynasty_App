@@ -14668,317 +14668,10 @@ with tabs[1]:
 
     latest_saved_draft_year = get_latest_saved_draft_year()
 
-    # ── PUBLIC / EVERYONE FIRST ─────────────────────────────────────────
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
-
-    with c2:
-        st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
-
-    with c3:
-        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
-
-    audio_l, audio_c, audio_r = st.columns([1, 1.4, 1])
-
-    with audio_c:
-        if st.button("▶️ Replay Saved Draft With Audio", use_container_width=True, key="replay_saved_draft_with_audio_public"):
-            enable_draft_audio()
-            if latest_saved_draft_year is None:
-                st.warning("No saved draft exists yet.")
-            else:
-                replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
-
-    st.markdown(
-        "<div style='text-align:center;color:#9ca3af;font-size:0.9rem;'>This button enables audio and starts the replay in one click.</div>",
-        unsafe_allow_html=True
-    )
-
-    st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
-
-    st.markdown("---")
-
-    # ── COMMISSIONER UNLOCK MOVED LOWER ────────────────────────────────
-    with st.expander("🔒 Commissioner Controls", expanded=False):
-        commissioner_key = st.text_input(
-            "Enter commissioner password",
-            type="password",
-            key="nfl_commissioner_password"
-        )
-
-        if commissioner_key == "Chicken83$":
-            st.session_state["nfl_commissioner_unlocked"] = True
-            is_commissioner = True
-            st.success("Commissioner mode unlocked.")
-        elif commissioner_key:
-            st.error("Incorrect password.")
-
-    if is_commissioner:
-        st.subheader("Commissioner Tools")
-
-        c1, c2, c3, c4, c5 = st.columns([1.05, 1.0, 1.0, 1.0, 1.15])
-
-        with c1:
-            reveal_speed = st.selectbox(
-                "Replay Speed",
-                ["Broadcast", "Fast", "Turbo"],
-                index=0,
-                key="nfl_draft_reveal_speed"
-            )
-
-        with c2:
-            st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
-
-        with c3:
-            st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
-
-        with c4:
-            st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
-
-        with c5:
-            allow_rerun = st.checkbox(
-                "Allow rerun of latest class",
-                value=False,
-                key="nfl_allow_rerun_latest"
-            )
-
-        audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
-
-        with audio_c:
-            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn_commish"):
-                enable_draft_audio()
-                st.success("Draft audio enabled for this session.")
-
-        st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
-
-        b1, b2, b3 = st.columns(3)
-
-        with b1:
-            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft_btn_commish"):
-                try:
-                    nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
-                        live_mode=False,
-                        speed_mode=reveal_speed,
-                        force_latest=False
-                    )
-
-                    if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                        just_added_class = nfl_draft_hist[
-                            pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
-                        ].copy()
-
-                        if status_msg and "officially added" in status_msg.lower():
-                            existing_story = (
-                                pd.read_csv("nfl_story_events.csv")
-                                if os.path.exists("nfl_story_events.csv")
-                                else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                            )
-                            seed_story_events_from_draft_class(just_added_class, existing_story)
-
-                    if status_msg:
-                        if "already locked in" in status_msg.lower():
-                            st.info(status_msg)
-                        elif "officially added" in status_msg.lower():
-                            st.success(status_msg)
-                        else:
-                            st.warning(status_msg)
-
-                except Exception as e:
-                    st.error(f"NFL draft error: {type(e).__name__}: {e}")
-
-        with b2:
-            if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
-                if latest_saved_draft_year is None:
-                    st.warning("No saved draft exists yet.")
-                else:
-                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode=reveal_speed)
-
-        with b3:
-            if st.button("🛠️ Admin Rerun Latest", use_container_width=True, key="rerun_latest_nfl_draft"):
-                if not allow_rerun:
-                    st.warning("Enable 'Allow rerun of latest class' first.")
-                else:
-                    try:
-                        nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
-                            live_mode=False,
-                            speed_mode=reveal_speed,
-                            force_latest=True
-                        )
-
-                        if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                            just_added_class = nfl_draft_hist[
-                                pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
-                            ].copy()
-
-                            if status_msg and "rerun for testing" in status_msg.lower():
-                                existing_story = (
-                                    pd.read_csv("nfl_story_events.csv")
-                                    if os.path.exists("nfl_story_events.csv")
-                                    else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                                )
-                                seed_story_events_from_draft_class(just_added_class, existing_story)
-
-                        st.warning(status_msg if status_msg else "Latest draft rerun complete.")
-
-                    except Exception as e:
-                        import traceback
-                        st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
-                        st.code(traceback.format_exc())
-
-        sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
-
-        with sim_c:
-            if st.button("🏆 Advance NFL Season", use_container_width=True, key="advance_nfl_season_btn_commish"):
-                try:
-                    sim_result, sim_msg = simulate_nfl_season()
-                    if sim_result is None:
-                        st.warning(sim_msg)
-                    else:
-                        st.success(sim_msg)
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"NFL season sim error: {type(e).__name__}: {e}")
-
-            if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
-                try:
-                    season_to_rebuild = get_current_nfl_season()
-                    rebuilt = build_nfl_current_roster_for_season(
-                        season_year=season_to_rebuild,
-                        nfl_roster_df=nfl_roster,
-                        nfl_draft_hist_df=nfl_draft_hist,
-                        nfl_player_hist_df=nfl_player_hist,
-                        existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
-                    )
-                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
-                    st.rerun()
-                except Exception as e:
-                    import traceback
-                    st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
-                    st.code(traceback.format_exc())
-
-        if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
-            try:
-                initialize_nfl_universe_settings()
-                st.success("nfl_universe_settings.csv created.")
-            except Exception as e:
-                st.error(f"Settings file create error: {type(e).__name__}: {e}")
-
-        if os.path.exists("nfl_universe_settings.csv"):
-            with open("nfl_universe_settings.csv", "rb") as f:
-                st.download_button(
-                    label="⬇️ Download NFL Settings",
-                    data=f.read(),
-                    file_name="nfl_universe_settings.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="download_nfl_universe_settings"
-                )
-
-        zip_bytes, included_files = build_nfl_export_zip()
-
-        zip_l, zip_c, zip_r = st.columns([1, 1.4, 1])
-
-        with zip_c:
-            st.download_button(
-                label="📦 Download All NFL CSVs (ZIP)",
-                data=zip_bytes,
-                file_name=f"nfl_universe_export_{get_current_nfl_season()}.zip",
-                mime="application/zip",
-                use_container_width=True,
-                key="download_all_nfl_csvs_zip"
-            )
-
-        if included_files:
-            st.caption("Included: " + ", ".join(included_files))
-        else:
-            st.warning("No NFL CSV files were found to export.")
-
-        st.markdown("---")
-
-        # ── NFL Universe file status / downloads ──────────────────────────
-        draft_hist_exists = os.path.exists("nfl_draft_history.csv")
-        story_exists = os.path.exists("nfl_story_events.csv")
-        sb_exists = os.path.exists("nfl_super_bowl_history.csv")
-        player_hist_exists = os.path.exists("nfl_player_history.csv")
-        current_roster_exists = os.path.exists("nfl_current_rosters.csv")
-
-        s1, s2, s3, s4, s5 = st.columns(5)
-        with s1:
-            st.caption(f"Draft History: {'✅' if draft_hist_exists else '❌'}")
-        with s2:
-            st.caption(f"Story Events: {'✅' if story_exists else '❌'}")
-        with s3:
-            st.caption(f"Super Bowl History: {'✅' if sb_exists else '❌'}")
-        with s4:
-            st.caption(f"Player History: {'✅' if player_hist_exists else '❌'}")
-        with s5:
-            st.caption(f"Current Rosters: {'✅' if current_roster_exists else '❌'}")
-
-        d1, d2, d3, d4, d5 = st.columns(5)
-
-        with d1:
-            if draft_hist_exists:
-                with open("nfl_draft_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Draft History",
-                        data=f.read(),
-                        file_name="nfl_draft_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_draft_history"
-                    )
-
-        with d2:
-            if story_exists:
-                with open("nfl_story_events.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Story Events",
-                        data=f.read(),
-                        file_name="nfl_story_events.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_story_events"
-                    )
-
-        with d3:
-            if sb_exists:
-                with open("nfl_super_bowl_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download SB History",
-                        data=f.read(),
-                        file_name="nfl_super_bowl_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_super_bowl_history"
-                    )
-
-        with d4:
-            if player_hist_exists:
-                with open("nfl_player_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Player History",
-                        data=f.read(),
-                        file_name="nfl_player_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_player_history"
-                    )
-
-        with d5:
-            if current_roster_exists:
-                with open("nfl_current_rosters.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Current Rosters",
-                        data=f.read(),
-                        file_name="nfl_current_rosters.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_current_rosters"
-                    )
-
     st.markdown("---")
     st.caption(f"Working directory: {os.getcwd()}")
+
+
 
     nfl_tabs = st.tabs([
         "📦 Draft Central",
@@ -14995,6 +14688,20 @@ with tabs[1]:
 # ── Draft Central ──────────────────────────────────────────────────
     with nfl_tabs[0]:
         st.subheader("📦 Draft Central")
+
+        replay_l, replay_c, replay_r = st.columns([1, 1.45, 1])
+        with replay_c:
+            if st.button("▶️ Replay Saved Draft With Audio", use_container_width=True, key="replay_saved_draft_with_audio_draft_central"):
+                enable_draft_audio()
+                if latest_saved_draft_year is None:
+                    st.warning("No saved draft exists yet.")
+                else:
+                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
+
+        st.markdown(
+            "<div style='text-align:center;color:#9ca3af;font-size:0.9rem;'>This button enables audio and starts the replay in one click.</div>",
+            unsafe_allow_html=True
+        )
 
         if nfl_draft_hist.empty:
             st.info("No NFL draft universe data yet. Fill cfb_user_draft_results.csv, then click Regenerate.")
@@ -16480,6 +16187,272 @@ with tabs[1]:
                 })
 
                 st.dataframe(loss_show.head(20), hide_index=True, use_container_width=True)
+
+
+    st.markdown("---")
+    st.subheader("NFL Universe Status")
+
+    s1, s2, s3 = st.columns(3)
+    with s1:
+        st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
+    with s2:
+        st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
+    with s3:
+        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
+
+    st.caption("Commissioner tools and draft admin controls live below the public NFL Universe sections.")
+
+    with st.expander("🔒 Commissioner Controls", expanded=False):
+        commissioner_key = st.text_input(
+            "Enter commissioner password",
+            type="password",
+            key="nfl_commissioner_password"
+        )
+
+        if commissioner_key == "Chicken83$":
+            st.session_state["nfl_commissioner_unlocked"] = True
+            is_commissioner = True
+            st.success("Commissioner mode unlocked.")
+        elif commissioner_key:
+            st.error("Incorrect password.")
+
+    if is_commissioner:
+        st.subheader("Commissioner Tools")
+
+        c1, c2 = st.columns([1.15, 1.0])
+
+        with c1:
+            reveal_speed = st.selectbox(
+                "Replay Speed",
+                ["Broadcast", "Fast", "Turbo"],
+                index=0,
+                key="nfl_draft_reveal_speed"
+            )
+
+        with c2:
+            allow_rerun = st.checkbox(
+                "Allow rerun of latest class",
+                value=False,
+                key="nfl_allow_rerun_latest"
+            )
+
+        audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
+
+        with audio_c:
+            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn_commish"):
+                enable_draft_audio()
+                st.success("Draft audio enabled for this session.")
+
+        st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
+
+        b1, b2, b3 = st.columns(3)
+
+        with b1:
+            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft_btn_commish"):
+                try:
+                    nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                        live_mode=False,
+                        speed_mode=reveal_speed,
+                        force_latest=False
+                    )
+
+                    if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                        just_added_class = nfl_draft_hist[
+                            pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
+                        ].copy()
+
+                        if status_msg and "officially added" in status_msg.lower():
+                            existing_story = (
+                                pd.read_csv("nfl_story_events.csv")
+                                if os.path.exists("nfl_story_events.csv")
+                                else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                            )
+                            seed_story_events_from_draft_class(just_added_class, existing_story)
+
+                    if status_msg:
+                        if "already locked in" in status_msg.lower():
+                            st.info(status_msg)
+                        elif "officially added" in status_msg.lower():
+                            st.success(status_msg)
+                        else:
+                            st.warning(status_msg)
+
+                except Exception as e:
+                    st.error(f"NFL draft error: {type(e).__name__}: {e}")
+
+        with b2:
+            if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
+                if latest_saved_draft_year is None:
+                    st.warning("No saved draft exists yet.")
+                else:
+                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode=reveal_speed)
+
+        with b3:
+            if st.button("🛠️ Admin Rerun Latest", use_container_width=True, key="rerun_latest_nfl_draft"):
+                if not allow_rerun:
+                    st.warning("Enable 'Allow rerun of latest class' first.")
+                else:
+                    try:
+                        nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                            live_mode=False,
+                            speed_mode=reveal_speed,
+                            force_latest=True
+                        )
+
+                        if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                            just_added_class = nfl_draft_hist[
+                                pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
+                            ].copy()
+
+                            if status_msg and "rerun for testing" in status_msg.lower():
+                                existing_story = (
+                                    pd.read_csv("nfl_story_events.csv")
+                                    if os.path.exists("nfl_story_events.csv")
+                                    else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                                )
+                                seed_story_events_from_draft_class(just_added_class, existing_story)
+
+                        st.warning(status_msg if status_msg else "Latest draft rerun complete.")
+
+                    except Exception as e:
+                        import traceback
+                        st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
+                        st.code(traceback.format_exc())
+
+        sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
+
+        with sim_c:
+            if st.button("🏆 Advance NFL Season", use_container_width=True, key="advance_nfl_season_btn_commish"):
+                try:
+                    sim_result, sim_msg = simulate_nfl_season()
+                    if sim_result is None:
+                        st.warning(sim_msg)
+                    else:
+                        st.success(sim_msg)
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"NFL season sim error: {type(e).__name__}: {e}")
+
+            if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
+                try:
+                    season_to_rebuild = get_current_nfl_season()
+                    rebuilt = build_nfl_current_roster_for_season(
+                        season_year=season_to_rebuild,
+                        nfl_roster_df=nfl_roster,
+                        nfl_draft_hist_df=nfl_draft_hist,
+                        nfl_player_hist_df=nfl_player_hist,
+                        existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
+                    )
+                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
+                    st.rerun()
+                except Exception as e:
+                    import traceback
+                    st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
+                    st.code(traceback.format_exc())
+
+        if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
+            try:
+                initialize_nfl_universe_settings()
+                st.success("nfl_universe_settings.csv created.")
+            except Exception as e:
+                st.error(f"Settings file create error: {type(e).__name__}: {e}")
+
+        if os.path.exists("nfl_universe_settings.csv"):
+            with open("nfl_universe_settings.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download NFL Settings",
+                    data=f.read(),
+                    file_name="nfl_universe_settings.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_universe_settings"
+                )
+
+        zip_bytes, included_files = build_nfl_export_zip()
+
+        if zip_bytes:
+            st.download_button(
+                label="📦 Download Full NFL Universe ZIP",
+                data=zip_bytes,
+                file_name="nfl_universe_export.zip",
+                mime="application/zip",
+                use_container_width=True,
+                key="download_nfl_universe_zip"
+            )
+            if included_files:
+                st.caption("Included files: " + ", ".join(included_files))
+        else:
+            st.info("No NFL files found yet to include in the ZIP export.")
+
+        # ── NFL Universe file status / downloads ──────────────────────────
+        st.markdown("---")
+        st.markdown("#### Commissioner Downloads")
+
+        if os.path.exists("cfb_user_draft_results.csv"):
+            with open("cfb_user_draft_results.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Draft Input",
+                    data=f.read(),
+                    file_name="cfb_user_draft_results.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_cfb_user_draft_results"
+                )
+
+        if os.path.exists("nfl_draft_history.csv"):
+            with open("nfl_draft_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Draft History",
+                    data=f.read(),
+                    file_name="nfl_draft_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_draft_history"
+                )
+
+        if os.path.exists("nfl_player_history.csv"):
+            with open("nfl_player_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Player History",
+                    data=f.read(),
+                    file_name="nfl_player_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_player_history"
+                )
+
+        if os.path.exists("nfl_super_bowl_history.csv"):
+            with open("nfl_super_bowl_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Super Bowl History",
+                    data=f.read(),
+                    file_name="nfl_super_bowl_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_super_bowl_history"
+                )
+
+        if os.path.exists("nfl_story_events.csv"):
+            with open("nfl_story_events.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Story Events",
+                    data=f.read(),
+                    file_name="nfl_story_events.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_story_events"
+                )
+
+        if os.path.exists("nfl_current_rosters.csv"):
+            with open("nfl_current_rosters.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Current Rosters",
+                    data=f.read(),
+                    file_name="nfl_current_rosters.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_current_rosters"
+                )
 
 
 # --- ROSTER ATTRITION ---
