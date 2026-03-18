@@ -16493,9 +16493,14 @@ with tabs[5]:
         )
 
         incoming = safe_read_csv(
-            'attrition_incoming.csv',
-            ['Year', 'Team', 'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole']
-        )
+    'attrition_incoming.csv',
+    [
+        'Year', 'User', 'Team', 'RecruitSlot', 'Name', 'Pos', 'HT', 'WT',
+        'ClassLabel', 'RecruitType', 'State', 'StarRating',
+        'NationalRank', 'PositionRank', 'StateRank',
+        'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole'
+    ]
+)
 
         user_draft_results = safe_read_csv(
             'cfb_user_draft_results.csv',
@@ -16563,13 +16568,73 @@ with tabs[5]:
                 graduates['Class'] = pd.NA
 
         # --- Normalize incoming schema ---
-        if not incoming.empty:
-            if 'Position' not in incoming.columns and 'Pos' in incoming.columns:
-                incoming['Position'] = incoming['Pos']
-            if 'ProjectedRole' not in incoming.columns:
-                incoming['ProjectedRole'] = pd.NA
-            if 'Class' not in incoming.columns:
-                incoming['Class'] = pd.NA
+if not incoming.empty:
+    incoming = incoming.copy()
+
+    # Preserve richer recruiting-style columns while mapping to attrition fields
+    if 'Player' not in incoming.columns or incoming['Player'].isna().all():
+        if 'Name' in incoming.columns:
+            incoming['Player'] = incoming['Name']
+
+    if 'Position' not in incoming.columns or incoming['Position'].isna().all():
+        if 'Pos' in incoming.columns:
+            incoming['Position'] = incoming['Pos']
+
+    if 'Stars' not in incoming.columns or incoming['Stars'].isna().all():
+        if 'StarRating' in incoming.columns:
+            incoming['Stars'] = pd.to_numeric(incoming['StarRating'], errors='coerce')
+
+    if 'Type' not in incoming.columns or incoming['Type'].isna().all():
+        if 'RecruitType' in incoming.columns:
+            incoming['Type'] = (
+                incoming['RecruitType']
+                .fillna('')
+                .astype(str)
+                .str.strip()
+                .str.upper()
+                .replace({
+                    'HIGH SCHOOL': 'HS',
+                    'HS': 'HS',
+                    'TRANSFER': 'TRANSFER',
+                    'TR': 'TRANSFER'
+                })
+            )
+        elif 'ClassLabel' in incoming.columns:
+            incoming['Type'] = incoming['ClassLabel'].fillna('').astype(str).apply(
+                lambda x: 'TRANSFER' if str(x).upper().startswith('TR(') else ('HS' if str(x).upper() == 'HS' else '')
+            )
+
+    if 'Class' not in incoming.columns or incoming['Class'].isna().all():
+        if 'ClassLabel' in incoming.columns:
+            def _map_incoming_class(val):
+                s = str(val).strip().upper()
+                if s == 'HS':
+                    return 'FR'
+                if s.startswith('TR(') and s.endswith(')'):
+                    return s[3:-1].strip()
+                return s
+
+            incoming['Class'] = incoming['ClassLabel'].apply(_map_incoming_class)
+
+    if 'ProjectedRole' not in incoming.columns:
+        incoming['ProjectedRole'] = pd.NA
+
+    # IMPORTANT:
+    # Recruiting classes are stored as the recruiting cycle year,
+    # but attrition incoming should show up the NEXT season.
+    # Example: 2041 recruiting class -> 2042 attrition incoming
+    incoming['Year'] = pd.to_numeric(incoming['Year'], errors='coerce')
+    incoming['Year'] = incoming['Year'].fillna(cur_year - 1).astype(int) + 1
+
+    # Clean text fields
+    for col in ['Team', 'Player', 'Position', 'Type', 'Class', 'ProjectedRole', 'User', 'State', 'HT', 'WT']:
+        if col in incoming.columns:
+            incoming[col] = incoming[col].fillna('').astype(str).str.strip()
+
+    # Keep numeric fields numeric
+    for col in ['Stars', 'RecruitSlot', 'NationalRank', 'PositionRank', 'StateRank']:
+        if col in incoming.columns:
+            incoming[col] = pd.to_numeric(incoming[col], errors='coerce')
 
         # --- Normalize actual user draft results schema ---
         if not user_draft_results.empty:
@@ -16857,6 +16922,8 @@ with tabs[5]:
     team_hs = filter_team_year(hs_df, selected_team, recruiting_source_year)
     team_tp = filter_team_year(tp_df, selected_team, recruiting_source_year)
     team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
+    if not team_incoming.empty and 'RecruitSlot' in team_incoming.columns:
+    team_incoming = team_incoming.sort_values(by='RecruitSlot', ascending=True)
 
     # Prefer actual draft results from cfb_user_draft_results.csv
     team_actual_draft = pd.DataFrame()

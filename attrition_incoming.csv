@@ -1,161 +1,161 @@
-Year,Team,Type,Player,Position,Stars,Class,ProjectedRole,User,RecruitSlot,Name,Pos,HT,WT,ClassLabel,RecruitType,State,StarRating,NationalRank,PositionRank,StateRank,OverallClassRank,OverallClassPoints,OverallClassTotal,HSClassRank,HSClassPoints,HSClassTotal,TransferClassRank,TransferClassPoints,TransferClassTotal
-2042,Bowling Green,HS,L. Toone,CB,5,FR,,Devin,1,L. Toone,CB,"6'2""",214,HS,HS,NC,5,7,3,1,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,D. Mixon,WR,5,FR,,Devin,2,D. Mixon,WR,"6'2""",202,HS,HS,MI,5,10,1,1,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,C. Bowling,WILL,5,FR,,Devin,3,C. Bowling,WILL,"6'5""",231,HS,HS,LA,5,12,1,1,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,T. Flavors,RT,5,FR,,Devin,4,T. Flavors,RT,"6'7""",290,HS,HS,IL,5,15,1,1,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,K. Pimentel,DT,5,FR,,Devin,5,K. Pimentel,DT,"6'5""",297,HS,HS,OH,5,17,2,1,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,TRANSFER,K. Alston,HB,5,FR,,Devin,6,K. Alston,HB,"6'0""",193,TR(FR),Transfer,NM,5,24,2,1,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,TRANSFER,T. Keur,REDG,5,JR,,Devin,7,T. Keur,REDG,"6'3""",258,TR(JR),Transfer,PA,5,29,1,1,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,E. Braverman,REDG,4,FR,,Devin,8,E. Braverman,REDG,"6'6""",233,HS,HS,MI,4,34,3,3,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,L. Fayad,WILL,4,FR,,Devin,9,L. Fayad,WILL,"6'1""",216,HS,HS,OH,4,53,4,3,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,L. Anthony,MIKE,4,FR,,Devin,10,L. Anthony,MIKE,"6'3""",224,HS,HS,CA,4,86,6,10,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,TRANSFER,M. Pierce,HB,4,SO,,Devin,11,M. Pierce,HB,"5'10""",178,TR(SO),Transfer,MO,4,102,13,2,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,TRANSFER,C. Swan,REDG,4,FR,,Devin,12,C. Swan,REDG,"6'2""",255,TR(FR),Transfer,UT,4,155,3,4,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,TRANSFER,M. Flowers,QB,4,FR,,Devin,13,M. Flowers,QB,"6'0""",206,TR(FR),Transfer,MI,4,236,35,5,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,T. Teague,WR,4,FR,,Devin,14,T. Teague,WR,"6'3""",212,HS,HS,OH,4,258,46,11,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,W. Gindorff,DT,4,FR,,Devin,15,W. Gindorff,DT,"6'3""",291,HS,HS,MO,4,275,18,9,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,T. Ringo,SS,4,FR,,Devin,16,T. Ringo,SS,"5'11""",181,HS,HS,TX,4,359,5,47,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,N. Fralic,REDG,4,FR,,Devin,17,N. Fralic,REDG,"6'2""",226,HS,HS,IL,4,384,36,12,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,T. Lewis,RG,4,FR,,Devin,18,T. Lewis,RG,"6'4""",317,HS,HS,MI,4,393,26,11,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,M. Seitz,WILL,4,FR,,Devin,19,M. Seitz,WILL,"6'3""",216,HS,HS,PA,4,403,32,9,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,TRANSFER,J. King,QB,4,SO,,Devin,20,J. King,QB,"6'3""",194,TR(SO),Transfer,OR,4,457,66,3,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,L. Coffey,HB,3,FR,,Devin,21,L. Coffey,HB,"5'8""",161,HS,HS,IN,3,539,71,7,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Bowling Green,HS,Z. Redmond,QB,3,FR,,Devin,22,Z. Redmond,QB,"6'2""",198,HS,HS,OH,3,1592,98,47,2,253.0,22,3,238.0,16,49,104.95,6
-2042,Florida,TRANSFER,R. Holyfield,CB,5,FR,,Doug,1,R. Holyfield,CB,"6'1""",197,TR(FR),Transfer,FL,5,3,1,1,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,M. Coale,RG,5,JR,,Doug,2,M. Coale,RG,"6'3""",291,TR(JR),Transfer,FL,5,18,2,3,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,A. Erving,HB,4,SO,,Doug,3,A. Erving,HB,"5'11""",206,TR(SO),Transfer,GA,4,35,3,5,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,M. Levrone,CB,4,JR,,Doug,4,M. Levrone,CB,"5'11""",184,TR(JR),Transfer,FL,4,47,8,6,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,K. Akindele,FS,4,FR,,Doug,5,K. Akindele,FS,"6'2""",206,TR(FR),Transfer,LA,4,92,2,4,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,F. Bushman,DT,4,FR,,Doug,6,F. Bushman,DT,"6'3""",307,HS,HS,GA,4,122,10,13,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,D. Erving,HB,4,FR,,Doug,7,D. Erving,HB,"6'0""",190,HS,HS,AL,4,202,25,10,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,J. Whiteheart,HB,4,FR,,Doug,8,J. Whiteheart,HB,"6'1""",183,HS,HS,AL,4,242,31,11,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,T. Clemons,FS,4,JR,,Doug,9,T. Clemons,FS,"6'2""",204,TR(JR),Transfer,GA,4,255,10,19,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,M. Fotu,WILL,4,FR,,Doug,10,M. Fotu,WILL,"6'0""",224,HS,HS,FL,4,262,21,27,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,M. Pettis,WR,4,FR,,Doug,11,M. Pettis,WR,"5'7""",177,HS,HS,FL,4,389,72,41,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,M. Sheard,FS,4,FR,,Doug,12,M. Sheard,FS,"5'11""",200,HS,HS,FL,4,391,11,42,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,M. Slay,TE,4,FR,,Doug,13,M. Slay,TE,"6'4""",220,HS,HS,FL,4,423,13,43,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,E. Tabor,WILL,4,FR,,Doug,14,E. Tabor,WILL,"6'0""",221,HS,HS,GA,4,474,37,32,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,M. Butt,WILL,3,SO,,Doug,15,M. Butt,WILL,"6'3""",233,JUCO(SO),JUCO,FL,3,532,42,54,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,P. Stacy,DT,3,SO,,Doug,16,P. Stacy,DT,"6'3""",319,TR(SO),Transfer,GA,3,585,21,41,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,B. Swope,C,3,FR,,Doug,17,B. Swope,C,"6'2""",311,HS,HS,TX,3,632,18,89,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,S. Payne,REDG,3,JR,,Doug,18,S. Payne,REDG,"6'5""",246,TR(JR),Transfer,FL,3,762,41,90,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,A. Clutts,TE,3,FR,,Doug,19,A. Clutts,TE,"6'2""",205,HS,HS,FL,3,828,36,87,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,S. DeWitt,RG,3,FR,,Doug,20,S. DeWitt,RG,"6'5""",314,HS,HS,TX,3,841,46,123,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,C. Garrison,RG,3,FR,,Doug,21,C. Garrison,RG,"6'1""",319,HS,HS,TX,3,870,49,126,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,H. Prude,TE,3,FR,,Doug,22,H. Prude,TE,"6'2""",247,HS,HS,GA,3,873,38,67,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,TRANSFER,S. Gammon,WILL,3,JR,,Doug,23,S. Gammon,WILL,"6'2""",222,TR(JR),Transfer,FL,3,953,60,115,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,A. Tribble,RG,3,FR,,Doug,24,A. Tribble,RG,"6'4""",300,HS,HS,FL,3,1068,60,111,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,C. Tinker,C,3,FR,,Doug,25,C. Tinker,C,"6'1""",277,HS,HS,FL,3,1370,37,148,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida,HS,C. Alfonso,RT,3,FR,,Doug,26,C. Alfonso,RT,"6'7""",313,HS,HS,FL,3,1422,92,154,23,220.65,26,21,194.05,17,21,142.65,9
-2042,Florida State,HS,D. Kafka,REDG,4,FR,,Nick,1,D. Kafka,REDG,"6'3""",271,HS,HS,FL,4,33,2,3,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,L. Bohanon,HB,4,JR,,Nick,2,L. Bohanon,HB,"6'0""",189,TR(JR),Transfer,FL,4,41,4,5,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,O. Tranquill,QB,4,JR,,Nick,3,O. Tranquill,QB,"6'1""",228,TR(JR),Transfer,FL,4,51,5,8,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,D. Carnegie,RT,4,FR,,Nick,4,D. Carnegie,RT,"6'7""",315,HS,HS,LA,4,62,5,3,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,Z. Gammon,HB,4,FR,,Nick,5,Z. Gammon,HB,"5'10""",208,HS,HS,KY,4,75,10,1,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,S. Jewel,REDG,4,FR,,Nick,6,S. Jewel,REDG,"6'5""",230,HS,HS,LA,4,94,7,4,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,D. Dicker,CB,4,SO,,Nick,7,D. Dicker,CB,"6'1""",167,TR(SO),Transfer,FL,4,113,17,15,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,D. Marcus,WILL,4,FR,,Nick,8,D. Marcus,WILL,"6'0""",234,HS,HS,FL,4,160,12,16,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,L. Eckert,DT,4,FR,,Nick,9,L. Eckert,DT,"6'2""",296,HS,HS,FL,4,164,13,17,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,D. O'Grady,WR,4,JR,,Nick,10,D. O'Grady,WR,"6'1""",172,TR(JR),Transfer,FL,4,204,36,25,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,D. Azumah,HB,4,FR,,Nick,11,D. Azumah,HB,"6'1""",163,HS,HS,GA,4,235,30,17,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,G. Shakir,LG,4,FR,,Nick,12,G. Shakir,LG,"6'1""",329,HS,HS,AL,4,313,21,14,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,A. Polanco,FS,4,FR,,Nick,13,A. Polanco,FS,"5'11""",210,HS,HS,NV,4,340,8,1,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,J. Cavazos,RT,4,FR,,Nick,14,J. Cavazos,RT,"6'6""",279,HS,HS,LA,4,361,28,9,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,M. Marciano,WR,4,FR,,Nick,15,M. Marciano,WR,"6'1""",180,HS,HS,FL,4,366,65,38,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,M. Mbu,HB,4,SO,,Nick,16,M. Mbu,HB,"6'1""",215,TR(SO),Transfer,UT,4,428,42,9,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,R. Addae,REDG,3,SO,,Nick,17,R. Addae,REDG,"6'6""",277,TR(SO),Transfer,FL,3,502,24,63,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,A. Ozigbo,QB,3,FR,,Nick,18,A. Ozigbo,QB,"6'0""",175,HS,HS,AL,3,551,33,20,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,T. Cheeseman,RG,3,JR,,Nick,19,T. Cheeseman,RG,"6'2""",312,TR(JR),Transfer,FL,3,557,22,72,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,E. Provo,C,3,SO,,Nick,20,E. Provo,C,"6'2""",291,TR(SO),Transfer,FL,3,588,18,75,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,D. Doss,DT,3,FR,,Nick,21,D. Doss,DT,"6'3""",290,HS,HS,FL,3,706,38,75,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,M. Heard,WILL,3,JR,,Nick,22,M. Heard,WILL,"6'3""",237,TR(JR),Transfer,FL,3,728,44,89,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,K. Davie,MIKE,3,JR,,Nick,23,K. Davie,MIKE,"5'11""",235,TR(JR),Transfer,GA,3,729,31,51,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,TRANSFER,Q. Enechukwu,CB,3,JR,,Nick,24,Q. Enechukwu,CB,"5'10""",167,TR(JR),Transfer,FL,3,955,113,116,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,A. Skuta,SS,3,FR,,Nick,25,A. Skuta,SS,"6'0""",204,HS,HS,FL,3,1407,28,151,18,226.25,26,17,203.95,15,17,150.6,11
-2042,Florida State,HS,C. Silvestro,FS,3,FR,,Nick,26,C. Silvestro,FS,"5'11""",187,HS,HS,FL,3,1743,66,188,18,226.25,26,17,203.95,15,17,150.6,11
-2042,San Jose State,HS,M. Siragusa,DT,5,FR,,Mike,1,M. Siragusa,DT,"6'1""",287,HS,HS,MO,5,8,1,2,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,S. Poe,WR,5,FR,,Mike,2,S. Poe,WR,"6'4""",201,HS,HS,MA,5,22,3,1,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,O. Iloka,MIKE,4,FR,,Mike,3,O. Iloka,MIKE,"6'1""",221,HS,HS,NM,4,38,2,1,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,R. Bragg,WR,4,SO,,Mike,4,R. Bragg,WR,"6'3""",210,TR(SO),Transfer,CA,4,54,12,4,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,K. McFarland,WR,4,FR,,Mike,5,K. McFarland,WR,"5'8""",162,HS,HS,IL,4,65,11,2,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,C. McGuinness,CB,4,FR,,Mike,6,C. McGuinness,CB,"6'0""",163,HS,HS,CA,4,76,12,9,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,J. Cannida,LG,4,JR,,Mike,7,J. Cannida,LG,"6'4""",289,TR(JR),Transfer,TX,4,78,4,13,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,O. Jurevicius,RG,4,FR,,Mike,8,O. Jurevicius,RG,"6'2""",282,TR(FR),Transfer,TX,4,116,5,19,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,T. Costello,WR,4,SO,,Mike,9,T. Costello,WR,"6'5""",201,TR(SO),Transfer,CA,4,145,27,10,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,M. Payne,RG,4,FR,,Mike,10,M. Payne,RG,"6'3""",325,HS,HS,UT,4,152,5,3,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,L. Henning,CB,4,FR,,Mike,11,L. Henning,CB,"5'10""",201,HS,HS,CA,4,176,24,20,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,M. Rountree,LEDG,4,FR,,Mike,12,M. Rountree,LEDG,"6'6""",222,HS,HS,HI,4,180,13,3,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,E. Quincy,FS,4,FR,,Mike,13,E. Quincy,FS,"6'3""",186,TR(FR),Transfer,TX,4,192,7,34,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,C. Gammon,TE,4,SO,,Mike,14,C. Gammon,TE,"6'3""",247,TR(SO),Transfer,TX,4,203,10,37,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,E. McDaniels,HB,4,SO,,Mike,15,E. McDaniels,HB,"6'0""",188,TR(SO),Transfer,TX,4,214,22,39,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,R. Friend,DT,4,SO,,Mike,16,R. Friend,DT,"6'3""",313,TR(SO),Transfer,TX,4,220,9,40,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,J. Bunting,SAM,4,JR,,Mike,17,J. Bunting,SAM,"6'3""",242,TR(JR),Transfer,VA,4,243,7,8,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,J. O'Donnell,QB,4,JR,,Mike,18,J. O'Donnell,QB,"6'5""",197,TR(JR),Transfer,OH,4,268,39,10,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,L. Wade,FS,4,FR,,Mike,19,L. Wade,FS,"6'2""",178,TR(FR),Transfer,TX,4,289,11,54,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,B. Pruce,RT,4,FR,,Mike,20,B. Pruce,RT,"6'7""",285,HS,HS,CA,4,346,27,40,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,J. Ventura,CB,4,JR,,Mike,21,J. Ventura,CB,"5'10""",185,TR(JR),Transfer,TX,4,375,53,71,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,C. Leo,WR,4,FR,,Mike,22,C. Leo,WR,"6'1""",176,HS,HS,IL,4,397,74,14,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,J. McLendon,C,4,FR,,Mike,23,J. McLendon,C,"6'3""",304,HS,HS,IL,4,420,13,15,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,D. Gore,CB,4,FR,,Mike,24,D. Gore,CB,"6'1""",166,HS,HS,MO,4,431,41,12,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,M. Schiller,REDG,4,FR,,Mike,25,M. Schiller,REDG,"6'1""",212,HS,HS,MD,4,435,42,13,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,I. Miles,K,4,FR,,Mike,26,I. Miles,K,"5'11""",202,HS,HS,UT,4,499,2,11,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,J. McMullen,HB,4,FR,,Mike,27,J. McMullen,HB,"5'9""",179,HS,HS,IL,4,500,66,17,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,J. Sokol,WR,3,FR,,Mike,28,J. Sokol,WR,"5'10""",179,HS,HS,MI,3,511,100,15,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,N. Ohrnberger,LT,3,FR,,Mike,29,N. Ohrnberger,LT,"6'5""",285,HS,HS,CA,3,527,39,58,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,A. Rossi,MIKE,3,FR,,Mike,30,A. Rossi,MIKE,"6'1""",228,HS,HS,TX,3,535,31,76,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,C. Duke,MIKE,3,FR,,Mike,31,C. Duke,MIKE,"6'1""",221,HS,HS,CA,3,579,32,66,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,C. Siegel,RG,3,FR,,Mike,32,C. Siegel,RG,"6'3""",304,HS,HS,UT,3,587,38,12,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,TRANSFER,V. Theus,CB,3,SO,,Mike,33,V. Theus,CB,"5'11""",211,TR(SO),Transfer,WA,3,590,77,6,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,C. Shelley,QB,3,FR,,Mike,34,C. Shelley,QB,"6'3""",214,HS,HS,GA,3,652,38,44,10,238.9,35,9,226.65,22,9,168.55,13
-2042,San Jose State,HS,E. Joy,WR,3,FR,,Mike,35,E. Joy,WR,"6'2""",204,HS,HS,UT,3,1797,330,26,10,238.9,35,9,226.65,22,9,168.55,13
-2042,Texas Tech,HS,C. Edwards,CB,5,FR,,Noah,1,C. Edwards,CB,"6'2""",182,HS,HS,OK,5,23,5,1,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,J. Hicks,WR,5,FR,,Noah,2,J. Hicks,WR,"6'1""",160,HS,HS,TX,5,28,5,2,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,O. Hill,LT,5,FR,,Noah,3,O. Hill,LT,"6'5""",285,HS,HS,CO,5,29,2,1,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,B. Ingold,LT,4,FR,,Noah,4,B. Ingold,LT,"6'7""",312,HS,HS,TX,4,78,7,6,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,J. Kindred,TE,4,FR,,Noah,5,J. Kindred,TE,"6'6""",239,HS,HS,IN,4,80,3,1,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,J. Morey,CB,4,SO,,Noah,6,J. Morey,CB,"5'10""",202,TR(SO),Transfer,KY,4,85,15,2,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,T. Stoudemire,QB,4,SO,,Noah,7,T. Stoudemire,QB,"6'4""",200,TR(SO),Transfer,TX,4,121,11,21,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,B. Fogg,MIKE,4,FR,,Noah,8,B. Fogg,MIKE,"6'2""",214,HS,HS,AL,4,127,9,7,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,M. Cantrell,CB,4,SO,,Noah,9,M. Cantrell,CB,"6'0""",164,TR(SO),Transfer,TN,4,148,22,4,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,B. Titus,WILL,4,FR,,Noah,10,B. Titus,WILL,"6'5""",212,HS,HS,CA,4,183,15,22,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,G. Waddy,WR,4,FR,,Noah,11,G. Waddy,WR,"6'4""",204,TR(FR),Transfer,TX,4,197,35,36,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,E. Patino,CB,4,JR,,Noah,12,E. Patino,CB,"6'2""",211,TR(JR),Transfer,TX,4,209,27,38,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,C. Cave,REDG,4,FR,,Noah,13,C. Cave,REDG,"6'6""",230,HS,High School,TX,4,269,26,37,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,T. Contreras,SS,4,FR,,Noah,14,T. Contreras,SS,"5'11""",185,HS,High School,TX,4,290,3,39,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,G. Madden,QB,4,FR,,Noah,15,G. Madden,QB,"6'1""",200,TR(FR),Transfer,FL,4,294,49,35,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,S. Hix,WR,4,FR,,Noah,16,S. Hix,WR,"5'10""",180,HS,High School,CA,4,295,52,33,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,D. Gardocki,QB,4,FR,,Noah,17,D. Gardocki,QB,"6'4""",206,TR(FR),Transfer,TX,4,299,54,57,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,B. Ringo,QB,4,FR,,Noah,18,B. Ringo,QB,"6'4""",228,TR(FR),Transfer,GA,4,345,57,25,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,A. Ellington,DT,4,FR,,Noah,19,A. Ellington,DT,"6'1""",297,HS,HS,TX,4,369,21,49,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,L. Prather,WILL,4,FR,,Noah,20,L. Prather,WILL,"6'1""",239,HS,HS,TX,4,401,31,56,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,R. Slay,WR,4,FR,,Noah,21,R. Slay,WR,"6'2""",202,TR(FR),Transfer,FL,4,460,58,61,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,J. McGuinness,RT,3,FR,,Noah,22,J. McGuinness,RT,"6'6""",277,TR(FR),Transfer,TX,3,826,56,132,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,R. Sneed,LG,3,FR,,Noah,23,R. Sneed,LG,"6'2""",317,HS,HS,WI,3,867,48,6,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,K. Jamerson,REDG,3,FR,,Noah,24,K. Jamerson,REDG,"6'2""",215,HS,HS,TX,3,902,68,131,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,T. Gunn,RG,3,FR,,Noah,25,T. Gunn,RG,"6'5""",300,HS,HS,CA,3,935,52,97,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,TRANSFER,T. Steward,FS,3,SO,,Noah,26,T. Steward,FS,"6'1""",192,TR(SO),Transfer,CO,3,993,38,11,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,L. Bullocks,SAM,3,FR,,Noah,27,L. Bullocks,SAM,"6'0""",207,HS,HS,TX,3,1156,105,179,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,Z. Johns,MIKE,3,FR,,Noah,28,Z. Johns,MIKE,"6'0""",206,HS,HS,TX,3,1565,88,230,6,241.45,29,7,230.6,18,16,150.6,11
-2042,Texas Tech,HS,D. Sweet,RG,3,FR,,Noah,29,D. Sweet,RG,"6'2""",292,HS,HS,TX,3,1723,94,253,6,241.45,29,7,230.6,18,16,150.6,11
-2042,USF,HS,Q. Combs,CB,5,FR,,Josh,1,Q. Combs,CB,"6'0""",174,HS,HS,TN,5,2,1,1,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,J. Robbins,RT,5,SO,,Josh,2,J. Robbins,RT,"6'4""",300,TR(SO),Transfer,FL,5,13,3,2,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,R. Keener,CB,5,FR,,Josh,3,R. Keener,CB,"6'2""",181,HS,HS,GA,5,19,4,2,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,N. Priester,LT,4,JR,,Josh,4,N. Priester,LT,"6'4""",306,TR(JR),Transfer,KY,4,46,6,1,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,B. Husein,SAM,4,JR,,Josh,5,B. Husein,SAM,"6'0""",223,TR(JR),Transfer,FL,4,57,1,9,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,W. Farris,CB,4,JR,,Josh,6,W. Farris,CB,"6'0""",193,TR(JR),Transfer,AR,4,68,12,2,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,G. McDonnell,DT,4,JR,,Josh,7,G. McDonnell,DT,"6'1""",297,TR(JR),Transfer,GA,4,101,4,9,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,D. Levrone,WR,4,SO,,Josh,8,D. Levrone,WR,"6'0""",185,TR(SO),Transfer,IN,4,111,22,4,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,S. Ivie,LEDG,4,FR,,Josh,9,S. Ivie,LEDG,"6'1""",237,TR(FR),Transfer,FL,4,119,5,16,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,J. Madu,WR,4,FR,,Josh,10,J. Madu,WR,"6'5""",190,HS,HS,NC,4,123,21,7,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,P. Jordan,TE,4,JR,,Josh,11,P. Jordan,TE,"6'3""",260,TR(JR),Transfer,SC,4,128,8,3,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,C. Loudermilk,C,4,JR,,Josh,12,C. Loudermilk,C,"6'3""",294,TR(JR),Transfer,NC,4,136,2,4,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,TRANSFER,J. Cribbs,QB,4,FR,,Josh,13,J. Cribbs,QB,"6'3""",206,TR(FR),Transfer,FL,4,161,21,21,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,B. Fagan,RG,4,FR,,Josh,14,B. Fagan,RG,"6'3""",314,HS,HS,SC,4,277,16,7,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,R. Mahoney,CB,4,FR,,Josh,15,R. Mahoney,CB,"6'0""",200,HS,HS,FL,4,280,33,29,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,A. Jue,WILL,4,FR,,Josh,16,A. Jue,WILL,"6'5""",234,HS,HS,SC,4,293,25,8,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,R. Jennings,FS,4,FR,,Josh,17,R. Jennings,FS,"5'11""",205,HS,HS,CT,4,300,7,2,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,D. Cassidy,WR,4,FR,,Josh,18,D. Cassidy,WR,"6'4""",181,HS,HS,NC,4,378,69,18,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,I. Grubbs,C,3,FR,,Josh,19,I. Grubbs,C,"6'0""",306,HS,HS,FL,3,1243,33,134,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,O. Ellington,LEDG,3,FR,,Josh,20,O. Ellington,LEDG,"6'0""",221,HS,HS,NC,3,1276,67,58,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,J. Spriggs,RT,3,FR,,Josh,21,J. Spriggs,RT,"6'6""",293,HS,HS,NC,3,1491,95,66,8,240.1,22,28,188.9,12,6,170.2,10
-2042,USF,HS,D. Cavka,C,3,FR,,Josh,22,D. Cavka,C,"6'1""",280,HS,HS,FL,3,1679,52,180,8,240.1,22,28,188.9,12,6,170.2,10
+Year,User,Team,RecruitSlot,Name,Pos,HT,WT,ClassLabel,RecruitType,State,StarRating,NationalRank,PositionRank,StateRank,OverallClassRank
+2041,Devin,Bowling Green,1,L. Toone,CB,"6'2""",214,HS,HS,NC,5,7,3,1,2
+2041,Devin,Bowling Green,2,D. Mixon,WR,"6'2""",202,HS,HS,MI,5,10,1,1,2
+2041,Devin,Bowling Green,3,C. Bowling,WILL,"6'5""",231,HS,HS,LA,5,12,1,1,2
+2041,Devin,Bowling Green,4,T. Flavors,RT,"6'7""",290,HS,HS,IL,5,15,1,1,2
+2041,Devin,Bowling Green,5,K. Pimentel,DT,"6'5""",297,HS,HS,OH,5,17,2,1,2
+2041,Devin,Bowling Green,6,K. Alston,HB,"6'0""",193,TR(FR),Transfer,NM,5,24,2,1,2
+2041,Devin,Bowling Green,7,T. Keur,REDG,"6'3""",258,TR(JR),Transfer,PA,5,29,1,1,2
+2041,Devin,Bowling Green,8,E. Braverman,REDG,"6'6""",233,HS,HS,MI,4,34,3,3,2
+2041,Devin,Bowling Green,9,L. Fayad,WILL,"6'1""",216,HS,HS,OH,4,53,4,3,2
+2041,Devin,Bowling Green,10,L. Anthony,MIKE,"6'3""",224,HS,HS,CA,4,86,6,10,2
+2041,Devin,Bowling Green,11,M. Pierce,HB,"5'10""",178,TR(SO),Transfer,MO,4,102,13,2,2
+2041,Devin,Bowling Green,12,C. Swan,REDG,"6'2""",255,TR(FR),Transfer,UT,4,155,3,4,2
+2041,Devin,Bowling Green,13,M. Flowers,QB,"6'0""",206,TR(FR),Transfer,MI,4,236,35,5,2
+2041,Devin,Bowling Green,14,T. Teague,WR,"6'3""",212,HS,HS,OH,4,258,46,11,2
+2041,Devin,Bowling Green,15,W. Gindorff,DT,"6'3""",291,HS,HS,MO,4,275,18,9,2
+2041,Devin,Bowling Green,16,T. Ringo,SS,"5'11""",181,HS,HS,TX,4,359,5,47,2
+2041,Devin,Bowling Green,17,N. Fralic,REDG,"6'2""",226,HS,HS,IL,4,384,36,12,2
+2041,Devin,Bowling Green,18,T. Lewis,RG,"6'4""",317,HS,HS,MI,4,393,26,11,2
+2041,Devin,Bowling Green,19,M. Seitz,WILL,"6'3""",216,HS,HS,PA,4,403,32,9,2
+2041,Devin,Bowling Green,20,J. King,QB,"6'3""",194,TR(SO),Transfer,OR,4,457,66,3,2
+2041,Devin,Bowling Green,21,L. Coffey,HB,"5'8""",161,HS,HS,IN,3,539,71,7,2
+2041,Devin,Bowling Green,22,Z. Redmond,QB,"6'2""",198,HS,HS,OH,3,1592,98,47,2
+2041,Doug,Florida,1,R. Holyfield,CB,"6'1""",197,TR(FR),Transfer,FL,5,3,1,1,23
+2041,Doug,Florida,2,M. Coale,RG,"6'3""",291,TR(JR),Transfer,FL,5,18,2,3,23
+2041,Doug,Florida,3,A. Erving,HB,"5'11""",206,TR(SO),Transfer,GA,4,35,3,5,23
+2041,Doug,Florida,4,M. Levrone,CB,"5'11""",184,TR(JR),Transfer,FL,4,47,8,6,23
+2041,Doug,Florida,5,K. Akindele,FS,"6'2""",206,TR(FR),Transfer,LA,4,92,2,4,23
+2041,Doug,Florida,6,F. Bushman,DT,"6'3""",307,HS,HS,GA,4,122,10,13,23
+2041,Doug,Florida,7,D. Erving,HB,"6'0""",190,HS,HS,AL,4,202,25,10,23
+2041,Doug,Florida,8,J. Whiteheart,HB,"6'1""",183,HS,HS,AL,4,242,31,11,23
+2041,Doug,Florida,9,T. Clemons,FS,"6'2""",204,TR(JR),Transfer,GA,4,255,10,19,23
+2041,Doug,Florida,10,M. Fotu,WILL,"6'0""",224,HS,HS,FL,4,262,21,27,23
+2041,Doug,Florida,11,M. Pettis,WR,"5'7""",177,HS,HS,FL,4,389,72,41,23
+2041,Doug,Florida,12,M. Sheard,FS,"5'11""",200,HS,HS,FL,4,391,11,42,23
+2041,Doug,Florida,13,M. Slay,TE,"6'4""",220,HS,HS,FL,4,423,13,43,23
+2041,Doug,Florida,14,E. Tabor,WILL,"6'0""",221,HS,HS,GA,4,474,37,32,23
+2041,Doug,Florida,15,M. Butt,WILL,"6'3""",233,JUCO(SO),JUCO,FL,3,532,42,54,23
+2041,Doug,Florida,16,P. Stacy,DT,"6'3""",319,TR(SO),Transfer,GA,3,585,21,41,23
+2041,Doug,Florida,17,B. Swope,C,"6'2""",311,HS,HS,TX,3,632,18,89,23
+2041,Doug,Florida,18,S. Payne,REDG,"6'5""",246,TR(JR),Transfer,FL,3,762,41,90,23
+2041,Doug,Florida,19,A. Clutts,TE,"6'2""",205,HS,HS,FL,3,828,36,87,23
+2041,Doug,Florida,20,S. DeWitt,RG,"6'5""",314,HS,HS,TX,3,841,46,123,23
+2041,Doug,Florida,21,C. Garrison,RG,"6'1""",319,HS,HS,TX,3,870,49,126,23
+2041,Doug,Florida,22,H. Prude,TE,"6'2""",247,HS,HS,GA,3,873,38,67,23
+2041,Doug,Florida,23,S. Gammon,WILL,"6'2""",222,TR(JR),Transfer,FL,3,953,60,115,23
+2041,Doug,Florida,24,A. Tribble,RG,"6'4""",300,HS,HS,FL,3,1068,60,111,23
+2041,Doug,Florida,25,C. Tinker,C,"6'1""",277,HS,HS,FL,3,1370,37,148,23
+2041,Doug,Florida,26,C. Alfonso,RT,"6'7""",313,HS,HS,FL,3,1422,92,154,23
+2041,Nick,Florida State,1,D. Kafka,REDG,"6'3""",271,HS,HS,FL,4,33,2,3,18
+2041,Nick,Florida State,2,L. Bohanon,HB,"6'0""",189,TR(JR),Transfer,FL,4,41,4,5,18
+2041,Nick,Florida State,3,O. Tranquill,QB,"6'1""",228,TR(JR),Transfer,FL,4,51,5,8,18
+2041,Nick,Florida State,4,D. Carnegie,RT,"6'7""",315,HS,HS,LA,4,62,5,3,18
+2041,Nick,Florida State,5,Z. Gammon,HB,"5'10""",208,HS,HS,KY,4,75,10,1,18
+2041,Nick,Florida State,6,S. Jewel,REDG,"6'5""",230,HS,HS,LA,4,94,7,4,18
+2041,Nick,Florida State,7,D. Dicker,CB,"6'1""",167,TR(SO),Transfer,FL,4,113,17,15,18
+2041,Nick,Florida State,8,D. Marcus,WILL,"6'0""",234,HS,HS,FL,4,160,12,16,18
+2041,Nick,Florida State,9,L. Eckert,DT,"6'2""",296,HS,HS,FL,4,164,13,17,18
+2041,Nick,Florida State,10,D. O'Grady,WR,"6'1""",172,TR(JR),Transfer,FL,4,204,36,25,18
+2041,Nick,Florida State,11,D. Azumah,HB,"6'1""",163,HS,HS,GA,4,235,30,17,18
+2041,Nick,Florida State,12,G. Shakir,LG,"6'1""",329,HS,HS,AL,4,313,21,14,18
+2041,Nick,Florida State,13,A. Polanco,FS,"5'11""",210,HS,HS,NV,4,340,8,1,18
+2041,Nick,Florida State,14,J. Cavazos,RT,"6'6""",279,HS,HS,LA,4,361,28,9,18
+2041,Nick,Florida State,15,M. Marciano,WR,"6'1""",180,HS,HS,FL,4,366,65,38,18
+2041,Nick,Florida State,16,M. Mbu,HB,"6'1""",215,TR(SO),Transfer,UT,4,428,42,9,18
+2041,Nick,Florida State,17,R. Addae,REDG,"6'6""",277,TR(SO),Transfer,FL,3,502,24,63,18
+2041,Nick,Florida State,18,A. Ozigbo,QB,"6'0""",175,HS,HS,AL,3,551,33,20,18
+2041,Nick,Florida State,19,T. Cheeseman,RG,"6'2""",312,TR(JR),Transfer,FL,3,557,22,72,18
+2041,Nick,Florida State,20,E. Provo,C,"6'2""",291,TR(SO),Transfer,FL,3,588,18,75,18
+2041,Nick,Florida State,21,D. Doss,DT,"6'3""",290,HS,HS,FL,3,706,38,75,18
+2041,Nick,Florida State,22,M. Heard,WILL,"6'3""",237,TR(JR),Transfer,FL,3,728,44,89,18
+2041,Nick,Florida State,23,K. Davie,MIKE,"5'11""",235,TR(JR),Transfer,GA,3,729,31,51,18
+2041,Nick,Florida State,24,Q. Enechukwu,CB,"5'10""",167,TR(JR),Transfer,FL,3,955,113,116,18
+2041,Nick,Florida State,25,A. Skuta,SS,"6'0""",204,HS,HS,FL,3,1407,28,151,18
+2041,Nick,Florida State,26,C. Silvestro,FS,"5'11""",187,HS,HS,FL,3,1743,66,188,18
+2041,Mike,San Jose State,1,M. Siragusa,DT,"6'1""",287,HS,HS,MO,5,8,1,2,10
+2041,Mike,San Jose State,2,S. Poe,WR,"6'4""",201,HS,HS,MA,5,22,3,1,10
+2041,Mike,San Jose State,3,O. Iloka,MIKE,"6'1""",221,HS,HS,NM,4,38,2,1,10
+2041,Mike,San Jose State,4,R. Bragg,WR,"6'3""",210,TR(SO),Transfer,CA,4,54,12,4,10
+2041,Mike,San Jose State,5,K. McFarland,WR,"5'8""",162,HS,HS,IL,4,65,11,2,10
+2041,Mike,San Jose State,6,C. McGuinness,CB,"6'0""",163,HS,HS,CA,4,76,12,9,10
+2041,Mike,San Jose State,7,J. Cannida,LG,"6'4""",289,TR(JR),Transfer,TX,4,78,4,13,10
+2041,Mike,San Jose State,8,O. Jurevicius,RG,"6'2""",282,TR(FR),Transfer,TX,4,116,5,19,10
+2041,Mike,San Jose State,9,T. Costello,WR,"6'5""",201,TR(SO),Transfer,CA,4,145,27,10,10
+2041,Mike,San Jose State,10,M. Payne,RG,"6'3""",325,HS,HS,UT,4,152,5,3,10
+2041,Mike,San Jose State,11,L. Henning,CB,"5'10""",201,HS,HS,CA,4,176,24,20,10
+2041,Mike,San Jose State,12,M. Rountree,LEDG,"6'6""",222,HS,HS,HI,4,180,13,3,10
+2041,Mike,San Jose State,13,E. Quincy,FS,"6'3""",186,TR(FR),Transfer,TX,4,192,7,34,10
+2041,Mike,San Jose State,14,C. Gammon,TE,"6'3""",247,TR(SO),Transfer,TX,4,203,10,37,10
+2041,Mike,San Jose State,15,E. McDaniels,HB,"6'0""",188,TR(SO),Transfer,TX,4,214,22,39,10
+2041,Mike,San Jose State,16,R. Friend,DT,"6'3""",313,TR(SO),Transfer,TX,4,220,9,40,10
+2041,Mike,San Jose State,17,J. Bunting,SAM,"6'3""",242,TR(JR),Transfer,VA,4,243,7,8,10
+2041,Mike,San Jose State,18,J. O'Donnell,QB,"6'5""",197,TR(JR),Transfer,OH,4,268,39,10,10
+2041,Mike,San Jose State,19,L. Wade,FS,"6'2""",178,TR(FR),Transfer,TX,4,289,11,54,10
+2041,Mike,San Jose State,20,B. Pruce,RT,"6'7""",285,HS,HS,CA,4,346,27,40,10
+2041,Mike,San Jose State,21,J. Ventura,CB,"5'10""",185,TR(JR),Transfer,TX,4,375,53,71,10
+2041,Mike,San Jose State,22,C. Leo,WR,"6'1""",176,HS,HS,IL,4,397,74,14,10
+2041,Mike,San Jose State,23,J. McLendon,C,"6'3""",304,HS,HS,IL,4,420,13,15,10
+2041,Mike,San Jose State,24,D. Gore,CB,"6'1""",166,HS,HS,MO,4,431,41,12,10
+2041,Mike,San Jose State,25,M. Schiller,REDG,"6'1""",212,HS,HS,MD,4,435,42,13,10
+2041,Mike,San Jose State,26,I. Miles,K,"5'11""",202,HS,HS,UT,4,499,2,11,10
+2041,Mike,San Jose State,27,J. McMullen,HB,"5'9""",179,HS,HS,IL,4,500,66,17,10
+2041,Mike,San Jose State,28,J. Sokol,WR,"5'10""",179,HS,HS,MI,3,511,100,15,10
+2041,Mike,San Jose State,29,N. Ohrnberger,LT,"6'5""",285,HS,HS,CA,3,527,39,58,10
+2041,Mike,San Jose State,30,A. Rossi,MIKE,"6'1""",228,HS,HS,TX,3,535,31,76,10
+2041,Mike,San Jose State,31,C. Duke,MIKE,"6'1""",221,HS,HS,CA,3,579,32,66,10
+2041,Mike,San Jose State,32,C. Siegel,RG,"6'3""",304,HS,HS,UT,3,587,38,12,10
+2041,Mike,San Jose State,33,V. Theus,CB,"5'11""",211,TR(SO),Transfer,WA,3,590,77,6,10
+2041,Mike,San Jose State,34,C. Shelley,QB,"6'3""",214,HS,HS,GA,3,652,38,44,10
+2041,Mike,San Jose State,35,E. Joy,WR,"6'2""",204,HS,HS,UT,3,1797,330,26,10
+2041,Noah,Texas Tech,1,C. Edwards,CB,"6'2""",182,HS,HS,OK,5,23,5,1,6
+2041,Noah,Texas Tech,2,J. Hicks,WR,"6'1""",160,HS,HS,TX,5,28,5,2,6
+2041,Noah,Texas Tech,3,O. Hill,LT,"6'5""",285,HS,HS,CO,5,29,2,1,6
+2041,Noah,Texas Tech,4,B. Ingold,LT,"6'7""",312,HS,HS,TX,4,78,7,6,6
+2041,Noah,Texas Tech,5,J. Kindred,TE,"6'6""",239,HS,HS,IN,4,80,3,1,6
+2041,Noah,Texas Tech,6,J. Morey,CB,"5'10""",202,TR(SO),Transfer,KY,4,85,15,2,6
+2041,Noah,Texas Tech,7,T. Stoudemire,QB,"6'4""",200,TR(SO),Transfer,TX,4,121,11,21,6
+2041,Noah,Texas Tech,8,B. Fogg,MIKE,"6'2""",214,HS,HS,AL,4,127,9,7,6
+2041,Noah,Texas Tech,9,M. Cantrell,CB,"6'0""",164,TR(SO),Transfer,TN,4,148,22,4,6
+2041,Noah,Texas Tech,10,B. Titus,WILL,"6'5""",212,HS,HS,CA,4,183,15,22,6
+2041,Noah,Texas Tech,11,G. Waddy,WR,"6'4""",204,TR(FR),Transfer,TX,4,197,35,36,6
+2041,Noah,Texas Tech,12,E. Patino,CB,"6'2""",211,TR(JR),Transfer,TX,4,209,27,38,6
+2041,Noah,Texas Tech,13,C. Cave,REDG,"6'6""",230,HS,High School,TX,4,269,26,37,6
+2041,Noah,Texas Tech,14,T. Contreras,SS,"5'11""",185,HS,High School,TX,4,290,3,39,6
+2041,Noah,Texas Tech,15,G. Madden,QB,"6'1""",200,TR(FR),Transfer,FL,4,294,49,35,6
+2041,Noah,Texas Tech,16,S. Hix,WR,"5'10""",180,HS,High School,CA,4,295,52,33,6
+2041,Noah,Texas Tech,17,D. Gardocki,QB,"6'4""",206,TR(FR),Transfer,TX,4,299,54,57,6
+2041,Noah,Texas Tech,18,B. Ringo,QB,"6'4""",228,TR(FR),Transfer,GA,4,345,57,25,6
+2041,Noah,Texas Tech,19,A. Ellington,DT,"6'1""",297,HS,HS,TX,4,369,21,49,6
+2041,Noah,Texas Tech,20,L. Prather,WILL,"6'1""",239,HS,HS,TX,4,401,31,56,6
+2041,Noah,Texas Tech,21,R. Slay,WR,"6'2""",202,TR(FR),Transfer,FL,4,460,58,61,6
+2041,Noah,Texas Tech,22,J. McGuinness,RT,"6'6""",277,TR(FR),Transfer,TX,3,826,56,132,6
+2041,Noah,Texas Tech,23,R. Sneed,LG,"6'2""",317,HS,HS,WI,3,867,48,6,6
+2041,Noah,Texas Tech,24,K. Jamerson,REDG,"6'2""",215,HS,HS,TX,3,902,68,131,6
+2041,Noah,Texas Tech,25,T. Gunn,RG,"6'5""",300,HS,HS,CA,3,935,52,97,6
+2041,Noah,Texas Tech,26,T. Steward,FS,"6'1""",192,TR(SO),Transfer,CO,3,993,38,11,6
+2041,Noah,Texas Tech,27,L. Bullocks,SAM,"6'0""",207,HS,HS,TX,3,1156,105,179,6
+2041,Noah,Texas Tech,28,Z. Johns,MIKE,"6'0""",206,HS,HS,TX,3,1565,88,230,6
+2041,Noah,Texas Tech,29,D. Sweet,RG,"6'2""",292,HS,HS,TX,3,1723,94,253,6
+2041,Josh,USF,1,Q. Combs,CB,"6'0""",174,HS,HS,TN,5,2,1,1,8
+2041,Josh,USF,2,J. Robbins,RT,"6'4""",300,TR(SO),Transfer,FL,5,13,3,2,8
+2041,Josh,USF,3,R. Keener,CB,"6'2""",181,HS,HS,GA,5,19,4,2,8
+2041,Josh,USF,4,N. Priester,LT,"6'4""",306,TR(JR),Transfer,KY,4,46,6,1,8
+2041,Josh,USF,5,B. Husein,SAM,"6'0""",223,TR(JR),Transfer,FL,4,57,1,9,8
+2041,Josh,USF,6,W. Farris,CB,"6'0""",193,TR(JR),Transfer,AR,4,68,12,2,8
+2041,Josh,USF,7,G. McDonnell,DT,"6'1""",297,TR(JR),Transfer,GA,4,101,4,9,8
+2041,Josh,USF,8,D. Levrone,WR,"6'0""",185,TR(SO),Transfer,IN,4,111,22,4,8
+2041,Josh,USF,9,S. Ivie,LEDG,"6'1""",237,TR(FR),Transfer,FL,4,119,5,16,8
+2041,Josh,USF,10,J. Madu,WR,"6'5""",190,HS,HS,NC,4,123,21,7,8
+2041,Josh,USF,11,P. Jordan,TE,"6'3""",260,TR(JR),Transfer,SC,4,128,8,3,8
+2041,Josh,USF,12,C. Loudermilk,C,"6'3""",294,TR(JR),Transfer,NC,4,136,2,4,8
+2041,Josh,USF,13,J. Cribbs,QB,"6'3""",206,TR(FR),Transfer,FL,4,161,21,21,8
+2041,Josh,USF,14,B. Fagan,RG,"6'3""",314,HS,HS,SC,4,277,16,7,8
+2041,Josh,USF,15,R. Mahoney,CB,"6'0""",200,HS,HS,FL,4,280,33,29,8
+2041,Josh,USF,16,A. Jue,WILL,"6'5""",234,HS,HS,SC,4,293,25,8,8
+2041,Josh,USF,17,R. Jennings,FS,"5'11""",205,HS,HS,CT,4,300,7,2,8
+2041,Josh,USF,18,D. Cassidy,WR,"6'4""",181,HS,HS,NC,4,378,69,18,8
+2041,Josh,USF,19,I. Grubbs,C,"6'0""",306,HS,HS,FL,3,1243,33,134,8
+2041,Josh,USF,20,O. Ellington,LEDG,"6'0""",221,HS,HS,NC,3,1276,67,58,8
+2041,Josh,USF,21,J. Spriggs,RT,"6'6""",293,HS,HS,NC,3,1491,95,66,8
+2041,Josh,USF,22,D. Cavka,C,"6'1""",280,HS,HS,FL,3,1679,52,180,8
