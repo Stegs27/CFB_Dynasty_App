@@ -17007,15 +17007,20 @@ with tabs[5]:
     )
     total_departures = len(confirmed_departure_names)
 
+    if not team_incoming.empty and 'Type' in team_incoming.columns:
+    hs_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS'])
+    tp_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER'])
+else:
+    hs_individual = 0
+    tp_individual = 0
+
+# Prefer individual incoming player rows when available
+if hs_individual > 0 or tp_individual > 0:
+    hs_recruits = hs_individual
+    transfers_in = tp_individual
+else:
     hs_recruits = int(pd.to_numeric(team_hs['TotalCommits'], errors='coerce').fillna(0).sum()) if 'TotalCommits' in team_hs.columns and not team_hs.empty else 0
     transfers_in = int(pd.to_numeric(team_tp['TotalCommits'], errors='coerce').fillna(0).sum()) if 'TotalCommits' in team_tp.columns and not team_tp.empty else 0
-
-    if not team_incoming.empty and 'Type' in team_incoming.columns:
-        hs_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS'])
-        tp_individual = len(team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER'])
-    else:
-        hs_individual = 0
-        tp_individual = 0
 
     net_talent = (hs_recruits + transfers_in) - total_departures
     net_str = f"+{net_talent}" if net_talent > 0 else str(net_talent)
