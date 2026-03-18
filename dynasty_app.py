@@ -16922,7 +16922,8 @@ if not incoming.empty:
     team_hs = filter_team_year(hs_df, selected_team, recruiting_source_year)
     team_tp = filter_team_year(tp_df, selected_team, recruiting_source_year)
     team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
-        if not team_incoming.empty and 'RecruitSlot' in team_incoming.columns:
+
+    if not team_incoming.empty and 'RecruitSlot' in team_incoming.columns:
         team_incoming = team_incoming.sort_values(by='RecruitSlot', ascending=True)
 
     # Prefer actual draft results from cfb_user_draft_results.csv
