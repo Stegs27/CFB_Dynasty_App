@@ -14770,32 +14770,6 @@ with tabs[9]:
         )
 
         st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
-        
-        advance_l, advance_c, advance_r = st.columns([1, 1.4, 1])
-
-    with advance_c:
-        rerun_latest_draft = st.checkbox(
-            "Rerun latest draft class before advancing",
-            value=False,
-            key="nfl_rerun_latest_before_advance"
-        )
-
-        if st.button("Advance Full NFL Year", use_container_width=True, key="advance_full_nfl_year_btn"):
-            try:
-                result, msg = advance_nfl_universe_one_year(
-                    speed_mode="Broadcast",
-                    rerun_latest_draft=rerun_latest_draft
-                )
-
-                if result is not None:
-                    st.success(msg if msg else "NFL universe advanced successfully.")
-                    st.rerun()
-                else:
-                    st.error(msg if msg else "NFL universe advance failed.")
-            except Exception as e:
-                import traceback
-                st.error(f"NFL universe advance failed: {type(e).__name__}: {e}")
-                st.code(traceback.format_exc())
 
     st.markdown("---")
 
