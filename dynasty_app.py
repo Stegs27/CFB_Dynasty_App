@@ -16493,14 +16493,14 @@ with tabs[5]:
         )
 
         incoming = safe_read_csv(
-    'attrition_incoming.csv',
-    [
-        'Year', 'User', 'Team', 'RecruitSlot', 'Name', 'Pos', 'HT', 'WT',
-        'ClassLabel', 'RecruitType', 'State', 'StarRating',
-        'NationalRank', 'PositionRank', 'StateRank',
-        'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole'
-    ]
-)
+            'attrition_incoming.csv',
+            [
+                'Year', 'User', 'Team', 'RecruitSlot', 'Name', 'Pos', 'HT', 'WT',
+                'ClassLabel', 'RecruitType', 'State', 'StarRating',
+                'NationalRank', 'PositionRank', 'StateRank', 'OverallClassRank',
+                'Type', 'Player', 'Position', 'Stars', 'Class', 'ProjectedRole'
+            ]
+        )
 
         user_draft_results = safe_read_csv(
             'cfb_user_draft_results.csv',
@@ -16568,73 +16568,65 @@ with tabs[5]:
                 graduates['Class'] = pd.NA
 
         # --- Normalize incoming schema ---
-if not incoming.empty:
-    incoming = incoming.copy()
+        if not incoming.empty:
+            incoming = incoming.copy()
 
-    # Preserve richer recruiting-style columns while mapping to attrition fields
-    if 'Player' not in incoming.columns or incoming['Player'].isna().all():
-        if 'Name' in incoming.columns:
-            incoming['Player'] = incoming['Name']
+            if 'Player' not in incoming.columns or incoming['Player'].isna().all():
+                if 'Name' in incoming.columns:
+                    incoming['Player'] = incoming['Name']
 
-    if 'Position' not in incoming.columns or incoming['Position'].isna().all():
-        if 'Pos' in incoming.columns:
-            incoming['Position'] = incoming['Pos']
+            if 'Position' not in incoming.columns or incoming['Position'].isna().all():
+                if 'Pos' in incoming.columns:
+                    incoming['Position'] = incoming['Pos']
 
-    if 'Stars' not in incoming.columns or incoming['Stars'].isna().all():
-        if 'StarRating' in incoming.columns:
-            incoming['Stars'] = pd.to_numeric(incoming['StarRating'], errors='coerce')
+            if 'Stars' not in incoming.columns or incoming['Stars'].isna().all():
+                if 'StarRating' in incoming.columns:
+                    incoming['Stars'] = pd.to_numeric(incoming['StarRating'], errors='coerce')
 
-    if 'Type' not in incoming.columns or incoming['Type'].isna().all():
-        if 'RecruitType' in incoming.columns:
-            incoming['Type'] = (
-                incoming['RecruitType']
-                .fillna('')
-                .astype(str)
-                .str.strip()
-                .str.upper()
-                .replace({
-                    'HIGH SCHOOL': 'HS',
-                    'HS': 'HS',
-                    'TRANSFER': 'TRANSFER',
-                    'TR': 'TRANSFER'
-                })
-            )
-        elif 'ClassLabel' in incoming.columns:
-            incoming['Type'] = incoming['ClassLabel'].fillna('').astype(str).apply(
-                lambda x: 'TRANSFER' if str(x).upper().startswith('TR(') else ('HS' if str(x).upper() == 'HS' else '')
-            )
+            if 'Type' not in incoming.columns or incoming['Type'].isna().all():
+                if 'RecruitType' in incoming.columns:
+                    incoming['Type'] = (
+                        incoming['RecruitType']
+                        .fillna('')
+                        .astype(str)
+                        .str.strip()
+                        .str.upper()
+                        .replace({
+                            'HIGH SCHOOL': 'HS',
+                            'HS': 'HS',
+                            'TRANSFER': 'TRANSFER',
+                            'TR': 'TRANSFER'
+                        })
+                    )
+                elif 'ClassLabel' in incoming.columns:
+                    incoming['Type'] = incoming['ClassLabel'].fillna('').astype(str).apply(
+                        lambda x: 'TRANSFER' if str(x).upper().startswith('TR(') else ('HS' if str(x).upper() == 'HS' else '')
+                    )
 
-    if 'Class' not in incoming.columns or incoming['Class'].isna().all():
-        if 'ClassLabel' in incoming.columns:
-            def _map_incoming_class(val):
-                s = str(val).strip().upper()
-                if s == 'HS':
-                    return 'FR'
-                if s.startswith('TR(') and s.endswith(')'):
-                    return s[3:-1].strip()
-                return s
+            if 'Class' not in incoming.columns or incoming['Class'].isna().all():
+                if 'ClassLabel' in incoming.columns:
+                    def _map_incoming_class(val):
+                        s = str(val).strip().upper()
+                        if s == 'HS':
+                            return 'FR'
+                        if s.startswith('TR(') and s.endswith(')'):
+                            return s[3:-1].strip()
+                        return s
+                    incoming['Class'] = incoming['ClassLabel'].apply(_map_incoming_class)
 
-            incoming['Class'] = incoming['ClassLabel'].apply(_map_incoming_class)
+            if 'ProjectedRole' not in incoming.columns:
+                incoming['ProjectedRole'] = pd.NA
 
-    if 'ProjectedRole' not in incoming.columns:
-        incoming['ProjectedRole'] = pd.NA
+            incoming['Year'] = pd.to_numeric(incoming['Year'], errors='coerce')
+            incoming['Year'] = incoming['Year'].fillna(cur_year - 1).astype(int) + 1
 
-    # IMPORTANT:
-    # Recruiting classes are stored as the recruiting cycle year,
-    # but attrition incoming should show up the NEXT season.
-    # Example: 2041 recruiting class -> 2042 attrition incoming
-    incoming['Year'] = pd.to_numeric(incoming['Year'], errors='coerce')
-    incoming['Year'] = incoming['Year'].fillna(cur_year - 1).astype(int) + 1
+            for col in ['Team', 'Player', 'Position', 'Type', 'Class', 'ProjectedRole', 'User', 'State', 'HT', 'WT']:
+                if col in incoming.columns:
+                    incoming[col] = incoming[col].fillna('').astype(str).str.strip()
 
-    # Clean text fields
-    for col in ['Team', 'Player', 'Position', 'Type', 'Class', 'ProjectedRole', 'User', 'State', 'HT', 'WT']:
-        if col in incoming.columns:
-            incoming[col] = incoming[col].fillna('').astype(str).str.strip()
-
-    # Keep numeric fields numeric
-    for col in ['Stars', 'RecruitSlot', 'NationalRank', 'PositionRank', 'StateRank']:
-        if col in incoming.columns:
-            incoming[col] = pd.to_numeric(incoming[col], errors='coerce')
+            for col in ['Stars', 'RecruitSlot', 'NationalRank', 'PositionRank', 'StateRank', 'OverallClassRank']:
+                if col in incoming.columns:
+                    incoming[col] = pd.to_numeric(incoming[col], errors='coerce')
 
         # --- Normalize actual user draft results schema ---
         if not user_draft_results.empty:
@@ -16651,17 +16643,11 @@ if not incoming.empty:
             if 'Class' not in user_draft_results.columns:
                 user_draft_results['Class'] = pd.NA
 
-            user_draft_results['DraftYear'] = pd.to_numeric(
-                user_draft_results['DraftYear'], errors='coerce'
-            )
-            user_draft_results['OVR'] = pd.to_numeric(
-                user_draft_results['OVR'], errors='coerce'
-            )
-            user_draft_results['DraftRound'] = pd.to_numeric(
-                user_draft_results['DraftRound'], errors='coerce'
-            )
+            user_draft_results['DraftYear'] = pd.to_numeric(user_draft_results['DraftYear'], errors='coerce')
+            user_draft_results['OVR'] = pd.to_numeric(user_draft_results['OVR'], errors='coerce')
+            user_draft_results['DraftRound'] = pd.to_numeric(user_draft_results['DraftRound'], errors='coerce')
 
-# --- Build live OVR lookup from current roster ---
+        # --- Build live OVR lookup from current roster ---
         try:
             rosters = pd.read_csv(roster_path)
             if 'Team' in rosters.columns and 'Name' in rosters.columns:
