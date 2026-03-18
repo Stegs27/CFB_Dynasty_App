@@ -5233,31 +5233,29 @@ def load_collision_groups(csv_path="user_team_collision_groups.csv", user_team_m
             return groups
     return []
 
-TEAM_ALIASES = {
-    "Florida": ["florida", "florida gators"],
-    "Florida State": ["florida state", "florida state seminoles", "fsu"],
-    "Texas Tech": ["texas tech", "texas tech red raiders"],
-    "USF": ["usf", "south florida", "south florida bulls"],
-    "South Florida": ["usf", "south florida", "south florida bulls"],
-    "San Jose State": ["san jose state", "san jose state spartans", "sjsu"],
-    "Bowling Green": ["bowling green", "bowling green falcons"],
-    "Rapid City": ["rapid city"],
-    "Panama City": ["panama city"],
-    "Hammond": ["hammond"],
-    "Alabaster": ["alabaster"],
-    "Death Valley": ["death valley"],
-    "Gate City": ["gate city"],
-    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
-    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
-    "Rapid City": ["rapid city"],
-    "Panama City": ["panama city"],
-    "Hammond": ["hammond"],
-    "Alabaster": ["alabaster"],
-    "Death Valley": ["death valley"],
-    "Gate City": ["gate city"],
-    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
-    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
-}
+def load_team_aliases(csv_path="team_aliases.csv"):
+    try:
+        _ta = pd.read_csv(csv_path)
+        if _ta.empty or 'Team' not in _ta.columns or 'Alias' not in _ta.columns:
+            return {}
+        _ta['Team'] = _ta['Team'].astype(str).str.strip()
+        _ta['Alias'] = _ta['Alias'].astype(str).str.strip()
+        _ta = _ta[(_ta['Team'] != '') & (_ta['Alias'] != '')].copy()
+        aliases = {}
+        for team, gdf in _ta.groupby('Team', sort=False):
+            seen = set()
+            vals = []
+            for alias in gdf['Alias'].tolist():
+                n = normalize_key(alias)
+                if n and n not in seen:
+                    vals.append(alias)
+                    seen.add(n)
+            aliases[str(team).strip()] = vals
+        return aliases
+    except Exception:
+        return {}
+
+TEAM_ALIASES = load_team_aliases()
 
 def normalize_key(value):
     return re.sub(r'[^a-z0-9]+', '', str(value).strip().lower())
