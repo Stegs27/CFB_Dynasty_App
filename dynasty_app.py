@@ -9942,9 +9942,9 @@ try:
 except Exception:
     pass
 
-# ── 6. USER RECRUITING CLASSES ─────────────────────────────────────
+# ── 6. USER RECRUITING CLASSES (OVERALL) ────────────────────────────
 try:
-    _rh = pd.read_csv('recruiting_high_school_history.csv').copy()
+    _rh = pd.read_csv('recruiting_class_rankings_history.csv').copy()
 
     if 'YEAR' in _rh.columns and 'Year' not in _rh.columns:
         _rh['Year'] = _rh['YEAR']
@@ -9979,7 +9979,7 @@ try:
         _user_team_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
 
     _rh_cy = _rh[
-        (_rh['Year'] == CURRENT_YEAR) &
+        (_rh['Year'] == CURRENT_YEAR - 1) &
         (_rh['Team'].astype(str).isin(_user_team_list))
     ].copy()
 
@@ -10014,10 +10014,10 @@ try:
             _owner_prefix = f"{_ru}'s " if _ru and _ru.lower() != 'nan' else ""
 
             _all_headlines.append({
-                'badge': f'USER RECRUITING #{_rec_rank_num}',
+                'badge': f'USER CLASS #{_rec_rank_num}',
                 'priority': 44,
-                'text': f"{_rt} — #{_rec_rank_num} nationally · {_star_str} · {round(_rpts, 1)} pts · {_rtc} commits",
-                'blurb': f"{_owner_prefix}{CURRENT_YEAR} HS class for {_rt} checked in at #{_rec_rank_num} nationally.",
+                'text': f"{_rt} — #{_rec_rank_num} overall · {_star_str} · {round(_rpts, 1)} pts · {_rtc} commits",
+                'blurb': f"{_owner_prefix}{CURRENT_YEAR - 1} overall recruiting class for {_rt} finished #{_rec_rank_num} nationally.",
                 'logo_html': _lh,
             })
 except Exception:
