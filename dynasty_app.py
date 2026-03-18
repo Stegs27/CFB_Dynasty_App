@@ -14752,7 +14752,7 @@ with tabs[9]:
                     import traceback
                     st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
                     st.code(traceback.format_exc())
-        
+
         if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
             try:
                 initialize_nfl_universe_settings()
@@ -14770,7 +14770,8 @@ with tabs[9]:
                     use_container_width=True,
                     key="download_nfl_universe_settings"
                 )
-    zip_bytes, included_files = build_nfl_export_zip()
+
+        zip_bytes, included_files = build_nfl_export_zip()
 
         zip_l, zip_c, zip_r = st.columns([1, 1.4, 1])
 
@@ -14788,6 +14789,7 @@ with tabs[9]:
             st.caption("Included: " + ", ".join(included_files))
         else:
             st.warning("No NFL CSV files were found to export.")
+
     else:
         c1, c2, c3 = st.columns(3)
 
