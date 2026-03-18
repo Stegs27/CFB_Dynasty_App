@@ -9961,10 +9961,9 @@ try:
     else:
         _user_team_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
 
-    _rh_cy = _rh[
-        (_rh['Year'] == CURRENT_YEAR) &
-        (_rh['Team'].isin(_user_team_list))
-    ].copy()
+    _rh_cy = _rh[_rh['Year'] == CURRENT_YEAR].copy()
+    if _rh_cy.empty:
+    _rh_cy = _rh[_rh['Year'] == CURRENT_YEAR - 1].copy()
 
     #st.write("DEBUG recruiting ticker rows", _rh_cy[['Year', 'Team', 'Rank', 'Points']])
 
