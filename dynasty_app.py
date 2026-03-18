@@ -2011,6 +2011,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         rookie_role = clean_display(row.get("RookieRole", ""), "")
         career_tier = clean_display(row.get("CareerTier", ""), "")
         story_tag = clean_display(row.get("StoryTag", ""), "")
+        college_ovr = int(safe_num(row.get("CollegeOVR", row.get("OVR", 0)), 0))
         ovr = int(safe_num(row.get("OVR", 0), 0))
         draft_source = clean_display(row.get("DraftSource", "cpu_pool"), "cpu_pool").lower()
         source_label = draft_source_label(draft_source)
