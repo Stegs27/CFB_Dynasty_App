@@ -13562,6 +13562,19 @@ with tabs[9]:
             _top5 = int((_rank_vals <= 5).sum()) if not _rank_vals.empty else 0
             _path = round((_ranked * 7) + (_top10 * 6) + (_top5 * 5) + (_wins * 1.5), 1)
 
+            def _sos_tier(_v):
+                if pd.isna(_v):
+                    return "—"
+                if _v >= 10:
+                    return "Brutal"
+                elif _v >= 8:
+                    return "Tough"
+                elif _v >= 6:
+                    return "Solid"
+                elif _v >= 4:
+                    return "Manageable"
+                return "Soft"
+
             if _path >= 90:
                 _tier = "Historic"
             elif _path >= 65:
@@ -13626,6 +13639,7 @@ with tabs[9]:
                 'Wins': _wins,
                 'Losses': _losses,
                 'SOS': _sos,
+                'SOS Tier': _sos_tier(_sos),
                 'Hardest Path': _path,
                 'Path Tier': _tier,
                 'Final Rank': (int(_final_rank) if pd.notna(_final_rank) else np.nan),
@@ -13654,13 +13668,24 @@ with tabs[9]:
         _avg_sos = round(float(legacy_df['SOS'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['SOS'].dropna().any() else np.nan
         _avg_path = round(float(legacy_df['Hardest Path'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['Hardest Path'].dropna().any() else np.nan
         _avg_vs_proj = round(float((legacy_df['Actual Wins'].fillna(0) - legacy_df['Projected Wins'].fillna(0)).mean()), 1) if not legacy_df.empty and 'Projected Wins' in legacy_df.columns else np.nan
+        _avg_sos_tier = _sos_tier(_avg_sos) if pd.notna(_avg_sos) else "—"
+        if pd.isna(_avg_path):
+            _avg_path_tier = "—"
+        elif _avg_path >= 90:
+            _avg_path_tier = "Historic"
+        elif _avg_path >= 65:
+            _avg_path_tier = "Brutal"
+        elif _avg_path >= 40:
+            _avg_path_tier = "Tough"
+        else:
+            _avg_path_tier = "Manageable"
 
         mobile_metrics([
             {"label": "🏫 Schools", "value": str(len(_schools))},
             {"label": "📘 Career Record", "value": f"{_career_w}-{_career_l}"},
             {"label": "🏆 Natties", "value": str(_natties)},
-            {"label": "📐 AVG SOS", "value": f"{_avg_sos:.1f}" if pd.notna(_avg_sos) else "—"},
-            {"label": "🪓 AVG PATH", "value": f"{_avg_path:.1f}" if pd.notna(_avg_path) else "—"},
+            {"label": "📐 AVG SOS", "value": (f"{_avg_sos:.1f} • {_avg_sos_tier}" if pd.notna(_avg_sos) else "—")},
+            {"label": "🪓 AVG PATH", "value": (f"{_avg_path:.1f} • {_avg_path_tier}" if pd.notna(_avg_path) else "—")},
             {"label": "📈 VS PROJ WINS", "value": f"{_avg_vs_proj:+.1f}" if pd.notna(_avg_vs_proj) else "—"},
         ])
 
@@ -13691,7 +13716,7 @@ with tabs[9]:
             if _col in _display_df.columns:
                 _display_df[_col] = _display_df[_col].where(_display_df[_col].notna(), None)
         st.dataframe(
-            _display_df[['Year','School','Record','Preseason Natty Odds','Preseason CFP Odds','SOS','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']],
+            _display_df[['Year','School','Record','Preseason Natty Odds','Preseason CFP Odds','SOS','SOS Tier','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']],
             use_container_width=True,
             hide_index=True
         )
