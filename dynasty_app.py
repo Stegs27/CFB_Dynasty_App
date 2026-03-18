@@ -10098,8 +10098,8 @@ _ticker_duration = max(15, int(_ticker_char_count * 0.20))
 st.markdown(f"""
 <style>
   .sticky-news-ticker {{
-    position: sticky;
-    top: 0;
+    position: fixed;
+    top: 3.75rem;
     z-index: 9999;
     background: #0d1b2e;
     border-top: 2px solid #dc2626;
