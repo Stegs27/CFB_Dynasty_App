@@ -14770,10 +14770,8 @@ with tabs[9]:
         )
 
         st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
-
-    st.markdown("---")
-
-    advance_l, advance_c, advance_r = st.columns([1, 1.4, 1])
+        
+        advance_l, advance_c, advance_r = st.columns([1, 1.4, 1])
 
     with advance_c:
         rerun_latest_draft = st.checkbox(
@@ -14798,6 +14796,8 @@ with tabs[9]:
                 import traceback
                 st.error(f"NFL universe advance failed: {type(e).__name__}: {e}")
                 st.code(traceback.format_exc())
+
+    st.markdown("---")
 
     # ── NFL Universe file status / downloads ──────────────────────────
     draft_hist_exists = os.path.exists("nfl_draft_history.csv")
