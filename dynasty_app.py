@@ -6706,7 +6706,10 @@ def render_roster_matchup_tab():
 def load_data():
     try:
         # LOAD ALL CORE FILES
-        scores = pd.read_csv('scores.csv')
+        try:
+            scores = pd.read_csv('CPUscores_MASTER.csv')
+        except Exception:
+            scores = pd.read_csv('scores.csv')
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
         draft = pd.read_csv('UserDraftPicks.csv')
@@ -11300,7 +11303,7 @@ with tabs[0]:
         # SECTION 2 — DYNASTY HEADLINES
         # All metrics use LIVE model columns (Natty Odds, Power Index,
         # CFP Odds, Collapse Risk) — NOT preseason proxies.
-        # Game-result headlines are generated directly from scores.csv.
+        # Game-result headlines are generated from CPUscores_MASTER.csv.
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("📰 Dynasty Headlines")
@@ -13611,7 +13614,7 @@ with tabs[9]:
 
                 st.markdown("**Schedule & Results**")
                 if selected_games.empty:
-                    st.caption("No historical schedule rows found for that team/year in CPUscores_MASTER.csv or scores.csv.")
+                    st.caption("No historical schedule rows found for that team/year in CPUscores_MASTER.csv.")
                 else:
                     _is_home = selected_games['Home'] == selected_team
                     sched = pd.DataFrame({
