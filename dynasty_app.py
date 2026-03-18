@@ -2011,6 +2011,7 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
         rookie_role = clean_display(row.get("RookieRole", ""), "")
         career_tier = clean_display(row.get("CareerTier", ""), "")
         story_tag = clean_display(row.get("StoryTag", ""), "")
+        college_ovr = int(safe_num(row.get("CollegeOVR", row.get("OVR", 0)), 0))
         ovr = int(safe_num(row.get("OVR", 0), 0))
         draft_source = clean_display(row.get("DraftSource", "cpu_pool"), "cpu_pool").lower()
         source_label = draft_source_label(draft_source)
@@ -5044,10 +5045,52 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-CURRENT_WEEK_NUMBER = 16   # Bowl Week 1 (post-season)
-CURRENT_YEAR        = 2041  # Active dynasty season — increment each new year
-IS_BOWL_WEEK       = True
-BOWL_ROUND         = 1    # 1 = Bowl Week 1, 2 = Bowl Week 2 (semis/natty)
+def load_dynasty_state(path='dynasty_state.csv'):
+    defaults = {
+        'CurrentWeek': 16,
+        'CurrentYear': 2041,
+        'IsBowlWeek': True,
+        'BowlRound': 1,
+    }
+    try:
+        state_df = pd.read_csv(path)
+        if state_df.empty:
+            return defaults
+        row = state_df.iloc[0].to_dict()
+
+        def _to_int(value, fallback):
+            try:
+                if pd.isna(value):
+                    return fallback
+                return int(float(value))
+            except Exception:
+                return fallback
+
+        def _to_bool(value, fallback):
+            if pd.isna(value):
+                return fallback
+            sval = str(value).strip().lower()
+            if sval in ('1', 'true', 'yes', 'y', 'on'):
+                return True
+            if sval in ('0', 'false', 'no', 'n', 'off'):
+                return False
+            return fallback
+
+        return {
+            'CurrentWeek': _to_int(row.get('CurrentWeek', defaults['CurrentWeek']), defaults['CurrentWeek']),
+            'CurrentYear': _to_int(row.get('CurrentYear', defaults['CurrentYear']), defaults['CurrentYear']),
+            'IsBowlWeek': _to_bool(row.get('IsBowlWeek', defaults['IsBowlWeek']), defaults['IsBowlWeek']),
+            'BowlRound': _to_int(row.get('BowlRound', defaults['BowlRound']), defaults['BowlRound']),
+        }
+    except Exception:
+        return defaults
+
+
+_DYNASTY_STATE = load_dynasty_state()
+CURRENT_WEEK_NUMBER = _DYNASTY_STATE['CurrentWeek']
+CURRENT_YEAR        = _DYNASTY_STATE['CurrentYear']
+IS_BOWL_WEEK        = _DYNASTY_STATE['IsBowlWeek']
+BOWL_ROUND          = _DYNASTY_STATE['BowlRound']
 
 st.markdown("""
     <style>
@@ -5120,56 +5163,26 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-TEAM_VISUALS = {
-    "Florida": {"slug": "florida", "primary": "#0021A5", "secondary": "#FA4616"},
-    "Florida State": {"slug": "florida-state", "primary": "#782F40", "secondary": "#CEB888"},
-    "Texas Tech": {"slug": "texas-tech", "primary": "#CC0000", "secondary": "#000000"},
-    "USF": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
-    "South Florida": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
-    "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2", "secondary": "#E5A823"},
-    "Bowling Green": {"slug": "bowling-green", "primary": "#FE5000", "secondary": "#4F2C1D"},
-    "Rapid City": {"slug": "rapid-city", "primary": "#14B8A6", "secondary": "#F472B6"},
-    "Panama City": {"slug": "panama-city", "primary": "#F97316", "secondary": "#000000"},
-    "Hammond": {"slug": "hammond", "primary": "#16A34A", "secondary": "#14532D"},
-    "Alabaster": {"slug": "alabaster", "primary": "#DC2626", "secondary": "#FACC15"},
-    "Death Valley": {"slug": "death-valley", "primary": "#7C3AED", "secondary": "#000000"},
-    "Gate City": {"slug": "gate-city", "primary": "#FACC15", "secondary": "#000000"},
-    "Oklahoma State": {"slug": "oklahoma-state", "primary": "#FF7300", "secondary": "#000000"},
-    "South Carolina": {"slug": "south-carolina", "primary": "#73000A", "secondary": "#000000"},
-    "Appalachian State": {"slug": "app-state", "primary": "#FFCC00", "secondary": "#000000"},
-    "San Diego State": {"slug": "san-diego-state", "primary": "#A6192E", "secondary": "#000000"},
-    "Georgia Tech": {"slug": "georgia-tech", "primary": "#B3A369", "secondary": "#003057"},
-    "NC State": {"slug": "nc-state", "primary": "#CC0000", "secondary": "#000000"},
-    "Texas A&M": {"slug": "texas-am", "primary": "#500000", "secondary": "#FFFFFF"},
-    "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
-    "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
-    "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
-    "Michigan": {"slug": "michigan", "primary": "#00274C", "secondary": "#FFCB05"},
-    "Notre Dame": {"slug": "notre-dame", "primary": "#0C2340", "secondary": "#C99700"},
-    "Oregon": {"slug": "oregon", "primary": "#154733", "secondary": "#FEE123"},
-    "Texas": {"slug": "texas", "primary": "#BF5700", "secondary": "#FFFFFF"},
-    "Oklahoma": {"slug": "oklahoma", "primary": "#841617", "secondary": "#FDF9D8"},
-    "Penn State": {"slug": "penn-state", "primary": "#041E42", "secondary": "#FFFFFF"},
-    "LSU": {"slug": "lsu", "primary": "#461D7C", "secondary": "#FDD023"},
-    "Miami": {"slug": "miami", "primary": "#F47321", "secondary": "#005030"},
-    "Clemson": {"slug": "clemson", "primary": "#F56600", "secondary": "#522D80"},
-    "Tennessee": {"slug": "tennessee", "primary": "#FF8200", "secondary": "#FFFFFF"},
-    "USC": {"slug": "southern-california", "primary": "#990000", "secondary": "#FFC72C"},
-    "Ole Miss": {"slug": "ole-miss", "primary": "#CE1126", "secondary": "#14213D"},
-    "Auburn": {"slug": "auburn", "primary": "#0C2340", "secondary": "#E87722"},
-    "Nebraska": {"slug": "nebraska", "primary": "#E41C38", "secondary": "#FFFFFF"},
-    "Wisconsin": {"slug": "wisconsin", "primary": "#C5050C", "secondary": "#FFFFFF"},
-    "Washington": {"slug": "washington", "primary": "#4B2E83", "secondary": "#B7A57A"},
-    "UCLA": {"slug": "ucla", "primary": "#2774AE", "secondary": "#FFD100"},
-    "TCU": {"slug": "tcu", "primary": "#4D1979", "secondary": "#A3A9AC"},
-    "Utah": {"slug": "utah", "primary": "#CC0000", "secondary": "#000000"},
-    "Rapid City": {"slug": "rapid-city", "primary": "#00B8B8", "secondary": "#FF4FA3"},
-    "Panama City": {"slug": "panama-city", "primary": "#FF7A00", "secondary": "#000000"},
-    "Hammond": {"slug": "hammond", "primary": "#1F8F4E", "secondary": "#0B4F2A"},
-    "Alabaster": {"slug": "alabaster", "primary": "#D72638", "secondary": "#FFD23F"},
-    "Death Valley": {"slug": "death-valley", "primary": "#6A0DAD", "secondary": "#000000"},
-    "Gate City": {"slug": "gate-city", "primary": "#FFD23F", "secondary": "#000000"},
-}
+def load_team_visuals(csv_path="team_visuals.csv"):
+    try:
+        _tv = pd.read_csv(csv_path)
+        if _tv.empty or 'Team' not in _tv.columns:
+            return {}
+        visuals = {}
+        for _, _r in _tv.iterrows():
+            _team = str(_r.get('Team', '')).strip()
+            if not _team:
+                continue
+            visuals[_team] = {
+                'slug': str(_r.get('Slug', '')).strip(),
+                'primary': str(_r.get('Primary', '')).strip() or '#38bdf8',
+                'secondary': str(_r.get('Secondary', '')).strip() or '#94a3b8',
+            }
+        return visuals
+    except Exception:
+        return {}
+
+TEAM_VISUALS = load_team_visuals()
 
 TEAM_ALIASES = {
     "Florida": ["florida", "florida gators"],
@@ -6706,7 +6719,7 @@ def render_roster_matchup_tab():
 def load_data():
     try:
         # LOAD ALL CORE FILES
-        scores = pd.read_csv('scores.csv')
+        scores = pd.read_csv('CPUscores_MASTER.csv')
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
         draft = pd.read_csv('UserDraftPicks.csv')
@@ -7019,7 +7032,7 @@ def render_recruiting_snapshot_table(df):
         cells = [f"""
         <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Rank', 0))}</div>
+            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(pd.to_numeric(row.get('Rank', 0), errors='coerce') if hasattr(pd, 'to_numeric') else row.get('Rank', 0) or 0)}</div>
             <div style="width:38px;text-align:center;">{logo_html}</div>
             <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
           </div>
@@ -7772,7 +7785,7 @@ def render_recruiting_table(df):
         cells = [f"""
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="font-weight:800;min-width:24px;text-align:center;">#{int(row.get('Rank', 0))}</div>
+            <div style="font-weight:800;min-width:24px;text-align:center;">#{int(row.get('Projected Seed Display', 0))}</div>
             <div style="width:40px;text-align:center;">{logo_html}</div>
             <div>
               <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
@@ -7939,26 +7952,6 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
             return ('CFP IMPACT: MED', '#fde68a', '#78350f')
         return ('CFP IMPACT: LOW', '#d1fae5', '#065f46')
 
-    def rivalry_meter_text(user_a, user_b):
-        ua = str(user_a).strip().title()
-        ub = str(user_b).strip().title()
-        if not ua or not ub or ua.lower() == 'cpu' or ub.lower() == 'cpu' or ua == ub:
-            return '', ''
-        vs = scores_df[
-            ((scores_df['V_User_Final'] == ua) & (scores_df['H_User_Final'] == ub)) |
-            ((scores_df['V_User_Final'] == ub) & (scores_df['H_User_Final'] == ua))
-        ].copy()
-        if vs.empty:
-            return 'RIVALRY METER', 'First meeting. Fresh beef.'
-        games = len(vs)
-        margins = pd.to_numeric(vs['Margin'], errors='coerce').dropna()
-        avg_margin = float(margins.mean()) if not margins.empty else 14.0
-        if games >= 6 and avg_margin <= 10:
-            return 'RIVALRY METER: SPICY', f'{games} prior meetings. This one has real scar tissue.'
-        if games >= 3:
-            return 'RIVALRY METER: ACTIVE', f'{games} prior meetings. Enough history for both sides to talk shit.'
-        return 'RIVALRY METER: WARM', f'{games} prior meetings. Not a blood feud yet, but it is getting there.'
-
     st.markdown("""
     <style>
     .dynasty-news-v2-card {
@@ -8010,18 +8003,6 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
             line_text, _favored = estimate_game_line(team, opp, model_df, rank_map)
             favor_text = line_text if line_text == "Pick'em" else f"Favored: {line_text}"
 
-        series_text = ''
-        rivalry_head = ''
-        rivalry_text = ''
-        if game_type == 'User Game':
-            series_text = get_user_series_record(team_user, opp_user, scores_df)
-            rivalry_head, rivalry_text = rivalry_meter_text(team_user, opp_user)
-        elif game_type == 'BYE':
-            rivalry_text = f"{team_user or team} gets a bye. Heal up, self-scout, and enjoy a stress-free Saturday for once."
-        elif game_type == 'Completed Game':
-            rivalry_text = result_text or f'Week {CURRENT_WEEK_NUMBER} final shown on the uploaded schedule screenshot.'
-        else:
-            rivalry_text = f"{team_user or team} has a CPU game this week. No fake drama here — just take care of business and don't do anything stupid."
 
         game_chip = 'BYE WEEK' if game_type == 'BYE' else ('FINAL' if game_type == 'Completed Game' else ('USER vs USER' if game_type == 'User Game' else 'USER vs CPU'))
         impact_label, impact_bg, impact_fg = impact_badge(team, opp)
@@ -8074,15 +8055,6 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
             )
 
         lower_notes = []
-        if series_text:
-            lower_notes.append(f"<div style='font-size:12px;color:#e2e8f0;font-weight:800;'>{html.escape(series_text)}</div>")
-        if rivalry_head or rivalry_text:
-            lower_notes.append(
-                f"<div style='margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);'>"
-                f"<div style='font-size:11px;font-weight:900;letter-spacing:.05em;color:#94a3b8;'>{html.escape(rivalry_head or 'WEEKLY READ')}</div>"
-                f"<div style='font-size:13px;color:#f8fafc;font-weight:700;margin-top:4px;'>{html.escape(rivalry_text)}</div>"
-                f"</div>"
-            )
 
         card_html = (
             f"<div class='dynasty-news-v2-card' style='border-left:6px solid {team_primary};'>"
@@ -8111,102 +8083,15 @@ def _load_recruiting_csv(filename):
         df.columns = [c.strip() for c in df.columns]
         for c in ['Rank','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Year']:
             if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
+                df[c] = pd.to_numeric(df[c], errors='coerce')
         if 'Points' in df.columns:
-            df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
+            df['Points'] = pd.to_numeric(df['Points'], errors='coerce')
         return df
     except Exception:
         return pd.DataFrame(columns=_std_cols)
 
 
-def get_hs_recruiting_snapshot(year=None):
-    """
-    Load HS recruiting class from recruiting_high_school_history.csv.
-    If year=None, returns the most recent year available.
-    Falls back to hardcoded 2041 screenshot data if CSV is missing/empty.
-    """
-    df = _load_recruiting_csv('recruiting_high_school_history.csv')
-    if not df.empty and 'Year' in df.columns:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-    if df.empty:
-        # ── Hardcoded fallback from Week 16 2041 screenshots ─────────────────
-        rows = [
-            (1,'Nebraska',27,4,22,1,0,0,255.25),(2,'Georgia',26,2,21,3,0,0,244.65),
-            (3,'USC',18,3,11,4,0,0,234.40),(4,'Bowling Green',15,5,9,1,0,0,234.25),
-            (5,'Miami',28,0,16,12,0,0,231.45),(6,'Ohio State',21,0,17,4,0,0,228.30),
-            (7,'Texas Tech',16,3,9,4,0,0,224.90),(8,'San Jose State',17,2,8,7,0,0,218.10),
-            (9,'Penn State',17,0,12,5,0,0,213.20),(10,'Washington',17,2,6,9,0,0,211.70),
-            (11,'Baylor',18,0,9,9,0,0,207.65),(12,'Alabama',14,1,11,2,0,0,206.80),
-            (13,'Florida State',13,0,11,2,0,0,194.20),(14,'Rapid City',14,0,9,5,0,0,193.70),
-            (15,'Hammond',12,0,12,0,0,0,190.40),(16,'Ole Miss',14,1,4,9,0,0,183.35),
-            (17,'LSU',13,0,7,6,0,0,181.40),(18,'Clemson',11,1,8,2,0,0,180.25),
-            (19,'TCU',12,0,8,4,0,0,178.95),(20,'Auburn',14,1,3,10,0,0,178.80),
-            (21,'Iowa',17,0,2,13,2,0,173.25),(22,'Michigan',11,0,8,3,0,0,171.90),
-            (23,'UCLA',14,0,3,11,0,0,169.05),(24,'Oregon',10,1,7,2,0,0,168.80),
-            (25,'Notre Dame',10,1,7,2,0,0,168.80),(26,'Arizona State',11,0,5,6,0,0,159.90),
-            (27,'Oklahoma',9,0,9,0,0,0,158.00),(28,'Wake Forest',16,0,0,11,5,0,153.55),
-            (29,'Texas',10,0,5,5,0,0,151.80),(30,'Panama City',9,0,7,2,0,0,150.95),
-            (31,'North Texas',13,0,0,12,1,0,146.90),(32,'NC State',9,0,5,4,0,0,142.65),
-            (33,'Texas A&M',10,0,3,7,0,0,142.50),(34,'Oklahoma State',10,0,3,7,0,0,142.50),
-            (35,'Colorado',13,0,0,10,3,0,141.85),(36,'Minnesota',16,0,0,7,9,0,140.75),
-            (37,'Marshall',13,0,0,10,2,1,139.80),(38,'Troy',21,0,0,5,16,0,139.55),
-            (39,'Boston College',11,0,1,9,1,0,138.05),(40,'Indiana',12,0,0,10,2,0,137.75),
-            (41,'Fresno State',23,0,0,4,19,0,136.20),(42,'UCF',21,0,0,4,17,0,135.00),
-            (43,'Louisville',12,0,0,9,3,0,134.70),(44,'Tulane',10,0,2,7,1,0,134.55),
-            (45,'Miami (OH)',13,0,0,7,6,0,131.75),(46,'Missouri',11,0,1,7,3,0,131.65),
-            (47,'Southern Miss',14,0,0,6,8,0,131.25),(48,'FIU',14,0,0,6,8,0,131.25),
-            (49,'Cincinnati',16,0,0,5,10,1,131.20),(50,'Memphis',11,0,0,10,0,1,130.35),
-            (51,'Houston',10,0,1,8,1,0,129.60),(52,'California',9,0,2,7,0,0,128.45),
-            (53,'Maryland',8,0,4,4,0,0,128.05),(54,'Kansas',12,0,0,7,5,0,127.65),
-            (55,'Michigan State',18,0,0,3,14,1,126.10),(56,'Florida',7,0,6,1,0,0,125.80),
-            (57,"Hawai'i",17,0,0,3,14,0,125.25),(58,'USF',6,2,4,0,0,0,123.75),
-            (59,'Kentucky',19,0,0,2,17,0,123.45),(60,'Illinois',14,0,0,4,10,0,122.40),
-            (61,'Duke',7,0,6,0,1,0,121.80),(62,'Toledo',10,0,0,8,2,0,121.25),
-            (63,'Temple',10,0,0,8,2,0,121.25),(64,'East Carolina',10,0,0,7,3,0,117.55),
-            (65,'Oregon State',12,0,0,4,8,0,114.80),(66,'Middle Tennessee',11,0,0,5,6,0,114.65),
-            (67,'Virginia',9,0,0,7,2,0,111.45),(68,'Syracuse',14,0,0,2,11,1,111.00),
-            (69,'Utah',9,0,0,6,3,0,107.45),(70,'Tulsa',11,0,0,4,6,1,107.40),
-            (71,'Washington St.',17,0,0,0,14,3,106.60),(72,'Georgia Tech',6,0,4,2,0,0,104.95),
-            (73,'Alabaster',6,0,4,2,0,0,104.95),(74,'Kansas State',8,0,0,7,1,0,104.75),
-            (75,'Arizona',8,0,0,7,1,0,104.75),(76,'C. Michigan',11,0,0,4,5,2,104.35),
-            (77,'Liberty',8,0,0,6,2,0,100.75),(78,'Arkansas State',10,0,0,3,7,0,99.95),
-            (79,'App St.',7,0,0,7,0,0,97.35),(80,'San Diego St.',6,0,2,4,0,0,95.30),
-            (81,'Virginia Tech',6,0,2,3,1,0,91.00),(82,'Gate City',6,0,2,3,1,0,91.00),
-            (83,'North Carolina',6,0,1,5,0,0,90.35),(84,'Rice',6,0,1,5,0,0,90.35),
-            (85,'Death Valley',6,0,1,5,0,0,90.35),(86,'UTSA',10,0,0,1,9,0,90.10),
-            (87,'Vanderbilt',15,0,0,0,8,7,89.05),(88,'Navy',8,0,0,4,3,1,88.20),
-            (89,'BYU',5,1,1,3,0,0,87.40),(90,'Arkansas',5,0,3,2,0,0,87.30),
-            (91,'Colorado State',13,0,0,1,6,6,87.10),(92,'Wisconsin',6,0,2,2,2,0,86.45),
-            (93,'UL Monroe',11,0,0,1,7,3,86.40),(94,'Sam Houston',15,0,0,0,7,8,85.35),
-            (95,'Air Force',7,0,0,4,3,0,84.50),(96,'Louisiana Tech',9,0,0,1,8,0,84.00),
-            (97,'Iowa State',14,0,0,0,7,7,83.85),(98,'Purdue',8,0,0,3,4,1,83.45),
-            (99,'UMass',13,0,0,1,5,7,83.10),(100,'Rutgers',9,0,0,3,3,3,82.80),
-            (101,'Stanford',5,0,2,3,0,0,82.40),(102,'Mississippi St',9,0,0,2,5,2,81.90),
-            (103,'Tennessee',5,0,1,4,0,0,77.45),(104,'UNLV',10,0,0,0,7,3,75.00),
-            (105,'Old Dominion',13,0,0,0,5,8,73.80),(106,'SMU',4,0,3,1,0,0,73.65),
-            (107,'Army',10,0,0,2,2,6,72.10),(108,'Pittsburgh',4,0,2,2,0,0,68.75),
-            (109,'South Carolina',8,0,0,0,7,1,68.60),(110,'Louisiana',7,0,0,2,3,2,66.55),
-            (111,'Delaware',11,0,0,0,4,7,64.85),(112,'Jax State',11,0,0,0,4,7,64.85),
-            (113,'Kennesaw St.',12,0,0,0,3,9,62.45),(114,'James Madison',10,0,0,0,4,6,62.15),
-            (115,'UConn',5,0,0,3,1,1,58.60),(116,'Utah State',12,0,0,0,2,10,57.55),
-            (117,'Georgia State',14,0,0,0,1,13,56.40),(118,'W. Kentucky',8,0,0,0,4,4,55.75),
-            (119,'West Virginia',3,0,2,1,0,0,54.50),(120,'Northwestern',6,0,0,0,5,1,52.60),
-            (121,'Charlotte',12,0,0,0,1,11,52.60),(122,'Missouri State',10,0,0,0,2,8,52.50),
-            (123,'Kent State',10,0,0,0,2,8,52.50),(124,'Akron',11,0,0,0,1,10,50.25),
-            (125,'Texas State',9,0,0,0,2,7,49.45),(126,'Ohio',4,0,0,3,0,1,49.30),
-            (127,'E. Michigan',8,0,0,0,2,6,46.10),(128,'UTEP',9,0,0,0,1,8,44.50),
-            (129,'C. Carolina',5,0,0,0,4,1,43.75),(130,'Ball State',3,0,0,2,1,0,39.65),
-            (131,'Ga Southern',4,0,0,1,2,1,39.45),(132,'W. Michigan',7,0,0,0,1,6,37.45),
-            (133,'South Alabama',5,0,0,0,1,4,29.15),(134,'Boise State',2,0,0,1,1,0,24.90),
-            (135,'New Mexico St.',5,0,0,0,0,5,24.15),(136,'Wyoming',0,0,0,0,0,0,0.00),
-        ]
-        cols = ['Rank','Team','TotalCommits','FiveStar','FourStar','ThreeStar',
-                'TwoStar','OneStar','Points']
-        df = pd.DataFrame(rows, columns=cols)
-        df['Year'] = 2041
-        df['User'] = ''
-    # Standardise user-team mapping for user spotlight
+def _finalize_recruiting_snapshot(df):
     _user_team_map = {
         'Devin': ['Bowling Green','Hammond'],
         'Mike':  ['San Jose State','Rapid City','Wyoming','Maryland'],
@@ -8215,40 +8100,78 @@ def get_hs_recruiting_snapshot(year=None):
         'Doug':  ['Florida','Death Valley','UTSA'],
         'Nick':  ['Florida State','Nebraska','Gate City'],
     }
-    if 'User' not in df.columns or df['User'].isna().all() or (df['User'].astype(str).str.strip() == '').all():
+
+    if df is None or df.empty:
+        df = pd.DataFrame(columns=['Rank','Team','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Points','Year','User'])
+
+    if 'User' not in df.columns:
+        df['User'] = ''
+    if df['User'].isna().all() or (df['User'].astype(str).str.strip() == '').all():
         df['User'] = ''
         for usr, teams in _user_team_map.items():
             df.loc[df['Team'].isin(teams), 'User'] = usr
-    df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-    df['BlueChipRatio'] = df['BlueChipRatio'].round(3)
+
+    for col in ['FiveStar','FourStar','ThreeStar','TwoStar','OneStar','TotalCommits','Points']:
+        if col not in df.columns:
+            df[col] = 0
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+    if 'Rank' not in df.columns:
+        df['Rank'] = np.nan
+    df['Rank'] = pd.to_numeric(df['Rank'], errors='coerce')
+    df = df[df['Rank'].notna()].copy()
+
+    if 'Team' not in df.columns:
+        df['Team'] = ''
+    df['BlueChipRatio'] = ((df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, np.nan)).fillna(0).round(3)
     df['Logo'] = df['Team'].apply(get_logo_source)
-    return df.sort_values('Rank').reset_index(drop=True)
+    return df.sort_values('Rank', na_position='last').reset_index(drop=True)
+
+
+def _get_recruiting_class_snapshot(class_type, year=None):
+    class_type = str(class_type).strip().upper()
+
+    combined_candidates = ['recruiting_class_history_all.csv', 'recruiting_class_history.csv']
+    df = pd.DataFrame()
+    for fname in combined_candidates:
+        df = _load_recruiting_csv(fname)
+        if not df.empty and 'ClassType' in df.columns:
+            df['ClassType'] = df['ClassType'].astype(str).str.strip().str.upper()
+            df = df[df['ClassType'] == class_type].copy()
+            if not df.empty:
+                break
+        df = pd.DataFrame()
+
+    if df.empty:
+        legacy_map = {
+            'HS': 'recruiting_high_school_history.csv',
+            'TRANSFER': 'recruiting_transfer_portal_history.csv',
+            'OVERALL': 'recruiting_overall_history.csv',
+        }
+        df = _load_recruiting_csv(legacy_map[class_type])
+
+    if not df.empty and 'Year' in df.columns:
+        available_years = pd.to_numeric(df['Year'], errors='coerce').dropna()
+        if not available_years.empty:
+            yr = int(year) if year else int(available_years.max())
+            df = df[pd.to_numeric(df['Year'], errors='coerce') == yr].copy()
+
+    return _finalize_recruiting_snapshot(df)
+
+
+def get_hs_recruiting_snapshot(year=None):
+    """Load HS recruiting class from combined recruiting history first, then legacy fallback."""
+    return _get_recruiting_class_snapshot('HS', year=year)
 
 
 def get_portal_recruiting_snapshot(year=None):
-    """Load transfer portal class from recruiting_transfer_portal_history.csv."""
-    df = _load_recruiting_csv('recruiting_transfer_portal_history.csv')
-    if not df.empty and 'Year' in df.columns and len(df) > 0:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-        if not df.empty:
-            df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-            df['Logo'] = df['Team'].apply(get_logo_source)
-            return df.sort_values('Rank').reset_index(drop=True)
-    return pd.DataFrame()
+    """Load transfer portal class from combined recruiting history first, then legacy fallback."""
+    return _get_recruiting_class_snapshot('TRANSFER', year=year)
 
 
 def get_overall_recruiting_snapshot(year=None):
-    """Load overall recruiting class from recruiting_overall_history.csv. Falls back to HS data."""
-    df = _load_recruiting_csv('recruiting_overall_history.csv')
-    if not df.empty and 'Year' in df.columns and len(df) > 0:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-        if not df.empty:
-            df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-            df['Logo'] = df['Team'].apply(get_logo_source)
-            return df.sort_values('Rank').reset_index(drop=True)
-    return get_hs_recruiting_snapshot(year)  # fallback: overall = HS when portal is empty
+    """Load overall recruiting class from combined recruiting history first, then legacy fallback."""
+    return _get_recruiting_class_snapshot('OVERALL', year=year)
 
 
 def get_current_recruiting_snapshot():
@@ -8362,7 +8285,7 @@ def build_ispn_classics(scores_df, ratings_df):
 def get_cfp_rankings_snapshot():
     """
     Always pulls from cfp_rankings_history.csv using the most recent YEAR+WEEK.
-    Falls back to hardcoded Week 9 data only if the file is missing or empty.
+    CSV-first behavior: if the file is missing or empty, return an empty DataFrame.
     Update cfp_rankings_history.csv each week and this auto-updates everywhere:
     Who's In?, Power Rankings, Toughest Matchups, game line estimates, etc.
     """
@@ -8376,53 +8299,22 @@ def get_cfp_rankings_snapshot():
                 snap = snap.rename(columns={'RANK': 'Rank', 'TEAM': 'Team', 'RECORD': 'Record'})
                 snap['Rank'] = pd.to_numeric(snap['Rank'], errors='coerce')
                 snap = snap.dropna(subset=['Rank']).sort_values('Rank').reset_index(drop=True)
-                # Parse wins/losses from Record column (e.g. "9-1")
+
                 def parse_wl(rec):
                     try:
                         parts = str(rec).split('-')
                         return int(parts[0]), int(parts[1])
                     except Exception:
                         return 0, 0
-                snap['Wins']   = snap['Record'].apply(lambda r: parse_wl(r)[0])
+
+                snap['Wins'] = snap['Record'].apply(lambda r: parse_wl(r)[0])
                 snap['Losses'] = snap['Record'].apply(lambda r: parse_wl(r)[1])
-                snap['Logo']   = snap['Team'].apply(get_logo_source)
+                snap['Logo'] = snap['Team'].apply(get_logo_source)
                 return snap[['Rank', 'Team', 'Wins', 'Losses', 'Record', 'Logo']]
     except Exception:
         pass
 
-    # ── FALLBACK: hardcoded Week 9 snapshot (used only if CSV missing) ────
-    data = [
-        (1, "Bowling Green", 9, 0),
-        (2, "San Jose State", 9, 1),
-        (3, "USF", 9, 0),
-        (4, "Florida State", 9, 1),
-        (5, "Rapid City", 9, 1),
-        (6, "Texas", 9, 1),
-        (7, "Texas Tech", 9, 1),
-        (8, "Georgia", 8, 1),
-        (9, "Miami", 8, 1),
-        (10, "Alabaster", 7, 2),
-        (11, "Nebraska", 7, 2),
-        (12, "Oklahoma", 7, 2),
-        (13, "Georgia Tech", 8, 1),
-        (14, "Hammond", 8, 2),
-        (15, "Texas A&M", 7, 2),
-        (16, "Penn State", 9, 2),
-        (17, "Clemson", 8, 1),
-        (18, "NC State", 8, 1),
-        (19, "Oregon", 6, 3),
-        (20, "San Diego State", 9, 1),
-        (21, "Florida", 9, 2),
-        (22, "Ohio State", 6, 3),
-        (23, "Notre Dame", 7, 3),
-        (24, "Panama City", 7, 3),
-        (25, "Appalachian State", 8, 1),
-    ]
-    df = pd.DataFrame(data, columns=['Rank', 'Team', 'Wins', 'Losses'])
-    df['Record'] = df['Wins'].astype(str) + '-' + df['Losses'].astype(str)
-    df['Logo'] = df['Team'].apply(get_logo_source)
-    return df
-
+    return pd.DataFrame(columns=['Rank', 'Team', 'Wins', 'Losses', 'Record', 'Logo'])
 
 def _normalize_team_match_key(team):
     return normalize_key(str(team).replace('&', 'and'))
@@ -8679,7 +8571,8 @@ def resolve_playoff_bracket_results(bracket_field, year):
     """
     result = {
         'r1_winners': {}, 'qf_winners': {}, 'sf_winners': {},
-        'qf_slots': {}, 'sf_slots': {}, 'nat_slots': {}
+        'qf_slots': {}, 'sf_slots': {}, 'nat_slots': {},
+        'r1_games': {}, 'qf_games': {}, 'sf_games': {}, 'nat_game': None
     }
     try:
         if bracket_field is None or bracket_field.empty:
@@ -8809,6 +8702,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 if wr is not None:
                     result['r1_winners'][bracket_seed] = wr
                     result['qf_slots'][bracket_seed] = wr
+                    result['r1_games'][bracket_seed] = g
 
         # Quarterfinals
         for bracket_seed, bye_seed in [(1, 1), (4, 4), (2, 2), (3, 3)]:
@@ -8820,6 +8714,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 wr = _winner_row(g)
                 if wr is not None:
                     result['qf_winners'][bracket_seed] = wr
+                    result['qf_games'][bracket_seed] = g
 
         # Semifinals participants / winners
         sf_pairs = {
@@ -8836,6 +8731,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 wr = _winner_row(g)
                 if wr is not None:
                     result['sf_winners'][sf_idx] = wr
+                    result['sf_games'][sf_idx] = g
 
         # National title participants / winner
         nat_a = result['sf_winners'].get(1)
@@ -8847,6 +8743,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 wr = _winner_row(g)
                 if wr is not None:
                     result['nat_winner'] = wr
+                    result['nat_game'] = g
         return result
     except Exception:
         return result
@@ -8924,7 +8821,7 @@ def render_playoff_bracket(projected_field, actual_results=None):
     ]
     conn_svg = "\n".join(P)
 
-    def slot_svg(x, y, seed, row, bye=False, proj=False, actual=False, tbd_lines=None, w=SW):
+    def slot_svg(x, y, seed, row, bye=False, proj=False, actual=False, tbd_lines=None, w=SW, winner=False, score_text=None):
         if tbd_lines:
             l1, l2 = tbd_lines
             return (
@@ -8938,43 +8835,88 @@ def render_playoff_bracket(projected_field, actual_results=None):
         primary = get_team_primary_color(team)
         logo_uri = image_file_to_data_uri(get_logo_source(team))
         name = (team[:19] + "…") if len(team) > 19 else team
-        fill_op = "18" if actual else ("12" if proj else "1c")
-        opacity = "bb" if actual else ("99" if proj else "ff")
+        fill_op = "22" if winner else ("18" if actual else ("12" if proj else "1c"))
+        opacity = "dd" if winner else ("bb" if actual else ("99" if proj else "ff"))
+        stroke_color = "#fbbf24" if winner else (primary + "55")
+        stroke_width = "2" if winner else "1"
         clip_id = "lc{}".format(abs(hash(team + str(y))) % 99999)
         logo_svg = ""; name_x = x + 42
         if logo_uri:
             logo_svg = (
                 '<defs><clipPath id="{0}"><rect x="{1}" y="{2}" width="28" height="28" rx="4"/></clipPath></defs>'.format(clip_id, x+35, y+8) +
-                '<image href="{}" x="{}" y="{}" width="28" height="28" clip-path="url(#{})" opacity="0.9"/>'.format(logo_uri, x+35, y+8, clip_id)
+                '<image href="{}" x="{}" y="{}" width="28" height="28" clip-path="url(#{} )" opacity="0.9"/>'.format(logo_uri, x+35, y+8, clip_id).replace('#{} )'.format(clip_id), '#{})'.format(clip_id))
             )
             name_x = x + 70
-        bye_svg = ""
+        badge_x = x + w - 50
+        badge_svg = ""
         if bye:
-            bye_svg = (
+            badge_svg = (
                 '<rect x="{}" y="{}" width="36" height="15" rx="7" fill="#14532d"/>'.format(x+w-44, y+14) +
                 '<text x="{}" y="{}" text-anchor="middle" fill="#4ade80" font-size="9" font-weight="bold" font-family="monospace">BYE</text>'.format(x+w-26, y+25)
             )
-        status_svg = ""
-        if proj:
-            status_svg = (
-                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#1e3a5f"/>'.format(x+w-50, y+14) +
-                '<text x="{}" y="{}" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="bold" font-family="monospace">PROJ</text>'.format(x+w-28, y+25)
+        elif proj:
+            badge_svg = (
+                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#1e3a5f"/>'.format(badge_x, y+14) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="bold" font-family="monospace">PROJ</text>'.format(badge_x+22, y+25)
             )
         elif actual:
-            status_svg = (
-                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#14532d"/>'.format(x+w-50, y+14) +
-                '<text x="{}" y="{}" text-anchor="middle" fill="#86efac" font-size="8" font-weight="bold" font-family="monospace">FINAL</text>'.format(x+w-28, y+25)
+            label = "WON" if winner else "FINAL"
+            fill = "#14532d" if winner else "#1f2937"
+            txt = "#86efac" if winner else "#cbd5e1"
+            badge_svg = (
+                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="{}"/>'.format(badge_x, y+14, fill) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="{}" font-size="8" font-weight="bold" font-family="monospace">{}</text>'.format(badge_x+22, y+25, txt, label)
+            )
+        score_svg = ""
+        if score_text:
+            score_w = 34 if len(str(score_text)) <= 2 else 42
+            score_x = x + w - score_w - 10
+            score_svg = (
+                '<rect x="{}" y="{}" width="{}" height="16" rx="7" fill="#0b1220" stroke="{}" stroke-width="1"/>'.format(score_x, y+25, score_w, '#fbbf24' if winner else '#334155') +
+                '<text x="{}" y="{}" text-anchor="middle" fill="{}" font-size="9" font-weight="bold" font-family="monospace">{}</text>'.format(score_x + score_w/2, y+36, '#f8fafc' if winner else '#cbd5e1', html.escape(str(score_text)))
             )
         return (
-            '<rect x="{}" y="{}" width="{}" height="{}" rx="6" fill="{}{}" stroke="{}55" stroke-width="1"/>'.format(x, y, w, SH, primary, fill_op, primary) +
+            '<rect x="{}" y="{}" width="{}" height="{}" rx="6" fill="{}{}" stroke="{}" stroke-width="{}"/>'.format(x, y, w, SH, primary, fill_op, stroke_color, stroke_width) +
             '<rect x="{}" y="{}" width="4" height="{}" rx="3" fill="{}{}"/>'.format(x, y, SH, primary, opacity) +
             '<circle cx="{}" cy="{}" r="13" fill="{}{}"/>'.format(x+20, y+SH//2, primary, opacity) +
             '<text x="{}" y="{}" text-anchor="middle" fill="white" font-size="11" font-weight="bold" font-family="monospace">#{}</text>'.format(x+20, y+SH//2+5, seed) +
             logo_svg +
-            '<text x="{}" y="{}" fill="{}" font-size="12" font-weight="bold" font-family="monospace">{}</text>'.format(name_x, y+18, primary, html.escape(name)) +
+            '<text x="{}" y="{}" fill="{}" font-size="12" font-weight="bold" font-family="monospace">{}</text>'.format(name_x, y+18, '#fde68a' if winner else primary, html.escape(name)) +
             '<text x="{}" y="{}" fill="#6b7280" font-size="10" font-family="monospace">{}</text>'.format(name_x, y+34, html.escape(record)) +
-            bye_svg + status_svg
+            badge_svg + score_svg
         )
+
+    def game_team_score(game_row, team_row):
+        if game_row is None or team_row is None:
+            return None
+        try:
+            team_norm = normalize_key(str(team_row.get('Team', '')))
+            away_norm = str(game_row.get('_away_norm', ''))
+            home_norm = str(game_row.get('_home_norm', ''))
+            if team_norm == away_norm:
+                return int(game_row.get('_away_score'))
+            if team_norm == home_norm:
+                return int(game_row.get('_home_score'))
+        except Exception:
+            return None
+        return None
+
+    def game_winner_norm(game_row):
+        if game_row is None:
+            return None
+        try:
+            away_score = float(game_row.get('_away_score'))
+            home_score = float(game_row.get('_home_score'))
+            if away_score == home_score:
+                return None
+            return str(game_row.get('_away_norm')) if away_score > home_score else str(game_row.get('_home_norm'))
+        except Exception:
+            return None
+
+    def row_is_winner(game_row, team_row):
+        if game_row is None or team_row is None:
+            return False
+        return normalize_key(str(team_row.get('Team', ''))) == game_winner_norm(game_row)
 
     def wplabel(sa, sb, ya, yb, x, w=SW):
         p = wp(sa, sb); my = mc(ya, yb)
@@ -8994,6 +8936,10 @@ def render_playoff_bracket(projected_field, actual_results=None):
     tracks = track(R1X,SW) + track(QFX,SW) + track(SFX,SW) + track(NX,NW)
 
     rows = {s: get_row(s) for s in range(1, 13)}
+    r1_games = actual_results.get('r1_games', {})
+    qf_games = actual_results.get('qf_games', {})
+    sf_games = actual_results.get('sf_games', {})
+    nat_game = actual_results.get('nat_game')
     wp1=wp(8,9); wp4=wp(5,12); wp2=wp(7,10); wp3=wp(6,11)
     qf1_opp = actual_results.get('qf_slots', {}).get(1, rows[8] if wp1>50 else rows[9])
     qf4_opp = actual_results.get('qf_slots', {}).get(4, rows[5] if wp4>50 else rows[12])
@@ -9001,24 +8947,36 @@ def render_playoff_bracket(projected_field, actual_results=None):
     qf3_opp = actual_results.get('qf_slots', {}).get(3, rows[6] if wp3>50 else rows[11])
 
     S = ""
-    S += slot_svg(R1X,r1g1[0],8,rows[8])  + slot_svg(R1X,r1g1[1],9,rows[9])
-    S += slot_svg(R1X,r1g4[0],5,rows[5])  + slot_svg(R1X,r1g4[1],12,rows[12])
-    S += slot_svg(R1X,r1g2[0],7,rows[7])  + slot_svg(R1X,r1g2[1],10,rows[10])
-    S += slot_svg(R1X,r1g3[0],6,rows[6])  + slot_svg(R1X,r1g3[1],11,rows[11])
+    r1g = r1_games.get(1)
+    S += slot_svg(R1X,r1g1[0],8,rows[8], actual=r1g is not None, winner=row_is_winner(r1g, rows[8]), score_text=game_team_score(r1g, rows[8]))
+    S += slot_svg(R1X,r1g1[1],9,rows[9], actual=r1g is not None, winner=row_is_winner(r1g, rows[9]), score_text=game_team_score(r1g, rows[9]))
+    r1g = r1_games.get(4)
+    S += slot_svg(R1X,r1g4[0],5,rows[5], actual=r1g is not None, winner=row_is_winner(r1g, rows[5]), score_text=game_team_score(r1g, rows[5]))
+    S += slot_svg(R1X,r1g4[1],12,rows[12], actual=r1g is not None, winner=row_is_winner(r1g, rows[12]), score_text=game_team_score(r1g, rows[12]))
+    r1g = r1_games.get(2)
+    S += slot_svg(R1X,r1g2[0],7,rows[7], actual=r1g is not None, winner=row_is_winner(r1g, rows[7]), score_text=game_team_score(r1g, rows[7]))
+    S += slot_svg(R1X,r1g2[1],10,rows[10], actual=r1g is not None, winner=row_is_winner(r1g, rows[10]), score_text=game_team_score(r1g, rows[10]))
+    r1g = r1_games.get(3)
+    S += slot_svg(R1X,r1g3[0],6,rows[6], actual=r1g is not None, winner=row_is_winner(r1g, rows[6]), score_text=game_team_score(r1g, rows[6]))
+    S += slot_svg(R1X,r1g3[1],11,rows[11], actual=r1g is not None, winner=row_is_winner(r1g, rows[11]), score_text=game_team_score(r1g, rows[11]))
     if actual_results.get('r1_winners'):
         pass
     else:
         S += wplabel(8,9,*r1g1,R1X) + wplabel(5,12,*r1g4,R1X)
         S += wplabel(7,10,*r1g2,R1X) + wplabel(6,11,*r1g3,R1X)
 
-    S += slot_svg(QFX,qf1[0],1,rows[1],bye=True)
-    S += slot_svg(QFX,qf1[1],str(qf1_opp.get('Projected Seed', '?')) if qf1_opp is not None else '?', qf1_opp, actual=(1 in actual_results.get('r1_winners', {})), proj=not (1 in actual_results.get('r1_winners', {})))
-    S += slot_svg(QFX,qf4[0],4,rows[4],bye=True)
-    S += slot_svg(QFX,qf4[1],str(qf4_opp.get('Projected Seed', '?')) if qf4_opp is not None else '?', qf4_opp, actual=(4 in actual_results.get('r1_winners', {})), proj=not (4 in actual_results.get('r1_winners', {})))
-    S += slot_svg(QFX,qf2[0],2,rows[2],bye=True)
-    S += slot_svg(QFX,qf2[1],str(qf2_opp.get('Projected Seed', '?')) if qf2_opp is not None else '?', qf2_opp, actual=(2 in actual_results.get('r1_winners', {})), proj=not (2 in actual_results.get('r1_winners', {})))
-    S += slot_svg(QFX,qf3[0],3,rows[3],bye=True)
-    S += slot_svg(QFX,qf3[1],str(qf3_opp.get('Projected Seed', '?')) if qf3_opp is not None else '?', qf3_opp, actual=(3 in actual_results.get('r1_winners', {})), proj=not (3 in actual_results.get('r1_winners', {})))
+    qfg = qf_games.get(1)
+    S += slot_svg(QFX,qf1[0],1,rows[1],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[1]), score_text=game_team_score(qfg, rows[1]))
+    S += slot_svg(QFX,qf1[1],str(qf1_opp.get('Projected Seed', '?')) if qf1_opp is not None else '?', qf1_opp, actual=qfg is not None or (1 in actual_results.get('r1_winners', {})), proj=qfg is None and not (1 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf1_opp), score_text=game_team_score(qfg, qf1_opp))
+    qfg = qf_games.get(4)
+    S += slot_svg(QFX,qf4[0],4,rows[4],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[4]), score_text=game_team_score(qfg, rows[4]))
+    S += slot_svg(QFX,qf4[1],str(qf4_opp.get('Projected Seed', '?')) if qf4_opp is not None else '?', qf4_opp, actual=qfg is not None or (4 in actual_results.get('r1_winners', {})), proj=qfg is None and not (4 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf4_opp), score_text=game_team_score(qfg, qf4_opp))
+    qfg = qf_games.get(2)
+    S += slot_svg(QFX,qf2[0],2,rows[2],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[2]), score_text=game_team_score(qfg, rows[2]))
+    S += slot_svg(QFX,qf2[1],str(qf2_opp.get('Projected Seed', '?')) if qf2_opp is not None else '?', qf2_opp, actual=qfg is not None or (2 in actual_results.get('r1_winners', {})), proj=qfg is None and not (2 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf2_opp), score_text=game_team_score(qfg, qf2_opp))
+    qfg = qf_games.get(3)
+    S += slot_svg(QFX,qf3[0],3,rows[3],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[3]), score_text=game_team_score(qfg, rows[3]))
+    S += slot_svg(QFX,qf3[1],str(qf3_opp.get('Projected Seed', '?')) if qf3_opp is not None else '?', qf3_opp, actual=qfg is not None or (3 in actual_results.get('r1_winners', {})), proj=qfg is None and not (3 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf3_opp), score_text=game_team_score(qfg, qf3_opp))
 
     sf1_top = actual_results.get('qf_winners', {}).get(1)
     sf1_bot = actual_results.get('qf_winners', {}).get(4)
@@ -9028,37 +8986,40 @@ def render_playoff_bracket(projected_field, actual_results=None):
     nat_bot = actual_results.get('sf_winners', {}).get(2)
     nat_winner = actual_results.get('nat_winner')
 
+    sfg = sf_games.get(1)
     if sf1_top is not None:
-        S += slot_svg(SFX,sf1[0],str(sf1_top.get('Projected Seed', '?')),sf1_top,actual=True)
+        S += slot_svg(SFX,sf1[0],str(sf1_top.get('Projected Seed', '?')),sf1_top,actual=True,winner=row_is_winner(sfg, sf1_top),score_text=game_team_score(sfg, sf1_top))
     else:
         S += slot_svg(SFX,sf1[0],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #1 Bracket"))
     if sf1_bot is not None:
-        S += slot_svg(SFX,sf1[1],str(sf1_bot.get('Projected Seed', '?')),sf1_bot,actual=True)
+        S += slot_svg(SFX,sf1[1],str(sf1_bot.get('Projected Seed', '?')),sf1_bot,actual=True,winner=row_is_winner(sfg, sf1_bot),score_text=game_team_score(sfg, sf1_bot))
     else:
         S += slot_svg(SFX,sf1[1],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #4 Bracket"))
+
+    sfg = sf_games.get(2)
     if sf2_top is not None:
-        S += slot_svg(SFX,sf2[0],str(sf2_top.get('Projected Seed', '?')),sf2_top,actual=True)
+        S += slot_svg(SFX,sf2[0],str(sf2_top.get('Projected Seed', '?')),sf2_top,actual=True,winner=row_is_winner(sfg, sf2_top),score_text=game_team_score(sfg, sf2_top))
     else:
         S += slot_svg(SFX,sf2[0],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #2 Bracket"))
     if sf2_bot is not None:
-        S += slot_svg(SFX,sf2[1],str(sf2_bot.get('Projected Seed', '?')),sf2_bot,actual=True)
+        S += slot_svg(SFX,sf2[1],str(sf2_bot.get('Projected Seed', '?')),sf2_bot,actual=True,winner=row_is_winner(sfg, sf2_bot),score_text=game_team_score(sfg, sf2_bot))
     else:
         S += slot_svg(SFX,sf2[1],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #3 Bracket"))
 
     if nat_top is not None:
-        S += slot_svg(NX, nat[0], str(nat_top.get('Projected Seed', '?')), nat_top, actual=True, w=NW)
+        S += slot_svg(NX, nat[0], str(nat_top.get('Projected Seed', '?')), nat_top, actual=True, w=NW, winner=row_is_winner(nat_game, nat_top), score_text=game_team_score(nat_game, nat_top))
     else:
         S += slot_svg(NX, nat[0], "?", None, tbd_lines=("NATIONAL CHAMPIONSHIP", "Winner: Semifinal 1"), w=NW)
 
     if nat_bot is not None:
-        S += slot_svg(NX, nat[1], str(nat_bot.get('Projected Seed', '?')), nat_bot, actual=True, w=NW)
+        S += slot_svg(NX, nat[1], str(nat_bot.get('Projected Seed', '?')), nat_bot, actual=True, w=NW, winner=row_is_winner(nat_game, nat_bot), score_text=game_team_score(nat_game, nat_bot))
     else:
         S += slot_svg(NX, nat[1], "?", None, tbd_lines=("NATIONAL CHAMPIONSHIP", "Winner: Semifinal 2"), w=NW)
 
     if nat_winner is not None:
         first_nat = nat[0] if nat and len(nat) > 0 else 94
         champ_y = max(38, first_nat - 56)
-        S += slot_svg(NX, champ_y, str(nat_winner.get('Projected Seed', '?')), nat_winner, actual=True, w=NW)
+        S += slot_svg(NX, champ_y, str(nat_winner.get('Projected Seed', '?')), nat_winner, actual=True, winner=True, score_text=game_team_score(nat_game, nat_winner), w=NW)
 
     divider = '<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#1a2a3a" stroke-width="1" stroke-dasharray="4,8"/>'.format(
         SFX - 10, NC, NX + NW + 10, NC
@@ -9346,7 +9307,7 @@ def render_cfp_table(board_df):
         cells = [f"""
         <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;'>
             <div style='display:flex;align-items:center;gap:10px;'>
-                <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get('Rank', 0))}</div>
+                <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get('Projected Seed Display', 0))}</div>
                 <div style='width:38px;text-align:center;'>{logo_html}</div>
                 <div style='font-weight:800;color:{primary};'>{html.escape(team)}</div>
             </div>
@@ -10441,7 +10402,7 @@ tabs = st.tabs([
     "📺 Season Recap",          # tabs[6]
     "🔍 Speed Freaks",          # tabs[7]
     "🎯 Roster Matchup",        # tabs[8]
-    "📊 Coach Legacy",         # tabs[9]
+    "📊 Team Overview",         # tabs[9]
     "⚔️ H2H Matrix",            # tabs[10]
     "🎬 ISPN Classics",         # tabs[11]
     "🐐 GOAT Rankings",         # tabs[12]
@@ -11286,7 +11247,7 @@ with tabs[0]:
 
             # ── TEAM OVERVIEW JUMP BUTTON ─────────────────────────────────────
             if st.button(
-                f"📊 View {team} Coach Legacy →",
+                f"📊 View {team} Team Overview →",
                 key=f"_goto_overview_{team}_{idx}",
                 use_container_width=False,
             ):
@@ -11300,7 +11261,7 @@ with tabs[0]:
         # SECTION 2 — DYNASTY HEADLINES
         # All metrics use LIVE model columns (Natty Odds, Power Index,
         # CFP Odds, Collapse Risk) — NOT preseason proxies.
-        # Game-result headlines are generated directly from scores.csv.
+        # Game-result headlines are generated directly from CPUscores_MASTER.csv.
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("📰 Dynasty Headlines")
@@ -11487,9 +11448,35 @@ with tabs[0]:
                         _winner_str = f"<strong>{_w_user}</strong> ({html.escape(_winner)})" if _w_user != 'CPU' else html.escape(_winner)
                         _loser_str = f"<strong>{_l_user}</strong> ({html.escape(_loser)})" if _l_user != 'CPU' else html.escape(_loser)
 
-                        _headline_text = f"The bracket is active. {_winner_str} just took down " \
-                                         f"{_loser_str} {_win_score}-{_lose_score} " \
-                                         f"in {_round}. Surviving and advancing is all that matters now."
+                        _round_lower = _round.lower()
+                        _is_title_game = any(k in _round_lower for k in ['national title', 'championship', 'title game', 'final'])
+                        try:
+                            _champ_df = pd.read_csv('champs.csv')
+                            _champ_df.columns = [str(c).strip() for c in _champ_df.columns]
+                            if 'Year' in _champ_df.columns:
+                                _champ_df['Year'] = pd.to_numeric(_champ_df['Year'], errors='coerce')
+                            _champ_user_col = next((c for c in _champ_df.columns if str(c).strip().lower() == 'user'), None)
+                            _champ_team_col = next((c for c in _champ_df.columns if str(c).strip().lower() in {'team', 'school'}), None)
+                            _champ_match = _champ_df.copy()
+                            if 'Year' in _champ_match.columns:
+                                _champ_match = _champ_match[_champ_match['Year'] == CURRENT_YEAR]
+                            _winner_user_clean = str(_w_user).strip().title()
+                            _winner_team_clean = str(_winner).strip()
+                            if not _champ_match.empty:
+                                if _champ_user_col:
+                                    _champ_match[_champ_user_col] = _champ_match[_champ_user_col].astype(str).str.strip().str.title()
+                                if _champ_team_col:
+                                    _champ_match[_champ_team_col] = _champ_match[_champ_team_col].astype(str).str.strip()
+                                _is_title_game = _is_title_game or (
+                                    (_champ_user_col and (_champ_match[_champ_user_col] == _winner_user_clean).any()) or
+                                    (_champ_team_col and (_champ_match[_champ_team_col] == _winner_team_clean).any())
+                                )
+                        except Exception:
+                            pass
+                        if _is_title_game:
+                            _headline_text = f"The season is complete. {_winner_str} just beat "                                              f"{_loser_str} {_win_score}-{_lose_score} "                                              f"in {_round} to win the national title."
+                        else:
+                            _headline_text = f"The bracket is active. {_winner_str} just took down "                                              f"{_loser_str} {_win_score}-{_lose_score} "                                              f"in {_round}. Surviving and advancing is all that matters now."
                         break # We found the newest actual game, break the loop
 
                 if _headline_text:
@@ -11811,12 +11798,12 @@ with tabs[0]:
                     else:
                         status_html = f"<span style='color:#9ca3af;'>{html.escape(str(g['status']))}</span>"
 
-                    diff_label = "🔥🔥🔥" if g['difficulty'] >= 50 else ("🔥🔥" if g['difficulty'] >= 30 else "🔥")
+                    diff_label = "Tier 3" if g['difficulty'] >= 50 else ("Tier 2" if g['difficulty'] >= 30 else "Tier 1")
 
                     cards_html += f"""
                     <div style='border-left:3px solid {tc};padding:6px 10px;margin-bottom:6px;background:#0f172a;border-radius:6px;'>
                       <div style='display:flex;justify-content:space-between;align-items:center;'>
-                        <span style='font-weight:700;color:#f3f4f6;font-size:0.88rem;'>{diff_label} {html.escape(g['location'])} {html.escape(opp_str)}</span>
+                        <span style='font-weight:700;color:#f3f4f6;font-size:0.88rem;'>{diff_label} · {html.escape(g['location'])} {html.escape(opp_str)}</span>
                         <span style='font-size:0.75rem;color:#9ca3af;'>{week_str}</span>
                       </div>
                       <div style='font-size:0.75rem;color:#9ca3af;margin-top:2px;'>{pre_tag}{ins_tag}</div>
@@ -12071,98 +12058,9 @@ with tabs[0]:
             h_names = ", ".join(f"**{u}**" for u in sorted(healthy))
             st.caption(f"✅ No injuries reported: {h_names}")
 
-        # ════════════════════════════════════════════════════════════════════
-        # SECTION 6 — RIVALRY SPOTLIGHT
-        # ════════════════════════════════════════════════════════════════════
-        st.markdown("---")
-        st.subheader("⚔️ Rivalry Spotlight")
-        st.caption("Head-to-head history for every user matchup. The best rivalries have scar tissue.")
 
-        rivalry_stats = []
-        user_list = list(USER_TEAMS.keys())
-        for i in range(len(user_list)):
-            for j in range(i + 1, len(user_list)):
-                u1, u2 = user_list[i], user_list[j]
-                matchup_games = scores[
-                    ((scores['Vis_User'] == u1) & (scores['Home_User'] == u2)) |
-                    ((scores['Vis_User'] == u2) & (scores['Home_User'] == u1))
-                ].copy()
-                if matchup_games.empty:
-                    continue
 
-                games_played = len(matchup_games)
-                margins = pd.to_numeric(
-                    abs(pd.to_numeric(matchup_games['Vis Score'], errors='coerce') -
-                        pd.to_numeric(matchup_games['Home Score'], errors='coerce')),
-                    errors='coerce'
-                ).dropna()
-                avg_margin = round(float(margins.mean()), 1) if not margins.empty else 14.0
 
-                u1_wins = int(((matchup_games['Vis_User'] == u1) & (pd.to_numeric(matchup_games['Vis Score'], errors='coerce') > pd.to_numeric(matchup_games['Home Score'], errors='coerce'))).sum() +
-                              ((matchup_games['Home_User'] == u1) & (pd.to_numeric(matchup_games['Home Score'], errors='coerce') > pd.to_numeric(matchup_games['Vis Score'], errors='coerce'))).sum())
-                u2_wins = games_played - u1_wins
-
-                rivalry_key = frozenset([u1, u2])
-                rname, rdesc = RIVALRY_NAMES.get(rivalry_key, (f"{u1} vs {u2}", "Two coaches walk into a stadium..."))
-
-                spice = "🌶️🌶️🌶️" if (games_played >= 5 and avg_margin <= 10) else ("🌶️🌶️" if games_played >= 3 else "🌶️")
-                rivalry_stats.append({
-                    'key': rivalry_key, 'u1': u1, 'u2': u2, 'name': rname, 'desc': rdesc,
-                    'games': games_played, 'avg_margin': avg_margin, 'spice': spice,
-                    'u1_wins': u1_wins, 'u2_wins': u2_wins,
-                    'score': games_played * 3 + max(0, 20 - avg_margin)
-                })
-
-        rivalry_stats.sort(key=lambda x: x['score'], reverse=True)
-
-        if not rivalry_stats:
-            st.caption("No user vs user games found yet. Check back after Week 1.")
-        else:
-            riv_cols = st.columns(2)
-            for idx, riv in enumerate(rivalry_stats):
-                u1, u2 = riv['u1'], riv['u2']
-                t1 = USER_TEAMS.get(u1, u1)
-                t2 = USER_TEAMS.get(u2, u2)
-                c1 = get_team_primary_color(t1)
-                c2 = get_team_primary_color(t2)
-                logo1_uri = image_file_to_data_uri(get_logo_source(t1))
-                logo2_uri = image_file_to_data_uri(get_logo_source(t2))
-                logo1_html = f"<img src='{logo1_uri}' style='width:32px;height:32px;object-fit:contain;'/>" if logo1_uri else "🏈"
-                logo2_html = f"<img src='{logo2_uri}' style='width:32px;height:32px;object-fit:contain;'/>" if logo2_uri else "🏈"
-
-                leader = u1 if riv['u1_wins'] > riv['u2_wins'] else (u2 if riv['u2_wins'] > riv['u1_wins'] else None)
-                leader_color = c1 if leader == u1 else (c2 if leader == u2 else "#9ca3af")
-                series_str = f"{riv['u1_wins']}–{riv['u2_wins']}" if leader else f"{riv['u1_wins']}–{riv['u2_wins']} (EVEN)"
-                lead_str = f"{html.escape(leader)} leads" if leader else "DEAD EVEN 🤝"
-
-                with riv_cols[idx % 2]:
-                    st.markdown(f"""
-                    <div style='background:linear-gradient(135deg,{c1}12,#1f2937 50%,{c2}12);
-                    border:1px solid #374151;border-radius:14px;padding:14px 16px;margin-bottom:12px;'>
-                      <div style='font-size:1.0rem;font-weight:900;color:#f3f4f6;margin-bottom:2px;'>{riv['spice']} {html.escape(riv['name'])}</div>
-                      <div style='font-size:0.78rem;color:#9ca3af;margin-bottom:10px;font-style:italic;'>{html.escape(riv['desc'])}</div>
-                      <div style='display:flex;align-items:center;justify-content:space-between;'>
-                        <div style='display:flex;align-items:center;gap:6px;'>
-                          {logo1_html}
-                          <div>
-                            <div style='color:{c1};font-weight:700;font-size:0.85rem;'>{html.escape(u1)}</div>
-                            <div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(t1)}</div>
-                          </div>
-                        </div>
-                        <div style='text-align:center;padding:0 12px;'>
-                          <div style='font-size:1.2rem;font-weight:900;color:#f3f4f6;'>{series_str}</div>
-                          <div style='font-size:0.7rem;color:{leader_color};font-weight:700;'>{lead_str}</div>
-                          <div style='font-size:0.68rem;color:#6b7280;'>{riv['games']} games · avg margin {riv['avg_margin']} pts</div>
-                        </div>
-                        <div style='display:flex;align-items:center;gap:6px;'>
-                          <div style='text-align:right;'>
-                            <div style='color:{c2};font-weight:700;font-size:0.85rem;'>{html.escape(u2)}</div>
-                            <div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(t2)}</div>
-                          </div>
-                          {logo2_html}
-                        </div>
-                      </div>
-                    </div>""", unsafe_allow_html=True)
 
 
     # --- WHO'S IN? ---
@@ -12179,9 +12077,9 @@ with tabs[3]:
                 _snap_size = len(_cfp_hist_check[(_cfp_hist_check['YEAR'] == _ly) & (_cfp_hist_check['WEEK'] == _lw)])
                 st.success(f"📡 **Live data** — showing Week {int(_lw)}, {int(_ly)} rankings ({_snap_size} teams). Update `cfp_rankings_history.csv` each week to keep this current.")
             else:
-                st.warning("⚠️ `cfp_rankings_history.csv` is empty — showing fallback hardcoded rankings. Add rows to the CSV to go live.")
+                st.warning("⚠️ `cfp_rankings_history.csv` is empty — upload rows to the CSV to populate this board.")
         except Exception:
-            st.warning("⚠️ `cfp_rankings_history.csv` not found — showing fallback hardcoded Week 9 rankings. Push the CSV to your repo to go live.")
+            st.warning("⚠️ `cfp_rankings_history.csv` not found — push the CSV to your repo to populate this board.")
 
         cfp_rankings = get_cfp_rankings_snapshot()
         cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
@@ -12252,7 +12150,73 @@ with tabs[3]:
         ])
 
         st.subheader('Projected CFP Field')
-        render_cfp_table(cfp_board)
+        projected_field_display = projected_field.copy()
+        projected_field_display['Projected Seed Display'] = pd.to_numeric(
+            projected_field_display['Projected Seed'] if 'Projected Seed' in projected_field_display.columns else 0,
+            errors='coerce'
+        ).fillna(999).astype(int)
+        projected_field_display['Committee Rank Display'] = pd.to_numeric(
+            projected_field_display['Rank'] if 'Rank' in projected_field_display.columns else 0,
+            errors='coerce'
+        ).fillna(999).astype(int)
+        projected_field_display['Make CFP'] = projected_field_display['CFP Make %'] if 'CFP Make %' in projected_field_display.columns else 0
+        projected_field_display['Bye Odds'] = projected_field_display['Bye %'] if 'Bye %' in projected_field_display.columns else 0
+        projected_field_display['Auto-Bid Path'] = projected_field_display['Auto-Bid Path %'] if 'Auto-Bid Path %' in projected_field_display.columns else 0
+        projected_field_display['Seed Score'] = projected_field_display['Score'] if 'Score' in projected_field_display.columns else 0
+        if 'Bubble Tier' not in projected_field_display.columns:
+            projected_field_display['Bubble Tier'] = ''
+        if 'Record' not in projected_field_display.columns:
+            projected_field_display['Record'] = ''
+        projected_field_rows = []
+        for _, row in projected_field_display.sort_values('Projected Seed Display', ascending=True).head(12).iterrows():
+            team = str(row.get('Team', ''))
+            primary = get_team_primary_color(team)
+            logo_uri = image_file_to_data_uri(get_logo_source(team))
+            logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:20px;'>🏈</div>"
+            cells = [f"""
+            <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
+                <div style="width:38px;text-align:center;">{logo_html}</div>
+                <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
+              </div>
+            </td>
+            """]
+            vals = [
+                str(int(row.get('Committee Rank Display', 0))),
+                html.escape(str(row.get('Record', ''))),
+                format_pct(row.get('Make CFP', 0), 1),
+                format_pct(row.get('Bye Odds', 0), 1),
+                format_pct(row.get('Auto-Bid Path', 0), 1),
+                html.escape(str(row.get('Bubble Tier', ''))),
+                f"{float(pd.to_numeric(row.get('Seed Score', 0), errors='coerce') or 0):.2f}",
+            ]
+            for disp in vals:
+                cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{disp}</td>")
+            projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
+        projected_field_html = f"""
+        <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:#111827;color:#f8fafc;">
+                <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Projected Field</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Committee Rank</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Record</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Make CFP</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Bye Odds</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Auto-Bid Path</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Bubble Tier</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Seed Score</th>
+              </tr>
+            </thead>
+            <tbody>{''.join(projected_field_rows)}</tbody>
+          </table>
+        </div>
+        """
+        st.markdown(projected_field_html, unsafe_allow_html=True)
+
+        st.subheader('First Four Out')
+        render_first_four_out(first_four_out)
 
         # ── PLAYOFF BRACKET ──────────────────────────────────────────────────
         st.subheader('Playoff Bracket')
@@ -12358,9 +12322,6 @@ with tabs[3]:
         else:
             st.caption("📊 Showing **projected bracket** — enter the official field above once the CFP announces.")
             render_playoff_bracket(projected_field)
-
-        st.subheader('First Four Out')
-        render_first_four_out(first_four_out)
 
         st.subheader('CFP Chaos Simulator')
         sim_team = st.selectbox('Pick a team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
@@ -13311,12 +13272,12 @@ with tabs[6]:
                     }
                 )
 
-
-    # --- COACH LEGACY ---
+    # --- TEAM OVERVIEW ---
 with tabs[9]:
-        st.header("📊 Coach Legacy")
-        st.caption("Career résumé across every school a user has coached, with season-by-season results, recruiting, team identity, preseason expectations, SOS, and hardest path.")
+        st.header("📊 Team Analysis")
+        st.caption("Live speed metrics from roster CSV. Team card record comes from CPUscores_MASTER.csv and CFP rank comes from cfp_rankings_history.csv. Odds match Dynasty News preseason model.")
 
+        # ── AUTO-JUMP: if arriving from Power Rankings card click ─────────────
         if st.session_state.pop("_jump_to_team_analysis", False):
             components.html("""
             <script>
@@ -13329,301 +13290,353 @@ with tabs[9]:
             </script>
             """, height=0)
 
-        coach_options = sorted(ratings['USER'].dropna().astype(str).str.strip().unique().tolist()) if 'USER' in ratings.columns else []
-        if not coach_options:
-            st.warning("No coach history found in TeamRatingsHistory.csv.")
-        else:
-            legacy_coach = st.selectbox("Select Coach", coach_options, key="coach_legacy_user")
-            legacy_view = st.radio("View", ["Career View", "Single Season View"], horizontal=True, key="coach_legacy_view")
+        target = st.selectbox("Select Team", sorted(model_2041['USER'].tolist()), key="team_analysis_user")
+        row = model_2041[model_2041['USER'] == target].iloc[0]
+        wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
 
-            coach_ratings = ratings.copy()
-            coach_ratings.columns = [str(c).strip() for c in coach_ratings.columns]
-            for _c in ['YEAR','OVERALL','OFFENSE','DEFENSE','Projected Wins','Preseason Natty Odds','CFP Make %','SOS',
-                       'Team Speed (90+ Speed Guys)','Quad 90 (90+ SPD, ACC, AGI & COD)','Generational (96+ speed or 96+ Acceleration)']:
-                if _c in coach_ratings.columns:
-                    coach_ratings[_c] = pd.to_numeric(coach_ratings[_c], errors='coerce')
-            coach_ratings['USER'] = coach_ratings['USER'].astype(str).str.strip()
-            coach_ratings['TEAM'] = coach_ratings['TEAM'].astype(str).str.strip()
-            coach_hist = coach_ratings[coach_ratings['USER'] == legacy_coach].copy().sort_values(['YEAR','TEAM'], ascending=[False, True])
+        def _get_live_team_overview(team_name):
+            live_wins = None
+            live_losses = None
+            live_cfp_rank = None
 
             try:
-                preseason_exp = pd.read_csv('preseason_expectations_history.csv')
-                preseason_exp.columns = [str(c).strip() for c in preseason_exp.columns]
-                if 'User' in preseason_exp.columns and 'USER' not in preseason_exp.columns:
-                    preseason_exp = preseason_exp.rename(columns={'User':'USER'})
-                if 'Team' in preseason_exp.columns and 'TEAM' not in preseason_exp.columns:
-                    preseason_exp = preseason_exp.rename(columns={'Team':'TEAM'})
-                if 'Year' in preseason_exp.columns and 'YEAR' not in preseason_exp.columns:
-                    preseason_exp = preseason_exp.rename(columns={'Year':'YEAR'})
-                for _c in ['YEAR','ProjectedWins','NattyOdds','CFPOdds']:
-                    if _c in preseason_exp.columns:
-                        preseason_exp[_c] = pd.to_numeric(preseason_exp[_c], errors='coerce')
-                if 'USER' in preseason_exp.columns:
-                    preseason_exp['USER'] = preseason_exp['USER'].astype(str).str.strip()
-                if 'TEAM' in preseason_exp.columns:
-                    preseason_exp['TEAM'] = preseason_exp['TEAM'].astype(str).str.strip()
+                _live_scores = pd.read_csv('CPUscores_MASTER.csv')
+                if not _live_scores.empty:
+                    _live_scores.columns = [str(c).strip() for c in _live_scores.columns]
+                    if 'YEAR' in _live_scores.columns:
+                        _live_scores['YEAR'] = pd.to_numeric(_live_scores['YEAR'], errors='coerce')
+                        _score_year = CURRENT_YEAR if (_live_scores['YEAR'] == CURRENT_YEAR).any() else _live_scores['YEAR'].dropna().max()
+                        if pd.notna(_score_year):
+                            _live_scores = _live_scores[_live_scores['YEAR'] == _score_year].copy()
+                    if 'Visitor' in _live_scores.columns and 'Home' in _live_scores.columns:
+                        _live_scores['Visitor'] = _live_scores['Visitor'].astype(str).str.strip()
+                        _live_scores['Home'] = _live_scores['Home'].astype(str).str.strip()
+                        _team_games = _live_scores[
+                            (_live_scores['Visitor'] == str(team_name).strip()) |
+                            (_live_scores['Home'] == str(team_name).strip())
+                        ].copy()
+                        if not _team_games.empty:
+                            _team_games['Vis Score'] = pd.to_numeric(_team_games.get('Vis Score'), errors='coerce')
+                            _team_games['Home Score'] = pd.to_numeric(_team_games.get('Home Score'), errors='coerce')
+                            _completed = _team_games[
+                                _team_games['Vis Score'].notna() & _team_games['Home Score'].notna()
+                            ].copy()
+                            if not _completed.empty:
+                                _is_home = _completed['Home'] == str(team_name).strip()
+                                live_wins = int(((_is_home) & (_completed['Home Score'] > _completed['Vis Score'])).sum() +
+                                                ((~_is_home) & (_completed['Vis Score'] > _completed['Home Score'])).sum())
+                                live_losses = int(len(_completed) - live_wins)
             except Exception:
-                preseason_exp = pd.DataFrame(columns=['YEAR','USER','TEAM','ProjectedWins','NattyOdds','CFPOdds'])
+                pass
 
-            def _load_legacy_scores():
-                for _fn in ['CPUscores_MASTER.csv', 'scores.csv']:
-                    try:
-                        _df = pd.read_csv(_fn)
-                        if not _df.empty:
-                            _df.columns = [str(c).strip() for c in _df.columns]
-                            return _df
-                    except Exception:
-                        pass
-                return pd.DataFrame()
+            try:
+                _cfp_hist_live = pd.read_csv('cfp_rankings_history.csv')
+                if not _cfp_hist_live.empty and {'YEAR','WEEK','TEAM','RANK'}.issubset(_cfp_hist_live.columns):
+                    _cfp_hist_live.columns = [str(c).strip() for c in _cfp_hist_live.columns]
+                    _cfp_hist_live['YEAR'] = pd.to_numeric(_cfp_hist_live['YEAR'], errors='coerce')
+                    _cfp_hist_live['WEEK'] = pd.to_numeric(_cfp_hist_live['WEEK'], errors='coerce')
+                    _cfp_hist_live['RANK'] = pd.to_numeric(_cfp_hist_live['RANK'], errors='coerce')
+                    _cfp_hist_live['TEAM'] = _cfp_hist_live['TEAM'].astype(str).str.strip()
+                    _cfp_year = CURRENT_YEAR if (_cfp_hist_live['YEAR'] == CURRENT_YEAR).any() else _cfp_hist_live['YEAR'].dropna().max()
+                    if pd.notna(_cfp_year):
+                        _cfp_slice = _cfp_hist_live[_cfp_hist_live['YEAR'] == _cfp_year].copy()
+                        _cfp_week = _cfp_slice['WEEK'].dropna().max()
+                        if pd.notna(_cfp_week):
+                            _cfp_slice = _cfp_slice[_cfp_slice['WEEK'] == _cfp_week]
+                        _team_cfp = _cfp_slice[_cfp_slice['TEAM'] == str(team_name).strip()]
+                        if not _team_cfp.empty:
+                            _rk = pd.to_numeric(_team_cfp.iloc[0]['RANK'], errors='coerce')
+                            if pd.notna(_rk):
+                                live_cfp_rank = int(_rk)
+            except Exception:
+                pass
 
-            legacy_scores = _load_legacy_scores()
-            if not legacy_scores.empty:
-                for _alias, _targets in {
-                    'YEAR':['YEAR','Year'], 'WEEK':['Week','WEEK'], 'Visitor':['Visitor'], 'Home':['Home'],
-                    'Vis Score':['Vis Score','Vis_Score'], 'Home Score':['Home Score','Home_Score'],
-                    'Vis_User':['Vis_User','Visitor User','Vis User'], 'Home_User':['Home_User','Home User'],
-                    'Ranked_game':['Ranked_game','Ranked Game','Ranked'], 'AwayRank':['AwayRank','Visitor Rank','Vis Rank'],
-                    'HomeRank':['HomeRank','Home Rank'], 'GameType':['GameType','Game Type','Type']
-                }.items():
-                    if _alias not in legacy_scores.columns:
-                        for _t in _targets:
-                            if _t in legacy_scores.columns:
-                                legacy_scores[_alias] = legacy_scores[_t]
-                                break
-                for _c in ['YEAR','WEEK','Vis Score','Home Score','AwayRank','HomeRank']:
-                    if _c in legacy_scores.columns:
-                        legacy_scores[_c] = pd.to_numeric(legacy_scores[_c], errors='coerce')
-                for _c in ['Visitor','Home','Vis_User','Home_User','GameType']:
-                    if _c in legacy_scores.columns:
-                        legacy_scores[_c] = legacy_scores[_c].astype(str).str.strip()
-                legacy_scores = legacy_scores[legacy_scores['Vis Score'].notna() & legacy_scores['Home Score'].notna()].copy()
+            return live_wins, live_losses, live_cfp_rank
 
-            def _load_recruiting_master():
-                for _fn in ['recruiting_class_history_all.csv', 'recruiting_class_history.csv']:
-                    try:
-                        _df = pd.read_csv(_fn)
-                        if not _df.empty:
-                            _df.columns = [str(c).strip() for c in _df.columns]
-                            return _df
-                    except Exception:
-                        pass
-                out = []
-                legacy_map = [
-                    ('recruiting_overall_history.csv', 'OVERALL'),
-                    ('recruiting_high_school_history.csv', 'HS'),
-                    ('recruiting_transfer_portal_history.csv', 'TRANSFER'),
-                ]
-                for _fn, _ctype in legacy_map:
-                    try:
-                        _df = pd.read_csv(_fn)
-                        if not _df.empty:
-                            _df.columns = [str(c).strip() for c in _df.columns]
-                            _df['ClassType'] = _ctype
-                            out.append(_df)
-                    except Exception:
-                        pass
-                return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
+        _live_record_w, _live_record_l, _live_cfp_rank = _get_live_team_overview(str(row.get('TEAM', '')))
 
-            recruiting_hist = _load_recruiting_master()
-            if not recruiting_hist.empty:
-                if 'Year' in recruiting_hist.columns and 'YEAR' not in recruiting_hist.columns:
-                    recruiting_hist = recruiting_hist.rename(columns={'Year':'YEAR'})
-                if 'Team' in recruiting_hist.columns and 'TEAM' not in recruiting_hist.columns:
-                    recruiting_hist = recruiting_hist.rename(columns={'Team':'TEAM'})
-                if 'User' in recruiting_hist.columns and 'USER' not in recruiting_hist.columns:
-                    recruiting_hist = recruiting_hist.rename(columns={'User':'USER'})
-                if 'Rank' in recruiting_hist.columns and 'RANK' not in recruiting_hist.columns:
-                    recruiting_hist = recruiting_hist.rename(columns={'Rank':'RANK'})
-                if 'Points' in recruiting_hist.columns and 'POINTS' not in recruiting_hist.columns:
-                    recruiting_hist = recruiting_hist.rename(columns={'Points':'POINTS'})
-                for _c in ['YEAR','RANK','POINTS','TotalCommits','FiveStar','FourStar','ThreeStar']:
-                    if _c in recruiting_hist.columns:
-                        recruiting_hist[_c] = pd.to_numeric(recruiting_hist[_c], errors='coerce')
-                for _c in ['USER','TEAM','ClassType']:
-                    if _c in recruiting_hist.columns:
-                        recruiting_hist[_c] = recruiting_hist[_c].astype(str).str.strip()
+        # ── Live speed stats from roster CSV (same logic as Speed Freaks tab) ──
+        _ta_team     = str(row['TEAM'])
+        _ta_tc       = get_team_primary_color(_ta_team)
+        _TA_OFF_POS  = {'QB','HB','FB','WR','TE','LT','LG','C','RG','RT'}
+        _TA_DEF_POS  = {'LEDG','REDG','DT','MIKE','WILL','SAM','CB','FS','SS'}
+        try:
+            _ta_roster = pd.read_csv('cfb26_rosters_full.csv')
+        except Exception:
+            try:
+                _ta_roster = pd.read_csv('cfb26_rosters_top30.csv')
+            except Exception:
+                _ta_roster = pd.DataFrame()
 
-            def _coach_year_record(_coach, _team, _year):
-                if legacy_scores.empty:
-                    return (None, None, 0, 0, 0.0, 0.0, pd.DataFrame())
-                _g = legacy_scores[(legacy_scores['YEAR'] == _year) & ((legacy_scores['Visitor'] == _team) | (legacy_scores['Home'] == _team))].copy()
-                if _g.empty:
-                    return (None, None, 0, 0, 0.0, 0.0, _g)
-                _is_home = _g['Home'] == _team
-                _wins = int(((_is_home) & (_g['Home Score'] > _g['Vis Score'])).sum() + ((~_is_home) & (_g['Vis Score'] > _g['Home Score'])).sum())
-                _losses = int(len(_g) - _wins)
-                _ranked = int((((_is_home) & _g['AwayRank'].fillna(999).le(25)) | ((~_is_home) & _g['HomeRank'].fillna(999).le(25))).sum())
-                _ppg = round(float((_g['Home Score'].where(_is_home, _g['Vis Score'])).mean()), 1) if len(_g) else 0.0
-                _margins = (_g['Home Score'].where(_is_home, _g['Vis Score']) - _g['Vis Score'].where(_is_home, _g['Home Score']))
-                _avg_margin = round(float(_margins.mean()), 1) if len(_g) else 0.0
-                return (_wins, _losses, len(_g), _ranked, _ppg, _avg_margin, _g)
-
-            def _calc_schedule_strength(_g, _team):
-                if _g.empty:
-                    return 0.0, 0.0
-                _is_home = _g['Home'] == _team
-                _opp_rank = pd.to_numeric(_g['AwayRank'].where(_is_home, _g['HomeRank']), errors='coerce')
-                _opp_rank_score = _opp_rank.apply(lambda r: 30 if pd.notna(r) and r <= 5 else (24 if pd.notna(r) and r <= 10 else (18 if pd.notna(r) and r <= 15 else (12 if pd.notna(r) and r <= 25 else 6)))).fillna(6)
-                _game_type = _g['GameType'].astype(str).str.upper() if 'GameType' in _g.columns else pd.Series([''] * len(_g))
-                _post_w = _game_type.apply(lambda x: 1.35 if any(k in x for k in ['CFP','PLAYOFF','CHAMP','BOWL']) else 1.0)
-                _sos = round(float((_opp_rank_score * _post_w).mean()), 1)
-                _late = _g.sort_values('WEEK').tail(5).copy() if 'WEEK' in _g.columns else _g.tail(5).copy()
-                _late_home = _late['Home'] == _team
-                _late_rank = pd.to_numeric(_late['AwayRank'].where(_late_home, _late['HomeRank']), errors='coerce')
-                _late_score = _late_rank.apply(lambda r: 35 if pd.notna(r) and r <= 5 else (28 if pd.notna(r) and r <= 10 else (20 if pd.notna(r) and r <= 15 else (14 if pd.notna(r) and r <= 25 else 7)))).fillna(7)
-                _path = round(float(_late_score.sum() + (_game_type.apply(lambda x: 8 if 'CONF' in x else 0).sum()) + (_game_type.apply(lambda x: 12 if 'CFP' in x or 'PLAYOFF' in x else 0).sum()) + (_game_type.apply(lambda x: 18 if 'NAT' in x or 'TITLE' in x else 0).sum())), 1)
-                return _sos, _path
-
-            def _path_label(_v):
-                if _v >= 140: return 'Historic'
-                if _v >= 105: return 'Brutal'
-                if _v >= 75: return 'Tough'
-                if _v >= 45: return 'Solid'
-                return 'Manageable'
-
-            seasons = []
-            for _, _r in coach_hist.drop_duplicates(['YEAR','TEAM']).iterrows():
-                _yr = int(_r['YEAR']) if pd.notna(_r['YEAR']) else None
-                _team = str(_r['TEAM']).strip()
-                _w, _l, _gp, _ranked, _ppg, _avg_margin, _g = _coach_year_record(legacy_coach, _team, _yr)
-                _sos, _path = _calc_schedule_strength(_g, _team)
-                _pre = preseason_exp[(preseason_exp.get('USER', pd.Series(dtype=str)) == legacy_coach) & (preseason_exp.get('TEAM', pd.Series(dtype=str)) == _team) & (preseason_exp.get('YEAR', pd.Series(dtype=float)) == _yr)] if not preseason_exp.empty else pd.DataFrame()
-                _natty_odds = _pre['NattyOdds'].iloc[0] if (not _pre.empty and 'NattyOdds' in _pre.columns and pd.notna(_pre['NattyOdds'].iloc[0])) else pd.to_numeric(_r.get('Preseason Natty Odds', np.nan), errors='coerce')
-                _cfp_odds = _pre['CFPOdds'].iloc[0] if (not _pre.empty and 'CFPOdds' in _pre.columns and pd.notna(_pre['CFPOdds'].iloc[0])) else pd.to_numeric(_r.get('CFP Make %', np.nan), errors='coerce')
-                _proj_w = _pre['ProjectedWins'].iloc[0] if (not _pre.empty and 'ProjectedWins' in _pre.columns and pd.notna(_pre['ProjectedWins'].iloc[0])) else pd.to_numeric(_r.get('Projected Wins', np.nan), errors='coerce')
-                _rec_rows = recruiting_hist[(recruiting_hist.get('USER', pd.Series(dtype=str)) == legacy_coach) & (recruiting_hist.get('TEAM', pd.Series(dtype=str)) == _team) & (recruiting_hist.get('YEAR', pd.Series(dtype=float)) == _yr)] if not recruiting_hist.empty else pd.DataFrame()
-                def _rank_for(_ctype):
-                    if _rec_rows.empty or 'ClassType' not in _rec_rows.columns or 'RANK' not in _rec_rows.columns:
-                        return np.nan
-                    _m = _rec_rows[_rec_rows['ClassType'].astype(str).str.upper() == _ctype]
-                    return _m['RANK'].dropna().iloc[0] if not _m.empty and _m['RANK'].dropna().shape[0] else np.nan
-                _natty = champs[(pd.to_numeric(champs.get('Year', champs.get('YEAR', pd.Series(dtype=float))), errors='coerce') == _yr) & (champs.get('Team', pd.Series(dtype=str)).astype(str).str.strip() == _team)] if not champs.empty else pd.DataFrame()
-                seasons.append({
-                    'Year': _yr,
-                    'School': _team,
-                    'Record': f"{_w}-{_l}" if _w is not None else '—',
-                    'Actual Wins': _w if _w is not None else np.nan,
-                    'Projected Wins': _proj_w,
-                    'Preseason Natty Odds': _natty_odds,
-                    'Preseason CFP Odds': _cfp_odds,
-                    'SOS': _sos,
-                    'Hardest Path': _path,
-                    'Path Tier': _path_label(_path),
-                    'Final Rank': pd.to_numeric(_r.get('Current CFP Ranking', np.nan), errors='coerce'),
-                    'Overall': pd.to_numeric(_r.get('OVERALL', np.nan), errors='coerce'),
-                    'Offense': pd.to_numeric(_r.get('OFFENSE', np.nan), errors='coerce'),
-                    'Defense': pd.to_numeric(_r.get('DEFENSE', np.nan), errors='coerce'),
-                    'Team Speed': pd.to_numeric(_r.get('Team Speed (90+ Speed Guys)', np.nan), errors='coerce'),
-                    'Quad 90': pd.to_numeric(_r.get('Quad 90 (90+ SPD, ACC, AGI & COD)', np.nan), errors='coerce'),
-                    'Generational Freaks': pd.to_numeric(_r.get('Generational (96+ speed or 96+ Acceleration)', np.nan), errors='coerce'),
-                    'Recruiting Overall': _rank_for('OVERALL'),
-                    'Recruiting HS': _rank_for('HS'),
-                    'Recruiting Transfer': _rank_for('TRANSFER'),
-                    'PPG': _ppg,
-                    'Avg Margin': _avg_margin,
-                    'Champion': (not _natty.empty),
-                    'Games': _gp,
-                })
-            season_df = pd.DataFrame(seasons).sort_values('Year', ascending=False) if seasons else pd.DataFrame()
-
-            if season_df.empty:
-                st.info("No coach legacy rows found for this user.")
+        if not _ta_roster.empty:
+            _ta_roster['SPD'] = pd.to_numeric(_ta_roster['SPD'], errors='coerce')
+            _ta_roster['ACC'] = pd.to_numeric(_ta_roster['ACC'], errors='coerce')
+            _ta_roster['AGI'] = pd.to_numeric(_ta_roster.get('AGI', pd.Series(dtype=float)), errors='coerce')
+            _ta_roster['COD'] = pd.to_numeric(_ta_roster.get('COD', pd.Series(dtype=float)), errors='coerce')
+            if 'REDSHIRT' in _ta_roster.columns:
+                _ta_roster['REDSHIRT'] = pd.to_numeric(_ta_roster['REDSHIRT'], errors='coerce').fillna(0).astype(int)
+                _ta_active = _ta_roster[_ta_roster['REDSHIRT'] == 0].copy()
             else:
-                schools = season_df['School'].dropna().astype(str).unique().tolist()
-                total_wins = int(pd.to_numeric(season_df['Actual Wins'], errors='coerce').fillna(0).sum())
-                total_losses = int(season_df['Record'].astype(str).str.extract(r'-(\d+)')[0].fillna(0).astype(int).sum())
-                natty_count = int(season_df['Champion'].sum())
-                avg_sos = round(pd.to_numeric(season_df['SOS'], errors='coerce').fillna(0).mean(), 1)
-                avg_path = round(pd.to_numeric(season_df['Hardest Path'], errors='coerce').fillna(0).mean(), 1)
-                avg_rec = round(pd.to_numeric(season_df['Recruiting Overall'], errors='coerce').dropna().mean(), 1) if season_df['Recruiting Overall'].notna().any() else None
-                over_proj = round((pd.to_numeric(season_df['Actual Wins'], errors='coerce') - pd.to_numeric(season_df['Projected Wins'], errors='coerce')).fillna(0).mean(), 1)
+                _ta_active = _ta_roster.copy()
+            _ta_tdf   = _ta_active[_ta_active['Team'] == _ta_team]
+            _ta_off   = _ta_tdf[_ta_tdf['Pos'].isin(_TA_OFF_POS)]
+            _ta_def   = _ta_tdf[_ta_tdf['Pos'].isin(_TA_DEF_POS)]
+            _live_spd   = int((_ta_tdf['SPD'] >= 90).sum())
+            _live_offspd= int((_ta_off['SPD'] >= 90).sum())
+            _live_defspd= int((_ta_def['SPD'] >= 90).sum())
+            _live_q90   = int(((_ta_tdf['SPD'] >= 90) & (_ta_tdf['ACC'] >= 90)
+                               & (_ta_tdf['AGI'] >= 90) & (_ta_tdf['COD'] >= 90)).sum())
+            _live_gen   = int(((_ta_tdf['SPD'] >= 96) | (_ta_tdf['ACC'] >= 96)).sum())
+            _live_score = round((_live_spd * 2.2 + _live_offspd * 1.0 + _live_defspd * 1.0
+                                 + _live_q90 * 2.5) * (1 + _live_gen * 0.16 + _live_q90 * 0.07), 1)
+            _live_mph   = str(team_speed_to_mph(_live_score))
+            _speed_from_live = not _ta_tdf.empty
+        else:
+            _live_spd = int(pd.to_numeric(row.get('Team Speed (90+ Speed Guys)', 0), errors='coerce') or 0)
+            _live_offspd = int(pd.to_numeric(row.get('Off Speed (90+ speed)', 0), errors='coerce') or 0)
+            _live_defspd = int(pd.to_numeric(row.get('Def Speed (90+ speed)', 0), errors='coerce') or 0)
+            _live_q90   = int(pd.to_numeric(row.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0), errors='coerce') or 0)
+            _live_gen   = int(pd.to_numeric(row.get('Generational (96+ speed or 96+ Acceleration)', 0), errors='coerce') or 0)
+            _live_mph   = str(row.get('Speedometer', '—'))
+            _speed_from_live = False
 
+        # ── Odds (preseason model = same as Dynasty News) ─────────────────────
+        _natty_val    = float(pd.to_numeric(row.get('Preseason Natty Odds', row.get('Natty Odds', 0)), errors='coerce') or 0)
+        _cfp_make_val = float(pd.to_numeric(row.get('CFP Make %', row.get('CFP Odds', 0)), errors='coerce') or 0)
+        _pi_val       = float(pd.to_numeric(row.get('Preseason PI', row.get('Power Index', 0)), errors='coerce') or 0)
+        _proj_wins    = row.get('Projected Wins', '—')
+        _rec_sc       = float(pd.to_numeric(row.get('Recruit Score', 0), errors='coerce') or 0)
+        _imp          = float(pd.to_numeric(row.get('Improvement', 0), errors='coerce') or 0)
+        _bcr          = float(pd.to_numeric(row.get('BCR_Val', 0), errors='coerce') or 0)
+        _sos_val      = float(pd.to_numeric(row.get('SOS', 0), errors='coerce') or 0)
+        _res_val      = float(pd.to_numeric(row.get('Resume Score', 0), errors='coerce') or 0)
+        _ovr_val      = float(pd.to_numeric(row.get('OVERALL', 0), errors='coerce') or 0)
+        _off_val      = float(pd.to_numeric(row.get('OFFENSE', 0), errors='coerce') or 0)
+        _def_val      = float(pd.to_numeric(row.get('DEFENSE', 0), errors='coerce') or 0)
+
+        # ── Top metrics strip ─────────────────────────────────────────────────
+        mobile_metrics([
+            {"label": "🏆 Natty Odds",   "value": f"{_natty_val:.1f}%"},
+            {"label": "🎯 CFP Make %",   "value": f"{_cfp_make_val:.1f}%"},
+            {"label": "⚡ Preseason PI", "value": str(_pi_val)},
+            {"label": "📈 Proj Wins",    "value": str(_proj_wins)},
+        ])
+
+        st.markdown("---")
+
+        # ── Team Identity card ────────────────────────────────────────────────
+        _logo_uri   = image_file_to_data_uri(get_logo_source(_ta_team))
+        _logo_img   = (f"<img src='{_logo_uri}' style='width:60px;height:60px;object-fit:contain;'/>"
+                       if _logo_uri else "<span style='font-size:36px;'>🏈</span>")
+        _cfp_rank_d = (f"#{int(_live_cfp_rank)}" if _live_cfp_rank is not None else "NR")
+        _stock      = str(row.get('Program Stock', '—'))
+        _conf       = str(row.get('CONFERENCE', ''))
+        _record_d   = (f"{int(_live_record_w)}-{int(_live_record_l)}"
+                       if _live_record_w is not None and _live_record_l is not None
+                       else f"{wins}-{losses}")
+        _cc = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),
+               'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}.get(_conf, ('#6b7280','#1f2937'))
+
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,{_ta_tc}22,#0f172a);"
+            f"border:1px solid {_ta_tc}44;border-left:5px solid {_ta_tc};"
+            f"border-radius:14px;padding:16px 18px;margin-bottom:12px;'>"
+            f"<div style='display:flex;align-items:center;gap:14px;flex-wrap:wrap;'>"
+            f"{_logo_img}"
+            f"<div style='flex:1;min-width:160px;'>"
+            f"<div style='font-size:1.2rem;font-weight:900;color:{_ta_tc};'>{html.escape(_ta_team)}</div>"
+            f"<div style='font-size:0.78rem;color:#9ca3af;margin-top:2px;'>{html.escape(target)}"
+            f"<span style='display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;"
+            f"font-size:0.65rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};"
+            f"border:1px solid {_cc[0]}44;'>{html.escape(_conf)}</span></div></div>"
+            f"<div style='display:flex;gap:16px;flex-wrap:wrap;'>"
+            f"<div style='text-align:center;'>"
+            f"<div style='font-weight:900;color:#f1f5f9;font-size:1.1rem;'>{_record_d}</div>"
+            f"<div style='color:#475569;font-size:0.65rem;'>RECORD</div></div>"
+            f"<div style='text-align:center;'>"
+            f"<div style='font-weight:900;color:#fbbf24;font-size:1.1rem;'>{_cfp_rank_d}</div>"
+            f"<div style='color:#475569;font-size:0.65rem;'>CFP RK</div></div>"
+            f"<div style='text-align:center;'>"
+            f"<div style='font-weight:900;color:#34d399;font-size:1.1rem;'>{html.escape(_stock)}</div>"
+            f"<div style='color:#475569;font-size:0.65rem;'>STOCK</div></div>"
+            f"</div></div></div>",
+            unsafe_allow_html=True
+        )
+
+        # ── QB Profile card ───────────────────────────────────────────────────
+        st.subheader("🎯 QB Profile")
+        _qb_player  = str(row.get('QB_Player', ''))
+        _qb_tier    = str(row.get('QB Tier', '—'))
+        _qb_ovr_raw = int(pd.to_numeric(
+            row.get('QB_OVR_CSV', row.get('QB OVR', 0)), errors='coerce') or 0)
+        _has_qb_csv = bool(_qb_player and _qb_player not in ('', 'nan', 'None'))
+
+        if _has_qb_csv:
+            _qb_arch   = str(row.get('QB_Archetype', '—'))
+            _qb_class  = str(row.get('QB_Class', '—'))
+            _qb_stars  = int(pd.to_numeric(row.get('QB_Stars', 0), errors='coerce') or 0)
+            _qb_ht     = str(row.get('QB_Height', ''))
+            _qb_wt     = str(row.get('QB_Weight', ''))
+            _qb_home   = str(row.get('QB_Hometown', ''))
+            _qb_pipe   = str(row.get('QB_Pipeline', ''))
+            _qb_ment   = str(row.get('QB_Mentals', ''))
+            _qb_phys   = str(row.get('QB_Physicals', ''))
+            _qb_drank  = row.get('QB_Dynasty_Rank', None)
+            _star_str  = '⭐' * min(_qb_stars, 5) if _qb_stars > 0 else ''
+            _qtc = {'Elite':('#22c55e','#0d2010'),'Leader':('#60a5fa','#0d1829'),
+                    'Average Joe':('#fbbf24','#1c1400'),'Ass':('#ef4444','#200808')}.get(
+                        _qb_tier, ('#6b7280','#1f2937'))
+            _ovc = "#22c55e" if _qb_ovr_raw >= 90 else (
+                   "#60a5fa" if _qb_ovr_raw >= 86 else (
+                   "#fbbf24" if _qb_ovr_raw >= 80 else "#f87171"))
+            _rank_badge = (
+                f"<span style='padding:2px 7px;border-radius:999px;font-size:0.68rem;"
+                f"font-weight:700;background:#1e293b;color:#94a3b8;'>"
+                f"#{int(_qb_drank)} QB in dynasty</span>"
+                if pd.notna(_qb_drank) else "")
+
+            def _chips(trait_str, accent):
+                out = ""
+                for t in [x.strip() for x in str(trait_str).split(';')
+                          if x.strip() and x.strip() not in ('', 'None', 'nan')]:
+                    out += (f"<span style='display:inline-block;padding:2px 8px;margin:2px;"
+                            f"border-radius:999px;font-size:0.65rem;font-weight:700;"
+                            f"background:{accent}22;color:{accent};border:1px solid {accent}44;'>"
+                            f"{html.escape(t)}</span>")
+                return out or f"<span style='color:#475569;font-size:0.72rem;'>None</span>"
+
+            _ht_line = (f" &middot; {html.escape(_qb_ht)} / {html.escape(str(_qb_wt))} lbs"
+                        if _qb_ht and _qb_ht not in ('', 'nan') else "")
+            _loc_line = (f"{html.escape(_qb_home)} &middot; {html.escape(_qb_pipe)}"
+                         if _qb_home and _qb_home not in ('', 'nan') else "")
+
+            st.markdown(
+                f"<div style='background:linear-gradient(135deg,{_ta_tc}18,#0f172a);"
+                f"border:1px solid {_ta_tc}33;border-radius:12px;padding:14px 16px;margin-bottom:8px;'>"
+                f"<div style='display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;'>"
+                f"<div style='min-width:140px;flex:1;'>"
+                f"<div style='font-size:1.05rem;font-weight:900;color:#f1f5f9;'>{html.escape(_qb_player)}</div>"
+                f"<div style='font-size:0.72rem;color:#9ca3af;margin-top:2px;'>"
+                f"{html.escape(_qb_class)}{_ht_line}</div>"
+                f"<div style='font-size:0.72rem;color:#64748b;'>{_loc_line}</div>"
+                f"<div style='margin-top:6px;'><span style='font-size:0.7rem;color:#fbbf24;'>"
+                f"{_star_str}</span></div></div>"
+                f"<div style='display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;'>"
+                f"<div style='font-size:1.8rem;font-weight:900;color:{_ovc};line-height:1;'>"
+                f"{_qb_ovr_raw}<span style='font-size:0.65rem;color:#475569;margin-left:3px;'>OVR</span></div>"
+                f"<span style='padding:3px 10px;border-radius:999px;font-size:0.7rem;font-weight:800;"
+                f"background:{_qtc[1]};color:{_qtc[0]};border:1px solid {_qtc[0]}44;'>"
+                f"{html.escape(_qb_tier)}</span>"
+                f"{_rank_badge}</div></div>"
+                f"<div style='margin-top:10px;border-top:1px solid #1e293b;padding-top:10px;'>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;font-weight:700;"
+                f"margin-bottom:4px;'>ARCHETYPE &mdash; {html.escape(_qb_arch)}</div>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;"
+                f"font-weight:700;margin-bottom:4px;'>MENTALS</div>"
+                f"<div style='margin-bottom:8px;'>{_chips(_qb_ment, '#60a5fa')}</div>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;"
+                f"font-weight:700;margin-bottom:4px;'>PHYSICALS</div>"
+                f"<div>{_chips(_qb_phys, '#34d399')}</div></div></div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.info(f"QB: {_qb_tier} tier &middot; {_qb_ovr_raw} OVR "
+                    f"— add QBprofileData.csv and QB_power_rankingsData.csv to the repo for full scouting card.")
+
+        st.markdown("---")
+
+        # ── Speed Stats banner (live) ─────────────────────────────────────────
+        _src_note = ("📡 Live from roster CSV" if _speed_from_live
+                     else "⚠️ Roster CSV unavailable — using TeamRatingsHistory values")
+        st.caption(_src_note)
+        mobile_metrics([
+            {"label": "⚡ 90+ SPD",    "value": str(_live_spd)},
+            {"label": "🏈 Off Speed",  "value": str(_live_offspd)},
+            {"label": "🛡 Def Speed",  "value": str(_live_defspd)},
+            {"label": "🔷 Quad 90",   "value": str(_live_q90)},
+            {"label": "👽 Gen Freaks", "value": str(_live_gen)},
+            {"label": "🏎 Speedo",    "value": f"{_live_mph} MPH"},
+        ], cols_desktop=6)
+
+        st.markdown("---")
+
+        # ── Two-column: MVP + Coach ───────────────────────────────────────────
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("⭐ MVP Profile")
+            _mvp_name = str(row.get('⭐ STAR SKILL GUY (Top OVR)', '—'))
+            _mvp_gen  = str(row.get('Star Skill Guy is Generational Speed?', '—'))
+            _mvp_color = "#fbbf24" if str(_mvp_gen).lower() in ('yes','true','1') else "#94a3b8"
+            st.markdown(
+                f"<div style='background:#111827;border:1px solid #374151;"
+                f"border-radius:10px;padding:12px 14px;margin-bottom:8px;'>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.07em;"
+                f"font-weight:700;margin-bottom:4px;'>TOP SKILL GUY</div>"
+                f"<div style='font-weight:900;color:#f1f5f9;font-size:1rem;'>"
+                f"{html.escape(_mvp_name)}</div>"
+                f"<div style='margin-top:4px;'>"
+                f"<span style='font-size:0.72rem;font-weight:700;color:{_mvp_color};'>"
+                f"{'⚡ Generational Speed' if str(_mvp_gen).lower() in ('yes','true','1') else 'Standard athlete'}"
+                f"</span></div></div>",
+                unsafe_allow_html=True
+            )
+            st.write(generate_mvp_backstory(row))
+            mobile_metrics([
+                {"label": "💎 BCR",       "value": f"{_bcr:.0f}%"},
+                {"label": "📈 Recruit",   "value": f"{_rec_sc:.0f}"},
+                {"label": "📊 Improve",   "value": f"{_imp:+.1f}"},
+            ], cols_desktop=3)
+
+        with c2:
+            _coach_row = stats[stats['User'] == target]
+            coach_stats_row = _coach_row.iloc[0] if not _coach_row.empty else pd.Series()
+            st.subheader("👔 Coach Profile")
+            st.write(generate_coach_profile(row, coach_stats_row))
+            if not coach_stats_row.empty:
                 mobile_metrics([
-                    {"label": "🏫 Schools", "value": str(len(schools))},
-                    {"label": "📘 Career Record", "value": f"{total_wins}-{total_losses}"},
-                    {"label": "🏆 Natties", "value": str(natty_count)},
-                    {"label": "📐 Avg SOS", "value": f"{avg_sos:.1f}"},
-                    {"label": "🪓 Avg Path", "value": f"{avg_path:.1f}"},
-                    {"label": "📈 vs Proj Wins", "value": f"{over_proj:+.1f}"},
-                ], cols_desktop=6)
+                    {"label": "🏅 Win %",    "value": f"{coach_stats_row.get('Career Win %', '—')}%"},
+                    {"label": "🏆 Natties",  "value": str(int(coach_stats_row.get('Natties', 0)))},
+                    {"label": "🎯 CFP Wins", "value": str(int(coach_stats_row.get('CFP Wins', 0)))},
+                ], cols_desktop=3)
+            st.markdown("**Coaching Stops & Rings**")
+            render_history_cards(get_program_history_cards(row['USER'], ratings, champs, rec))
 
-                st.markdown("**Coaching Stops**")
-                render_history_cards(get_program_history_cards(legacy_coach, ratings, champs, rec))
+        st.markdown("---")
 
-                st.markdown("---")
-                st.subheader("📅 Year-by-Year Legacy")
-                legacy_disp = season_df.copy()
-                for _c in ['Final Rank','Overall','Offense','Defense','Team Speed','Quad 90','Generational Freaks','Recruiting Overall','Recruiting HS','Recruiting Transfer']:
-                    if _c in legacy_disp.columns:
-                        legacy_disp[_c] = pd.to_numeric(legacy_disp[_c], errors='coerce')
-                st.dataframe(
-                    legacy_disp[[
-                        'Year','School','Record','Projected Wins','Actual Wins','Preseason Natty Odds','Preseason CFP Odds',
-                        'SOS','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer',
-                        'Team Speed','Quad 90','Generational Freaks'
-                    ]],
-                    hide_index=True, use_container_width=True
-                )
+        # ── Detailed metrics table + bar chart ────────────────────────────────
+        st.subheader("📋 Detailed Team Metrics")
+        _where_spd = str(row.get('Where is the Speed?', '—'))
+        _opp_rec   = (f"{int(row['Combined Opponent Wins'])}-{int(row['Combined Opponent Losses'])}"
+                      if pd.notna(row.get('Combined Opponent Wins'))
+                      and pd.notna(row.get('Combined Opponent Losses')) else 'N/A')
 
-                year_options = season_df['Year'].dropna().astype(int).sort_values(ascending=False).tolist()
-                selected_legacy_year = st.selectbox("Season Detail", year_options, key="coach_legacy_year")
-                selected_row = season_df[season_df['Year'] == int(selected_legacy_year)].iloc[0]
-                selected_team = str(selected_row['School'])
-                _, _, _, _, _, _, selected_games = _coach_year_record(legacy_coach, selected_team, int(selected_legacy_year))
+        stat_table = pd.DataFrame([
+            {'Metric': 'Overall OVR',          'Value': _ovr_val},
+            {'Metric': 'Offense',              'Value': _off_val},
+            {'Metric': 'Defense',              'Value': _def_val},
+            {'Metric': 'Preseason Natty Odds', 'Value': f"{_natty_val:.1f}%"},
+            {'Metric': 'CFP Make %',           'Value': f"{_cfp_make_val:.1f}%"},
+            {'Metric': 'Preseason PI',         'Value': _pi_val},
+            {'Metric': 'SOS',                  'Value': f"{_sos_val:.1f}"},
+            {'Metric': 'Resume Score',         'Value': f"{_res_val:.1f}"},
+            {'Metric': 'Recruit Score',        'Value': f"{_rec_sc:.1f}"},
+            {'Metric': 'YoY Improvement',      'Value': f"{_imp:+.1f} OVR"},
+            {'Metric': 'Off 90+ Speed (live)', 'Value': _live_offspd},
+            {'Metric': 'Def 90+ Speed (live)', 'Value': _live_defspd},
+            {'Metric': 'Total Team Speed (live)', 'Value': _live_spd},
+            {'Metric': 'Quad 90 (live)',        'Value': _live_q90},
+            {'Metric': 'Generational (live)',   'Value': _live_gen},
+            {'Metric': 'Where is the Speed?',   'Value': _where_spd},
+            {'Metric': 'Speedometer (live)',    'Value': f"{_live_mph} MPH"},
+            {'Metric': 'Blue Chip Ratio',       'Value': f"{_bcr:.0f}%"},
+            {'Metric': 'Opponent Record',       'Value': _opp_rec},
+            {'Metric': 'PPG',                   'Value': ppg},
+            {'Metric': 'Avg Margin',            'Value': avg_margin},
+        ])
+        st.dataframe(stat_table, hide_index=True, use_container_width=True)
 
-                if legacy_view == "Single Season View":
-                    season_title = f"{selected_legacy_year} {selected_team}"
-                else:
-                    season_title = f"Selected Season: {selected_legacy_year} {selected_team}"
-                st.markdown("---")
-                st.subheader(f"🧭 {season_title}")
-                mobile_metrics([
-                    {"label": "📘 Record", "value": str(selected_row['Record'])},
-                    {"label": "📐 SOS", "value": f"{selected_row['SOS']:.1f}"},
-                    {"label": "🪓 Hardest Path", "value": f"{selected_row['Hardest Path']:.1f}"},
-                    {"label": "🏷 Path Tier", "value": str(selected_row['Path Tier'])},
-                    {"label": "🏆 Natty Odds", "value": (f"{selected_row['Preseason Natty Odds']:.1f}%" if pd.notna(selected_row['Preseason Natty Odds']) else '—')},
-                    {"label": "🎯 CFP Odds", "value": (f"{selected_row['Preseason CFP Odds']:.1f}%" if pd.notna(selected_row['Preseason CFP Odds']) else '—')},
-                    {"label": "📈 Proj Wins", "value": (f"{selected_row['Projected Wins']:.1f}" if pd.notna(selected_row['Projected Wins']) else '—')},
-                    {"label": "✅ Actual Wins", "value": (str(int(selected_row['Actual Wins'])) if pd.notna(selected_row['Actual Wins']) else '—')},
-                ], cols_desktop=4)
-
-                c_legacy1, c_legacy2 = st.columns(2)
-                with c_legacy1:
-                    st.markdown("**Team Identity**")
-                    st.dataframe(pd.DataFrame([
-                        {'Metric':'Overall','Value':selected_row['Overall']},
-                        {'Metric':'Offense','Value':selected_row['Offense']},
-                        {'Metric':'Defense','Value':selected_row['Defense']},
-                        {'Metric':'Team Speed','Value':selected_row['Team Speed']},
-                        {'Metric':'Quad 90','Value':selected_row['Quad 90']},
-                        {'Metric':'Generational Freaks','Value':selected_row['Generational Freaks']},
-                    ]), hide_index=True, use_container_width=True)
-                with c_legacy2:
-                    st.markdown("**Recruiting by Year**")
-                    st.dataframe(pd.DataFrame([
-                        {'Metric':'Overall Rank','Value':selected_row['Recruiting Overall']},
-                        {'Metric':'HS Rank','Value':selected_row['Recruiting HS']},
-                        {'Metric':'Transfer Rank','Value':selected_row['Recruiting Transfer']},
-                        {'Metric':'PPG','Value':selected_row['PPG']},
-                        {'Metric':'Avg Margin','Value':selected_row['Avg Margin']},
-                    ]), hide_index=True, use_container_width=True)
-
-                st.markdown("**Schedule & Results**")
-                if selected_games.empty:
-                    st.caption("No historical schedule rows found for that team/year in CPUscores_MASTER.csv or scores.csv.")
-                else:
-                    _is_home = selected_games['Home'] == selected_team
-                    sched = pd.DataFrame({
-                        'Week': selected_games['WEEK'] if 'WEEK' in selected_games.columns else np.nan,
-                        'Opponent': selected_games['Visitor'].where(_is_home, selected_games['Home']),
-                        'Opp Rank': pd.to_numeric(selected_games['AwayRank'].where(_is_home, selected_games['HomeRank']), errors='coerce'),
-                        'Result': np.where(selected_games['Home Score'].where(_is_home, selected_games['Vis Score']) > selected_games['Vis Score'].where(_is_home, selected_games['Home Score']), 'W', 'L'),
-                        'Score': selected_games['Home Score'].where(_is_home, selected_games['Vis Score']).astype(int).astype(str) + '-' + selected_games['Vis Score'].where(_is_home, selected_games['Home Score']).astype(int).astype(str),
-                        'Location': np.where(_is_home, 'vs', '@'),
-                        'Game Type': selected_games['GameType'] if 'GameType' in selected_games.columns else '',
-                    }).sort_values('Week', na_position='last')
-                    st.dataframe(sched, hide_index=True, use_container_width=True)
+        st.caption("Natty Odds and CFP Make % use the preseason model — same numbers shown in Dynasty News. "
+                   "Speed metrics marked (live) computed direct from roster CSV, matching Speed Freaks tab.")
 
     # --- SPEED FREAKS ---
 with tabs[7]:
@@ -14484,317 +14497,10 @@ with tabs[1]:
 
     latest_saved_draft_year = get_latest_saved_draft_year()
 
-    # ── PUBLIC / EVERYONE FIRST ─────────────────────────────────────────
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
-
-    with c2:
-        st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
-
-    with c3:
-        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
-
-    audio_l, audio_c, audio_r = st.columns([1, 1.4, 1])
-
-    with audio_c:
-        if st.button("▶️ Replay Saved Draft With Audio", use_container_width=True, key="replay_saved_draft_with_audio_public"):
-            enable_draft_audio()
-            if latest_saved_draft_year is None:
-                st.warning("No saved draft exists yet.")
-            else:
-                replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
-
-    st.markdown(
-        "<div style='text-align:center;color:#9ca3af;font-size:0.9rem;'>This button enables audio and starts the replay in one click.</div>",
-        unsafe_allow_html=True
-    )
-
-    st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
-
-    st.markdown("---")
-
-    # ── COMMISSIONER UNLOCK MOVED LOWER ────────────────────────────────
-    with st.expander("🔒 Commissioner Controls", expanded=False):
-        commissioner_key = st.text_input(
-            "Enter commissioner password",
-            type="password",
-            key="nfl_commissioner_password"
-        )
-
-        if commissioner_key == "Chicken83$":
-            st.session_state["nfl_commissioner_unlocked"] = True
-            is_commissioner = True
-            st.success("Commissioner mode unlocked.")
-        elif commissioner_key:
-            st.error("Incorrect password.")
-
-    if is_commissioner:
-        st.subheader("Commissioner Tools")
-
-        c1, c2, c3, c4, c5 = st.columns([1.05, 1.0, 1.0, 1.0, 1.15])
-
-        with c1:
-            reveal_speed = st.selectbox(
-                "Replay Speed",
-                ["Broadcast", "Fast", "Turbo"],
-                index=0,
-                key="nfl_draft_reveal_speed"
-            )
-
-        with c2:
-            st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
-
-        with c3:
-            st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
-
-        with c4:
-            st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
-
-        with c5:
-            allow_rerun = st.checkbox(
-                "Allow rerun of latest class",
-                value=False,
-                key="nfl_allow_rerun_latest"
-            )
-
-        audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
-
-        with audio_c:
-            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn_commish"):
-                enable_draft_audio()
-                st.success("Draft audio enabled for this session.")
-
-        st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
-
-        b1, b2, b3 = st.columns(3)
-
-        with b1:
-            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft_btn_commish"):
-                try:
-                    nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
-                        live_mode=False,
-                        speed_mode=reveal_speed,
-                        force_latest=False
-                    )
-
-                    if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                        just_added_class = nfl_draft_hist[
-                            pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
-                        ].copy()
-
-                        if status_msg and "officially added" in status_msg.lower():
-                            existing_story = (
-                                pd.read_csv("nfl_story_events.csv")
-                                if os.path.exists("nfl_story_events.csv")
-                                else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                            )
-                            seed_story_events_from_draft_class(just_added_class, existing_story)
-
-                    if status_msg:
-                        if "already locked in" in status_msg.lower():
-                            st.info(status_msg)
-                        elif "officially added" in status_msg.lower():
-                            st.success(status_msg)
-                        else:
-                            st.warning(status_msg)
-
-                except Exception as e:
-                    st.error(f"NFL draft error: {type(e).__name__}: {e}")
-
-        with b2:
-            if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
-                if latest_saved_draft_year is None:
-                    st.warning("No saved draft exists yet.")
-                else:
-                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode=reveal_speed)
-
-        with b3:
-            if st.button("🛠️ Admin Rerun Latest", use_container_width=True, key="rerun_latest_nfl_draft"):
-                if not allow_rerun:
-                    st.warning("Enable 'Allow rerun of latest class' first.")
-                else:
-                    try:
-                        nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
-                            live_mode=False,
-                            speed_mode=reveal_speed,
-                            force_latest=True
-                        )
-
-                        if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
-                            just_added_class = nfl_draft_hist[
-                                pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
-                            ].copy()
-
-                            if status_msg and "rerun for testing" in status_msg.lower():
-                                existing_story = (
-                                    pd.read_csv("nfl_story_events.csv")
-                                    if os.path.exists("nfl_story_events.csv")
-                                    else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
-                                )
-                                seed_story_events_from_draft_class(just_added_class, existing_story)
-
-                        st.warning(status_msg if status_msg else "Latest draft rerun complete.")
-
-                    except Exception as e:
-                        import traceback
-                        st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
-                        st.code(traceback.format_exc())
-
-        sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
-
-        with sim_c:
-            if st.button("🏆 Advance NFL Season", use_container_width=True, key="advance_nfl_season_btn_commish"):
-                try:
-                    sim_result, sim_msg = simulate_nfl_season()
-                    if sim_result is None:
-                        st.warning(sim_msg)
-                    else:
-                        st.success(sim_msg)
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"NFL season sim error: {type(e).__name__}: {e}")
-
-            if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
-                try:
-                    season_to_rebuild = get_current_nfl_season()
-                    rebuilt = build_nfl_current_roster_for_season(
-                        season_year=season_to_rebuild,
-                        nfl_roster_df=nfl_roster,
-                        nfl_draft_hist_df=nfl_draft_hist,
-                        nfl_player_hist_df=nfl_player_hist,
-                        existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
-                    )
-                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
-                    st.rerun()
-                except Exception as e:
-                    import traceback
-                    st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
-                    st.code(traceback.format_exc())
-
-        if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
-            try:
-                initialize_nfl_universe_settings()
-                st.success("nfl_universe_settings.csv created.")
-            except Exception as e:
-                st.error(f"Settings file create error: {type(e).__name__}: {e}")
-
-        if os.path.exists("nfl_universe_settings.csv"):
-            with open("nfl_universe_settings.csv", "rb") as f:
-                st.download_button(
-                    label="⬇️ Download NFL Settings",
-                    data=f.read(),
-                    file_name="nfl_universe_settings.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="download_nfl_universe_settings"
-                )
-
-        zip_bytes, included_files = build_nfl_export_zip()
-
-        zip_l, zip_c, zip_r = st.columns([1, 1.4, 1])
-
-        with zip_c:
-            st.download_button(
-                label="📦 Download All NFL CSVs (ZIP)",
-                data=zip_bytes,
-                file_name=f"nfl_universe_export_{get_current_nfl_season()}.zip",
-                mime="application/zip",
-                use_container_width=True,
-                key="download_all_nfl_csvs_zip"
-            )
-
-        if included_files:
-            st.caption("Included: " + ", ".join(included_files))
-        else:
-            st.warning("No NFL CSV files were found to export.")
-
-        st.markdown("---")
-
-        # ── NFL Universe file status / downloads ──────────────────────────
-        draft_hist_exists = os.path.exists("nfl_draft_history.csv")
-        story_exists = os.path.exists("nfl_story_events.csv")
-        sb_exists = os.path.exists("nfl_super_bowl_history.csv")
-        player_hist_exists = os.path.exists("nfl_player_history.csv")
-        current_roster_exists = os.path.exists("nfl_current_rosters.csv")
-
-        s1, s2, s3, s4, s5 = st.columns(5)
-        with s1:
-            st.caption(f"Draft History: {'✅' if draft_hist_exists else '❌'}")
-        with s2:
-            st.caption(f"Story Events: {'✅' if story_exists else '❌'}")
-        with s3:
-            st.caption(f"Super Bowl History: {'✅' if sb_exists else '❌'}")
-        with s4:
-            st.caption(f"Player History: {'✅' if player_hist_exists else '❌'}")
-        with s5:
-            st.caption(f"Current Rosters: {'✅' if current_roster_exists else '❌'}")
-
-        d1, d2, d3, d4, d5 = st.columns(5)
-
-        with d1:
-            if draft_hist_exists:
-                with open("nfl_draft_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Draft History",
-                        data=f.read(),
-                        file_name="nfl_draft_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_draft_history"
-                    )
-
-        with d2:
-            if story_exists:
-                with open("nfl_story_events.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Story Events",
-                        data=f.read(),
-                        file_name="nfl_story_events.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_story_events"
-                    )
-
-        with d3:
-            if sb_exists:
-                with open("nfl_super_bowl_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download SB History",
-                        data=f.read(),
-                        file_name="nfl_super_bowl_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_super_bowl_history"
-                    )
-
-        with d4:
-            if player_hist_exists:
-                with open("nfl_player_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Player History",
-                        data=f.read(),
-                        file_name="nfl_player_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_player_history"
-                    )
-
-        with d5:
-            if current_roster_exists:
-                with open("nfl_current_rosters.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Current Rosters",
-                        data=f.read(),
-                        file_name="nfl_current_rosters.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_current_rosters"
-                    )
-
     st.markdown("---")
     st.caption(f"Working directory: {os.getcwd()}")
+
+
 
     nfl_tabs = st.tabs([
         "📦 Draft Central",
@@ -14811,6 +14517,20 @@ with tabs[1]:
 # ── Draft Central ──────────────────────────────────────────────────
     with nfl_tabs[0]:
         st.subheader("📦 Draft Central")
+
+        replay_l, replay_c, replay_r = st.columns([1, 1.45, 1])
+        with replay_c:
+            if st.button("▶️ Replay Saved Draft With Audio", use_container_width=True, key="replay_saved_draft_with_audio_draft_central"):
+                enable_draft_audio()
+                if latest_saved_draft_year is None:
+                    st.warning("No saved draft exists yet.")
+                else:
+                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
+
+        st.markdown(
+            "<div style='text-align:center;color:#9ca3af;font-size:0.9rem;'>This button enables audio and starts the replay in one click.</div>",
+            unsafe_allow_html=True
+        )
 
         if nfl_draft_hist.empty:
             st.info("No NFL draft universe data yet. Fill cfb_user_draft_results.csv, then click Regenerate.")
@@ -16296,6 +16016,272 @@ with tabs[1]:
                 })
 
                 st.dataframe(loss_show.head(20), hide_index=True, use_container_width=True)
+
+
+    st.markdown("---")
+    st.subheader("NFL Universe Status")
+
+    s1, s2, s3 = st.columns(3)
+    with s1:
+        st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
+    with s2:
+        st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
+    with s3:
+        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
+
+    st.caption("Commissioner tools and draft admin controls live below the public NFL Universe sections.")
+
+    with st.expander("🔒 Commissioner Controls", expanded=False):
+        commissioner_key = st.text_input(
+            "Enter commissioner password",
+            type="password",
+            key="nfl_commissioner_password"
+        )
+
+        if commissioner_key == "Chicken83$":
+            st.session_state["nfl_commissioner_unlocked"] = True
+            is_commissioner = True
+            st.success("Commissioner mode unlocked.")
+        elif commissioner_key:
+            st.error("Incorrect password.")
+
+    if is_commissioner:
+        st.subheader("Commissioner Tools")
+
+        c1, c2 = st.columns([1.15, 1.0])
+
+        with c1:
+            reveal_speed = st.selectbox(
+                "Replay Speed",
+                ["Broadcast", "Fast", "Turbo"],
+                index=0,
+                key="nfl_draft_reveal_speed"
+            )
+
+        with c2:
+            allow_rerun = st.checkbox(
+                "Allow rerun of latest class",
+                value=False,
+                key="nfl_allow_rerun_latest"
+            )
+
+        audio_l, audio_c, audio_r = st.columns([1, 1.3, 1])
+
+        with audio_c:
+            if st.button("🔊 Enable Draft Audio", use_container_width=True, key="enable_draft_audio_btn_commish"):
+                enable_draft_audio()
+                st.success("Draft audio enabled for this session.")
+
+        st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
+
+        b1, b2, b3 = st.columns(3)
+
+        with b1:
+            if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft_btn_commish"):
+                try:
+                    nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                        live_mode=False,
+                        speed_mode=reveal_speed,
+                        force_latest=False
+                    )
+
+                    if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                        just_added_class = nfl_draft_hist[
+                            pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
+                        ].copy()
+
+                        if status_msg and "officially added" in status_msg.lower():
+                            existing_story = (
+                                pd.read_csv("nfl_story_events.csv")
+                                if os.path.exists("nfl_story_events.csv")
+                                else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                            )
+                            seed_story_events_from_draft_class(just_added_class, existing_story)
+
+                    if status_msg:
+                        if "already locked in" in status_msg.lower():
+                            st.info(status_msg)
+                        elif "officially added" in status_msg.lower():
+                            st.success(status_msg)
+                        else:
+                            st.warning(status_msg)
+
+                except Exception as e:
+                    st.error(f"NFL draft error: {type(e).__name__}: {e}")
+
+        with b2:
+            if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
+                if latest_saved_draft_year is None:
+                    st.warning("No saved draft exists yet.")
+                else:
+                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode=reveal_speed)
+
+        with b3:
+            if st.button("🛠️ Admin Rerun Latest", use_container_width=True, key="rerun_latest_nfl_draft"):
+                if not allow_rerun:
+                    st.warning("Enable 'Allow rerun of latest class' first.")
+                else:
+                    try:
+                        nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
+                            live_mode=False,
+                            speed_mode=reveal_speed,
+                            force_latest=True
+                        )
+
+                        if processed_year is not None and nfl_draft_hist is not None and not nfl_draft_hist.empty:
+                            just_added_class = nfl_draft_hist[
+                                pd.to_numeric(nfl_draft_hist["DraftYear"], errors="coerce").fillna(-1).astype(int) == int(processed_year)
+                            ].copy()
+
+                            if status_msg and "rerun for testing" in status_msg.lower():
+                                existing_story = (
+                                    pd.read_csv("nfl_story_events.csv")
+                                    if os.path.exists("nfl_story_events.csv")
+                                    else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+                                )
+                                seed_story_events_from_draft_class(just_added_class, existing_story)
+
+                        st.warning(status_msg if status_msg else "Latest draft rerun complete.")
+
+                    except Exception as e:
+                        import traceback
+                        st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
+                        st.code(traceback.format_exc())
+
+        sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
+
+        with sim_c:
+            if st.button("🏆 Advance NFL Season", use_container_width=True, key="advance_nfl_season_btn_commish"):
+                try:
+                    sim_result, sim_msg = simulate_nfl_season()
+                    if sim_result is None:
+                        st.warning(sim_msg)
+                    else:
+                        st.success(sim_msg)
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"NFL season sim error: {type(e).__name__}: {e}")
+
+            if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
+                try:
+                    season_to_rebuild = get_current_nfl_season()
+                    rebuilt = build_nfl_current_roster_for_season(
+                        season_year=season_to_rebuild,
+                        nfl_roster_df=nfl_roster,
+                        nfl_draft_hist_df=nfl_draft_hist,
+                        nfl_player_hist_df=nfl_player_hist,
+                        existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
+                    )
+                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
+                    st.rerun()
+                except Exception as e:
+                    import traceback
+                    st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
+                    st.code(traceback.format_exc())
+
+        if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
+            try:
+                initialize_nfl_universe_settings()
+                st.success("nfl_universe_settings.csv created.")
+            except Exception as e:
+                st.error(f"Settings file create error: {type(e).__name__}: {e}")
+
+        if os.path.exists("nfl_universe_settings.csv"):
+            with open("nfl_universe_settings.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download NFL Settings",
+                    data=f.read(),
+                    file_name="nfl_universe_settings.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_universe_settings"
+                )
+
+        zip_bytes, included_files = build_nfl_export_zip()
+
+        if zip_bytes:
+            st.download_button(
+                label="📦 Download Full NFL Universe ZIP",
+                data=zip_bytes,
+                file_name="nfl_universe_export.zip",
+                mime="application/zip",
+                use_container_width=True,
+                key="download_nfl_universe_zip"
+            )
+            if included_files:
+                st.caption("Included files: " + ", ".join(included_files))
+        else:
+            st.info("No NFL files found yet to include in the ZIP export.")
+
+        # ── NFL Universe file status / downloads ──────────────────────────
+        st.markdown("---")
+        st.markdown("#### Commissioner Downloads")
+
+        if os.path.exists("cfb_user_draft_results.csv"):
+            with open("cfb_user_draft_results.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Draft Input",
+                    data=f.read(),
+                    file_name="cfb_user_draft_results.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_cfb_user_draft_results"
+                )
+
+        if os.path.exists("nfl_draft_history.csv"):
+            with open("nfl_draft_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Draft History",
+                    data=f.read(),
+                    file_name="nfl_draft_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_draft_history"
+                )
+
+        if os.path.exists("nfl_player_history.csv"):
+            with open("nfl_player_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Player History",
+                    data=f.read(),
+                    file_name="nfl_player_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_player_history"
+                )
+
+        if os.path.exists("nfl_super_bowl_history.csv"):
+            with open("nfl_super_bowl_history.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Super Bowl History",
+                    data=f.read(),
+                    file_name="nfl_super_bowl_history.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_super_bowl_history"
+                )
+
+        if os.path.exists("nfl_story_events.csv"):
+            with open("nfl_story_events.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Story Events",
+                    data=f.read(),
+                    file_name="nfl_story_events.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_story_events"
+                )
+
+        if os.path.exists("nfl_current_rosters.csv"):
+            with open("nfl_current_rosters.csv", "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Current Rosters",
+                    data=f.read(),
+                    file_name="nfl_current_rosters.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="download_nfl_current_rosters"
+                )
 
 
 # --- ROSTER ATTRITION ---
