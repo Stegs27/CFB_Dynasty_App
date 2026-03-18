@@ -12252,7 +12252,70 @@ with tabs[3]:
         ])
 
         st.subheader('Projected CFP Field')
-        render_cfp_table(projected_field)
+        projected_field_display = projected_field.copy()
+        projected_field_display = projected_field_display.rename(columns={
+            'Projected Seed': 'Rank',
+            'CFP Make %': 'Make CFP',
+            'Bye %': 'Bye Odds',
+            'Auto-Bid Path %': 'Auto-Bid Path',
+            'Score': 'Seed Score',
+        })
+        for _col in ['Rank', 'Make CFP', 'Bye Odds', 'Auto-Bid Path', 'Seed Score']:
+            if _col not in projected_field_display.columns:
+                projected_field_display[_col] = 0
+        if 'Bubble Tier' not in projected_field_display.columns:
+            projected_field_display['Bubble Tier'] = ''
+        if 'Record' not in projected_field_display.columns:
+            projected_field_display['Record'] = ''
+        if 'Rank' in projected_field_display.columns:
+            projected_field_display['Rank'] = pd.to_numeric(projected_field_display['Rank'], errors='coerce').fillna(999).astype(int)
+        projected_field_rows = []
+        for _, row in projected_field_display.sort_values('Rank', ascending=True).head(12).iterrows():
+            team = str(row.get('Team', ''))
+            primary = get_team_primary_color(team)
+            logo_uri = image_file_to_data_uri(get_logo_source(team))
+            logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:20px;'>🏈</div>"
+            cells = [f"""
+            <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Rank', 0))}</div>
+                <div style="width:38px;text-align:center;">{logo_html}</div>
+                <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
+              </div>
+            </td>
+            """]
+            vals = [
+                str(int(pd.to_numeric(row.get('Rank', 0), errors='coerce') if pd.notna(row.get('Rank', 0)) else 0)),
+                html.escape(str(row.get('Record', ''))),
+                format_pct(row.get('Make CFP', 0), 1),
+                format_pct(row.get('Bye Odds', 0), 1),
+                format_pct(row.get('Auto-Bid Path', 0), 1),
+                html.escape(str(row.get('Bubble Tier', ''))),
+                f"{float(pd.to_numeric(row.get('Seed Score', 0), errors='coerce') or 0):.2f}",
+            ]
+            for disp in vals:
+                cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{disp}</td>")
+            projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
+        projected_field_html = f"""
+        <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:#111827;color:#f8fafc;">
+                <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Projected Field</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Committee Rank</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Record</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Make CFP</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Bye Odds</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Auto-Bid Path</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Bubble Tier</th>
+                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Seed Score</th>
+              </tr>
+            </thead>
+            <tbody>{''.join(projected_field_rows)}</tbody>
+          </table>
+        </div>
+        """
+        st.markdown(projected_field_html, unsafe_allow_html=True)
 
         st.subheader('First Four Out')
         render_first_four_out(first_four_out)
