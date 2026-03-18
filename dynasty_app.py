@@ -13366,6 +13366,12 @@ with tabs[9]:
         _score_year_col = _smart(legacy_scores, ['YEAR', 'Year'])
         if _score_year_col:
             legacy_scores[_score_year_col] = _safe_num(legacy_scores[_score_year_col]).astype('Int64')
+        for _uc in ['V_User_Final', 'H_User_Final']:
+            if _uc in legacy_scores.columns:
+                legacy_scores[_uc] = safe_title_series(legacy_scores[_uc])
+        for _tc in ['Visitor_Final', 'Home_Final']:
+            if _tc in legacy_scores.columns:
+                legacy_scores[_tc] = legacy_scores[_tc].astype(str).str.strip()
 
         _champ_year_col = _smart(legacy_champs, ['Year', 'YEAR'])
         _champ_user_col = _smart(legacy_champs, ['user', 'User'])
@@ -13404,13 +13410,45 @@ with tabs[9]:
         _coach_ratings = legacy_ratings[legacy_ratings['USER'] == target].copy() if 'USER' in legacy_ratings.columns else pd.DataFrame()
         _coach_ratings = _coach_ratings.sort_values(_smart(_coach_ratings, ['YEAR', 'Year']) or 'YEAR') if not _coach_ratings.empty else _coach_ratings
 
-        # Build year -> team map
+        # Build year -> team map from historical game results first, then supplement with ratings
         _year_team = {}
+        if not legacy_scores.empty and _score_year_col is not None:
+            _score_slice = legacy_scores[legacy_scores[_score_year_col].notna()].copy()
+            _mask = pd.Series(False, index=_score_slice.index)
+            if 'V_User_Final' in _score_slice.columns:
+                _mask = _mask | (_score_slice['V_User_Final'] == target)
+            if 'H_User_Final' in _score_slice.columns:
+                _mask = _mask | (_score_slice['H_User_Final'] == target)
+            _score_slice = _score_slice[_mask].copy()
+            if not _score_slice.empty:
+                _teams = []
+                for _, _r in _score_slice.iterrows():
+                    try:
+                        _yr = int(_r.get(_score_year_col))
+                    except Exception:
+                        continue
+                    if str(_r.get('H_User_Final', '')) == target:
+                        _tm = str(_r.get('Home_Final', '')).strip()
+                    elif str(_r.get('V_User_Final', '')) == target:
+                        _tm = str(_r.get('Visitor_Final', '')).strip()
+                    else:
+                        _tm = ''
+                    if _tm and _tm.lower() != 'nan':
+                        _teams.append((_yr, _tm))
+                if _teams:
+                    _yt = pd.DataFrame(_teams, columns=['Year', 'Team'])
+                    for _yr, _grp in _yt.groupby('Year'):
+                        try:
+                            _year_team[int(_yr)] = str(_grp['Team'].mode().iloc[0]).strip()
+                        except Exception:
+                            pass
+
+        # supplement missing years from TeamRatingsHistory
         _rating_year_col = _smart(_coach_ratings, ['YEAR', 'Year'])
         if not _coach_ratings.empty and _rating_year_col and 'TEAM' in _coach_ratings.columns:
             for _yr, _grp in _coach_ratings.groupby(_rating_year_col):
                 try:
-                    _year_team[int(_yr)] = str(_grp['TEAM'].mode().iloc[0]).strip()
+                    _year_team.setdefault(int(_yr), str(_grp['TEAM'].mode().iloc[0]).strip())
                 except Exception:
                     pass
 
