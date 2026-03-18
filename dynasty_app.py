@@ -4180,15 +4180,19 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
     season_year = int(season_year)
 
     if existing_current_rosters_df is None:
-        existing_current_rosters_df = pd.read_csv("nfl_current_rosters.csv") if os.path.exists("nfl_current_rosters.csv") else pd.DataFrame(columns=NFL_CURRENT_ROSTER_COLS)
+        existing_current_rosters_df = (
+            pd.read_csv("nfl_current_rosters.csv")
+            if os.path.exists("nfl_current_rosters.csv")
+            else pd.DataFrame(columns=NFL_CURRENT_ROSTER_COLS)
+        )
 
     existing_current = existing_current_rosters_df.copy()
 
-if not existing_current.empty and "Season" in existing_current.columns:
-    existing_current["Season"] = pd.to_numeric(existing_current["Season"], errors="coerce")
-    existing_current = existing_current[
-        existing_current["Season"].fillna(-1).astype(int) != int(season_year)
-    ].copy()
+    if not existing_current.empty and "Season" in existing_current.columns:
+        existing_current["Season"] = pd.to_numeric(existing_current["Season"], errors="coerce")
+        existing_current = existing_current[
+            existing_current["Season"].fillna(-1).astype(int) != int(season_year)
+        ].copy()
 
     base_roster = nfl_roster_df.copy() if nfl_roster_df is not None else pd.DataFrame()
     if base_roster.empty:
@@ -4205,7 +4209,6 @@ if not existing_current.empty and "Season" in existing_current.columns:
     base_roster["Age"] = pd.to_numeric(base_roster["Age"], errors="coerce").fillna(25)
     base_roster["PosBucket"] = base_roster["Pos"].map(clean_bucket)
 
-    # Start from original NFL master as filler/base
     current_rows = []
     for _, r in base_roster.iterrows():
         base_name = ""
@@ -4217,14 +4220,17 @@ if not existing_current.empty and "Season" in existing_current.columns:
         if not base_name:
             first_name = ""
             last_name = ""
+
             for first_col in ["FirstName", "First", "FIRSTNAME", "FIRST"]:
                 if first_col in r and pd.notna(r.get(first_col)) and str(r.get(first_col)).strip():
                     first_name = str(r.get(first_col)).strip()
                     break
+
             for last_col in ["LastName", "Last", "LASTNAME", "LAST"]:
                 if last_col in r and pd.notna(r.get(last_col)) and str(r.get(last_col)).strip():
                     last_name = str(r.get(last_col)).strip()
                     break
+
             base_name = f"{first_name} {last_name}".strip()
 
         if not base_name:
@@ -4247,7 +4253,6 @@ if not existing_current.empty and "Season" in existing_current.columns:
 
     current_df = pd.DataFrame(current_rows, columns=NFL_CURRENT_ROSTER_COLS)
 
-    # Latest dynasty player state up to this season
     hist = nfl_player_hist_df.copy() if nfl_player_hist_df is not None else pd.DataFrame()
     if not hist.empty:
         hist["Season"] = pd.to_numeric(hist["Season"], errors="coerce")
@@ -4259,7 +4264,7 @@ if not existing_current.empty and "Season" in existing_current.columns:
         draft["DraftYear"] = pd.to_numeric(draft["DraftYear"], errors="coerce")
         draft = draft[draft["DraftYear"].fillna(9999).astype(int) <= season_year].copy()
 
-    if not draft.empty:
+    if not draft.empty and not hist.empty:
         draft_lookup = {
             str(r.get("PlayerID", "")): r
             for _, r in draft.iterrows()
@@ -4295,9 +4300,16 @@ if not existing_current.empty and "Season" in existing_current.columns:
 
         if not dynasty_df.empty:
             dynasty_keys = set(
-                dynasty_df.apply(lambda r: f"{str(r.get('Team','')).strip().lower()}||{str(r.get('Name','')).strip().lower()}", axis=1).tolist()
+                dynasty_df.apply(
+                    lambda r: f"{str(r.get('Team','')).strip().lower()}||{str(r.get('Name','')).strip().lower()}",
+                    axis=1
+                ).tolist()
             )
-            current_df["__key"] = current_df.apply(lambda r: f"{str(r.get('Team','')).strip().lower()}||{str(r.get('Name','')).strip().lower()}", axis=1)
+
+            current_df["__key"] = current_df.apply(
+                lambda r: f"{str(r.get('Team','')).strip().lower()}||{str(r.get('Name','')).strip().lower()}",
+                axis=1
+            )
             current_df = current_df[~current_df["__key"].isin(dynasty_keys)].copy()
             current_df = current_df.drop(columns="__key", errors="ignore")
 
@@ -4309,20 +4321,20 @@ if not existing_current.empty and "Season" in existing_current.columns:
 
     current_df = current_df[NFL_CURRENT_ROSTER_COLS].copy()
 
-if existing_current is not None and not existing_current.empty:
-    for col in NFL_CURRENT_ROSTER_COLS:
-        if col not in existing_current.columns:
-            existing_current[col] = pd.NA
-    existing_current = existing_current[NFL_CURRENT_ROSTER_COLS].copy()
-    current_df = pd.concat([existing_current, current_df], ignore_index=True)
+    if existing_current is not None and not existing_current.empty:
+        for col in NFL_CURRENT_ROSTER_COLS:
+            if col not in existing_current.columns:
+                existing_current[col] = pd.NA
+        existing_current = existing_current[NFL_CURRENT_ROSTER_COLS].copy()
+        current_df = pd.concat([existing_current, current_df], ignore_index=True)
 
-current_df.to_csv("nfl_current_rosters.csv", index=False)
+    current_df.to_csv("nfl_current_rosters.csv", index=False)
 
-season_df = current_df[
-    pd.to_numeric(current_df["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
-].copy()
+    season_df = current_df[
+        pd.to_numeric(current_df["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
+    ].copy()
 
-return season_df
+    return season_df
 
 def simulate_nfl_season(season_year=None):
     universe = load_nfl_universe_data()
