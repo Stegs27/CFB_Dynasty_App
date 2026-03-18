@@ -6932,10 +6932,8 @@ def load_data():
         rivalry_df = pd.DataFrame(rivalry_rows).sort_values(['Rivalry Score', 'Games'], ascending=[False, False]) if rivalry_rows else pd.DataFrame()
 
         # Ratings prep
-        current_model_year = int(CURRENT_YEAR) if 'CURRENT_YEAR' in globals() else 2041
-        previous_model_year = current_model_year - 1
-        r_2041 = ratings[ratings['YEAR'] == current_model_year].copy()
-        r_2040 = ratings[ratings['YEAR'] == previous_model_year].copy()
+        r_2041 = ratings[ratings['YEAR'] == 2041].copy()
+        r_2040 = ratings[ratings['YEAR'] == 2040].copy()
         r_2041['USER'] = safe_title_series(r_2041['USER'])
         r_2040['USER'] = safe_title_series(r_2040['USER'])
         r_2041['TEAM'] = r_2041['TEAM'].astype(str).str.strip()
@@ -7003,9 +7001,7 @@ def load_data():
             'all_users': all_users,
             'years': years_available,
             'meta': meta,
-            'season_ratings': r_2041,
-            'previous_season_ratings': r_2040,
-            'model_year': current_model_year,
+            'r_2041': r_2041,
             'h2h_df': h2h_df,
             'h2h_heat': h2h_heat,
             'rivalry_df': rivalry_df,
@@ -7022,9 +7018,7 @@ def load_data():
         return None
 
 
-def get_recent_recruiting_score(rec_df, user, team=None, current_year=None, lookback=3):
-    if current_year is None:
-        current_year = int(CURRENT_YEAR) if 'CURRENT_YEAR' in globals() else 2041
+def get_recent_recruiting_score(rec_df, user, team=None, current_year=2041, lookback=3):
     user = str(user).strip().title()
     rows = rec_df[rec_df['USER'] == user].copy()
 
@@ -7144,8 +7138,7 @@ CONF_STRENGTH = {
 def conf_bonus(conference):
     return CONF_STRENGTH.get(str(conference).strip(), 0.0)
 
-def build_season_model_table(season_ratings_df, stats_df, rec_df):
-    r_2041 = season_ratings_df.copy()
+def build_2041_model_table(r_2041, stats_df, rec_df):
     df = r_2041.copy()
 
     # TeamRatingsHistory.csv still uses the old column name — alias it to the new one.
@@ -7687,9 +7680,7 @@ def tier_from_dynasty_score(score):
     return "Upstart"
 
 
-def _recent_recruit_window(row, anchor_year=None, lookback=4):
-    if anchor_year is None:
-        anchor_year = int(CURRENT_YEAR) if 'CURRENT_YEAR' in globals() else 2041
+def _recent_recruit_window(row, anchor_year=2041, lookback=4):
     year_cols = sorted([int(c) for c in row.index if str(c).isdigit()])
     vals = []
     for y in year_cols:
@@ -7765,9 +7756,7 @@ def _recruit_blurb(row):
     return f"{team} is putting together a respectable class. Nothing to start a parade over yet, but definitely not clown shoes either."
 
 
-def build_recruiting_board(rec_df, model_df, anchor_year=None):
-    if anchor_year is None:
-        anchor_year = int(CURRENT_YEAR) if 'CURRENT_YEAR' in globals() else 2041
+def build_recruiting_board(rec_df, model_df, anchor_year=2041):
     rows = []
     rec_local = rec_df.copy()
     rec_local['USER'] = rec_local['USER'].astype(str).str.strip().str.title()
@@ -8151,7 +8140,8 @@ def _load_recruiting_csv(filename):
 
 def _load_recruiting_class_history(class_type=None):
     """Preferred recruiting summary loader.
-    Uses recruiting_class_history_all.csv when available, with legacy fallbacks so old repos still work.
+    Uses recruiting_class_history_all.csv when available and non-empty,
+    with legacy fallbacks so old repos still work.
     """
     _std_cols = ['Year','ClassType','Rank','Team','User','TotalCommits','FiveStar','FourStar',
                  'ThreeStar','TwoStar','OneStar','Points']
@@ -8175,17 +8165,14 @@ def _load_recruiting_class_history(class_type=None):
                 df[c] = pd.NA
 
         for c in ['Rank','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Year']:
-            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
-        df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
+            df[c] = pd.to_numeric(df[c], errors='coerce')
+        df['Points'] = pd.to_numeric(df['Points'], errors='coerce')
         df['ClassType'] = df['ClassType'].fillna('').astype(str).str.upper().str.strip()
         df['Team'] = df['Team'].fillna('').astype(str).str.strip()
         df['User'] = df['User'].fillna('').astype(str).str.strip()
         return df[_std_cols].copy()
 
-    try:
-        master_df = pd.read_csv('recruiting_class_history_all.csv')
-        master_df = _normalize(master_df)
-    except Exception:
+    def _load_legacy_parts():
         legacy_parts = []
         legacy_map = {
             'HS': 'recruiting_high_school_history.csv',
@@ -8196,7 +8183,20 @@ def _load_recruiting_class_history(class_type=None):
             _part = _load_recruiting_csv(_path)
             if not _part.empty:
                 legacy_parts.append(_normalize(_part, inferred_class_type=_ctype))
-        master_df = pd.concat(legacy_parts, ignore_index=True) if legacy_parts else pd.DataFrame(columns=_std_cols)
+        return pd.concat(legacy_parts, ignore_index=True) if legacy_parts else pd.DataFrame(columns=_std_cols)
+
+    master_df = pd.DataFrame(columns=_std_cols)
+    for _master_path in ['recruiting_class_history_all.csv', 'recruiting_class_history.csv']:
+        try:
+            _candidate = _normalize(pd.read_csv(_master_path))
+            if not _candidate.empty:
+                master_df = _candidate
+                break
+        except Exception:
+            pass
+
+    if master_df.empty:
+        master_df = _load_legacy_parts()
 
     if class_type:
         master_df = master_df[master_df['ClassType'] == str(class_type).upper().strip()].copy()
@@ -9501,7 +9501,7 @@ if data:
     all_users = data['all_users']
     years = data['years']
     meta = data['meta']
-    season_ratings = data.get('season_ratings', data.get('r_2041', pd.DataFrame()))
+    r_2041 = data['r_2041']
     h2h_df = data['h2h_df']
     h2h_heat = data['h2h_heat']
     rivalry_df = data['rivalry_df']
@@ -9513,12 +9513,12 @@ if data:
     champs = data['champs']
     ratings = data['ratings']
 
-    model_2041 = build_season_model_table(season_ratings, stats, rec)
+    model_2041 = build_2041_model_table(r_2041, stats, rec)
     # Recompute the visible QB tier straight from the latest source file so cache/file drift doesn't screw us.
     if 'QB Tier' in model_2041.columns:
         model_2041 = model_2041.drop(columns=['QB Tier'])
-    qb_source = season_ratings[['USER', 'TEAM']].copy()
-    qb_source['QB Tier'] = season_ratings.apply(qb_label, axis=1)
+    qb_source = r_2041[['USER', 'TEAM']].copy()
+    qb_source['QB Tier'] = r_2041.apply(qb_label, axis=1)
     model_2041 = model_2041.merge(qb_source, on=['USER', 'TEAM'], how='left')
 
     # ── Enrich model_2041 with QB profile CSV data ─────────────────────────────
@@ -11035,8 +11035,7 @@ with tabs[2]:
             _uvw_games = pd.DataFrame()
             _conf_st   = pd.DataFrame()
             try:
-                _conf_st_path = f'conf_standings_{CURRENT_YEAR}.csv'
-                _conf_st = pd.read_csv(_conf_st_path)
+                _conf_st = pd.read_csv('conf_standings_2041.csv')
                 _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
                 _conf_st['USER'] = _conf_st['USER'].fillna('')
                 _team_row = _conf_st[_conf_st['TEAM'] == sel_team_name]
@@ -11141,7 +11140,7 @@ with tabs[2]:
                 'B1G': "B1G — co-king of the dynasty. 9-game conf schedule.",
                 'ACC': "ACC — top-heavy, real teeth at the top.",
             }.get(sel_conf_name, f"{sel_conf_name}.")
-            src_note = f"Record from conf_standings_{CURRENT_YEAR}.csv." if _from_standings else f"⚠️ conf_standings_{CURRENT_YEAR}.csv not found — user-vs-user fallback only."
+            src_note = "Record from conf_standings_2041.csv." if _from_standings else "⚠️ conf_standings_2041.csv not found — user-vs-user fallback only."
             st.caption(f"📌 {conf_tier_note} {src_note} User-vs-user matchups shown individually.")
 
         else:
@@ -11945,7 +11944,7 @@ with tabs[0]:
                 st.caption("No Heisman data loaded.")
 
             # Current candidates from roster
-            st.markdown(f"#### 🌟 {CURRENT_YEAR} Heisman Candidates")
+            st.markdown("#### 🌟 2041 Heisman Candidates")
             st.caption("Top skill position players by OVR from current rosters.")
             try:
                 roster_for_awards = pd.read_csv('cfb26_rosters_full.csv')
@@ -12012,7 +12011,7 @@ with tabs[0]:
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🚑 Injury Report")
-        st.caption(f"Last updated: Bowl Week 1, {CURRENT_YEAR}. Drop new screenshots in the ISPN chat to refresh.")
+        st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
 
         INJURY_DATA = [
             {
@@ -13211,7 +13210,7 @@ with tabs[6]:
 
 # --- 2041 ALL-AMERICANS ---
     st.markdown("---")
-    st.subheader(f"🏅 {CURRENT_YEAR} All-Americans")
+    st.subheader("🏅 2041 All-Americans")
 
     try:
         aa_df = pd.read_csv("all_americans.csv")
@@ -13695,7 +13694,7 @@ with tabs[9]:
 
     # --- SPEED FREAKS ---
 with tabs[7]:
-        st.header(f"🔍 {CURRENT_YEAR} Speed Freaks")
+        st.header("🔍 2041 Speed Freaks")
         st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
         # ── Compute all speed metrics live from cfb26_rosters_full.csv ────────
