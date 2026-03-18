@@ -8679,7 +8679,8 @@ def resolve_playoff_bracket_results(bracket_field, year):
     """
     result = {
         'r1_winners': {}, 'qf_winners': {}, 'sf_winners': {},
-        'qf_slots': {}, 'sf_slots': {}, 'nat_slots': {}
+        'qf_slots': {}, 'sf_slots': {}, 'nat_slots': {},
+        'r1_games': {}, 'qf_games': {}, 'sf_games': {}, 'nat_game': None
     }
     try:
         if bracket_field is None or bracket_field.empty:
@@ -8809,6 +8810,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 if wr is not None:
                     result['r1_winners'][bracket_seed] = wr
                     result['qf_slots'][bracket_seed] = wr
+                    result['r1_games'][bracket_seed] = g
 
         # Quarterfinals
         for bracket_seed, bye_seed in [(1, 1), (4, 4), (2, 2), (3, 3)]:
@@ -8820,6 +8822,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 wr = _winner_row(g)
                 if wr is not None:
                     result['qf_winners'][bracket_seed] = wr
+                    result['qf_games'][bracket_seed] = g
 
         # Semifinals participants / winners
         sf_pairs = {
@@ -8836,6 +8839,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 wr = _winner_row(g)
                 if wr is not None:
                     result['sf_winners'][sf_idx] = wr
+                    result['sf_games'][sf_idx] = g
 
         # National title participants / winner
         nat_a = result['sf_winners'].get(1)
@@ -8847,6 +8851,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
                 wr = _winner_row(g)
                 if wr is not None:
                     result['nat_winner'] = wr
+                    result['nat_game'] = g
         return result
     except Exception:
         return result
@@ -8924,7 +8929,7 @@ def render_playoff_bracket(projected_field, actual_results=None):
     ]
     conn_svg = "\n".join(P)
 
-    def slot_svg(x, y, seed, row, bye=False, proj=False, actual=False, tbd_lines=None, w=SW):
+    def slot_svg(x, y, seed, row, bye=False, proj=False, actual=False, tbd_lines=None, w=SW, winner=False, score_text=None):
         if tbd_lines:
             l1, l2 = tbd_lines
             return (
@@ -8938,43 +8943,88 @@ def render_playoff_bracket(projected_field, actual_results=None):
         primary = get_team_primary_color(team)
         logo_uri = image_file_to_data_uri(get_logo_source(team))
         name = (team[:19] + "…") if len(team) > 19 else team
-        fill_op = "18" if actual else ("12" if proj else "1c")
-        opacity = "bb" if actual else ("99" if proj else "ff")
+        fill_op = "22" if winner else ("18" if actual else ("12" if proj else "1c"))
+        opacity = "dd" if winner else ("bb" if actual else ("99" if proj else "ff"))
+        stroke_color = "#fbbf24" if winner else (primary + "55")
+        stroke_width = "2" if winner else "1"
         clip_id = "lc{}".format(abs(hash(team + str(y))) % 99999)
         logo_svg = ""; name_x = x + 42
         if logo_uri:
             logo_svg = (
                 '<defs><clipPath id="{0}"><rect x="{1}" y="{2}" width="28" height="28" rx="4"/></clipPath></defs>'.format(clip_id, x+35, y+8) +
-                '<image href="{}" x="{}" y="{}" width="28" height="28" clip-path="url(#{})" opacity="0.9"/>'.format(logo_uri, x+35, y+8, clip_id)
+                '<image href="{}" x="{}" y="{}" width="28" height="28" clip-path="url(#{} )" opacity="0.9"/>'.format(logo_uri, x+35, y+8, clip_id).replace('#{} )'.format(clip_id), '#{})'.format(clip_id))
             )
             name_x = x + 70
-        bye_svg = ""
+        badge_x = x + w - 50
+        badge_svg = ""
         if bye:
-            bye_svg = (
+            badge_svg = (
                 '<rect x="{}" y="{}" width="36" height="15" rx="7" fill="#14532d"/>'.format(x+w-44, y+14) +
                 '<text x="{}" y="{}" text-anchor="middle" fill="#4ade80" font-size="9" font-weight="bold" font-family="monospace">BYE</text>'.format(x+w-26, y+25)
             )
-        status_svg = ""
-        if proj:
-            status_svg = (
-                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#1e3a5f"/>'.format(x+w-50, y+14) +
-                '<text x="{}" y="{}" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="bold" font-family="monospace">PROJ</text>'.format(x+w-28, y+25)
+        elif proj:
+            badge_svg = (
+                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#1e3a5f"/>'.format(badge_x, y+14) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="#60a5fa" font-size="8" font-weight="bold" font-family="monospace">PROJ</text>'.format(badge_x+22, y+25)
             )
         elif actual:
-            status_svg = (
-                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="#14532d"/>'.format(x+w-50, y+14) +
-                '<text x="{}" y="{}" text-anchor="middle" fill="#86efac" font-size="8" font-weight="bold" font-family="monospace">FINAL</text>'.format(x+w-28, y+25)
+            label = "WON" if winner else "FINAL"
+            fill = "#14532d" if winner else "#1f2937"
+            txt = "#86efac" if winner else "#cbd5e1"
+            badge_svg = (
+                '<rect x="{}" y="{}" width="43" height="15" rx="7" fill="{}"/>'.format(badge_x, y+14, fill) +
+                '<text x="{}" y="{}" text-anchor="middle" fill="{}" font-size="8" font-weight="bold" font-family="monospace">{}</text>'.format(badge_x+22, y+25, txt, label)
+            )
+        score_svg = ""
+        if score_text:
+            score_w = 34 if len(str(score_text)) <= 2 else 42
+            score_x = x + w - score_w - 10
+            score_svg = (
+                '<rect x="{}" y="{}" width="{}" height="16" rx="7" fill="#0b1220" stroke="{}" stroke-width="1"/>'.format(score_x, y+25, score_w, '#fbbf24' if winner else '#334155') +
+                '<text x="{}" y="{}" text-anchor="middle" fill="{}" font-size="9" font-weight="bold" font-family="monospace">{}</text>'.format(score_x + score_w/2, y+36, '#f8fafc' if winner else '#cbd5e1', html.escape(str(score_text)))
             )
         return (
-            '<rect x="{}" y="{}" width="{}" height="{}" rx="6" fill="{}{}" stroke="{}55" stroke-width="1"/>'.format(x, y, w, SH, primary, fill_op, primary) +
+            '<rect x="{}" y="{}" width="{}" height="{}" rx="6" fill="{}{}" stroke="{}" stroke-width="{}"/>'.format(x, y, w, SH, primary, fill_op, stroke_color, stroke_width) +
             '<rect x="{}" y="{}" width="4" height="{}" rx="3" fill="{}{}"/>'.format(x, y, SH, primary, opacity) +
             '<circle cx="{}" cy="{}" r="13" fill="{}{}"/>'.format(x+20, y+SH//2, primary, opacity) +
             '<text x="{}" y="{}" text-anchor="middle" fill="white" font-size="11" font-weight="bold" font-family="monospace">#{}</text>'.format(x+20, y+SH//2+5, seed) +
             logo_svg +
-            '<text x="{}" y="{}" fill="{}" font-size="12" font-weight="bold" font-family="monospace">{}</text>'.format(name_x, y+18, primary, html.escape(name)) +
+            '<text x="{}" y="{}" fill="{}" font-size="12" font-weight="bold" font-family="monospace">{}</text>'.format(name_x, y+18, '#fde68a' if winner else primary, html.escape(name)) +
             '<text x="{}" y="{}" fill="#6b7280" font-size="10" font-family="monospace">{}</text>'.format(name_x, y+34, html.escape(record)) +
-            bye_svg + status_svg
+            badge_svg + score_svg
         )
+
+    def game_team_score(game_row, team_row):
+        if game_row is None or team_row is None:
+            return None
+        try:
+            team_norm = normalize_key(str(team_row.get('Team', '')))
+            away_norm = str(game_row.get('_away_norm', ''))
+            home_norm = str(game_row.get('_home_norm', ''))
+            if team_norm == away_norm:
+                return int(game_row.get('_away_score'))
+            if team_norm == home_norm:
+                return int(game_row.get('_home_score'))
+        except Exception:
+            return None
+        return None
+
+    def game_winner_norm(game_row):
+        if game_row is None:
+            return None
+        try:
+            away_score = float(game_row.get('_away_score'))
+            home_score = float(game_row.get('_home_score'))
+            if away_score == home_score:
+                return None
+            return str(game_row.get('_away_norm')) if away_score > home_score else str(game_row.get('_home_norm'))
+        except Exception:
+            return None
+
+    def row_is_winner(game_row, team_row):
+        if game_row is None or team_row is None:
+            return False
+        return normalize_key(str(team_row.get('Team', ''))) == game_winner_norm(game_row)
 
     def wplabel(sa, sb, ya, yb, x, w=SW):
         p = wp(sa, sb); my = mc(ya, yb)
@@ -8994,6 +9044,10 @@ def render_playoff_bracket(projected_field, actual_results=None):
     tracks = track(R1X,SW) + track(QFX,SW) + track(SFX,SW) + track(NX,NW)
 
     rows = {s: get_row(s) for s in range(1, 13)}
+    r1_games = actual_results.get('r1_games', {})
+    qf_games = actual_results.get('qf_games', {})
+    sf_games = actual_results.get('sf_games', {})
+    nat_game = actual_results.get('nat_game')
     wp1=wp(8,9); wp4=wp(5,12); wp2=wp(7,10); wp3=wp(6,11)
     qf1_opp = actual_results.get('qf_slots', {}).get(1, rows[8] if wp1>50 else rows[9])
     qf4_opp = actual_results.get('qf_slots', {}).get(4, rows[5] if wp4>50 else rows[12])
@@ -9001,24 +9055,36 @@ def render_playoff_bracket(projected_field, actual_results=None):
     qf3_opp = actual_results.get('qf_slots', {}).get(3, rows[6] if wp3>50 else rows[11])
 
     S = ""
-    S += slot_svg(R1X,r1g1[0],8,rows[8])  + slot_svg(R1X,r1g1[1],9,rows[9])
-    S += slot_svg(R1X,r1g4[0],5,rows[5])  + slot_svg(R1X,r1g4[1],12,rows[12])
-    S += slot_svg(R1X,r1g2[0],7,rows[7])  + slot_svg(R1X,r1g2[1],10,rows[10])
-    S += slot_svg(R1X,r1g3[0],6,rows[6])  + slot_svg(R1X,r1g3[1],11,rows[11])
+    r1g = r1_games.get(1)
+    S += slot_svg(R1X,r1g1[0],8,rows[8], actual=r1g is not None, winner=row_is_winner(r1g, rows[8]), score_text=game_team_score(r1g, rows[8]))
+    S += slot_svg(R1X,r1g1[1],9,rows[9], actual=r1g is not None, winner=row_is_winner(r1g, rows[9]), score_text=game_team_score(r1g, rows[9]))
+    r1g = r1_games.get(4)
+    S += slot_svg(R1X,r1g4[0],5,rows[5], actual=r1g is not None, winner=row_is_winner(r1g, rows[5]), score_text=game_team_score(r1g, rows[5]))
+    S += slot_svg(R1X,r1g4[1],12,rows[12], actual=r1g is not None, winner=row_is_winner(r1g, rows[12]), score_text=game_team_score(r1g, rows[12]))
+    r1g = r1_games.get(2)
+    S += slot_svg(R1X,r1g2[0],7,rows[7], actual=r1g is not None, winner=row_is_winner(r1g, rows[7]), score_text=game_team_score(r1g, rows[7]))
+    S += slot_svg(R1X,r1g2[1],10,rows[10], actual=r1g is not None, winner=row_is_winner(r1g, rows[10]), score_text=game_team_score(r1g, rows[10]))
+    r1g = r1_games.get(3)
+    S += slot_svg(R1X,r1g3[0],6,rows[6], actual=r1g is not None, winner=row_is_winner(r1g, rows[6]), score_text=game_team_score(r1g, rows[6]))
+    S += slot_svg(R1X,r1g3[1],11,rows[11], actual=r1g is not None, winner=row_is_winner(r1g, rows[11]), score_text=game_team_score(r1g, rows[11]))
     if actual_results.get('r1_winners'):
         pass
     else:
         S += wplabel(8,9,*r1g1,R1X) + wplabel(5,12,*r1g4,R1X)
         S += wplabel(7,10,*r1g2,R1X) + wplabel(6,11,*r1g3,R1X)
 
-    S += slot_svg(QFX,qf1[0],1,rows[1],bye=True)
-    S += slot_svg(QFX,qf1[1],str(qf1_opp.get('Projected Seed', '?')) if qf1_opp is not None else '?', qf1_opp, actual=(1 in actual_results.get('r1_winners', {})), proj=not (1 in actual_results.get('r1_winners', {})))
-    S += slot_svg(QFX,qf4[0],4,rows[4],bye=True)
-    S += slot_svg(QFX,qf4[1],str(qf4_opp.get('Projected Seed', '?')) if qf4_opp is not None else '?', qf4_opp, actual=(4 in actual_results.get('r1_winners', {})), proj=not (4 in actual_results.get('r1_winners', {})))
-    S += slot_svg(QFX,qf2[0],2,rows[2],bye=True)
-    S += slot_svg(QFX,qf2[1],str(qf2_opp.get('Projected Seed', '?')) if qf2_opp is not None else '?', qf2_opp, actual=(2 in actual_results.get('r1_winners', {})), proj=not (2 in actual_results.get('r1_winners', {})))
-    S += slot_svg(QFX,qf3[0],3,rows[3],bye=True)
-    S += slot_svg(QFX,qf3[1],str(qf3_opp.get('Projected Seed', '?')) if qf3_opp is not None else '?', qf3_opp, actual=(3 in actual_results.get('r1_winners', {})), proj=not (3 in actual_results.get('r1_winners', {})))
+    qfg = qf_games.get(1)
+    S += slot_svg(QFX,qf1[0],1,rows[1],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[1]), score_text=game_team_score(qfg, rows[1]))
+    S += slot_svg(QFX,qf1[1],str(qf1_opp.get('Projected Seed', '?')) if qf1_opp is not None else '?', qf1_opp, actual=qfg is not None or (1 in actual_results.get('r1_winners', {})), proj=qfg is None and not (1 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf1_opp), score_text=game_team_score(qfg, qf1_opp))
+    qfg = qf_games.get(4)
+    S += slot_svg(QFX,qf4[0],4,rows[4],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[4]), score_text=game_team_score(qfg, rows[4]))
+    S += slot_svg(QFX,qf4[1],str(qf4_opp.get('Projected Seed', '?')) if qf4_opp is not None else '?', qf4_opp, actual=qfg is not None or (4 in actual_results.get('r1_winners', {})), proj=qfg is None and not (4 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf4_opp), score_text=game_team_score(qfg, qf4_opp))
+    qfg = qf_games.get(2)
+    S += slot_svg(QFX,qf2[0],2,rows[2],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[2]), score_text=game_team_score(qfg, rows[2]))
+    S += slot_svg(QFX,qf2[1],str(qf2_opp.get('Projected Seed', '?')) if qf2_opp is not None else '?', qf2_opp, actual=qfg is not None or (2 in actual_results.get('r1_winners', {})), proj=qfg is None and not (2 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf2_opp), score_text=game_team_score(qfg, qf2_opp))
+    qfg = qf_games.get(3)
+    S += slot_svg(QFX,qf3[0],3,rows[3],bye=True, actual=qfg is not None, winner=row_is_winner(qfg, rows[3]), score_text=game_team_score(qfg, rows[3]))
+    S += slot_svg(QFX,qf3[1],str(qf3_opp.get('Projected Seed', '?')) if qf3_opp is not None else '?', qf3_opp, actual=qfg is not None or (3 in actual_results.get('r1_winners', {})), proj=qfg is None and not (3 in actual_results.get('r1_winners', {})), winner=row_is_winner(qfg, qf3_opp), score_text=game_team_score(qfg, qf3_opp))
 
     sf1_top = actual_results.get('qf_winners', {}).get(1)
     sf1_bot = actual_results.get('qf_winners', {}).get(4)
@@ -9028,37 +9094,40 @@ def render_playoff_bracket(projected_field, actual_results=None):
     nat_bot = actual_results.get('sf_winners', {}).get(2)
     nat_winner = actual_results.get('nat_winner')
 
+    sfg = sf_games.get(1)
     if sf1_top is not None:
-        S += slot_svg(SFX,sf1[0],str(sf1_top.get('Projected Seed', '?')),sf1_top,actual=True)
+        S += slot_svg(SFX,sf1[0],str(sf1_top.get('Projected Seed', '?')),sf1_top,actual=True,winner=row_is_winner(sfg, sf1_top),score_text=game_team_score(sfg, sf1_top))
     else:
         S += slot_svg(SFX,sf1[0],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #1 Bracket"))
     if sf1_bot is not None:
-        S += slot_svg(SFX,sf1[1],str(sf1_bot.get('Projected Seed', '?')),sf1_bot,actual=True)
+        S += slot_svg(SFX,sf1[1],str(sf1_bot.get('Projected Seed', '?')),sf1_bot,actual=True,winner=row_is_winner(sfg, sf1_bot),score_text=game_team_score(sfg, sf1_bot))
     else:
         S += slot_svg(SFX,sf1[1],"?",None,tbd_lines=("SEMIFINAL 1","Winner: #4 Bracket"))
+
+    sfg = sf_games.get(2)
     if sf2_top is not None:
-        S += slot_svg(SFX,sf2[0],str(sf2_top.get('Projected Seed', '?')),sf2_top,actual=True)
+        S += slot_svg(SFX,sf2[0],str(sf2_top.get('Projected Seed', '?')),sf2_top,actual=True,winner=row_is_winner(sfg, sf2_top),score_text=game_team_score(sfg, sf2_top))
     else:
         S += slot_svg(SFX,sf2[0],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #2 Bracket"))
     if sf2_bot is not None:
-        S += slot_svg(SFX,sf2[1],str(sf2_bot.get('Projected Seed', '?')),sf2_bot,actual=True)
+        S += slot_svg(SFX,sf2[1],str(sf2_bot.get('Projected Seed', '?')),sf2_bot,actual=True,winner=row_is_winner(sfg, sf2_bot),score_text=game_team_score(sfg, sf2_bot))
     else:
         S += slot_svg(SFX,sf2[1],"?",None,tbd_lines=("SEMIFINAL 2","Winner: #3 Bracket"))
 
     if nat_top is not None:
-        S += slot_svg(NX, nat[0], str(nat_top.get('Projected Seed', '?')), nat_top, actual=True, w=NW)
+        S += slot_svg(NX, nat[0], str(nat_top.get('Projected Seed', '?')), nat_top, actual=True, w=NW, winner=row_is_winner(nat_game, nat_top), score_text=game_team_score(nat_game, nat_top))
     else:
         S += slot_svg(NX, nat[0], "?", None, tbd_lines=("NATIONAL CHAMPIONSHIP", "Winner: Semifinal 1"), w=NW)
 
     if nat_bot is not None:
-        S += slot_svg(NX, nat[1], str(nat_bot.get('Projected Seed', '?')), nat_bot, actual=True, w=NW)
+        S += slot_svg(NX, nat[1], str(nat_bot.get('Projected Seed', '?')), nat_bot, actual=True, w=NW, winner=row_is_winner(nat_game, nat_bot), score_text=game_team_score(nat_game, nat_bot))
     else:
         S += slot_svg(NX, nat[1], "?", None, tbd_lines=("NATIONAL CHAMPIONSHIP", "Winner: Semifinal 2"), w=NW)
 
     if nat_winner is not None:
         first_nat = nat[0] if nat and len(nat) > 0 else 94
         champ_y = max(38, first_nat - 56)
-        S += slot_svg(NX, champ_y, str(nat_winner.get('Projected Seed', '?')), nat_winner, actual=True, w=NW)
+        S += slot_svg(NX, champ_y, str(nat_winner.get('Projected Seed', '?')), nat_winner, actual=True, winner=True, score_text=game_team_score(nat_game, nat_winner), w=NW)
 
     divider = '<line x1="{}" y1="{}" x2="{}" y2="{}" stroke="#1a2a3a" stroke-width="1" stroke-dasharray="4,8"/>'.format(
         SFX - 10, NC, NX + NW + 10, NC
