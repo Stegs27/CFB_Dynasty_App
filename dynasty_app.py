@@ -9946,25 +9946,6 @@ except Exception:
 try:
     _rh = pd.read_csv('recruiting_overall_history.csv').copy()
 
-    if 'YEAR' in _rh.columns and 'Year' not in _rh.columns:
-        _rh['Year'] = _rh['YEAR']
-    if 'TEAM' in _rh.columns and 'Team' not in _rh.columns:
-        _rh['Team'] = _rh['TEAM']
-    if 'USER' in _rh.columns and 'User' not in _rh.columns:
-        _rh['User'] = _rh['USER']
-    if 'RANK' in _rh.columns and 'Rank' not in _rh.columns:
-        _rh['Rank'] = _rh['RANK']
-    if 'PTS' in _rh.columns and 'Points' not in _rh.columns:
-        _rh['Points'] = _rh['PTS']
-    if 'TOTAL' in _rh.columns and 'TotalCommits' not in _rh.columns:
-        _rh['TotalCommits'] = _rh['TOTAL']
-    if '5_STAR' in _rh.columns and 'FiveStar' not in _rh.columns:
-        _rh['FiveStar'] = _rh['5_STAR']
-    if '4_STAR' in _rh.columns and 'FourStar' not in _rh.columns:
-        _rh['FourStar'] = _rh['4_STAR']
-    if '3_STAR' in _rh.columns and 'ThreeStar' not in _rh.columns:
-        _rh['ThreeStar'] = _rh['3_STAR']
-
     _rh['Year'] = pd.to_numeric(_rh['Year'], errors='coerce')
     _rh['Rank'] = pd.to_numeric(_rh['Rank'], errors='coerce')
     _rh['Points'] = pd.to_numeric(_rh['Points'], errors='coerce')
@@ -10020,8 +10001,8 @@ try:
                 'blurb': f"{_owner_prefix}{CURRENT_YEAR - 1} overall recruiting class for {_rt} finished #{_rec_rank_num} nationally.",
                 'logo_html': _lh,
             })
-except Exception:
-    pass
+except Exception as e:
+    st.error(f"Recruiting ticker error: {e}")
 
 # ── 7. INJURY BULLETIN (from CSV) ─────────────────────────────────────
 try:
