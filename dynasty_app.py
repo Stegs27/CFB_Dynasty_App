@@ -5163,56 +5163,26 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-TEAM_VISUALS = {
-    "Florida": {"slug": "florida", "primary": "#0021A5", "secondary": "#FA4616"},
-    "Florida State": {"slug": "florida-state", "primary": "#782F40", "secondary": "#CEB888"},
-    "Texas Tech": {"slug": "texas-tech", "primary": "#CC0000", "secondary": "#000000"},
-    "USF": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
-    "South Florida": {"slug": "south-florida", "primary": "#006747", "secondary": "#CFC493"},
-    "San Jose State": {"slug": "san-jose-state", "primary": "#0055A2", "secondary": "#E5A823"},
-    "Bowling Green": {"slug": "bowling-green", "primary": "#FE5000", "secondary": "#4F2C1D"},
-    "Rapid City": {"slug": "rapid-city", "primary": "#14B8A6", "secondary": "#F472B6"},
-    "Panama City": {"slug": "panama-city", "primary": "#F97316", "secondary": "#000000"},
-    "Hammond": {"slug": "hammond", "primary": "#16A34A", "secondary": "#14532D"},
-    "Alabaster": {"slug": "alabaster", "primary": "#DC2626", "secondary": "#FACC15"},
-    "Death Valley": {"slug": "death-valley", "primary": "#7C3AED", "secondary": "#000000"},
-    "Gate City": {"slug": "gate-city", "primary": "#FACC15", "secondary": "#000000"},
-    "Oklahoma State": {"slug": "oklahoma-state", "primary": "#FF7300", "secondary": "#000000"},
-    "South Carolina": {"slug": "south-carolina", "primary": "#73000A", "secondary": "#000000"},
-    "Appalachian State": {"slug": "app-state", "primary": "#FFCC00", "secondary": "#000000"},
-    "San Diego State": {"slug": "san-diego-state", "primary": "#A6192E", "secondary": "#000000"},
-    "Georgia Tech": {"slug": "georgia-tech", "primary": "#B3A369", "secondary": "#003057"},
-    "NC State": {"slug": "nc-state", "primary": "#CC0000", "secondary": "#000000"},
-    "Texas A&M": {"slug": "texas-am", "primary": "#500000", "secondary": "#FFFFFF"},
-    "Alabama": {"slug": "alabama", "primary": "#9E1B32", "secondary": "#FFFFFF"},
-    "Georgia": {"slug": "georgia", "primary": "#BA0C2F", "secondary": "#000000"},
-    "Ohio State": {"slug": "ohio-state", "primary": "#BB0000", "secondary": "#666666"},
-    "Michigan": {"slug": "michigan", "primary": "#00274C", "secondary": "#FFCB05"},
-    "Notre Dame": {"slug": "notre-dame", "primary": "#0C2340", "secondary": "#C99700"},
-    "Oregon": {"slug": "oregon", "primary": "#154733", "secondary": "#FEE123"},
-    "Texas": {"slug": "texas", "primary": "#BF5700", "secondary": "#FFFFFF"},
-    "Oklahoma": {"slug": "oklahoma", "primary": "#841617", "secondary": "#FDF9D8"},
-    "Penn State": {"slug": "penn-state", "primary": "#041E42", "secondary": "#FFFFFF"},
-    "LSU": {"slug": "lsu", "primary": "#461D7C", "secondary": "#FDD023"},
-    "Miami": {"slug": "miami", "primary": "#F47321", "secondary": "#005030"},
-    "Clemson": {"slug": "clemson", "primary": "#F56600", "secondary": "#522D80"},
-    "Tennessee": {"slug": "tennessee", "primary": "#FF8200", "secondary": "#FFFFFF"},
-    "USC": {"slug": "southern-california", "primary": "#990000", "secondary": "#FFC72C"},
-    "Ole Miss": {"slug": "ole-miss", "primary": "#CE1126", "secondary": "#14213D"},
-    "Auburn": {"slug": "auburn", "primary": "#0C2340", "secondary": "#E87722"},
-    "Nebraska": {"slug": "nebraska", "primary": "#E41C38", "secondary": "#FFFFFF"},
-    "Wisconsin": {"slug": "wisconsin", "primary": "#C5050C", "secondary": "#FFFFFF"},
-    "Washington": {"slug": "washington", "primary": "#4B2E83", "secondary": "#B7A57A"},
-    "UCLA": {"slug": "ucla", "primary": "#2774AE", "secondary": "#FFD100"},
-    "TCU": {"slug": "tcu", "primary": "#4D1979", "secondary": "#A3A9AC"},
-    "Utah": {"slug": "utah", "primary": "#CC0000", "secondary": "#000000"},
-    "Rapid City": {"slug": "rapid-city", "primary": "#00B8B8", "secondary": "#FF4FA3"},
-    "Panama City": {"slug": "panama-city", "primary": "#FF7A00", "secondary": "#000000"},
-    "Hammond": {"slug": "hammond", "primary": "#1F8F4E", "secondary": "#0B4F2A"},
-    "Alabaster": {"slug": "alabaster", "primary": "#D72638", "secondary": "#FFD23F"},
-    "Death Valley": {"slug": "death-valley", "primary": "#6A0DAD", "secondary": "#000000"},
-    "Gate City": {"slug": "gate-city", "primary": "#FFD23F", "secondary": "#000000"},
-}
+def load_team_visuals(csv_path="team_visuals.csv"):
+    try:
+        _tv = pd.read_csv(csv_path)
+        if _tv.empty or 'Team' not in _tv.columns:
+            return {}
+        visuals = {}
+        for _, _r in _tv.iterrows():
+            _team = str(_r.get('Team', '')).strip()
+            if not _team:
+                continue
+            visuals[_team] = {
+                'slug': str(_r.get('Slug', '')).strip(),
+                'primary': str(_r.get('Primary', '')).strip() or '#38bdf8',
+                'secondary': str(_r.get('Secondary', '')).strip() or '#94a3b8',
+            }
+        return visuals
+    except Exception:
+        return {}
+
+TEAM_VISUALS = load_team_visuals()
 
 TEAM_ALIASES = {
     "Florida": ["florida", "florida gators"],
@@ -11468,9 +11438,15 @@ with tabs[0]:
                         _winner_str = f"<strong>{_w_user}</strong> ({html.escape(_winner)})" if _w_user != 'CPU' else html.escape(_winner)
                         _loser_str = f"<strong>{_l_user}</strong> ({html.escape(_loser)})" if _l_user != 'CPU' else html.escape(_loser)
 
-                        _headline_text = f"The bracket is active. {_winner_str} just took down " \
-                                         f"{_loser_str} {_win_score}-{_lose_score} " \
-                                         f"in {_round}. Surviving and advancing is all that matters now."
+                        _round_lower = _round.lower()
+                        if any(k in _round_lower for k in ['national title', 'championship', 'title game', 'final']):
+                            _headline_text = f"The season is complete. {_winner_str} just beat " \
+                                             f"{_loser_str} {_win_score}-{_lose_score} " \
+                                             f"in {_round} to win the national title."
+                        else:
+                            _headline_text = f"The bracket is active. {_winner_str} just took down " \
+                                             f"{_loser_str} {_win_score}-{_lose_score} " \
+                                             f"in {_round}. Surviving and advancing is all that matters now."
                         break # We found the newest actual game, break the loop
 
                 if _headline_text:
@@ -11792,12 +11768,12 @@ with tabs[0]:
                     else:
                         status_html = f"<span style='color:#9ca3af;'>{html.escape(str(g['status']))}</span>"
 
-                    diff_label = "🔥🔥🔥" if g['difficulty'] >= 50 else ("🔥🔥" if g['difficulty'] >= 30 else "🔥")
+                    diff_label = "Tier 3" if g['difficulty'] >= 50 else ("Tier 2" if g['difficulty'] >= 30 else "Tier 1")
 
                     cards_html += f"""
                     <div style='border-left:3px solid {tc};padding:6px 10px;margin-bottom:6px;background:#0f172a;border-radius:6px;'>
                       <div style='display:flex;justify-content:space-between;align-items:center;'>
-                        <span style='font-weight:700;color:#f3f4f6;font-size:0.88rem;'>{diff_label} {html.escape(g['location'])} {html.escape(opp_str)}</span>
+                        <span style='font-weight:700;color:#f3f4f6;font-size:0.88rem;'>{diff_label} · {html.escape(g['location'])} {html.escape(opp_str)}</span>
                         <span style='font-size:0.75rem;color:#9ca3af;'>{week_str}</span>
                       </div>
                       <div style='font-size:0.75rem;color:#9ca3af;margin-top:2px;'>{pre_tag}{ins_tag}</div>
