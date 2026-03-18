@@ -9966,7 +9966,7 @@ try:
         (_rh['Team'].isin(_user_team_list))
     ].copy()
 
-    st.write("DEBUG recruiting ticker rows", _rh_cy[['Year', 'Team', 'Rank', 'Points']])
+    #st.write("DEBUG recruiting ticker rows", _rh_cy[['Year', 'Team', 'Rank', 'Points']])
 
     if not _rh_cy.empty:
         _rh_cy = _rh_cy.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
