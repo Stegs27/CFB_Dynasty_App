@@ -5184,6 +5184,55 @@ def load_team_visuals(csv_path="team_visuals.csv"):
 
 TEAM_VISUALS = load_team_visuals()
 
+def load_user_teams(csv_path="user_teams.csv"):
+    try:
+        _ut = pd.read_csv(csv_path)
+        if _ut.empty or 'User' not in _ut.columns or 'Team' not in _ut.columns:
+            return {}
+        _ut['User'] = _ut['User'].astype(str).str.strip().str.title()
+        _ut['Team'] = _ut['Team'].astype(str).str.strip()
+        _ut = _ut[(_ut['User'] != '') & (_ut['Team'] != '')].copy()
+        if 'Active' in _ut.columns:
+            _ut['Active'] = _ut['Active'].astype(str).str.strip().str.lower()
+            _ut = _ut[~_ut['Active'].isin(['false', '0', 'no', 'n'])].copy()
+        if 'SortOrder' in _ut.columns:
+            _ut['SortOrder'] = pd.to_numeric(_ut['SortOrder'], errors='coerce').fillna(9999)
+            _ut = _ut.sort_values(['SortOrder', 'User', 'Team'])
+        return dict(zip(_ut['User'], _ut['Team']))
+    except Exception:
+        return {}
+
+def load_collision_groups(csv_path="user_team_collision_groups.csv", user_team_map=None):
+    try:
+        _cg = pd.read_csv(csv_path)
+        if _cg.empty or 'Group' not in _cg.columns or 'Team' not in _cg.columns:
+            return []
+        _cg['Group'] = _cg['Group'].astype(str).str.strip()
+        _cg['Team'] = _cg['Team'].astype(str).str.strip()
+        _cg = _cg[(_cg['Group'] != '') & (_cg['Team'] != '')].copy()
+        groups = []
+        for _, gdf in _cg.groupby('Group', sort=False):
+            teams = set(gdf['Team'].tolist())
+            if len(teams) >= 2:
+                groups.append(teams)
+        if groups:
+            return groups
+    except Exception:
+        pass
+    if user_team_map:
+        teams = list(user_team_map.values())
+        if len(teams) >= 2:
+            mid = max(1, len(teams) // 2)
+            groups = []
+            left = set(teams[:mid])
+            right = set(teams[mid:])
+            if len(left) >= 2:
+                groups.append(left)
+            if len(right) >= 2:
+                groups.append(right)
+            return groups
+    return []
+
 TEAM_ALIASES = {
     "Florida": ["florida", "florida gators"],
     "Florida State": ["florida state", "florida state seminoles", "fsu"],
@@ -8091,13 +8140,67 @@ def _load_recruiting_csv(filename):
         return pd.DataFrame(columns=_std_cols)
 
 
+def _load_recruiting_class_history(class_type=None):
+    """Preferred recruiting summary loader.
+    Uses recruiting_class_history.csv when available, with legacy fallbacks so old repos still work.
+    """
+    _std_cols = ['Year','ClassType','Rank','Team','User','TotalCommits','FiveStar','FourStar',
+                 'ThreeStar','TwoStar','OneStar','Points']
+
+    def _normalize(df, inferred_class_type=None):
+        if df is None or df.empty:
+            return pd.DataFrame(columns=_std_cols)
+        df = df.copy()
+        df.columns = [str(c).strip() for c in df.columns]
+
+        if 'ClassType' not in df.columns:
+            if inferred_class_type is not None:
+                df['ClassType'] = inferred_class_type
+            elif 'Type' in df.columns:
+                df['ClassType'] = df['Type']
+            else:
+                df['ClassType'] = ''
+
+        for c in _std_cols:
+            if c not in df.columns:
+                df[c] = pd.NA
+
+        for c in ['Rank','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Year']:
+            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
+        df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
+        df['ClassType'] = df['ClassType'].fillna('').astype(str).str.upper().str.strip()
+        df['Team'] = df['Team'].fillna('').astype(str).str.strip()
+        df['User'] = df['User'].fillna('').astype(str).str.strip()
+        return df[_std_cols].copy()
+
+    try:
+        master_df = pd.read_csv('recruiting_class_history.csv')
+        master_df = _normalize(master_df)
+    except Exception:
+        legacy_parts = []
+        legacy_map = {
+            'HS': 'recruiting_high_school_history.csv',
+            'TRANSFER': 'recruiting_transfer_portal_history.csv',
+            'OVERALL': 'recruiting_overall_history.csv',
+        }
+        for _ctype, _path in legacy_map.items():
+            _part = _load_recruiting_csv(_path)
+            if not _part.empty:
+                legacy_parts.append(_normalize(_part, inferred_class_type=_ctype))
+        master_df = pd.concat(legacy_parts, ignore_index=True) if legacy_parts else pd.DataFrame(columns=_std_cols)
+
+    if class_type:
+        master_df = master_df[master_df['ClassType'] == str(class_type).upper().strip()].copy()
+    return master_df.reset_index(drop=True)
+
+
 def get_hs_recruiting_snapshot(year=None):
     """
     Load HS recruiting class from recruiting_high_school_history.csv.
     If year=None, returns the most recent year available.
     CSV-first behavior: if the file is missing or empty, return an empty DataFrame.
     """
-    df = _load_recruiting_csv('recruiting_high_school_history.csv')
+    df = _load_recruiting_class_history('HS')
     if not df.empty and 'Year' in df.columns:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -8140,7 +8243,7 @@ def get_hs_recruiting_snapshot(year=None):
 
 def get_portal_recruiting_snapshot(year=None):
     """Load transfer portal class from recruiting_transfer_portal_history.csv."""
-    df = _load_recruiting_csv('recruiting_transfer_portal_history.csv')
+    df = _load_recruiting_class_history('TRANSFER')
     if not df.empty and 'Year' in df.columns and len(df) > 0:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -8153,7 +8256,7 @@ def get_portal_recruiting_snapshot(year=None):
 
 def get_overall_recruiting_snapshot(year=None):
     """Load overall recruiting class from recruiting_overall_history.csv. CSV-first: no hardcoded or HS fallback."""
-    df = _load_recruiting_csv('recruiting_overall_history.csv')
+    df = _load_recruiting_class_history('OVERALL')
     if not df.empty and 'Year' in df.columns and len(df) > 0:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -9476,49 +9579,24 @@ if data:
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
 
-    # ── USER_TEAMS: auto-derived from team_conferences.csv ───────────────
-    # Falls back to hardcoded dict only if CSV is missing or empty.
-    try:
-        _tc_df = pd.read_csv('team_conferences.csv')
-        _tc_df['USER'] = _tc_df['USER'].astype(str).str.strip().str.title()
-        _tc_df['TEAM'] = _tc_df['TEAM'].astype(str).str.strip()
-        # Keep most recent entry per user (highest YEAR_JOINED)
-        if 'YEAR_JOINED' in _tc_df.columns:
-            _tc_df['YEAR_JOINED'] = pd.to_numeric(_tc_df['YEAR_JOINED'], errors='coerce')
-            _tc_df = _tc_df.sort_values('YEAR_JOINED', ascending=False)
-        USER_TEAMS = dict(zip(
-            _tc_df.drop_duplicates('USER', keep='first')['USER'],
-            _tc_df.drop_duplicates('USER', keep='first')['TEAM']
-        ))
-        if not USER_TEAMS:
-            raise ValueError("Empty team_conferences.csv")
-    except Exception:
-        USER_TEAMS = {
-            'Mike':  'San Jose State',
-            'Devin': 'Bowling Green',
-            'Josh':  'USF',
-            'Noah':  'Texas Tech',
-            'Doug':  'Florida',
-            'Nick':  'Florida State',
-        }
+    # ── USER_TEAMS: CSV-first (user_teams.csv), then team_conferences.csv ───────────────
+    USER_TEAMS = load_user_teams()
 
-    RIVALRY_NAMES = {
-        frozenset(["Mike",  "Noah"]):  ("⚡ The Overclocked Bowl",      "Two tech schools. One beef. It's the nerd rivalry nobody asked for and everyone should fear."),
-        frozenset(["Mike",  "Doug"]):  ("🥖 The Sourdough & Swamp Bowl","West Coast vibes vs Florida Man energy. It shouldn't work but it absolutely goes."),
-        frozenset(["Mike",  "Nick"]):  ("🥇 The Gold Rush Classic",     "Gold helmets, West Coast money, Tallahassee attitude. Someone's getting cooked."),
-        frozenset(["Mike",  "Devin"]): ("🦅 The Falcon Punch Bowl",     "SJSU vs Bowling Green. Mountain West chaos meets MAC energy. Low-key unhinged."),
-        frozenset(["Mike",  "Josh"]):  ("🌊 The Bay vs the Bull",       "California cool meets Tampa heat. Somebody's leaving sunburned."),
-        frozenset(["Noah",  "Doug"]):  ("🍖 The Brisket & Gator Tail Showdown","Texas BBQ pit vs Florida swamp cuisine. Bragging rights served with hot sauce."),
-        frozenset(["Noah",  "Nick"]):  ("🤠 The Lone Star vs Garnet Grudge","Red Raiders and Seminoles. They meet in the middle of nowhere and throw haymakers."),
-        frozenset(["Noah",  "Devin"]): ("🏹 The Wreck the Tech Bowl",   "Noah's Raiders vs Devin's Falcons. Low-key nasty every single time."),
-        frozenset(["Noah",  "Josh"]):  ("🍞 The Texas Toast vs Tampa Bowl","Lone Star swagger meets Florida Lightning. The vibe check nobody passes."),
-        frozenset(["Doug",  "Nick"]):  ("🍊 The Florida Man Bowl",      "Both of y'all live in Florida. This is the most unhinged in-state rivalry in dynasty history."),
-        frozenset(["Doug",  "Devin"]): ("🍩 The Swamp Donuts Classic",  "Florida Gators vs Bowling Green Falcons. Doesn't make geographic sense. Still slaps."),
-        frozenset(["Doug",  "Josh"]):  ("⚡ The I-4 Grudge Match",      "Tampa to Gainesville is 2 hours. This rivalry lives rent-free in both their heads."),
-        frozenset(["Nick",  "Devin"]): ("🏈 The Seminole & Falcon Faceoff","Tallahassee prestige vs MAC grit. Blue chips vs chaos. Pick your poison."),
-        frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
-        frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
-    }
+    if not USER_TEAMS:
+        try:
+            _tc_df = pd.read_csv('team_conferences.csv')
+            _tc_df['USER'] = _tc_df['USER'].astype(str).str.strip().str.title()
+            _tc_df['TEAM'] = _tc_df['TEAM'].astype(str).str.strip()
+            if 'YEAR_JOINED' in _tc_df.columns:
+                _tc_df['YEAR_JOINED'] = pd.to_numeric(_tc_df['YEAR_JOINED'], errors='coerce')
+                _tc_df = _tc_df.sort_values('YEAR_JOINED', ascending=False)
+            USER_TEAMS = dict(zip(
+                _tc_df.drop_duplicates('USER', keep='first')['USER'],
+                _tc_df.drop_duplicates('USER', keep='first')['TEAM']
+            ))
+        except Exception:
+            USER_TEAMS = {}
+
 # ════════════════════════════════════════════════════════════════════
 # DYNAMIC GLOBAL HEADER (Fixed Syntax & Eastern Time)
 # ════════════════════════════════════════════════════════════════════
@@ -9895,7 +9973,7 @@ except Exception:
 
 # ── 6. USER RECRUITING CLASSES (OVERALL) ────────────────────────────
 try:
-    _rh = pd.read_csv('recruiting_overall_history.csv').copy()
+    _rh = _load_recruiting_class_history('OVERALL').copy()
 
     _rh['Year'] = pd.to_numeric(_rh['Year'], errors='coerce')
     _rh['Rank'] = pd.to_numeric(_rh['Rank'], errors='coerce')
@@ -9910,7 +9988,7 @@ try:
     if 'USER_TEAMS' in globals():
         _user_team_list = [str(t).strip() for t in USER_TEAMS.values()]
     else:
-        _user_team_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
+        _user_team_list = []
 
     _rh_cy = _rh[
         (_rh['Year'] == CURRENT_YEAR) &
@@ -12395,10 +12473,7 @@ with tabs[4]:
 
     # ── USER TEAMS SPOTLIGHT ──────────────────────────────────────────────
     st.subheader(f"👑 User Coaches — {recruit_year} Class Snapshot")
-    _user_teams_map = {
-        str(r['USER']).strip(): str(r['TEAM']).strip()
-        for _, r in model_2041.iterrows()
-    }
+    _user_teams_map = {str(k).strip(): str(v).strip() for k, v in USER_TEAMS.items()} if 'USER_TEAMS' in globals() else {}
     _team_to_user = {team: user for user, team in _user_teams_map.items()}
 
     for _df in (_hs_df, _portal_df, _overall_df):
@@ -16272,7 +16347,7 @@ with tabs[5]:
     if 'USER_TEAMS' in globals():
         user_teams_list = sorted(list(USER_TEAMS.values()))
     else:
-        user_teams_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
+        user_teams_list = []
 
     mid_idx = len(user_teams_list) // 2
     left_teams = user_teams_list[:mid_idx]
@@ -16313,15 +16388,8 @@ with tabs[5]:
                     df[col] = pd.NA
             return df
 
-        hs_df = safe_read_csv(
-            'recruiting_high_school_history.csv',
-            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
-        )
-
-        tp_df = safe_read_csv(
-            'recruiting_transfer_portal_history.csv',
-            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
-        )
+        hs_df = _load_recruiting_class_history('HS')
+        tp_df = _load_recruiting_class_history('TRANSFER')
 
         nfl = safe_read_csv(
             'attrition_nfl.csv',
@@ -17076,10 +17144,7 @@ with tabs[5]:
 
     # --- 6. Next Season Outlook & Dynamic Championship Odds ---
     try:
-        USER_TEAM_COLLISION_GROUPS = [
-            {"Florida State", "Florida", "Bowling Green"},
-            {"Texas Tech", "San Jose State", "USF"}
-        ]
+        USER_TEAM_COLLISION_GROUPS = load_collision_groups(user_team_map=USER_TEAMS if 'USER_TEAMS' in globals() else {})
 
         current_roster = pd.read_csv('cfb26_rosters_full.csv')
         team_roster = current_roster[current_roster['Team'] == selected_team].copy()
