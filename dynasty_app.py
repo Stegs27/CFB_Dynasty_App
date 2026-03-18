@@ -5184,31 +5184,78 @@ def load_team_visuals(csv_path="team_visuals.csv"):
 
 TEAM_VISUALS = load_team_visuals()
 
-TEAM_ALIASES = {
-    "Florida": ["florida", "florida gators"],
-    "Florida State": ["florida state", "florida state seminoles", "fsu"],
-    "Texas Tech": ["texas tech", "texas tech red raiders"],
-    "USF": ["usf", "south florida", "south florida bulls"],
-    "South Florida": ["usf", "south florida", "south florida bulls"],
-    "San Jose State": ["san jose state", "san jose state spartans", "sjsu"],
-    "Bowling Green": ["bowling green", "bowling green falcons"],
-    "Rapid City": ["rapid city"],
-    "Panama City": ["panama city"],
-    "Hammond": ["hammond"],
-    "Alabaster": ["alabaster"],
-    "Death Valley": ["death valley"],
-    "Gate City": ["gate city"],
-    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
-    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
-    "Rapid City": ["rapid city"],
-    "Panama City": ["panama city"],
-    "Hammond": ["hammond"],
-    "Alabaster": ["alabaster"],
-    "Death Valley": ["death valley"],
-    "Gate City": ["gate city"],
-    "Oklahoma State": ["oklahoma state", "oklahoma state cowboys", "oklahoma st"],
-    "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
-}
+def load_user_teams(csv_path="user_teams.csv"):
+    try:
+        _ut = pd.read_csv(csv_path)
+        if _ut.empty or 'User' not in _ut.columns or 'Team' not in _ut.columns:
+            return {}
+        _ut['User'] = _ut['User'].astype(str).str.strip().str.title()
+        _ut['Team'] = _ut['Team'].astype(str).str.strip()
+        _ut = _ut[(_ut['User'] != '') & (_ut['Team'] != '')].copy()
+        if 'Active' in _ut.columns:
+            _ut['Active'] = _ut['Active'].astype(str).str.strip().str.lower()
+            _ut = _ut[~_ut['Active'].isin(['false', '0', 'no', 'n'])].copy()
+        if 'SortOrder' in _ut.columns:
+            _ut['SortOrder'] = pd.to_numeric(_ut['SortOrder'], errors='coerce').fillna(9999)
+            _ut = _ut.sort_values(['SortOrder', 'User', 'Team'])
+        return dict(zip(_ut['User'], _ut['Team']))
+    except Exception:
+        return {}
+
+def load_collision_groups(csv_path="user_team_collision_groups.csv", user_team_map=None):
+    try:
+        _cg = pd.read_csv(csv_path)
+        if _cg.empty or 'Group' not in _cg.columns or 'Team' not in _cg.columns:
+            return []
+        _cg['Group'] = _cg['Group'].astype(str).str.strip()
+        _cg['Team'] = _cg['Team'].astype(str).str.strip()
+        _cg = _cg[(_cg['Group'] != '') & (_cg['Team'] != '')].copy()
+        groups = []
+        for _, gdf in _cg.groupby('Group', sort=False):
+            teams = set(gdf['Team'].tolist())
+            if len(teams) >= 2:
+                groups.append(teams)
+        if groups:
+            return groups
+    except Exception:
+        pass
+    if user_team_map:
+        teams = list(user_team_map.values())
+        if len(teams) >= 2:
+            mid = max(1, len(teams) // 2)
+            groups = []
+            left = set(teams[:mid])
+            right = set(teams[mid:])
+            if len(left) >= 2:
+                groups.append(left)
+            if len(right) >= 2:
+                groups.append(right)
+            return groups
+    return []
+
+def load_team_aliases(csv_path="team_aliases.csv"):
+    try:
+        _ta = pd.read_csv(csv_path)
+        if _ta.empty or 'Team' not in _ta.columns or 'Alias' not in _ta.columns:
+            return {}
+        _ta['Team'] = _ta['Team'].astype(str).str.strip()
+        _ta['Alias'] = _ta['Alias'].astype(str).str.strip()
+        _ta = _ta[(_ta['Team'] != '') & (_ta['Alias'] != '')].copy()
+        aliases = {}
+        for team, gdf in _ta.groupby('Team', sort=False):
+            seen = set()
+            vals = []
+            for alias in gdf['Alias'].tolist():
+                n = normalize_key(alias)
+                if n and n not in seen:
+                    vals.append(alias)
+                    seen.add(n)
+            aliases[str(team).strip()] = vals
+        return aliases
+    except Exception:
+        return {}
+
+TEAM_ALIASES = load_team_aliases()
 
 def normalize_key(value):
     return re.sub(r'[^a-z0-9]+', '', str(value).strip().lower())
@@ -6719,7 +6766,7 @@ def render_roster_matchup_tab():
 def load_data():
     try:
         # LOAD ALL CORE FILES
-        scores = pd.read_csv('CPUscores_MASTER.csv')
+        scores = pd.read_csv('scores.csv')
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
         draft = pd.read_csv('UserDraftPicks.csv')
@@ -8091,13 +8138,67 @@ def _load_recruiting_csv(filename):
         return pd.DataFrame(columns=_std_cols)
 
 
+def _load_recruiting_class_history(class_type=None):
+    """Preferred recruiting summary loader.
+    Uses recruiting_class_history.csv when available, with legacy fallbacks so old repos still work.
+    """
+    _std_cols = ['Year','ClassType','Rank','Team','User','TotalCommits','FiveStar','FourStar',
+                 'ThreeStar','TwoStar','OneStar','Points']
+
+    def _normalize(df, inferred_class_type=None):
+        if df is None or df.empty:
+            return pd.DataFrame(columns=_std_cols)
+        df = df.copy()
+        df.columns = [str(c).strip() for c in df.columns]
+
+        if 'ClassType' not in df.columns:
+            if inferred_class_type is not None:
+                df['ClassType'] = inferred_class_type
+            elif 'Type' in df.columns:
+                df['ClassType'] = df['Type']
+            else:
+                df['ClassType'] = ''
+
+        for c in _std_cols:
+            if c not in df.columns:
+                df[c] = pd.NA
+
+        for c in ['Rank','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Year']:
+            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
+        df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
+        df['ClassType'] = df['ClassType'].fillna('').astype(str).str.upper().str.strip()
+        df['Team'] = df['Team'].fillna('').astype(str).str.strip()
+        df['User'] = df['User'].fillna('').astype(str).str.strip()
+        return df[_std_cols].copy()
+
+    try:
+        master_df = pd.read_csv('recruiting_class_history.csv')
+        master_df = _normalize(master_df)
+    except Exception:
+        legacy_parts = []
+        legacy_map = {
+            'HS': 'recruiting_high_school_history.csv',
+            'TRANSFER': 'recruiting_transfer_portal_history.csv',
+            'OVERALL': 'recruiting_overall_history.csv',
+        }
+        for _ctype, _path in legacy_map.items():
+            _part = _load_recruiting_csv(_path)
+            if not _part.empty:
+                legacy_parts.append(_normalize(_part, inferred_class_type=_ctype))
+        master_df = pd.concat(legacy_parts, ignore_index=True) if legacy_parts else pd.DataFrame(columns=_std_cols)
+
+    if class_type:
+        master_df = master_df[master_df['ClassType'] == str(class_type).upper().strip()].copy()
+    return master_df.reset_index(drop=True)
+
+
 def get_hs_recruiting_snapshot(year=None):
     """
     Load HS recruiting class from recruiting_high_school_history.csv.
     If year=None, returns the most recent year available.
     CSV-first behavior: if the file is missing or empty, return an empty DataFrame.
     """
-    df = _load_recruiting_csv('recruiting_high_school_history.csv')
+    df = _load_recruiting_class_history('HS')
     if not df.empty and 'Year' in df.columns:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -8140,7 +8241,7 @@ def get_hs_recruiting_snapshot(year=None):
 
 def get_portal_recruiting_snapshot(year=None):
     """Load transfer portal class from recruiting_transfer_portal_history.csv."""
-    df = _load_recruiting_csv('recruiting_transfer_portal_history.csv')
+    df = _load_recruiting_class_history('TRANSFER')
     if not df.empty and 'Year' in df.columns and len(df) > 0:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -8153,7 +8254,7 @@ def get_portal_recruiting_snapshot(year=None):
 
 def get_overall_recruiting_snapshot(year=None):
     """Load overall recruiting class from recruiting_overall_history.csv. CSV-first: no hardcoded or HS fallback."""
-    df = _load_recruiting_csv('recruiting_overall_history.csv')
+    df = _load_recruiting_class_history('OVERALL')
     if not df.empty and 'Year' in df.columns and len(df) > 0:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -9476,49 +9577,24 @@ if data:
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
 
-    # ── USER_TEAMS: auto-derived from team_conferences.csv ───────────────
-    # Falls back to hardcoded dict only if CSV is missing or empty.
-    try:
-        _tc_df = pd.read_csv('team_conferences.csv')
-        _tc_df['USER'] = _tc_df['USER'].astype(str).str.strip().str.title()
-        _tc_df['TEAM'] = _tc_df['TEAM'].astype(str).str.strip()
-        # Keep most recent entry per user (highest YEAR_JOINED)
-        if 'YEAR_JOINED' in _tc_df.columns:
-            _tc_df['YEAR_JOINED'] = pd.to_numeric(_tc_df['YEAR_JOINED'], errors='coerce')
-            _tc_df = _tc_df.sort_values('YEAR_JOINED', ascending=False)
-        USER_TEAMS = dict(zip(
-            _tc_df.drop_duplicates('USER', keep='first')['USER'],
-            _tc_df.drop_duplicates('USER', keep='first')['TEAM']
-        ))
-        if not USER_TEAMS:
-            raise ValueError("Empty team_conferences.csv")
-    except Exception:
-        USER_TEAMS = {
-            'Mike':  'San Jose State',
-            'Devin': 'Bowling Green',
-            'Josh':  'USF',
-            'Noah':  'Texas Tech',
-            'Doug':  'Florida',
-            'Nick':  'Florida State',
-        }
+    # ── USER_TEAMS: CSV-first (user_teams.csv), then team_conferences.csv ───────────────
+    USER_TEAMS = load_user_teams()
 
-    RIVALRY_NAMES = {
-        frozenset(["Mike",  "Noah"]):  ("⚡ The Overclocked Bowl",      "Two tech schools. One beef. It's the nerd rivalry nobody asked for and everyone should fear."),
-        frozenset(["Mike",  "Doug"]):  ("🥖 The Sourdough & Swamp Bowl","West Coast vibes vs Florida Man energy. It shouldn't work but it absolutely goes."),
-        frozenset(["Mike",  "Nick"]):  ("🥇 The Gold Rush Classic",     "Gold helmets, West Coast money, Tallahassee attitude. Someone's getting cooked."),
-        frozenset(["Mike",  "Devin"]): ("🦅 The Falcon Punch Bowl",     "SJSU vs Bowling Green. Mountain West chaos meets MAC energy. Low-key unhinged."),
-        frozenset(["Mike",  "Josh"]):  ("🌊 The Bay vs the Bull",       "California cool meets Tampa heat. Somebody's leaving sunburned."),
-        frozenset(["Noah",  "Doug"]):  ("🍖 The Brisket & Gator Tail Showdown","Texas BBQ pit vs Florida swamp cuisine. Bragging rights served with hot sauce."),
-        frozenset(["Noah",  "Nick"]):  ("🤠 The Lone Star vs Garnet Grudge","Red Raiders and Seminoles. They meet in the middle of nowhere and throw haymakers."),
-        frozenset(["Noah",  "Devin"]): ("🏹 The Wreck the Tech Bowl",   "Noah's Raiders vs Devin's Falcons. Low-key nasty every single time."),
-        frozenset(["Noah",  "Josh"]):  ("🍞 The Texas Toast vs Tampa Bowl","Lone Star swagger meets Florida Lightning. The vibe check nobody passes."),
-        frozenset(["Doug",  "Nick"]):  ("🍊 The Florida Man Bowl",      "Both of y'all live in Florida. This is the most unhinged in-state rivalry in dynasty history."),
-        frozenset(["Doug",  "Devin"]): ("🍩 The Swamp Donuts Classic",  "Florida Gators vs Bowling Green Falcons. Doesn't make geographic sense. Still slaps."),
-        frozenset(["Doug",  "Josh"]):  ("⚡ The I-4 Grudge Match",      "Tampa to Gainesville is 2 hours. This rivalry lives rent-free in both their heads."),
-        frozenset(["Nick",  "Devin"]): ("🏈 The Seminole & Falcon Faceoff","Tallahassee prestige vs MAC grit. Blue chips vs chaos. Pick your poison."),
-        frozenset(["Nick",  "Josh"]):  ("☀️ The Sunshine State Slap Fight","Two Florida programs. One grudge match. The loser has to explain it to their recruits."),
-        frozenset(["Devin", "Josh"]):  ("🐦 The Bird Bowl",             "Bowling Green Falcons vs USF Bulls. The most Ohio vs Florida energy imaginable."),
-    }
+    if not USER_TEAMS:
+        try:
+            _tc_df = pd.read_csv('team_conferences.csv')
+            _tc_df['USER'] = _tc_df['USER'].astype(str).str.strip().str.title()
+            _tc_df['TEAM'] = _tc_df['TEAM'].astype(str).str.strip()
+            if 'YEAR_JOINED' in _tc_df.columns:
+                _tc_df['YEAR_JOINED'] = pd.to_numeric(_tc_df['YEAR_JOINED'], errors='coerce')
+                _tc_df = _tc_df.sort_values('YEAR_JOINED', ascending=False)
+            USER_TEAMS = dict(zip(
+                _tc_df.drop_duplicates('USER', keep='first')['USER'],
+                _tc_df.drop_duplicates('USER', keep='first')['TEAM']
+            ))
+        except Exception:
+            USER_TEAMS = {}
+
 # ════════════════════════════════════════════════════════════════════
 # DYNAMIC GLOBAL HEADER (Fixed Syntax & Eastern Time)
 # ════════════════════════════════════════════════════════════════════
@@ -9895,7 +9971,7 @@ except Exception:
 
 # ── 6. USER RECRUITING CLASSES (OVERALL) ────────────────────────────
 try:
-    _rh = pd.read_csv('recruiting_overall_history.csv').copy()
+    _rh = _load_recruiting_class_history('OVERALL').copy()
 
     _rh['Year'] = pd.to_numeric(_rh['Year'], errors='coerce')
     _rh['Rank'] = pd.to_numeric(_rh['Rank'], errors='coerce')
@@ -9910,7 +9986,7 @@ try:
     if 'USER_TEAMS' in globals():
         _user_team_list = [str(t).strip() for t in USER_TEAMS.values()]
     else:
-        _user_team_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
+        _user_team_list = []
 
     _rh_cy = _rh[
         (_rh['Year'] == CURRENT_YEAR) &
@@ -10392,7 +10468,7 @@ tabs = st.tabs([
     "📺 Season Recap",          # tabs[6]
     "🔍 Speed Freaks",          # tabs[7]
     "🎯 Roster Matchup",        # tabs[8]
-    "🏛️ Coach Legacy",         # tabs[9]
+    "📊 Team Overview",         # tabs[9]
     "⚔️ H2H Matrix",            # tabs[10]
     "🎬 ISPN Classics",         # tabs[11]
     "🐐 GOAT Rankings",         # tabs[12]
@@ -11237,7 +11313,7 @@ with tabs[0]:
 
             # ── TEAM OVERVIEW JUMP BUTTON ─────────────────────────────────────
             if st.button(
-                f"🏛️ View {team} Coach Legacy →",
+                f"📊 View {team} Team Overview →",
                 key=f"_goto_overview_{team}_{idx}",
                 use_container_width=False,
             ):
@@ -11251,7 +11327,7 @@ with tabs[0]:
         # SECTION 2 — DYNASTY HEADLINES
         # All metrics use LIVE model columns (Natty Odds, Power Index,
         # CFP Odds, Collapse Risk) — NOT preseason proxies.
-        # Game-result headlines are generated directly from CPUscores_MASTER.csv.
+        # Game-result headlines are generated directly from scores.csv.
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("📰 Dynasty Headlines")
@@ -12395,10 +12471,7 @@ with tabs[4]:
 
     # ── USER TEAMS SPOTLIGHT ──────────────────────────────────────────────
     st.subheader(f"👑 User Coaches — {recruit_year} Class Snapshot")
-    _user_teams_map = {
-        str(r['USER']).strip(): str(r['TEAM']).strip()
-        for _, r in model_2041.iterrows()
-    }
+    _user_teams_map = {str(k).strip(): str(v).strip() for k, v in USER_TEAMS.items()} if 'USER_TEAMS' in globals() else {}
     _team_to_user = {team: user for user, team in _user_teams_map.items()}
 
     for _df in (_hs_df, _portal_df, _overall_df):
@@ -13243,11 +13316,11 @@ with tabs[6]:
                 )
 
     # --- TEAM OVERVIEW ---
-
 with tabs[9]:
-        st.header("🏛️ Coach Legacy")
-        st.caption("Career arc by coach across all schools. Powered by CPUscores_MASTER.csv, champs.csv, COTY.csv, recruiting_class_history_all.csv, and preseason_expectations_history.csv.")
+        st.header("📊 Team Analysis")
+        st.caption("Live speed metrics from roster CSV. Team card record comes from CPUscores_MASTER.csv and CFP rank comes from cfp_rankings_history.csv. Odds match Dynasty News preseason model.")
 
+        # ── AUTO-JUMP: if arriving from Power Rankings card click ─────────────
         if st.session_state.pop("_jump_to_team_analysis", False):
             components.html("""
             <script>
@@ -13260,556 +13333,975 @@ with tabs[9]:
             </script>
             """, height=0)
 
-        def _smart(df, cols):
-            return smart_col(df, cols) if 'smart_col' in globals() else next((c for c in cols if c in df.columns), None)
+        target = st.selectbox("Select Team", sorted(model_2041['USER'].tolist()), key="team_analysis_user")
+        row = model_2041[model_2041['USER'] == target].iloc[0]
+        wins, losses, ppg, avg_margin = get_team_schedule_summary(scores, target)
 
-        def _safe_num(s):
-            return pd.to_numeric(s, errors='coerce')
+        def _get_live_team_overview(team_name):
+            live_wins = None
+            live_losses = None
+            live_cfp_rank = None
 
-        def _load_first(paths):
-            for p in paths:
-                try:
-                    _df = pd.read_csv(p)
-                    if not _df.empty:
-                        return _df
-                except Exception:
-                    continue
-            return pd.DataFrame()
-
-        # ── Source files ──────────────────────────────────────────────────────
-        legacy_scores = scores.copy() if 'scores' in globals() and isinstance(scores, pd.DataFrame) else pd.DataFrame()
-        legacy_scores.columns = [str(c).strip() for c in legacy_scores.columns]
-
-        legacy_champs = champs.copy() if 'champs' in globals() and isinstance(champs, pd.DataFrame) else pd.DataFrame()
-        legacy_champs.columns = [str(c).strip() for c in legacy_champs.columns]
-
-        legacy_coty = coty.copy() if 'coty' in globals() and isinstance(coty, pd.DataFrame) else pd.DataFrame()
-        legacy_coty.columns = [str(c).strip() for c in legacy_coty.columns]
-
-        legacy_ratings = ratings.copy() if 'ratings' in globals() and isinstance(ratings, pd.DataFrame) else pd.DataFrame()
-        legacy_ratings.columns = [str(c).strip() for c in legacy_ratings.columns]
-
-        preseason_exp = _load_first([
-            'preseason_expectations_history.csv',
-            'preseason_expectations_history_userteams_fixed.csv',
-            'preseason_expectations_history_monsters_updated.csv',
-            'preseason_expectations_history_final.csv',
-            'preseason_expectations_history_filled_v2.csv',
-            'preseason_expectations_history_filled.csv',
-        ])
-        preseason_exp.columns = [str(c).strip() for c in preseason_exp.columns]
-
-        recruit_hist = _load_first([
-            'recruiting_class_history_all.csv',
-            'recruiting_class_history.csv',
-        ])
-        if recruit_hist.empty:
             try:
-                _hs = pd.read_csv('recruiting_high_school_history.csv')
-                _hs['ClassType'] = 'HS'
+                _live_scores = pd.read_csv('CPUscores_MASTER.csv')
+                if not _live_scores.empty:
+                    _live_scores.columns = [str(c).strip() for c in _live_scores.columns]
+                    if 'YEAR' in _live_scores.columns:
+                        _live_scores['YEAR'] = pd.to_numeric(_live_scores['YEAR'], errors='coerce')
+                        _score_year = CURRENT_YEAR if (_live_scores['YEAR'] == CURRENT_YEAR).any() else _live_scores['YEAR'].dropna().max()
+                        if pd.notna(_score_year):
+                            _live_scores = _live_scores[_live_scores['YEAR'] == _score_year].copy()
+                    if 'Visitor' in _live_scores.columns and 'Home' in _live_scores.columns:
+                        _live_scores['Visitor'] = _live_scores['Visitor'].astype(str).str.strip()
+                        _live_scores['Home'] = _live_scores['Home'].astype(str).str.strip()
+                        _team_games = _live_scores[
+                            (_live_scores['Visitor'] == str(team_name).strip()) |
+                            (_live_scores['Home'] == str(team_name).strip())
+                        ].copy()
+                        if not _team_games.empty:
+                            _team_games['Vis Score'] = pd.to_numeric(_team_games.get('Vis Score'), errors='coerce')
+                            _team_games['Home Score'] = pd.to_numeric(_team_games.get('Home Score'), errors='coerce')
+                            _completed = _team_games[
+                                _team_games['Vis Score'].notna() & _team_games['Home Score'].notna()
+                            ].copy()
+                            if not _completed.empty:
+                                _is_home = _completed['Home'] == str(team_name).strip()
+                                live_wins = int(((_is_home) & (_completed['Home Score'] > _completed['Vis Score'])).sum() +
+                                                ((~_is_home) & (_completed['Vis Score'] > _completed['Home Score'])).sum())
+                                live_losses = int(len(_completed) - live_wins)
             except Exception:
-                _hs = pd.DataFrame()
+                pass
+
             try:
-                _tp = pd.read_csv('recruiting_transfer_portal_history.csv')
-                _tp['ClassType'] = 'TRANSFER'
+                _cfp_hist_live = pd.read_csv('cfp_rankings_history.csv')
+                if not _cfp_hist_live.empty and {'YEAR','WEEK','TEAM','RANK'}.issubset(_cfp_hist_live.columns):
+                    _cfp_hist_live.columns = [str(c).strip() for c in _cfp_hist_live.columns]
+                    _cfp_hist_live['YEAR'] = pd.to_numeric(_cfp_hist_live['YEAR'], errors='coerce')
+                    _cfp_hist_live['WEEK'] = pd.to_numeric(_cfp_hist_live['WEEK'], errors='coerce')
+                    _cfp_hist_live['RANK'] = pd.to_numeric(_cfp_hist_live['RANK'], errors='coerce')
+                    _cfp_hist_live['TEAM'] = _cfp_hist_live['TEAM'].astype(str).str.strip()
+                    _cfp_year = CURRENT_YEAR if (_cfp_hist_live['YEAR'] == CURRENT_YEAR).any() else _cfp_hist_live['YEAR'].dropna().max()
+                    if pd.notna(_cfp_year):
+                        _cfp_slice = _cfp_hist_live[_cfp_hist_live['YEAR'] == _cfp_year].copy()
+                        _cfp_week = _cfp_slice['WEEK'].dropna().max()
+                        if pd.notna(_cfp_week):
+                            _cfp_slice = _cfp_slice[_cfp_slice['WEEK'] == _cfp_week]
+                        _team_cfp = _cfp_slice[_cfp_slice['TEAM'] == str(team_name).strip()]
+                        if not _team_cfp.empty:
+                            _rk = pd.to_numeric(_team_cfp.iloc[0]['RANK'], errors='coerce')
+                            if pd.notna(_rk):
+                                live_cfp_rank = int(_rk)
             except Exception:
-                _tp = pd.DataFrame()
+                pass
+
+            return live_wins, live_losses, live_cfp_rank
+
+        _live_record_w, _live_record_l, _live_cfp_rank = _get_live_team_overview(str(row.get('TEAM', '')))
+
+        # ── Live speed stats from roster CSV (same logic as Speed Freaks tab) ──
+        _ta_team     = str(row['TEAM'])
+        _ta_tc       = get_team_primary_color(_ta_team)
+        _TA_OFF_POS  = {'QB','HB','FB','WR','TE','LT','LG','C','RG','RT'}
+        _TA_DEF_POS  = {'LEDG','REDG','DT','MIKE','WILL','SAM','CB','FS','SS'}
+        try:
+            _ta_roster = pd.read_csv('cfb26_rosters_full.csv')
+        except Exception:
             try:
-                _ov = pd.read_csv('recruiting_overall_history.csv')
-                _ov['ClassType'] = 'OVERALL'
+                _ta_roster = pd.read_csv('cfb26_rosters_top30.csv')
             except Exception:
-                _ov = pd.DataFrame()
-            recruit_hist = pd.concat([_hs, _tp, _ov], ignore_index=True) if (not _hs.empty or not _tp.empty or not _ov.empty) else pd.DataFrame()
-        recruit_hist.columns = [str(c).strip() for c in recruit_hist.columns]
+                _ta_roster = pd.DataFrame()
 
-        cfp_hist = _load_first(['cfp_rankings_history.csv'])
-        cfp_hist.columns = [str(c).strip() for c in cfp_hist.columns]
-
-        # ── Standardize key sources ───────────────────────────────────────────
-        if not legacy_ratings.empty:
-            if 'USER' in legacy_ratings.columns:
-                legacy_ratings['USER'] = safe_title_series(legacy_ratings['USER'])
-            if 'TEAM' in legacy_ratings.columns:
-                legacy_ratings['TEAM'] = legacy_ratings['TEAM'].astype(str).str.strip()
-            _ry = _smart(legacy_ratings, ['YEAR', 'Year'])
-            if _ry:
-                legacy_ratings[_ry] = _safe_num(legacy_ratings[_ry]).astype('Int64')
-
-        if not preseason_exp.empty:
-            _py = _smart(preseason_exp, ['Year', 'YEAR'])
-            _pu = _smart(preseason_exp, ['User', 'USER'])
-            _pt = _smart(preseason_exp, ['Team', 'TEAM'])
-            if _py: preseason_exp[_py] = _safe_num(preseason_exp[_py]).astype('Int64')
-            if _pu: preseason_exp[_pu] = safe_title_series(preseason_exp[_pu])
-            if _pt: preseason_exp[_pt] = preseason_exp[_pt].astype(str).str.strip()
-
-        if not recruit_hist.empty:
-            _rhy = _smart(recruit_hist, ['Year', 'YEAR'])
-            _rht = _smart(recruit_hist, ['Team', 'TEAM'])
-            _rhu = _smart(recruit_hist, ['User', 'USER'])
-            _rhr = _smart(recruit_hist, ['Rank', 'RANK'])
-            if _rhy: recruit_hist[_rhy] = _safe_num(recruit_hist[_rhy]).astype('Int64')
-            if _rht: recruit_hist[_rht] = recruit_hist[_rht].astype(str).str.strip()
-            if _rhu: recruit_hist[_rhu] = safe_title_series(recruit_hist[_rhu])
-            if _rhr: recruit_hist[_rhr] = _safe_num(recruit_hist[_rhr])
-
-        if not cfp_hist.empty:
-            _cy = _smart(cfp_hist, ['YEAR', 'Year'])
-            _cw = _smart(cfp_hist, ['WEEK', 'Week'])
-            _ct = _smart(cfp_hist, ['TEAM', 'Team'])
-            _cr = _smart(cfp_hist, ['RANK', 'Rank'])
-            if _cy: cfp_hist[_cy] = _safe_num(cfp_hist[_cy]).astype('Int64')
-            if _cw: cfp_hist[_cw] = _safe_num(cfp_hist[_cw])
-            if _ct: cfp_hist[_ct] = cfp_hist[_ct].astype(str).str.strip()
-            if _cr: cfp_hist[_cr] = _safe_num(cfp_hist[_cr])
-
-        _score_year_col = _smart(legacy_scores, ['YEAR', 'Year'])
-        if _score_year_col:
-            legacy_scores[_score_year_col] = _safe_num(legacy_scores[_score_year_col]).astype('Int64')
-        for _uc in ['V_User_Final', 'H_User_Final']:
-            if _uc in legacy_scores.columns:
-                legacy_scores[_uc] = safe_title_series(legacy_scores[_uc])
-        for _tc in ['Visitor_Final', 'Home_Final']:
-            if _tc in legacy_scores.columns:
-                legacy_scores[_tc] = legacy_scores[_tc].astype(str).str.strip()
-
-        _champ_year_col = _smart(legacy_champs, ['Year', 'YEAR'])
-        _champ_user_col = _smart(legacy_champs, ['user', 'User'])
-        _champ_team_col = _smart(legacy_champs, ['Team', 'TEAM'])
-        if _champ_year_col: legacy_champs[_champ_year_col] = _safe_num(legacy_champs[_champ_year_col]).astype('Int64')
-        if _champ_user_col: legacy_champs[_champ_user_col] = safe_title_series(legacy_champs[_champ_user_col])
-        if _champ_team_col: legacy_champs[_champ_team_col] = legacy_champs[_champ_team_col].astype(str).str.strip()
-
-        _coty_year_col = _smart(legacy_coty, ['Year', 'YEAR'])
-        _coty_user_col = _smart(legacy_coty, ['User', 'USER'])
-        _coty_team_col = _smart(legacy_coty, ['Team', 'TEAM', 'School'])
-        if _coty_year_col: legacy_coty[_coty_year_col] = _safe_num(legacy_coty[_coty_year_col]).astype('Int64')
-        if _coty_user_col: legacy_coty[_coty_user_col] = safe_title_series(legacy_coty[_coty_user_col])
-        if _coty_team_col: legacy_coty[_coty_team_col] = legacy_coty[_coty_team_col].astype(str).str.strip()
-
-        # ── Coach options from ratings first, then scores fallback ────────────
-        coach_options = []
-        if not legacy_ratings.empty and 'USER' in legacy_ratings.columns:
-            coach_options.extend([u for u in legacy_ratings['USER'].dropna().astype(str).unique() if u and u.lower() != 'nan'])
-        if not legacy_scores.empty:
-            for _c in ['V_User_Final', 'H_User_Final']:
-                if _c in legacy_scores.columns:
-                    coach_options.extend([u for u in legacy_scores[_c].dropna().astype(str).unique() if u and u.upper() != 'CPU' and u.lower() != 'nan'])
-        coach_options = sorted(pd.unique(pd.Series(coach_options)).tolist())
-
-        if not coach_options:
-            st.warning("Coach Legacy needs TeamRatingsHistory.csv and CPUscores_MASTER.csv.")
-            st.stop()
-
-        left_sel, right_sel = st.columns([1.2, 1.0])
-        with left_sel:
-            target = st.selectbox("Select Coach", coach_options, key="coach_legacy_user")
-        with right_sel:
-            view_mode = st.radio("View", ["Career View", "Single Season View"], horizontal=True, key="coach_legacy_view")
-
-        _coach_ratings = legacy_ratings[legacy_ratings['USER'] == target].copy() if 'USER' in legacy_ratings.columns else pd.DataFrame()
-        _coach_ratings = _coach_ratings.sort_values(_smart(_coach_ratings, ['YEAR', 'Year']) or 'YEAR') if not _coach_ratings.empty else _coach_ratings
-
-        # Build year -> team map from historical game results first, then supplement with ratings
-        _year_team = {}
-        if not legacy_scores.empty and _score_year_col is not None:
-            _score_slice = legacy_scores[legacy_scores[_score_year_col].notna()].copy()
-            _mask = pd.Series(False, index=_score_slice.index)
-            if 'V_User_Final' in _score_slice.columns:
-                _mask = _mask | (_score_slice['V_User_Final'] == target)
-            if 'H_User_Final' in _score_slice.columns:
-                _mask = _mask | (_score_slice['H_User_Final'] == target)
-            _score_slice = _score_slice[_mask].copy()
-            if not _score_slice.empty:
-                _teams = []
-                for _, _r in _score_slice.iterrows():
-                    try:
-                        _yr = int(_r.get(_score_year_col))
-                    except Exception:
-                        continue
-                    if str(_r.get('H_User_Final', '')) == target:
-                        _tm = str(_r.get('Home_Final', '')).strip()
-                    elif str(_r.get('V_User_Final', '')) == target:
-                        _tm = str(_r.get('Visitor_Final', '')).strip()
-                    else:
-                        _tm = ''
-                    if _tm and _tm.lower() != 'nan':
-                        _teams.append((_yr, _tm))
-                if _teams:
-                    _yt = pd.DataFrame(_teams, columns=['Year', 'Team'])
-                    for _yr, _grp in _yt.groupby('Year'):
-                        try:
-                            _year_team[int(_yr)] = str(_grp['Team'].mode().iloc[0]).strip()
-                        except Exception:
-                            pass
-
-        # supplement missing years from TeamRatingsHistory
-        _rating_year_col = _smart(_coach_ratings, ['YEAR', 'Year'])
-        if not _coach_ratings.empty and _rating_year_col and 'TEAM' in _coach_ratings.columns:
-            for _yr, _grp in _coach_ratings.groupby(_rating_year_col):
-                try:
-                    _year_team.setdefault(int(_yr), str(_grp['TEAM'].mode().iloc[0]).strip())
-                except Exception:
-                    pass
-
-        # fall back to current visible team if needed
-        if not _year_team and 'model_2041' in globals() and isinstance(model_2041, pd.DataFrame):
-            _m = model_2041[model_2041['USER'] == target]
-            if not _m.empty:
-                _year_team[int(CURRENT_YEAR)] = str(_m.iloc[0].get('TEAM', '')).strip()
-
-        _coach_years = sorted(_year_team.keys())
-        if not _coach_years:
-            st.warning("No career years were found for this coach in TeamRatingsHistory.csv.")
-            st.stop()
-
-        # helper: season games for coach/year
-        def _coach_games_for_year(_coach, _yr):
-            if legacy_scores.empty or _score_year_col is None:
-                return pd.DataFrame()
-            _s = legacy_scores[legacy_scores[_score_year_col] == int(_yr)].copy()
-            _mask = False
-            if 'V_User_Final' in _s.columns:
-                _mask = _mask | (_s['V_User_Final'] == _coach)
-            if 'H_User_Final' in _s.columns:
-                _mask = _mask | (_s['H_User_Final'] == _coach)
-            _g = _s[_mask].copy()
-            return _g
-
-        def _rank_lookup(_team, _yr):
-            if cfp_hist.empty:
-                return np.nan
-            _cy = _smart(cfp_hist, ['YEAR', 'Year']); _cw = _smart(cfp_hist, ['WEEK', 'Week'])
-            _ct = _smart(cfp_hist, ['TEAM', 'Team']); _cr = _smart(cfp_hist, ['RANK', 'Rank'])
-            if None in [_cy, _ct, _cr]:
-                return np.nan
-            _slice = cfp_hist[cfp_hist[_cy] == int(_yr)].copy()
-            if _slice.empty:
-                return np.nan
-            if _cw and _cw in _slice.columns:
-                _wk = _slice[_cw].dropna().max()
-                if pd.notna(_wk):
-                    _slice = _slice[_slice[_cw] == _wk].copy()
-            _row = _slice[_slice[_ct] == str(_team).strip()]
-            if _row.empty:
-                return np.nan
-            return _safe_num(_row.iloc[0][_cr])
-
-        def _schedule_df(_coach, _yr):
-            _g = _coach_games_for_year(_coach, _yr).copy()
-            if _g.empty:
-                return pd.DataFrame()
-            _rows = []
-            for _, _r in _g.iterrows():
-                _is_home = str(_r.get('H_User_Final', '')) == _coach
-                _team = str(_r.get('Home_Final' if _is_home else 'Visitor_Final', '')).strip()
-                _opp = str(_r.get('Visitor_Final' if _is_home else 'Home_Final', '')).strip()
-                _team_pts = _safe_num(pd.Series([_r.get('H_Pts' if _is_home else 'V_Pts', np.nan)])).iloc[0]
-                _opp_pts = _safe_num(pd.Series([_r.get('V_Pts' if _is_home else 'H_Pts', np.nan)])).iloc[0]
-                _res = 'W' if pd.notna(_team_pts) and pd.notna(_opp_pts) and _team_pts > _opp_pts else 'L'
-                _wk_col = _smart(_g, ['Week', 'WEEK'])
-                _week = _r.get(_wk_col, '') if _wk_col else ''
-                _opp_rank = _rank_lookup(_opp, _yr)
-                _rows.append({
-                    'Week': _week,
-                    'Team': _team,
-                    'Opponent': _opp,
-                    'Opponent Rank': (int(_opp_rank) if pd.notna(_opp_rank) else ''),
-                    'Result': _res,
-                    'Score': f"{int(_team_pts)}-{int(_opp_pts)}" if pd.notna(_team_pts) and pd.notna(_opp_pts) else '—',
-                    'Margin': (float(_team_pts) - float(_opp_pts)) if pd.notna(_team_pts) and pd.notna(_opp_pts) else np.nan,
-                })
-            _df = pd.DataFrame(_rows)
-            if 'Week' in _df.columns:
-                try:
-                    _df['Week_Sort'] = _safe_num(_df['Week'])
-                except Exception:
-                    _df['Week_Sort'] = np.nan
-                _df = _df.sort_values(['Week_Sort', 'Opponent'], na_position='last').drop(columns=['Week_Sort'])
-            return _df
-
-        def _season_metrics(_coach, _yr):
-            _games = _schedule_df(_coach, _yr)
-            _team = _year_team.get(int(_yr), '')
-            _wins = int((_games['Result'] == 'W').sum()) if not _games.empty else 0
-            _losses = int((_games['Result'] == 'L').sum()) if not _games.empty else 0
-            _ppg = np.nan
-            _avg_margin = np.nan
-            if not _games.empty:
-                _pts_for = []
-                _margins = []
-                for _s in _games['Score']:
-                    try:
-                        _a, _b = str(_s).split('-')
-                        _pts_for.append(float(_a))
-                    except Exception:
-                        pass
-                if _pts_for:
-                    _ppg = round(float(np.mean(_pts_for)), 1)
-                if 'Margin' in _games.columns and _games['Margin'].notna().any():
-                    _avg_margin = round(float(_games['Margin'].mean()), 1)
-
-            # SOS: mean opponent rank strength among ranked teams, lower rank = harder
-            _rank_vals = _safe_num(_games['Opponent Rank']) if ('Opponent Rank' in _games.columns) else pd.Series(dtype=float)
-            if not _rank_vals.empty and _rank_vals.notna().any():
-                _sos = round(float((26 - _rank_vals.clip(lower=1, upper=25)).fillna(0).mean()), 1)
+        if not _ta_roster.empty:
+            _ta_roster['SPD'] = pd.to_numeric(_ta_roster['SPD'], errors='coerce')
+            _ta_roster['ACC'] = pd.to_numeric(_ta_roster['ACC'], errors='coerce')
+            _ta_roster['AGI'] = pd.to_numeric(_ta_roster.get('AGI', pd.Series(dtype=float)), errors='coerce')
+            _ta_roster['COD'] = pd.to_numeric(_ta_roster.get('COD', pd.Series(dtype=float)), errors='coerce')
+            if 'REDSHIRT' in _ta_roster.columns:
+                _ta_roster['REDSHIRT'] = pd.to_numeric(_ta_roster['REDSHIRT'], errors='coerce').fillna(0).astype(int)
+                _ta_active = _ta_roster[_ta_roster['REDSHIRT'] == 0].copy()
             else:
-                _sos = np.nan
+                _ta_active = _ta_roster.copy()
+            _ta_tdf   = _ta_active[_ta_active['Team'] == _ta_team]
+            _ta_off   = _ta_tdf[_ta_tdf['Pos'].isin(_TA_OFF_POS)]
+            _ta_def   = _ta_tdf[_ta_tdf['Pos'].isin(_TA_DEF_POS)]
+            _live_spd   = int((_ta_tdf['SPD'] >= 90).sum())
+            _live_offspd= int((_ta_off['SPD'] >= 90).sum())
+            _live_defspd= int((_ta_def['SPD'] >= 90).sum())
+            _live_q90   = int(((_ta_tdf['SPD'] >= 90) & (_ta_tdf['ACC'] >= 90)
+                               & (_ta_tdf['AGI'] >= 90) & (_ta_tdf['COD'] >= 90)).sum())
+            _live_gen   = int(((_ta_tdf['SPD'] >= 96) | (_ta_tdf['ACC'] >= 96)).sum())
+            _live_score = round((_live_spd * 2.2 + _live_offspd * 1.0 + _live_defspd * 1.0
+                                 + _live_q90 * 2.5) * (1 + _live_gen * 0.16 + _live_q90 * 0.07), 1)
+            _live_mph   = str(team_speed_to_mph(_live_score))
+            _speed_from_live = not _ta_tdf.empty
+        else:
+            _live_spd = int(pd.to_numeric(row.get('Team Speed (90+ Speed Guys)', 0), errors='coerce') or 0)
+            _live_offspd = int(pd.to_numeric(row.get('Off Speed (90+ speed)', 0), errors='coerce') or 0)
+            _live_defspd = int(pd.to_numeric(row.get('Def Speed (90+ speed)', 0), errors='coerce') or 0)
+            _live_q90   = int(pd.to_numeric(row.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0), errors='coerce') or 0)
+            _live_gen   = int(pd.to_numeric(row.get('Generational (96+ speed or 96+ Acceleration)', 0), errors='coerce') or 0)
+            _live_mph   = str(row.get('Speedometer', '—'))
+            _speed_from_live = False
 
-            # Hardest path heuristic
-            _ranked = int((_rank_vals.notna()).sum()) if not _rank_vals.empty else 0
-            _top10 = int((_rank_vals <= 10).sum()) if not _rank_vals.empty else 0
-            _top5 = int((_rank_vals <= 5).sum()) if not _rank_vals.empty else 0
-            _path = round((_ranked * 7) + (_top10 * 6) + (_top5 * 5) + (_wins * 1.5), 1)
+        # ── Odds (preseason model = same as Dynasty News) ─────────────────────
+        _natty_val    = float(pd.to_numeric(row.get('Preseason Natty Odds', row.get('Natty Odds', 0)), errors='coerce') or 0)
+        _cfp_make_val = float(pd.to_numeric(row.get('CFP Make %', row.get('CFP Odds', 0)), errors='coerce') or 0)
+        _pi_val       = float(pd.to_numeric(row.get('Preseason PI', row.get('Power Index', 0)), errors='coerce') or 0)
+        _proj_wins    = row.get('Projected Wins', '—')
+        _rec_sc       = float(pd.to_numeric(row.get('Recruit Score', 0), errors='coerce') or 0)
+        _imp          = float(pd.to_numeric(row.get('Improvement', 0), errors='coerce') or 0)
+        _bcr          = float(pd.to_numeric(row.get('BCR_Val', 0), errors='coerce') or 0)
+        _sos_val      = float(pd.to_numeric(row.get('SOS', 0), errors='coerce') or 0)
+        _res_val      = float(pd.to_numeric(row.get('Resume Score', 0), errors='coerce') or 0)
+        _ovr_val      = float(pd.to_numeric(row.get('OVERALL', 0), errors='coerce') or 0)
+        _off_val      = float(pd.to_numeric(row.get('OFFENSE', 0), errors='coerce') or 0)
+        _def_val      = float(pd.to_numeric(row.get('DEFENSE', 0), errors='coerce') or 0)
 
-            if _path >= 90:
-                _tier = "Historic"
-            elif _path >= 65:
-                _tier = "Brutal"
-            elif _path >= 40:
-                _tier = "Tough"
-            else:
-                _tier = "Manageable"
-
-            _final_rank = _rank_lookup(_team, _yr)
-            # champions should show #1
-            if not legacy_champs.empty and _champ_year_col and _champ_user_col:
-                _champ_slice = legacy_champs[(legacy_champs[_champ_year_col] == int(_yr)) & (legacy_champs[_champ_user_col] == _coach)]
-                if not _champ_slice.empty:
-                    _final_rank = 1
-
-            # preseason row
-            _proj = _natty = _cfp = np.nan
-            if not preseason_exp.empty:
-                _py = _smart(preseason_exp, ['Year', 'YEAR']); _pu = _smart(preseason_exp, ['User', 'USER']); _pt = _smart(preseason_exp, ['Team', 'TEAM'])
-                _pr = preseason_exp.copy()
-                if _py and _pu and _pt:
-                    _pr = _pr[(_pr[_py] == int(_yr)) & (_pr[_pu] == _coach) & (_pr[_pt] == str(_team).strip())]
-                    if _pr.empty:
-                        _pr = preseason_exp[(preseason_exp[_py] == int(_yr)) & (preseason_exp[_pu] == _coach)]
-                    if _pr.empty:
-                        _pr = preseason_exp[(preseason_exp[_py] == int(_yr)) & (preseason_exp[_pt] == str(_team).strip())]
-                    if not _pr.empty:
-                        _r0 = _pr.iloc[0]
-                        _proj = _safe_num(pd.Series([_r0.get(_smart(preseason_exp, ['ProjectedWins']), np.nan)])).iloc[0] if _smart(preseason_exp, ['ProjectedWins']) else np.nan
-                        _cfp = _safe_num(pd.Series([_r0.get(_smart(preseason_exp, ['CFPOdds', 'CFP Odds']), np.nan)])).iloc[0] if _smart(preseason_exp, ['CFPOdds', 'CFP Odds']) else np.nan
-                        _natty = _safe_num(pd.Series([_r0.get(_smart(preseason_exp, ['NattyOdds', 'Natty Odds']), np.nan)])).iloc[0] if _smart(preseason_exp, ['NattyOdds', 'Natty Odds']) else np.nan
-
-            # recruiting ranks
-            _rec_over = _rec_hs = _rec_tp = np.nan
-            if not recruit_hist.empty:
-                _ry = _smart(recruit_hist, ['Year', 'YEAR']); _rt = _smart(recruit_hist, ['Team', 'TEAM']); _rr = _smart(recruit_hist, ['Rank', 'RANK']); _rc = _smart(recruit_hist, ['ClassType'])
-                _rh = recruit_hist.copy()
-                if _ry and _rt and _rr:
-                    _rh = _rh[(_rh[_ry] == int(_yr)) & (_rh[_rt] == str(_team).strip())]
-                    if not _rh.empty:
-                        if _rc and _rc in _rh.columns:
-                            def _rank_for(_lab):
-                                _m = _rh[_rh[_rc].astype(str).str.upper() == _lab]
-                                if _m.empty: return np.nan
-                                return _safe_num(pd.Series([_m.iloc[0][_rr]])).iloc[0]
-                            _rec_over = _rank_for('OVERALL')
-                            _rec_hs = _rank_for('HS')
-                            _rec_tp = _rank_for('TRANSFER')
-                        elif not _rh.empty:
-                            _rec_over = _safe_num(pd.Series([_rh.iloc[0][_rr]])).iloc[0]
-
-            # COTY
-            _coty_flag = False
-            if not legacy_coty.empty and _coty_year_col and _coty_user_col:
-                _coty_flag = not legacy_coty[(legacy_coty[_coty_year_col] == int(_yr)) & (legacy_coty[_coty_user_col] == _coach)].empty
-
-            return {
-                'Year': int(_yr),
-                'School': _team,
-                'Record': f"{_wins}-{_losses}",
-                'Wins': _wins,
-                'Losses': _losses,
-                'SOS': _sos,
-                'Hardest Path': _path,
-                'Path Tier': _tier,
-                'Final Rank': (int(_final_rank) if pd.notna(_final_rank) else np.nan),
-                'Recruiting Overall': _rec_over,
-                'Recruiting HS': _rec_hs,
-                'Recruiting Transfer': _rec_tp,
-                'Preseason Natty Odds': _natty,
-                'Preseason CFP Odds': _cfp,
-                'Projected Wins': _proj,
-                'Actual Wins': _wins,
-                'PPG': _ppg,
-                'Avg Margin': _avg_margin,
-                'Coach of the Year': "Yes" if _coty_flag else "",
-            }
-
-        _legacy_rows = [_season_metrics(target, _yr) for _yr in _coach_years]
-        legacy_df = pd.DataFrame(_legacy_rows).sort_values('Year')
-
-        def _sos_tier(x):
-            try:
-                x = float(x)
-            except Exception:
-                return "—"
-            if x < 4:
-                return "Soft"
-            if x < 6:
-                return "Manageable"
-            if x < 8:
-                return "Solid"
-            if x < 10:
-                return "Tough"
-            return "Brutal"
-
-        def _path_tier_from_score(x):
-            try:
-                x = float(x)
-            except Exception:
-                return "—"
-            if x < 25:
-                return "Manageable"
-            if x < 50:
-                return "Tough"
-            if x < 75:
-                return "Brutal"
-            return "Historic"
-
-        if not legacy_df.empty:
-            legacy_df['SOS Tier'] = legacy_df['SOS'].apply(_sos_tier) if 'SOS' in legacy_df.columns else "—"
-            if 'Path Tier' not in legacy_df.columns and 'Hardest Path' in legacy_df.columns:
-                legacy_df['Path Tier'] = legacy_df['Hardest Path'].apply(_path_tier_from_score)
-
-        # ── Career cards ───────────────────────────────────────────────────────
-        _schools = [str(t).strip() for t in pd.Series(list(_year_team.values())).dropna().unique() if str(t).strip()]
-        _career_w = int(legacy_df['Wins'].sum()) if not legacy_df.empty else 0
-        _career_l = int(legacy_df['Losses'].sum()) if not legacy_df.empty else 0
-        _natties = 0
-        if not legacy_champs.empty and _champ_user_col:
-            _natties = int((legacy_champs[_champ_user_col] == target).sum())
-        _avg_sos = round(float(legacy_df['SOS'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['SOS'].dropna().any() else np.nan
-        _avg_path = round(float(legacy_df['Hardest Path'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['Hardest Path'].dropna().any() else np.nan
-        _avg_vs_proj = round(float((legacy_df['Actual Wins'].fillna(0) - legacy_df['Projected Wins'].fillna(0)).mean()), 1) if not legacy_df.empty and 'Projected Wins' in legacy_df.columns else np.nan
-
+        # ── Top metrics strip ─────────────────────────────────────────────────
         mobile_metrics([
-            {"label": "🏫 Schools", "value": str(len(_schools))},
-            {"label": "📘 Career Record", "value": f"{_career_w}-{_career_l}"},
-            {"label": "🏆 Natties", "value": str(_natties)},
-            {"label": "📐 AVG SOS", "value": f"{_avg_sos:.1f} • {_sos_tier(_avg_sos)}" if pd.notna(_avg_sos) else "—"},
-            {"label": "🪓 AVG PATH", "value": f"{_avg_path:.1f} • {_path_tier_from_score(_avg_path)}" if pd.notna(_avg_path) else "—"},
-            {"label": "📈 VS PROJ WINS", "value": f"{_avg_vs_proj:+.1f}" if pd.notna(_avg_vs_proj) else "—"},
+            {"label": "🏆 Natty Odds",   "value": f"{_natty_val:.1f}%"},
+            {"label": "🎯 CFP Make %",   "value": f"{_cfp_make_val:.1f}%"},
+            {"label": "⚡ Preseason PI", "value": str(_pi_val)},
+            {"label": "📈 Proj Wins",    "value": str(_proj_wins)},
         ])
 
-        st.markdown("### Coaching Stops")
-        _stop_cols = st.columns(max(1, min(4, len(_schools))))
-        for i, _school in enumerate(_schools):
-            _school_years = sorted([y for y, t in _year_team.items() if str(t).strip() == _school])
-            _school_titles = 0
-            if not legacy_champs.empty and _champ_year_col and _champ_user_col and _champ_team_col:
-                _school_titles = int(len(legacy_champs[
-                    (legacy_champs[_champ_user_col] == target) &
-                    (legacy_champs[_champ_team_col] == _school)
-                ]))
-            with _stop_cols[i % len(_stop_cols)]:
-                _uri = image_file_to_data_uri(get_logo_source(_school)) if 'image_file_to_data_uri' in globals() else None
-                if _uri:
-                    st.markdown(f"<div style='text-align:center;'><img src='{_uri}' style='height:72px;object-fit:contain;'/></div>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<div style='text-align:center;font-size:2rem;'>🏫</div>", unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center;font-size:1.2rem;font-weight:800;margin-top:4px;'>{html.escape(_school)}</div>", unsafe_allow_html=True)
-                _yr_text = f"{min(_school_years)}-{max(_school_years)}" if len(_school_years) > 1 else str(_school_years[0])
-                st.markdown(f"<div style='text-align:center;color:#9ca3af;margin-top:2px;'>{_yr_text}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center;color:#cbd5e1;margin-top:10px;'>Titles: {_school_titles}</div>", unsafe_allow_html=True)
+        st.markdown("---")
 
-        st.markdown("### 🗓️ Year-by-Year Legacy")
-        _display_df = legacy_df.copy()
-        for _col in ['Preseason Natty Odds', 'Preseason CFP Odds', 'SOS', 'Hardest Path', 'Final Rank', 'Recruiting Overall', 'Recruiting HS', 'Recruiting Transfer', 'Projected Wins']:
-            if _col in _display_df.columns:
-                _display_df[_col] = _display_df[_col].where(_display_df[_col].notna(), None)
-        st.dataframe(
-            _display_df[['Year','School','Record','Preseason Natty Odds','Preseason CFP Odds','SOS','SOS Tier','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']],
-            use_container_width=True,
-            hide_index=True
+        # ── Team Identity card ────────────────────────────────────────────────
+        _logo_uri   = image_file_to_data_uri(get_logo_source(_ta_team))
+        _logo_img   = (f"<img src='{_logo_uri}' style='width:60px;height:60px;object-fit:contain;'/>"
+                       if _logo_uri else "<span style='font-size:36px;'>🏈</span>")
+        _cfp_rank_d = (f"#{int(_live_cfp_rank)}" if _live_cfp_rank is not None else "NR")
+        _stock      = str(row.get('Program Stock', '—'))
+        _conf       = str(row.get('CONFERENCE', ''))
+        _record_d   = (f"{int(_live_record_w)}-{int(_live_record_l)}"
+                       if _live_record_w is not None and _live_record_l is not None
+                       else f"{wins}-{losses}")
+        _cc = {'SEC':('#fbbf24','#78350f'),'B1G':('#60a5fa','#1e3a5f'),
+               'ACC':('#a78bfa','#3b1d6e'),'Big 12':('#f97316','#431407')}.get(_conf, ('#6b7280','#1f2937'))
+
+        st.markdown(
+            f"<div style='background:linear-gradient(135deg,{_ta_tc}22,#0f172a);"
+            f"border:1px solid {_ta_tc}44;border-left:5px solid {_ta_tc};"
+            f"border-radius:14px;padding:16px 18px;margin-bottom:12px;'>"
+            f"<div style='display:flex;align-items:center;gap:14px;flex-wrap:wrap;'>"
+            f"{_logo_img}"
+            f"<div style='flex:1;min-width:160px;'>"
+            f"<div style='font-size:1.2rem;font-weight:900;color:{_ta_tc};'>{html.escape(_ta_team)}</div>"
+            f"<div style='font-size:0.78rem;color:#9ca3af;margin-top:2px;'>{html.escape(target)}"
+            f"<span style='display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;"
+            f"font-size:0.65rem;font-weight:800;background:{_cc[1]};color:{_cc[0]};"
+            f"border:1px solid {_cc[0]}44;'>{html.escape(_conf)}</span></div></div>"
+            f"<div style='display:flex;gap:16px;flex-wrap:wrap;'>"
+            f"<div style='text-align:center;'>"
+            f"<div style='font-weight:900;color:#f1f5f9;font-size:1.1rem;'>{_record_d}</div>"
+            f"<div style='color:#475569;font-size:0.65rem;'>RECORD</div></div>"
+            f"<div style='text-align:center;'>"
+            f"<div style='font-weight:900;color:#fbbf24;font-size:1.1rem;'>{_cfp_rank_d}</div>"
+            f"<div style='color:#475569;font-size:0.65rem;'>CFP RK</div></div>"
+            f"<div style='text-align:center;'>"
+            f"<div style='font-weight:900;color:#34d399;font-size:1.1rem;'>{html.escape(_stock)}</div>"
+            f"<div style='color:#475569;font-size:0.65rem;'>STOCK</div></div>"
+            f"</div></div></div>",
+            unsafe_allow_html=True
         )
 
-        # Selected season controls
-        _default_year = int(legacy_df['Year'].max()) if not legacy_df.empty else int(CURRENT_YEAR)
-        if view_mode == "Single Season View":
-            selected_year = st.selectbox("Season Detail", list(legacy_df['Year'].astype(int).tolist()), index=max(0, len(legacy_df)-1), key="coach_legacy_year")
+        # ── QB Profile card ───────────────────────────────────────────────────
+        st.subheader("🎯 QB Profile")
+        _qb_player  = str(row.get('QB_Player', ''))
+        _qb_tier    = str(row.get('QB Tier', '—'))
+        _qb_ovr_raw = int(pd.to_numeric(
+            row.get('QB_OVR_CSV', row.get('QB OVR', 0)), errors='coerce') or 0)
+        _has_qb_csv = bool(_qb_player and _qb_player not in ('', 'nan', 'None'))
+
+        if _has_qb_csv:
+            _qb_arch   = str(row.get('QB_Archetype', '—'))
+            _qb_class  = str(row.get('QB_Class', '—'))
+            _qb_stars  = int(pd.to_numeric(row.get('QB_Stars', 0), errors='coerce') or 0)
+            _qb_ht     = str(row.get('QB_Height', ''))
+            _qb_wt     = str(row.get('QB_Weight', ''))
+            _qb_home   = str(row.get('QB_Hometown', ''))
+            _qb_pipe   = str(row.get('QB_Pipeline', ''))
+            _qb_ment   = str(row.get('QB_Mentals', ''))
+            _qb_phys   = str(row.get('QB_Physicals', ''))
+            _qb_drank  = row.get('QB_Dynasty_Rank', None)
+            _star_str  = '⭐' * min(_qb_stars, 5) if _qb_stars > 0 else ''
+            _qtc = {'Elite':('#22c55e','#0d2010'),'Leader':('#60a5fa','#0d1829'),
+                    'Average Joe':('#fbbf24','#1c1400'),'Ass':('#ef4444','#200808')}.get(
+                        _qb_tier, ('#6b7280','#1f2937'))
+            _ovc = "#22c55e" if _qb_ovr_raw >= 90 else (
+                   "#60a5fa" if _qb_ovr_raw >= 86 else (
+                   "#fbbf24" if _qb_ovr_raw >= 80 else "#f87171"))
+            _rank_badge = (
+                f"<span style='padding:2px 7px;border-radius:999px;font-size:0.68rem;"
+                f"font-weight:700;background:#1e293b;color:#94a3b8;'>"
+                f"#{int(_qb_drank)} QB in dynasty</span>"
+                if pd.notna(_qb_drank) else "")
+
+            def _chips(trait_str, accent):
+                out = ""
+                for t in [x.strip() for x in str(trait_str).split(';')
+                          if x.strip() and x.strip() not in ('', 'None', 'nan')]:
+                    out += (f"<span style='display:inline-block;padding:2px 8px;margin:2px;"
+                            f"border-radius:999px;font-size:0.65rem;font-weight:700;"
+                            f"background:{accent}22;color:{accent};border:1px solid {accent}44;'>"
+                            f"{html.escape(t)}</span>")
+                return out or f"<span style='color:#475569;font-size:0.72rem;'>None</span>"
+
+            _ht_line = (f" &middot; {html.escape(_qb_ht)} / {html.escape(str(_qb_wt))} lbs"
+                        if _qb_ht and _qb_ht not in ('', 'nan') else "")
+            _loc_line = (f"{html.escape(_qb_home)} &middot; {html.escape(_qb_pipe)}"
+                         if _qb_home and _qb_home not in ('', 'nan') else "")
+
+            st.markdown(
+                f"<div style='background:linear-gradient(135deg,{_ta_tc}18,#0f172a);"
+                f"border:1px solid {_ta_tc}33;border-radius:12px;padding:14px 16px;margin-bottom:8px;'>"
+                f"<div style='display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;'>"
+                f"<div style='min-width:140px;flex:1;'>"
+                f"<div style='font-size:1.05rem;font-weight:900;color:#f1f5f9;'>{html.escape(_qb_player)}</div>"
+                f"<div style='font-size:0.72rem;color:#9ca3af;margin-top:2px;'>"
+                f"{html.escape(_qb_class)}{_ht_line}</div>"
+                f"<div style='font-size:0.72rem;color:#64748b;'>{_loc_line}</div>"
+                f"<div style='margin-top:6px;'><span style='font-size:0.7rem;color:#fbbf24;'>"
+                f"{_star_str}</span></div></div>"
+                f"<div style='display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;'>"
+                f"<div style='font-size:1.8rem;font-weight:900;color:{_ovc};line-height:1;'>"
+                f"{_qb_ovr_raw}<span style='font-size:0.65rem;color:#475569;margin-left:3px;'>OVR</span></div>"
+                f"<span style='padding:3px 10px;border-radius:999px;font-size:0.7rem;font-weight:800;"
+                f"background:{_qtc[1]};color:{_qtc[0]};border:1px solid {_qtc[0]}44;'>"
+                f"{html.escape(_qb_tier)}</span>"
+                f"{_rank_badge}</div></div>"
+                f"<div style='margin-top:10px;border-top:1px solid #1e293b;padding-top:10px;'>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;font-weight:700;"
+                f"margin-bottom:4px;'>ARCHETYPE &mdash; {html.escape(_qb_arch)}</div>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;"
+                f"font-weight:700;margin-bottom:4px;'>MENTALS</div>"
+                f"<div style='margin-bottom:8px;'>{_chips(_qb_ment, '#60a5fa')}</div>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.06em;"
+                f"font-weight:700;margin-bottom:4px;'>PHYSICALS</div>"
+                f"<div>{_chips(_qb_phys, '#34d399')}</div></div></div>",
+                unsafe_allow_html=True
+            )
         else:
-            selected_year = st.selectbox("Season Detail", list(legacy_df['Year'].astype(int).tolist()), index=max(0, len(legacy_df)-1), key="coach_legacy_year_cv")
+            st.info(f"QB: {_qb_tier} tier &middot; {_qb_ovr_raw} OVR "
+                    f"— add QBprofileData.csv and QB_power_rankingsData.csv to the repo for full scouting card.")
 
-        _season_row = legacy_df[legacy_df['Year'] == int(selected_year)].iloc[0]
-        _season_team = str(_season_row['School'])
-        st.markdown(f"## 🧭 Selected Season: {int(selected_year)} {_season_team}")
+        st.markdown("---")
 
+        # ── Speed Stats banner (live) ─────────────────────────────────────────
+        _src_note = ("📡 Live from roster CSV" if _speed_from_live
+                     else "⚠️ Roster CSV unavailable — using TeamRatingsHistory values")
+        st.caption(_src_note)
         mobile_metrics([
-            {"label": "📘 Record", "value": str(_season_row['Record'])},
-            {"label": "📐 SOS", "value": f"{float(_season_row['SOS']):.1f}" if pd.notna(_season_row['SOS']) else "—"},
-            {"label": "🪓 Hardest Path", "value": f"{float(_season_row['Hardest Path']):.1f}" if pd.notna(_season_row['Hardest Path']) else "—"},
-            {"label": "🏷️ Path Tier", "value": str(_season_row['Path Tier'])},
-            {"label": "🏆 Natty Odds", "value": f"{float(_season_row['Preseason Natty Odds']):.1f}%" if pd.notna(_season_row['Preseason Natty Odds']) else "—"},
-            {"label": "🎯 CFP Odds", "value": f"{float(_season_row['Preseason CFP Odds']):.1f}%" if pd.notna(_season_row['Preseason CFP Odds']) else "—"},
-            {"label": "📈 Proj Wins", "value": f"{float(_season_row['Projected Wins']):.1f}" if pd.notna(_season_row['Projected Wins']) else "—"},
-            {"label": "✅ Actual Wins", "value": str(int(_season_row['Actual Wins'])) if pd.notna(_season_row['Actual Wins']) else "—"},
+            {"label": "⚡ 90+ SPD",    "value": str(_live_spd)},
+            {"label": "🏈 Off Speed",  "value": str(_live_offspd)},
+            {"label": "🛡 Def Speed",  "value": str(_live_defspd)},
+            {"label": "🔷 Quad 90",   "value": str(_live_q90)},
+            {"label": "👽 Gen Freaks", "value": str(_live_gen)},
+            {"label": "🏎 Speedo",    "value": f"{_live_mph} MPH"},
+        ], cols_desktop=6)
+
+        st.markdown("---")
+
+        # ── Two-column: MVP + Coach ───────────────────────────────────────────
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("⭐ MVP Profile")
+            _mvp_name = str(row.get('⭐ STAR SKILL GUY (Top OVR)', '—'))
+            _mvp_gen  = str(row.get('Star Skill Guy is Generational Speed?', '—'))
+            _mvp_color = "#fbbf24" if str(_mvp_gen).lower() in ('yes','true','1') else "#94a3b8"
+            st.markdown(
+                f"<div style='background:#111827;border:1px solid #374151;"
+                f"border-radius:10px;padding:12px 14px;margin-bottom:8px;'>"
+                f"<div style='font-size:0.65rem;color:#64748b;letter-spacing:.07em;"
+                f"font-weight:700;margin-bottom:4px;'>TOP SKILL GUY</div>"
+                f"<div style='font-weight:900;color:#f1f5f9;font-size:1rem;'>"
+                f"{html.escape(_mvp_name)}</div>"
+                f"<div style='margin-top:4px;'>"
+                f"<span style='font-size:0.72rem;font-weight:700;color:{_mvp_color};'>"
+                f"{'⚡ Generational Speed' if str(_mvp_gen).lower() in ('yes','true','1') else 'Standard athlete'}"
+                f"</span></div></div>",
+                unsafe_allow_html=True
+            )
+            st.write(generate_mvp_backstory(row))
+            mobile_metrics([
+                {"label": "💎 BCR",       "value": f"{_bcr:.0f}%"},
+                {"label": "📈 Recruit",   "value": f"{_rec_sc:.0f}"},
+                {"label": "📊 Improve",   "value": f"{_imp:+.1f}"},
+            ], cols_desktop=3)
+
+        with c2:
+            _coach_row = stats[stats['User'] == target]
+            coach_stats_row = _coach_row.iloc[0] if not _coach_row.empty else pd.Series()
+            _coach_rec_row = pd.Series(dtype=object)
+            if 'coach_records' in locals() and coach_records is not None and not coach_records.empty:
+                _rec_match = coach_records[coach_records['USER'].astype(str).str.strip() == str(target).strip()].copy() if 'USER' in coach_records.columns else pd.DataFrame()
+                if not _rec_match.empty and 'TEAM' in _rec_match.columns:
+                    _team_match = _rec_match[_rec_match['TEAM'].astype(str).str.strip() == str(row.get('TEAM','')).strip()]
+                    if not _team_match.empty:
+                        _rec_match = _team_match
+                if not _rec_match.empty:
+                    _coach_rec_row = _rec_match.iloc[0]
+            st.subheader("👔 Coach Profile")
+            st.write(generate_coach_profile(row, coach_stats_row))
+            if not _coach_rec_row.empty:
+                _career_win_pct = _coach_rec_row.get('CareerWinPct', '—')
+                try:
+                    _career_win_pct_disp = f"{float(_career_win_pct):.3f}"
+                except Exception:
+                    _career_win_pct_disp = str(_career_win_pct)
+                _natties_disp = int(pd.to_numeric(_coach_rec_row.get('NationalTitles', 0), errors='coerce') or 0)
+                _playoff_rec_disp = _coach_rec_row.get('PlayoffRecord', '—')
+                mobile_metrics([
+                    {"label": "🏅 Career Win %", "value": _career_win_pct_disp},
+                    {"label": "🏆 Natties",      "value": str(_natties_disp)},
+                    {"label": "🎯 Playoff Rec",  "value": str(_playoff_rec_disp)},
+                ], cols_desktop=3)
+                _coach_detail_rows = []
+                for _label, _field in [
+                    ('Career Record','CareerRecord'),
+                    ('Record With Current Team','RecordWithCurrentTeam'),
+                    ('Conference Titles','ConferenceTitles'),
+                    ('First Rounders','FirstRounders'),
+                    ('Draft Picks','DraftPicks'),
+                    ('Top 5 Recruiting Classes','Top5RecruitingClasses'),
+                    ('Bowl Record','BowlRecord'),
+                    ('Record vs Rivals','RecordVsRivals'),
+                    ('Record vs Top 25','RecordVsTop25'),
+                    ('Prestige','Prestige'),
+                    ('Level','Level'),
+                    ('Archetype','Archetype'),
+                    ('Off Scheme','OffScheme'),
+                    ('Def Scheme','DefScheme'),
+                    ('Alma Mater','AlmaMater'),
+                ]:
+                    if _field in _coach_rec_row.index:
+                        _val = _coach_rec_row.get(_field, '')
+                        if pd.notna(_val) and str(_val).strip() not in {'', 'nan', 'None'}:
+                            _coach_detail_rows.append({'Metric': _label, 'Value': _val})
+                if _coach_detail_rows:
+                    st.dataframe(pd.DataFrame(_coach_detail_rows), hide_index=True, use_container_width=True)
+            elif not coach_stats_row.empty:
+                mobile_metrics([
+                    {"label": "🏅 Win %",    "value": f"{coach_stats_row.get('Career Win %', '—')}%"},
+                    {"label": "🏆 Natties",  "value": str(int(coach_stats_row.get('Natties', 0)))},
+                    {"label": "🎯 CFP Wins", "value": str(int(coach_stats_row.get('CFP Wins', 0)))},
+                ], cols_desktop=3)
+            st.markdown("**Coaching Stops & Rings**")
+            render_history_cards(get_program_history_cards(row['USER'], ratings, champs, rec))
+
+        st.markdown("---")
+
+        # ── Detailed metrics table + bar chart ────────────────────────────────
+        st.subheader("📋 Detailed Team Metrics")
+        _where_spd = str(row.get('Where is the Speed?', '—'))
+        _opp_rec   = (f"{int(row['Combined Opponent Wins'])}-{int(row['Combined Opponent Losses'])}"
+                      if pd.notna(row.get('Combined Opponent Wins'))
+                      and pd.notna(row.get('Combined Opponent Losses')) else 'N/A')
+
+        stat_table = pd.DataFrame([
+            {'Metric': 'Overall OVR',          'Value': _ovr_val},
+            {'Metric': 'Offense',              'Value': _off_val},
+            {'Metric': 'Defense',              'Value': _def_val},
+            {'Metric': 'Preseason Natty Odds', 'Value': f"{_natty_val:.1f}%"},
+            {'Metric': 'CFP Make %',           'Value': f"{_cfp_make_val:.1f}%"},
+            {'Metric': 'Preseason PI',         'Value': _pi_val},
+            {'Metric': 'SOS',                  'Value': f"{_sos_val:.1f}"},
+            {'Metric': 'Resume Score',         'Value': f"{_res_val:.1f}"},
+            {'Metric': 'Recruit Score',        'Value': f"{_rec_sc:.1f}"},
+            {'Metric': 'YoY Improvement',      'Value': f"{_imp:+.1f} OVR"},
+            {'Metric': 'Off 90+ Speed (live)', 'Value': _live_offspd},
+            {'Metric': 'Def 90+ Speed (live)', 'Value': _live_defspd},
+            {'Metric': 'Total Team Speed (live)', 'Value': _live_spd},
+            {'Metric': 'Quad 90 (live)',        'Value': _live_q90},
+            {'Metric': 'Generational (live)',   'Value': _live_gen},
+            {'Metric': 'Where is the Speed?',   'Value': _where_spd},
+            {'Metric': 'Speedometer (live)',    'Value': f"{_live_mph} MPH"},
+            {'Metric': 'Blue Chip Ratio',       'Value': f"{_bcr:.0f}%"},
+            {'Metric': 'Opponent Record',       'Value': _opp_rec},
+            {'Metric': 'PPG',                   'Value': ppg},
+            {'Metric': 'Avg Margin',            'Value': avg_margin},
         ])
+        st.dataframe(stat_table, hide_index=True, use_container_width=True)
 
-        # Selected season identity + recruiting
-        _season_rating = pd.DataFrame()
-        if not _coach_ratings.empty and _rating_year_col and 'TEAM' in _coach_ratings.columns:
-            _season_rating = _coach_ratings[(_coach_ratings[_rating_year_col] == int(selected_year)) & (_coach_ratings['TEAM'] == _season_team)].copy()
-            if _season_rating.empty:
-                _season_rating = _coach_ratings[_coach_ratings[_rating_year_col] == int(selected_year)].copy()
+        st.caption("Natty Odds and CFP Make % use the preseason model — same numbers shown in Dynasty News. "
+                   "Speed metrics marked (live) computed direct from roster CSV, matching Speed Freaks tab.")
 
-        _season_exp = pd.DataFrame()
-        if not preseason_exp.empty:
-            _py = _smart(preseason_exp, ['Year', 'YEAR']); _pu = _smart(preseason_exp, ['User', 'USER']); _pt = _smart(preseason_exp, ['Team', 'TEAM'])
-            _season_exp = preseason_exp[(preseason_exp[_py] == int(selected_year)) & (preseason_exp[_pu] == target) & (preseason_exp[_pt] == _season_team)].copy() if None not in [_py, _pu, _pt] else pd.DataFrame()
+    # --- SPEED FREAKS ---
+with tabs[7]:
+        st.header("🔍 2041 Speed Freaks")
+        st.write("Detailed scouting of high-end athletic ceiling. TEAM SPEED is driven by total 90+ speed depth, but generational freaks act like multipliers that can launch a roster way up the board. On this dashboard, a TEAM SPEED score of 40 equals 65 MPH — anything above that is officially speeding.")
 
-        _left, _right = st.columns(2)
+        # ── Compute all speed metrics live from cfb26_rosters_full.csv ────────
+        OFF_POS = {'QB','HB','FB','WR','TE','LT','LG','C','RG','RT'}
+        DEF_POS = {'LEDG','REDG','DT','MIKE','WILL','SAM','CB','FS','SS'}
 
-        with _left:
-            st.markdown("### Team Identity")
-            _identity_rows = []
-            if not _season_rating.empty:
-                _sr = _season_rating.iloc[0]
-                for _label, _cand in [
-                    ('Overall', ['OVERALL', 'Overall']),
-                    ('Offense', ['OFFENSE', 'Offense']),
-                    ('Defense', ['DEFENSE', 'Defense']),
-                    ('Team Speed', ['Team Speed (90+ Speed Guys)', 'TeamSpeed']),
-                    ('Blue Chip Ratio', ['Blue Chip Ratio (4 & 5 star recruit ratio on roster)', 'BlueChipRatio']),
-                    ('Generational Freaks', ['Generational (96+ speed or 96+ Acceleration)', 'GenerationalFreaks']),
-                ]:
-                    _col = _smart(_season_rating, _cand)
-                    if _col:
-                        _identity_rows.append({'Metric': _label, 'Value': _sr.get(_col, '—')})
-            if not _season_exp.empty:
-                _se = _season_exp.iloc[0]
-                for _label, _cand in [
-                    ('Cheat Codes', ['CheatCodes']),
-                    ('Monsters', ['Monsters']),
-                    ('Quick Hogs', ['QuickHogs']),
-                ]:
-                    _col = _smart(_season_exp, _cand)
-                    if _col:
-                        _identity_rows.append({'Metric': _label, 'Value': _se.get(_col, '—')})
-            st.dataframe(pd.DataFrame(_identity_rows), use_container_width=True, hide_index=True)
+        try:
+            _sf_roster = pd.read_csv('cfb26_rosters_full.csv')
+            _sf_roster['SPD'] = pd.to_numeric(_sf_roster['SPD'], errors='coerce')
+            _sf_roster['ACC'] = pd.to_numeric(_sf_roster['ACC'], errors='coerce')
+            _sf_roster['REDSHIRT'] = pd.to_numeric(_sf_roster.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
+            _sf_active = _sf_roster[_sf_roster['REDSHIRT'] == 0].copy()
+            _sf_loaded = True
+        except Exception:
+            _sf_active = pd.DataFrame()
+            _sf_loaded = False
 
-        with _right:
-            st.markdown("### Recruiting by Year")
-            _recruit_rows = [
-                {'Metric': 'Overall Rank', 'Value': (int(_season_row['Recruiting Overall']) if pd.notna(_season_row['Recruiting Overall']) else '—')},
-                {'Metric': 'HS Rank', 'Value': (int(_season_row['Recruiting HS']) if pd.notna(_season_row['Recruiting HS']) else '—')},
-                {'Metric': 'Transfer Rank', 'Value': (int(_season_row['Recruiting Transfer']) if pd.notna(_season_row['Recruiting Transfer']) else '—')},
-                {'Metric': 'PPG', 'Value': (_season_row['PPG'] if pd.notna(_season_row['PPG']) else '—')},
-                {'Metric': 'Avg Margin', 'Value': (_season_row['Avg Margin'] if pd.notna(_season_row['Avg Margin']) else '—')},
-            ]
-            st.dataframe(pd.DataFrame(_recruit_rows), use_container_width=True, hide_index=True)
+        def _compute_speed_stats(team_df):
+            off   = team_df[team_df['Pos'].isin(OFF_POS)]
+            defp  = team_df[team_df['Pos'].isin(DEF_POS)]
+            total    = int((team_df['SPD'] >= 90).sum())
+            off_spd  = int((off['SPD']  >= 90).sum())
+            def_spd  = int((defp['SPD'] >= 90).sum())
+            quad_90  = int(
+                ((team_df['SPD'] >= 90) & (team_df['ACC'] >= 90)
+                 & (team_df['AGI'] >= 90) & (team_df['COD'] >= 90)).sum()
+            )
+            gen      = int(((team_df['SPD'] >= 96) | (team_df['ACC'] >= 96)).sum())
+            speed_score = round(
+                (total * 2.2 + off_spd * 1.0 + def_spd * 1.0 + quad_90 * 2.5)
+                * (1 + gen * 0.16 + quad_90 * 0.07), 1
+            )
+            speedometer = team_speed_to_mph(speed_score)
+            if off_spd > 5 and def_spd > 5:
+                where = 'Off & Def'
+            elif off_spd > 5:
+                where = 'Offense'
+            elif def_spd > 5:
+                where = 'Defense'
+            elif speedometer < 65:
+                where = 'Non-Existent'
+            else:
+                where = 'Balanced'
+            return {
+                'team_speed':  total,
+                'off_speed':   off_spd,
+                'def_speed':   def_spd,
+                'quad_90':     quad_90,
+                'gen':         gen,
+                'speed_score': speed_score,
+                'speedometer': speedometer,
+                'where':       where,
+            }
 
-        st.markdown("### Schedule & Results")
-        _sched = _schedule_df(target, int(selected_year))
-        if _sched.empty:
-            st.info("No schedule data found for this season.")
+        # Build talent_board: start from model_2041, override with live roster stats
+        talent_board = model_2041.copy()
+
+        if _sf_loaded and not _sf_active.empty:
+            for _, _mr in talent_board.iterrows():
+                _team = _mr['TEAM']
+                _tdf  = _sf_active[_sf_active['Team'] == _team]
+                if _tdf.empty:
+                    continue
+                _s = _compute_speed_stats(_tdf)
+                idx = talent_board[talent_board['TEAM'] == _team].index
+                talent_board.loc[idx, 'Team Speed (90+ Speed Guys)']              = _s['team_speed']
+                talent_board.loc[idx, 'Off Speed (90+ speed)']                    = _s['off_speed']
+                talent_board.loc[idx, 'Def Speed (90+ speed)']                    = _s['def_speed']
+                talent_board.loc[idx, 'Quad 90 (90+ SPD, ACC, AGI & COD)'] = _s['quad_90']
+                talent_board.loc[idx, 'Generational (96+ speed or 96+ Acceleration)'] = _s['gen']
+                talent_board.loc[idx, 'Team Speed Score']                         = _s['speed_score']
+                talent_board.loc[idx, 'Speedometer']                              = _s['speedometer']
+                talent_board.loc[idx, 'Where is the Speed?']                      = _s['where']
+            _speed_src_note = "📡 Speed metrics computed live from **cfb26_rosters_full.csv** (redshirted players excluded)"
         else:
-            st.dataframe(_sched[['Week','Team','Opponent','Opponent Rank','Result','Score','Margin']], use_container_width=True, hide_index=True)
+            _speed_src_note = "⚠️ Roster CSV unavailable — speed metrics from TeamRatingsHistory.csv"
+
+        talent_board = talent_board.sort_values(
+            ['Team Speed Score', 'Generational (96+ speed or 96+ Acceleration)', 'Team Speed (90+ Speed Guys)'],
+            ascending=False
+        ).reset_index(drop=True)
+        talent_board['TEAM SPEED Rank'] = np.arange(1, len(talent_board) + 1)
+
+        fastest_team = talent_board.iloc[0]
+        st.subheader("⚡ TEAM SPEED Rankings")
+        st.caption(_speed_src_note)
+        st.success(f"Fastest team alive right now: {fastest_team['TEAM']} ({fastest_team['USER']}) at {fastest_team['Speedometer']} MPH. Defensive coordinators should file a complaint.")
+        render_speed_freaks_table(talent_board)
+
+        # ── TEAM EXPANDERS ────────────────────────────────────────────────────
+        st.markdown("---")
+        for _, r in talent_board.iterrows():
+            gens       = int(r['Generational (96+ speed or 96+ Acceleration)'])
+            q90_cnt    = int(r['Quad 90 (90+ SPD, ACC, AGI & COD)'])
+            team_speed = float(r.get('Team Speed Score', 0))
+            tier       = get_speed_tier(team_speed)
+            gen_desc   = get_pop_culture_speed_comp(gens)
+            if gens == 0:
+                bonus_desc = "No multiplier bonus. This is a depth-and-discipline operation."
+            elif gens == 1:
+                bonus_desc = "One generational freak — the whole scouting report bends around a single superhero."
+            else:
+                bonus_desc = f"{gens} generational freaks means the speed depth gets turbocharged. This many cheat codes can vault a roster several spots higher than raw depth alone."
+
+            with st.expander(f"#{int(r['TEAM SPEED Rank'])} {r['USER']} | {r['TEAM']} — {tier}"):
+                st.write(gen_desc)
+                st.write(bonus_desc)
+                mobile_metrics([
+                    {"label": "🚗 Speedometer",        "value": f"{float(r.get('Speedometer',0)):.1f} MPH"},
+                    {"label": "⚡ TEAM SPEED Score",   "value": str(team_speed)},
+                    {"label": "💨 90+ Speed Guys",     "value": str(int(r['Team Speed (90+ Speed Guys)']))},
+                    {"label": "👽 Gen Freaks",          "value": str(gens)},
+                    {"label": "🔷 Quad 90",            "value": str(q90_cnt)},
+                    {"label": "⚔️ Off / Def Speed",    "value": f"{int(r['Off Speed (90+ speed)'])} / {int(r['Def Speed (90+ speed)'])}"},
+                ], cols_desktop=3)
+                st.write(get_speeding_label(team_speed, gens))
+                st.write(f"**Where is the Speed?** {r['Where is the Speed?']}  |  **Blue Chip Ratio:** {int(r['BCR_Val'])}%")
+                st.progress(min(1.0, team_speed / 100.0))
+
+                # Quad 90 player roster for this team
+                if _sf_loaded:
+                    _t_active = _sf_active[_sf_active['Team'] == r['TEAM']].copy()
+                    _t_active[['SPD','ACC','AGI','COD']] = _t_active[['SPD','ACC','AGI','COD']].apply(pd.to_numeric, errors='coerce')
+                    _q90_players = _t_active[
+                        (_t_active['SPD']>=90)&(_t_active['ACC']>=90)&
+                        (_t_active['AGI']>=90)&(_t_active['COD']>=90)
+                    ].sort_values('SPD', ascending=False)
+                    _gen_players = _t_active[
+                        (_t_active['SPD']>=96)|(_t_active['ACC']>=96)
+                    ].sort_values('SPD', ascending=False)
+                    if not _q90_players.empty:
+                        st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:8px 0 4px;letter-spacing:.06em;font-weight:700;'>🔷 QUAD 90 ATHLETES</div>", unsafe_allow_html=True)
+                        _q_html = "<div style='display:flex;flex-wrap:wrap;gap:5px;'>"
+                        for _, _p in _q90_players.iterrows():
+                            _q_html += (
+                                f"<div style='background:#0a1628;border:1px solid #1e3a8a;border-radius:6px;"
+                                f"padding:5px 9px;font-size:0.75rem;'>"
+                                f"<span style='color:#60a5fa;font-weight:800;'>{html.escape(str(_p['Name']))}</span>"
+                                f"<span style='color:#475569;margin:0 4px;'>{html.escape(str(_p['Pos']))}</span>"
+                                f"<span style='color:#94a3b8;font-size:0.68rem;'>"
+                                f"S{int(_p['SPD'])} A{int(_p['ACC'])} G{int(_p['AGI'])} C{int(_p['COD'])}"
+                                f"</span></div>"
+                            )
+                        _q_html += "</div>"
+                        st.markdown(_q_html, unsafe_allow_html=True)
+                    if not _gen_players.empty:
+                        st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:8px 0 4px;letter-spacing:.06em;font-weight:700;'>👽 GENERATIONAL FREAKS (96+ SPD or ACC)</div>", unsafe_allow_html=True)
+                        _g_html = "<div style='display:flex;flex-wrap:wrap;gap:5px;'>"
+                        for _, _p in _gen_players.iterrows():
+                            _hi = "#f59e0b" if pd.to_numeric(_p['SPD'],errors='coerce') >= 96 else "#a78bfa"
+                            _g_html += (
+                                f"<div style='background:#0d1a2e;border:1px solid {_hi}44;border-radius:6px;"
+                                f"padding:5px 9px;font-size:0.75rem;'>"
+                                f"<span style='color:{_hi};font-weight:800;'>{html.escape(str(_p['Name']))}</span>"
+                                f"<span style='color:#475569;margin:0 4px;'>{html.escape(str(_p['Pos']))}</span>"
+                                f"<span style='color:#94a3b8;font-size:0.68rem;'>"
+                                f"S{int(_p['SPD'])} A{int(_p['ACC'])}"
+                                f"</span></div>"
+                            )
+                        _g_html += "</div>"
+                        st.markdown(_g_html, unsafe_allow_html=True)
+
+
+        # ── SECTION 1.5: ATHLETIC PROFILES (SPEED VS MANEUVERABILITY) ────────
+        st.markdown("---")
+        st.subheader("⚡ Speed Freaks Athletic Profiles")
+        st.caption("Visualizing raw athletic traits across the league. Speed (straight-line) vs Maneuverability (Agility & Change of Direction).")
+
+        if _sf_loaded and not _sf_active.empty:
+            _ap_df = _sf_active.copy()
+            _ap_df[['SPD','ACC','AGI','COD','OVR']] = _ap_df[['SPD','ACC','AGI','COD','OVR']].apply(pd.to_numeric, errors='coerce')
+            _ap_df = _ap_df.dropna(subset=['SPD', 'AGI', 'COD', 'OVR'])
+            _ap_df['Maneuverability'] = ((_ap_df['AGI'] + _ap_df['COD']) / 2.0).round(1)
+
+            # Map users
+            _u_map = {v:k for k,v in USER_TEAMS.items()}
+            _ap_df['User'] = _ap_df['Team'].map(lambda x: _u_map.get(x, 'CPU'))
+
+            # Overall Team Chart (Averages for User Teams)
+            # Use the broader athlete pool only: QB, HB, WR, TE, CB, FS, SS, linebackers (no FB)
+            _overall_athlete_pos = ['QB', 'HB', 'WR', 'TE', 'CB', 'FS', 'SS', 'MIKE', 'WILL', 'SAM', 'LOLB', 'MLB', 'ROLB', 'OLB']
+            _team_ap_src = _ap_df[(_ap_df['User'] != 'CPU') & (_ap_df['Pos'].isin(_overall_athlete_pos))].copy()
+            _team_ap = _team_ap_src.groupby('Team', as_index=False)[['SPD', 'Maneuverability', 'OVR']].mean()
+            _team_ap['User'] = _team_ap['Team'].map(_u_map)
+            _team_ap['OVR'] = _team_ap['OVR'].round(1)
+            _team_ap['SPD'] = _team_ap['SPD'].round(1)
+
+            _color_map = {t: get_team_primary_color(t) for t in _team_ap['Team'].unique()}
+
+            fig_team = px.scatter(
+                _team_ap, x='SPD', y='Maneuverability',
+                hover_name='Team',
+                hover_data=['User', 'OVR'],
+                title="Overall Speed vs Maneuverability (User Team Averages)",
+                template="plotly_dark"
+            )
+
+            # Make the default dots invisible so we can replace them with logos
+            fig_team.update_traces(marker=dict(color='rgba(0,0,0,0)'))
+
+            # Inject logos onto the coordinates
+            for i, row in _team_ap.iterrows():
+                _logo_uri = image_file_to_data_uri(get_logo_source(row['Team']))
+                if _logo_uri:
+                    fig_team.add_layout_image(
+                        dict(
+                            source=_logo_uri,
+                            xref="x", yref="y",
+                            x=row['SPD'], y=row['Maneuverability'],
+                            sizex=0.8, sizey=0.8,
+                            xanchor="center", yanchor="middle"
+                        )
+                    )
+                else:
+                    fig_team.add_annotation(x=row['SPD'], y=row['Maneuverability'], text=row['Team'], showarrow=False)
+
+            fig_team.update_layout(
+                height=400,
+                margin=dict(t=30, b=10, l=10, r=10),
+                showlegend=False,
+                dragmode=False,
+                title_font=dict(size=14)
+            )
+            fig_team.update_xaxes(fixedrange=True)
+            fig_team.update_yaxes(fixedrange=True)
+            st.plotly_chart(fig_team, use_container_width=True, config={'displayModeBar': False})
+
+            if not _team_ap.empty:
+                _summary_df = _team_ap.copy()
+                _summary_df['SpeedRank'] = _summary_df['SPD'].rank(method='min', ascending=False).astype(int)
+                _summary_df['MoveRank'] = _summary_df['Maneuverability'].rank(method='min', ascending=False).astype(int)
+                _summary_df['OverallRank'] = ((_summary_df['SpeedRank'] + _summary_df['MoveRank']) / 2.0).rank(method='min').astype(int)
+
+                _speed_median = float(_summary_df['SPD'].median())
+                _move_median = float(_summary_df['Maneuverability'].median())
+
+                def _team_ap_phrase(_row):
+                    _spd = float(_row['SPD'])
+                    _mov = float(_row['Maneuverability'])
+                    _speed_edge = _spd - _speed_median
+                    _move_edge = _mov - _move_median
+
+                    if _row['SpeedRank'] == 1 and _row['MoveRank'] == 1:
+                        return "the most explosive and twitchiest athlete group in the dynasty right now"
+                    if _speed_edge >= 1.0 and _move_edge >= 1.0:
+                        return "a rare blend of top-end burst and clean change-of-direction"
+                    if _speed_edge >= 1.0 and _move_edge <= -0.5:
+                        return "a straight-line speed group that wins with juice more than wiggle"
+                    if _move_edge >= 1.0 and _speed_edge <= -0.5:
+                        return "a fluid, space-friendly group that changes direction better than it flat-out runs"
+                    if _speed_edge >= 0.5 and _move_edge >= 0.5:
+                        return "one of the more complete athlete groups with no obvious weakness"
+                    if _speed_edge <= -1.0 and _move_edge <= -1.0:
+                        return "the least dynamic athlete pool on the chart and the one most in need of an infusion of juice"
+                    if _speed_edge <= -0.5 and _move_edge >= 0.5:
+                        return "more slippery than fast, built to win in traffic rather than by pure separation"
+                    if _speed_edge >= 0.5 and _move_edge <= -0.5:
+                        return "built around chase speed and range more than stop-start looseness"
+                    return "a pretty balanced athlete group that sits in the middle of the six-team pack"
+
+                def _team_ap_strengths(_team_name, _src_df):
+                    _tdf = _src_df[_src_df['Team'] == _team_name].copy()
+                    if _tdf.empty:
+                        return "No eligible athlete-position data found."
+                    _tdf['PosLabel'] = _tdf['Pos'].replace({'HB': 'RB', 'FS': 'Safety', 'SS': 'Safety', 'MIKE': 'LB', 'WILL': 'LB', 'SAM': 'LB', 'LOLB': 'LB', 'MLB': 'LB', 'ROLB': 'LB', 'OLB': 'LB'})
+                    _grp = _tdf.groupby('PosLabel', as_index=False)[['SPD', 'Maneuverability']].mean()
+                    _grp['Composite'] = (_grp['SPD'] + _grp['Maneuverability']) / 2.0
+                    _best = _grp.sort_values(['Composite', 'SPD', 'Maneuverability'], ascending=False).iloc[0]
+                    return f"Best athlete room: {_best['PosLabel']} (SPD {_best['SPD']:.1f}, MAN {_best['Maneuverability']:.1f})."
+
+                st.markdown("<div style='margin-top:0.4rem;'></div>", unsafe_allow_html=True)
+                st.caption("Team-by-team read on the chart. Generated from the same athlete-pool averages shown above.")
+
+                for _, _row in _summary_df.sort_values(['OverallRank', 'SPD'], ascending=[True, False]).iterrows():
+                    _team = _row['Team']
+                    _user = _row['User']
+                    _tc = get_team_primary_color(_team)
+                    _logo_uri = image_file_to_data_uri(get_logo_source(_team))
+                    _logo_html = f"<img src='{_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _logo_uri else ""
+                    _headline = (
+                        f"<div style='display:flex;align-items:center;gap:8px;'>"
+                        f"{_logo_html}"
+                        f"<span style='color:{_tc};font-weight:800;'>{html.escape(str(_team))}</span>"
+                        f"<span style='color:#64748b;font-size:0.78rem;'>({html.escape(str(_user))})</span>"
+                        f"<span style='color:#94a3b8;font-size:0.76rem;margin-left:auto;'>Speed #{int(_row['SpeedRank'])} · Maneuverability #{int(_row['MoveRank'])}</span>"
+                        f"</div>"
+                    )
+                    with st.expander(_team, expanded=False):
+                        st.markdown(_headline, unsafe_allow_html=True)
+                        st.markdown(
+                            f"<div style='padding:0.15rem 0 0.25rem 0;color:#cbd5e1;font-size:0.95rem;'>"
+                            f"{html.escape(str(_team))} sits at <span style='color:#f8fafc;font-weight:800;'>SPD {_row['SPD']:.1f}</span> and <span style='color:#f8fafc;font-weight:800;'>MAN {_row['Maneuverability']:.1f}</span>, making it {html.escape(_team_ap_phrase(_row))}. {html.escape(_team_ap_strengths(_team, _team_ap_src))}"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
+
+            def _plot_pos_scatter(df, title):
+                if df.empty:
+                    _empty_fig = go.Figure()
+                    _empty_fig.update_layout(
+                        template='plotly_dark',
+                        title=title,
+                        height=400,
+                        margin=dict(t=30, b=10, l=10, r=10),
+                        showlegend=False,
+                        dragmode=False,
+                        annotations=[dict(
+                            text='No eligible players found',
+                            x=0.5, y=0.5, xref='paper', yref='paper',
+                            showarrow=False,
+                            font=dict(size=14, color='#94a3b8')
+                        )]
+                    )
+                    _empty_fig.update_xaxes(visible=False, fixedrange=True)
+                    _empty_fig.update_yaxes(visible=False, fixedrange=True)
+                    return _empty_fig
+
+                # Map detailed positions to broader groups for cleaner grouping
+                pos_mapping = {
+                    'QB': 'QB', 'HB': 'RB', 'FB': 'RB',
+                    'WR': 'WR', 'TE': 'TE',
+                    'DT': 'Trench', 'LEDG': 'Trench', 'REDG': 'Trench',
+                    'CB': 'CB', 'FS': 'FS', 'SS': 'SS',
+                    'MIKE': 'LB', 'WILL': 'LB', 'SAM': 'LB'
+                }
+
+                # Make a copy and map the positions
+                df_mapped = df.copy()
+                df_mapped['FilterPos'] = df_mapped['Pos'].map(lambda x: pos_mapping.get(x, x))
+
+                # Apply limits based on positional requirements
+                limits = {'QB': 1, 'RB': 2, 'WR': 4, 'TE': 2, 'LB': 4, 'CB': 4, 'FS': 1, 'SS': 1}
+                filtered_dfs = []
+                for (team, fpos), group in df_mapped.groupby(['Team', 'FilterPos']):
+                    limit = limits.get(fpos, 999) # Allow all Trench players to map dynamically
+                    filtered_dfs.append(group.nlargest(limit, 'OVR'))
+
+                if not filtered_dfs:
+                    _empty_fig = go.Figure()
+                    _empty_fig.update_layout(
+                        template='plotly_dark',
+                        title=title,
+                        height=400,
+                        margin=dict(t=30, b=10, l=10, r=10),
+                        showlegend=False,
+                        dragmode=False,
+                        annotations=[dict(
+                            text='No eligible players found',
+                            x=0.5, y=0.5, xref='paper', yref='paper',
+                            showarrow=False,
+                            font=dict(size=14, color='#94a3b8')
+                        )]
+                    )
+                    _empty_fig.update_xaxes(visible=False, fixedrange=True)
+                    _empty_fig.update_yaxes(visible=False, fixedrange=True)
+                    return _empty_fig
+                df_limited = pd.concat(filtered_dfs)
+
+                # Final mapping for display (Group FS and SS into Safety)
+                df_limited['PosGroup'] = df_limited['FilterPos'].replace({'FS': 'Safety', 'SS': 'Safety'})
+
+                plot_df = df_limited.groupby(['Team', 'PosGroup'], as_index=False).agg({
+                    'SPD': 'mean', 'Maneuverability': 'mean', 'OVR': 'mean', 'ACC': 'mean'
+                })
+
+                plot_df['HoverName'] = plot_df['Team'] + " (" + plot_df['PosGroup'] + ")"
+                plot_df['SPD'] = plot_df['SPD'].round(1)
+                plot_df['Maneuverability'] = plot_df['Maneuverability'].round(1)
+                plot_df['OVR'] = plot_df['OVR'].round(1)
+                plot_df['ACC'] = plot_df['ACC'].round(1)
+
+                fig = px.scatter(
+                    plot_df, x='SPD', y='Maneuverability',
+                    hover_name='HoverName',
+                    hover_data={'SPD': True, 'Maneuverability': True, 'OVR': True, 'ACC': True, 'HoverName': False},
+                    template="plotly_dark", title=title
+                )
+                fig.update_traces(marker=dict(color='rgba(0,0,0,0)')) # Hide dots
+
+                for _, r in plot_df.iterrows():
+                    _logo_uri = image_file_to_data_uri(get_logo_source(r['Team']))
+                    if _logo_uri:
+                        fig.add_layout_image(
+                            dict(
+                                source=_logo_uri,
+                                xref="x", yref="y",
+                                x=r['SPD'], y=r['Maneuverability'],
+                                sizex=0.8, sizey=0.8,
+                                xanchor="center", yanchor="middle"
+                            )
+                        )
+                    else:
+                        fig.add_annotation(x=r['SPD'], y=r['Maneuverability'], text=r['HoverName'], showarrow=False)
+
+                fig.update_layout(
+                    height=400,
+                    margin=dict(t=30, b=10, l=10, r=10),
+                    showlegend=False,
+                    dragmode=False,
+                    title_font=dict(size=14)
+                )
+                fig.update_xaxes(fixedrange=True)
+                fig.update_yaxes(fixedrange=True)
+                return fig
+
+            # User teams only for positional scatter to prevent CPU clutter
+            _user_ap_df = _ap_df[_ap_df['User'] != 'CPU'].copy()
+
+            with st.expander("🏈 Skill Positions Athletic Profiles", expanded=False):
+                spt1, spt2, spt3, spt4, spt5 = st.tabs(["🗺️ Skill Map", "🎯 QB", "🏃 RB", "👐 WR", "🧱 TE"])
+                _skill_pos = ['QB', 'HB', 'FB', 'WR', 'TE']
+                _skill_df = _user_ap_df[_user_ap_df['Pos'].isin(_skill_pos)]
+
+                with spt1: st.plotly_chart(_plot_pos_scatter(_skill_df, "All Skill Positions"), use_container_width=True, key="scatter_all_skills", config={'displayModeBar': False})
+                with spt2: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='QB'], "Quarterbacks"), use_container_width=True, key="scatter_qb", config={'displayModeBar': False})
+                with spt3: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos'].isin(['HB', 'FB'])], "Running Backs"), use_container_width=True, key="scatter_rb", config={'displayModeBar': False})
+                with spt4: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='WR'], "Wide Receivers"), use_container_width=True, key="scatter_wr", config={'displayModeBar': False})
+                with spt5: st.plotly_chart(_plot_pos_scatter(_skill_df[_skill_df['Pos']=='TE'], "Tight Ends"), use_container_width=True, key="scatter_te", config={'displayModeBar': False})
+
+            with st.expander("🛡️ Defensive Profiles", expanded=False):
+                dpt1, dpt2, dpt3, dpt4 = st.tabs(["🧱 Trench (DL/EDGE)", "🏝️ CB", "🔒 Safety", "💥 LB"])
+                _def_df = _user_ap_df[~_user_ap_df['Pos'].isin(_skill_pos + ['K', 'P', 'LT', 'LG', 'C', 'RG', 'RT'])]
+
+                with dpt1: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['DT', 'LEDG', 'REDG'])], "Defensive Line & EDGE"), use_container_width=True, key="scatter_dl", config={'displayModeBar': False})
+                with dpt2: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos']=='CB'], "Cornerbacks"), use_container_width=True, key="scatter_cb", config={'displayModeBar': False})
+                with dpt3: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['FS', 'SS'])], "Safeties"), use_container_width=True, key="scatter_safety", config={'displayModeBar': False})
+                with dpt4: st.plotly_chart(_plot_pos_scatter(_def_df[_def_df['Pos'].isin(['MIKE', 'WILL', 'SAM'])], "Linebackers"), use_container_width=True, key="scatter_lb", config={'displayModeBar': False})
+
+        # ── SECTION 2: LEAGUE-WIDE TOP SPEED ATHLETES ────────────────────────
+        st.markdown("---")
+        st.subheader("🏃 Fastest Players in the League")
+        st.caption("Top 20 by SPD across all active rosters. The guys who make coordinators sweat at 2am.")
+        if _sf_loaded and not _sf_active.empty:
+            _all_active = _sf_active.copy()
+            _all_active[['SPD','ACC','AGI','COD','OVR']] = _all_active[['SPD','ACC','AGI','COD','OVR']].apply(pd.to_numeric, errors='coerce')
+            _top_speed = _all_active.nlargest(20, 'SPD').reset_index(drop=True)
+            _spd_html = "<div style='display:flex;flex-direction:column;gap:4px;'>"
+            for _i, _p in _top_speed.iterrows():
+                _tc = get_team_primary_color(_p['Team'])
+                _logo_uri = image_file_to_data_uri(get_logo_source(_p['Team']))
+                _logo = f"<img src='{_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if _logo_uri else ""
+                _is_q90 = (pd.notna(_p['SPD']) and _p['SPD']>=90 and pd.notna(_p['ACC']) and _p['ACC']>=90
+                           and pd.notna(_p['AGI']) and _p['AGI']>=90 and pd.notna(_p['COD']) and _p['COD']>=90)
+                _is_gen = (pd.notna(_p['SPD']) and _p['SPD']>=96) or (pd.notna(_p['ACC']) and _p['ACC']>=96)
+                _badges = ""
+                if _is_gen:  _badges += "<span style='font-size:0.6rem;padding:1px 4px;background:#78350f;color:#fbbf24;border-radius:3px;margin-left:4px;'>👽GEN</span>"
+                if _is_q90:  _badges += "<span style='font-size:0.6rem;padding:1px 4px;background:#1e3a8a;color:#60a5fa;border-radius:3px;margin-left:4px;'>🔷Q90</span>"
+                _spd_html += (
+                    f"<div style='display:flex;align-items:center;gap:8px;padding:6px 10px;"
+                    f"background:#0a1628;border-left:3px solid {_tc};border-radius:5px;font-size:0.8rem;'>"
+                    f"<span style='color:#475569;min-width:20px;font-size:0.72rem;'>#{_i+1}</span>"
+                    f"{_logo}"
+                    f"<span style='color:{_tc};font-weight:800;min-width:80px;'>{html.escape(str(_p['Name']))}</span>"
+                    f"<span style='color:#64748b;font-size:0.7rem;min-width:38px;'>{html.escape(str(_p['Pos']))} · {html.escape(str(_p['Year']))}</span>"
+                    f"<span style='color:#fbbf24;font-weight:900;min-width:28px;'>S{int(_p['SPD'])}</span>"
+                    f"<span style='color:#94a3b8;font-size:0.72rem;'>A{int(_p['ACC'])} G{int(_p['AGI'])} C{int(_p['COD'])}</span>"
+                    f"{_badges}"
+                    f"<span style='color:#475569;font-size:0.68rem;margin-left:auto;'>{html.escape(str(_p['Team']))}</span>"
+                    f"</div>"
+                )
+            _spd_html += "</div>"
+            st.markdown(_spd_html, unsafe_allow_html=True)
+
+        # ── SECTION 3: POSITIONAL SPEED DEPTH ────────────────────────────────
+        st.markdown("---")
+        st.subheader("📊 Positional Speed Depth")
+        st.caption("Where each team's 90+ speed actually lives — WR room, DB room, or the backfield.")
+        if _sf_loaded and not _sf_active.empty:
+            _POS_GROUPS = {
+                'WR Room':   ['WR'],
+                'Backfield': ['HB','FB','QB'],
+                'DB Room':   ['CB','FS','SS'],
+                'Linebackers':['MIKE','WILL','SAM'],
+                'D-Line':    ['LEDG','REDG','DT'],
+                'O-Line':    ['LT','LG','C','RG','RT'],
+                'TE/ST':     ['TE','K','P'],
+            }
+            _pos_rows = []
+            for _team, _tdf in _sf_active.groupby('Team'):
+                _u = {v:k for k,v in USER_TEAMS.items()}.get(_team, '')
+                if not _u: continue
+                _tdf2 = _tdf.copy()
+                _tdf2['SPD'] = pd.to_numeric(_tdf2['SPD'], errors='coerce')
+                _row = {'User': _u, 'Team': _team}
+                for _grp, _pos_list in _POS_GROUPS.items():
+                    _grp_df = _tdf2[_tdf2['Pos'].isin(_pos_list)]
+                    _row[_grp] = int((_grp_df['SPD'] >= 90).sum())
+                _pos_rows.append(_row)
+            _pos_df = pd.DataFrame(_pos_rows).set_index('User')
+
+            # Render as a styled HTML grid
+            _pos_html = "<div style='overflow-x:auto;'><table style='width:100%;border-collapse:collapse;font-size:0.8rem;'>"
+            _pos_html += "<thead><tr style='background:#0a1628;'>"
+            _pos_html += "<th style='padding:7px 10px;text-align:left;color:#64748b;'>Team</th>"
+            for _grp in _POS_GROUPS:
+                _pos_html += f"<th style='padding:7px 8px;text-align:center;color:#64748b;'>{html.escape(_grp)}</th>"
+            _pos_html += "</tr></thead><tbody>"
+            for _u, _pr in _pos_df.iterrows():
+                _tc = get_team_primary_color(_pr['Team'])
+                _logo_uri = image_file_to_data_uri(get_logo_source(_pr['Team']))
+                _logo = f"<img src='{_logo_uri}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:5px;'/>" if _logo_uri else ""
+                _pos_html += f"<tr style='border-bottom:1px solid #1e293b;'>"
+                _pos_html += f"<td style='padding:7px 10px;white-space:nowrap;'>{_logo}<span style='color:{_tc};font-weight:800;'>{html.escape(str(_pr['Team']))}</span><span style='color:#475569;font-size:0.7rem;margin-left:5px;'>({html.escape(_u)})</span></td>"
+                for _grp in _POS_GROUPS:
+                    _val = int(_pr.get(_grp, 0))
+                    _col = "#22c55e" if _val >= 3 else ("#fbbf24" if _val >= 1 else "#374151")
+                    _pos_html += f"<td style='padding:7px 8px;text-align:center;color:{_col};font-weight:{'800' if _val >= 1 else '400'};'>{_val if _val > 0 else '—'}</td>"
+                _pos_html += "</tr>"
+            _pos_html += "</tbody></table></div>"
+            st.markdown(_pos_html, unsafe_allow_html=True)
+
+        # ── SECTION 4: HEAD-TO-HEAD SPEED MATCHUP ────────────────────────────
+        st.markdown("---")
+        st.subheader("⚔️ Speed Matchup Comparison")
+        st.caption("Pick two teams and see their full speed profiles side by side.")
+        _user_list = sorted(USER_TEAMS.keys())
+        _hth_col1, _hth_col2 = st.columns(2)
+        with _hth_col1:
+            _team_a_user = st.selectbox("Team A", _user_list, index=0, key="sf_team_a")
+        with _hth_col2:
+            _team_b_user = st.selectbox("Team B", _user_list, index=1, key="sf_team_b")
+
+        if _sf_loaded and _team_a_user != _team_b_user:
+            _ta_name = USER_TEAMS[_team_a_user]
+            _tb_name = USER_TEAMS[_team_b_user]
+            _ta_df = _sf_active[_sf_active['Team']==_ta_name].copy()
+            _tb_df = _sf_active[_sf_active['Team']==_tb_name].copy()
+            for _d in [_ta_df, _tb_df]:
+                _d[['SPD','ACC','AGI','COD','OVR']] = _d[['SPD','ACC','AGI','COD','OVR']].apply(pd.to_numeric, errors='coerce')
+            _sa = _compute_speed_stats(_ta_df)
+            _sb = _compute_speed_stats(_tb_df)
+            _tc_a = get_team_primary_color(_ta_name)
+            _tc_b = get_team_primary_color(_tb_name)
+
+            _matchup_metrics = [
+                ('Speedometer', f"{_sa['speedometer']} MPH", f"{_sb['speedometer']} MPH"),
+                ('Speed Score', str(_sa['speed_score']), str(_sb['speed_score'])),
+                ('90+ SPD Guys', str(_sa['team_speed']), str(_sb['team_speed'])),
+                ('Quad 90', str(_sa['quad_90']), str(_sb['quad_90'])),
+                ('Gen Freaks', str(_sa['gen']), str(_sb['gen'])),
+                ('Off Speed', str(_sa['off_speed']), str(_sb['off_speed'])),
+                ('Def Speed', str(_sa['def_speed']), str(_sb['def_speed'])),
+                ('Where', _sa['where'], _sb['where']),
+            ]
+            _mh = (
+                f"<div style='overflow-x:auto;'>"
+                f"<table style='width:100%;border-collapse:collapse;font-size:0.82rem;'>"
+                f"<thead><tr style='background:#0a1628;'>"
+                f"<th style='padding:8px 12px;text-align:center;color:{_tc_a};'>{html.escape(_ta_name)}</th>"
+                f"<th style='padding:8px 10px;text-align:center;color:#475569;font-size:0.7rem;'></th>"
+                f"<th style='padding:8px 12px;text-align:center;color:{_tc_b};'>{html.escape(_tb_name)}</th>"
+                f"</tr></thead><tbody>"
+            )
+            for _label, _va, _vb in _matchup_metrics:
+                # Try to determine winner numerically
+                try:
+                    _na, _nb = float(str(_va).split()[0]), float(str(_vb).split()[0])
+                    _ca = "#22c55e" if _na > _nb else ("#ef4444" if _na < _nb else "#94a3b8")
+                    _cb = "#22c55e" if _nb > _na else ("#ef4444" if _nb < _na else "#94a3b8")
+                except Exception:
+                    _ca = _cb = "#94a3b8"
+                _mh += (
+                    f"<tr style='border-bottom:1px solid #1e293b;'>"
+                    f"<td style='padding:7px 12px;text-align:center;color:{_ca};font-weight:800;'>{html.escape(_va)}</td>"
+                    f"<td style='padding:7px 10px;text-align:center;color:#475569;font-size:0.7rem;white-space:nowrap;'>{html.escape(_label)}</td>"
+                    f"<td style='padding:7px 12px;text-align:center;color:{_cb};font-weight:800;'>{html.escape(_vb)}</td>"
+                    f"</tr>"
+                )
+            _mh += "</tbody></table></div>"
+            st.markdown(_mh, unsafe_allow_html=True)
+
+    # --- ISPN CLASSICS ---
 with tabs[11]:
         st.header("🎬 ISPN Classics")
         st.caption(
@@ -15899,7 +16391,7 @@ with tabs[5]:
     if 'USER_TEAMS' in globals():
         user_teams_list = sorted(list(USER_TEAMS.values()))
     else:
-        user_teams_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
+        user_teams_list = []
 
     mid_idx = len(user_teams_list) // 2
     left_teams = user_teams_list[:mid_idx]
@@ -15940,15 +16432,8 @@ with tabs[5]:
                     df[col] = pd.NA
             return df
 
-        hs_df = safe_read_csv(
-            'recruiting_high_school_history.csv',
-            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
-        )
-
-        tp_df = safe_read_csv(
-            'recruiting_transfer_portal_history.csv',
-            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
-        )
+        hs_df = _load_recruiting_class_history('HS')
+        tp_df = _load_recruiting_class_history('TRANSFER')
 
         nfl = safe_read_csv(
             'attrition_nfl.csv',
@@ -16703,10 +17188,7 @@ with tabs[5]:
 
     # --- 6. Next Season Outlook & Dynamic Championship Odds ---
     try:
-        USER_TEAM_COLLISION_GROUPS = [
-            {"Florida State", "Florida", "Bowling Green"},
-            {"Texas Tech", "San Jose State", "USF"}
-        ]
+        USER_TEAM_COLLISION_GROUPS = load_collision_groups(user_team_map=USER_TEAMS if 'USER_TEAMS' in globals() else {})
 
         current_roster = pd.read_csv('cfb26_rosters_full.csv')
         team_roster = current_roster[current_roster['Team'] == selected_team].copy()
