@@ -16628,6 +16628,52 @@ with tabs[5]:
                 if col in incoming.columns:
                     incoming[col] = pd.to_numeric(incoming[col], errors='coerce')
 
+            # Infer projected role when blank
+            def _infer_projected_role(row):
+                existing = str(row.get('ProjectedRole', '')).strip()
+                if existing:
+                    return existing.title()
+
+                stars = pd.to_numeric(row.get('Stars', pd.NA), errors='coerce')
+                nat_rank = pd.to_numeric(row.get('NationalRank', pd.NA), errors='coerce')
+                pos_rank = pd.to_numeric(row.get('PositionRank', pd.NA), errors='coerce')
+                recruit_type = str(row.get('Type', '')).strip().upper()
+                class_val = str(row.get('Class', '')).strip().upper()
+
+                # Veteran transfer boost
+                veteran_transfer = (
+                    recruit_type == 'TRANSFER' and
+                    class_val in {'SO', 'JR', 'SR', 'RS SO', 'RS JR', 'RS SR'}
+                )
+
+                # Starter rules
+                if pd.notna(stars):
+                    if stars >= 5:
+                        return 'Starter'
+                    if veteran_transfer and stars >= 4:
+                        return 'Starter'
+                    if pd.notna(nat_rank) and stars >= 4 and nat_rank <= 75:
+                        return 'Starter'
+                    if pd.notna(pos_rank) and stars >= 4 and pos_rank <= 8:
+                        return 'Starter'
+                    if veteran_transfer and stars >= 3 and pd.notna(pos_rank) and pos_rank <= 5:
+                        return 'Starter'
+
+                # Rotation rules
+                if pd.notna(stars):
+                    if stars >= 4:
+                        return 'Rotation'
+                    if veteran_transfer and stars >= 3:
+                        return 'Rotation'
+                    if pd.notna(nat_rank) and stars >= 3 and nat_rank <= 300:
+                        return 'Rotation'
+                    if pd.notna(pos_rank) and stars >= 3 and pos_rank <= 25:
+                        return 'Rotation'
+
+                return 'Depth'
+
+            incoming['ProjectedRole'] = incoming.apply(_infer_projected_role, axis=1)
+
         # --- Normalize actual user draft results schema ---
         if not user_draft_results.empty:
             if 'CollegeTeam' not in user_draft_results.columns:
