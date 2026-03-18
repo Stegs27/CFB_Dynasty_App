@@ -4271,18 +4271,18 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
         }
 
         dynasty_rows = []
-for _, pr in hist.iterrows():
-    player_id = str(pr.get("PlayerID", "")).strip()
-    if not player_id:
-        continue
+        for _, pr in hist.iterrows():
+            player_id = str(pr.get("PlayerID", "")).strip()
+            if not player_id:
+                continue
 
-    # Never treat inherited/base NFL players as dynasty additions
-    if player_id.startswith("BASE::"):
-        continue
+            # Never treat inherited/base NFL players as dynasty additions
+            if player_id.startswith("BASE::"):
+                continue
 
-    status = str(pr.get("Status", "Active")).strip()
-    if status in {"Retired", "Out of League"}:
-        continue
+            status = str(pr.get("Status", "Active")).strip()
+            if status in {"Retired", "Out of League"}:
+                continue
 
             dr = draft_lookup.get(player_id, {})
             dynasty_rows.append({
