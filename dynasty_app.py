@@ -6719,7 +6719,7 @@ def render_roster_matchup_tab():
 def load_data():
     try:
         # LOAD ALL CORE FILES
-        scores = pd.read_csv('scores.csv')
+        scores = pd.read_csv('CPUscores_MASTER.csv')
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
         draft = pd.read_csv('UserDraftPicks.csv')
@@ -7032,7 +7032,7 @@ def render_recruiting_snapshot_table(df):
         cells = [f"""
         <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(pd.to_numeric(row.get('Rank', 0), errors='coerce') if pd.notna(row.get('Rank', None)) else 0)}</div>
+            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
             <div style="width:38px;text-align:center;">{logo_html}</div>
             <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
           </div>
@@ -8091,67 +8091,13 @@ def _load_recruiting_csv(filename):
         return pd.DataFrame(columns=_std_cols)
 
 
-def _load_recruiting_class_history(class_type=None):
-    """Preferred recruiting summary loader.
-    Uses recruiting_class_history.csv when available, with legacy fallbacks so old repos still work.
-    """
-    _std_cols = ['Year','ClassType','Rank','Team','User','TotalCommits','FiveStar','FourStar',
-                 'ThreeStar','TwoStar','OneStar','Points']
-
-    def _normalize(df, inferred_class_type=None):
-        if df is None or df.empty:
-            return pd.DataFrame(columns=_std_cols)
-        df = df.copy()
-        df.columns = [str(c).strip() for c in df.columns]
-
-        if 'ClassType' not in df.columns:
-            if inferred_class_type is not None:
-                df['ClassType'] = inferred_class_type
-            elif 'Type' in df.columns:
-                df['ClassType'] = df['Type']
-            else:
-                df['ClassType'] = ''
-
-        for c in _std_cols:
-            if c not in df.columns:
-                df[c] = pd.NA
-
-        for c in ['Rank','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Year']:
-            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
-        df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
-        df['ClassType'] = df['ClassType'].fillna('').astype(str).str.upper().str.strip()
-        df['Team'] = df['Team'].fillna('').astype(str).str.strip()
-        df['User'] = df['User'].fillna('').astype(str).str.strip()
-        return df[_std_cols].copy()
-
-    try:
-        master_df = pd.read_csv('recruiting_class_history.csv')
-        master_df = _normalize(master_df)
-    except Exception:
-        legacy_parts = []
-        legacy_map = {
-            'HS': 'recruiting_high_school_history.csv',
-            'TRANSFER': 'recruiting_transfer_portal_history.csv',
-            'OVERALL': 'recruiting_overall_history.csv',
-        }
-        for _ctype, _path in legacy_map.items():
-            _part = _load_recruiting_csv(_path)
-            if not _part.empty:
-                legacy_parts.append(_normalize(_part, inferred_class_type=_ctype))
-        master_df = pd.concat(legacy_parts, ignore_index=True) if legacy_parts else pd.DataFrame(columns=_std_cols)
-
-    if class_type:
-        master_df = master_df[master_df['ClassType'] == str(class_type).upper().strip()].copy()
-    return master_df.reset_index(drop=True)
-
-
 def get_hs_recruiting_snapshot(year=None):
     """
     Load HS recruiting class from recruiting_high_school_history.csv.
     If year=None, returns the most recent year available.
     CSV-first behavior: if the file is missing or empty, return an empty DataFrame.
     """
-    df = _load_recruiting_class_history('HS')
+    df = _load_recruiting_csv('recruiting_high_school_history.csv')
     if not df.empty and 'Year' in df.columns:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -8194,7 +8140,7 @@ def get_hs_recruiting_snapshot(year=None):
 
 def get_portal_recruiting_snapshot(year=None):
     """Load transfer portal class from recruiting_transfer_portal_history.csv."""
-    df = _load_recruiting_class_history('TRANSFER')
+    df = _load_recruiting_csv('recruiting_transfer_portal_history.csv')
     if not df.empty and 'Year' in df.columns and len(df) > 0:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -8207,7 +8153,7 @@ def get_portal_recruiting_snapshot(year=None):
 
 def get_overall_recruiting_snapshot(year=None):
     """Load overall recruiting class from recruiting_overall_history.csv. CSV-first: no hardcoded or HS fallback."""
-    df = _load_recruiting_class_history('OVERALL')
+    df = _load_recruiting_csv('recruiting_overall_history.csv')
     if not df.empty and 'Year' in df.columns and len(df) > 0:
         yr = int(year) if year else int(df['Year'].max())
         df = df[df['Year'] == yr].copy()
@@ -9949,7 +9895,7 @@ except Exception:
 
 # ── 6. USER RECRUITING CLASSES (OVERALL) ────────────────────────────
 try:
-    _rh = _load_recruiting_class_history('OVERALL').copy()
+    _rh = pd.read_csv('recruiting_overall_history.csv').copy()
 
     _rh['Year'] = pd.to_numeric(_rh['Year'], errors='coerce')
     _rh['Rank'] = pd.to_numeric(_rh['Rank'], errors='coerce')
@@ -11305,7 +11251,7 @@ with tabs[0]:
         # SECTION 2 — DYNASTY HEADLINES
         # All metrics use LIVE model columns (Natty Odds, Power Index,
         # CFP Odds, Collapse Risk) — NOT preseason proxies.
-        # Game-result headlines are generated directly from scores.csv.
+        # Game-result headlines are generated directly from CPUscores_MASTER.csv.
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("📰 Dynasty Headlines")
@@ -12200,7 +12146,7 @@ with tabs[3]:
             cells = [f"""
             <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
               <div style="display:flex;align-items:center;gap:10px;">
-                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(pd.to_numeric(row.get('Rank', 0), errors='coerce') if pd.notna(row.get('Rank', None)) else 0)}</div>
+                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
                 <div style="width:38px;text-align:center;">{logo_html}</div>
                 <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
               </div>
@@ -16367,8 +16313,15 @@ with tabs[5]:
                     df[col] = pd.NA
             return df
 
-        hs_df = _load_recruiting_class_history('HS')
-        tp_df = _load_recruiting_class_history('TRANSFER')
+        hs_df = safe_read_csv(
+            'recruiting_high_school_history.csv',
+            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
+        )
+
+        tp_df = safe_read_csv(
+            'recruiting_transfer_portal_history.csv',
+            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
+        )
 
         nfl = safe_read_csv(
             'attrition_nfl.csv',
