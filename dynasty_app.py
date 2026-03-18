@@ -16662,47 +16662,47 @@ if not incoming.empty:
             )
 
         # --- Build live OVR lookup from current roster ---
-        try:
-            rosters = pd.read_csv(roster_path)
-            if 'Team' in rosters.columns and 'Name' in rosters.columns:
-                rosters['LookupKey'] = rosters['Team'].astype(str) + "_" + rosters['Name'].astype(str)
-                ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR'])) if 'OVR' in rosters.columns else {}
-            else:
-                ovr_dict = {}
-        except Exception:
+    try:
+        rosters = pd.read_csv(roster_path)
+        if 'Team' in rosters.columns and 'Name' in rosters.columns:
+            rosters['LookupKey'] = rosters['Team'].astype(str) + "_" + rosters['Name'].astype(str)
+            ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR'])) if 'OVR' in rosters.columns else {}
+        else:
             ovr_dict = {}
+    except Exception:
+        ovr_dict = {}
 
-        def inject_live_ovr(df):
-            df = df.copy()
-            if not df.empty and 'Team' in df.columns and 'Player' in df.columns and 'Year' in df.columns:
-                if 'OVR' not in df.columns:
-                    df['OVR'] = pd.NA
+    def inject_live_ovr(df):
+        df = df.copy()
+        if not df.empty and 'Team' in df.columns and 'Player' in df.columns and 'Year' in df.columns:
+            if 'OVR' not in df.columns:
+                df['OVR'] = pd.NA
 
-                curr_mask = df['Year'].astype(str) == str(cur_year)
-                if curr_mask.any():
-                    lookup_keys = (
-                        df.loc[curr_mask, 'Team'].astype(str) + "_" +
-                        df.loc[curr_mask, 'Player'].astype(str)
-                    )
-                    df.loc[curr_mask, 'OVR'] = lookup_keys.map(ovr_dict).fillna(df.loc[curr_mask, 'OVR'])
+            curr_mask = df['Year'].astype(str) == str(cur_year)
+            if curr_mask.any():
+                lookup_keys = (
+                    df.loc[curr_mask, 'Team'].astype(str) + "_" +
+                    df.loc[curr_mask, 'Player'].astype(str)
+                )
+                df.loc[curr_mask, 'OVR'] = lookup_keys.map(ovr_dict).fillna(df.loc[curr_mask, 'OVR'])
 
-                df['OVR'] = pd.to_numeric(df['OVR'], errors='coerce')
-            return df
+            df['OVR'] = pd.to_numeric(df['OVR'], errors='coerce')
+        return df
 
-        return (
-            hs_df,
-            tp_df,
-            inject_live_ovr(nfl),
-            inject_live_ovr(transfers),
-            inject_live_ovr(graduates),
-            incoming,
-            user_draft_results
-        )
-
-    hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df, user_draft_results_df = load_attrition_data(
-        'cfb26_rosters_full.csv',
-        current_yr
+    return (
+        hs_df,
+        tp_df,
+        inject_live_ovr(nfl),
+        inject_live_ovr(transfers),
+        inject_live_ovr(graduates),
+        incoming,
+        user_draft_results
     )
+
+hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df, user_draft_results_df = load_attrition_data(
+    'cfb26_rosters_full.csv',
+    current_yr
+)
 
     # --- 1B. Starter Inference Helpers ---
     def truthy_series(series):
