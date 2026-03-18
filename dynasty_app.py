@@ -9702,16 +9702,9 @@ try:
         (_dc['Team'].astype(str).str.lower().str.strip() != 'nan')
     ].copy()
 
-    # Use the most recent completed title before CURRENT_YEAR
-    _dc_past = _dc[_dc['YEAR'] < CURRENT_YEAR].copy()
-
-    if _dc_past.empty:
-        # fallback: just use the latest row in the file
+    if not _dc.empty:
         _dc_last = _dc.sort_values('YEAR', ascending=False).head(1)
-    else:
-        _dc_last = _dc_past.sort_values('YEAR', ascending=False).head(1)
 
-    if not _dc_last.empty:
         _dc_year = int(_dc_last.iloc[0]['YEAR'])
         _dc_team = str(_dc_last.iloc[0].get('Team', '')).strip()
         _dc_user = str(_dc_last.iloc[0].get('user', '')).strip()
@@ -9720,6 +9713,8 @@ try:
             _dcl = get_header_logo(_dc_team)
             _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_dcl}" style="width:65px;height:65px;object-fit:contain;"></div>'
             _dc_rk = _rk_inline(_dc_team)
+
+            _next_season = _dc_year + 1
 
             _dc_blurb = (
                 f"{_dc_user}'s {_dc_team} won the {_dc_year} national title. Can anyone knock them off the throne?"
@@ -9730,7 +9725,7 @@ try:
             _all_headlines.append({
                 'badge': 'DEFENDING CHAMPS',
                 'priority': 50,
-                'text': f"{_dc_team}{_dc_rk} enters {CURRENT_YEAR} with a target on their back",
+                'text': f"{_dc_team}{_dc_rk} enters {_next_season} with a target on their back",
                 'blurb': _dc_blurb,
                 'logo_html': _lh,
             })
