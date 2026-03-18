@@ -14546,7 +14546,40 @@ with tabs[1]:
 
     latest_saved_draft_year = get_latest_saved_draft_year()
 
+    # ── PUBLIC / EVERYONE FIRST ─────────────────────────────────────────
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
+
+    with c2:
+        st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
+
+    with c3:
+        st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
+
+    audio_l, audio_c, audio_r = st.columns([1, 1.4, 1])
+
+    with audio_c:
+        if st.button("▶️ Replay Saved Draft With Audio", use_container_width=True, key="replay_saved_draft_with_audio_public"):
+            enable_draft_audio()
+            if latest_saved_draft_year is None:
+                st.warning("No saved draft exists yet.")
+            else:
+                replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
+
+    st.markdown(
+        "<div style='text-align:center;color:#9ca3af;font-size:0.9rem;'>This button enables audio and starts the replay in one click.</div>",
+        unsafe_allow_html=True
+    )
+
+    st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
+
+    # ── COMMISSIONER SECTION BELOW ──────────────────────────────────────
     if is_commissioner:
+        st.markdown("---")
+        st.subheader("🔒 Commissioner Tools")
+
         c1, c2, c3, c4, c5 = st.columns([1.05, 1.0, 1.0, 1.0, 1.15])
 
         with c1:
@@ -14726,7 +14759,6 @@ with tabs[1]:
 
         st.markdown("---")
 
-        # ── NFL Universe file status / downloads ──────────────────────────
         draft_hist_exists = os.path.exists("nfl_draft_history.csv")
         story_exists = os.path.exists("nfl_story_events.csv")
         sb_exists = os.path.exists("nfl_super_bowl_history.csv")
@@ -14807,37 +14839,7 @@ with tabs[1]:
                         key="download_nfl_current_rosters"
                     )
 
-    else:
-        c1, c2, c3 = st.columns(3)
-
-        with c1:
-            st.metric("Latest Input Draft Year", latest_input_draft_year if latest_input_draft_year else "—")
-
-        with c2:
-            st.metric("Latest Saved Draft Year", latest_saved_draft_year if latest_saved_draft_year else "—")
-
-        with c3:
-            st.metric("Tracked Drafted Players", len(nfl_draft_hist) if nfl_draft_hist is not None else 0)
-
-        audio_l, audio_c, audio_r = st.columns([1, 1.4, 1])
-
-        with audio_c:
-            if st.button("▶️ Replay Saved Draft With Audio", use_container_width=True, key="replay_saved_draft_with_audio_public"):
-                enable_draft_audio()
-                if latest_saved_draft_year is None:
-                    st.warning("No saved draft exists yet.")
-                else:
-                    replay_saved_nfl_draft(latest_saved_draft_year, speed_mode="Broadcast")
-
-        st.markdown(
-            "<div style='text-align:center;color:#9ca3af;font-size:0.9rem;'>This button enables audio and starts the replay in one click.</div>",
-            unsafe_allow_html=True
-        )
-
-        st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
-
     st.markdown("---")
-
     st.caption(f"Working directory: {os.getcwd()}")
 
     nfl_tabs = st.tabs([
