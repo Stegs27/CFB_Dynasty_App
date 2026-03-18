@@ -14702,7 +14702,24 @@ with tabs[9]:
                         st.rerun()
                 except Exception as e:
                     st.error(f"NFL season sim error: {type(e).__name__}: {e}")
-
+        
+        if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
+    try:
+        season_to_rebuild = get_current_nfl_season()
+        rebuilt = build_nfl_current_roster_for_season(
+            season_year=season_to_rebuild,
+            nfl_roster_df=nfl_roster,
+            nfl_draft_hist_df=nfl_draft_hist,
+            nfl_player_hist_df=nfl_player_hist,
+            existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
+        )
+        st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
+        st.rerun()
+    except Exception as e:
+        import traceback
+        st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
+        st.code(traceback.format_exc())  
+        
         if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
             try:
                 initialize_nfl_universe_settings()
