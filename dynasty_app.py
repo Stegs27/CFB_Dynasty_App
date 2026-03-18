@@ -10091,89 +10091,101 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── SCROLLING TICKER via components.html ─────────────────────────────
+# ── SCROLLING TICKER (sticky, page-level) ────────────────────────────
 _ticker_char_count = sum(len(h['badge']) + len(h['text']) + 4 for h in _all_headlines)
-_ticker_duration   = max(15, int(_ticker_char_count * 0.20))
+_ticker_duration = max(15, int(_ticker_char_count * 0.20))
 
-components.html(f"""<!DOCTYPE html>
-<html>
-<head>
+st.markdown(f"""
 <style>
-  * {{ margin:0; padding:0; box-sizing:border-box; }}
-  body {{
-    background:#0d1b2e;
-    overflow:hidden;
-    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+  .sticky-news-ticker {{
+    position: sticky;
+    top: 0;
+    z-index: 9999;
+    background: #0d1b2e;
+    border-top: 2px solid #dc2626;
+    border-bottom: 1px solid #1e293b;
+    padding: 9px 0;
+    overflow: hidden;
   }}
-  .ticker-wrap {{
-    width:100%;
-    overflow:hidden;
-    background:#0d1b2e;
-    border-top:2px solid #dc2626;
-    border-bottom:1px solid #1e293b;
-    padding:9px 0;
-    position:relative;
+
+  .sticky-news-ticker::before,
+  .sticky-news-ticker::after {{
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 80px;
+    z-index: 2;
+    pointer-events: none;
   }}
-  .ticker-wrap::before, .ticker-wrap::after {{
-    content:'';
-    position:absolute; top:0; bottom:0; width:80px; z-index:2; pointer-events:none;
+
+  .sticky-news-ticker::before {{
+    left: 0;
+    background: linear-gradient(to right, #0d1b2e 40%, transparent);
   }}
-  .ticker-wrap::before {{ left:0;  background:linear-gradient(to right,#0d1b2e 40%,transparent); }}
-  .ticker-wrap::after  {{ right:0; background:linear-gradient(to left, #0d1b2e 40%,transparent); }}
-  .ticker-track {{
-    display:inline-flex;
-    white-space:nowrap;
+
+  .sticky-news-ticker::after {{
+    right: 0;
+    background: linear-gradient(to left, #0d1b2e 40%, transparent);
+  }}
+
+  .sticky-news-ticker .ticker-track {{
+    display: inline-flex;
+    white-space: nowrap;
     animation: scroll-left {_ticker_duration}s linear infinite;
   }}
+
   @keyframes scroll-left {{
-    0%   {{ transform:translateX(0); }}
-    100% {{ transform:translateX(-50%); }}
+    0%   {{ transform: translateX(0); }}
+    100% {{ transform: translateX(-50%); }}
   }}
-  .slide {{
-    display:inline-flex;
-    align-items:center;
-    padding:0 36px;
-    font-size:15px;
-    font-weight:600;
-    color:#cbd5e1;
-    white-space:nowrap;
-    letter-spacing:0.01em;
+
+  .sticky-news-ticker .slide {{
+    display: inline-flex;
+    align-items: center;
+    padding: 0 36px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #cbd5e1;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
   }}
-  .slide + .slide::before {{
-    content:'●';
-    color:#f59e0b;
-    font-size:6px;
-    margin-right:36px;
-    opacity:0.6;
-    vertical-align:middle;
+
+  .sticky-news-ticker .slide + .slide::before {{
+    content: '●';
+    color: #f59e0b;
+    font-size: 6px;
+    margin-right: 36px;
+    opacity: 0.6;
+    vertical-align: middle;
   }}
-  .badge {{
-    display:inline-block;
-    padding:3px 9px;
-    border-radius:4px;
-    font-size:10px;
-    font-weight:900;
-    letter-spacing:.1em;
-    margin-right:10px;
-    vertical-align:middle;
-    line-height:1.8;
-    text-transform:uppercase;
-    flex-shrink:0;
+
+  .sticky-news-ticker .badge {{
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .1em;
+    margin-right: 10px;
+    vertical-align: middle;
+    line-height: 1.8;
+    text-transform: uppercase;
+    flex-shrink: 0;
   }}
-  .hl {{
-    font-weight:700;
-    color:#f8fafc;
-    font-size:15px;
-    letter-spacing:0.01em;
+
+  .sticky-news-ticker .hl {{
+    font-weight: 700;
+    color: #f8fafc;
+    font-size: 15px;
+    letter-spacing: 0.01em;
   }}
 </style>
-</head>
-<body>
-<div class="ticker-wrap">
+
+<div class="sticky-news-ticker">
   <div class="ticker-track">{_ticker_items}{_ticker_items}</div>
 </div>
-</body>
-</html>""", height=46, scrolling=False)
+""", unsafe_allow_html=True)
 
 
 # ── TABS START ───────────────────────────────────────────────────────
