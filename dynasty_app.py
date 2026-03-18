@@ -9953,16 +9953,20 @@ try:
     _rh['FiveStar'] = pd.to_numeric(_rh['FiveStar'], errors='coerce').fillna(0)
     _rh['FourStar'] = pd.to_numeric(_rh['FourStar'], errors='coerce').fillna(0)
     _rh['ThreeStar'] = pd.to_numeric(_rh['ThreeStar'], errors='coerce').fillna(0)
+    _rh['Team'] = _rh['Team'].fillna('').astype(str).str.strip()
+    _rh['User'] = _rh['User'].fillna('').astype(str).str.strip()
 
     if 'USER_TEAMS' in globals():
-        _user_team_list = list(USER_TEAMS.values())
+        _user_team_list = [str(t).strip() for t in USER_TEAMS.values()]
     else:
         _user_team_list = ["Florida State", "Florida", "Bowling Green", "USF", "Texas Tech", "San Jose State"]
 
     _rh_cy = _rh[
         (_rh['Year'] == CURRENT_YEAR - 1) &
-        (_rh['Team'].astype(str).isin(_user_team_list))
+        (_rh['Team'].isin(_user_team_list))
     ].copy()
+
+    st.write("DEBUG recruiting ticker rows", _rh_cy[['Year', 'Team', 'Rank', 'Points']])
 
     if not _rh_cy.empty:
         _rh_cy = _rh_cy.sort_values(['Rank', 'Points'], ascending=[True, False]).reset_index(drop=True)
