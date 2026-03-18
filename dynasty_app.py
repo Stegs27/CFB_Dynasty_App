@@ -12792,6 +12792,7 @@ with tabs[8]:
                 _hist_team = str(_hr.get('Teams', '')).strip()
                 if not _hist_team or _hist_team.lower() == 'nan':
                     continue
+
                 _year_vals = []
                 for _yc in _history_year_cols:
                     _v = _hr.get(_yc)
@@ -12801,16 +12802,20 @@ with tabs[8]:
                             _year_vals.append({'Year': int(_yc), 'Class Rank': _rank_val})
                         except Exception:
                             pass
+
                 if not _year_vals:
                     continue
+
                 _hist_df = pd.DataFrame(_year_vals).sort_values('Year', ascending=False).reset_index(drop=True)
                 _best_rank = int(_hist_df['Class Rank'].min())
                 _latest_rank = int(_hist_df.iloc[0]['Class Rank'])
                 _years_span = sorted(_hist_df['Year'].astype(int).tolist())
+
                 if len(_years_span) == 1:
                     _years_label = str(_years_span[0])
                 else:
                     _years_label = f"{_years_span[0]}–{_years_span[-1]}"
+
                 _school_cards.append({
                     'team': _hist_team,
                     'df': _hist_df,
@@ -12824,100 +12829,18 @@ with tabs[8]:
                 st.caption("No historical class ranks found for that coach.")
             else:
                 _school_cards = sorted(_school_cards, key=lambda x: x['df']['Year'].min())
-                st.markdown("""<style>
-.recruit-history-grid {
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-    gap:12px;
-    margin:10px 0 6px 0;
-}
-.recruit-history-card {
-    border-radius:16px;
-    padding:14px;
-    background:linear-gradient(145deg,#0f172a 0%,#172033 100%);
-    border:1px solid rgba(148,163,184,.20);
-    box-shadow:0 8px 22px rgba(0,0,0,.16);
-}
-.recruit-history-top {
-    display:flex;
-    align-items:center;
-    gap:12px;
-    margin-bottom:12px;
-}
-.recruit-history-logo {
-    width:56px;
-    height:56px;
-    border-radius:14px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:rgba(255,255,255,.04);
-    border:1px solid rgba(255,255,255,.08);
-    flex-shrink:0;
-}
-.recruit-history-logo img {
-    width:42px;
-    height:42px;
-    object-fit:contain;
-}
-.recruit-history-team {
-    font-size:1.02rem;
-    font-weight:900;
-    line-height:1.1;
-}
-.recruit-history-sub {
-    font-size:.76rem;
-    color:#94a3b8;
-    margin-top:3px;
-}
-.recruit-history-metrics {
-    display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));
-    gap:8px;
-    margin-bottom:10px;
-}
-.recruit-history-metric {
-    background:rgba(15,23,42,.85);
-    border:1px solid rgba(51,65,85,.9);
-    border-radius:10px;
-    padding:8px;
-    text-align:center;
-}
-.recruit-history-metric-value {
-    font-size:1rem;
-    font-weight:900;
-    color:#f8fafc;
-}
-.recruit-history-metric-label {
-    font-size:.63rem;
-    color:#94a3b8;
-    font-weight:700;
-    text-transform:uppercase;
-    margin-top:3px;
-}
-</style>""", unsafe_allow_html=True)
 
-                # keep your existing card rendering code below this point
+                st.markdown(f"#### {_hist_user}'s class-by-class results")
 
-                    st.markdown(f"#### {_hist_user}'s class-by-class results")
-                    for _card in _school_cards:
-                        _team = _card['team']
-                        _color = get_team_primary_color(_team)
-                        _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                        _logo_html = (f"<img src='{_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if _logo_uri else "🏈 " )
-                        st.markdown(
-                            f"<div style='display:flex;align-items:center;gap:8px;margin:10px 0 8px 0;'>"
-                            f"{_logo_html}"
-                            f"<span style='font-weight:900;color:{_color};'>{html.escape(_team)}</span>"
-                            f"<span style='color:#94a3b8;font-size:.78rem;'>({_card['years_label']})</span>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                        st.dataframe(_card['df'], hide_index=True, use_container_width=True)
-        else:
-            st.caption("No recruiting history columns found in recruiting.csv.")
-
-        st.markdown("---")
+                for _card in _school_cards:
+                    st.markdown(
+                        f"**{_card['team']}** — Best: #{_card['best_rank']} · "
+                        f"Latest: #{_card['latest_rank']} · Years: {_card['years_label']} · "
+                        f"Classes: {_card['classes']}"
+                    )
+                    st.dataframe(_card['df'], hide_index=True, use_container_width=True)
+    else:
+        st.caption("No recruiting history columns were found in recruiting.csv.")
 
     # --- H2H MATRIX ---
 with tabs[10]:
