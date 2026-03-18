@@ -4271,17 +4271,18 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
         }
 
         dynasty_rows = []
-        for _, pr in hist.iterrows():
-            player_id = str(pr.get("PlayerID", "")).strip()
-            if not player_id:
-                continue
+for _, pr in hist.iterrows():
+    player_id = str(pr.get("PlayerID", "")).strip()
+    if not player_id:
+        continue
 
-            if player_id.startswith("BASE::"):
-                continue
+    # Never treat inherited/base NFL players as dynasty additions
+    if player_id.startswith("BASE::"):
+        continue
 
-            status = str(pr.get("Status", "Active")).strip()
-            if status in {"Retired", "Out of League"}:
-                continue
+    status = str(pr.get("Status", "Active")).strip()
+    if status in {"Retired", "Out of League"}:
+        continue
 
             dr = draft_lookup.get(player_id, {})
             dynasty_rows.append({
@@ -4330,7 +4331,7 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
                 existing_current[col] = pd.NA
         existing_current = existing_current[NFL_CURRENT_ROSTER_COLS].copy()
         current_df = pd.concat([existing_current, current_df], ignore_index=True)
-
+    print(current_df[current_df["PlayerID"].astype(str).str.startswith("BASE::", na=False)]["Source"].value_counts(dropna=False))
     current_df.to_csv("nfl_current_rosters.csv", index=False)
 
     season_df = current_df[
