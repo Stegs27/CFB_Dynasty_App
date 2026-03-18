@@ -9336,23 +9336,20 @@ def render_automation_v2_tab(model_df, rec_df):
 
 def render_cfp_table(board_df):
     rows_html = []
-    for _, row in board_df.sort_values('Projected Seed').iterrows():
+    for _, row in board_df.iterrows():
         team = str(row.get('Team', ''))
         primary = get_team_primary_color(team)
         logo_uri = image_file_to_data_uri(get_logo_source(team))
-        logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:20px;'>🏈</div>"
+        logo_html = f"<img src='{logo_uri}' style='width:36px;height:36px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:22px;'>🏈</div>"
         seed = row.get('Projected Seed', np.nan)
         seed_disp = '—' if pd.isna(seed) else str(int(seed))
         cells = [f"""
-        <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{seed_disp}</div>
-            <div style="width:38px;text-align:center;">{logo_html}</div>
-            <div>
-              <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
-              <div style="font-size:0.72rem;color:#94a3b8;">Committee Rank #{int(row.get('Rank', 0))}</div>
+        <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;'>
+            <div style='display:flex;align-items:center;gap:10px;'>
+                <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get('Rank', 0))}</div>
+                <div style='width:38px;text-align:center;'>{logo_html}</div>
+                <div style='font-weight:800;color:{primary};'>{html.escape(team)}</div>
             </div>
-          </div>
         </td>
         """]
         vals = [
@@ -9361,23 +9358,23 @@ def render_cfp_table(board_df):
             format_pct(row.get('Bye %', np.nan), 1),
             format_pct(row.get('Auto-Bid %', np.nan), 1),
             row.get('Bubble Tier', '—'),
-            f"{float(row.get('Projected Seed Score', 0)):.1f}" if pd.notna(row.get('Projected Seed Score', np.nan)) else '—',
+            seed_disp,
         ]
-        for disp in vals:
-            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(str(disp))}</td>")
-        rows_html.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
+        for val in vals:
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;white-space:nowrap;'>{html.escape(str(val))}</td>")
+        rows_html.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}12,transparent 14%);'>{''.join(cells)}</tr>")
     table_html = f"""
-    <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <div style='overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;'>
+      <table style='width:100%;border-collapse:collapse;font-size:13px;'>
         <thead>
-          <tr style="background:#111827;color:#f8fafc;">
-            <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Projected Field</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Record</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Make CFP</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Bye Odds</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Auto-Bid Path</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Tier</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Seed Score</th>
+          <tr style='background:#f8fafc;color:#111827;'>
+            <th style='text-align:left;padding:10px 12px;color:#111827;font-weight:800;'>Team</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Record</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Make CFP</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Bye Odds</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Auto-Bid Path</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Tier</th>
+            <th style='padding:10px 12px;color:#111827;font-weight:800;'>Projected Seed</th>
           </tr>
         </thead>
         <tbody>{''.join(rows_html)}</tbody>
@@ -12257,6 +12254,9 @@ with tabs[3]:
         st.subheader('Projected CFP Field')
         render_cfp_table(projected_field)
 
+        st.subheader('First Four Out')
+        render_first_four_out(first_four_out)
+
         # ── PLAYOFF BRACKET ──────────────────────────────────────────────────
         st.subheader('Playoff Bracket')
 
@@ -12361,9 +12361,6 @@ with tabs[3]:
         else:
             st.caption("📊 Showing **projected bracket** — enter the official field above once the CFP announces.")
             render_playoff_bracket(projected_field)
-
-        st.subheader('First Four Out')
-        render_first_four_out(first_four_out)
 
         st.subheader('CFP Chaos Simulator')
         sim_team = st.selectbox('Pick a team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
