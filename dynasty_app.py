@@ -230,6 +230,62 @@ def build_super_bowl_moment_text(player_name, team, pos_bucket, school="", stat_
     pool = hero_templates[key] if is_hero else fail_templates[key]
     return random.choice(pool)
 
+def score_super_bowl_moment_candidate(row):
+    pos_bucket = clean_display(row.get("PosBucket", clean_bucket(row.get("Pos", ""))), "")
+    role = clean_display(row.get("Role", ""), "")
+    starts = safe_num(row.get("Starts", 0), 0)
+    overall_end = safe_num(row.get("OverallEnd", 0), 0)
+    career_value = safe_num(row.get("CareerValue", 0), 0)
+    mvp_votes = safe_num(row.get("MVPVotes", 0), 0)
+
+    score = 0.0
+    score += career_value * 1.0
+    score += overall_end * 0.35
+    score += starts * 2.0
+    score += mvp_votes * 2.5
+
+    if role in {"Starter", "Day 1 Starter"}:
+        score += 20
+    elif role in {"QB Battle", "Starter Battle"}:
+        score += 10
+    elif role in {"WR3", "CB3", "RB2", "TE2", "Primary Rotation", "Pass Rush Rotation", "DL Rotation", "LB Rotation", "DB Rotation", "Committee Back"}:
+        score += 4
+    elif "Backup" in role or role in {"QB2", "Developmental QB", "Depth", "Depth Piece", "Rotation WR", "Depth Back", "Depth TE", "Depth OL", "Depth EDGE", "Depth IDL", "Depth LB", "Depth CB", "Depth Safety"}:
+        score -= 8
+
+    # Big suppression for backup QBs unless they truly played
+    if pos_bucket == "QB":
+        if starts >= 14:
+            score += 22
+        elif starts >= 10:
+            score += 12
+        elif starts >= 6:
+            score += 3
+        else:
+            score -= 55
+
+        if role not in {"Starter", "QB Battle"} and starts < 8:
+            score -= 60
+
+    # Skill guys and defenders still need real usage
+    elif pos_bucket in {"RB", "WR", "TE"}:
+        if starts >= 10:
+            score += 10
+        elif starts >= 6:
+            score += 4
+        elif starts <= 2:
+            score -= 15
+
+    elif pos_bucket in {"EDGE", "IDL", "LB", "CB", "S"}:
+        if starts >= 10:
+            score += 8
+        elif starts >= 6:
+            score += 3
+        elif starts <= 2:
+            score -= 10
+
+    return round(score, 2)
+
 def generate_super_bowl_signature_moment(champion, runner_up, score, season_player_df, nfl_draft_hist_df=None):
     champion = str(champion)
     runner_up = str(runner_up)
@@ -255,6 +311,9 @@ def generate_super_bowl_signature_moment(champion, runner_up, score, season_play
 
     game_pool["CareerValue"] = pd.to_numeric(game_pool.get("CareerValue", 0), errors="coerce").fillna(0)
     game_pool["OverallEnd"] = pd.to_numeric(game_pool.get("OverallEnd", 0), errors="coerce").fillna(0)
+    game_pool["Starts"] = pd.to_numeric(game_pool.get("Starts", 0), errors="coerce").fillna(0)
+    game_pool["MVPVotes"] = pd.to_numeric(game_pool.get("MVPVotes", 0), errors="coerce").fillna(0)
+    game_pool["SBMomentScore"] = game_pool.apply(score_super_bowl_moment_candidate, axis=1)
 
     def is_user_alum(row):
         meta = draft_lookup.get(str(row.get("PlayerID", "")), {})
@@ -301,29 +360,43 @@ def generate_super_bowl_signature_moment(champion, runner_up, score, season_play
     champ_pool = game_pool[game_pool["NFLTeam"].astype(str) == champion].copy()
     runner_pool = game_pool[game_pool["NFLTeam"].astype(str) == runner_up].copy()
 
-    # 60%: user alumni hero if available
+    # Prefer user alumni heroes, but only if they actually profile like major contributors
     if not user_champs.empty and random.random() < 0.60:
-        hero_pool = user_champs.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(3).copy()
-        hero = hero_pool.sample(1).iloc[0]
-        used_player = clean_display(hero.get("Player", ""), "")
-        return make_hero_line(hero), used_player
+        hero_pool = user_champs.sort_values(["SBMomentScore", "CareerValue", "OverallEnd"], ascending=[False, False, False]).head(3).copy()
+        if not hero_pool.empty:
+            hero = hero_pool.sample(1).iloc[0]
+            used_player = clean_display(hero.get("Player", ""), "")
+            return make_hero_line(hero), used_player
 
-    # 25%: runner-up failure moment if available
-    if not runner_pool.empty and random.random() < 0.25:
-        fail_pool = runner_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[True, True]).head(3).copy()
-        fail = fail_pool.sample(1).iloc[0]
-        used_player = clean_display(fail.get("Player", ""), "")
-        return make_failure_line(fail), used_player
+    # Occasionally use a painful runner-up failure, but not from random low-usage backups
+    if not runner_pool.empty and random.random() < 0.20:
+        fail_pool = runner_pool.sort_values(["SBMomentScore", "CareerValue", "OverallEnd"], ascending=[True, True, True]).head(3).copy()
 
-    # Otherwise use one of the champion's best performers
+        # Remove truly irrelevant low-usage guys if possible
+        meaningful_fail_pool = fail_pool[fail_pool["SBMomentScore"] > -20].copy()
+        if not meaningful_fail_pool.empty:
+            fail_pool = meaningful_fail_pool
+
+        if not fail_pool.empty:
+            fail = fail_pool.sample(1).iloc[0]
+            used_player = clean_display(fail.get("Player", ""), "")
+            return make_failure_line(fail), used_player
+
+    # Most of the time use one of the champion's strongest real contributors
     if not champ_pool.empty:
-        hero_pool = champ_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(4).copy()
+        hero_pool = champ_pool.sort_values(["SBMomentScore", "CareerValue", "OverallEnd"], ascending=[False, False, False]).head(5).copy()
+
+        # Prefer meaningful contributors if possible
+        meaningful_hero_pool = hero_pool[hero_pool["SBMomentScore"] > 15].copy()
+        if not meaningful_hero_pool.empty:
+            hero_pool = meaningful_hero_pool
+
         hero = hero_pool.sample(1).iloc[0]
         used_player = clean_display(hero.get("Player", ""), "")
         return make_hero_line(hero), used_player
 
     if not runner_pool.empty:
-        fail_pool = runner_pool.sort_values(["CareerValue", "OverallEnd"], ascending=[True, True]).head(4).copy()
+        fail_pool = runner_pool.sort_values(["SBMomentScore", "CareerValue", "OverallEnd"], ascending=[True, True, True]).head(4).copy()
         fail = fail_pool.sample(1).iloc[0]
         used_player = clean_display(fail.get("Player", ""), "")
         return make_failure_line(fail), used_player
