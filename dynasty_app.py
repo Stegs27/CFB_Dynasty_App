@@ -7019,7 +7019,7 @@ def render_recruiting_snapshot_table(df):
         cells = [f"""
         <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Rank', 0))}</div>
+            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
             <div style="width:38px;text-align:center;">{logo_html}</div>
             <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
           </div>
@@ -7772,7 +7772,7 @@ def render_recruiting_table(df):
         cells = [f"""
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <div style="font-weight:800;min-width:24px;text-align:center;">#{int(row.get('Rank', 0))}</div>
+            <div style="font-weight:800;min-width:24px;text-align:center;">#{int(row.get('Projected Seed Display', 0))}</div>
             <div style="width:40px;text-align:center;">{logo_html}</div>
             <div>
               <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
@@ -9346,7 +9346,7 @@ def render_cfp_table(board_df):
         cells = [f"""
         <td style='padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;'>
             <div style='display:flex;align-items:center;gap:10px;'>
-                <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get('Rank', 0))}</div>
+                <div style='font-weight:800;min-width:20px;text-align:center;'>#{int(row.get('Projected Seed Display', 0))}</div>
                 <div style='width:38px;text-align:center;'>{logo_html}</div>
                 <div style='font-weight:800;color:{primary};'>{html.escape(team)}</div>
             </div>
@@ -12253,24 +12253,24 @@ with tabs[3]:
 
         st.subheader('Projected CFP Field')
         projected_field_display = projected_field.copy()
-        projected_field_display = projected_field_display.rename(columns={
-            'Projected Seed': 'Rank',
-            'CFP Make %': 'Make CFP',
-            'Bye %': 'Bye Odds',
-            'Auto-Bid Path %': 'Auto-Bid Path',
-            'Score': 'Seed Score',
-        })
-        for _col in ['Rank', 'Make CFP', 'Bye Odds', 'Auto-Bid Path', 'Seed Score']:
-            if _col not in projected_field_display.columns:
-                projected_field_display[_col] = 0
+        projected_field_display['Projected Seed Display'] = pd.to_numeric(
+            projected_field_display['Projected Seed'] if 'Projected Seed' in projected_field_display.columns else 0,
+            errors='coerce'
+        ).fillna(999).astype(int)
+        projected_field_display['Committee Rank Display'] = pd.to_numeric(
+            projected_field_display['Rank'] if 'Rank' in projected_field_display.columns else 0,
+            errors='coerce'
+        ).fillna(999).astype(int)
+        projected_field_display['Make CFP'] = projected_field_display['CFP Make %'] if 'CFP Make %' in projected_field_display.columns else 0
+        projected_field_display['Bye Odds'] = projected_field_display['Bye %'] if 'Bye %' in projected_field_display.columns else 0
+        projected_field_display['Auto-Bid Path'] = projected_field_display['Auto-Bid Path %'] if 'Auto-Bid Path %' in projected_field_display.columns else 0
+        projected_field_display['Seed Score'] = projected_field_display['Score'] if 'Score' in projected_field_display.columns else 0
         if 'Bubble Tier' not in projected_field_display.columns:
             projected_field_display['Bubble Tier'] = ''
         if 'Record' not in projected_field_display.columns:
             projected_field_display['Record'] = ''
-        if 'Rank' in projected_field_display.columns:
-            projected_field_display['Rank'] = pd.to_numeric(projected_field_display['Rank'], errors='coerce').fillna(999).astype(int)
         projected_field_rows = []
-        for _, row in projected_field_display.sort_values('Rank', ascending=True).head(12).iterrows():
+        for _, row in projected_field_display.sort_values('Projected Seed Display', ascending=True).head(12).iterrows():
             team = str(row.get('Team', ''))
             primary = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
@@ -12278,14 +12278,14 @@ with tabs[3]:
             cells = [f"""
             <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
               <div style="display:flex;align-items:center;gap:10px;">
-                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Rank', 0))}</div>
+                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
                 <div style="width:38px;text-align:center;">{logo_html}</div>
                 <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
               </div>
             </td>
             """]
             vals = [
-                str(int(pd.to_numeric(row.get('Rank', 0), errors='coerce') if pd.notna(row.get('Rank', 0)) else 0)),
+                str(int(row.get('Committee Rank Display', 0))),
                 html.escape(str(row.get('Record', ''))),
                 format_pct(row.get('Make CFP', 0), 1),
                 format_pct(row.get('Bye Odds', 0), 1),
