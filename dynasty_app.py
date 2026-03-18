@@ -14790,6 +14790,89 @@ with tabs[9]:
         else:
             st.warning("No NFL CSV files were found to export.")
 
+        st.markdown("---")
+
+        # ── NFL Universe file status / downloads ──────────────────────────
+        draft_hist_exists = os.path.exists("nfl_draft_history.csv")
+        story_exists = os.path.exists("nfl_story_events.csv")
+        sb_exists = os.path.exists("nfl_super_bowl_history.csv")
+        player_hist_exists = os.path.exists("nfl_player_history.csv")
+        current_roster_exists = os.path.exists("nfl_current_rosters.csv")
+
+        s1, s2, s3, s4, s5 = st.columns(5)
+        with s1:
+            st.caption(f"Draft History: {'✅' if draft_hist_exists else '❌'}")
+        with s2:
+            st.caption(f"Story Events: {'✅' if story_exists else '❌'}")
+        with s3:
+            st.caption(f"Super Bowl History: {'✅' if sb_exists else '❌'}")
+        with s4:
+            st.caption(f"Player History: {'✅' if player_hist_exists else '❌'}")
+        with s5:
+            st.caption(f"Current Rosters: {'✅' if current_roster_exists else '❌'}")
+
+        d1, d2, d3, d4, d5 = st.columns(5)
+
+        with d1:
+            if draft_hist_exists:
+                with open("nfl_draft_history.csv", "rb") as f:
+                    st.download_button(
+                        label="⬇️ Download Draft History",
+                        data=f.read(),
+                        file_name="nfl_draft_history.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_nfl_draft_history"
+                    )
+
+        with d2:
+            if story_exists:
+                with open("nfl_story_events.csv", "rb") as f:
+                    st.download_button(
+                        label="⬇️ Download Story Events",
+                        data=f.read(),
+                        file_name="nfl_story_events.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_nfl_story_events"
+                    )
+
+        with d3:
+            if sb_exists:
+                with open("nfl_super_bowl_history.csv", "rb") as f:
+                    st.download_button(
+                        label="⬇️ Download SB History",
+                        data=f.read(),
+                        file_name="nfl_super_bowl_history.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_nfl_super_bowl_history"
+                    )
+
+        with d4:
+            if player_hist_exists:
+                with open("nfl_player_history.csv", "rb") as f:
+                    st.download_button(
+                        label="⬇️ Download Player History",
+                        data=f.read(),
+                        file_name="nfl_player_history.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_nfl_player_history"
+                    )
+
+        with d5:
+            if current_roster_exists:
+                with open("nfl_current_rosters.csv", "rb") as f:
+                    st.download_button(
+                        label="⬇️ Download Current Rosters",
+                        data=f.read(),
+                        file_name="nfl_current_rosters.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_nfl_current_rosters"
+                    )
+
     else:
         c1, c2, c3 = st.columns(3)
 
@@ -14818,88 +14901,6 @@ with tabs[9]:
         )
 
         st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
-
-    st.markdown("---")
-
-    # ── NFL Universe file status / downloads ──────────────────────────
-    draft_hist_exists = os.path.exists("nfl_draft_history.csv")
-    story_exists = os.path.exists("nfl_story_events.csv")
-    sb_exists = os.path.exists("nfl_super_bowl_history.csv")
-    player_hist_exists = os.path.exists("nfl_player_history.csv")
-    current_roster_exists = os.path.exists("nfl_current_rosters.csv")
-
-    s1, s2, s3, s4, s5 = st.columns(5)
-    with s1:
-        st.caption(f"Draft History: {'✅' if draft_hist_exists else '❌'}")
-    with s2:
-        st.caption(f"Story Events: {'✅' if story_exists else '❌'}")
-    with s3:
-        st.caption(f"Super Bowl History: {'✅' if sb_exists else '❌'}")
-    with s4:
-        st.caption(f"Player History: {'✅' if player_hist_exists else '❌'}")
-    with s5:
-        st.caption(f"Current Rosters: {'✅' if current_roster_exists else '❌'}")
-
-    d1, d2, d3, d4, d5 = st.columns(5)
-
-    with d1:
-        if draft_hist_exists:
-            with open("nfl_draft_history.csv", "rb") as f:
-                st.download_button(
-                    label="⬇️ Download Draft History",
-                    data=f.read(),
-                    file_name="nfl_draft_history.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="download_nfl_draft_history"
-                )
-
-    with d2:
-        if story_exists:
-            with open("nfl_story_events.csv", "rb") as f:
-                st.download_button(
-                    label="⬇️ Download Story Events",
-                    data=f.read(),
-                    file_name="nfl_story_events.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="download_nfl_story_events"
-                )
-
-    with d3:
-        if sb_exists:
-            with open("nfl_super_bowl_history.csv", "rb") as f:
-                st.download_button(
-                    label="⬇️ Download SB History",
-                    data=f.read(),
-                    file_name="nfl_super_bowl_history.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="download_nfl_super_bowl_history"
-                )
-
-    with d4:
-        if player_hist_exists:
-            with open("nfl_player_history.csv", "rb") as f:
-                st.download_button(
-                    label="⬇️ Download Player History",
-                    data=f.read(),
-                    file_name="nfl_player_history.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="download_nfl_player_history"
-                )
-    with d5:
-        if current_roster_exists:
-            with open("nfl_current_rosters.csv", "rb") as f:
-                st.download_button(
-                    label="⬇️ Download Current Rosters",
-                    data=f.read(),
-                    file_name="nfl_current_rosters.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="download_nfl_current_rosters"
-                )
 
     st.markdown("---")
 
