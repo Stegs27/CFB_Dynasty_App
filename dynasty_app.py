@@ -14523,20 +14523,10 @@ with tabs[1]:
     nfl_awards_hist = universe["nfl_awards_hist"]
     nfl_playoff_hist = universe["nfl_playoff_hist"]
 
-    is_commissioner = False
+    if "nfl_commissioner_unlocked" not in st.session_state:
+        st.session_state["nfl_commissioner_unlocked"] = False
 
-    with st.expander("🔒 Commissioner Controls", expanded=False):
-        commissioner_key = st.text_input(
-            "Enter commissioner password",
-            type="password",
-            key="nfl_commissioner_password"
-        )
-
-        if commissioner_key == "Chicken83$":
-            is_commissioner = True
-            st.success("Commissioner mode unlocked.")
-        elif commissioner_key:
-            st.error("Incorrect password.")
+    is_commissioner = st.session_state["nfl_commissioner_unlocked"]
 
     latest_input_draft_year = (
         int(pd.to_numeric(cfb_draft["DraftYear"], errors="coerce").max())
@@ -14575,10 +14565,25 @@ with tabs[1]:
 
     st.caption("Only the commissioner can generate or rerun a draft. Everyone can replay the saved draft results.")
 
-    # ── COMMISSIONER SECTION BELOW ──────────────────────────────────────
+    st.markdown("---")
+
+    # ── COMMISSIONER UNLOCK MOVED LOWER ────────────────────────────────
+    with st.expander("🔒 Commissioner Controls", expanded=False):
+        commissioner_key = st.text_input(
+            "Enter commissioner password",
+            type="password",
+            key="nfl_commissioner_password"
+        )
+
+        if commissioner_key == "Chicken83$":
+            st.session_state["nfl_commissioner_unlocked"] = True
+            is_commissioner = True
+            st.success("Commissioner mode unlocked.")
+        elif commissioner_key:
+            st.error("Incorrect password.")
+
     if is_commissioner:
-        st.markdown("---")
-        st.subheader("🔒 Commissioner Tools")
+        st.subheader("Commissioner Tools")
 
         c1, c2, c3, c4, c5 = st.columns([1.05, 1.0, 1.0, 1.0, 1.15])
 
@@ -14759,6 +14764,7 @@ with tabs[1]:
 
         st.markdown("---")
 
+        # ── NFL Universe file status / downloads ──────────────────────────
         draft_hist_exists = os.path.exists("nfl_draft_history.csv")
         story_exists = os.path.exists("nfl_story_events.csv")
         sb_exists = os.path.exists("nfl_super_bowl_history.csv")
