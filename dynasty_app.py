@@ -17941,8 +17941,8 @@ with tabs[5]:
     with col_sel1:
         selected_team = st.selectbox("🏈 Select Team to View", user_teams_list, key="attrition_team_select")
     with col_sel2:
-        _default_outlook = current_yr + 1
-        _default_yr_idx = available_years.index(_default_outlook) if _default_outlook in available_years else 0
+        _default_outlook = available_years[0]  # highest year = most recent data
+        _default_yr_idx = 0
         selected_year = st.selectbox("🔮 Outlook Season", available_years, index=_default_yr_idx, key="attrition_year_select")
     with col_sel3:
         outlook_mode = st.selectbox(
