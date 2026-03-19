@@ -17882,6 +17882,7 @@ with tabs[5]:
     graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(
         subset=['Year', 'Team', 'Player']
     )
+    st.warning(f"DEBUG graduates_df: {len(graduates_df)} rows | auto_seniors: {len(auto_seniors_df)} rows | Years: {sorted(graduates_df['Year'].dropna().unique().tolist()) if not graduates_df.empty else 'EMPTY'} | Cols: {graduates_df.columns.tolist()}")
 
     # available_years = outlook seasons. A year appears when its departure data exists
     # (i.e. data tagged as year-1 in the CSVs), plus always include current_yr+1 (next outlook)
