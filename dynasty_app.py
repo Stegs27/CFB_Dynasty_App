@@ -11600,17 +11600,6 @@ with tabs[0]:
         st.subheader("📰 Dynasty Headlines")
         st.caption("Auto-generated from live model data and actual game results. Updates as scores are entered.")
 
-        # ── Hardcoded injury notes (update each bowl week) ────────────────
-        BOWL_INJURY_NOTES = {
-            'San Jose State': ('QB M.Shorter out 27 weeks — backup goes into Bowl 1', 'critical'),
-            'Florida State':  ('WR J.Feesago out 20 weeks — gone for the semis run', 'major'),
-            'Bowling Green':  ('DT B.Franco out 24 weeks — pass rush depleted for the whole bowl run', 'major'),
-            'Florida':        ('LB R.Casey out 14 weeks — defense shorthanded', 'moderate'),
-            'USF':            ('RG T.Christmas out 4 weeks — OL depth tested', 'minor'),
-            'Texas Tech':     ('LT K.Cota out 2 weeks — likely back for Bowl 2', 'minor'),
-        }
-        _inj_colors = {'critical': '#ef4444', 'major': '#f97316', 'moderate': '#eab308', 'minor': '#6b7280'}
-
         headlines = []
         if not model_2041.empty:
             # ── LIVE OVERRIDES FOR HEADLINES ──────────────────────────
@@ -11827,18 +11816,36 @@ with tabs[0]:
                 f"The model sees real downside if things break wrong — "
                 f"BCR, depth, and roster age all flagged."))
 
-            # ── 6. INJURY REPORT ─────────────────────────────────────────
-            _critical = [(t, n, s) for t, (n, s) in BOWL_INJURY_NOTES.items()
-                         if s in ('critical', 'major')]
-            if _critical:
-                _it, _in, _is = _critical[0]
-                _iu = next((u for u, t in USER_TEAMS.items() if t == _it), _it)
-                _ic = _inj_colors[_is]
-                headlines.append(("🚑", "Injury Report",
-                    f"<strong>{_iu}</strong> takes the biggest health hit: "
-                    f"<span style='color:{_ic};'>{_in}.</span> "
-                    f"The injury model has already docked their title odds. "
-                    f"You can't win it all in street clothes."))
+            # ── 6. INJURY REPORT (live from injury_bulletin.csv) ─────────────
+            try:
+                _inj_live = pd.read_csv('injury_bulletin.csv')
+                _inj_live['Year'] = pd.to_numeric(_inj_live.get('Year'), errors='coerce')
+                _inj_live['WeeksOut'] = pd.to_numeric(_inj_live.get('WeeksOut'), errors='coerce')
+                _inj_live['OVR'] = pd.to_numeric(_inj_live.get('OVR'), errors='coerce')
+                _inj_live = _inj_live[
+                    (_inj_live['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
+                    (_inj_live['WeeksOut'].fillna(0) >= 6)
+                ].sort_values(['WeeksOut','OVR'], ascending=[False,False])
+                if not _inj_live.empty:
+                    _ir = _inj_live.iloc[0]
+                    _ir_team = str(_ir.get('Team','')).strip()
+                    _ir_user = str(_ir.get('User','')).strip()
+                    if not _ir_user or _ir_user.lower() in ('nan',''):
+                        _ir_user = next((u for u,t in USER_TEAMS.items() if t==_ir_team), _ir_team)
+                    _ir_player = str(_ir.get('Player','')).strip()
+                    _ir_pos = str(_ir.get('Pos','')).strip()
+                    _ir_wks = int(_ir['WeeksOut'])
+                    _ir_inj = str(_ir.get('Injury','')).strip()
+                    _ir_ovr = int(_ir.get('OVR', 0) or 0)
+                    _ir_sev_color = '#ef4444' if _ir_wks >= 20 else '#f97316' if _ir_wks >= 12 else '#eab308'
+                    _ir_label = 'season-ending' if _ir_wks >= 20 else 'long-term'
+                    headlines.append(("🚑", "Injury Report",
+                        f"<strong>{_ir_user}</strong> ({html.escape(_ir_team)}) takes the biggest health hit — "
+                        f"<span style='color:{_ir_sev_color};font-weight:800;'>{_ir_player} ({_ir_pos}, {_ir_ovr} OVR) is out {_ir_wks} weeks</span> with a {_ir_inj}. "
+                        f"That's a {_ir_label} loss. The injury model has already docked their title odds. "
+                        f"You can't win it all in street clothes."))
+            except Exception:
+                pass
 
             # ── 7. QB HEADLINES ───────────────────────────────────────────
             qb_elite = model_2041[model_2041['QB Tier'] == 'Elite']
@@ -11971,7 +11978,261 @@ with tabs[0]:
                                   f"You can scheme around a lot of things. "
                                   f"You can't scheme around not being able to catch the other team's guys."))
 
-                         # ── [ADDED] HTML CARD RENDERER WITH HOVER GLOW & USER FALLBACK ────
+            # ── 10. WIN STREAK TRACKER ───────────────────────────────────
+            try:
+                _ws_df = pd.read_csv('CPUscores_MASTER.csv')
+                _ws_df['YEAR'] = pd.to_numeric(_ws_df['YEAR'], errors='coerce')
+                _ws_df['Week'] = pd.to_numeric(_ws_df['Week'], errors='coerce')
+                _ws_df['Vis Score'] = pd.to_numeric(_ws_df['Vis Score'], errors='coerce')
+                _ws_df['Home Score'] = pd.to_numeric(_ws_df['Home Score'], errors='coerce')
+                _ws_cy = _ws_df[(_ws_df['YEAR'] == CURRENT_YEAR)].dropna(subset=['Vis Score','Home Score']).sort_values('Week')
+                _ws_df['V_User_Final'] = _ws_df['Vis_User'].astype(str).str.strip().str.title()
+                _ws_df['H_User_Final'] = _ws_df['Home_User'].astype(str).str.strip().str.title()
+                _ws_cy = _ws_df[(_ws_df['YEAR'] == CURRENT_YEAR)].dropna(subset=['Vis Score','Home Score']).sort_values('Week')
+
+                _best_streak = 0
+                _best_streak_team = ''
+                _best_streak_user = ''
+
+                for _st_team in model_2041['TEAM'].unique():
+                    _st_games = _ws_cy[
+                        (_ws_cy['Visitor'] == _st_team) | (_ws_cy['Home'] == _st_team)
+                    ].sort_values('Week')
+                    _streak = 0
+                    for _, _sg in _st_games.iterrows():
+                        _is_home = _sg['Home'] == _st_team
+                        _tm_pts = _sg['Home Score'] if _is_home else _sg['Vis Score']
+                        _op_pts = _sg['Vis Score'] if _is_home else _sg['Home Score']
+                        if _tm_pts > _op_pts:
+                            _streak += 1
+                        else:
+                            _streak = 0
+                    if _streak > _best_streak:
+                        _best_streak = _streak
+                        _best_streak_team = _st_team
+                        _u_match = model_2041[model_2041['TEAM'] == _st_team]
+                        _best_streak_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else ''
+
+                if _best_streak >= 3:
+                    _streak_adj = (
+                        'unstoppable' if _best_streak >= 8 else
+                        'locked in' if _best_streak >= 6 else
+                        'on a heater' if _best_streak >= 4 else
+                        'building momentum'
+                    )
+                    headlines.append(("🔥", "Win Streak Alert",
+                        f"<strong>{_best_streak_user}</strong> ({html.escape(_best_streak_team)}) is {_streak_adj} — "
+                        f"<strong>{_best_streak} straight wins</strong> and counting. "
+                        f"Momentum is a real thing in dynasty football. "
+                        f"Don't sleep on a team that's found its groove."))
+            except Exception:
+                pass
+
+            # ── 11. UPSET ALERT ──────────────────────────────────────────
+            try:
+                _up_df = pd.read_csv('CPUscores_MASTER.csv')
+                _up_df['YEAR'] = pd.to_numeric(_up_df['YEAR'], errors='coerce')
+                _up_df['Week'] = pd.to_numeric(_up_df['Week'], errors='coerce')
+                _up_df['Vis Score'] = pd.to_numeric(_up_df['Vis Score'], errors='coerce')
+                _up_df['Home Score'] = pd.to_numeric(_up_df['Home Score'], errors='coerce')
+                _up_df['Visitor Rank'] = pd.to_numeric(_up_df['Visitor Rank'], errors='coerce')
+                _up_df['Home Rank'] = pd.to_numeric(_up_df['Home Rank'], errors='coerce')
+                _up_df['V_User_Final'] = _up_df['Vis_User'].astype(str).str.strip().str.title()
+                _up_df['H_User_Final'] = _up_df['Home_User'].astype(str).str.strip().str.title()
+
+                _known_users = set(USER_TEAMS.keys())
+                def _is_user(u): return str(u).strip().split()[0].title() in _known_users
+
+                _up_cy = _up_df[(_up_df['YEAR'] == CURRENT_YEAR)].dropna(subset=['Vis Score','Home Score'])
+                _best_upset_margin = 0
+                _best_upset_row = None
+                _best_upset_winner = ''
+                _best_upset_loser = ''
+                _best_upset_loser_rank = 0
+
+                for _, _ug in _up_cy.iterrows():
+                    _vis_user = _ug.get('V_User_Final','')
+                    _hom_user = _ug.get('H_User_Final','')
+                    _vis_rk = _ug.get('Visitor Rank', np.nan)
+                    _hom_rk = _ug.get('Home Rank', np.nan)
+                    _vs_pts = _ug['Vis Score']
+                    _hs_pts = _ug['Home Score']
+
+                    # User beats a ranked opponent
+                    if _is_user(_hom_user) and pd.notna(_vis_rk) and _vis_rk <= 10 and _hs_pts > _vs_pts:
+                        _margin = _hs_pts - _vs_pts
+                        if _vis_rk < _best_upset_loser_rank or _best_upset_loser_rank == 0:
+                            _best_upset_margin = _margin
+                            _best_upset_winner = str(_ug['Home'])
+                            _best_upset_loser = str(_ug['Visitor'])
+                            _best_upset_loser_rank = int(_vis_rk)
+                            _best_upset_row = _ug
+
+                    if _is_user(_vis_user) and pd.notna(_hom_rk) and _hom_rk <= 10 and _vs_pts > _hs_pts:
+                        _margin = _vs_pts - _hs_pts
+                        if _hom_rk < _best_upset_loser_rank or _best_upset_loser_rank == 0:
+                            _best_upset_margin = _margin
+                            _best_upset_winner = str(_ug['Visitor'])
+                            _best_upset_loser = str(_ug['Home'])
+                            _best_upset_loser_rank = int(_hom_rk)
+                            _best_upset_row = _ug
+
+                if _best_upset_row is not None and _best_upset_loser_rank <= 10:
+                    _up_u_match = model_2041[model_2041['TEAM'] == _best_upset_winner]
+                    _up_user = str(_up_u_match.iloc[0]['USER']) if not _up_u_match.empty else ''
+                    _up_wk = int(_best_upset_row.get('Week', 0) or 0)
+                    headlines.append(("🚨", "Statement Win",
+                        f"<strong>{_up_user}</strong> ({html.escape(_best_upset_winner)}) put the league on notice — "
+                        f"they knocked off <strong>#{_best_upset_loser_rank} {html.escape(_best_upset_loser)}</strong> "
+                        f"by {int(_best_upset_margin)} in Week {_up_wk}. "
+                        f"Résumé win, committee bait, and a message all at once. "
+                        f"That's the kind of win the bracket picture turns on."))
+            except Exception:
+                pass
+
+            # ── 12. CONFERENCE TITLE RACE ────────────────────────────────
+            try:
+                _conf_df = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
+                _conf_df.columns = [c.strip() for c in _conf_df.columns]
+                _conf_col = next((c for c in _conf_df.columns if c.upper() in ('CONFERENCE','CONF')), None)
+                _team_col = next((c for c in _conf_df.columns if c.upper() == 'TEAM'), None)
+                _cw_col = next((c for c in _conf_df.columns if 'CONF' in c.upper() and 'W' in c.upper() and 'L' not in c.upper()), None)
+                if not _cw_col:
+                    _cw_col = next((c for c in _conf_df.columns if c.upper() in ('W','WINS','CONF W')), None)
+
+                if _conf_col and _team_col and _cw_col:
+                    _conf_df[_cw_col] = pd.to_numeric(_conf_df[_cw_col], errors='coerce').fillna(0)
+                    _user_team_set = set(model_2041['TEAM'].unique())
+
+                    _tightest_conf = None
+                    _tightest_gap = 99
+                    _tightest_leader = ''
+                    _tightest_chaser = ''
+
+                    for _conf_name, _cgrp in _conf_df.groupby(_conf_col):
+                        _user_in_conf = _cgrp[_cgrp[_team_col].isin(_user_team_set)]
+                        if len(_user_in_conf) >= 2:
+                            _sorted = _user_in_conf.sort_values(_cw_col, ascending=False)
+                            _gap = float(_sorted.iloc[0][_cw_col]) - float(_sorted.iloc[1][_cw_col])
+                            if _gap < _tightest_gap:
+                                _tightest_gap = _gap
+                                _tightest_conf = str(_conf_name)
+                                _tightest_leader = str(_sorted.iloc[0][_team_col])
+                                _tightest_chaser = str(_sorted.iloc[1][_team_col])
+
+                    if _tightest_conf and _tightest_gap <= 1.0:
+                        _tl_user = next((u for u,t in USER_TEAMS.items() if t == _tightest_leader), _tightest_leader)
+                        _tc_user = next((u for u,t in USER_TEAMS.items() if t == _tightest_chaser), _tightest_chaser)
+                        _race_desc = "dead even" if _tightest_gap == 0 else f"{_tightest_gap:.0f} game back"
+                        headlines.append(("🏁", "Conference Title Race",
+                            f"The {_tightest_conf} title is still up for grabs — "
+                            f"<strong>{_tl_user}</strong> ({html.escape(_tightest_leader)}) leads, "
+                            f"but <strong>{_tc_user}</strong> ({html.escape(_tightest_chaser)}) is {_race_desc}. "
+                            f"Conference titles mean automatic bids. This one matters."))
+            except Exception:
+                pass
+
+            # ── 13. BEST/WORST RECORD CALLOUT ────────────────────────────
+            try:
+                _cfp_snap2 = get_cfp_rankings_snapshot()
+                if not _cfp_snap2.empty and 'Wins' in _cfp_snap2.columns and 'Losses' in _cfp_snap2.columns:
+                    _cfp_snap2['Wins'] = pd.to_numeric(_cfp_snap2['Wins'], errors='coerce').fillna(0)
+                    _cfp_snap2['Losses'] = pd.to_numeric(_cfp_snap2['Losses'], errors='coerce').fillna(0)
+                    _cfp_snap2['TotalGames'] = _cfp_snap2['Wins'] + _cfp_snap2['Losses']
+                    _played = _cfp_snap2[_cfp_snap2['TotalGames'] >= 3]
+                    if not _played.empty:
+                        _cfp_snap2['WinPct'] = _cfp_snap2['Wins'] / _cfp_snap2['TotalGames'].replace(0, np.nan)
+                        _best_rec = _played.sort_values(['WinPct','Wins'], ascending=False).iloc[0]
+                        _worst_rec = _played.sort_values(['WinPct','Wins'], ascending=True).iloc[0]
+                        _br_team = str(_best_rec['Team'])
+                        _wr_team = str(_worst_rec['Team'])
+                        _br_user = next((u for u,t in USER_TEAMS.items() if t == _br_team), _br_team)
+                        _wr_user = next((u for u,t in USER_TEAMS.items() if t == _wr_team), _wr_team)
+                        _br_w = int(_best_rec['Wins']); _br_l = int(_best_rec['Losses'])
+                        _wr_w = int(_worst_rec['Wins']); _wr_l = int(_worst_rec['Losses'])
+                        if _br_team != _wr_team:
+                            headlines.append(("📊", "Record Watch",
+                                f"<strong>{_br_user}</strong> ({html.escape(_br_team)}) is running the table at <strong>{_br_w}-{_br_l}</strong>. "
+                                f"Meanwhile <strong>{_wr_user}</strong> ({html.escape(_wr_team)}) is fighting for their season at {_wr_w}-{_wr_l}. "
+                                f"The gap between the best and worst records in this league is real — "
+                                f"and it shows up when the bracket comes out."))
+            except Exception:
+                pass
+
+            # ── 14. UPCOMING H2H TRASH TALK ──────────────────────────────
+            try:
+                _h2h_df = pd.read_csv('CPUscores_MASTER.csv')
+                _h2h_df['YEAR'] = pd.to_numeric(_h2h_df['YEAR'], errors='coerce')
+                _h2h_df['Week'] = pd.to_numeric(_h2h_df['Week'], errors='coerce')
+                _h2h_df['Vis Score'] = pd.to_numeric(_h2h_df['Vis Score'], errors='coerce')
+                _h2h_df['Home Score'] = pd.to_numeric(_h2h_df['Home Score'], errors='coerce')
+                _h2h_cy = _h2h_df[_h2h_df['YEAR'] == CURRENT_YEAR].copy()
+                _completed = _h2h_cy.dropna(subset=['Vis Score','Home Score'])
+                _latest_played_wk = int(_completed['Week'].max()) if not _completed.empty else 0
+                _upcoming_wk = _latest_played_wk + 1
+                _upcoming = _h2h_cy[_h2h_cy['Week'] == _upcoming_wk]
+
+                _known_users_h2h = set(USER_TEAMS.keys())
+                def _is_user_h2h(u): return str(u).strip().split()[0].title() in _known_users_h2h
+
+                for _, _ug in _upcoming.iterrows():
+                    _vu = str(_ug.get('Vis_User','')).strip().title()
+                    _hu = str(_ug.get('Home_User','')).strip().title()
+                    if _is_user_h2h(_vu) and _is_user_h2h(_hu):
+                        _vis_t = str(_ug['Visitor']).strip()
+                        _hom_t = str(_ug['Home']).strip()
+                        _vis_rk_u = _rank_lookup.get(_vis_t.lower())
+                        _hom_rk_u = _rank_lookup.get(_hom_t.lower())
+                        _vis_str = f"#{_vis_rk_u} " if _vis_rk_u else ""
+                        _hom_str = f"#{_hom_rk_u} " if _hom_rk_u else ""
+                        headlines.append(("⚔️", "User vs User — On Deck",
+                            f"Circle it. <strong>{_vu}</strong> ({_vis_str}{html.escape(_vis_t)}) vs "
+                            f"<strong>{_hu}</strong> ({_hom_str}{html.escape(_hom_t)}) is coming up Week {_upcoming_wk}. "
+                            f"User matchups in dynasty football hit different — somebody's CFP hopes "
+                            f"are about to take a direct hit."))
+                        break
+            except Exception:
+                pass
+
+            # ── 15. DYNASTY HISTORY — DID YOU KNOW? ─────────────────────
+            try:
+                _dyk_champs = pd.read_csv('champs.csv')
+                _dyk_champs['YEAR'] = pd.to_numeric(_dyk_champs.get('YEAR'), errors='coerce')
+                _dyk_champs = _dyk_champs.dropna(subset=['YEAR']).copy()
+                _dyk_champs['YEAR'] = _dyk_champs['YEAR'].astype(int)
+                _dyk_valid = _dyk_champs[
+                    _dyk_champs['Team'].notna() &
+                    (_dyk_champs['Team'].astype(str).str.strip() != '') &
+                    (_dyk_champs['Team'].astype(str).str.lower().str.strip() != 'nan')
+                ].copy()
+                if not _dyk_valid.empty:
+                    # Show the earliest champ as a throwback
+                    _dyk_row = _dyk_valid.sort_values('YEAR').iloc[0]
+                    _dyk_year = int(_dyk_row['YEAR'])
+                    _dyk_team = str(_dyk_row.get('Team','')).strip()
+                    _dyk_user = str(_dyk_row.get('user','')).strip()
+                    _seasons_ago = CURRENT_YEAR - _dyk_year
+                    if _seasons_ago >= 2 and _dyk_team:
+                        _dyk_blurb = (
+                            f"<strong>{_dyk_user}</strong>'s {html.escape(_dyk_team)} won the very "
+                            f"first dynasty national title back in {_dyk_year} — "
+                            if _dyk_user and _dyk_user.lower() != 'nan'
+                            else f"{html.escape(_dyk_team)} won the very first dynasty national title "
+                            f"back in {_dyk_year} — "
+                        )
+                        # Count total titles in the dynasty
+                        _total_titles = len(_dyk_valid)
+                        _unique_champs = _dyk_valid['Team'].nunique()
+                        headlines.append(("📜", "Dynasty History",
+                            f"{_dyk_blurb}"
+                            f"that was {_seasons_ago} seasons ago. "
+                            f"Since then this dynasty has crowned <strong>{_total_titles} champions</strong> "
+                            f"across <strong>{_unique_champs} different programs</strong>. "
+                            f"Every great run starts somewhere."))
+            except Exception:
+                pass
+
+        # ── HTML CARD RENDERER ────────────────────────────────────────────
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Inject the CSS animation block for the cards
@@ -12684,6 +12945,267 @@ with tabs[3]:
             st.success(f"That's a résumé steroid shot. A top-12 win would give {sim_team} a real committee argument and bye-path juice.")
         else:
             st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
+
+        # ════════════════════════════════════════════════════════════════
+        # WHO WOULD WIN? — Championship Matchup Predictor
+        # ════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("🏆 Who Would Win?")
+        st.caption("Pit any two national title winners from dynasty history against each other. The model runs their championship-year rosters head-to-head.")
+
+        try:
+            _www_champs = pd.read_csv('champs.csv')
+            _www_champs['YEAR'] = pd.to_numeric(_www_champs.get('YEAR'), errors='coerce')
+            _www_champs = _www_champs.dropna(subset=['YEAR']).copy()
+            _www_champs['YEAR'] = _www_champs['YEAR'].astype(int)
+            _www_champs = _www_champs[
+                _www_champs['Team'].notna() &
+                (_www_champs['Team'].astype(str).str.strip() != '') &
+                (_www_champs['Team'].astype(str).str.lower() != 'nan')
+            ].copy()
+            _www_champs['Team'] = _www_champs['Team'].astype(str).str.strip()
+            _www_champs['user'] = _www_champs.get('user', pd.Series(dtype=str)).fillna('').astype(str).str.strip()
+            _www_champs_sorted = _www_champs.sort_values('YEAR', ascending=False)
+
+            # Build label list: "2041 — San Jose State (Mike)"
+            def _www_label(row):
+                u = str(row.get('user','')).strip()
+                return f"{int(row['YEAR'])} — {row['Team']}" + (f" ({u})" if u and u.lower() not in ('nan','') else '')
+
+            _www_options = [_www_label(r) for _, r in _www_champs_sorted.iterrows()]
+            _www_team_map = {_www_label(r): r for _, r in _www_champs_sorted.iterrows()}
+
+            if len(_www_options) >= 2:
+                _www_col1, _www_col2 = st.columns(2)
+                with _www_col1:
+                    _sel_a = st.selectbox("🏆 Champion A", _www_options, index=0, key="www_team_a")
+                with _www_col2:
+                    _default_b = 1 if len(_www_options) > 1 else 0
+                    _sel_b = st.selectbox("🏆 Champion B", _www_options, index=_default_b, key="www_team_b")
+
+                _row_a = _www_team_map[_sel_a]
+                _row_b = _www_team_map[_sel_b]
+                _team_a = _row_a['Team']
+                _team_b = _row_b['Team']
+                _year_a = int(_row_a['YEAR'])
+                _year_b = int(_row_b['YEAR'])
+                _user_a = str(_row_a.get('user','')).strip()
+                _user_b = str(_row_b.get('user','')).strip()
+
+                if _team_a == _team_b and _year_a == _year_b:
+                    st.info("Pick two different champions to run the matchup.")
+                else:
+                    # Pull stats from TeamRatingsHistory
+                    try:
+                        _www_ratings = pd.read_csv('TeamRatingsHistory.csv')
+                        _www_ratings['YEAR'] = pd.to_numeric(_www_ratings['YEAR'], errors='coerce')
+                        _www_ratings['TEAM'] = _www_ratings['TEAM'].astype(str).str.strip()
+                    except Exception:
+                        _www_ratings = ratings.copy() if 'ratings' in globals() else pd.DataFrame()
+
+                    def _get_champ_stats(team, year):
+                        """Pull ratings row for a team in their championship year."""
+                        _r = _www_ratings[
+                            (_www_ratings['TEAM'] == team) &
+                            (_www_ratings['YEAR'] == year)
+                        ]
+                        if _r.empty:
+                            # Fallback: nearest year
+                            _r = _www_ratings[_www_ratings['TEAM'] == team].sort_values('YEAR')
+                            if _r.empty:
+                                return {}
+                        row = _r.iloc[0]
+                        return {
+                            'OVERALL': float(pd.to_numeric(row.get('OVERALL', 82), errors='coerce') or 82),
+                            'OFFENSE': float(pd.to_numeric(row.get('OFFENSE', 80), errors='coerce') or 80),
+                            'DEFENSE': float(pd.to_numeric(row.get('DEFENSE', 80), errors='coerce') or 80),
+                            'QB_OVR':  float(pd.to_numeric(row.get('QB OVR', 80), errors='coerce') or 80),
+                            'QB_TIER': str(row.get('QB Tier', 'Average Joe')).strip(),
+                            'SPEED':   float(pd.to_numeric(row.get('Team Speed (90+ Speed Guys)', 0), errors='coerce') or 0),
+                            'BCR':     float(pd.to_numeric(row.get('Blue Chip Ratio (4 & 5 star recruit ratio on roster)', 0), errors='coerce') or 0),
+                            'GEN':     float(pd.to_numeric(row.get('Generational (96+ speed or 96+ Acceleration)', 0), errors='coerce') or 0),
+                        }
+
+                    _stats_a = _get_champ_stats(_team_a, _year_a)
+                    _stats_b = _get_champ_stats(_team_b, _year_b)
+
+                    def _composite_score(s):
+                        """ESPN-style composite matchup score (0-100)."""
+                        if not s:
+                            return 50.0
+                        _qb_boost = {'Elite': 8.0, 'Leader': 3.0, 'Average Joe': 0.0, 'Ass': -7.0}.get(s.get('QB_TIER','Average Joe'), 0.0)
+                        _spd_boost = min(s.get('SPEED', 0) * 0.4, 8.0)
+                        _bcr_boost = min(s.get('BCR', 0) * 0.08, 4.0)
+                        _gen_boost = min(s.get('GEN', 0) * 0.6, 4.0)
+                        _base = (
+                            s.get('OVERALL', 80) * 0.30 +
+                            s.get('OFFENSE', 80) * 0.22 +
+                            s.get('DEFENSE', 80) * 0.22 +
+                            s.get('QB_OVR', 80) * 0.16
+                        )
+                        return round(_base + _qb_boost + _spd_boost + _bcr_boost + _gen_boost, 2)
+
+                    _score_a = _composite_score(_stats_a)
+                    _score_b = _composite_score(_stats_b)
+                    _total = _score_a + _score_b if (_score_a + _score_b) > 0 else 100
+                    _win_pct_a = round((_score_a / _total) * 100, 1)
+                    _win_pct_b = round(100 - _win_pct_a, 1)
+
+                    _winner = _team_a if _score_a >= _score_b else _team_b
+                    _winner_user = _user_a if _score_a >= _score_b else _user_b
+                    _winner_year = _year_a if _score_a >= _score_b else _year_b
+                    _loser = _team_b if _score_a >= _score_b else _team_a
+                    _winner_pct = max(_win_pct_a, _win_pct_b)
+                    _loser_pct = min(_win_pct_a, _win_pct_b)
+                    _margin = abs(_score_a - _score_b)
+
+                    _verdict = (
+                        "dominant" if _margin >= 6 else
+                        "clear edge" if _margin >= 3 else
+                        "coin flip" if _margin < 1.5 else
+                        "slight edge"
+                    )
+
+                    # Colors/logos
+                    _ca = get_team_primary_color(_team_a)
+                    _cb = get_team_primary_color(_team_b)
+                    _logo_a = image_file_to_data_uri(get_logo_source(_team_a)) or ''
+                    _logo_b = image_file_to_data_uri(get_logo_source(_team_b)) or ''
+                    _img_a = f"<img src='{_logo_a}' style='width:72px;height:72px;object-fit:contain;'/>" if _logo_a else "🏈"
+                    _img_b = f"<img src='{_logo_b}' style='width:72px;height:72px;object-fit:contain;'/>" if _logo_b else "🏈"
+
+                    _ua_disp = f"{_user_a} · " if _user_a and _user_a.lower() not in ('nan','') else ''
+                    _ub_disp = f"{_user_b} · " if _user_b and _user_b.lower() not in ('nan','') else ''
+                    _uw_disp = f"{_winner_user} · " if _winner_user and _winner_user.lower() not in ('nan','') else ''
+
+                    # Progress bar widths
+                    _bar_a = max(10, min(90, int(_win_pct_a)))
+                    _bar_b = 100 - _bar_a
+
+                    # Stat comparison rows
+                    def _stat_row(label, val_a, val_b, higher_is_better=True, fmt=".0f"):
+                        _better = _team_a if val_a >= val_b else _team_b
+                        _ca2 = _ca if val_a >= val_b else '#6b7280'
+                        _cb2 = _cb if val_b >= val_a else '#6b7280'
+                        _fw_a = '900' if val_a >= val_b else '400'
+                        _fw_b = '900' if val_b >= val_a else '400'
+                        _va = format(val_a, fmt) if isinstance(val_a, float) else str(val_a)
+                        _vb = format(val_b, fmt) if isinstance(val_b, float) else str(val_b)
+                        return (
+                            f"<tr>"
+                            f"<td style='text-align:right;padding:5px 10px;font-weight:{_fw_a};color:{_ca2};'>{_va}</td>"
+                            f"<td style='text-align:center;padding:5px 8px;color:#6b7280;font-size:0.78rem;white-space:nowrap;'>{label}</td>"
+                            f"<td style='text-align:left;padding:5px 10px;font-weight:{_fw_b};color:{_cb2};'>{_vb}</td>"
+                            f"</tr>"
+                        )
+
+                    _qb_tier_score = {'Elite': 95, 'Leader': 85, 'Average Joe': 78, 'Ass': 65}
+                    _qts_a = _qb_tier_score.get(_stats_a.get('QB_TIER','Average Joe'), 78)
+                    _qts_b = _qb_tier_score.get(_stats_b.get('QB_TIER','Average Joe'), 78)
+
+                    _stat_rows_html = ''
+                    for _lbl, _va, _vb, _fmt in [
+                        ('OVERALL', _stats_a.get('OVERALL',80), _stats_b.get('OVERALL',80), '.0f'),
+                        ('OFFENSE', _stats_a.get('OFFENSE',80), _stats_b.get('OFFENSE',80), '.0f'),
+                        ('DEFENSE', _stats_a.get('DEFENSE',80), _stats_b.get('DEFENSE',80), '.0f'),
+                        ('QB OVR',  _stats_a.get('QB_OVR',80),  _stats_b.get('QB_OVR',80),  '.0f'),
+                        ('QB TIER SCORE', float(_qts_a), float(_qts_b), '.0f'),
+                        ('SPEED GUYS (90+)', _stats_a.get('SPEED',0), _stats_b.get('SPEED',0), '.0f'),
+                        ('GENERATIONAL', _stats_a.get('GEN',0), _stats_b.get('GEN',0), '.0f'),
+                        ('BLUE CHIP RATIO', _stats_a.get('BCR',0), _stats_b.get('BCR',0), '.1f'),
+                    ]:
+                        _stat_rows_html += _stat_row(_lbl, float(_va), float(_vb), fmt=_fmt)
+
+                    _verdict_color = '#ef4444' if _verdict == 'dominant' else '#f59e0b' if _verdict == 'coin flip' else '#3b82f6'
+
+                    _matchup_html = f"""
+<div style="background:linear-gradient(135deg,{_ca}18,rgba(15,23,42,0.98) 45%,{_cb}18);border:1px solid #334155;border-radius:14px;padding:24px 18px;margin-top:16px;">
+
+  <!-- Header -->
+  <div style="text-align:center;margin-bottom:20px;">
+    <span style="font-size:0.72rem;font-weight:900;letter-spacing:2px;color:#94a3b8;text-transform:uppercase;">Dynasty Championship Matchup</span>
+  </div>
+
+  <!-- Team headers -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+    <div style="text-align:center;flex:1;min-width:110px;">
+      {_img_a}
+      <div style="font-size:1.0rem;font-weight:900;color:{_ca};margin-top:6px;">{html.escape(_team_a)}</div>
+      <div style="font-size:0.72rem;color:#9ca3af;">{_ua_disp}{_year_a} Champions</div>
+    </div>
+    <div style="text-align:center;min-width:60px;">
+      <div style="font-size:1.6rem;font-weight:900;color:#e5e7eb;">VS</div>
+    </div>
+    <div style="text-align:center;flex:1;min-width:110px;">
+      {_img_b}
+      <div style="font-size:1.0rem;font-weight:900;color:{_cb};margin-top:6px;">{html.escape(_team_b)}</div>
+      <div style="font-size:0.72rem;color:#9ca3af;">{_ub_disp}{_year_b} Champions</div>
+    </div>
+  </div>
+
+  <!-- Win probability bar -->
+  <div style="margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:800;margin-bottom:4px;">
+      <span style="color:{_ca};">{_win_pct_a}%</span>
+      <span style="color:#6b7280;font-size:0.7rem;letter-spacing:1px;">WIN PROBABILITY</span>
+      <span style="color:{_cb};">{_win_pct_b}%</span>
+    </div>
+    <div style="display:flex;height:10px;border-radius:99px;overflow:hidden;background:#1e293b;">
+      <div style="width:{_bar_a}%;background:{_ca};transition:width 0.5s;"></div>
+      <div style="width:{_bar_b}%;background:{_cb};"></div>
+    </div>
+  </div>
+
+  <!-- Stat comparison table -->
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:0.88rem;color:#e5e7eb;">
+    {_stat_rows_html}
+  </table>
+
+  <!-- Verdict -->
+  <div style="text-align:center;border-top:1px solid #334155;padding-top:16px;">
+    <span style="font-size:0.65rem;font-weight:900;letter-spacing:2px;color:#6b7280;text-transform:uppercase;">Model Verdict</span>
+    <div style="font-size:1.15rem;font-weight:900;color:{_ca if _score_a >= _score_b else _cb};margin:6px 0;">
+      {html.escape(_winner)} wins — {html.escape(str(_winner_pct))}%
+    </div>
+    <div style="font-size:0.8rem;color:#94a3b8;">
+      <span style="color:{_verdict_color};font-weight:800;text-transform:uppercase;">{_verdict.upper()}</span>
+      {f" · {_uw_disp}{_winner_year} edition" if _uw_disp else f" · {_winner_year} edition"}
+    </div>
+    <div style="font-size:0.72rem;color:#6b7280;margin-top:8px;font-style:italic;">
+      Composite score: {html.escape(_team_a)} {_score_a:.1f} — {_score_b:.1f} {html.escape(_team_b)}
+    </div>
+  </div>
+</div>
+"""
+                    st.markdown(_matchup_html, unsafe_allow_html=True)
+
+                    # ── Written breakdown ────────────────────────────────
+                    _adv_notes = []
+                    _winner_stats = _stats_a if _score_a >= _score_b else _stats_b
+                    _loser_stats = _stats_b if _score_a >= _score_b else _stats_a
+                    if _winner_stats.get('OVERALL',0) - _loser_stats.get('OVERALL',0) >= 3:
+                        _adv_notes.append(f"overall roster advantage (+{_winner_stats['OVERALL']-_loser_stats['OVERALL']:.0f} OVR)")
+                    if _winner_stats.get('OFFENSE',0) - _loser_stats.get('OFFENSE',0) >= 3:
+                        _adv_notes.append(f"offensive firepower (+{_winner_stats['OFFENSE']-_loser_stats['OFFENSE']:.0f}")
+                    if _winner_stats.get('DEFENSE',0) - _loser_stats.get('DEFENSE',0) >= 3:
+                        _adv_notes.append(f"defensive dominance (+{_winner_stats['DEFENSE']-_loser_stats['DEFENSE']:.0f})")
+                    if _winner_stats.get('QB_TIER','') == 'Elite' and _loser_stats.get('QB_TIER','') != 'Elite':
+                        _adv_notes.append("elite QB advantage")
+                    if _winner_stats.get('SPEED',0) - _loser_stats.get('SPEED',0) >= 4:
+                        _adv_notes.append(f"speed depth ({int(_winner_stats['SPEED'])} vs {int(_loser_stats['SPEED'])} speed guys)")
+                    if _winner_stats.get('GEN',0) - _loser_stats.get('GEN',0) >= 2:
+                        _adv_notes.append(f"generational athletes ({int(_winner_stats['GEN'])} vs {int(_loser_stats['GEN'])})")
+
+                    _breakdown_text = (
+                        f"**{_winner}** wins this one on the model. "
+                        + (f"Edge comes from: {', '.join(_adv_notes)}. " if _adv_notes else "It's close across the board. ")
+                        + (f"At {_winner_pct}% this is a {_verdict} — not a slam dunk." if _winner_pct < 65 else f"At {_winner_pct}% the model sees this as a genuine mismatch.")
+                    )
+                    st.caption(_breakdown_text)
+            else:
+                st.info("Not enough champion data yet — win a few natties first 🏆")
+        except Exception as _www_e:
+            st.info(f"Who Would Win requires champs.csv and TeamRatingsHistory.csv. ({_www_e})")
 
         # --- RECRUITING RANKINGS ---
 with tabs[4]:
