@@ -12683,7 +12683,7 @@ with tabs[0]:
                 _hc_roster['HeismanOdds'] = (_exp_scores / _exp_scores.sum()) * 100.0
                 _hc_roster['HeismanOdds'] = _hc_roster['HeismanOdds'].round(1)
 
-                _candidate_html = "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;'>"
+                _card_cols = st.columns(2)
                 for _idx, _r in _hc_roster.iterrows():
                     _team = str(_r.get('Team','')).strip()
                     _name = str(_r.get('Name','')).strip()
@@ -12692,9 +12692,6 @@ with tabs[0]:
                     _ovr  = int(_r.get('OVR', 0))
                     _odds = float(_r.get('HeismanOdds', 0.0))
                     _score = float(_r.get('HeismanScore', 0.0))
-                    _tc = get_team_primary_color(_team)
-                    _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                    _logo_html = f"<img src='{_logo_uri}' style='width:28px;height:28px;object-fit:contain;border-radius:999px;'/>" if _logo_uri else "🏈"
                     _rank_tag = f"#{int(_r['TeamRankCtx'])}" if pd.notna(_r.get('TeamRankCtx')) else "UR"
                     _natty_tag = f"{float(_r['NattyOddsCtx']):.1f}%" if pd.notna(_r.get('NattyOddsCtx')) else "—"
                     _cfp_tag = f"{float(_r['CFPOddsCtx']):.1f}%" if pd.notna(_r.get('CFPOddsCtx')) else "—"
@@ -12710,54 +12707,17 @@ with tabs[0]:
                         _formula_bits.append("elite OVR")
                     elif int(pd.to_numeric(pd.Series([_r.get('SPD',0)]), errors='coerce').fillna(0).iloc[0]) >= 92:
                         _formula_bits.append("explosive traits")
-
                     _formula_text = " • ".join(_formula_bits[:3]) if _formula_bits else "talent + team context"
 
-                    _candidate_html += f"""
-                    <div style="background:linear-gradient(135deg, rgba(17,24,39,0.98), rgba(31,41,55,0.96)); border:1px solid rgba(255,255,255,0.08); border-left:5px solid {_tc}; border-radius:14px; padding:14px 14px 12px 14px; box-shadow:0 8px 18px rgba(0,0,0,0.34);">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-                            <div style="display:flex; gap:10px; align-items:center;">
-                                <div>{_logo_html}</div>
-                                <div>
-                                    <div style="font-size:0.74rem; color:#9ca3af; text-transform:uppercase; letter-spacing:1px;">Heisman Board · #{_idx+1}</div>
-                                    <div style="font-size:1.02rem; color:#f9fafb; font-weight:900; line-height:1.15; margin-top:2px;">{html.escape(_name)}</div>
-                                    <div style="font-size:0.80rem; color:{_tc}; font-weight:700; margin-top:4px;">{html.escape(_team)}</div>
-                                </div>
-                            </div>
-                            <div style="text-align:right;">
-                                <div style="font-size:1.12rem; font-weight:900; color:#fbbf24;">{_odds:.1f}%</div>
-                                <div style="font-size:0.68rem; color:#9ca3af; text-transform:uppercase;">Odds</div>
-                            </div>
-                        </div>
-
-                        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;">
-                            <span style="font-size:0.70rem; color:#e5e7eb; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); border-radius:999px; padding:4px 8px;">{html.escape(_pos)} · {html.escape(_year)}</span>
-                            <span style="font-size:0.70rem; color:#dcfce7; background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.18); border-radius:999px; padding:4px 8px;">{_ovr} OVR</span>
-                            <span style="font-size:0.70rem; color:#dbeafe; background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.18); border-radius:999px; padding:4px 8px;">Rank {_rank_tag}</span>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px;">
-                            <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:8px;">
-                                <div style="font-size:0.68rem; color:#9ca3af;">Heisman Score</div>
-                                <div style="font-size:0.95rem; color:#fff; font-weight:800;">{_score:.1f}</div>
-                            </div>
-                            <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:8px;">
-                                <div style="font-size:0.68rem; color:#9ca3af;">Natty Odds</div>
-                                <div style="font-size:0.95rem; color:#fff; font-weight:800;">{_natty_tag}</div>
-                            </div>
-                            <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:8px;">
-                                <div style="font-size:0.68rem; color:#9ca3af;">CFP Odds</div>
-                                <div style="font-size:0.95rem; color:#fff; font-weight:800;">{_cfp_tag}</div>
-                            </div>
-                        </div>
-
-                        <div style="margin-top:11px; font-size:0.80rem; color:#d1d5db; line-height:1.45;">
-                            {html.escape(_formula_text)}.
-                        </div>
-                    </div>
-                    """
-                _candidate_html += "</div>"
-                st.markdown(_candidate_html, unsafe_allow_html=True)
+                    with _card_cols[_idx % 2]:
+                        st.markdown(f"##### #{_idx+1} {_name}")
+                        st.caption(f"{_team} · {_pos} · {_year} · {_ovr} OVR · Rank {_rank_tag}")
+                        _m1, _m2, _m3 = st.columns(3)
+                        _m1.metric("Heisman Odds", f"{_odds:.1f}%")
+                        _m2.metric("Heisman Score", f"{_score:.1f}")
+                        _m3.metric("Natty / CFP", f"{_natty_tag} / {_cfp_tag}")
+                        st.caption(_formula_text)
+                        st.markdown("---")
 
                 with st.expander("How the Heisman Odds formula works"):
                     st.markdown(
