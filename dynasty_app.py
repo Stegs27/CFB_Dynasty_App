@@ -5717,6 +5717,8 @@ def render_speed_freaks_table(df):
         score      = float(row.get('Team Speed Score', 0))
         total_spd  = int(row.get('Team Speed (90+ Speed Guys)', 0))
         quad_90    = int(row.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0))
+        monsters   = int(row.get('Monsters', 0))
+        quick_hogs = int(row.get('Quick Hogs', 0))
         gen        = int(row.get('Generational (96+ speed or 96+ Acceleration)', 0))
         off_spd    = int(row.get('Off Speed (90+ speed)', 0))
         def_spd    = int(row.get('Def Speed (90+ speed)', 0))
@@ -5740,10 +5742,10 @@ def render_speed_freaks_table(df):
 
         chips = (
             chip('90+ SPD', str(total_spd), primary)
-            + chip('QUAD 90', str(quad_90), '#60a5fa')
+            + chip('CHEAT', str(quad_90), '#60a5fa')
+            + chip('MON', str(monsters), '#f97316')
+            + chip('HOG', str(quick_hogs), '#22c55e')
             + chip('GEN', str(gen), '#fbbf24')
-            + chip('OFF', str(off_spd), '#34d399')
-            + chip('DEF', str(def_spd), '#f87171')
         )
 
         cards_html += f"""
@@ -13268,6 +13270,8 @@ with tabs[7]:
             'Generational (96+ speed or 96+ Acceleration)': 0,
             'Off Speed (90+ speed)': 0,
             'Def Speed (90+ speed)': 0,
+            'Monsters': 0,
+            'Quick Hogs': 0,
             'Where is the Speed?': 'Balanced',
         }
         for _col, _default in _required_defaults.items():
@@ -13278,21 +13282,103 @@ with tabs[7]:
             'Team Speed Score', 'Speedometer', 'TEAM SPEED Rank',
             'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
             'Generational (96+ speed or 96+ Acceleration)',
-            'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
+            'Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Monsters', 'Quick Hogs'
         ]:
             _sf_df[_num_col] = pd.to_numeric(_sf_df[_num_col], errors='coerce').fillna(0)
+
+        try:
+            _sf_roster = pd.read_csv('cfb26_rosters_full.csv')
+            _sf_roster['SPD'] = pd.to_numeric(_sf_roster.get('SPD'), errors='coerce')
+            _sf_roster['ACC'] = pd.to_numeric(_sf_roster.get('ACC'), errors='coerce')
+            _sf_roster['AGI'] = pd.to_numeric(_sf_roster.get('AGI'), errors='coerce')
+            _sf_roster['COD'] = pd.to_numeric(_sf_roster.get('COD'), errors='coerce')
+            _sf_roster['STR'] = pd.to_numeric(_sf_roster.get('STR'), errors='coerce')
+            _sf_roster['REDSHIRT'] = pd.to_numeric(_sf_roster.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
+            _sf_roster['PosNorm'] = _sf_roster.get('Pos', '').astype(str).str.upper().str.strip()
+            _sf_active = _sf_roster[_sf_roster['REDSHIRT'] == 0].copy()
+
+            _front7 = {'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL'}
+            _ol = {'LT', 'LG', 'C', 'RG', 'RT'}
+
+            _live_rows = []
+            for _t in _sf_df['TEAM'].dropna().astype(str).unique():
+                _tdf = _sf_active[_sf_active['Team'].astype(str) == _t].copy()
+
+                _s90 = int((_tdf['SPD'] >= 90).sum())
+                _gen = int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum())
+                _quad = int(((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 90) & (_tdf['AGI'] >= 90) & (_tdf['COD'] >= 90)).sum())
+                _mon = int(((_tdf['PosNorm'].isin(_front7)) & (((_tdf['ACC'] >= 90) & (_tdf['SPD'] >= 84)) | ((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 84)))).sum())
+                _qh = int(((_tdf['PosNorm'].isin(_ol)) & (_tdf['AGI'] >= 85) & (_tdf['STR'] >= 90)).sum())
+                _off = int(((_tdf['SPD'] >= 90) & (_tdf['PosNorm'].isin({'QB', 'HB', 'RB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT'}))).sum())
+                _def = int(((_tdf['SPD'] >= 90) & (_tdf['PosNorm'].isin({'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'S'}))).sum())
+
+                _live_rows.append({
+                    'TEAM': _t,
+                    'Team Speed (90+ Speed Guys)': _s90,
+                    'Quad 90 (90+ SPD, ACC, AGI & COD)': _quad,
+                    'Generational (96+ speed or 96+ Acceleration)': _gen,
+                    'Monsters': _mon,
+                    'Quick Hogs': _qh,
+                    'Off Speed (90+ speed)': _off,
+                    'Def Speed (90+ speed)': _def,
+                })
+
+            _live_speed_df = pd.DataFrame(_live_rows)
+            if not _live_speed_df.empty:
+                _sf_df = _sf_df.drop(columns=[
+                    'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                    'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
+                    'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
+                ], errors='ignore').merge(_live_speed_df, on='TEAM', how='left')
+
+                for _num_col in [
+                    'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                    'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
+                    'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
+                ]:
+                    _sf_df[_num_col] = pd.to_numeric(_sf_df[_num_col], errors='coerce').fillna(0)
+
+                _sf_df['Team Speed Score'] = (
+                    _sf_df['Team Speed (90+ Speed Guys)'] * 2.2
+                    + _sf_df['Off Speed (90+ speed)'] * 1.0
+                    + _sf_df['Def Speed (90+ speed)'] * 1.0
+                    + _sf_df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 2.5
+                    + _sf_df['Monsters'] * 1.4
+                    + _sf_df['Quick Hogs'] * 1.2
+                ) * (
+                    1
+                    + _sf_df['Generational (96+ speed or 96+ Acceleration)'] * 0.16
+                    + _sf_df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 0.07
+                )
+                _sf_df['Team Speed Score'] = _sf_df['Team Speed Score'].round(1)
+
+        except Exception:
+            pass
 
         if (_sf_df['Speedometer'] == 0).all() and 'team_speed_to_mph' in globals():
             _sf_df['Speedometer'] = _sf_df['Team Speed Score'].apply(team_speed_to_mph)
 
-        if (_sf_df['TEAM SPEED Rank'] == 0).all():
-            _sf_df = _sf_df.sort_values(
-                ['Team Speed Score', 'Team Speed (90+ Speed Guys)', 'TEAM'],
-                ascending=[False, False, True]
-            ).reset_index(drop=True)
-            _sf_df['TEAM SPEED Rank'] = range(1, len(_sf_df) + 1)
-        else:
-            _sf_df = _sf_df.sort_values(['TEAM SPEED Rank', 'TEAM'], ascending=[True, True]).reset_index(drop=True)
+        def _where_is_the_speed(row):
+            _off_fast = pd.to_numeric(row.get('Off Speed (90+ speed)', 0), errors='coerce')
+            _def_fast = pd.to_numeric(row.get('Def Speed (90+ speed)', 0), errors='coerce')
+            _mph = pd.to_numeric(row.get('Speedometer', np.nan), errors='coerce')
+            if _off_fast <= 5 and _def_fast <= 5 and (not pd.isna(_mph)) and _mph < 65:
+                return 'Non-Existent'
+            if _off_fast > 5 and _def_fast > 5:
+                return 'Off & Def'
+            if _off_fast > 5:
+                return 'Offense'
+            if _def_fast > 5:
+                return 'Defense'
+            return 'Balanced'
+
+        _sf_df['Where is the Speed?'] = _sf_df.apply(_where_is_the_speed, axis=1)
+
+        _sf_df = _sf_df.sort_values(
+            ['Team Speed Score', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Monsters', 'TEAM'],
+            ascending=[False, False, False, True]
+        ).reset_index(drop=True)
+        _sf_df['TEAM SPEED Rank'] = range(1, len(_sf_df) + 1)
 
         _leader = _sf_df.iloc[0]
         _most_gen = _sf_df.sort_values(
@@ -13303,17 +13389,32 @@ with tabs[7]:
             ['Quad 90 (90+ SPD, ACC, AGI & COD)', 'Team Speed Score'],
             ascending=[False, False]
         ).iloc[0]
-        _fastest_side = _sf_df.sort_values(
-            ['Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Team Speed Score'],
-            ascending=[False, False, False]
+        _most_mon = _sf_df.sort_values(
+            ['Monsters', 'Team Speed Score'],
+            ascending=[False, False]
         ).iloc[0]
 
         mobile_metrics([
             {"label": "⚡ Speed King", "value": str(_leader.get('USER', '—')), "delta": f"{float(_leader.get('Speedometer', 0)):.1f} MPH"},
-            {"label": "🧬 Most Freaks", "value": str(_most_gen.get('USER', '—')), "delta": f"{int(_most_gen.get('Generational (96+ speed or 96+ Acceleration)', 0))} generational"},
             {"label": "🎮 Cheat Codes", "value": str(_most_quad.get('USER', '—')), "delta": f"{int(_most_quad.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0))} cheat codes"},
-            {"label": "🏃 Speed Side", "value": str(_fastest_side.get('USER', '—')), "delta": str(_fastest_side.get('Where is the Speed?', '—'))},
+            {"label": "👹 Monsters", "value": str(_most_mon.get('USER', '—')), "delta": f"{int(_most_mon.get('Monsters', 0))} monsters"},
+            {"label": "🧬 Most Freaks", "value": str(_most_gen.get('USER', '—')), "delta": f"{int(_most_gen.get('Generational (96+ speed or 96+ Acceleration)', 0))} generational"},
         ], cols_desktop=4)
+
+        st.markdown(
+            """
+            <div style="background:rgba(15,23,42,0.70); border:1px solid rgba(148,163,184,0.18); border-radius:12px; padding:12px 14px; margin-top:10px; margin-bottom:14px;">
+              <div style="font-weight:800; color:#f8fafc; margin-bottom:8px;">Speed Freaks Key</div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; font-size:0.9rem; color:#cbd5e1;">
+                <div><strong>Cheat Code</strong>: 90+ SPD, 90+ ACC, 90+ AGI, and 90+ COD.</div>
+                <div><strong>Monster</strong>: DT / EDGE / LB with 90+ ACC and 84+ SPD, or 90+ SPD and 84+ ACC.</div>
+                <div><strong>Quick Hog</strong>: OL with 85+ AGI and 90+ STR.</div>
+                <div><strong>Generational Freak</strong>: any player with 96+ SPD or 96+ ACC.</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         st.markdown("---")
         render_speed_freaks_table(_sf_df)
@@ -13323,8 +13424,8 @@ with tabs[7]:
             c for c in [
                 'TEAM SPEED Rank', 'USER', 'TEAM', 'Speedometer', 'Team Speed Score',
                 'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
-                'Generational (96+ speed or 96+ Acceleration)', 'Off Speed (90+ speed)',
-                'Def Speed (90+ speed)', 'Where is the Speed?'
+                'Monsters', 'Quick Hogs', 'Generational (96+ speed or 96+ Acceleration)',
+                'Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Where is the Speed?'
             ] if c in _sf_df.columns
         ]
 
@@ -13342,6 +13443,8 @@ with tabs[7]:
             'Team Speed Score': 'Speed Score',
             'Team Speed (90+ Speed Guys)': '90+ Speed',
             'Quad 90 (90+ SPD, ACC, AGI & COD)': 'Cheat Codes',
+            'Monsters': 'Monsters',
+            'Quick Hogs': 'Quick Hogs',
             'Generational (96+ speed or 96+ Acceleration)': 'Generational Freaks',
             'Off Speed (90+ speed)': 'Off Speed',
             'Def Speed (90+ speed)': 'Def Speed',
