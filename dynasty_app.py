@@ -13244,6 +13244,113 @@ with tabs[6]:
 
     # --- TEAM OVERVIEW ---
 
+
+# --- SPEED FREAKS ---
+with tabs[7]:
+    st.header("🔍 Speed Freaks")
+    st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
+
+    _sf_df = model_2041.copy() if 'model_2041' in globals() else pd.DataFrame()
+
+    if _sf_df is None or _sf_df.empty:
+        st.info("No Speed Freaks data available.")
+    else:
+        _sf_df = _sf_df.copy()
+
+        _required_defaults = {
+            'USER': '',
+            'TEAM': '',
+            'Team Speed Score': 0,
+            'Speedometer': 0,
+            'TEAM SPEED Rank': 0,
+            'Team Speed (90+ Speed Guys)': 0,
+            'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
+            'Generational (96+ speed or 96+ Acceleration)': 0,
+            'Off Speed (90+ speed)': 0,
+            'Def Speed (90+ speed)': 0,
+            'Where is the Speed?': 'Balanced',
+        }
+        for _col, _default in _required_defaults.items():
+            if _col not in _sf_df.columns:
+                _sf_df[_col] = _default
+
+        for _num_col in [
+            'Team Speed Score', 'Speedometer', 'TEAM SPEED Rank',
+            'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+            'Generational (96+ speed or 96+ Acceleration)',
+            'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
+        ]:
+            _sf_df[_num_col] = pd.to_numeric(_sf_df[_num_col], errors='coerce').fillna(0)
+
+        if (_sf_df['Speedometer'] == 0).all() and 'team_speed_to_mph' in globals():
+            _sf_df['Speedometer'] = _sf_df['Team Speed Score'].apply(team_speed_to_mph)
+
+        if (_sf_df['TEAM SPEED Rank'] == 0).all():
+            _sf_df = _sf_df.sort_values(
+                ['Team Speed Score', 'Team Speed (90+ Speed Guys)', 'TEAM'],
+                ascending=[False, False, True]
+            ).reset_index(drop=True)
+            _sf_df['TEAM SPEED Rank'] = range(1, len(_sf_df) + 1)
+        else:
+            _sf_df = _sf_df.sort_values(['TEAM SPEED Rank', 'TEAM'], ascending=[True, True]).reset_index(drop=True)
+
+        _leader = _sf_df.iloc[0]
+        _most_gen = _sf_df.sort_values(
+            ['Generational (96+ speed or 96+ Acceleration)', 'Team Speed Score'],
+            ascending=[False, False]
+        ).iloc[0]
+        _most_quad = _sf_df.sort_values(
+            ['Quad 90 (90+ SPD, ACC, AGI & COD)', 'Team Speed Score'],
+            ascending=[False, False]
+        ).iloc[0]
+        _fastest_side = _sf_df.sort_values(
+            ['Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Team Speed Score'],
+            ascending=[False, False, False]
+        ).iloc[0]
+
+        mobile_metrics([
+            {"label": "⚡ Speed King", "value": str(_leader.get('USER', '—')), "delta": f"{float(_leader.get('Speedometer', 0)):.1f} MPH"},
+            {"label": "🧬 Most Freaks", "value": str(_most_gen.get('USER', '—')), "delta": f"{int(_most_gen.get('Generational (96+ speed or 96+ Acceleration)', 0))} generational"},
+            {"label": "🎮 Cheat Codes", "value": str(_most_quad.get('USER', '—')), "delta": f"{int(_most_quad.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0))} cheat codes"},
+            {"label": "🏃 Speed Side", "value": str(_fastest_side.get('USER', '—')), "delta": str(_fastest_side.get('Where is the Speed?', '—'))},
+        ], cols_desktop=4)
+
+        st.markdown("---")
+        render_speed_freaks_table(_sf_df)
+
+        st.markdown("---")
+        _show_cols = [
+            c for c in [
+                'TEAM SPEED Rank', 'USER', 'TEAM', 'Speedometer', 'Team Speed Score',
+                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                'Generational (96+ speed or 96+ Acceleration)', 'Off Speed (90+ speed)',
+                'Def Speed (90+ speed)', 'Where is the Speed?'
+            ] if c in _sf_df.columns
+        ]
+
+        _table_df = _sf_df[_show_cols].copy()
+        if 'Speedometer' in _table_df.columns:
+            _table_df['Speedometer'] = _table_df['Speedometer'].map(lambda v: f"{float(v):.1f} MPH" if pd.notna(v) else '—')
+        if 'Team Speed Score' in _table_df.columns:
+            _table_df['Team Speed Score'] = _table_df['Team Speed Score'].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else '—')
+
+        rename_map = {
+            'TEAM SPEED Rank': 'Rank',
+            'USER': 'Coach',
+            'TEAM': 'Team',
+            'Speedometer': 'Speedometer',
+            'Team Speed Score': 'Speed Score',
+            'Team Speed (90+ Speed Guys)': '90+ Speed',
+            'Quad 90 (90+ SPD, ACC, AGI & COD)': 'Cheat Codes',
+            'Generational (96+ speed or 96+ Acceleration)': 'Generational Freaks',
+            'Off Speed (90+ speed)': 'Off Speed',
+            'Def Speed (90+ speed)': 'Def Speed',
+            'Where is the Speed?': 'Speed Location',
+        }
+        _table_df = _table_df.rename(columns=rename_map)
+        st.dataframe(_table_df, hide_index=True, use_container_width=True)
+
+
 with tabs[9]:
         st.header("🏛️ Coach Legacy")
         st.caption("Career arc by coach across all schools. Powered by CPUscores_MASTER.csv, CFPbracketresults.csv, champs.csv, COTY.csv, recruiting_class_history_all.csv, and preseason_expectations_history.csv.")
