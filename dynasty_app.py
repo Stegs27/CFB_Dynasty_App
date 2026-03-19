@@ -17936,7 +17936,8 @@ with tabs[5]:
     with col_sel1:
         selected_team = st.selectbox("🏈 Select Team to View", user_teams_list, key="attrition_team_select")
     with col_sel2:
-        selected_year = st.selectbox("📅 Select Historical Year", available_years, key="attrition_year_select")
+        _default_yr_idx = available_years.index(current_yr) if current_yr in available_years else 0
+        selected_year = st.selectbox("📅 Select Historical Year", available_years, index=_default_yr_idx, key="attrition_year_select")
     with col_sel3:
         outlook_mode = st.selectbox(
             "🔮 Outlook Mode",
@@ -18110,6 +18111,13 @@ with tabs[5]:
         try:
             rosters = pd.read_csv(roster_path)
 
+            # Filter to current season
+            if 'Season' in rosters.columns:
+                rosters['Season'] = pd.to_numeric(rosters['Season'], errors='coerce')
+                _avail = rosters['Season'].dropna().unique()
+                _tgt = current_yr if current_yr in _avail else (int(max(_avail)) if len(_avail) else current_yr)
+                rosters = rosters[rosters['Season'] == _tgt].copy()
+
             if 'USER_TEAMS' in globals():
                 rosters = rosters[rosters['Team'].isin(USER_TEAMS.values())]
 
@@ -18242,6 +18250,11 @@ with tabs[5]:
         ]
 
         current_roster = pd.read_csv('cfb26_rosters_full.csv')
+        if 'Season' in current_roster.columns:
+            current_roster['Season'] = pd.to_numeric(current_roster['Season'], errors='coerce')
+            _avail = current_roster['Season'].dropna().unique()
+            _tgt = current_yr if current_yr in _avail else (int(max(_avail)) if len(_avail) else current_yr)
+            current_roster = current_roster[current_roster['Season'] == _tgt].copy()
         team_roster = current_roster[current_roster['Team'] == selected_team].copy()
 
         confirmed_leaving_names = set(confirmed_departure_names)
