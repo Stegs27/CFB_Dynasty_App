@@ -12492,101 +12492,287 @@ with tabs[0]:
             _headline_history_save(_history_rows)
 
 # ════════════════════════════════════════════════════════════════════
-        # SECTION 3 — TOUGHEST MATCHUPS
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 3 — HEISMAN CANDIDATES
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
-        st.subheader("💪 Toughest Matchups of the Season")
-        st.caption("Based on preseason rankings + in-season rank at time of game. Results populate as games are played. Scheduled games show as upcoming.")
+        st.subheader("🏆 2042 Heisman Candidates")
+        st.caption("Preseason board built from roster talent, athletic juice, awareness, position value, and team context. Odds update from live roster + model context.")
 
-        if cpu_master.empty:
-            st.info("Load CPUscores_MASTER.csv to see toughest matchup cards.")
-        else:
-            in_season_ranks = get_cfp_rankings_snapshot()
-            in_season_map   = dict(in_season_ranks[['Team', 'Rank']].values) if in_season_ranks is not None and not in_season_ranks.empty else {}
+        def _heisman_find_col(df, options):
+            for _c in options:
+                if _c in df.columns:
+                    return _c
+            _norm = {str(c).strip().lower(): c for c in df.columns}
+            for _c in options:
+                if str(_c).strip().lower() in _norm:
+                    return _norm[str(_c).strip().lower()]
+            return None
 
-            def get_game_difficulty(opp, opp_rank_col_val):
-                score = 0
-                pre = preseason_rank_map.get(opp)
-                ins = in_season_map.get(opp)
-                if pre: score += max(0, 26 - float(pre)) * 1.5
-                if ins and not pd.isna(ins): score += max(0, 26 - float(ins)) * 1.2
-                return score, pre, ins
+        def _heisman_team_context(team_name):
+            _ctx = {"rank": None, "natty_odds": None, "cfp_odds": None, "proj_wins": None}
+            try:
+                _rank_val = preseason_rank_map.get(team_name)
+                if _rank_val:
+                    _ctx["rank"] = float(_rank_val)
+            except Exception:
+                pass
 
-            matchup_cols = st.columns(3)
-            col_idx = 0
+            try:
+                _m = model_2041.copy() if 'model_2041' in globals() else pd.DataFrame()
+            except Exception:
+                _m = pd.DataFrame()
 
-            for user, team in USER_TEAMS.items():
-                team_mask = (cpu_master['Visitor'] == team) | (cpu_master['Home'] == team)
-                team_games = cpu_master[team_mask].copy()
-                if team_games.empty:
-                    continue
+            if _m is not None and not _m.empty:
+                _team_col = _heisman_find_col(_m, ['TEAM','Team','team'])
+                if _team_col:
+                    _mm = _m[_m[_team_col].astype(str).str.strip() == str(team_name).strip()].copy()
+                    if not _mm.empty:
+                        _row = _mm.iloc[0]
 
-                tc = get_team_primary_color(team)
-                logo_uri = image_file_to_data_uri(get_logo_source(team))
-                logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if logo_uri else "🏈"
+                        _rank_col = _heisman_find_col(_mm, ['Rank','RANK','AP Rank','AP_Rank','Preseason Rank','Projected Rank'])
+                        _natty_col = _heisman_find_col(_mm, ['Natty Odds','National Title Odds','Title Odds','Preseason Natty Odds'])
+                        _cfp_col = _heisman_find_col(_mm, ['CFP Odds','Playoff Odds','Preseason CFP Odds'])
+                        _wins_col = _heisman_find_col(_mm, ['Projected Wins','Proj Wins','Expected Wins','Wins Projection'])
 
-                def score_game(row):
-                    is_home = row['Home'] == team
-                    opp = row['Visitor'] if is_home else row['Home']
-                    opp_rank_val = row['Visitor Rank'] if is_home else row['Home Rank']
-                    diff, pre, ins = get_game_difficulty(opp, opp_rank_val)
-                    my_score  = row['Home Score'] if is_home else row['Vis Score']
-                    opp_score = row['Vis Score'] if is_home else row['Home Score']
-                    location  = 'vs' if is_home else '@'
-                    return pd.Series({
-                        'opp': opp, 'location': location, 'difficulty': diff,
-                        'pre_rank': pre, 'in_rank': ins,
-                        'my_score': my_score, 'opp_score': opp_score,
-                        'status': row['Status'], 'week': row['Week']
-                    })
+                        if _ctx["rank"] is None and _rank_col:
+                            try:
+                                _rv = pd.to_numeric(pd.Series([_row.get(_rank_col)]), errors='coerce').iloc[0]
+                                if pd.notna(_rv):
+                                    _ctx["rank"] = float(_rv)
+                            except Exception:
+                                pass
+                        if _natty_col:
+                            try:
+                                _nv = pd.to_numeric(pd.Series([_row.get(_natty_col)]), errors='coerce').iloc[0]
+                                if pd.notna(_nv):
+                                    _ctx["natty_odds"] = float(_nv)
+                            except Exception:
+                                pass
+                        if _cfp_col:
+                            try:
+                                _cv = pd.to_numeric(pd.Series([_row.get(_cfp_col)]), errors='coerce').iloc[0]
+                                if pd.notna(_cv):
+                                    _ctx["cfp_odds"] = float(_cv)
+                            except Exception:
+                                pass
+                        if _wins_col:
+                            try:
+                                _wv = pd.to_numeric(pd.Series([_row.get(_wins_col)]), errors='coerce').iloc[0]
+                                if pd.notna(_wv):
+                                    _ctx["proj_wins"] = float(_wv)
+                            except Exception:
+                                pass
+            return _ctx
 
-                ranked_games = team_games.apply(score_game, axis=1).sort_values('difficulty', ascending=False).head(3)
+        def _compute_heisman_odds(_row):
+            _pos = str(_row.get('Pos', '')).strip().upper()
+            _ovr = float(pd.to_numeric(pd.Series([_row.get('OVR', 0)]), errors='coerce').fillna(0).iloc[0])
+            _awr = float(pd.to_numeric(pd.Series([_row.get('AWR', 75)]), errors='coerce').fillna(75).iloc[0])
+            _spd = float(pd.to_numeric(pd.Series([_row.get('SPD', 75)]), errors='coerce').fillna(75).iloc[0])
+            _acc = float(pd.to_numeric(pd.Series([_row.get('ACC', 75)]), errors='coerce').fillna(75).iloc[0])
+            _agi = float(pd.to_numeric(pd.Series([_row.get('AGI', 75)]), errors='coerce').fillna(75).iloc[0])
+            _cod = float(pd.to_numeric(pd.Series([_row.get('COD', 75)]), errors='coerce').fillna(75).iloc[0])
+            _car = float(pd.to_numeric(pd.Series([_row.get('CAR', 75)]), errors='coerce').fillna(75).iloc[0])
+            _bcv = float(pd.to_numeric(pd.Series([_row.get('BCV', 75)]), errors='coerce').fillna(75).iloc[0])
+            _year = str(_row.get('Year', '')).strip().upper()
+            _team = str(_row.get('Team', '')).strip()
 
-                cards_html = ""
-                for _, g in ranked_games.iterrows():
-                    opp_str = str(g['opp'])
-                    pre_tag = f"#{int(g['pre_rank'])} preseason" if g['pre_rank'] else "unranked preseason"
-                    ins_tag = f" · #{int(g['in_rank'])} in-season" if g['in_rank'] and not pd.isna(g['in_rank']) else ""
-                    try:
-                        _wk = g['week']
-                        week_str = f"Wk {int(_wk)}" if str(_wk).isdigit() else str(_wk)
-                    except Exception:
-                        week_str = str(g['week'])
+            _ctx = _heisman_team_context(_team)
 
-                    if str(g['status']).upper() == 'FINAL' and pd.notna(g['my_score']) and pd.notna(g['opp_score']):
-                        ms, os_ = int(g['my_score']), int(g['opp_score'])
-                        won = ms > os_
-                        result_color = "#22c55e" if won else "#ef4444"
-                        result_label = f"{'W' if won else 'L'} {ms}–{os_}"
-                        status_html = f"<span style='font-weight:900;color:{result_color};'>{result_label}</span>"
-                    elif str(g['status']).upper() == 'SCHEDULED':
-                        status_html = "<span style='color:#f59e0b;font-weight:700;'>UPCOMING ⏳</span>"
-                    else:
-                        status_html = f"<span style='color:#9ca3af;'>{html.escape(str(g['status']))}</span>"
+            _pos_bonus = {'QB': 18, 'HB': 11, 'WR': 7, 'TE': 4}.get(_pos, 0)
+            _class_bonus = {
+                'JR': 2.0, 'JR (RS)': 2.5,
+                'SR': 3.0, 'SR (RS)': 3.5,
+                'SO': -0.5, 'SO (RS)': 0.0,
+                'FR': -2.0, 'FR (RS)': -1.0
+            }.get(_year, 0.0)
 
-                    diff_label = "Tier 3" if g['difficulty'] >= 50 else ("Tier 2" if g['difficulty'] >= 30 else "Tier 1")
+            _athletic = (_spd + _acc + _agi + _cod) / 4.0
+            _ball_bonus = ((_car + _bcv) / 2.0) if _pos in {'QB','HB','WR','TE'} else 75.0
 
-                    cards_html += f"""
-                    <div style='border-left:3px solid {tc};padding:6px 10px;margin-bottom:6px;background:#0f172a;border-radius:6px;'>
-                      <div style='display:flex;justify-content:space-between;align-items:center;'>
-                        <span style='font-weight:700;color:#f3f4f6;font-size:0.88rem;'>{diff_label} · {html.escape(g['location'])} {html.escape(opp_str)}</span>
-                        <span style='font-size:0.75rem;color:#9ca3af;'>{week_str}</span>
-                      </div>
-                      <div style='font-size:0.75rem;color:#9ca3af;margin-top:2px;'>{pre_tag}{ins_tag}</div>
-                      <div style='margin-top:4px;'>{status_html}</div>
-                    </div>"""
+            _rank_bonus = 0.0
+            if _ctx["rank"] is not None and not pd.isna(_ctx["rank"]):
+                _rank_bonus = max(0.0, 26.0 - float(_ctx["rank"])) * 1.25
 
-                with matchup_cols[col_idx % 3]:
-                    st.markdown(f"""
-                    <div style='background:#1f2937;border:1px solid #374151;border-radius:12px;padding:12px;margin-bottom:12px;'>
-                      <div style='display:flex;align-items:center;gap:8px;margin-bottom:8px;'>
-                        {logo_html}
-                        <span style='color:{tc};font-weight:800;font-size:0.95rem;'>{html.escape(team)}</span>
-                        <span style='color:#9ca3af;font-size:0.78rem;'>({html.escape(user)})</span>
-                      </div>
-                      {cards_html}
-                    </div>""", unsafe_allow_html=True)
-                col_idx += 1
+            _natty_bonus = 0.0 if _ctx["natty_odds"] is None else float(_ctx["natty_odds"]) * 0.40
+            _cfp_bonus = 0.0 if _ctx["cfp_odds"] is None else float(_ctx["cfp_odds"]) * 0.18
+            _wins_bonus = 0.0 if _ctx["proj_wins"] is None else max(0.0, float(_ctx["proj_wins"]) - 7.0) * 1.15
+
+            _score = (
+                _ovr * 1.55 +
+                _awr * 0.32 +
+                _athletic * 0.18 +
+                _ball_bonus * 0.08 +
+                _pos_bonus +
+                _class_bonus +
+                _rank_bonus +
+                _natty_bonus +
+                _cfp_bonus +
+                _wins_bonus
+            )
+
+            return pd.Series({
+                'HeismanScore': round(_score, 2),
+                'RankBonus': round(_rank_bonus, 2),
+                'NattyBonus': round(_natty_bonus, 2),
+                'CFPBonus': round(_cfp_bonus, 2),
+                'ProjWinsBonus': round(_wins_bonus, 2),
+                'TeamRankCtx': _ctx["rank"],
+                'NattyOddsCtx': _ctx["natty_odds"],
+                'CFPOddsCtx': _ctx["cfp_odds"],
+                'ProjWinsCtx': _ctx["proj_wins"],
+            })
+
+        try:
+            _hc_roster = pd.read_csv('cfb26_rosters_full.csv')
+            _season_col = _heisman_find_col(_hc_roster, ['Season','YEAR','Year'])
+            _team_col   = _heisman_find_col(_hc_roster, ['Team','TEAM'])
+            _name_col   = _heisman_find_col(_hc_roster, ['Name','NAME','Player'])
+            _pos_col    = _heisman_find_col(_hc_roster, ['Pos','POS','Position'])
+            _year_col   = _heisman_find_col(_hc_roster, ['Year','Class','YEAR'])
+            _ovr_col    = _heisman_find_col(_hc_roster, ['OVR','Overall'])
+            if _season_col:
+                _hc_roster[_season_col] = pd.to_numeric(_hc_roster[_season_col], errors='coerce')
+                _avail = _hc_roster[_season_col].dropna().astype(int)
+                _target_season = CURRENT_YEAR if CURRENT_YEAR in set(_avail.tolist()) else (int(_avail.max()) if not _avail.empty else CURRENT_YEAR)
+                _hc_roster = _hc_roster[_hc_roster[_season_col].fillna(-1).astype(int) == int(_target_season)].copy()
+            else:
+                _target_season = CURRENT_YEAR
+
+            _skill_pos = {'QB','HB','WR','TE'}
+            _hc_roster = _hc_roster[
+                _hc_roster[_pos_col].astype(str).str.upper().isin(_skill_pos)
+            ].copy()
+
+            _hc_roster = _hc_roster[
+                _hc_roster[_team_col].astype(str).isin(list(USER_TEAMS.values()))
+            ].copy()
+
+            _rename_map = {
+                _team_col: 'Team',
+                _name_col: 'Name',
+                _pos_col: 'Pos',
+                _year_col: 'Year',
+                _ovr_col: 'OVR',
+            }
+            for _maybe in ['SPD','ACC','AGI','COD','AWR','CAR','BCV']:
+                _real = _heisman_find_col(_hc_roster, [_maybe])
+                if _real:
+                    _rename_map[_real] = _maybe
+
+            _hc_roster = _hc_roster.rename(columns=_rename_map).copy()
+            for _need in ['SPD','ACC','AGI','COD','AWR','CAR','BCV']:
+                if _need not in _hc_roster.columns:
+                    _hc_roster[_need] = 75
+
+            _hc_roster['OVR'] = pd.to_numeric(_hc_roster['OVR'], errors='coerce').fillna(0)
+            _hc_roster[['SPD','ACC','AGI','COD','AWR','CAR','BCV']] = _hc_roster[['SPD','ACC','AGI','COD','AWR','CAR','BCV']].apply(pd.to_numeric, errors='coerce').fillna(75)
+
+            _heisman_calc = _hc_roster.apply(_compute_heisman_odds, axis=1)
+            _hc_roster = pd.concat([_hc_roster.reset_index(drop=True), _heisman_calc.reset_index(drop=True)], axis=1)
+
+            _hc_roster = _hc_roster.sort_values(
+                ['HeismanScore','OVR','AWR','SPD','Name'],
+                ascending=[False, False, False, False, True]
+            ).reset_index(drop=True).head(8).copy()
+
+            if not _hc_roster.empty:
+                _exp_scores = np.exp((_hc_roster['HeismanScore'] - _hc_roster['HeismanScore'].max()) / 5.0)
+                _hc_roster['HeismanOdds'] = (_exp_scores / _exp_scores.sum()) * 100.0
+                _hc_roster['HeismanOdds'] = _hc_roster['HeismanOdds'].round(1)
+
+                _candidate_html = "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;'>"
+                for _idx, _r in _hc_roster.iterrows():
+                    _team = str(_r.get('Team','')).strip()
+                    _name = str(_r.get('Name','')).strip()
+                    _pos  = str(_r.get('Pos','')).strip()
+                    _year = str(_r.get('Year','')).strip()
+                    _ovr  = int(_r.get('OVR', 0))
+                    _odds = float(_r.get('HeismanOdds', 0.0))
+                    _score = float(_r.get('HeismanScore', 0.0))
+                    _tc = get_team_primary_color(_team)
+                    _logo_uri = image_file_to_data_uri(get_logo_source(_team))
+                    _logo_html = f"<img src='{_logo_uri}' style='width:28px;height:28px;object-fit:contain;border-radius:999px;'/>" if _logo_uri else "🏈"
+                    _rank_tag = f"#{int(_r['TeamRankCtx'])}" if pd.notna(_r.get('TeamRankCtx')) else "UR"
+                    _natty_tag = f"{float(_r['NattyOddsCtx']):.1f}%" if pd.notna(_r.get('NattyOddsCtx')) else "—"
+                    _cfp_tag = f"{float(_r['CFPOddsCtx']):.1f}%" if pd.notna(_r.get('CFPOddsCtx')) else "—"
+
+                    _formula_bits = []
+                    if _pos == 'QB':
+                        _formula_bits.append("QB premium")
+                    if pd.notna(_r.get('TeamRankCtx')):
+                        _formula_bits.append(f"team rank boost {_rank_tag}")
+                    if pd.notna(_r.get('NattyOddsCtx')) and float(_r.get('NattyOddsCtx', 0)) > 0:
+                        _formula_bits.append("title equity")
+                    if _ovr >= 90:
+                        _formula_bits.append("elite OVR")
+                    elif int(pd.to_numeric(pd.Series([_r.get('SPD',0)]), errors='coerce').fillna(0).iloc[0]) >= 92:
+                        _formula_bits.append("explosive traits")
+
+                    _formula_text = " • ".join(_formula_bits[:3]) if _formula_bits else "talent + team context"
+
+                    _candidate_html += f"""
+                    <div style="background:linear-gradient(135deg, rgba(17,24,39,0.98), rgba(31,41,55,0.96)); border:1px solid rgba(255,255,255,0.08); border-left:5px solid {_tc}; border-radius:14px; padding:14px 14px 12px 14px; box-shadow:0 8px 18px rgba(0,0,0,0.34);">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <div>{_logo_html}</div>
+                                <div>
+                                    <div style="font-size:0.74rem; color:#9ca3af; text-transform:uppercase; letter-spacing:1px;">Heisman Board · #{_idx+1}</div>
+                                    <div style="font-size:1.02rem; color:#f9fafb; font-weight:900; line-height:1.15; margin-top:2px;">{html.escape(_name)}</div>
+                                    <div style="font-size:0.80rem; color:{_tc}; font-weight:700; margin-top:4px;">{html.escape(_team)}</div>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:1.12rem; font-weight:900; color:#fbbf24;">{_odds:.1f}%</div>
+                                <div style="font-size:0.68rem; color:#9ca3af; text-transform:uppercase;">Odds</div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;">
+                            <span style="font-size:0.70rem; color:#e5e7eb; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); border-radius:999px; padding:4px 8px;">{html.escape(_pos)} · {html.escape(_year)}</span>
+                            <span style="font-size:0.70rem; color:#dcfce7; background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.18); border-radius:999px; padding:4px 8px;">{_ovr} OVR</span>
+                            <span style="font-size:0.70rem; color:#dbeafe; background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.18); border-radius:999px; padding:4px 8px;">Rank {_rank_tag}</span>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px;">
+                            <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:8px;">
+                                <div style="font-size:0.68rem; color:#9ca3af;">Heisman Score</div>
+                                <div style="font-size:0.95rem; color:#fff; font-weight:800;">{_score:.1f}</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:8px;">
+                                <div style="font-size:0.68rem; color:#9ca3af;">Natty Odds</div>
+                                <div style="font-size:0.95rem; color:#fff; font-weight:800;">{_natty_tag}</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:8px;">
+                                <div style="font-size:0.68rem; color:#9ca3af;">CFP Odds</div>
+                                <div style="font-size:0.95rem; color:#fff; font-weight:800;">{_cfp_tag}</div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:11px; font-size:0.80rem; color:#d1d5db; line-height:1.45;">
+                            {html.escape(_formula_text)}.
+                        </div>
+                    </div>
+                    """
+                _candidate_html += "</div>"
+                st.markdown(_candidate_html, unsafe_allow_html=True)
+
+                with st.expander("How the Heisman Odds formula works"):
+                    st.markdown(
+                        """
+                        - **Talent base:** OVR drives the board most heavily.
+                        - **Player quality modifiers:** awareness, athletic juice, and ball-carrier tools add extra separation.
+                        - **Position value:** QBs get the biggest premium, then HBs, WRs, and TEs.
+                        - **Team context:** preseason / live rank, natty odds, CFP odds, and projected wins boost players on teams expected to matter nationally.
+                        - **Odds conversion:** raw Heisman scores are turned into percentage odds with a softmax-style scaling so the board feels like a real race instead of a flat ranking.
+                        """
+                    )
+            else:
+                st.info("No user-team skill players were found for the current season Heisman board.")
+        except Exception:
+            st.info("Load cfb26_rosters_full.csv to generate the Heisman board.")
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 4 — AWARD WATCH
@@ -12652,54 +12838,7 @@ with tabs[0]:
             if heisman is None or heisman.empty:
                 st.caption("No Heisman data loaded.")
 
-            # Current candidates from roster
-            st.markdown(f"#### 🌟 {CURRENT_YEAR} Heisman Candidates")
-            st.caption("Top skill position players by OVR from current rosters.")
-            try:
-                roster_for_awards = pd.read_csv('cfb26_rosters_full.csv')
-                if 'Season' in roster_for_awards.columns:
-                    roster_for_awards['Season'] = pd.to_numeric(roster_for_awards['Season'], errors='coerce')
-                    _avail = roster_for_awards['Season'].dropna().unique()
-                    _tgt = CURRENT_YEAR if CURRENT_YEAR in _avail else (int(max(_avail)) if len(_avail) else CURRENT_YEAR)
-                    roster_for_awards = roster_for_awards[roster_for_awards['Season'] == _tgt].copy()
-                skill_pos = ['QB','HB','WR','TE']
-                candidates = roster_for_awards[roster_for_awards['Pos'].isin(skill_pos)].nlargest(6, 'OVR')[['Team','Name','Pos','Year','OVR','SPD']].reset_index(drop=True)
-
-                rows_html = ""
-                for _, c in candidates.iterrows():
-                    c_team  = str(c.get('Team', ''))
-                    c_name  = str(c.get('Name', ''))
-                    c_pos   = str(c.get('Pos', ''))
-                    c_yr    = str(c.get('Year', ''))
-                    c_ovr   = int(c.get('OVR', 0))
-                    c_spd   = int(c.get('SPD', 0))
-                    c_color = get_team_primary_color(c_team)
-                    c_logo  = image_file_to_data_uri(get_logo_source(c_team))
-                    logo_img = f"<img src='{c_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if c_logo else "🏈 "
-                    ovr_color = "#22c55e" if c_ovr >= 90 else ("#f59e0b" if c_ovr >= 85 else "#d1d5db")
-                    rows_html += (
-                        f"<div style='display:flex;align-items:center;justify-content:space-between;"
-                        f"padding:6px 8px;border-bottom:1px solid #1f2937;'>"
-                        f"<div style='display:flex;align-items:center;'>"
-                        f"{logo_img}"
-                        f"<div>"
-                        f"<span style='font-weight:700;color:#f3f4f6;font-size:0.85rem;'>{html.escape(c_name)}</span>"
-                        f"<span style='color:#9ca3af;font-size:0.75rem;margin-left:5px;'>{c_pos} · {c_yr}</span><br>"
-                        f"<span style='color:{c_color};font-size:0.75rem;'>{html.escape(c_team)}</span>"
-                        f"</div></div>"
-                        f"<div style='text-align:right;'>"
-                        f"<span style='font-weight:900;color:{ovr_color};font-size:0.9rem;'>{c_ovr}</span>"
-                        f"<span style='color:#6b7280;font-size:0.72rem;margin-left:4px;'>OVR</span><br>"
-                        f"<span style='color:#60a5fa;font-size:0.75rem;'>⚡{c_spd} SPD</span>"
-                        f"</div></div>"
-                    )
-                st.markdown(
-                    f"<div style='background:#111827;border:1px solid #374151;border-radius:10px;overflow:hidden;'>"
-                    f"{rows_html}</div>",
-                    unsafe_allow_html=True
-                )
-            except Exception:
-                st.caption("Load cfb26_rosters_full.csv to see current candidates.")
+            st.caption(f"Live {CURRENT_YEAR} Heisman board moved to the former Toughest Matchups slot above.")
 
         with aw_col2:
             st.markdown("#### 🎓 Coach of the Year History")
