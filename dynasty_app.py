@@ -17879,15 +17879,16 @@ with tabs[5]:
 
     auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
 
-    graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(
-        subset=['Year', 'Team', 'Player']
-    )
-    st.warning(f"DEBUG graduates_df: {len(graduates_df)} rows | auto_seniors: {len(auto_seniors_df)} rows | Years: {sorted(graduates_df['Year'].dropna().unique().tolist()) if not graduates_df.empty else 'EMPTY'} | Cols: {graduates_df.columns.tolist()}")
+    # graduates_df is built after selected_year is known (see below)
+    # For available_years calculation use a temp version tagged with current_yr
+    _temp_grads = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True)
+    if not _temp_grads.empty:
+        _temp_grads['Year'] = current_yr  # temporary tag just for available_years calc
 
     # available_years = outlook seasons. A year appears when its departure data exists
     # (i.e. data tagged as year-1 in the CSVs), plus always include current_yr+1 (next outlook)
     _departure_years = set()
-    for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df, incoming_df]:
+    for df in [hs_df, tp_df, nfl_df, transfers_df, _temp_grads, incoming_df]:
         if 'Year' in df.columns:
             _departure_years.update(df['Year'].dropna().unique())
     if not user_draft_results_df.empty and 'DraftYear' in user_draft_results_df.columns:
@@ -17938,13 +17939,14 @@ with tabs[5]:
     departure_year = selected_year - 1
     incoming_year  = selected_year
 
-    # Tag auto-seniors with departure_year now that we know it
+    # Tag auto-seniors with departure_year now that we know it, then rebuild graduates_df
     if not auto_seniors_df.empty:
         auto_seniors_df = auto_seniors_df.copy()
         auto_seniors_df['Year'] = departure_year
-        graduates_df['Year'] = graduates_df['Year'].where(
-            graduates_df['Year'] != 0, departure_year
-        )
+
+    graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(
+        subset=['Year', 'Team', 'Player']
+    )
 
     def filter_team_year(df, t, y):
         if 'Team' in df.columns and 'Year' in df.columns:
