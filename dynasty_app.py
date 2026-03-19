@@ -13419,58 +13419,164 @@ with tabs[7]:
         )
 
         st.markdown("---")
-        _chart_df = _sf_df.copy()
-        _chart_metrics = [
-            'Team Speed Score',
-            'Quad 90 (90+ SPD, ACC, AGI & COD)',
-            'Monsters',
-            'Quick Hogs',
-            'Generational (96+ speed or 96+ Acceleration)'
-        ]
-        _chart_metric_labels = {
-            'Team Speed Score': 'Speed Score',
-            'Quad 90 (90+ SPD, ACC, AGI & COD)': 'Cheat Codes',
-            'Monsters': 'Monsters',
-            'Quick Hogs': 'Quick Hogs',
-            'Generational (96+ speed or 96+ Acceleration)': 'Generational Freaks'
-        }
-
-        _chart_long = _chart_df.melt(
-            id_vars=['USER', 'TEAM'],
-            value_vars=[c for c in _chart_metrics if c in _chart_df.columns],
-            var_name='Metric',
-            value_name='Value'
-        ).copy()
-
-        if not _chart_long.empty:
-            _chart_long['MetricLabel'] = _chart_long['Metric'].map(_chart_metric_labels).fillna(_chart_long['Metric'])
-            _chart_long['TeamLabel'] = _chart_long['USER'].astype(str) + ' • ' + _chart_long['TEAM'].astype(str)
-
-            _speed_fig = px.bar(
-                _chart_long,
-                x='MetricLabel',
-                y='Value',
-                color='TeamLabel',
-                barmode='group',
-                text='Value',
-                category_orders={'MetricLabel': ['Speed Score', 'Cheat Codes', 'Monsters', 'Quick Hogs', 'Generational Freaks']}
-            )
-            _speed_fig.update_traces(texttemplate='%{text}', textposition='outside')
-            _speed_fig.update_layout(
-                height=460,
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='white'),
-                margin=dict(l=10, r=10, t=20, b=10),
-                legend_title_text='Coach • Team',
-                yaxis_title='Value',
-                xaxis_title='',
-            )
-            _speed_fig.update_yaxes(gridcolor='rgba(255,255,255,0.10)', zeroline=False)
-            st.plotly_chart(_speed_fig, use_container_width=True, config={'displayModeBar': False})
+        render_speed_freaks_table(_sf_df)
 
         st.markdown("---")
-        render_speed_freaks_table(_sf_df)
+        _scatter_df = _sf_df.copy()
+        _scatter_needed = ['USER', 'TEAM', 'Team Speed Score', 'Speedometer']
+        if all(c in _scatter_df.columns for c in _scatter_needed):
+            _scatter_df = _scatter_df[_scatter_needed + [c for c in [
+                'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                'Monsters',
+                'Quick Hogs',
+                'Generational (96+ speed or 96+ Acceleration)'
+            ] if c in _scatter_df.columns]].copy()
+
+            _scatter_df['Team Speed Score'] = pd.to_numeric(_scatter_df['Team Speed Score'], errors='coerce')
+            _scatter_df['Speedometer'] = pd.to_numeric(_scatter_df['Speedometer'], errors='coerce')
+            _scatter_df = _scatter_df.dropna(subset=['Team Speed Score', 'Speedometer']).copy()
+
+            if not _scatter_df.empty:
+                _scatter_df['TeamLabel'] = _scatter_df['USER'].astype(str) + " • " + _scatter_df['TEAM'].astype(str)
+                _scatter_df['LogoSrc'] = None
+
+                def _sf_logo_src(_team):
+                    try:
+                        if 'get_school_logo_src' in globals():
+                            _src = get_school_logo_src(_team)
+                            if _src:
+                                return _src
+                        if 'get_logo_source' in globals() and 'image_file_to_data_uri' in globals():
+                            _path = get_logo_source(_team)
+                            if _path:
+                                try:
+                                    return image_file_to_data_uri(_path)
+                                except Exception:
+                                    return _path
+                    except Exception:
+                        return None
+                    return None
+
+                _scatter_df['LogoSrc'] = _scatter_df['TEAM'].apply(_sf_logo_src)
+
+                _x_min = max(0, float(_scatter_df['Team Speed Score'].min()) - 8)
+                _x_max = float(_scatter_df['Team Speed Score'].max()) + 8
+                _y_min = max(0, float(_scatter_df['Speedometer'].min()) - 15)
+                _y_max = float(_scatter_df['Speedometer'].max()) + 15
+
+                _speed_style_fig = go.Figure()
+
+                _speed_style_fig.add_trace(
+                    go.Scatter(
+                        x=_scatter_df['Team Speed Score'],
+                        y=_scatter_df['Speedometer'],
+                        mode='markers',
+                        marker=dict(size=1, color='rgba(0,0,0,0)'),
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            "Speed Score: %{x:.1f}<br>"
+                            "MPH: %{y:.1f}<br>"
+                            "Cheat Codes: %{customdata[1]}<br>"
+                            "Monsters: %{customdata[2]}<br>"
+                            "Quick Hogs: %{customdata[3]}<br>"
+                            "Generational Freaks: %{customdata[4]}<extra></extra>"
+                        ),
+                        customdata=_scatter_df[[
+                            'TeamLabel',
+                            'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                            'Monsters',
+                            'Quick Hogs',
+                            'Generational (96+ speed or 96+ Acceleration)'
+                        ]].fillna(0).values
+                    )
+                )
+
+                _diag_end = min(_x_max, 130)
+                _speed_style_fig.add_shape(
+                    type='line',
+                    x0=_x_min,
+                    y0=(_x_min / 130.0) * 200.0,
+                    x1=_diag_end,
+                    y1=(_diag_end / 130.0) * 200.0,
+                    line=dict(color='rgba(90,90,90,0.65)', width=1.2, dash='dash')
+                )
+
+                for _, _r in _scatter_df.iterrows():
+                    _logo = _r.get('LogoSrc')
+                    if isinstance(_logo, str) and _logo.strip():
+                        _speed_style_fig.add_layout_image(
+                            dict(
+                                source=_logo,
+                                x=float(_r['Team Speed Score']),
+                                y=float(_r['Speedometer']),
+                                xref='x',
+                                yref='y',
+                                sizex=max(4.2, (_x_max - _x_min) * 0.032),
+                                sizey=max(10.0, (_y_max - _y_min) * 0.070),
+                                xanchor='center',
+                                yanchor='middle',
+                                layer='above'
+                            )
+                        )
+                    else:
+                        _speed_style_fig.add_trace(
+                            go.Scatter(
+                                x=[float(_r['Team Speed Score'])],
+                                y=[float(_r['Speedometer'])],
+                                mode='text',
+                                text=[str(_r['TEAM'])],
+                                textfont=dict(size=11, color='rgba(60,60,60,0.95)'),
+                                hoverinfo='skip',
+                                showlegend=False
+                            )
+                        )
+
+                _speed_style_fig.update_layout(
+                    height=700,
+                    paper_bgcolor='#efefef',
+                    plot_bgcolor='#efefef',
+                    margin=dict(l=40, r=30, t=120, b=80),
+                    showlegend=False,
+                    font=dict(color='#111111', family='Arial, sans-serif'),
+                    title=dict(
+                        text="<b>Speed Freaks Live In Different Zip Codes</b><br><span style='font-size:18px;'>Speed Freaks data plotted as final Speed Score versus MPH.</span>",
+                        x=0.5,
+                        xanchor='center',
+                        y=0.96,
+                        yanchor='top',
+                        font=dict(size=28, color='#111111')
+                    ),
+                    xaxis=dict(
+                        title='Final Speed Score',
+                        range=[_x_min, _x_max],
+                        showgrid=False,
+                        zeroline=False,
+                        tickfont=dict(size=13, color='#111111'),
+                        title_font=dict(size=18, color='#111111')
+                    ),
+                    yaxis=dict(
+                        title='MPH',
+                        range=[_y_min, _y_max],
+                        showgrid=False,
+                        zeroline=False,
+                        tickfont=dict(size=13, color='#111111'),
+                        title_font=dict(size=18, color='#111111')
+                    ),
+                    annotations=[
+                        dict(
+                            xref='paper', yref='paper', x=0.01, y=0.86,
+                            text="Logos show each user team's spot on the board.",
+                            showarrow=False, font=dict(size=13, color='#333333'), align='left'
+                        ),
+                        dict(
+                            xref='paper', yref='paper', x=0.01, y=-0.12,
+                            text="Chart: ChatGPT • Source: Speed Freaks roster metrics",
+                            showarrow=False, font=dict(size=12, color='#444444'), align='left'
+                        )
+                    ]
+                )
+
+                st.plotly_chart(_speed_style_fig, use_container_width=True, config={'displayModeBar': False})
 
         st.markdown("---")
         _show_cols = [
