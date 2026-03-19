@@ -1,7 +1,13 @@
 QBID,Year,User,Team,Player,Position,Height,Weight,Class,StarRating,Hometown,Pipeline,Archetype,OVR,Mentals,Physicals
+BG_DRANGO,2041,Devin,Bowling Green,Frederick Drango,QB,6'0,223,JR (RS),4,"Auburn, AL",Alabama,Dual Threat,93,Headstrong,Downhill; Extender; Option King; Dot!; Mobile Resistance
+UF_SWINGER,2041,Doug,Florida,Allen Swinger,QB,6'2,205,FR (RS),3,"Chantilly, VA",Tidewater,Pocket Passer,78,,Resistance; Step Up; Sleight of Hand; Dot!; On Time
+FSU_IRVING,2041,Nick,Florida State,Cam Irving,QB,6'2,200,SR (RS),3,"New Orleans, LA",Louisiana,Pure Runner,88,,Magician; Option King; Shifty; Side Step; Workhorse
 SJSU_SHORTER,2041,Mike,San Jose State,Mike Shorter,QB,6'0,190,SR (RS),3,"Austin, TX",East Texas,Dual Threat,85,Road Dog; Field General,Downhill; Extender; Option King; Dot!; Mobile Resistance
 TTU_POOLE,2041,Noah,Texas Tech,Ramon Poole,QB,6'4,197,SO (RS),4,"Arlington, TX",North Texas,Dual Threat,90,Clearheaded; The Natural,Downhill; Extender; Option King; Dot!; Mobile Resistance
 USF_BETHEA,2041,Josh,USF,Terrelle Bethea,QB,6'4,210,SO (RS),4,"Minneapolis, MN",Minnesota,Backfield Creator,95,Adrenaline; Fan Favorite; The Natural,Off Platform; Pull Down; On Time; Sleight of Hand; Mobile Deadeye
-BG_DRANGO,2041,Devin,Bowling Green,Frederick Drango,QB,6'0,223,JR (RS),4,"Auburn, AL",Alabama,Dual Threat,93,Headstrong,Downhill; Extender; Option King; Dot!; Mobile Resistance
-UF_SWINGER,2041,Doug,Florida,Allen Swinger,QB,6'2,205,FR (RS),3,"Chantilly, VA",Tidewater,Pocket Passer,78,None,Resistance; Step Up; Sleight of Hand; Dot!; On Time
-FSU_IRVING,2041,Nick,Florida State,Cam Irving,QB,6'2,200,SR (RS),3,"New Orleans, LA",Louisiana,Pure Runner,88,None,Magician; Option King; Shifty; Side Step; Workhorse
+BG_DRANGO,2042,Devin,Bowling Green,Frederick Drango,QB,6'0,224,SR (RS),4,"Auburn, Alabama",Alabama,Dual Threat,96,Headstrong,Downhill; Extender; Option King; Dot!; Mobile Resistance
+UF_AUSS,2042,Doug,Florida,He Is Auss,QB,6'2,209,SO (RS),3,"Chantilly, Virginia",Tidewater,Pocket Passer,83,None,Resistance; Step Up; Sleight of Hand; Dot!; On Time
+FSU_TRANQUILL,2042,Nick,Florida State,Oscar Tranquill,QB,6'1,229,SR (RS),4,"Bradenton, Florida",Central Florida,Dual Threat,89,Road Dog; Rollercoaster,Downhill; Extender; Option King; Dot!; Mobile Resistance
+SJSU_LECHLER,2042,Mike,San Jose State,Keeshawn Lechler,QB,6'2,208,SO (RS),3,"Layton, Utah",Utah,Dual Threat,83,Adrenaline,Downhill; Extender; Option King; Dot!; Mobile Resistance
+TTU_POOLE,2042,Noah,Texas Tech,Ramon Poole,QB,6'4,199,JR (RS),4,"Arlington, Texas",North Texas,Dual Threat,94,Clearheaded; The Natural,Downhill; Extender; Option King; Dot!; Mobile Resistance
+USF_BETHEA,2042,Josh,USF,Terrelle Bethea,QB,6'4,212,JR (RS),4,"Minneapolis, Minnesota",Minnesota,Backfield Creator,95,Adrenaline; Fan Favorite; The Natural,Off Platform; Pull Down; On Time; Sleight of Hand; Mobile Deadeye
