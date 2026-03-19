@@ -1339,6 +1339,7 @@ def generate_story_tag(pos_bucket, career_tier, round_num):
     return "Developmental upside"
 
 
+@st.cache_data(ttl=300)
 def load_nfl_universe_data():
     ensure_csv_exists("cfb_user_draft_results.csv", CFB_USER_DRAFT_RESULTS_COLS)
     ensure_csv_exists("nfl_draft_history.csv", NFL_DRAFT_HISTORY_COLS)
@@ -1410,26 +1411,6 @@ def load_nfl_universe_data():
         "nfl_current_rosters": nfl_current_rosters,
     }
 
-def render_centered_logo(src, width=64):
-    if not src:
-        return
-
-    src = str(src).strip()
-    if not src:
-        return
-
-    if os.path.exists(src):
-        src = image_file_to_data_uri(src)
-
-    st.markdown(
-        f"""
-        <div style="display:flex; justify-content:center; margin-bottom:10px;">
-            <img src="{src}" style="width:{width}px; height:{width}px; object-fit:contain;" />
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    
 def calc_nfl_rookie_entry_ovr(cfb_ovr, draft_round, pos_bucket=""):
     cfb_ovr = safe_num(cfb_ovr, 80)
     draft_round = int(safe_num(draft_round, 7))
@@ -1922,55 +1903,6 @@ def file_to_data_uri(path_str):
         return ""
     return ""
 
-def render_centered_logo(src, width=64):
-    if not src:
-        return
-
-    src = str(src).strip()
-    if not src:
-        return
-
-    if os.path.exists(src):
-        src = file_to_data_uri(src)
-
-    st.markdown(
-        f"""
-        <div style="display:flex; justify-content:center; margin-bottom:10px;">
-            <img src="{src}" style="width:{width}px; height:{width}px; object-fit:contain;" />
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-def play_user_pick_chime(audio_path="espn_chime.mp3"):
-    try:
-        if not os.path.exists(audio_path):
-            st.warning(f"Chime file not found: {audio_path}")
-            return
-
-        audio_uri = file_to_data_uri(audio_path)
-        if not audio_uri:
-            st.warning("Could not build audio URI for chime.")
-            return
-
-        components.html(
-            f"""
-            <audio id="userPickChime" preload="auto">
-                <source src="{audio_uri}" type="audio/mpeg">
-            </audio>
-            <script>
-                const audio = document.getElementById("userPickChime");
-                if (audio) {{
-                    audio.currentTime = 0;
-                    audio.play().catch(err => console.log("Audio play blocked:", err));
-                }}
-            </script>
-            """,
-            height=0,
-        )
-    except Exception as e:
-        st.warning(f"Chime error: {e}")
-
 def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     if generated_df is None or generated_df.empty:
         st.info("No generated draft rows to reveal.")
@@ -2230,64 +2162,6 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
     progress.progress(1.0, text="Draft reveal complete.")
     return df
 
-def clean_display(val, fallback=""):
-    if pd.isna(val):
-        return fallback
-    text = str(val).strip()
-    if text.lower() in {"nan", "none", "<na>"}:
-        return fallback
-    return text
-
-def draft_source_label(val):
-    text = clean_display(val).lower()
-    if text == "user_results":
-        return "Tracked"
-    if text == "cpu_pool":
-        return "CPU Pool"
-    return ""
-
-def get_latest_saved_draft_year():
-    if not os.path.exists("nfl_draft_history.csv"):
-        return None
-    try:
-        hist = pd.read_csv("nfl_draft_history.csv")
-    except Exception:
-        return None
-
-    if hist.empty or "DraftYear" not in hist.columns:
-        return None
-
-    years = pd.to_numeric(hist["DraftYear"], errors="coerce").dropna()
-    if years.empty:
-        return None
-
-    return int(years.astype(int).max())
-
-
-def replay_saved_nfl_draft(draft_year, speed_mode="Broadcast"):
-    if not os.path.exists("nfl_draft_history.csv"):
-        st.warning("No saved NFL draft history found yet.")
-        return
-
-    try:
-        hist = pd.read_csv("nfl_draft_history.csv")
-    except Exception:
-        st.warning("Could not read nfl_draft_history.csv.")
-        return
-
-    if hist.empty:
-        st.warning("NFL draft history is empty.")
-        return
-
-    hist["DraftYear"] = pd.to_numeric(hist["DraftYear"], errors="coerce")
-    replay_df = hist[hist["DraftYear"].fillna(-1).astype(int) == int(draft_year)].copy()
-
-    if replay_df.empty:
-        st.warning(f"No saved draft results found for {draft_year}.")
-        return
-
-    live_reveal_nfl_draft(replay_df, speed_mode=speed_mode)
-    
 def normalize_nfl_team_key(team_name):
     slug = get_nfl_logo_slug(team_name)
     if slug:
@@ -5210,9 +5084,6 @@ TEAM_ALIASES = {
     "South Carolina": ["south carolina", "south carolina gamecocks", "scar", "sc"],
 }
 
-def normalize_key(value):
-    return re.sub(r'[^a-z0-9]+', '', str(value).strip().lower())
-
 def get_team_slug(team):
     team = str(team).strip()
     if not team or team.lower() == 'nan':
@@ -5262,27 +5133,10 @@ def build_logo_file_index():
 
 LOGO_FILE_INDEX = build_logo_file_index()
 
-def get_team_slug(team):
-    team = str(team).strip()
-    if not team or team.lower() == 'nan':
-        return ""
-    slug = TEAM_VISUALS.get(team, {}).get("slug")
-    if not slug:
-        slug = team.lower().replace("&", "and").replace(".", "").replace("'", "").replace(" ", "-")
-    return slug
-
 def get_team_logo_url(team):
     slug = get_team_slug(team)
     return f"https://a.espncdn.com/i/teamlogos/ncaa/500/{slug}.png" if slug else ""
 
-def get_local_logo_path(team):
-    aliases = get_team_aliases(team)
-    exact_keys = [normalize_key(a) for a in aliases]
-    for key in exact_keys:
-        if key in LOGO_FILE_INDEX:
-            return str(LOGO_FILE_INDEX[key])
-
-    # fuzzy match: look for alias inside filename or filename inside alias
 def get_local_logo_path(team):
     aliases = get_team_aliases(clean_team_name_for_lookup(team))
     exact_keys = [normalize_key(a) for a in aliases]
@@ -6720,6 +6574,7 @@ def render_roster_matchup_tab():
         </div>""", unsafe_allow_html=True)
 
 
+@st.cache_data(ttl=300)
 def load_data():
     try:
         # LOAD ALL CORE FILES
@@ -15075,6 +14930,17 @@ with tabs[1]:
         st.header("NFL Universe")
 
     st.caption("Track where dynasty alumni land, how their NFL careers evolve, and who owns the fictional pro landscape.")
+
+    if "nfl_universe_loaded" not in st.session_state:
+        st.session_state["nfl_universe_loaded"] = False
+
+    if not st.session_state["nfl_universe_loaded"]:
+        st.markdown("<div style='text-align:center; padding: 40px 0 20px 0;'>", unsafe_allow_html=True)
+        if st.button("🏈 Load NFL Universe", use_container_width=False, key="nfl_universe_load_btn"):
+            st.session_state["nfl_universe_loaded"] = True
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.stop()
 
     universe = load_nfl_universe_data()
     nfl_roster = universe["nfl_roster"]
