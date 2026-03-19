@@ -14548,83 +14548,39 @@ with tabs[9]:
             if 'Margin' in _df.columns:
                 _df['Margin'] = pd.to_numeric(_df['Margin'], errors='coerce')
 
-            _rows_html = []
-            for _, _row in _df.iterrows():
-                _team = html.escape(str(_row.get('Team', '—')))
-                _opp = html.escape(str(_row.get('Opponent', '—')))
-                _week = html.escape(str(_row.get('Week', '—')))
-                _opp_rank = _row.get('Opponent Rank', pd.NA)
-                _opp_rank_disp = f"#{int(_opp_rank)}" if pd.notna(_opp_rank) else "—"
-                _result_raw = str(_row.get('Result', '—')).strip().upper()
-                _result_disp = '✅ W' if _result_raw == 'W' else ('❌ L' if _result_raw == 'L' else html.escape(str(_row.get('Result', '—'))))
-                _result_color = '#86efac' if _result_raw == 'W' else ('#fca5a5' if _result_raw == 'L' else '#e5e7eb')
-                _score = html.escape(str(_row.get('Score', '—')))
-                _margin = _row.get('Margin', pd.NA)
-                _margin_disp = f"{float(_margin):.1f}" if pd.notna(_margin) else "—"
-
-                _team_primary = get_team_primary_color(_team) if 'get_team_primary_color' in globals() else '#38bdf8'
-                _opp_primary = get_team_primary_color(_opp) if 'get_team_primary_color' in globals() else '#94a3b8'
-
-                _team_logo_uri = None
-                _opp_logo_uri = None
+            def _logo_uri(_team_name):
                 try:
-                    _team_logo_path = get_logo_source(_team) if 'get_logo_source' in globals() else None
-                    _opp_logo_path = get_logo_source(_opp) if 'get_logo_source' in globals() else None
-                    _team_logo_uri = image_file_to_data_uri(_team_logo_path) if _team_logo_path and 'image_file_to_data_uri' in globals() else None
-                    _opp_logo_uri = image_file_to_data_uri(_opp_logo_path) if _opp_logo_path and 'image_file_to_data_uri' in globals() else None
+                    _p = get_logo_source(_team_name) if 'get_logo_source' in globals() else None
+                    return image_file_to_data_uri(_p) if _p and 'image_file_to_data_uri' in globals() else None
                 except Exception:
-                    _team_logo_uri = None
-                    _opp_logo_uri = None
+                    return None
 
-                _team_logo_html = f"<img src='{_team_logo_uri}' style='width:28px;height:28px;object-fit:contain;'/>" if _team_logo_uri else "<div style='font-size:16px;'>🏫</div>"
-                _opp_logo_html = f"<img src='{_opp_logo_uri}' style='width:28px;height:28px;object-fit:contain;'/>" if _opp_logo_uri else "<div style='font-size:16px;'>🏫</div>"
+            _df.insert(1, 'Team Logo', _df['Team'].map(_logo_uri) if 'Team' in _df.columns else None)
+            _df.insert(3, 'Opponent Logo', _df['Opponent'].map(_logo_uri) if 'Opponent' in _df.columns else None)
 
-                _rank_badge = (
-                    f"<span style='display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(245,158,11,0.14);border:1px solid rgba(245,158,11,0.28);color:#fcd34d;font-weight:800;font-size:0.72rem;'>{_opp_rank_disp}</span>"
-                    if _opp_rank_disp != '—' else "—"
-                )
+            if 'Opponent Rank' in _df.columns:
+                _df['Opponent Rank'] = _df['Opponent Rank'].apply(lambda x: f"#{int(x)}" if pd.notna(x) else '—')
+            if 'Result' in _df.columns:
+                _df['Result'] = _df['Result'].astype(str).str.strip().str.upper().map({'W':'✅ W','L':'❌ L'}).fillna(_df['Result'])
+            if 'Margin' in _df.columns:
+                _df['Margin'] = _df['Margin'].apply(lambda x: f"{float(x):.1f}" if pd.notna(x) else '—')
 
-                _rows_html.append(f'''
-                    <tr style="border-left:6px solid {_team_primary};background:linear-gradient(90deg,{_team_primary}22,rgba(15,23,42,.95) 12%);">
-                      <td style="padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#f8fafc;font-weight:800;white-space:nowrap;">{_week}</td>
-                      <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
-                        <div style="display:flex;align-items:center;gap:10px;">
-                          <div>{_team_logo_html}</div>
-                          <div style="font-weight:800;color:{_team_primary};">{_team}</div>
-                        </div>
-                      </td>
-                      <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
-                        <div style="display:flex;align-items:center;gap:10px;">
-                          <div>{_opp_logo_html}</div>
-                          <div style="font-weight:800;color:{_opp_primary};">{_opp}</div>
-                        </div>
-                      </td>
-                      <td style="padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;">{_rank_badge}</td>
-                      <td style="padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:{_result_color};font-weight:900;white-space:nowrap;">{_result_disp}</td>
-                      <td style="padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;">{_score}</td>
-                      <td style="padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;">{_margin_disp}</td>
-                    </tr>
-                ''')
-
-            _table_html = f'''
-            <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
-              <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                <thead>
-                  <tr style="background:#111827;color:#f8fafc;">
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Week</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;">Team</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;">Opponent</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Opp Rank</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Result</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Score</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Margin</th>
-                  </tr>
-                </thead>
-                <tbody>{''.join(_rows_html)}</tbody>
-              </table>
-            </div>
-            '''
-            st.markdown(_table_html, unsafe_allow_html=True)
+            st.dataframe(
+                _df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    'Team Logo': st.column_config.ImageColumn('', width='small'),
+                    'Opponent Logo': st.column_config.ImageColumn('', width='small'),
+                    'Week': st.column_config.TextColumn('Week', width='small'),
+                    'Team': st.column_config.TextColumn('Team', width='medium'),
+                    'Opponent': st.column_config.TextColumn('Opponent', width='medium'),
+                    'Opponent Rank': st.column_config.TextColumn('Opp Rank', width='small'),
+                    'Result': st.column_config.TextColumn('Result', width='small'),
+                    'Score': st.column_config.TextColumn('Score', width='small'),
+                    'Margin': st.column_config.TextColumn('Margin', width='small'),
+                }
+            )
 
         st.markdown("### Schedule & Results")
         _sched = _schedule_df(target, int(selected_year))
