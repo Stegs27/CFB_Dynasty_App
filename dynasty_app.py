@@ -4967,16 +4967,15 @@ IS_BOWL_WEEK        = _DYNASTY_STATE['IsBowlWeek']
 BOWL_ROUND          = _DYNASTY_STATE['BowlRound']
 
 st.markdown("""
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,600&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,600&family=Barlow:wght@400;500;600;700&display=swap');
+
     /* ── ISPN GLOBAL TYPOGRAPHY ──────────────────────────────────────────── */
     html, body, [class*="css"], .stApp {
         font-family: 'Barlow', sans-serif !important;
     }
 
-    /* Headers — Barlow Condensed bold, slightly wider tracking */
+    /* Headers — Barlow Condensed bold */
     h1, h2, h3, h4, h5, h6,
     [data-testid="stHeading"],
     .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
@@ -5006,14 +5005,14 @@ st.markdown("""
         text-transform: uppercase;
     }
 
-    /* Sidebar labels & select boxes */
+    /* Sidebar */
     [data-testid="stSidebar"] label,
     [data-testid="stSidebar"] .stSelectbox,
     [data-testid="stSidebar"] p {
         font-family: 'Barlow', sans-serif !important;
     }
 
-    /* Dataframe / table text */
+    /* Dataframes */
     .stDataFrame, .dataframe, [data-testid="stDataFrame"] {
         font-family: 'Barlow', sans-serif !important;
         font-size: 0.85rem !important;
@@ -5025,8 +5024,7 @@ st.markdown("""
     }
 
     /* Expander headers */
-    [data-testid="stExpander"] summary,
-    details summary {
+    [data-testid="stExpander"] summary, details summary {
         font-family: 'Barlow Condensed', sans-serif !important;
         font-weight: 600 !important;
         letter-spacing: 0.03em;
@@ -5040,7 +5038,7 @@ st.markdown("""
         text-transform: uppercase;
     }
 
-    /* Selectbox / input labels */
+    /* Widget labels */
     label[data-testid="stWidgetLabel"] {
         font-family: 'Barlow Condensed', sans-serif !important;
         font-weight: 600 !important;
@@ -6183,6 +6181,16 @@ def render_roster_matchup_tab():
         except Exception as e2:
             st.error(f"Could not load roster data: {e2}")
             return
+
+    # Filter to current season only — without this every player appears
+    # once per year they've been in the CSV (e.g. both their JR and SR rows show up)
+    if 'Season' in roster.columns:
+        roster['Season'] = pd.to_numeric(roster['Season'], errors='coerce')
+        _avail_seasons = sorted(roster['Season'].dropna().astype(int).unique())
+        _target_season = CURRENT_YEAR if CURRENT_YEAR in _avail_seasons else (
+            max(_avail_seasons) if _avail_seasons else CURRENT_YEAR
+        )
+        roster = roster[roster['Season'].fillna(-1).astype(int) == int(_target_season)].copy()
 
     teams = sorted(roster['Team'].unique().tolist())
 
