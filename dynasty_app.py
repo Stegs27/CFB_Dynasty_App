@@ -13419,6 +13419,57 @@ with tabs[7]:
         )
 
         st.markdown("---")
+        _chart_df = _sf_df.copy()
+        _chart_metrics = [
+            'Team Speed Score',
+            'Quad 90 (90+ SPD, ACC, AGI & COD)',
+            'Monsters',
+            'Quick Hogs',
+            'Generational (96+ speed or 96+ Acceleration)'
+        ]
+        _chart_metric_labels = {
+            'Team Speed Score': 'Speed Score',
+            'Quad 90 (90+ SPD, ACC, AGI & COD)': 'Cheat Codes',
+            'Monsters': 'Monsters',
+            'Quick Hogs': 'Quick Hogs',
+            'Generational (96+ speed or 96+ Acceleration)': 'Generational Freaks'
+        }
+
+        _chart_long = _chart_df.melt(
+            id_vars=['USER', 'TEAM'],
+            value_vars=[c for c in _chart_metrics if c in _chart_df.columns],
+            var_name='Metric',
+            value_name='Value'
+        ).copy()
+
+        if not _chart_long.empty:
+            _chart_long['MetricLabel'] = _chart_long['Metric'].map(_chart_metric_labels).fillna(_chart_long['Metric'])
+            _chart_long['TeamLabel'] = _chart_long['USER'].astype(str) + ' • ' + _chart_long['TEAM'].astype(str)
+
+            _speed_fig = px.bar(
+                _chart_long,
+                x='MetricLabel',
+                y='Value',
+                color='TeamLabel',
+                barmode='group',
+                text='Value',
+                category_orders={'MetricLabel': ['Speed Score', 'Cheat Codes', 'Monsters', 'Quick Hogs', 'Generational Freaks']}
+            )
+            _speed_fig.update_traces(texttemplate='%{text}', textposition='outside')
+            _speed_fig.update_layout(
+                height=460,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                margin=dict(l=10, r=10, t=20, b=10),
+                legend_title_text='Coach • Team',
+                yaxis_title='Value',
+                xaxis_title='',
+            )
+            _speed_fig.update_yaxes(gridcolor='rgba(255,255,255,0.10)', zeroline=False)
+            st.plotly_chart(_speed_fig, use_container_width=True, config={'displayModeBar': False})
+
+        st.markdown("---")
         render_speed_freaks_table(_sf_df)
 
         st.markdown("---")
