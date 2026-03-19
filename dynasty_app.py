@@ -13357,7 +13357,7 @@ with tabs[7]:
         except Exception:
             pass
 
-        if (_sf_df['Speedometer'] == 0).all() and 'team_speed_to_mph' in globals():
+        if 'team_speed_to_mph' in globals():
             _sf_df['Speedometer'] = _sf_df['Team Speed Score'].apply(team_speed_to_mph)
 
         def _where_is_the_speed(row):
