@@ -6574,6 +6574,169 @@ def render_roster_matchup_tab():
         </div>""", unsafe_allow_html=True)
 
 
+# ── AUTO-SYNC: Derive CFP/natty stats and write back to CSVs ─────────────────
+def sync_derived_stats():
+    """
+    Auto-derives and writes back the following fields:
+      UserDraftPicks.csv  → CFP Wins, CFP Losses, National Titles, National Title Appearances
+      coach_records.csv   → CareerWins, CareerLosses, CareerWinPct, PlayoffWins,
+                            PlayoffLosses, PlayoffWinPct, NationalTitles, ConferenceTitles
+
+    Fields intentionally left manual:
+      Career Wins/Losses, Conference Titles, Guys Sent to NFL, 1st Rounders
+    """
+    import os as _os
+    import pandas as _pd
+
+    msgs = []
+
+    # ── 1. Load source files ─────────────────────────────────────────────────
+    try:
+        cfp = _pd.read_csv("CFPbracketresults.csv")
+        scores_raw = _pd.read_csv("CPUscores_MASTER.csv")
+        champs_raw = _pd.read_csv("champs.csv")
+    except Exception as e:
+        return False, [f"❌ Could not load source CSVs: {e}"]
+
+    # ── 2. Build user → team lookup across all years ─────────────────────────
+    scores_raw["YEAR"] = _pd.to_numeric(scores_raw["YEAR"], errors="coerce")
+    user_teams_all = {}   # user -> set of all teams they've ever controlled
+    for _, row in scores_raw.iterrows():
+        for u_col, t_col in [("Vis_User", "Visitor"), ("Home_User", "Home")]:
+            u = str(row.get(u_col, "")).strip().title()
+            t = str(row.get(t_col, "")).strip()
+            if u and u.upper() != "CPU" and u.lower() not in ("nan", ""):
+                user_teams_all.setdefault(u, set()).add(t.lower())
+
+    # ── 3. Derive CFP stats from CFPbracketresults.csv ───────────────────────
+    cfp_done = cfp[cfp["COMPLETED"] == 1].copy()
+    ncg = cfp_done[cfp_done["ROUND"].str.upper() == "NCG"]
+
+    def _cfp_stats(user):
+        teams = user_teams_all.get(user, set())
+        wins = losses = natty_titles = natty_apps = 0
+        for _, row in cfp_done.iterrows():
+            w = str(row["WINNER"]).strip().lower()
+            l = str(row["LOSER"]).strip().lower()
+            if w in teams:
+                wins += 1
+            if l in teams:
+                losses += 1
+        for _, row in ncg.iterrows():
+            t1 = str(row["TEAM1"]).strip().lower()
+            t2 = str(row["TEAM2"]).strip().lower()
+            w  = str(row["WINNER"]).strip().lower()
+            if t1 in teams or t2 in teams:
+                natty_apps += 1
+                if w in teams:
+                    natty_titles += 1
+        return wins, losses, natty_titles, natty_apps
+
+    # Also derive natty titles from champs.csv (more reliable source)
+    champs_raw["user"] = champs_raw["user"].astype(str).str.strip().str.title()
+    champs_user_counts = (
+        champs_raw[champs_raw["user"].str.upper() != "CPU"]["user"]
+        .value_counts()
+        .to_dict()
+    )
+
+    # ── 4. Update UserDraftPicks.csv ─────────────────────────────────────────
+    udp_path = "UserDraftPicks.csv"
+    try:
+        udp = _pd.read_csv(udp_path)
+    except Exception as e:
+        return False, [f"❌ Could not read UserDraftPicks.csv: {e}"]
+
+    udp["USER"] = udp["USER"].astype(str).str.strip().str.title()
+
+    changed_udp = 0
+    for i, row in udp.iterrows():
+        u = row["USER"]
+        cfp_w, cfp_l, _, natty_apps = _cfp_stats(u)
+        natty_titles = champs_user_counts.get(u, 0)
+
+        updates = {
+            "CFP Wins":                    cfp_w,
+            "CFP Losses":                  cfp_l,
+            "National Titles":             natty_titles,
+            "National Title Appearances":  natty_apps,
+        }
+        for col, val in updates.items():
+            if col in udp.columns and int(udp.at[i, col]) != int(val):
+                udp.at[i, col] = int(val)
+                changed_udp += 1
+
+    try:
+        udp.to_csv(udp_path, index=False)
+        msgs.append(f"✅ UserDraftPicks.csv — {changed_udp} field(s) updated")
+    except Exception as e:
+        msgs.append(f"❌ Could not write UserDraftPicks.csv: {e}")
+
+    # ── 5. Update coach_records.csv ──────────────────────────────────────────
+    cr_path = "coach_records.csv"
+    if not _os.path.exists(cr_path):
+        msgs.append("⚠️ coach_records.csv not found — skipping coach sync")
+    else:
+        try:
+            cr = _pd.read_csv(cr_path)
+        except Exception as e:
+            msgs.append(f"❌ Could not read coach_records.csv: {e}")
+            cr = None
+
+        if cr is not None:
+            cr["User"] = cr["User"].astype(str).str.strip().str.title()
+            changed_cr = 0
+
+            # Re-read freshly written UDPs
+            udp_fresh = _pd.read_csv(udp_path)
+            udp_fresh["USER"] = udp_fresh["USER"].astype(str).str.strip().str.title()
+
+            for i, row in cr.iterrows():
+                u = str(row["User"]).strip().title()
+                udp_row = udp_fresh[udp_fresh["USER"] == u]
+                if udp_row.empty:
+                    continue
+                ur = udp_row.iloc[0]
+
+                cw  = int(safe_num(ur.get("Career Wins",  0), 0))
+                cl  = int(safe_num(ur.get("Career Losses", 0), 0))
+                pw  = int(safe_num(ur.get("CFP Wins",   0), 0))
+                pl  = int(safe_num(ur.get("CFP Losses", 0), 0))
+                nt  = int(safe_num(ur.get("National Titles", 0), 0))
+                ct  = int(safe_num(ur.get("Conference Titles", 0), 0))
+                cwp = round(cw / max(1, cw + cl), 3)
+                pwp = round(pw / max(1, pw + pl), 3)
+
+                sync_map = {
+                    "CareerWins":       cw,
+                    "CareerLosses":     cl,
+                    "CareerWinPct":     cwp,
+                    "PlayoffWins":      pw,
+                    "PlayoffLosses":    pl,
+                    "PlayoffWinPct":    pwp,
+                    "NationalTitles":   nt,
+                    "ConferenceTitles": ct,
+                }
+                for col, val in sync_map.items():
+                    if col in cr.columns:
+                        old = cr.at[i, col]
+                        try:
+                            if round(float(old), 3) != round(float(val), 3):
+                                cr.at[i, col] = val
+                                changed_cr += 1
+                        except Exception:
+                            cr.at[i, col] = val
+                            changed_cr += 1
+
+            try:
+                cr.to_csv(cr_path, index=False)
+                msgs.append(f"✅ coach_records.csv — {changed_cr} field(s) updated")
+            except Exception as e:
+                msgs.append(f"❌ Could not write coach_records.csv: {e}")
+
+    return True, msgs
+
+
 @st.cache_data(ttl=300)
 def load_data():
     try:
@@ -18268,3 +18431,26 @@ with tabs[5]:
     if st.sidebar.button("🔄 Refresh Data"):
         st.cache_data.clear()
         st.rerun()
+
+    st.sidebar.markdown("---")
+
+    st.sidebar.markdown(
+        "<p style='font-size:11px;font-weight:500;color:#64748b;text-transform:uppercase;"
+        "letter-spacing:.05em;margin-bottom:6px;'>Commissioner Tools</p>",
+        unsafe_allow_html=True,
+    )
+
+    if st.sidebar.button("📊 Sync Derived Stats", use_container_width=True,
+                         help="Auto-updates CFP wins/losses, natty counts & appearances in UserDraftPicks.csv and coach_records.csv"):
+        with st.sidebar:
+            with st.spinner("Syncing…"):
+                _ok, _msgs = sync_derived_stats()
+            for _m in _msgs:
+                if _m.startswith("✅"):
+                    st.success(_m, icon=None)
+                elif _m.startswith("⚠️"):
+                    st.warning(_m, icon=None)
+                else:
+                    st.error(_m, icon=None)
+            if _ok:
+                st.cache_data.clear()
