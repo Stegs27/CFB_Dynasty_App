@@ -8224,20 +8224,25 @@ def build_ispn_classics(scores_df, ratings_df):
             loser_pts   = hpts if vis_won else vpts
 
             # Game type
-            _nat = str(g.get('Natty Game', 'NO')).strip().upper()
-            _cfp = str(g.get('CFP', 'No')).strip().lower()
-            _cft = str(g.get('Conf Title', 'No')).strip().lower()
-            _bwl = str(g.get('Bowl', 'No')).strip().lower()
-            if _nat not in ('NO', '', 'NAN', 'FALSE', 'NO '):
+            def _flag_yes(v):
+                _s = str(v).strip().lower()
+                return _s in {'yes', 'true', '1', 'y'}
+
+            _nat = g.get('Natty Game', 'NO')
+            _cfp = g.get('CFP', 'No')
+            _cft = g.get('Conf Title', 'No')
+            _bwl = g.get('Bowl', 'No')
+
+            if _flag_yes(_nat):
                 gtype = 'National Championship'
                 gtype_weight = 20
-            elif _cfp in ('yes', 'true', '1'):
+            elif _flag_yes(_cfp):
                 gtype = 'CFP Playoff'
                 gtype_weight = 12
-            elif _cft in ('yes', 'true', '1'):
+            elif _flag_yes(_cft):
                 gtype = 'Conf Title'
                 gtype_weight = 8
-            elif _bwl in ('yes', 'true', '1'):
+            elif _flag_yes(_bwl):
                 gtype = 'Bowl Game'
                 gtype_weight = 4
             else:
@@ -13423,18 +13428,20 @@ with tabs[7]:
 
         st.markdown("---")
         _scatter_df = _sf_df.copy()
-        _scatter_needed = ['USER', 'TEAM', 'Team Speed Score', 'Speedometer']
-        if all(c in _scatter_df.columns for c in _scatter_needed):
-            _scatter_df = _scatter_df[_scatter_needed + [c for c in [
+        _natty_col = 'Natty Odds' if 'Natty Odds' in _scatter_df.columns else ('Preseason Natty Odds' if 'Preseason Natty Odds' in _scatter_df.columns else None)
+        _scatter_needed = ['USER', 'TEAM', 'Speedometer']
+        if _natty_col and all(c in _scatter_df.columns for c in _scatter_needed):
+            _keep_cols = _scatter_needed + [_natty_col] + [c for c in [
                 'Quad 90 (90+ SPD, ACC, AGI & COD)',
                 'Monsters',
                 'Quick Hogs',
                 'Generational (96+ speed or 96+ Acceleration)'
-            ] if c in _scatter_df.columns]].copy()
+            ] if c in _scatter_df.columns]
+            _scatter_df = _scatter_df[_keep_cols].copy()
 
-            _scatter_df['Team Speed Score'] = pd.to_numeric(_scatter_df['Team Speed Score'], errors='coerce')
             _scatter_df['Speedometer'] = pd.to_numeric(_scatter_df['Speedometer'], errors='coerce')
-            _scatter_df = _scatter_df.dropna(subset=['Team Speed Score', 'Speedometer']).copy()
+            _scatter_df[_natty_col] = pd.to_numeric(_scatter_df[_natty_col], errors='coerce')
+            _scatter_df = _scatter_df.dropna(subset=['Speedometer', _natty_col]).copy()
 
             if not _scatter_df.empty:
                 _scatter_df['TeamLabel'] = _scatter_df['USER'].astype(str) + " • " + _scatter_df['TEAM'].astype(str)
@@ -13459,23 +13466,23 @@ with tabs[7]:
 
                 _scatter_df['LogoSrc'] = _scatter_df['TEAM'].apply(_sf_logo_src)
 
-                _x_min = max(0, float(_scatter_df['Team Speed Score'].min()) - 8)
-                _x_max = float(_scatter_df['Team Speed Score'].max()) + 8
-                _y_min = max(0, float(_scatter_df['Speedometer'].min()) - 15)
-                _y_max = float(_scatter_df['Speedometer'].max()) + 15
+                _x_min = max(0, float(_scatter_df['Speedometer'].min()) - 12)
+                _x_max = float(_scatter_df['Speedometer'].max()) + 12
+                _y_min = max(0, float(_scatter_df[_natty_col].min()) - 2)
+                _y_max = float(_scatter_df[_natty_col].max()) + 3
 
                 _speed_style_fig = go.Figure()
 
                 _speed_style_fig.add_trace(
                     go.Scatter(
-                        x=_scatter_df['Team Speed Score'],
-                        y=_scatter_df['Speedometer'],
+                        x=_scatter_df['Speedometer'],
+                        y=_scatter_df[_natty_col],
                         mode='markers',
                         marker=dict(size=1, color='rgba(0,0,0,0)'),
                         hovertemplate=(
                             "<b>%{customdata[0]}</b><br>"
-                            "Speed Score: %{x:.1f}<br>"
-                            "MPH: %{y:.1f}<br>"
+                            "MPH: %{x:.1f}<br>"
+                            "National Title Odds: %{y:.1f}%<br>"
                             "Cheat Codes: %{customdata[1]}<br>"
                             "Monsters: %{customdata[2]}<br>"
                             "Quick Hogs: %{customdata[3]}<br>"
@@ -13491,28 +13498,18 @@ with tabs[7]:
                     )
                 )
 
-                _diag_end = min(_x_max, 130)
-                _speed_style_fig.add_shape(
-                    type='line',
-                    x0=_x_min,
-                    y0=(_x_min / 130.0) * 200.0,
-                    x1=_diag_end,
-                    y1=(_diag_end / 130.0) * 200.0,
-                    line=dict(color='rgba(90,90,90,0.65)', width=1.2, dash='dash')
-                )
-
                 for _, _r in _scatter_df.iterrows():
                     _logo = _r.get('LogoSrc')
                     if isinstance(_logo, str) and _logo.strip():
                         _speed_style_fig.add_layout_image(
                             dict(
                                 source=_logo,
-                                x=float(_r['Team Speed Score']),
-                                y=float(_r['Speedometer']),
+                                x=float(_r['Speedometer']),
+                                y=float(_r[_natty_col]),
                                 xref='x',
                                 yref='y',
-                                sizex=max(4.2, (_x_max - _x_min) * 0.032),
-                                sizey=max(10.0, (_y_max - _y_min) * 0.070),
+                                sizex=max(6.0, (_x_max - _x_min) * 0.05),
+                                sizey=max(1.6, (_y_max - _y_min) * 0.09),
                                 xanchor='center',
                                 yanchor='middle',
                                 layer='above'
@@ -13521,8 +13518,8 @@ with tabs[7]:
                     else:
                         _speed_style_fig.add_trace(
                             go.Scatter(
-                                x=[float(_r['Team Speed Score'])],
-                                y=[float(_r['Speedometer'])],
+                                x=[float(_r['Speedometer'])],
+                                y=[float(_r[_natty_col])],
                                 mode='text',
                                 text=[str(_r['TEAM'])],
                                 textfont=dict(size=11, color='rgba(60,60,60,0.95)'),
@@ -13539,7 +13536,7 @@ with tabs[7]:
                     showlegend=False,
                     font=dict(color='#111111', family='Arial, sans-serif'),
                     title=dict(
-                        text="<b>Speed Freaks Live In Different Zip Codes</b><br><span style='font-size:18px;'>Speed Freaks data plotted as final Speed Score versus MPH.</span>",
+                        text="<b>More Juice, More Title Hope</b><br><span style='font-size:18px;'>Speed Freaks data plotted as MPH versus National Title odds.</span>",
                         x=0.5,
                         xanchor='center',
                         y=0.96,
@@ -13547,7 +13544,7 @@ with tabs[7]:
                         font=dict(size=28, color='#111111')
                     ),
                     xaxis=dict(
-                        title='Final Speed Score',
+                        title='MPH',
                         range=[_x_min, _x_max],
                         showgrid=False,
                         zeroline=False,
@@ -13555,7 +13552,8 @@ with tabs[7]:
                         title_font=dict(size=18, color='#111111')
                     ),
                     yaxis=dict(
-                        title='MPH',
+                        title='National Title Odds',
+                        ticksuffix='%',
                         range=[_y_min, _y_max],
                         showgrid=False,
                         zeroline=False,
@@ -13570,7 +13568,7 @@ with tabs[7]:
                         ),
                         dict(
                             xref='paper', yref='paper', x=0.01, y=-0.12,
-                            text="Chart: ChatGPT • Source: Speed Freaks roster metrics",
+                            text="Chart: ChatGPT • Source: Speed Freaks roster metrics + live natty odds",
                             showarrow=False, font=dict(size=12, color='#444444'), align='left'
                         )
                     ]
@@ -14002,7 +14000,6 @@ with tabs[9]:
             _avg_margin = np.nan
             if not _games.empty:
                 _pts_for = []
-                _margins = []
                 for _s in _games['Score']:
                     try:
                         _a, _b = str(_s).split('-')
@@ -14014,18 +14011,89 @@ with tabs[9]:
                 if 'Margin' in _games.columns and _games['Margin'].notna().any():
                     _avg_margin = round(float(_games['Margin'].mean()), 1)
 
-            # SOS: mean opponent rank strength among ranked teams, lower rank = harder
             _rank_vals = _safe_num(_games['Opponent Rank']) if ('Opponent Rank' in _games.columns) else pd.Series(dtype=float)
-            if not _rank_vals.empty and _rank_vals.notna().any():
-                _sos = round(float((26 - _rank_vals.clip(lower=1, upper=25)).fillna(0).mean()), 1)
-            else:
-                _sos = np.nan
+            _ranked_mask = _rank_vals.notna() if not _rank_vals.empty else pd.Series(dtype=bool)
+            _rw = int(((_games['Result'] == 'W') & _ranked_mask).sum()) if not _games.empty and not _rank_vals.empty else 0
+            _t10 = int(((_games['Result'] == 'W') & (_rank_vals <= 10)).sum()) if not _games.empty and not _rank_vals.empty else 0
+            _rl = int(((_games['Result'] == 'L') & _ranked_mask).sum()) if not _games.empty and not _rank_vals.empty else 0
+            _comp = _rank_vals[_ranked_mask] if not _rank_vals.empty else pd.Series(dtype=float)
+            _avg_r = float(_comp.mean()) if not _comp.empty else 99.0
+            _base_sos = round((_rw * 8.5) + (_t10 * 4.0) - (_rl * 1.5) + (max(0, (25 - _avg_r)) * 0.8), 1)
 
-            # Hardest path heuristic
-            _ranked = int((_rank_vals.notna()).sum()) if not _rank_vals.empty else 0
-            _top10 = int((_rank_vals <= 10).sum()) if not _rank_vals.empty else 0
-            _top5 = int((_rank_vals <= 5).sum()) if not _rank_vals.empty else 0
-            _path = round((_ranked * 7) + (_top10 * 6) + (_top5 * 5) + (_wins * 1.5), 1)
+            def _season_strength_context():
+                _spd = np.nan
+                _qb_tier = 'Average Joe'
+                _qb_ovr = 80.0
+
+                # TeamRatingsHistory / ratings first
+                if not legacy_ratings.empty:
+                    _ry = _smart(legacy_ratings, ['YEAR', 'Year'])
+                    _rt = _smart(legacy_ratings, ['TEAM', 'Team'])
+                    _ru = _smart(legacy_ratings, ['USER', 'User'])
+                    _slice = legacy_ratings.copy()
+                    if _ry:
+                        _slice = _slice[_slice[_ry] == int(_yr)]
+                    if _rt and _team:
+                        _tm = _slice[_slice[_rt].astype(str).str.strip() == str(_team).strip()]
+                        if not _tm.empty:
+                            _slice = _tm
+                    if _slice.empty and _ru:
+                        _slice = legacy_ratings[(legacy_ratings[_ry] == int(_yr)) & (legacy_ratings[_ru] == _coach)] if _ry else legacy_ratings[legacy_ratings[_ru] == _coach]
+                    if not _slice.empty:
+                        _r0 = _slice.iloc[0]
+                        _spd_col = _smart(legacy_ratings, ['Team Speed (90+ Speed Guys)', 'TeamSpeed'])
+                        _qbt_col = _smart(legacy_ratings, ['QB Tier'])
+                        _qbo_col = _smart(legacy_ratings, ['QB OVR', 'QBOvr'])
+                        if _spd_col:
+                            _spd = _safe_num(pd.Series([_r0.get(_spd_col, np.nan)])).iloc[0]
+                        if _qbt_col:
+                            _qb_tier = clean_display(_r0.get(_qbt_col, 'Average Joe'), 'Average Joe')
+                        if _qbo_col:
+                            _qb_ovr = _safe_num(pd.Series([_r0.get(_qbo_col, 80)])).iloc[0]
+
+                # preseason expectations fallback for speed only
+                if pd.isna(_spd) and not preseason_exp.empty:
+                    _py = _smart(preseason_exp, ['Year', 'YEAR']); _pu = _smart(preseason_exp, ['User', 'USER']); _pt = _smart(preseason_exp, ['Team', 'TEAM'])
+                    _spd_col = _smart(preseason_exp, ['TeamSpeed', 'Team Speed'])
+                    if _py and _spd_col:
+                        _pr = preseason_exp[(preseason_exp[_py] == int(_yr))].copy()
+                        if _pu:
+                            _pr = _pr[_pr[_pu] == _coach]
+                        if _pt and _team and not _pr.empty:
+                            _tm = _pr[_pr[_pt].astype(str).str.strip() == str(_team).strip()]
+                            if not _tm.empty:
+                                _pr = _tm
+                        if not _pr.empty:
+                            _spd = _safe_num(pd.Series([_pr.iloc[0].get(_spd_col, np.nan)])).iloc[0]
+
+                return _spd, _qb_tier, _qb_ovr
+
+            _team_speed, _qb_tier, _qb_ovr = _season_strength_context()
+
+            _league_avg_speed = 8.0
+            if not legacy_ratings.empty:
+                _spd_hist_col = _smart(legacy_ratings, ['Team Speed (90+ Speed Guys)', 'TeamSpeed'])
+                if _spd_hist_col:
+                    _spd_vals = _safe_num(legacy_ratings[_spd_hist_col])
+                    if _spd_vals.notna().any():
+                        _league_avg_speed = float(_spd_vals.dropna().mean())
+            elif 'model_2041' in globals() and isinstance(model_2041, pd.DataFrame):
+                _spd_hist_col = _smart(model_2041, ['Team Speed (90+ Speed Guys)', 'TeamSpeed'])
+                if _spd_hist_col:
+                    _spd_vals = _safe_num(model_2041[_spd_hist_col])
+                    if _spd_vals.notna().any():
+                        _league_avg_speed = float(_spd_vals.dropna().mean())
+
+            if pd.isna(_team_speed):
+                _team_speed = _league_avg_speed
+
+            _spd_raw = (_league_avg_speed - float(_team_speed)) * 0.55
+            _qb_base = {'Elite': -4.0, 'Leader': -1.5, 'Average Joe': 1.5, 'Ass': 5.0}.get(str(_qb_tier).strip(), 0)
+            _handicap = round(_spd_raw + _qb_base, 2)
+            _sos = round(_base_sos + _handicap, 1)
+
+            _top5 = int(((_games['Result'] == 'W') & (_rank_vals <= 5)).sum()) if not _games.empty and not _rank_vals.empty else 0
+            _path = round((_rw * 7) + (_t10 * 6) + (_top5 * 5) + (_wins * 1.5) + max(0, _handicap * 8), 1)
 
             if _path >= 90:
                 _tier = "Historic"
@@ -14042,7 +14110,6 @@ with tabs[9]:
             if _national_title:
                 _final_rank = 1
 
-            # preseason row
             _proj = _natty = _cfp = np.nan
             if not preseason_exp.empty:
                 _py = _smart(preseason_exp, ['Year', 'YEAR']); _pu = _smart(preseason_exp, ['User', 'USER']); _pt = _smart(preseason_exp, ['Team', 'TEAM'])
@@ -14059,7 +14126,6 @@ with tabs[9]:
                         _cfp = _safe_num(pd.Series([_r0.get(_smart(preseason_exp, ['CFPOdds', 'CFP Odds']), np.nan)])).iloc[0] if _smart(preseason_exp, ['CFPOdds', 'CFP Odds']) else np.nan
                         _natty = _safe_num(pd.Series([_r0.get(_smart(preseason_exp, ['NattyOdds', 'Natty Odds']), np.nan)])).iloc[0] if _smart(preseason_exp, ['NattyOdds', 'Natty Odds']) else np.nan
 
-            # recruiting ranks
             _rec_over = _rec_hs = _rec_tp = np.nan
             if not recruit_hist.empty:
                 _ry = _smart(recruit_hist, ['Year', 'YEAR']); _rt = _smart(recruit_hist, ['Team', 'TEAM']); _rr = _smart(recruit_hist, ['Rank', 'RANK']); _rc = _smart(recruit_hist, ['ClassType'])
@@ -14078,7 +14144,6 @@ with tabs[9]:
                         elif not _rh.empty:
                             _rec_over = _safe_num(pd.Series([_rh.iloc[0][_rr]])).iloc[0]
 
-            # COTY
             _coty_flag = False
             if not legacy_coty.empty and _coty_year_col and _coty_user_col:
                 _coty_flag = not legacy_coty[(legacy_coty[_coty_year_col] == int(_yr)) & (legacy_coty[_coty_user_col] == _coach)].empty
