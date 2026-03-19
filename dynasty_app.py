@@ -6824,7 +6824,7 @@ def sync_derived_stats():
 
 
 @st.cache_data(ttl=300)
-def load_data():
+def load_data(current_year=CURRENT_YEAR):
     try:
         # LOAD ALL CORE FILES
         scores = pd.read_csv('CPUscores_MASTER.csv')
@@ -6993,8 +6993,8 @@ def load_data():
         rivalry_df = pd.DataFrame(rivalry_rows).sort_values(['Rivalry Score', 'Games'], ascending=[False, False]) if rivalry_rows else pd.DataFrame()
 
         # Ratings prep
-        r_2041 = ratings[ratings['YEAR'] == 2041].copy()
-        r_2040 = ratings[ratings['YEAR'] == 2040].copy()
+        r_2041 = ratings[ratings['YEAR'] == current_year].copy()
+        r_2040 = ratings[ratings['YEAR'] == current_year - 1].copy()
         r_2041['USER'] = safe_title_series(r_2041['USER'])
         r_2040['USER'] = safe_title_series(r_2040['USER'])
         r_2041['TEAM'] = r_2041['TEAM'].astype(str).str.strip()
@@ -7023,11 +7023,7 @@ def load_data():
             r_2040 = r_2040.rename(columns={_gb_old: _gb_new})
 
         for num_col in [
-            'OVERALL', 'OFFENSE', 'DEFENSE', 'Team Speed (90+ Speed Guys)',
-            'Def Speed (90+ speed)', 'Off Speed (90+ speed)',
-            'Quad 90 (90+ SPD, ACC, AGI & COD)',
-            'Generational (96+ speed or 96+ Acceleration)',
-            'Current CFP Ranking', 'QB OVR'
+            'OVERALL', 'OFFENSE', 'DEFENSE', 'QB OVR'
         ]:
             if num_col in r_2041.columns:
                 r_2041[num_col] = pd.to_numeric(r_2041[num_col], errors='coerce')
@@ -7079,7 +7075,9 @@ def load_data():
         return None
 
 
-def get_recent_recruiting_score(rec_df, user, team=None, current_year=2041, lookback=3):
+def get_recent_recruiting_score(rec_df, user, team=None, current_year=None, lookback=3):
+    if current_year is None:
+        current_year = CURRENT_YEAR
     user = str(user).strip().title()
     rows = rec_df[rec_df['USER'] == user].copy()
 
@@ -7741,7 +7739,9 @@ def tier_from_dynasty_score(score):
     return "Upstart"
 
 
-def _recent_recruit_window(row, anchor_year=2041, lookback=4):
+def _recent_recruit_window(row, anchor_year=None, lookback=4):
+    if anchor_year is None:
+        anchor_year = CURRENT_YEAR
     year_cols = sorted([int(c) for c in row.index if str(c).isdigit()])
     vals = []
     for y in year_cols:
@@ -7817,7 +7817,9 @@ def _recruit_blurb(row):
     return f"{team} is putting together a respectable class. Nothing to start a parade over yet, but definitely not clown shoes either."
 
 
-def build_recruiting_board(rec_df, model_df, anchor_year=2041):
+def build_recruiting_board(rec_df, model_df, anchor_year=None):
+    if anchor_year is None:
+        anchor_year = CURRENT_YEAR
     rows = []
     rec_local = rec_df.copy()
     rec_local['USER'] = rec_local['USER'].astype(str).str.strip().str.title()
@@ -9524,7 +9526,7 @@ def simulate_cfp_chaos(team_row, scenario, board_df):
     }])
     return temp.iloc[0]
 
-data = load_data()
+data = load_data(current_year=CURRENT_YEAR)
 
 if data:
     scores = data['scores']
@@ -9587,6 +9589,142 @@ if data:
         _qb_rank_enrich = _qb_rank_enrich[['User', 'Rank']].rename(
             columns={'User': 'USER', 'Rank': 'QB_Dynasty_Rank'})
         model_2041 = model_2041.merge(_qb_rank_enrich, on='USER', how='left')
+    except Exception:
+        pass
+
+    # ── Enrich model_2041 with live roster speed counts ───────────────────────
+    # Replaces TeamRatingsHistory speed cols — single source of truth is the roster CSV.
+    try:
+        _roster_raw = pd.read_csv('cfb26_rosters_full.csv')
+        # Filter to current season if Season column exists
+        if 'Season' in _roster_raw.columns:
+            _roster_raw['Season'] = pd.to_numeric(_roster_raw['Season'], errors='coerce')
+            _seasons_avail = _roster_raw['Season'].dropna().unique()
+            _roster_season = CURRENT_YEAR if CURRENT_YEAR in _seasons_avail else int(_seasons_avail.max())
+            _roster_raw = _roster_raw[_roster_raw['Season'] == _roster_season].copy()
+
+        for _c in ['SPD','ACC','AGI','COD','STR']:
+            _roster_raw[_c] = pd.to_numeric(_roster_raw.get(_c), errors='coerce').fillna(0)
+        _roster_raw['REDSHIRT'] = pd.to_numeric(_roster_raw.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
+        _roster_raw['PosNorm'] = _roster_raw.get('Pos', pd.Series(dtype=str)).astype(str).str.upper().str.strip()
+        _active_r = _roster_raw[_roster_raw['REDSHIRT'] == 0].copy()
+
+        _front7  = {'DT','LEDG','REDG','SAM','MIKE','WILL'}
+        _ol_pos  = {'LT','LG','C','RG','RT'}
+        _off_pos = {'QB','HB','RB','FB','WR','TE','LT','LG','C','RG','RT'}
+        _def_pos = {'DT','LEDG','REDG','SAM','MIKE','WILL','CB','FS','SS','S'}
+
+        _spd_rows = []
+        for _t, _tdf in _active_r.groupby('Team'):
+            _spd_rows.append({
+                'TEAM': str(_t).strip(),
+                'Team Speed (90+ Speed Guys)':
+                    int((_tdf['SPD'] >= 90).sum()),
+                'Quad 90 (90+ SPD, ACC, AGI & COD)':
+                    int(((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 90) & (_tdf['AGI'] >= 90) & (_tdf['COD'] >= 90)).sum()),
+                'Generational (96+ speed or 96+ Acceleration)':
+                    int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum()),
+                'Off Speed (90+ speed)':
+                    int(((_tdf['SPD'] >= 90) & (_tdf['PosNorm'].isin(_off_pos))).sum()),
+                'Def Speed (90+ speed)':
+                    int(((_tdf['SPD'] >= 90) & (_tdf['PosNorm'].isin(_def_pos))).sum()),
+                'Monsters':
+                    int((_tdf['PosNorm'].isin(_front7) & (
+                        ((_tdf['ACC'] >= 90) & (_tdf['SPD'] >= 84)) |
+                        ((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 84))
+                    )).sum()),
+                'Quick Hogs':
+                    int((_tdf['PosNorm'].isin(_ol_pos) & (_tdf['AGI'] >= 85) & (_tdf['STR'] >= 90)).sum()),
+            })
+
+        _spd_df = pd.DataFrame(_spd_rows)
+        if not _spd_df.empty:
+            _drop_spd = [c for c in [
+                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                'Generational (96+ speed or 96+ Acceleration)',
+                'Off Speed (90+ speed)', 'Def Speed (90+ speed)',
+                'Monsters', 'Quick Hogs',
+            ] if c in model_2041.columns]
+            model_2041 = model_2041.drop(columns=_drop_spd, errors='ignore').merge(
+                _spd_df, on='TEAM', how='left'
+            )
+            for _sc in ['Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                        'Generational (96+ speed or 96+ Acceleration)',
+                        'Off Speed (90+ speed)', 'Def Speed (90+ speed)',
+                        'Monsters', 'Quick Hogs']:
+                model_2041[_sc] = pd.to_numeric(model_2041[_sc], errors='coerce').fillna(0)
+
+            # Alias: Quad 90 guys are also called Cheat Codes
+            model_2041['Cheat Codes'] = model_2041['Quad 90 (90+ SPD, ACC, AGI & COD)']
+    except Exception:
+        pass
+
+    # ── Enrich model_2041 with derived season stats ───────────────────────────
+    # Replaces TeamRatingsHistory: Current Record, Combined Opponent W/L, CFP Ranking
+    try:
+        _sc = scores[scores['YEAR'] == CURRENT_YEAR].copy() if 'YEAR' in scores.columns else pd.DataFrame()
+        _sc['V_Pts'] = pd.to_numeric(_sc.get('V_Pts', _sc.get('Vis Score', 0)), errors='coerce')
+        _sc['H_Pts'] = pd.to_numeric(_sc.get('H_Pts', _sc.get('Home Score', 0)), errors='coerce')
+        _sc = _sc.dropna(subset=['V_Pts','H_Pts'])
+
+        # Build full team record lookup for the season (all teams including CPU)
+        _all_team_records = {}
+        for _team in pd.concat([_sc['Home'], _sc['Visitor']]).dropna().unique():
+            _t = str(_team).strip()
+            _hg = _sc[_sc['Home'] == _t]
+            _vg = _sc[_sc['Visitor'] == _t]
+            _tw = len(_hg[_hg['H_Pts'] > _hg['V_Pts']]) + len(_vg[_vg['V_Pts'] > _vg['H_Pts']])
+            _tl = len(_hg) + len(_vg) - _tw
+            _all_team_records[_t] = (_tw, _tl)
+
+        _season_stat_rows = []
+        for _, _mrow in model_2041.iterrows():
+            _t = str(_mrow.get('TEAM', '')).strip()
+            _hg = _sc[_sc['Home'] == _t]
+            _vg = _sc[_sc['Visitor'] == _t]
+            _w = len(_hg[_hg['H_Pts'] > _hg['V_Pts']]) + len(_vg[_vg['V_Pts'] > _vg['H_Pts']])
+            _l = len(_hg) + len(_vg) - _w
+
+            # Opponents this team has faced
+            _opps = list(_sc[_sc['Home'] == _t]['Visitor'].astype(str).str.strip())
+            _opps += list(_sc[_sc['Visitor'] == _t]['Home'].astype(str).str.strip())
+            _opp_w = sum(_all_team_records.get(_o, (0, 0))[0] for _o in _opps)
+            _opp_l = sum(_all_team_records.get(_o, (0, 0))[1] for _o in _opps)
+
+            _season_stat_rows.append({
+                'TEAM': _t,
+                'Current Record Wins':       _w,
+                'Current Record Losses':     _l,
+                'Combined Opponent Wins':    _opp_w,
+                'Combined Opponent Losses':  _opp_l,
+            })
+
+        _season_stat_df = pd.DataFrame(_season_stat_rows)
+        if not _season_stat_df.empty:
+            _drop_ss = [c for c in ['Current Record Wins','Current Record Losses',
+                                    'Combined Opponent Wins','Combined Opponent Losses']
+                        if c in model_2041.columns]
+            model_2041 = model_2041.drop(columns=_drop_ss, errors='ignore').merge(
+                _season_stat_df, on='TEAM', how='left'
+            )
+    except Exception:
+        pass
+
+    # ── Enrich model_2041 with latest CFP ranking ─────────────────────────────
+    try:
+        _cfp_rh = pd.read_csv('cfp_rankings_history.csv')
+        _cfp_rh['YEAR'] = pd.to_numeric(_cfp_rh['YEAR'], errors='coerce')
+        _cfp_rh['WEEK'] = pd.to_numeric(_cfp_rh['WEEK'], errors='coerce')
+        _cfp_cy = _cfp_rh[_cfp_rh['YEAR'] == CURRENT_YEAR]
+        if not _cfp_cy.empty:
+            _latest_wk = _cfp_cy['WEEK'].max()
+            _cfp_snap = _cfp_cy[_cfp_cy['WEEK'] == _latest_wk][['TEAM','RANK']].copy()
+            _cfp_snap.columns = ['TEAM','Current CFP Ranking']
+            _cfp_snap['Current CFP Ranking'] = pd.to_numeric(_cfp_snap['Current CFP Ranking'], errors='coerce')
+            _cfp_snap['TEAM'] = _cfp_snap['TEAM'].astype(str).str.strip()
+            if 'Current CFP Ranking' in model_2041.columns:
+                model_2041 = model_2041.drop(columns=['Current CFP Ranking'])
+            model_2041 = model_2041.merge(_cfp_snap, on='TEAM', how='left')
     except Exception:
         pass
 
@@ -10579,25 +10717,8 @@ with tabs[2]:
             for _c in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
                 _cpu_sos[_c] = pd.to_numeric(_cpu_sos.get(_c, 0), errors='coerce')
 
-        # 3. LIVE SPEED DATA (REDSHIRT-AWARE)
-        _roster_speed = {}
-        _NO_REDSHIRT_TEAMS = {'Devin', 'Josh', 'Noah'}
-        try:
-            _rfull = pd.read_csv('cfb26_rosters_full.csv')
-            _rfull['SPD'] = pd.to_numeric(_rfull['SPD'], errors='coerce')
-            _rfull['ACC'] = pd.to_numeric(_rfull['ACC'], errors='coerce')
-            _rfull['REDSHIRT'] = pd.to_numeric(_rfull.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
-            _active = _rfull[_rfull['REDSHIRT'] == 0]
-            _team_to_user = {v: k for k, v in USER_TEAMS.items()}
-            for _team, _tdf in _active.groupby('Team'):
-                _u = _team_to_user.get(_team)
-                if _u:
-                    _roster_speed[_u] = {
-                        'team_speed_live': int((_tdf['SPD'] >= 90).sum()),
-                        'gen_live': int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum()),
-                    }
-        except Exception:
-            pass
+        # 3. LIVE SPEED DATA — now sourced from model_2041 (pre-computed from roster CSV)
+        _team_to_user = {v: k for k, v in USER_TEAMS.items()}
 
         # 4. OFFICIAL RANK LOOKUP (LATEST CFP)
         try:
@@ -10608,21 +10729,20 @@ with tabs[2]:
         except Exception:
             _final_rank_lookup = {}
 
-        # 5. BUILD SPEED MAP (Fixed USER KeyError)
+        # 5. BUILD SPEED MAP
         _speed_map = {}
         for _, _sr in model_2041.iterrows():
             _u = _sr.get('USER', 'CPU')
             _team_name = str(_sr.get('TEAM', '')).strip()
-            _live = _roster_speed.get(_u, {})
-            _ts = _live.get('team_speed_live', float(_sr.get('Team Speed (90+ Speed Guys)', 0) or 0))
+            _ts = float(_sr.get('Team Speed (90+ Speed Guys)', 0) or 0)
 
             _speed_map[_u] = {
-                'team_speed': float(_ts),
+                'team_speed': _ts,
                 'qb_tier': str(_sr.get('QB Tier', 'Average Joe')).strip(),
                 'qb_ovr': float(_sr.get('QB OVR', 80) or 80),
                 'team': _team_name,
                 'conf': _sr.get('CONFERENCE', 'Other'),
-                'rs_data_confirmed': (_u in _roster_speed) or (_u in _NO_REDSHIRT_TEAMS),
+                'rs_data_confirmed': _ts > 0,
             }
 
         _league_avg_speed = sum(v['team_speed'] for v in _speed_map.values()) / max(1, len(_speed_map))
@@ -12502,10 +12622,29 @@ with tabs[3]:
 
         # --- RECRUITING RANKINGS ---
 with tabs[4]:
-    st.header(f"🏈 {CURRENT_YEAR} Recruiting Final Rankings")
-    st.caption("Final class rankings — high school, portal, and overall. Uses the uploaded recruiting history CSVs automatically.")
+    # ── Year selector ─────────────────────────────────────────────────────
+    try:
+        _rec_all_years = _load_recruiting_csv()
+        _rec_years_avail = sorted(
+            _rec_all_years['Year'].dropna().unique().astype(int).tolist(), reverse=True
+        ) if not _rec_all_years.empty and 'Year' in _rec_all_years.columns else [CURRENT_YEAR]
+    except Exception:
+        _rec_years_avail = [CURRENT_YEAR]
 
-    recruit_year = CURRENT_YEAR
+    if CURRENT_YEAR not in _rec_years_avail:
+        _rec_years_avail = [CURRENT_YEAR] + _rec_years_avail
+
+    _rec_year_col, _rec_spacer = st.columns([1, 3])
+    with _rec_year_col:
+        recruit_year = st.selectbox(
+            "Season", _rec_years_avail,
+            index=0,
+            key="recruit_year_select",
+            label_visibility="collapsed"
+        )
+
+    st.header(f"🏈 {recruit_year} Recruiting Final Rankings")
+    st.caption("Final class rankings — high school, portal, and overall. Uses the uploaded recruiting history CSVs automatically.")
 
     # ── Load recruiting snapshots from history CSVs ──────────────────────
     _hs_df = get_hs_recruiting_snapshot(recruit_year)
@@ -13496,6 +13635,7 @@ with tabs[7]:
                     'TEAM': _t,
                     'Team Speed (90+ Speed Guys)': _s90,
                     'Quad 90 (90+ SPD, ACC, AGI & COD)': _quad,
+                    'Cheat Codes': _quad,
                     'Generational (96+ speed or 96+ Acceleration)': _gen,
                     'Monsters': _mon,
                     'Quick Hogs': _qh,
