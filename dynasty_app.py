@@ -13246,7 +13246,7 @@ with tabs[6]:
 
 with tabs[9]:
         st.header("🏛️ Coach Legacy")
-        st.caption("Career arc by coach across all schools. Powered by CPUscores_MASTER.csv, champs.csv, COTY.csv, recruiting_class_history_all.csv, and preseason_expectations_history.csv.")
+        st.caption("Career arc by coach across all schools. Powered by CPUscores_MASTER.csv, CFPbracketresults.csv, champs.csv, COTY.csv, recruiting_class_history_all.csv, and preseason_expectations_history.csv.")
 
         if st.session_state.pop("_jump_to_team_analysis", False):
             components.html("""
@@ -13283,9 +13283,6 @@ with tabs[9]:
         legacy_champs = champs.copy() if 'champs' in globals() and isinstance(champs, pd.DataFrame) else pd.DataFrame()
         legacy_champs.columns = [str(c).strip() for c in legacy_champs.columns]
 
-        legacy_cfp_res = _load_first(['CFPbracketresults.csv'])
-        legacy_cfp_res.columns = [str(c).strip() for c in legacy_cfp_res.columns]
-
         legacy_coty = coty.copy() if 'coty' in globals() and isinstance(coty, pd.DataFrame) else pd.DataFrame()
         legacy_coty.columns = [str(c).strip() for c in legacy_coty.columns]
 
@@ -13301,6 +13298,15 @@ with tabs[9]:
             'preseason_expectations_history_filled.csv',
         ])
         preseason_exp.columns = [str(c).strip() for c in preseason_exp.columns]
+
+        coach_records = _load_first([
+            'coach_records.csv',
+            'coach_records_base_userteams_corrected.csv',
+            'coach_records_base_userteams_full.csv',
+            'coach_records_base_userteams_corrected.xlsx',
+            'coach_records_base_userteams_full.xlsx',
+        ])
+        coach_records.columns = [str(c).strip() for c in coach_records.columns]
 
         recruit_hist = _load_first([
             'recruiting_class_history_all.csv',
@@ -13328,6 +13334,9 @@ with tabs[9]:
         cfp_hist = _load_first(['cfp_rankings_history.csv'])
         cfp_hist.columns = [str(c).strip() for c in cfp_hist.columns]
 
+        cfp_results = _load_first(['CFPbracketresults.csv'])
+        cfp_results.columns = [str(c).strip() for c in cfp_results.columns]
+
         # ── Standardize key sources ───────────────────────────────────────────
         if not legacy_ratings.empty:
             if 'USER' in legacy_ratings.columns:
@@ -13345,6 +13354,12 @@ with tabs[9]:
             if _py: preseason_exp[_py] = _safe_num(preseason_exp[_py]).astype('Int64')
             if _pu: preseason_exp[_pu] = safe_title_series(preseason_exp[_pu])
             if _pt: preseason_exp[_pt] = preseason_exp[_pt].astype(str).str.strip()
+
+        if not coach_records.empty:
+            _cru = _smart(coach_records, ['User', 'USER'])
+            _crt = _smart(coach_records, ['Team', 'TEAM'])
+            if _cru: coach_records[_cru] = safe_title_series(coach_records[_cru])
+            if _crt: coach_records[_crt] = coach_records[_crt].astype(str).str.strip()
 
         if not recruit_hist.empty:
             _rhy = _smart(recruit_hist, ['Year', 'YEAR'])
@@ -13366,9 +13381,27 @@ with tabs[9]:
             if _ct: cfp_hist[_ct] = cfp_hist[_ct].astype(str).str.strip()
             if _cr: cfp_hist[_cr] = _safe_num(cfp_hist[_cr])
 
+        if not cfp_results.empty:
+            _bcy = _smart(cfp_results, ['YEAR', 'Year'])
+            _bround = _smart(cfp_results, ['ROUND', 'Round'])
+            _bteam1 = _smart(cfp_results, ['TEAM1', 'Team1'])
+            _bteam2 = _smart(cfp_results, ['TEAM2', 'Team2'])
+            _bwin = _smart(cfp_results, ['WINNER', 'Winner'])
+            _blose = _smart(cfp_results, ['LOSER', 'Loser'])
+            if _bcy: cfp_results[_bcy] = _safe_num(cfp_results[_bcy]).astype('Int64')
+            for _bc in [_bround, _bteam1, _bteam2, _bwin, _blose]:
+                if _bc and _bc in cfp_results.columns:
+                    cfp_results[_bc] = cfp_results[_bc].astype(str).str.strip()
+
         _score_year_col = _smart(legacy_scores, ['YEAR', 'Year'])
         if _score_year_col:
             legacy_scores[_score_year_col] = _safe_num(legacy_scores[_score_year_col]).astype('Int64')
+        for _uc in ['V_User_Final', 'H_User_Final']:
+            if _uc in legacy_scores.columns:
+                legacy_scores[_uc] = safe_title_series(legacy_scores[_uc])
+        for _tc in ['Visitor_Final', 'Home_Final']:
+            if _tc in legacy_scores.columns:
+                legacy_scores[_tc] = legacy_scores[_tc].astype(str).str.strip()
 
         _champ_year_col = _smart(legacy_champs, ['Year', 'YEAR'])
         _champ_user_col = _smart(legacy_champs, ['user', 'User'])
@@ -13376,18 +13409,6 @@ with tabs[9]:
         if _champ_year_col: legacy_champs[_champ_year_col] = _safe_num(legacy_champs[_champ_year_col]).astype('Int64')
         if _champ_user_col: legacy_champs[_champ_user_col] = safe_title_series(legacy_champs[_champ_user_col])
         if _champ_team_col: legacy_champs[_champ_team_col] = legacy_champs[_champ_team_col].astype(str).str.strip()
-
-        _cfpr_year_col = _smart(legacy_cfp_res, ['YEAR', 'Year'])
-        _cfpr_team1_col = _smart(legacy_cfp_res, ['TEAM1', 'Team1', 'Away', 'Visitor'])
-        _cfpr_team2_col = _smart(legacy_cfp_res, ['TEAM2', 'Team2', 'Home'])
-        _cfpr_score1_col = _smart(legacy_cfp_res, ['TEAM1_SCORE', 'Team1 Score', 'Away Score', 'Vis Score'])
-        _cfpr_score2_col = _smart(legacy_cfp_res, ['TEAM2_SCORE', 'Team2 Score', 'Home Score'])
-        _cfpr_round_col = _smart(legacy_cfp_res, ['ROUND', 'Round', 'Week', 'WEEK', 'GAME_ID'])
-        if _cfpr_year_col: legacy_cfp_res[_cfpr_year_col] = _safe_num(legacy_cfp_res[_cfpr_year_col]).astype('Int64')
-        if _cfpr_team1_col: legacy_cfp_res[_cfpr_team1_col] = legacy_cfp_res[_cfpr_team1_col].astype(str).str.strip()
-        if _cfpr_team2_col: legacy_cfp_res[_cfpr_team2_col] = legacy_cfp_res[_cfpr_team2_col].astype(str).str.strip()
-        if _cfpr_score1_col: legacy_cfp_res[_cfpr_score1_col] = _safe_num(legacy_cfp_res[_cfpr_score1_col])
-        if _cfpr_score2_col: legacy_cfp_res[_cfpr_score2_col] = _safe_num(legacy_cfp_res[_cfpr_score2_col])
 
         _coty_year_col = _smart(legacy_coty, ['Year', 'YEAR'])
         _coty_user_col = _smart(legacy_coty, ['User', 'USER'])
@@ -13419,13 +13440,59 @@ with tabs[9]:
         _coach_ratings = legacy_ratings[legacy_ratings['USER'] == target].copy() if 'USER' in legacy_ratings.columns else pd.DataFrame()
         _coach_ratings = _coach_ratings.sort_values(_smart(_coach_ratings, ['YEAR', 'Year']) or 'YEAR') if not _coach_ratings.empty else _coach_ratings
 
-        # Build year -> team map
+        _coach_record_row = pd.Series(dtype=object)
+        if not coach_records.empty:
+            _cru = _smart(coach_records, ['User', 'USER'])
+            _crt = _smart(coach_records, ['Team', 'TEAM'])
+            _cr = coach_records.copy()
+            if _cru:
+                _cr = _cr[_cr[_cru] == target]
+            if _cr.empty and _crt and not _coach_ratings.empty and 'TEAM' in _coach_ratings.columns:
+                _current_team_guess = str(_coach_ratings.sort_values(_smart(_coach_ratings, ['YEAR', 'Year']) or 'YEAR').iloc[-1].get('TEAM', '')).strip()
+                if _current_team_guess:
+                    _cr = coach_records[coach_records[_crt] == _current_team_guess].copy()
+            if not _cr.empty:
+                _coach_record_row = _cr.iloc[0]
+
+        # Build year -> team map from historical game results first, then supplement with ratings
         _year_team = {}
+        if not legacy_scores.empty and _score_year_col is not None:
+            _score_slice = legacy_scores[legacy_scores[_score_year_col].notna()].copy()
+            _mask = pd.Series(False, index=_score_slice.index)
+            if 'V_User_Final' in _score_slice.columns:
+                _mask = _mask | (_score_slice['V_User_Final'] == target)
+            if 'H_User_Final' in _score_slice.columns:
+                _mask = _mask | (_score_slice['H_User_Final'] == target)
+            _score_slice = _score_slice[_mask].copy()
+            if not _score_slice.empty:
+                _teams = []
+                for _, _r in _score_slice.iterrows():
+                    try:
+                        _yr = int(_r.get(_score_year_col))
+                    except Exception:
+                        continue
+                    if str(_r.get('H_User_Final', '')) == target:
+                        _tm = str(_r.get('Home_Final', '')).strip()
+                    elif str(_r.get('V_User_Final', '')) == target:
+                        _tm = str(_r.get('Visitor_Final', '')).strip()
+                    else:
+                        _tm = ''
+                    if _tm and _tm.lower() != 'nan':
+                        _teams.append((_yr, _tm))
+                if _teams:
+                    _yt = pd.DataFrame(_teams, columns=['Year', 'Team'])
+                    for _yr, _grp in _yt.groupby('Year'):
+                        try:
+                            _year_team[int(_yr)] = str(_grp['Team'].mode().iloc[0]).strip()
+                        except Exception:
+                            pass
+
+        # supplement missing years from TeamRatingsHistory
         _rating_year_col = _smart(_coach_ratings, ['YEAR', 'Year'])
         if not _coach_ratings.empty and _rating_year_col and 'TEAM' in _coach_ratings.columns:
             for _yr, _grp in _coach_ratings.groupby(_rating_year_col):
                 try:
-                    _year_team[int(_yr)] = str(_grp['TEAM'].mode().iloc[0]).strip()
+                    _year_team.setdefault(int(_yr), str(_grp['TEAM'].mode().iloc[0]).strip())
                 except Exception:
                     pass
 
@@ -13472,62 +13539,57 @@ with tabs[9]:
                 return np.nan
             return _safe_num(_row.iloc[0][_cr])
 
-        def _round_sort_key(_val):
-            _s = str(_val).strip().lower()
-            if any(k in _s for k in ['title', 'championship', 'final']):
-                return 4
-            if any(k in _s for k in ['semi']):
-                return 3
-            if any(k in _s for k in ['quarter']):
-                return 2
-            if 'round' in _s and '1' in _s:
-                return 1
-            try:
-                return int(float(_s))
-            except Exception:
-                return 0
+        def _cfp_result_for_team_year(_team, _yr):
+            _team = str(_team).strip()
+            if not _team or cfp_results.empty:
+                return ""
+            _bcy = _smart(cfp_results, ['YEAR', 'Year'])
+            _bround = _smart(cfp_results, ['ROUND', 'Round'])
+            _bteam1 = _smart(cfp_results, ['TEAM1', 'Team1'])
+            _bteam2 = _smart(cfp_results, ['TEAM2', 'Team2'])
+            _bwin = _smart(cfp_results, ['WINNER', 'Winner'])
+            _blose = _smart(cfp_results, ['LOSER', 'Loser'])
+            if None in [_bcy, _bround, _bteam1, _bteam2, _bwin, _blose]:
+                return ""
+            _yr_df = cfp_results[cfp_results[_bcy] == int(_yr)].copy()
+            if _yr_df.empty:
+                return ""
+            _team_games = _yr_df[
+                (_yr_df[_bteam1] == _team) | (_yr_df[_bteam2] == _team) | (_yr_df[_bwin] == _team) | (_yr_df[_blose] == _team)
+            ].copy()
+            if _team_games.empty:
+                return ""
+            _rounds = _team_games[_bround].astype(str).str.upper()
+            _won_title = ((_team_games[_bround].astype(str).str.upper().isin(['NCG', 'FINAL', 'CHAMPIONSHIP'])) & (_team_games[_bwin] == _team)).any()
+            if _won_title:
+                return "National Champion"
+            _lost_title = ((_team_games[_bround].astype(str).str.upper().isin(['NCG', 'FINAL', 'CHAMPIONSHIP'])) & (_team_games[_blose] == _team)).any()
+            if _lost_title:
+                return "Title Game"
+            _lost_sf = ((_team_games[_bround].astype(str).str.upper().isin(['SF', 'SEMIFINAL', 'SEMIFINALS'])) & (_team_games[_blose] == _team)).any()
+            if _lost_sf:
+                return "Semifinal"
+            _lost_qf = ((_team_games[_bround].astype(str).str.upper().isin(['QF', 'QUARTERFINAL', 'QUARTERFINALS'])) & (_team_games[_blose] == _team)).any()
+            if _lost_qf:
+                return "Quarterfinal"
+            _lost_r1 = ((_team_games[_bround].astype(str).str.upper().isin(['R1', 'ROUND 1', 'FIRST ROUND'])) & (_team_games[_blose] == _team)).any()
+            if _lost_r1:
+                return "Round 1"
+            return "CFP"
 
-        def _cfp_season_summary(_coach, _yr, _team):
-            _summary = {'CFP Result': '', 'National Title': '', 'Title Won': False}
-            # Primary confirmation from champs.csv
-            _won_title = False
+        def _won_title_for_team_year(_coach, _team, _yr):
+            _team = str(_team).strip()
+            _by_bracket = False
+            if _team and not cfp_results.empty:
+                _cfp_res_label = _cfp_result_for_team_year(_team, _yr)
+                _by_bracket = (_cfp_res_label == 'National Champion')
+            _by_champs = False
             if not legacy_champs.empty and _champ_year_col and _champ_user_col:
-                _cm = legacy_champs[(legacy_champs[_champ_year_col] == int(_yr)) & (legacy_champs[_champ_user_col] == _coach)].copy()
-                if _champ_team_col and not _cm.empty and _team:
-                    _cm = _cm[_cm[_champ_team_col].astype(str).str.strip() == str(_team).strip()]
-                _won_title = not _cm.empty
-            # CFP bracket results as primary playoff trace
-            _best_round = 0
-            _title_game_played = False
-            _title_game_won = False
-            if not legacy_cfp_res.empty and _cfpr_year_col and _cfpr_team1_col and _cfpr_team2_col:
-                _g = legacy_cfp_res[legacy_cfp_res[_cfpr_year_col] == int(_yr)].copy()
-                if not _g.empty:
-                    _mask = (_g[_cfpr_team1_col].astype(str).str.strip() == str(_team).strip()) | (_g[_cfpr_team2_col].astype(str).str.strip() == str(_team).strip())
-                    _g = _g[_mask].copy()
-                    for _, _r in _g.iterrows():
-                        _round_name = str(_r.get(_cfpr_round_col, '')).strip() if _cfpr_round_col else ''
-                        _best_round = max(_best_round, _round_sort_key(_round_name))
-                        _is_t1 = str(_r.get(_cfpr_team1_col, '')).strip() == str(_team).strip()
-                        _s1 = pd.to_numeric(pd.Series([_r.get(_cfpr_score1_col, np.nan)]), errors='coerce').iloc[0] if _cfpr_score1_col else np.nan
-                        _s2 = pd.to_numeric(pd.Series([_r.get(_cfpr_score2_col, np.nan)]), errors='coerce').iloc[0] if _cfpr_score2_col else np.nan
-                        if _round_sort_key(_round_name) >= 4:
-                            _title_game_played = True
-                            if pd.notna(_s1) and pd.notna(_s2):
-                                _title_game_won = (_s1 > _s2) if _is_t1 else (_s2 > _s1)
-            if _won_title or _title_game_won:
-                _summary['CFP Result'] = 'Champion'
-                _summary['National Title'] = 'Yes'
-                _summary['Title Won'] = True
-            elif _title_game_played:
-                _summary['CFP Result'] = 'Runner-up'
-            elif _best_round >= 3:
-                _summary['CFP Result'] = 'Semifinal'
-            elif _best_round >= 2:
-                _summary['CFP Result'] = 'Quarterfinal'
-            elif _best_round >= 1:
-                _summary['CFP Result'] = 'Round 1'
-            return _summary
+                _champ_slice = legacy_champs[(legacy_champs[_champ_year_col] == int(_yr)) & (legacy_champs[_champ_user_col] == _coach)].copy()
+                if _champ_team_col and _champ_team_col in _champ_slice.columns and _team:
+                    _champ_slice = _champ_slice[_champ_slice[_champ_team_col].astype(str).str.strip() == _team]
+                _by_champs = not _champ_slice.empty
+            return bool(_by_bracket or _by_champs)
 
         def _schedule_df(_coach, _yr):
             _g = _coach_games_for_year(_coach, _yr).copy()
@@ -13605,12 +13667,11 @@ with tabs[9]:
             else:
                 _tier = "Manageable"
 
+            _cfp_result = _cfp_result_for_team_year(_team, _yr)
+            _national_title = _won_title_for_team_year(_coach, _team, _yr)
             _final_rank = _rank_lookup(_team, _yr)
-            # champions should show #1
-            if not legacy_champs.empty and _champ_year_col and _champ_user_col:
-                _champ_slice = legacy_champs[(legacy_champs[_champ_year_col] == int(_yr)) & (legacy_champs[_champ_user_col] == _coach)]
-                if not _champ_slice.empty:
-                    _final_rank = 1
+            if _national_title:
+                _final_rank = 1
 
             # preseason row
             _proj = _natty = _cfp = np.nan
@@ -13653,8 +13714,6 @@ with tabs[9]:
             if not legacy_coty.empty and _coty_year_col and _coty_user_col:
                 _coty_flag = not legacy_coty[(legacy_coty[_coty_year_col] == int(_yr)) & (legacy_coty[_coty_user_col] == _coach)].empty
 
-            _cfp_summary = _cfp_season_summary(_coach, _yr, _team)
-
             return {
                 'Year': int(_yr),
                 'School': _team,
@@ -13665,6 +13724,8 @@ with tabs[9]:
                 'Hardest Path': _path,
                 'Path Tier': _tier,
                 'Final Rank': (int(_final_rank) if pd.notna(_final_rank) else np.nan),
+                'CFP Result': _cfp_result,
+                'National Title': ("Yes" if _national_title else ""),
                 'Recruiting Overall': _rec_over,
                 'Recruiting HS': _rec_hs,
                 'Recruiting Transfer': _rec_tp,
@@ -13674,21 +13735,64 @@ with tabs[9]:
                 'Actual Wins': _wins,
                 'PPG': _ppg,
                 'Avg Margin': _avg_margin,
-                'CFP Result': _cfp_summary.get('CFP Result', ''),
-                'National Title': _cfp_summary.get('National Title', ''),
                 'Coach of the Year': "Yes" if _coty_flag else "",
             }
 
         _legacy_rows = [_season_metrics(target, _yr) for _yr in _coach_years]
         legacy_df = pd.DataFrame(_legacy_rows).sort_values('Year')
 
+        def _sos_tier(x):
+            try:
+                x = float(x)
+            except Exception:
+                return "—"
+            if x < 4:
+                return "Soft"
+            if x < 6:
+                return "Manageable"
+            if x < 8:
+                return "Solid"
+            if x < 10:
+                return "Tough"
+            return "Brutal"
+
+        def _path_tier_from_score(x):
+            try:
+                x = float(x)
+            except Exception:
+                return "—"
+            if x < 25:
+                return "Manageable"
+            if x < 50:
+                return "Tough"
+            if x < 75:
+                return "Brutal"
+            return "Historic"
+
+        if not legacy_df.empty:
+            legacy_df['SOS Tier'] = legacy_df['SOS'].apply(_sos_tier) if 'SOS' in legacy_df.columns else "—"
+            if 'Path Tier' not in legacy_df.columns and 'Hardest Path' in legacy_df.columns:
+                legacy_df['Path Tier'] = legacy_df['Hardest Path'].apply(_path_tier_from_score)
+
         # ── Career cards ───────────────────────────────────────────────────────
         _schools = [str(t).strip() for t in pd.Series(list(_year_team.values())).dropna().unique() if str(t).strip()]
         _career_w = int(legacy_df['Wins'].sum()) if not legacy_df.empty else 0
         _career_l = int(legacy_df['Losses'].sum()) if not legacy_df.empty else 0
-        _natties = int((legacy_df['National Title'].astype(str) == 'Yes').sum()) if 'National Title' in legacy_df.columns and not legacy_df.empty else 0
+        _natties = int((legacy_df['National Title'].astype(str) == 'Yes').sum()) if (not legacy_df.empty and 'National Title' in legacy_df.columns) else 0
         if _natties == 0 and not legacy_champs.empty and _champ_user_col:
             _natties = int((legacy_champs[_champ_user_col] == target).sum())
+
+        if not _coach_record_row.empty:
+            _cr_record = str(_coach_record_row.get(_smart(coach_records, ['CareerRecord']), '')).strip()
+            _cr_record = _cr_record.replace('="', '').replace('"', '')
+            if '-' in _cr_record:
+                try:
+                    _cw_txt, _cl_txt = _cr_record.split('-', 1)
+                    _career_w = int(str(_cw_txt).strip())
+                    _career_l = int(str(_cl_txt).strip())
+                except Exception:
+                    pass
+
         _avg_sos = round(float(legacy_df['SOS'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['SOS'].dropna().any() else np.nan
         _avg_path = round(float(legacy_df['Hardest Path'].dropna().mean()), 1) if not legacy_df.empty and legacy_df['Hardest Path'].dropna().any() else np.nan
         _avg_vs_proj = round(float((legacy_df['Actual Wins'].fillna(0) - legacy_df['Projected Wins'].fillna(0)).mean()), 1) if not legacy_df.empty and 'Projected Wins' in legacy_df.columns else np.nan
@@ -13697,10 +13801,37 @@ with tabs[9]:
             {"label": "🏫 Schools", "value": str(len(_schools))},
             {"label": "📘 Career Record", "value": f"{_career_w}-{_career_l}"},
             {"label": "🏆 Natties", "value": str(_natties)},
-            {"label": "📐 AVG SOS", "value": f"{_avg_sos:.1f}" if pd.notna(_avg_sos) else "—"},
-            {"label": "🪓 AVG PATH", "value": f"{_avg_path:.1f}" if pd.notna(_avg_path) else "—"},
+            {"label": "📐 AVG SOS", "value": f"{_avg_sos:.1f} • {_sos_tier(_avg_sos)}" if pd.notna(_avg_sos) else "—"},
+            {"label": "🪓 AVG PATH", "value": f"{_avg_path:.1f} • {_path_tier_from_score(_avg_path)}" if pd.notna(_avg_path) else "—"},
             {"label": "📈 VS PROJ WINS", "value": f"{_avg_vs_proj:+.1f}" if pd.notna(_avg_vs_proj) else "—"},
         ])
+
+        if not _coach_record_row.empty:
+            st.markdown("### Coach Resume")
+            _resume_rows = []
+            for _label, _cand in [
+                ('Prestige', ['Prestige']),
+                ('Level', ['Level']),
+                ('Archetype', ['Archetype']),
+                ('Off Scheme', ['OffScheme']),
+                ('Def Scheme', ['DefScheme']),
+                ('Alma Mater', ['AlmaMater']),
+                ('Playoff Record', ['PlayoffRecord']),
+                ('Conference Titles', ['ConferenceTitles']),
+                ('First Rounders', ['FirstRounders']),
+                ('Draft Picks', ['DraftPicks']),
+                ('Top 5 Recruiting Classes', ['Top5RecruitingClasses']),
+                ('Bowl Record', ['BowlRecord']),
+                ('Record vs Rivals', ['RecordVsRivals']),
+                ('Record vs Top 25', ['RecordVsTop25']),
+            ]:
+                _col = _smart(coach_records, _cand)
+                if _col:
+                    _val = _coach_record_row.get(_col, '')
+                    if pd.notna(_val) and str(_val).strip():
+                        _resume_rows.append({'Metric': _label, 'Value': str(_val).replace('="', '').replace('"','')})
+            if _resume_rows:
+                st.dataframe(pd.DataFrame(_resume_rows), use_container_width=True, hide_index=True)
 
         st.markdown("### Coaching Stops")
         _stop_cols = st.columns(max(1, min(4, len(_schools))))
@@ -13708,15 +13839,7 @@ with tabs[9]:
             _school_years = sorted([y for y, t in _year_team.items() if str(t).strip() == _school])
             _school_titles = 0
             if not legacy_df.empty and 'School' in legacy_df.columns and 'National Title' in legacy_df.columns:
-                _school_titles = int(len(legacy_df[
-                    (legacy_df['School'].astype(str).str.strip() == str(_school).strip()) &
-                    (legacy_df['National Title'].astype(str) == 'Yes')
-                ]))
-            elif not legacy_champs.empty and _champ_year_col and _champ_user_col and _champ_team_col:
-                _school_titles = int(len(legacy_champs[
-                    (legacy_champs[_champ_user_col] == target) &
-                    (legacy_champs[_champ_team_col] == _school)
-                ]))
+                _school_titles = int(((legacy_df['School'].astype(str).str.strip() == _school) & (legacy_df['National Title'].astype(str) == 'Yes')).sum())
             with _stop_cols[i % len(_stop_cols)]:
                 _uri = image_file_to_data_uri(get_logo_source(_school)) if 'image_file_to_data_uri' in globals() else None
                 if _uri:
@@ -13734,7 +13857,7 @@ with tabs[9]:
             if _col in _display_df.columns:
                 _display_df[_col] = _display_df[_col].where(_display_df[_col].notna(), None)
         st.dataframe(
-            _display_df[['Year','School','Record','CFP Result','National Title','Preseason Natty Odds','Preseason CFP Odds','SOS','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']],
+            _display_df[['Year','School','Record','CFP Result','National Title','Preseason Natty Odds','Preseason CFP Odds','SOS','SOS Tier','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']],
             use_container_width=True,
             hide_index=True
         )
@@ -13755,6 +13878,7 @@ with tabs[9]:
             {"label": "📐 SOS", "value": f"{float(_season_row['SOS']):.1f}" if pd.notna(_season_row['SOS']) else "—"},
             {"label": "🪓 Hardest Path", "value": f"{float(_season_row['Hardest Path']):.1f}" if pd.notna(_season_row['Hardest Path']) else "—"},
             {"label": "🏷️ Path Tier", "value": str(_season_row['Path Tier'])},
+            {"label": "🏈 CFP Result", "value": str(_season_row['CFP Result']) if str(_season_row.get('CFP Result', '')).strip() else "—"},
             {"label": "🏆 Natty Odds", "value": f"{float(_season_row['Preseason Natty Odds']):.1f}%" if pd.notna(_season_row['Preseason Natty Odds']) else "—"},
             {"label": "🎯 CFP Odds", "value": f"{float(_season_row['Preseason CFP Odds']):.1f}%" if pd.notna(_season_row['Preseason CFP Odds']) else "—"},
             {"label": "📈 Proj Wins", "value": f"{float(_season_row['Projected Wins']):.1f}" if pd.notna(_season_row['Projected Wins']) else "—"},
