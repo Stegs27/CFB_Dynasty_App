@@ -17441,7 +17441,6 @@ with tabs[5]:
     current_yr = CURRENT_YEAR if 'CURRENT_YEAR' in globals() else 2041
 
 # --- 1. CSV Loading Logic (Schema-Safe) ---
-    @st.cache_data
     def load_attrition_data(roster_path, cur_year):
         def safe_read_csv(path, fallback_cols):
             try:
@@ -17816,7 +17815,6 @@ with tabs[5]:
         return df
 
     # --- 1C. Auto-Pull Current Seniors from Roster ---
-    @st.cache_data
     def get_auto_seniors(roster_path, cur_year):
         try:
             rosters = pd.read_csv(roster_path).copy()
