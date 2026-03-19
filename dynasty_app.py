@@ -12673,60 +12673,182 @@ with tabs[0]:
             _heisman_calc = _hc_roster.apply(_compute_heisman_odds, axis=1)
             _hc_roster = pd.concat([_hc_roster.reset_index(drop=True), _heisman_calc.reset_index(drop=True)], axis=1)
 
+            # ── One featured candidate per user team ──────────────────────────
             _hc_roster = _hc_roster.sort_values(
                 ['HeismanScore','OVR','AWR','SPD','Name'],
                 ascending=[False, False, False, False, True]
-            ).reset_index(drop=True).head(8).copy()
+            ).reset_index(drop=True)
 
-            if not _hc_roster.empty:
-                _exp_scores = np.exp((_hc_roster['HeismanScore'] - _hc_roster['HeismanScore'].max()) / 5.0)
-                _hc_roster['HeismanOdds'] = (_exp_scores / _exp_scores.sum()) * 100.0
-                _hc_roster['HeismanOdds'] = _hc_roster['HeismanOdds'].round(1)
+            _featured_list = []
+            for _ut in USER_TEAMS.values():
+                _team_rows = _hc_roster[_hc_roster['Team'].astype(str).str.strip() == str(_ut).strip()].copy()
+                if not _team_rows.empty:
+                    _featured_list.append(_team_rows.iloc[0].to_dict())
 
-                _card_cols = st.columns(2)
-                for _idx, _r in _hc_roster.iterrows():
-                    _team = str(_r.get('Team','')).strip()
-                    _name = str(_r.get('Name','')).strip()
-                    _pos  = str(_r.get('Pos','')).strip()
-                    _year = str(_r.get('Year','')).strip()
-                    _ovr  = int(_r.get('OVR', 0))
-                    _odds = float(_r.get('HeismanOdds', 0.0))
+            if _featured_list:
+                _featured_df = pd.DataFrame(_featured_list).reset_index(drop=True)
+                # Recalculate odds among just these 6 finalists
+                _exp6 = np.exp((_featured_df['HeismanScore'] - _featured_df['HeismanScore'].max()) / 5.0)
+                _featured_df['HeismanOdds'] = (_exp6 / _exp6.sum() * 100.0).round(1)
+                _featured_df = _featured_df.sort_values('HeismanOdds', ascending=False).reset_index(drop=True)
+
+                # ── ESPN-style candidate cards ─────────────────────────────────
+                _pos_colors_map = {'QB': '#f97316', 'HB': '#22c55e', 'WR': '#3b82f6', 'TE': '#a78bfa'}
+
+                _cards_html = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,600&family=Barlow:wght@400;500;600&display=swap');
+.hboard-wrap { margin: 8px 0 20px 0; }
+.hboard-subhead { font-family: 'Barlow', sans-serif; font-size: 0.68rem; letter-spacing: 0.15em; color: #475569; text-transform: uppercase; margin-bottom: 14px; padding-bottom: 7px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.hgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 820px) { .hgrid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px) { .hgrid { grid-template-columns: 1fr; } }
+.hcard {
+    background: linear-gradient(160deg, #0c1622 0%, #111c2b 100%);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.hcard:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(0,0,0,0.6); }
+.hcard-stripe { height: 3px; width: 100%; }
+.hcard-body { padding: 13px 14px 12px 14px; }
+.hcard-toprow { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 7px; }
+.hcard-rank { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; line-height: 1; opacity: 0.18; }
+.hcard-odds-col { text-align: right; }
+.hcard-odds-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.1rem; line-height: 1; }
+.hcard-odds-lbl { font-family: 'Barlow', sans-serif; font-size: 0.56rem; color: #475569; text-transform: uppercase; letter-spacing: 0.1em; }
+.hcard-name { font-family: 'Barlow Condensed', sans-serif; font-size: 1.2rem; font-weight: 700; color: #f1f5f9; line-height: 1.1; margin: 0 0 4px 0; }
+.hcard-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 9px; }
+.pos-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; }
+.class-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; background: rgba(255,255,255,0.07); font-family: 'Barlow', sans-serif; font-size: 0.60rem; color: #94a3b8; }
+.team-tag { font-family: 'Barlow', sans-serif; font-size: 0.60rem; color: #64748b; }
+.hbar-bg { background: rgba(255,255,255,0.07); border-radius: 3px; height: 4px; margin-bottom: 10px; overflow: hidden; }
+.hbar-fill { height: 100%; border-radius: 3px; }
+.hstats { display: flex; gap: 5px; margin-bottom: 9px; }
+.hstat { flex: 1; background: rgba(255,255,255,0.04); border-radius: 5px; padding: 5px 3px; text-align: center; border: 1px solid rgba(255,255,255,0.06); }
+.hstat-val { font-family: 'Barlow Condensed', sans-serif; font-size: 0.92rem; font-weight: 700; color: #e2e8f0; }
+.hstat-lbl { font-family: 'Barlow', sans-serif; font-size: 0.52rem; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; }
+.hfactors { display: flex; flex-wrap: wrap; gap: 4px; }
+.hfactor { font-family: 'Barlow', sans-serif; font-size: 0.58rem; padding: 2px 7px; border-radius: 8px; background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.09); }
+.hcard-user { font-family: 'Barlow Condensed', sans-serif; font-size: 0.62rem; color: #334155; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 9px; }
+</style>
+<div class="hboard-wrap">
+  <div class="hboard-subhead">◈ CURRENT_YEAR_PLACEHOLDER Heisman Board &nbsp;·&nbsp; Top Candidate Per Team</div>
+  <div class="hgrid">
+"""
+                _cards_html = _cards_html.replace("CURRENT_YEAR_PLACEHOLDER", str(CURRENT_YEAR))
+
+                for _rank_i, _r in _featured_df.iterrows():
+                    _team  = str(_r.get('Team', '')).strip()
+                    _name  = html.escape(str(_r.get('Name', '')).strip())
+                    _pos   = str(_r.get('Pos', '')).strip().upper()
+                    _yr    = str(_r.get('Year', '')).strip()
+                    _ovr   = int(float(str(_r.get('OVR', 0)).replace(',','') or 0))
+                    _awr   = int(float(str(_r.get('AWR', 75)).replace(',','') or 75))
+                    _spd   = int(float(str(_r.get('SPD', 75)).replace(',','') or 75))
+                    _odds  = float(_r.get('HeismanOdds', 0.0))
                     _score = float(_r.get('HeismanScore', 0.0))
-                    _rank_tag = f"#{int(_r['TeamRankCtx'])}" if pd.notna(_r.get('TeamRankCtx')) else "UR"
-                    _natty_tag = f"{float(_r['NattyOddsCtx']):.1f}%" if pd.notna(_r.get('NattyOddsCtx')) else "—"
-                    _cfp_tag = f"{float(_r['CFPOddsCtx']):.1f}%" if pd.notna(_r.get('CFPOddsCtx')) else "—"
 
-                    _formula_bits = []
+                    _tc  = get_team_primary_color(_team)
+                    _pc  = _pos_colors_map.get(_pos, '#94a3b8')
+                    # Bar width: scale so leader fills ~90% of bar
+                    _max_odds = float(_featured_df['HeismanOdds'].max())
+                    _bar_w = int((_odds / _max_odds) * 90) if _max_odds > 0 else 0
+
+                    _user = next((u for u, t in USER_TEAMS.items() if str(t).strip() == _team), _team)
+
+                    # Team rank context
+                    _rctx = _r.get('TeamRankCtx')
+                    _rctx_clean = None
+                    try:
+                        _rctx_clean = float(_rctx) if pd.notna(_rctx) and str(_rctx).strip() not in ('', 'nan') else None
+                    except Exception:
+                        pass
+                    _rank_tag = f"#{int(_rctx_clean)}" if _rctx_clean is not None else "UR"
+
+                    _nctx = _r.get('NattyOddsCtx')
+                    _nctx_clean = None
+                    try:
+                        _nctx_clean = float(_nctx) if pd.notna(_nctx) and str(_nctx).strip() not in ('', 'nan') else None
+                    except Exception:
+                        pass
+
+                    _cctx = _r.get('CFPOddsCtx')
+                    _cctx_clean = None
+                    try:
+                        _cctx_clean = float(_cctx) if pd.notna(_cctx) and str(_cctx).strip() not in ('', 'nan') else None
+                    except Exception:
+                        pass
+
+                    # Factor tags
+                    _factors = []
                     if _pos == 'QB':
-                        _formula_bits.append("QB premium")
-                    if pd.notna(_r.get('TeamRankCtx')):
-                        _formula_bits.append(f"team rank boost {_rank_tag}")
-                    if pd.notna(_r.get('NattyOddsCtx')) and float(_r.get('NattyOddsCtx', 0)) > 0:
-                        _formula_bits.append("title equity")
-                    if _ovr >= 90:
-                        _formula_bits.append("elite OVR")
-                    elif int(pd.to_numeric(pd.Series([_r.get('SPD',0)]), errors='coerce').fillna(0).iloc[0]) >= 92:
-                        _formula_bits.append("explosive traits")
-                    _formula_text = " • ".join(_formula_bits[:3]) if _formula_bits else "talent + team context"
+                        _factors.append("QB Premium")
+                    if _rctx_clean is not None and _rctx_clean <= 10:
+                        _factors.append("Top-10 Team")
+                    elif _rctx_clean is not None and _rctx_clean <= 25:
+                        _factors.append("Ranked Team")
+                    if _nctx_clean is not None and _nctx_clean > 0:
+                        _factors.append(f"{_nctx_clean:.0f}% Title")
+                    if _cctx_clean is not None and _cctx_clean > 0:
+                        _factors.append(f"{_cctx_clean:.0f}% CFP")
+                    if _ovr >= 92:
+                        _factors.append("Elite OVR")
+                    elif _ovr >= 88:
+                        _factors.append("High OVR")
+                    if _spd >= 93:
+                        _factors.append("Burner Speed")
+                    if not _factors:
+                        _factors.append("Pure Talent")
+                    _factors = _factors[:4]
+                    _factors_html = "".join(
+                        f'<span class="hfactor">{html.escape(str(f))}</span>' for f in _factors
+                    )
+                    _num = _rank_i + 1
 
-                    with _card_cols[_idx % 2]:
-                        st.markdown(f"##### #{_idx+1} {_name}")
-                        st.caption(f"{_team} · {_pos} · {_year} · {_ovr} OVR · Rank {_rank_tag}")
-                        _m1, _m2, _m3 = st.columns(3)
-                        _m1.metric("Heisman Odds", f"{_odds:.1f}%")
-                        _m2.metric("Heisman Score", f"{_score:.1f}")
-                        _m3.metric("Natty / CFP", f"{_natty_tag} / {_cfp_tag}")
-                        st.caption(_formula_text)
-                        st.markdown("---")
+                    _cards_html += f"""
+    <div class="hcard">
+      <div class="hcard-stripe" style="background:{_tc};"></div>
+      <div class="hcard-body">
+        <div class="hcard-toprow">
+          <span class="hcard-rank" style="color:{_tc};">{_num}</span>
+          <div class="hcard-odds-col">
+            <div class="hcard-odds-num" style="color:{_tc};">{_odds:.1f}%</div>
+            <div class="hcard-odds-lbl">Heisman Odds</div>
+          </div>
+        </div>
+        <div class="hcard-name">{_name}</div>
+        <div class="hcard-meta">
+          <span class="pos-badge" style="background:{_pc}22;color:{_pc};border:1px solid {_pc}55;">{_pos}</span>
+          <span class="class-badge">{html.escape(_yr)}</span>
+          <span class="team-tag">· {html.escape(_team)} · {_rank_tag}</span>
+        </div>
+        <div class="hbar-bg"><div class="hbar-fill" style="width:{_bar_w}%;background:linear-gradient(90deg,{_tc},{_tc}99);"></div></div>
+        <div class="hstats">
+          <div class="hstat"><div class="hstat-val">{_ovr}</div><div class="hstat-lbl">OVR</div></div>
+          <div class="hstat"><div class="hstat-val">{_awr}</div><div class="hstat-lbl">AWR</div></div>
+          <div class="hstat"><div class="hstat-val">{_spd}</div><div class="hstat-lbl">SPD</div></div>
+          <div class="hstat"><div class="hstat-val">{_score:.0f}</div><div class="hstat-lbl">Score</div></div>
+        </div>
+        <div class="hfactors">{_factors_html}</div>
+        <div class="hcard-user">👤 {html.escape(str(_user))}</div>
+      </div>
+    </div>"""
 
-                with st.expander("How the Heisman Odds formula works"):
+                _cards_html += "\n  </div>\n</div>"
+                st.markdown(_cards_html, unsafe_allow_html=True)
+
+                with st.expander("⚡ How the Heisman Odds formula works"):
                     st.markdown(
                         """
-                        - **Talent base:** OVR drives the board most heavily.
-                        - **Player quality modifiers:** awareness, athletic juice, and ball-carrier tools add extra separation.
-                        - **Position value:** QBs get the biggest premium, then HBs, WRs, and TEs.
-                        - **Team context:** preseason / live rank, natty odds, CFP odds, and projected wins boost players on teams expected to matter nationally.
-                        - **Odds conversion:** raw Heisman scores are turned into percentage odds with a softmax-style scaling so the board feels like a real race instead of a flat ranking.
+                        - **Talent base:** OVR is the heaviest input — if you're not good, you're not on the board.
+                        - **Player quality modifiers:** awareness (AWR), athletic juice (SPD/ACC/AGI/COD), and ball-carrier tools (CAR/BCV) create separation between similarly-rated players.
+                        - **Position value:** QBs get the biggest premium (+18), then HBs (+11), WRs (+7), TEs (+4). This reflects Heisman voting reality — voters love quarterbacks.
+                        - **Team context:** preseason/live rank, natty odds, CFP odds, and projected wins all boost players on nationally relevant teams. A 99 OVR HB on a 4-win squad isn't winning anything.
+                        - **Odds conversion:** raw scores run through a softmax-style scaling so the board reads like a race, not a flat ranking.
+                        - **One per team:** only the top skill candidate from each user team appears — makes the board represent the full league rather than stacking one dominant roster.
                         """
                     )
             else:
