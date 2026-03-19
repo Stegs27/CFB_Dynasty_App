@@ -10717,8 +10717,7 @@ with tabs[2]:
             for _c in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
                 _cpu_sos[_c] = pd.to_numeric(_cpu_sos.get(_c, 0), errors='coerce')
 
-        # 3. LIVE SPEED DATA — now sourced from model_2041 (pre-computed from roster CSV)
-        _team_to_user = {v: k for k, v in USER_TEAMS.items()}
+        # 3. SPEED DATA — sourced from model_2041 (pre-computed from roster CSV)
 
         # 4. OFFICIAL RANK LOOKUP (LATEST CFP)
         try:
