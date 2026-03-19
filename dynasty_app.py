@@ -9349,46 +9349,74 @@ def render_playoff_bracket(projected_field, actual_results=None):
         st.caption("🟦 PROJ = projected R1 winner · lock the bracket and post playoff scores to CPUscores_MASTER.csv to auto-advance rounds")
 
 
-def render_first_four_out(board_df):
+def render_first_four_out(board_df, rec_rank_map=None, movement_map=None, current_year=None):
     if board_df is None or board_df.empty:
         st.caption("No first four out teams available.")
         return
 
-    def get_logo_path(team):
-        path = get_logo_source(team)
-        if isinstance(path, str) and path and Path(path).exists():
-            return path
-        return None
+    rec_rank_map  = rec_rank_map  or {}
+    movement_map  = movement_map  or {}
+    rec_year_lbl  = f"{int(current_year) - 1}" if current_year else "Last Year"
 
+    rows_html = []
     for _, row in board_df.iterrows():
-        team = str(row.get('Team', ''))
-        primary = get_team_primary_color(team)
-        record = str(row.get('Record', '—'))
-        make_pct = format_pct(row.get('CFP Make %', np.nan), 1)
-        bye_pct = format_pct(row.get('Bye %', np.nan), 1)
-        rank_raw = pd.to_numeric(row.get('Rank', np.nan), errors='coerce')
+        team      = str(row.get('Team', ''))
+        primary   = get_team_primary_color(team)
+        record    = str(row.get('Record', '—'))
+        rank_raw  = pd.to_numeric(row.get('Rank', np.nan), errors='coerce')
         rank_disp = f"#{int(rank_raw)}" if pd.notna(rank_raw) else '—'
-        logo_path = get_logo_path(team)
+        logo_uri  = image_file_to_data_uri(get_logo_source(team))
+        logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "🏈"
 
-        with st.container(border=True):
-            c1, c2, c3, c4 = st.columns([5, 1.3, 1.5, 1.2])
-            with c1:
-                inner = st.columns([0.9, 1.2, 6])
-                with inner[0]:
-                    st.markdown(f"**{rank_disp}**")
-                with inner[1]:
-                    if logo_path:
-                        st.image(logo_path, width=30)
-                    else:
-                        st.markdown("🏈")
-                with inner[2]:
-                    st.markdown(
-                        f"<div style='font-size:16px;font-weight:900;color:{primary};'>{html.escape(team)}</div>",
-                        unsafe_allow_html=True,
-                    )
-            c2.markdown(f"**{record}**")
-            c3.markdown(f"**{make_pct}**")
-            c4.markdown(f"**{bye_pct}**")
+        # Recruiting rank
+        _rec = rec_rank_map.get(team.strip())
+        if _rec is not None and pd.notna(_rec):
+            _rec_disp  = f"#{int(_rec)}"
+            _rec_color = '#4ade80' if _rec <= 10 else ('#fbbf24' if _rec <= 25 else '#94a3b8')
+        else:
+            _rec_disp, _rec_color = '—', '#475569'
+
+        # Movement
+        _mv = movement_map.get(team.strip())
+        if _mv is None:
+            _mv_disp = '<span style="color:#475569;">—</span>'
+        elif _mv > 0:
+            _mv_disp = f'<span style="color:#4ade80;font-weight:700;">▲ {int(abs(_mv))}</span>'
+        elif _mv < 0:
+            _mv_disp = f'<span style="color:#f87171;font-weight:700;">▼ {int(abs(_mv))}</span>'
+        else:
+            _mv_disp = '<span style="color:#64748b;">—</span>'
+
+        rows_html.append(f"""
+        <tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>
+          <td class="isp-td-pin">
+            <div class="isp-flex-row">
+              <div style="font-weight:800;min-width:28px;text-align:center;color:#e5e7eb;">{rank_disp}</div>
+              <div>{logo_html}</div>
+              <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
+            </div>
+          </td>
+          <td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(record)}</td>
+          <td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:{_rec_color};font-weight:700;white-space:nowrap;'>{_rec_disp}</td>
+          <td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;'>{_mv_disp}</td>
+        </tr>""")
+
+    ffo_html = f"""
+    <div class="isp-table-wrap">
+      <table class="isp-table">
+        <thead>
+          <tr class="isp-tr-header">
+            <th class="isp-th isp-th-left">First Four Out</th>
+            <th class="isp-th">Record</th>
+            <th class="isp-th">{rec_year_lbl} Recruiting</th>
+            <th class="isp-th">Movement</th>
+          </tr>
+        </thead>
+        <tbody>{"".join(rows_html)}</tbody>
+      </table>
+    </div>
+    """
+    st.markdown(ffo_html, unsafe_allow_html=True)
 
 
 def load_video_review_assets():
@@ -13389,7 +13417,7 @@ with tabs[3]:
         st.markdown(projected_field_html, unsafe_allow_html=True)
 
         st.subheader('First Four Out')
-        render_first_four_out(first_four_out)
+        render_first_four_out(first_four_out, rec_rank_map=_rec_rank_map, movement_map=_movement_map, current_year=CURRENT_YEAR)
 
         # ── PLAYOFF BRACKET ──────────────────────────────────────────────────
         st.subheader('Playoff Bracket')
