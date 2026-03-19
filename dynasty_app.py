@@ -17910,16 +17910,21 @@ with tabs[5]:
         subset=['Year', 'Team', 'Player']
     )
 
-    all_years = set()
+    # available_years = outlook seasons. A year appears when its departure data exists
+    # (i.e. data tagged as year-1 in the CSVs), plus always include current_yr+1 (next outlook)
+    _departure_years = set()
     for df in [hs_df, tp_df, nfl_df, transfers_df, graduates_df, incoming_df]:
         if 'Year' in df.columns:
-            all_years.update(df['Year'].dropna().unique())
+            _departure_years.update(df['Year'].dropna().unique())
     if not user_draft_results_df.empty and 'DraftYear' in user_draft_results_df.columns:
-        all_years.update(user_draft_results_df['DraftYear'].dropna().astype(int).tolist())
+        _departure_years.update(user_draft_results_df['DraftYear'].dropna().astype(int).tolist())
 
-    available_years = sorted([int(y) for y in all_years if str(y).isdigit()], reverse=True)
+    # Outlook year = departure year + 1
+    _outlook_years = {int(y) + 1 for y in _departure_years if str(y).isdigit()}
+    _outlook_years.add(current_yr + 1)  # always include next season
+    available_years = sorted(_outlook_years, reverse=True)
     if not available_years:
-        available_years = [current_yr]
+        available_years = [current_yr + 1]
 
     try:
         full_roster_df = pd.read_csv('cfb26_rosters_full.csv')
@@ -17936,11 +17941,12 @@ with tabs[5]:
     with col_sel1:
         selected_team = st.selectbox("🏈 Select Team to View", user_teams_list, key="attrition_team_select")
     with col_sel2:
-        _default_yr_idx = available_years.index(current_yr) if current_yr in available_years else 0
-        selected_year = st.selectbox("📅 Select Historical Year", available_years, index=_default_yr_idx, key="attrition_year_select")
+        _default_outlook = current_yr + 1
+        _default_yr_idx = available_years.index(_default_outlook) if _default_outlook in available_years else 0
+        selected_year = st.selectbox("🔮 Outlook Season", available_years, index=_default_yr_idx, key="attrition_year_select")
     with col_sel3:
         outlook_mode = st.selectbox(
-            "🔮 Outlook Mode",
+            "⚙️ Outlook Mode",
             ["Conservative", "Aggressive"],
             index=1,
             help="Conservative = only confirmed departures. Aggressive = confirmed departures plus possible early leavers."
@@ -17951,16 +17957,21 @@ with tabs[5]:
     sel_color = TEAM_VISUALS.get(selected_team, {}).get("primary", "#FFFFFF")
 
     # --- 3. Filter Data by Selected Team & Year ---
+    # selected_year = the OUTLOOK season (e.g. 2043)
+    # departures/transfers/NFL = selected_year - 1 (what happened after last season)
+    # incoming recruits = selected_year (who's arriving for this outlook season)
+    # roster base = selected_year - 1 (the roster they're building from)
+    departure_year = selected_year - 1   # e.g. 2042 departures when viewing 2043 outlook
+    incoming_year  = selected_year       # e.g. 2043 incoming class
+
     def filter_team_year(df, t, y):
         if 'Team' in df.columns and 'Year' in df.columns:
             return df[(df['Team'] == t) & (df['Year'].astype(str) == str(y))].copy()
         return pd.DataFrame(columns=df.columns)
 
-    recruiting_source_year = selected_year - 1
-
-    team_hs = filter_team_year(hs_df, selected_team, recruiting_source_year)
-    team_tp = filter_team_year(tp_df, selected_team, recruiting_source_year)
-    team_incoming = filter_team_year(incoming_df, selected_team, selected_year)
+    team_hs       = filter_team_year(hs_df,      selected_team, departure_year)
+    team_tp       = filter_team_year(tp_df,       selected_team, departure_year)
+    team_incoming = filter_team_year(incoming_df, selected_team, incoming_year)
 
     if not team_incoming.empty and 'RecruitSlot' in team_incoming.columns:
         team_incoming = team_incoming.sort_values(by='RecruitSlot', ascending=True)
@@ -17969,7 +17980,7 @@ with tabs[5]:
     team_actual_draft = pd.DataFrame()
     if not user_draft_results_df.empty:
         team_actual_draft = user_draft_results_df[
-            (user_draft_results_df['DraftYear'] == int(selected_year)) &
+            (user_draft_results_df['DraftYear'] == int(departure_year)) &
             (user_draft_results_df['CollegeTeam'].astype(str).str.strip() == str(selected_team).strip())
         ].copy()
 
@@ -17986,10 +17997,10 @@ with tabs[5]:
             'Was Starter': False
         })
     else:
-        team_nfl = filter_team_year(nfl_df, selected_team, selected_year)
+        team_nfl = filter_team_year(nfl_df, selected_team, departure_year)
 
-    team_transfers_all = filter_team_year(transfers_df, selected_team, selected_year)
-    team_grads = filter_team_year(graduates_df, selected_team, selected_year)
+    team_transfers_all = filter_team_year(transfers_df, selected_team, departure_year)
+    team_grads         = filter_team_year(graduates_df,  selected_team, departure_year)
 
     if not team_transfers_all.empty:
         if 'Position' not in team_transfers_all.columns and 'Pos' in team_transfers_all.columns:
@@ -18253,7 +18264,7 @@ with tabs[5]:
         if 'Season' in current_roster.columns:
             current_roster['Season'] = pd.to_numeric(current_roster['Season'], errors='coerce')
             _avail = current_roster['Season'].dropna().unique()
-            _tgt = current_yr if current_yr in _avail else (int(max(_avail)) if len(_avail) else current_yr)
+            _tgt = departure_year if departure_year in _avail else (int(max(_avail)) if len(_avail) else departure_year)
             current_roster = current_roster[current_roster['Season'] == _tgt].copy()
         team_roster = current_roster[current_roster['Team'] == selected_team].copy()
 
@@ -18515,7 +18526,7 @@ with tabs[5]:
             tier_color = "#9CA3AF"
             tier_desc = f"High roster turnover (only {est_returning_starters} returning starters) and a lack of elite depth points toward a challenging season. Developing {best_qb_desc} and building for the future is the priority."
 
-        next_yr = current_yr + 1
+        next_yr = selected_year
         mode_color = "#F59E0B" if outlook_mode == "Aggressive" else "#10B981"
 
         skill_speed_text = f"{skill_speed_avg:.1f}" if skill_speed_avg is not None else "N/A"
