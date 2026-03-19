@@ -18536,6 +18536,25 @@ with tabs[5]:
         unsafe_allow_html=True,
     )
 
+    # ── Advance to Next Season ────────────────────────────────────────────────
+    _next_year = CURRENT_YEAR + 1
+    if st.sidebar.button(f"📅 Advance to {_next_year} Season", use_container_width=True,
+                         help=f"Writes Year={_next_year}, Week=1, IsBowlWeek=False to dynasty_state.csv and refreshes the app"):
+        try:
+            import pandas as _pd_adv
+            _new_state = _pd_adv.DataFrame([{
+                'CurrentYear':  _next_year,
+                'CurrentWeek':  1,
+                'IsBowlWeek':   False,
+                'BowlRound':    0,
+            }])
+            _new_state.to_csv('dynasty_state.csv', index=False)
+            st.cache_data.clear()
+            st.sidebar.success(f"✅ Season advanced to {_next_year}. Reloading…")
+            st.rerun()
+        except Exception as _e:
+            st.sidebar.error(f"❌ Could not write dynasty_state.csv: {_e}")
+
     if st.sidebar.button("📊 Sync Derived Stats", use_container_width=True,
                          help="Auto-updates CFP wins/losses, natty counts & appearances in UserDraftPicks.csv and coach_records.csv"):
         with st.sidebar:
