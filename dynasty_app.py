@@ -6037,8 +6037,10 @@ def generate_coach_profile(row, stats_row):
 
 def team_speed_to_mph(team_speed_score):
     team_speed_score = float(max(0, team_speed_score))
-    # 40 points is the posted 65 MPH speed limit. Above that, the program is officially speeding.
-    return round((team_speed_score / 40.0) * 65.0, 1)
+    # Recalculate directly from final Team Speed Score.
+    # A final speed score of 130 maps to 200 MPH.
+    mph = (team_speed_score / 130.0) * 200.0
+    return round(max(0.0, mph), 1)
 
 
 def get_speeding_label(team_speed_score, gens=0):
