@@ -15300,19 +15300,85 @@ with tabs[1]:
                 "GeneratedNFLTeam": "NFL Team",
             })
 
-            show_df.insert(3, "School Logo", show_df["School"].map(get_school_logo_src))
-            show_df.insert(10, "NFL Logo", show_df["NFL Team"].map(get_nfl_logo_src))
+            def _draft_team_cell(_team_name, _kind="school"):
+                _team = clean_display(_team_name, "—")
+                if _kind == "nfl":
+                    _logo = get_nfl_logo_html(_team, width=28, margin="0")
+                    _color = html.escape(str(get_team_primary_color(_team) or "#e5e7eb")) if 'get_team_primary_color' in globals() else "#e5e7eb"
+                else:
+                    _logo = get_school_logo_html(_team, width=28, margin="0")
+                    _color = html.escape(str(get_team_primary_color(_team) or "#e5e7eb")) if 'get_team_primary_color' in globals() else "#e5e7eb"
+                return (
+                    f"<div style='display:flex;align-items:center;gap:10px;justify-content:flex-start;min-width:0;'>"
+                    f"<div style='display:flex;align-items:center;justify-content:center;flex:0 0 28px;'>{_logo}</div>"
+                    f"<div style='font-weight:800;color:{_color};white-space:nowrap;'>"
+                    f"{html.escape(_team)}"
+                    f"</div></div>"
+                )
 
-            st.dataframe(
-                show_df,
-                hide_index=True,
-                use_container_width=True,
-                column_config={
-                    "School Logo": st.column_config.ImageColumn(""),
-                    "NFL Logo": st.column_config.ImageColumn(""),
-                }
-            )
+            _draft_rows_html = []
+            for _, _r in show_df.iterrows():
+                _pick = clean_display(_r.get("Pick", "—"), "—")
+                _rnd = clean_display(_r.get("Rnd", "—"), "—")
+                _player = clean_display(_r.get("Player", "—"), "—")
+                _school = clean_display(_r.get("School", "—"), "—")
+                _user = clean_display(_r.get("User", "—"), "—") or "—"
+                _pos = clean_display(_r.get("Pos", "—"), "—")
+                _bucket = clean_display(_r.get("PosBucket", "—"), "—")
+                _covr = clean_display(_r.get("College OVR", "—"), "—")
+                _novr = clean_display(_r.get("NFL Rookie OVR", "—"), "—")
+                _nfl = clean_display(_r.get("NFL Team", "—"), "—")
+                _role = clean_display(_r.get("RookieRole", "—"), "—")
+                _tier = clean_display(_r.get("CareerTier", "—"), "—")
+                _story = clean_display(_r.get("StoryTag", "—"), "—")
+                _user_badge = (
+                    f"<span style='display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(34,197,94,0.16);border:1px solid rgba(34,197,94,0.30);color:#86efac;font-weight:800;font-size:0.72rem;'>"
+                    f"{html.escape(_user)}"
+                    f"</span>" if _user != "—" else "<span style='color:#94a3b8;'>—</span>"
+                )
+                _draft_rows_html.append(
+                    f"<tr style='background:rgba(15,23,42,0.88);'>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#f8fafc;font-weight:800;white-space:nowrap;'>{html.escape(str(_pick))}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(str(_rnd))}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;color:#f8fafc;font-weight:800;white-space:nowrap;'>{html.escape(_player)}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;'>{_draft_team_cell(_school, 'school')}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;'>{_user_badge}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(_pos)}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#94a3b8;white-space:nowrap;'>{html.escape(_bucket)}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(str(_covr))}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(str(_novr))}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;'>{_draft_team_cell(_nfl, 'nfl')}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(_role)}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(_tier)}</td>"
+                    f"<td style='padding:10px 12px;border-bottom:1px solid #334155;color:#cbd5e1;white-space:nowrap;'>{html.escape(_story)}</td>"
+                    f"</tr>"
+                )
 
+            _draft_table_html = f"""
+            <div style='overflow-x:auto;border:1px solid #334155;border-radius:14px;background:linear-gradient(180deg,rgba(2,6,23,.98),rgba(15,23,42,.94));box-shadow:0 10px 24px rgba(0,0,0,.30);'>
+              <table style='width:100%;border-collapse:collapse;font-size:0.86rem;min-width:1400px;'>
+                <thead>
+                  <tr style='background:linear-gradient(180deg,rgba(30,41,59,.98),rgba(15,23,42,.98));'>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Pick</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Rnd</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>Player</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>College Team</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>User</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Pos</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Bucket</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>College OVR</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>NFL Rookie OVR</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>NFL Team</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Rookie Role</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Career Tier</th>
+                    <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>Story Tag</th>
+                  </tr>
+                </thead>
+                <tbody>{''.join(_draft_rows_html)}</tbody>
+              </table>
+            </div>
+            """
+            st.markdown(_draft_table_html, unsafe_allow_html=True)
             st.markdown("#### User Summary")
             user_sum = (
                 yr_df.groupby("CollegeUser", dropna=False)
