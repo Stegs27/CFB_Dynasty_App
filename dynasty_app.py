@@ -17862,7 +17862,7 @@ with tabs[5]:
                 return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
             auto_df = pd.DataFrame({
-                'Year': cur_year,
+                'Year': 0,  # placeholder — will be overwritten with departure_year after selector
                 'Team': seniors['Team'].values,
                 'Player': seniors['Name'].values,
                 'Position': seniors['Pos'].values,
@@ -17935,8 +17935,16 @@ with tabs[5]:
     # departures/transfers/NFL = selected_year - 1 (what happened after last season)
     # incoming recruits = selected_year (who's arriving for this outlook season)
     # roster base = selected_year - 1 (the roster they're building from)
-    departure_year = selected_year - 1   # e.g. 2042 departures when viewing 2043 outlook
-    incoming_year  = selected_year       # e.g. 2043 incoming class
+    departure_year = selected_year - 1
+    incoming_year  = selected_year
+
+    # Tag auto-seniors with departure_year now that we know it
+    if not auto_seniors_df.empty:
+        auto_seniors_df = auto_seniors_df.copy()
+        auto_seniors_df['Year'] = departure_year
+        graduates_df['Year'] = graduates_df['Year'].where(
+            graduates_df['Year'] != 0, departure_year
+        )
 
     def filter_team_year(df, t, y):
         if 'Team' in df.columns and 'Year' in df.columns:
