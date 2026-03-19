@@ -13802,32 +13802,38 @@ with tabs[9]:
             if df.empty:
                 return df
             _df = df.copy()
-            _num_cols = [c for c in ['Preseason Natty Odds','Preseason CFP Odds','SOS','Hardest Path','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins'] if c in _df.columns]
+
+            _num_cols = [c for c in [
+                'Preseason Natty Odds','Preseason CFP Odds','SOS','Hardest Path',
+                'Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer',
+                'Projected Wins','Actual Wins'
+            ] if c in _df.columns]
+
             for _c in _num_cols:
                 _df[_c] = pd.to_numeric(_df[_c], errors='coerce')
-            def _row_style(row):
-                _styles = [''] * len(row)
-                _title_idx = row.index.get_loc('National Title') if 'National Title' in row.index else None
-                _coty_idx = row.index.get_loc('Coach of the Year') if 'Coach of the Year' in row.index else None
-                if _title_idx is not None and str(row.iloc[_title_idx]).strip() == 'Yes':
-                    return ['background-color: rgba(245,158,11,0.10); color: #f8fafc; font-weight:700;'] * len(row)
-                if _coty_idx is not None and str(row.iloc[_coty_idx]).strip() == 'Yes':
-                    return ['background-color: rgba(59,130,246,0.08); color: #f8fafc;'] * len(row)
-                return _styles
-            _styler = _df.style.hide(axis='index').apply(_row_style, axis=1)
-            for _grad_col, _cmap in [('SOS','OrRd'), ('Hardest Path','Reds')]:
-                if _grad_col in _df.columns:
-                    _styler = _styler.background_gradient(subset=[_grad_col], cmap=_cmap)
-            if 'Final Rank' in _df.columns:
-                _styler = _styler.background_gradient(subset=['Final Rank'], cmap='Greens_r')
-            return _styler.format({
-                'Preseason Natty Odds': '{:.1f}%',
-                'Preseason CFP Odds': '{:.1f}%',
-                'SOS': '{:.1f}',
-                'Hardest Path': '{:.1f}',
-                'Projected Wins': '{:.1f}',
-                'Actual Wins': '{:.0f}',
-            }, na_rep='—')
+
+            if 'Preseason Natty Odds' in _df.columns:
+                _df['Preseason Natty Odds'] = _df['Preseason Natty Odds'].map(lambda v: f"{v:.1f}%" if pd.notna(v) else '—')
+            if 'Preseason CFP Odds' in _df.columns:
+                _df['Preseason CFP Odds'] = _df['Preseason CFP Odds'].map(lambda v: f"{v:.1f}%" if pd.notna(v) else '—')
+            if 'SOS' in _df.columns:
+                _df['SOS'] = _df['SOS'].map(lambda v: f"{v:.1f}" if pd.notna(v) else '—')
+            if 'Hardest Path' in _df.columns:
+                _df['Hardest Path'] = _df['Hardest Path'].map(lambda v: f"{v:.1f}" if pd.notna(v) else '—')
+            if 'Projected Wins' in _df.columns:
+                _df['Projected Wins'] = _df['Projected Wins'].map(lambda v: f"{v:.1f}" if pd.notna(v) else '—')
+            if 'Actual Wins' in _df.columns:
+                _df['Actual Wins'] = _df['Actual Wins'].map(lambda v: f"{v:.0f}" if pd.notna(v) else '—')
+
+            for _rank_col in ['Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer']:
+                if _rank_col in _df.columns:
+                    _df[_rank_col] = _df[_rank_col].map(lambda v: int(v) if pd.notna(v) else '—')
+
+            for _flag_col in ['National Title', 'Coach of the Year']:
+                if _flag_col in _df.columns:
+                    _df[_flag_col] = _df[_flag_col].fillna('No').astype(str).str.strip()
+
+            return _df.fillna('—')
 
         if not legacy_df.empty:
             legacy_df['SOS Tier'] = legacy_df['SOS'].apply(_sos_tier) if 'SOS' in legacy_df.columns else "—"
