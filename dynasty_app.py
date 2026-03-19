@@ -8028,27 +8028,76 @@ def get_user_series_record(user_a, user_b, scores_df):
 
 
 def get_current_user_games(model_df):
-    """Week 12 slate pulled from the uploaded user schedule screenshots.
-    The current week is the week after the last final score shown on each user schedule.
-    OPP W-L is the opponent record shown on those screenshots.
     """
-    weekly_games = [
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida State', 'User': 'Doug', 'Opponent': 'LSU', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '4-5', 'Game Type': 'CPU Game'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Florida', 'User': 'Michael', 'Opponent': 'Oklahoma State', 'Opponent User': 'CPU', 'Team Record': '9-2', 'OPP W-L': '6-4', 'Game Type': 'Completed Game', 'Result': 'W 43-31 vs Oklahoma State'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Bowling Green', 'User': 'Chris', 'Opponent': 'South Carolina', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '2-7', 'Game Type': 'CPU Game'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'USF', 'User': 'Anthony', 'Opponent': 'Penn State', 'Opponent User': 'CPU', 'Team Record': '9-0', 'OPP W-L': '9-2', 'Game Type': 'CPU Game'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'Texas Tech', 'User': 'Bubba', 'Opponent': 'BYE', 'Opponent User': '', 'Team Record': '9-1', 'OPP W-L': '', 'Game Type': 'BYE'},
-        {'Week': CURRENT_WEEK_NUMBER, 'Team': 'San Jose State', 'User': 'Michael', 'Opponent': 'Ohio State', 'Opponent User': 'CPU', 'Team Record': '9-1', 'OPP W-L': '6-3', 'Game Type': 'CPU Game'},
-    ]
-    team_to_user = {str(r['TEAM']).strip(): str(r['USER']).strip() for _, r in model_df[['TEAM','USER']].drop_duplicates().iterrows()}
-    rows = []
-    for g in weekly_games:
-        row = dict(g)
-        team = row['Team']
-        if team in team_to_user:
-            row['User'] = team_to_user[team]
-        rows.append(row)
-    return pd.DataFrame(rows)
+    Derives the current week's user matchups from CPUscores_MASTER.csv.
+    Shows games from CURRENT_WEEK_NUMBER for CURRENT_YEAR.
+    Falls back to the most recent week available if current week has no data.
+    """
+    try:
+        scores = pd.read_csv('CPUscores_MASTER.csv')
+        scores['YEAR'] = pd.to_numeric(scores['YEAR'], errors='coerce')
+        scores['Week'] = pd.to_numeric(scores['Week'], errors='coerce')
+        cy = scores[scores['YEAR'] == CURRENT_YEAR].copy()
+
+        if cy.empty:
+            return pd.DataFrame()
+
+        # Use CURRENT_WEEK_NUMBER, fall back to latest available week
+        if CURRENT_WEEK_NUMBER in cy['Week'].values:
+            week_games = cy[cy['Week'] == CURRENT_WEEK_NUMBER].copy()
+        else:
+            latest_wk = cy['Week'].max()
+            week_games = cy[cy['Week'] == latest_wk].copy()
+
+        # Filter to user vs user OR user vs CPU games
+        team_to_user = {str(r['TEAM']).strip(): str(r['USER']).strip()
+                        for _, r in model_df[['TEAM','USER']].drop_duplicates().iterrows()}
+        user_teams = set(team_to_user.keys())
+
+        user_games = week_games[
+            week_games['Home'].isin(user_teams) | week_games['Visitor'].isin(user_teams)
+        ].copy()
+
+        if user_games.empty:
+            return pd.DataFrame()
+
+        rows = []
+        seen_teams = set()
+        for _, g in user_games.iterrows():
+            home = str(g.get('Home', '')).strip()
+            vis  = str(g.get('Visitor', '')).strip()
+            h_pts = pd.to_numeric(g.get('Home Score', g.get('H_Pts', '')), errors='coerce')
+            v_pts = pd.to_numeric(g.get('Vis Score',  g.get('V_Pts',  '')), errors='coerce')
+            status = str(g.get('Status', '')).strip().upper()
+            completed = status == 'FINAL' or (pd.notna(h_pts) and pd.notna(v_pts))
+
+            for team, opp in [(home, vis), (vis, home)]:
+                if team not in user_teams or team in seen_teams:
+                    continue
+                seen_teams.add(team)
+                opp_user = team_to_user.get(opp, 'CPU')
+                result = ''
+                if completed and pd.notna(h_pts) and pd.notna(v_pts):
+                    t_pts = h_pts if team == home else v_pts
+                    o_pts = v_pts if team == home else h_pts
+                    w_l = 'W' if t_pts > o_pts else 'L'
+                    result = f"{w_l} {int(t_pts)}-{int(o_pts)} vs {opp}"
+                rows.append({
+                    'Week': int(g.get('Week', CURRENT_WEEK_NUMBER)),
+                    'Team': team,
+                    'User': team_to_user.get(team, ''),
+                    'Opponent': opp,
+                    'Opponent User': opp_user,
+                    'Team Record': '',
+                    'OPP W-L': '',
+                    'Game Type': 'Completed Game' if completed else 'CPU Game',
+                    'Result': result,
+                })
+
+        return pd.DataFrame(rows)
+
+    except Exception:
+        return pd.DataFrame()
 
 
 def render_current_user_games_cards(games_df, model_df, scores_df):
@@ -11387,9 +11436,11 @@ with tabs[0]:
         # --- NEW: Official Rank Lookup ---
         try:
             _cfp_hist = pd.read_csv('cfp_rankings_history.csv')
-            _latest_wk = _cfp_hist['WEEK'].max()
-            _latest_snap = _cfp_hist[_cfp_hist['WEEK'] == _latest_wk]
-            # Map Team Name -> Rank
+            _cfp_hist['YEAR'] = pd.to_numeric(_cfp_hist['YEAR'], errors='coerce')
+            _cfp_hist['WEEK'] = pd.to_numeric(_cfp_hist['WEEK'], errors='coerce')
+            _latest_yr = _cfp_hist['YEAR'].max()
+            _latest_wk = _cfp_hist[_cfp_hist['YEAR'] == _latest_yr]['WEEK'].max()
+            _latest_snap = _cfp_hist[(_cfp_hist['YEAR'] == _latest_yr) & (_cfp_hist['WEEK'] == _latest_wk)]
             official_rank_map = dict(zip(_latest_snap['TEAM'].str.strip(), _latest_snap['RANK'].astype(int)))
         except:
             official_rank_map = {}
