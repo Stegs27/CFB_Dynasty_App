@@ -14730,7 +14730,7 @@ with tabs[12]:
     all_users = _load_goat_base_users()
     goat_stats = {
         u: {
-            'rings': 0, 'heismans': 0, 'cotys': 0,
+            'rings': 0, 'rings_base': 0, 'rings_champs': 0, 'heismans': 0, 'cotys': 0,
             'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
             'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
             'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
@@ -14766,7 +14766,7 @@ with tabs[12]:
                 goat_stats[u_name]['career_losses'] = max(goat_stats[u_name]['career_losses'], _cl)
                 goat_stats[u_name]['playoff_wins'] = max(goat_stats[u_name]['playoff_wins'], _pw)
                 goat_stats[u_name]['playoff_losses'] = max(goat_stats[u_name]['playoff_losses'], _pl)
-                goat_stats[u_name]['rings'] = max(goat_stats[u_name]['rings'], _safe_int(row.get('NationalTitles', 0), 0))
+                goat_stats[u_name]['rings_base'] = max(goat_stats[u_name].get('rings_base', 0), _safe_int(row.get('NationalTitles', 0), 0))
                 goat_stats[u_name]['conf_titles'] = max(goat_stats[u_name]['conf_titles'], _safe_int(row.get('ConferenceTitles', 0), 0))
                 goat_stats[u_name]['first_rounders'] = max(goat_stats[u_name]['first_rounders'], _safe_int(row.get('FirstRounders', 0), 0))
                 goat_stats[u_name]['draft_picks'] = max(goat_stats[u_name]['draft_picks'], _safe_int(row.get('DraftPicks', 0), 0))
@@ -14786,7 +14786,7 @@ with tabs[12]:
                         continue
                     if u_name not in goat_stats:
                         goat_stats[u_name] = {
-                            'rings': 0, 'heismans': 0, 'cotys': 0,
+                            'rings': 0, 'rings_base': 0, 'rings_champs': 0, 'heismans': 0, 'cotys': 0,
                             'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
                             'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
                             'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
@@ -14808,7 +14808,7 @@ with tabs[12]:
                         continue
                     if u_name not in goat_stats:
                         goat_stats[u_name] = {
-                            'rings': 0, 'heismans': 0, 'cotys': 0,
+                            'rings': 0, 'rings_base': 0, 'rings_champs': 0, 'heismans': 0, 'cotys': 0,
                             'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
                             'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
                             'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
@@ -14845,6 +14845,12 @@ with tabs[12]:
         if score >= 45:
             return "Builder"
         return "Contender"
+
+    for _u in list(goat_stats.keys()):
+        goat_stats[_u]['rings'] = max(
+            _safe_int(goat_stats[_u].get('rings_base', 0), 0),
+            _safe_int(goat_stats[_u].get('rings_champs', 0), 0)
+        )
 
     goat_rows = []
     for u, stats in goat_stats.items():
@@ -16154,36 +16160,30 @@ with tabs[1]:
                 border_color = "#22c55e" if event_type == "Award" else "#4f46e5" if event_type == "SeasonOutcome" else "#eab308" if event_type == "SuperBowl" else "#334155"
                 bg_color = "rgba(34,197,94,0.08)" if event_type == "Award" else "rgba(79,70,229,0.08)" if event_type == "SeasonOutcome" else "rgba(234,179,8,0.08)" if event_type == "SuperBowl" else "rgba(148,163,184,0.08)"
 
+                school_logo_html = f"<img src='{school_logo_src}' style='width:42px;height:42px;object-fit:contain;'/>" if school_logo_src else ""
+                nfl_logo_html = f"<img src='{nfl_logo_src}' style='width:42px;height:42px;object-fit:contain;'/>" if nfl_logo_src else ""
+                source_badge = (
+                    f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(college_user)}</span>"
+                    if college_user else
+                    "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>"
+                )
+
                 st.markdown(
-                    f"<div style='padding:0.75rem 0.9rem;border-left:5px solid {border_color};background:{bg_color};border-radius:12px;margin-bottom:0.75rem;'>",
+                    f'''
+                    <div style="padding:0.85rem 1rem;border-left:5px solid {border_color};background:{bg_color};border-radius:12px;margin-bottom:0.8rem;border:1px solid rgba(255,255,255,0.06);">
+                      <div style="display:grid;grid-template-columns:48px 1fr 48px;gap:12px;align-items:start;">
+                        <div style="display:flex;justify-content:center;align-items:flex-start;min-height:42px;">{school_logo_html}</div>
+                        <div>
+                          <div style="font-weight:800;color:#f8fafc;font-size:1rem;line-height:1.25;">{html.escape(headline)}</div>
+                          <div style="font-size:0.86rem;color:#cbd5e1;margin-top:6px;line-height:1.45;">{html.escape(description)}</div>
+                          <div style="margin-top:8px;">{source_badge}</div>
+                        </div>
+                        <div style="display:flex;justify-content:center;align-items:flex-start;min-height:42px;">{nfl_logo_html}</div>
+                      </div>
+                    </div>
+                    ''',
                     unsafe_allow_html=True
                 )
-                c1, c2, c3 = st.columns([1, 10, 1])
-
-                with c1:
-                    if school_logo_src:
-                        st.image(school_logo_src, width=42)
-
-                with c2:
-                    st.markdown(f"**{headline}**")
-                    st.caption(description)
-
-                    if college_user:
-                        st.markdown(
-                            f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(college_user)}</span>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
-                            unsafe_allow_html=True
-                        )
-
-                with c3:
-                    if nfl_logo_src:
-                        st.image(nfl_logo_src, width=42)
-
-                st.markdown("</div>", unsafe_allow_html=True)
 
     # ── NFL Teams ─────────────────────────────────────────────────────
     with nfl_tabs[8]:
