@@ -11592,650 +11592,724 @@ with tabs[0]:
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 2 — DYNASTY HEADLINES
-        # All metrics use LIVE model columns (Natty Odds, Power Index,
-        # CFP Odds, Collapse Risk) — NOT preseason proxies.
-        # Game-result headlines are generated directly from CPUscores_MASTER.csv.
+        # Dynamic story engine built from live model data, schedules,
+        # results, roster snapshots, injuries, recruiting, and dynasty history.
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("📰 Dynasty Headlines")
-        st.caption("Auto-generated from live model data and actual game results. Updates as scores are entered.")
+        st.caption("Story engine driven by live results, rankings, roster data, recruiting, injuries, and dynasty history.")
 
-        headlines = []
+        _headline_history_path = Path("dynasty_headlines_history.csv")
+
+        def _hh_safe_num(v, default=0.0):
+            try:
+                if pd.isna(v):
+                    return default
+                return float(v)
+            except Exception:
+                return default
+
+        def _hh_safe_int(v, default=0):
+            try:
+                if pd.isna(v):
+                    return default
+                return int(float(v))
+            except Exception:
+                return default
+
+        def _headline_history_load():
+            cols = ['season','week','headline_id','event_type','team','player','headline_text','score','shown_rank','uniqueness_key']
+            try:
+                if _headline_history_path.exists():
+                    _hh = pd.read_csv(_headline_history_path)
+                    for _c in cols:
+                        if _c not in _hh.columns:
+                            _hh[_c] = ''
+                    return _hh[cols].copy()
+            except Exception:
+                pass
+            return pd.DataFrame(columns=cols)
+
+        def _headline_history_save(_rows):
+            try:
+                _hh_existing = _headline_history_load()
+                _hh_new = pd.DataFrame(_rows)
+                if _hh_new.empty:
+                    return
+                _hh_all = pd.concat([_hh_existing, _hh_new], ignore_index=True)
+                _hh_all = _hh_all.drop_duplicates(subset=['season','week','uniqueness_key','headline_text'], keep='last')
+                _hh_all.to_csv(_headline_history_path, index=False)
+            except Exception:
+                pass
+
+        _headline_templates = {
+            'title_favorite': {
+                'emoji': '🏆',
+                'title': 'National Title Favorite',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) leads the title race at <strong>{natty:.1f}%</strong>. The model says this is the roster everyone else has to solve.",
+                    "The championship chase runs through <strong>{team}</strong>. <strong>{user}</strong> is sitting on a <strong>{natty:.1f}%</strong> natty shot with the deepest résumé in the field.",
+                ]
+            },
+            'power_alpha': {
+                'emoji': '💪',
+                'title': 'Power Index Alpha',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) is the neutral-field monster right now. Their <strong>{pi:.1f}</strong> Power Index is tops in the dynasty.",
+                    "Forget the noise — <strong>{team}</strong> is the scariest team on paper. <strong>{user}</strong> owns the best Power Index at <strong>{pi:.1f}</strong>.",
+                ]
+            },
+            'rank_jump': {
+                'emoji': '📈',
+                'title': 'Poll Climber',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) climbed <strong>{delta}</strong> spots to No. <strong>{rank}</strong>. The résumé is starting to catch up to the talent.",
+                    "The latest poll gave <strong>{team}</strong> a real bump. <strong>{user}</strong> is up <strong>{delta}</strong> slots and pushing into the inner circle.",
+                ]
+            },
+            'committee_darling': {
+                'emoji': '🥇',
+                'title': "Committee's Darling",
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) sits at <strong>CFP #{rank}</strong> with a {record} record. The committee is all-in on this profile.",
+                    "The committee loves what <strong>{team}</strong> is selling. <strong>{user}</strong> is parked at <strong>#{rank}</strong> with a {record} mark.",
+                ]
+            },
+            'upset_win': {
+                'emoji': '🚨',
+                'title': 'Statement Win',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) just knocked off <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. That's the kind of result that bends a season.",
+                    "Statement made: <strong>{team}</strong> dropped <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. <strong>{user}</strong> just changed the bracket math.",
+                ]
+            },
+            'playoff_result': {
+                'emoji': '🏟️',
+                'title': 'Playoff Picture',
+                'bodies': [
+                    "The bracket moved. <strong>{winner_user}</strong> ({winner_team}) sent {loser_user} ({loser_team}) home <strong>{win_score}-{lose_score}</strong> in {round_name}.",
+                    "Survive and advance: <strong>{winner_team}</strong> beat {loser_team} <strong>{win_score}-{lose_score}</strong> in {round_name}. <strong>{winner_user}</strong> keeps breathing.",
+                ]
+            },
+            'collapse_watch': {
+                'emoji': '💀',
+                'title': 'Collapse Watch',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) owns the dynasty's highest collapse flag at <strong>{risk}%</strong>. The upside is real, but so is the trap door.",
+                    "Volatility alert: <strong>{team}</strong> carries a <strong>{risk}%</strong> collapse risk. <strong>{user}</strong> is walking a tightrope right now.",
+                ]
+            },
+            'injury_blow': {
+                'emoji': '🚑',
+                'title': 'Injury Blow',
+                'bodies': [
+                    "Brutal hit for <strong>{user}</strong> ({team}): <strong>{player}</strong> ({pos}, {ovr} OVR) is out <strong>{weeks}</strong> weeks with a {injury}.",
+                    "Depth chart damage in {team}. <strong>{player}</strong> is shelved for <strong>{weeks}</strong> weeks, and <strong>{user}</strong> just lost a major piece.",
+                ]
+            },
+            'elite_qb': {
+                'emoji': '🧠',
+                'title': 'Elite QB Alert',
+                'bodies': [
+                    "Elite QB room check: {names}. Every defense problem gets worse when quarterbacks like this are still alive.",
+                    "The title path still runs through star quarterback play. Right now the elite tier belongs to {names}.",
+                ]
+            },
+            'qb_disaster': {
+                'emoji': '🚨',
+                'title': 'QB Disaster Watch',
+                'bodies': [
+                    "The danger list at quarterback is {names}. A roster can hide bad QB play for a while — not forever.",
+                    "Somebody's offense is one bad Saturday from combusting. The roughest QB situations right now: {names}.",
+                ]
+            },
+            'recruiting_king': {
+                'emoji': '🎯',
+                'title': 'Recruiting King',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) owns the No. 1 recruiting haul right now at <strong>{points}</strong> points. Future power is being stockpiled in real time.",
+                    "Roster building never stops. <strong>{team}</strong> sits on the top class in the country, and <strong>{user}</strong> is already loading the next wave.",
+                ]
+            },
+            'speed_merchants': {
+                'emoji': '💨',
+                'title': 'Speed Merchants',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) leads the dynasty with <strong>{s90}</strong> active 90+ speed players{extras}. You cannot coach people into catching that.",
+                    "The fastest room in the dynasty belongs to <strong>{team}</strong>. <strong>{user}</strong> has <strong>{s90}</strong> true burners{extras}.",
+                ]
+            },
+            'win_streak': {
+                'emoji': '🔥',
+                'title': 'Win Streak Alert',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) has ripped off <strong>{streak}</strong> straight wins. Momentum is doing real work here.",
+                    "Nobody wants this version of <strong>{team}</strong> right now. <strong>{user}</strong> is on a <strong>{streak}-game heater</strong>.",
+                ]
+            },
+            'record_watch': {
+                'emoji': '📊',
+                'title': 'Record Watch',
+                'bodies': [
+                    "At the top, <strong>{best_user}</strong> ({best_team}) is cruising at <strong>{best_record}</strong>. At the other end, {worst_user} ({worst_team}) is stuck at {worst_record}.",
+                    "The gap in this league is showing. <strong>{best_team}</strong> is thriving at <strong>{best_record}</strong>, while {worst_team} is scraping at {worst_record}.",
+                ]
+            },
+            'user_h2h': {
+                'emoji': '⚔️',
+                'title': 'User vs User — On Deck',
+                'bodies': [
+                    "Circle it: <strong>{vis_user}</strong> ({visitor}) vs <strong>{home_user}</strong> ({home}) is coming in Week <strong>{week}</strong>. Somebody's season is about to take a direct hit.",
+                    "The next must-watch game is set. <strong>{visitor}</strong> and <strong>{home}</strong> are about to collide in Week <strong>{week}</strong>.",
+                ]
+            },
+            'dynasty_history': {
+                'emoji': '📜',
+                'title': 'Dynasty History',
+                'bodies': [
+                    "Did you know? <strong>{team}</strong> won the first tracked national title back in <strong>{year}</strong>. This world has crowned <strong>{total_titles}</strong> champions since then.",
+                    "Throwback time: the first banner in this dynasty went up in <strong>{year}</strong>. Since then we've seen <strong>{total_titles}</strong> title seasons across <strong>{unique_champs}</strong> programs.",
+                ]
+            },
+            'dynasty_gap': {
+                'emoji': '📉',
+                'title': 'Model vs Poll Gap',
+                'bodies': [
+                    "<strong>{user}</strong> ({team}) has the biggest gap between model strength and ranking right now. The computers think this team is better than the poll does.",
+                    "Nobody has a wider perception gap than <strong>{team}</strong>. <strong>{user}</strong> looks under-seeded compared to the model.",
+                ]
+            },
+        }
+
+        def _headline_render(_event_type, _payload):
+            _tmpl = _headline_templates.get(_event_type)
+            if not _tmpl:
+                return None
+            _body = random.choice(_tmpl['bodies']).format(**_payload)
+            return {
+                'emoji': _tmpl['emoji'],
+                'title': _tmpl['title'],
+                'body': _body,
+            }
+
+        def _headline_add(_bucket, _event_type, _payload, team='', user='', player='', score=0.0, uniqueness_key='', week=None):
+            _rendered = _headline_render(_event_type, _payload)
+            if not _rendered:
+                return
+            _bucket.append({
+                'event_type': _event_type,
+                'team': str(team or _payload.get('team', '')).strip(),
+                'user': str(user or _payload.get('user', '')).strip(),
+                'player': str(player or _payload.get('player', '')).strip(),
+                'week': _hh_safe_int(week, 0),
+                'score': float(score),
+                'uniqueness_key': str(uniqueness_key or f"{_event_type}:{team}:{player}:{week}").strip(),
+                'emoji': _rendered['emoji'],
+                'title': _rendered['title'],
+                'body': _rendered['body'],
+            })
+
+        def _headline_recent_penalty(_history_df, _uniqueness_key):
+            if _history_df.empty:
+                return 0.0
+            _recent = _history_df[_history_df['uniqueness_key'].astype(str) == str(_uniqueness_key)]
+            if _recent.empty:
+                return 0.0
+            return min(20.0, 8.0 + 4.0 * len(_recent.tail(3)))
+
+        def _headline_select(_cands, _history_df, n=6):
+            if not _cands:
+                return []
+            _cand_df = pd.DataFrame(_cands).sort_values('score', ascending=False).reset_index(drop=True)
+            _picked = []
+            _team_counts = {}
+            _event_counts = {}
+            _seen_keys = set()
+            for _row in _cand_df.to_dict('records'):
+                _team = str(_row.get('team','')).strip().lower()
+                _etype = str(_row.get('event_type','')).strip().lower()
+                _ukey = str(_row.get('uniqueness_key','')).strip().lower()
+                if _ukey in _seen_keys:
+                    continue
+                if _team and _team_counts.get(_team, 0) >= 2:
+                    continue
+                if _etype and _event_counts.get(_etype, 0) >= 1:
+                    continue
+                _recent_same_team = _history_df.tail(8)
+                if _team and not _recent_same_team.empty:
+                    _same_team_hits = (_recent_same_team['team'].astype(str).str.lower() == _team).sum()
+                    if _same_team_hits >= 3:
+                        continue
+                _picked.append(_row)
+                _seen_keys.add(_ukey)
+                if _team:
+                    _team_counts[_team] = _team_counts.get(_team, 0) + 1
+                if _etype:
+                    _event_counts[_etype] = _event_counts.get(_etype, 0) + 1
+                if len(_picked) >= n:
+                    break
+            return _picked
+
+        _headline_history = _headline_history_load()
+        _headline_candidates = []
+
         if not model_2041.empty:
-            # ── LIVE OVERRIDES FOR HEADLINES ──────────────────────────
             try:
                 _live_cfp_df = get_cfp_rankings_snapshot()
-                _live_cfp_map = _live_cfp_df.set_index('Team')
-                def _get_live_record(t_name, fw, fl):
-                    if t_name in _live_cfp_map.index:
-                        return int(_live_cfp_map.loc[t_name, 'Wins']), int(_live_cfp_map.loc[t_name, 'Losses'])
-                    return fw, fl
-                def _get_live_rank(t_name, f_rank):
-                    if t_name in _live_cfp_map.index:
-                        return int(_live_cfp_map.loc[t_name, 'Rank'])
-                    return f_rank
+                _live_cfp_map = _live_cfp_df.set_index('Team') if _live_cfp_df is not None and not _live_cfp_df.empty else pd.DataFrame()
             except Exception:
-                def _get_live_record(t_name, fw, fl): return fw, fl
-                def _get_live_rank(t_name, f_rank): return f_rank
-            # ──────────────────────────────────────────────────────────────────
+                _live_cfp_df = pd.DataFrame()
+                _live_cfp_map = pd.DataFrame()
 
-            # ── 1. LIVE TITLE FAVORITE — use Natty Odds, not Preseason ─────
+            def _get_live_rank(_team_name, _fallback=99):
+                try:
+                    if isinstance(_live_cfp_map, pd.DataFrame) and not _live_cfp_map.empty and _team_name in _live_cfp_map.index:
+                        return _hh_safe_int(_live_cfp_map.loc[_team_name, 'Rank'], _fallback)
+                except Exception:
+                    pass
+                return _hh_safe_int(_fallback, 99)
+
+            def _get_live_record(_team_name, _fw=0, _fl=0):
+                try:
+                    if isinstance(_live_cfp_map, pd.DataFrame) and not _live_cfp_map.empty and _team_name in _live_cfp_map.index:
+                        _rr = _live_cfp_map.loc[_team_name]
+                        return _hh_safe_int(_rr.get('Wins', _fw), _fw), _hh_safe_int(_rr.get('Losses', _fl), _fl)
+                except Exception:
+                    pass
+                return _hh_safe_int(_fw, 0), _hh_safe_int(_fl, 0)
+
             _natty_col = 'Natty Odds' if 'Natty Odds' in model_2041.columns else 'Preseason Natty Odds'
             _pi_col = 'Power Index' if 'Power Index' in model_2041.columns else 'Preseason PI'
             _cfp_col = 'CFP Odds' if 'CFP Odds' in model_2041.columns else 'Preseason CFP %'
 
-            title_fav = model_2041.sort_values(_natty_col, ascending=False).iloc[0]
-            pi_leader = model_2041.sort_values(_pi_col, ascending=False).iloc[0]
-            collapse_row = model_2041.sort_values('Collapse Risk', ascending=False).iloc[0]
+            _natty_sorted = model_2041.sort_values(_natty_col, ascending=False).reset_index(drop=True)
+            _pi_sorted = model_2041.sort_values(_pi_col, ascending=False).reset_index(drop=True)
+            _collapse_sorted = model_2041.sort_values('Collapse Risk', ascending=False).reset_index(drop=True) if 'Collapse Risk' in model_2041.columns else pd.DataFrame()
 
-            _tf_user = str(title_fav['USER'])
-            _tf_team = str(title_fav['TEAM'])
-            _tf_natty = round(float(title_fav[_natty_col]), 1)
-            _tf_ovr = int(title_fav.get('OVERALL', 0))
+            if not _natty_sorted.empty:
+                _top = _natty_sorted.iloc[0]
+                _user = str(_top['USER']); _team = str(_top['TEAM'])
+                _natty = _hh_safe_num(_top.get(_natty_col, 0))
+                _rank = _get_live_rank(_team, _top.get('Current CFP Ranking', 99))
+                _score = 90 + (_natty * 1.6) + max(0, (26 - _rank))
+                _ukey = f"title_favorite:{CURRENT_YEAR}:{_team}"
+                _score -= _headline_recent_penalty(_headline_history, _ukey)
+                _headline_add(
+                    _headline_candidates,
+                    'title_favorite',
+                    {'user': html.escape(_user), 'team': html.escape(_team), 'natty': _natty},
+                    team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                )
 
-            # Use live rank instead of static CSV rank
-            _tf_cfp_raw = title_fav.get('Current CFP Ranking', 99)
-            _tf_cfp = _get_live_rank(_tf_team, int(_tf_cfp_raw) if pd.notna(_tf_cfp_raw) else 99)
-            _tf_cfp_str = f" (CFP #{_tf_cfp})" if _tf_cfp and _tf_cfp <= 25 else ""
+            if not _pi_sorted.empty:
+                _top_pi = _pi_sorted.iloc[0]
+                _user = str(_top_pi['USER']); _team = str(_top_pi['TEAM'])
+                _pi = _hh_safe_num(_top_pi.get(_pi_col, 0))
+                _score = 74 + min(20, _pi * 1.4)
+                _ukey = f"power_alpha:{CURRENT_YEAR}:{_team}"
+                _score -= _headline_recent_penalty(_headline_history, _ukey)
+                _headline_add(
+                    _headline_candidates,
+                    'power_alpha',
+                    {'user': html.escape(_user), 'team': html.escape(_team), 'pi': _pi},
+                    team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                )
 
-            headlines.append(("🏆", "National Title Favorite",
-                              f"<strong>{_tf_user}</strong> ({html.escape(_tf_team)}) leads the model with "
-                              f"a <strong>{_tf_natty}%</strong> chance to win it all. "
-                              f"At {_tf_ovr} OVR{_tf_cfp_str}, this roster has the juice to "
-                              f"survive the 12-team gauntlet."))
-            # ── [ADDED] CHOKE JOB OVERRIDE ──────────────────────────────
-            try:
-                _choke_res = pd.read_csv('CFPbracketresults.csv')
-                _comp_col_c = next((c for c in _choke_res.columns if c.strip().upper() == 'COMPLETED'), None)
-                if _comp_col_c:
-                    _choke_res = _choke_res[pd.to_numeric(_choke_res[_comp_col_c], errors='coerce').fillna(0).astype(int) == 1]
-
-                _t1_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM1', 'AWAY', 'VISITOR']), 'TEAM1')
-                _t2_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM2', 'HOME']), 'TEAM2')
-                _s1_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM1_SCORE', 'AWAY SCORE', 'VIS SCORE']), 'TEAM1_SCORE')
-                _s2_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['TEAM2_SCORE', 'HOME SCORE']), 'TEAM2_SCORE')
-                _rnd_col_c = next((c for c in _choke_res.columns if c.strip().upper() in ['ROUND', 'WEEK']), 'ROUND')
-
-                # Read from bottom to top so we catch their MOST RECENT loss, not an older one!
-                for _, _cg in _choke_res.iloc[::-1].iterrows():
-                    _c_t1 = str(_cg[_t1_col_c]).strip()
-                    _c_t2 = str(_cg[_t2_col_c]).strip()
-                    _c_s1 = int(float(_cg[_s1_col_c]))
-                    _c_s2 = int(float(_cg[_s2_col_c]))
-
-                    _choked = False
-                    _choke_opp = ""
-                    _choke_score_str = ""
-                    _choke_rnd = str(_cg.get(_rnd_col_c, 'the playoffs')).strip()
-
-                    if _c_t1 == _tf_team and _c_s1 < _c_s2:
-                        _choked = True
-                        _choke_opp = _c_t2
-                        _choke_score_str = f"{_c_s2}-{_c_s1}"
-                    elif _c_t2 == _tf_team and _c_s2 < _c_s1:
-                        _choked = True
-                        _choke_opp = _c_t1
-                        _choke_score_str = f"{_c_s1}-{_c_s2}"
-
-                    if _choked:
-                        # Intercept and overwrite the Title Favorite headline
-                        headlines[-1] = ("🤡", "Generational Choke Job",
-                                         f"<strong>{_tf_user}</strong> ({html.escape(_tf_team)}) was the model's National Title Favorite with "
-                                         f"<strong>{_tf_natty}% odds</strong>, but they just absolutely choked it away. "
-                                         f"They got sent packing by {html.escape(_choke_opp)} {_choke_score_str} in {_choke_rnd}. "
-                                         f"Hang the banner for winning the simulation, because they aren't winning it on the field.")
-                        break
-            except Exception:
-                pass
-            # ────────────────────────────────────────────────────────────
-
-            # ── 2. POWER INDEX LEADER ─────────────────────────────────────
-            _pi_user = str(pi_leader['USER'])
-            _pi_team = str(pi_leader['TEAM'])
-            _pi_val = round(float(pi_leader[_pi_col]), 1)
-            _pi_ovr = int(pi_leader.get('OVERALL', 0))
-
-            # Use live record instead of static CSV record
-            _pi_rec_w, _pi_rec_l = _get_live_record(_pi_team, int(pi_leader.get('Current Record Wins', 0)), int(pi_leader.get('Current Record Losses', 0)))
-            _pi_rec_str = f" ({_pi_rec_w}-{_pi_rec_l})" if _pi_rec_w or _pi_rec_l else ""
-
-            if _pi_user != _tf_user:
-                headlines.append(("💪", "Power Index Alpha",
-                                  f"While {_tf_user} has the highest title odds, <strong>{_pi_user}</strong> "
-                                  f"({html.escape(_pi_team)}) sits at #1 in the Power Index ({_pi_val}){_pi_rec_str}. "
-                                  f"This is the most dangerous team on a neutral field right now."))
-
-            # ── 3. CFP #1 CALLOUT ─────────────────────────────────────────
             _cfp_ranked = model_2041.copy()
-            _cfp_ranked['_cfp_num'] = _cfp_ranked['TEAM'].apply(lambda t: _get_live_rank(t, 99))
-            _cfp_ranked = _cfp_ranked[_cfp_ranked['_cfp_num'] <= 25]
-
+            _cfp_ranked['_live_rank'] = _cfp_ranked['TEAM'].apply(lambda _t: _get_live_rank(_t, 99))
+            _cfp_ranked['_live_natty'] = pd.to_numeric(_cfp_ranked.get(_natty_col), errors='coerce').fillna(0)
+            _cfp_ranked['_live_pi'] = pd.to_numeric(_cfp_ranked.get(_pi_col), errors='coerce').fillna(0)
             if not _cfp_ranked.empty:
-                _no1 = _cfp_ranked.sort_values('_cfp_num').iloc[0]
-                _no1_user = str(_no1['USER'])
-                _no1_team = str(_no1['TEAM'])
-                _no1_rank = int(_no1['_cfp_num'])
-                _no1_rec_w, _no1_rec_l = _get_live_record(_no1_team, int(_no1.get('Current Record Wins', 0)), int(_no1.get('Current Record Losses', 0)))
-                _no1_natty = round(float(_no1.get(_natty_col, 0)), 1)
+                _rank1 = _cfp_ranked.sort_values(['_live_rank', '_live_natty'], ascending=[True, False]).iloc[0]
+                if _hh_safe_int(_rank1['_live_rank'], 99) == 1:
+                    _team = str(_rank1['TEAM']); _user = str(_rank1['USER'])
+                    _w, _l = _get_live_record(_team, _rank1.get('Current Record Wins', 0), _rank1.get('Current Record Losses', 0))
+                    _ukey = f"committee_darling:{CURRENT_YEAR}:{_team}:{_w}-{_l}"
+                    _score = 82 + max(0, 15 - _l) + _headline_recent_penalty(_headline_history, _ukey) * 0
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(
+                        _headline_candidates,
+                        'committee_darling',
+                        {'user': html.escape(_user), 'team': html.escape(_team), 'rank': 1, 'record': f"{_w}-{_l}"},
+                        team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                    )
 
-                if _no1_rank == 1 and _no1_user not in [_tf_user, _pi_user]:
-                    headlines.append(("🥇", "Committee's Darling",
-                                      f"<strong>{_no1_user}</strong> ({html.escape(_no1_team)}) is sitting pretty "
-                                      f"at CFP #1 ({_no1_rec_w}-{_no1_rec_l}), despite only having {_no1_natty}% title odds. "
-                                      f"The resume is doing the heavy lifting."))
+                _cfp_ranked['_model_rank'] = _cfp_ranked[_pi_col].rank(ascending=False, method='min')
+                _cfp_ranked['_gap'] = _cfp_ranked['_live_rank'].replace(99, 26) - _cfp_ranked['_model_rank']
+                _gap_df = _cfp_ranked.sort_values('_gap', ascending=False)
+                if not _gap_df.empty and _hh_safe_num(_gap_df.iloc[0]['_gap'], 0) >= 5:
+                    _gr = _gap_df.iloc[0]
+                    _team = str(_gr['TEAM']); _user = str(_gr['USER'])
+                    _ukey = f"dynasty_gap:{CURRENT_YEAR}:{_team}:{_hh_safe_int(_gr['_gap'], 0)}"
+                    _score = 63 + min(18, _hh_safe_num(_gr['_gap'], 0) * 2.5)
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(
+                        _headline_candidates,
+                        'dynasty_gap',
+                        {'user': html.escape(_user), 'team': html.escape(_team)},
+                        team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                    )
 
-                          # ── 4. BOWL SEASON STATUS ─────────────────────────────────────
-            try:
-                _cfp_res = pd.read_csv('CFPbracketresults.csv')
+                try:
+                    _rank_hist = pd.read_csv('ranking_history.csv')
+                    if 'Season' in _rank_hist.columns:
+                        _rank_hist['Season'] = pd.to_numeric(_rank_hist['Season'], errors='coerce')
+                        _rank_hist = _rank_hist[_rank_hist['Season'] == CURRENT_YEAR].copy()
+                    _week_col = next((c for c in _rank_hist.columns if c.strip().lower() in ('week','wk')), None)
+                    _team_col = next((c for c in _rank_hist.columns if c.strip().lower() == 'team'), None)
+                    _rank_col = next((c for c in _rank_hist.columns if c.strip().lower() in ('rank','media_rank','media rank')), None)
+                    if _week_col and _team_col and _rank_col and not _rank_hist.empty:
+                        _rank_hist[_week_col] = pd.to_numeric(_rank_hist[_week_col], errors='coerce')
+                        _rank_hist[_rank_col] = pd.to_numeric(_rank_hist[_rank_col], errors='coerce')
+                        _rank_jumps = []
+                        for _team in model_2041['TEAM'].unique():
+                            _th = _rank_hist[_rank_hist[_team_col].astype(str).str.strip() == str(_team)].sort_values(_week_col)
+                            if len(_th) >= 2:
+                                _prev = _th.iloc[-2]
+                                _curr = _th.iloc[-1]
+                                _prev_rank = _hh_safe_int(_prev[_rank_col], 99)
+                                _curr_rank = _hh_safe_int(_curr[_rank_col], 99)
+                                if _curr_rank < _prev_rank:
+                                    _rank_jumps.append((_team, _prev_rank - _curr_rank, _curr_rank))
+                        if _rank_jumps:
+                            _team, _delta, _rank = sorted(_rank_jumps, key=lambda x: (-x[1], x[2]))[0]
+                            _mr = model_2041[model_2041['TEAM'] == _team].iloc[0]
+                            _user = str(_mr['USER'])
+                            _ukey = f"rank_jump:{CURRENT_YEAR}:{_team}:{_rank}:{_delta}"
+                            _score = 68 + min(18, _delta * 3) + max(0, 12 - _rank)
+                            _score -= _headline_recent_penalty(_headline_history, _ukey)
+                            _headline_add(
+                                _headline_candidates,
+                                'rank_jump',
+                                {'user': html.escape(_user), 'team': html.escape(_team), 'delta': _delta, 'rank': _rank},
+                                team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                            )
+                except Exception:
+                    pass
 
-                _comp_col = next((c for c in _cfp_res.columns if c.strip().upper() == 'COMPLETED'), None)
-                if _comp_col:
-                    _cfp_res = _cfp_res[pd.to_numeric(_cfp_res[_comp_col], errors='coerce').fillna(0).astype(int) == 1]
+            if not _collapse_sorted.empty:
+                _cr = _collapse_sorted.iloc[0]
+                _team = str(_cr['TEAM']); _user = str(_cr['USER']); _risk = _hh_safe_int(_cr.get('Collapse Risk', 0), 0)
+                _ukey = f"collapse_watch:{CURRENT_YEAR}:{_team}:{_risk}"
+                _score = 64 + min(22, _risk * 0.45)
+                _score -= _headline_recent_penalty(_headline_history, _ukey)
+                _headline_add(
+                    _headline_candidates,
+                    'collapse_watch',
+                    {'user': html.escape(_user), 'team': html.escape(_team), 'risk': _risk},
+                    team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                )
 
-                _t1_col = next((c for c in _cfp_res.columns if c.strip().upper() in ['TEAM1', 'AWAY', 'VISITOR']), 'TEAM1')
-                _t2_col = next((c for c in _cfp_res.columns if c.strip().upper() in ['TEAM2', 'HOME']), 'TEAM2')
-                _s1_col = next((c for c in _cfp_res.columns if c.strip().upper() in ['TEAM1_SCORE', 'AWAY SCORE', 'VIS SCORE']), 'TEAM1_SCORE')
-                _s2_col = next((c for c in _cfp_res.columns if c.strip().upper() in ['TEAM2_SCORE', 'HOME SCORE']), 'TEAM2_SCORE')
-                _rnd_col = next((c for c in _cfp_res.columns if c.strip().upper() in ['ROUND', 'WEEK']), 'ROUND')
-
-                _user_teams_list = model_2041['TEAM'].unique()
-                _headline_text = None
-
-                # Read from bottom to top to guarantee we grab the MOST RECENT valid game
-                for _, _cg in _cfp_res.iloc[::-1].iterrows():
-                    _c_t1 = str(_cg[_t1_col]).strip()
-                    _c_t2 = str(_cg[_t2_col]).strip()
-
-                    if _c_t1 in _user_teams_list or _c_t2 in _user_teams_list:
-                        _c_s1 = int(float(_cg[_s1_col]))
-                        _c_s2 = int(float(_cg[_s2_col]))
-
-                        # Skip if it's a 0-0 tie (an unplayed game mistakenly flagged as completed)
-                        if _c_s1 == 0 and _c_s2 == 0:
-                            continue
-
-                        _round = str(_cg.get(_rnd_col, 'the playoffs')).strip()
-
-                        _winner = _c_t1 if _c_s1 > _c_s2 else _c_t2
-                        _loser = _c_t2 if _c_s1 > _c_s2 else _c_t1
-                        _win_score = _c_s1 if _c_s1 > _c_s2 else _c_s2
-                        _lose_score = _c_s2 if _c_s1 > _c_s2 else _c_s1
-
-                        _w_user_df = model_2041[model_2041['TEAM'] == _winner]
-                        _w_user = str(_w_user_df.iloc[0]['USER']) if not _w_user_df.empty else 'CPU'
-
-                        _l_user_df = model_2041[model_2041['TEAM'] == _loser]
-                        _l_user = str(_l_user_df.iloc[0]['USER']) if not _l_user_df.empty else 'CPU'
-
-                        _winner_str = f"<strong>{_w_user}</strong> ({html.escape(_winner)})" if _w_user != 'CPU' else html.escape(_winner)
-                        _loser_str = f"<strong>{_l_user}</strong> ({html.escape(_loser)})" if _l_user != 'CPU' else html.escape(_loser)
-
-                        _round_lower = _round.lower()
-                        if any(k in _round_lower for k in ['national title', 'championship', 'title game', 'final']):
-                            _headline_text = f"The season is complete. {_winner_str} just beat " \
-                                             f"{_loser_str} {_win_score}-{_lose_score} " \
-                                             f"in {_round} to win the national title."
-                        else:
-                            _headline_text = f"The bracket is active. {_winner_str} just took down " \
-                                             f"{_loser_str} {_win_score}-{_lose_score} " \
-                                             f"in {_round}. Surviving and advancing is all that matters now."
-                        break # We found the newest actual game, break the loop
-
-                if _headline_text:
-                    headlines.append(("🏟️", "Playoff Picture", _headline_text))
-                else:
-                    raise Exception("No user games completed in bracket")
-
-            except Exception:
-                # Fallback: Bracket hasn't started yet, show top seeds dictating pace
-                _bt = model_2041.copy()
-                _bt['_cfp_num'] = _bt['TEAM'].apply(lambda t: _get_live_rank(t, 99))
-                _bowl_teams = _bt[_bt['_cfp_num'].fillna(99) <= 25].sort_values('_cfp_num')
-
-                if not _bowl_teams.empty:
-                    _status_notes = []
-                    for _, _btr in _bowl_teams.head(4).iterrows():  # Top 4 ranked users
-                        _bu = str(_btr['USER'])
-                        _br = int(_btr['_cfp_num'])
-                        _bw, _bl = _get_live_record(str(_btr['TEAM']), int(_btr.get('Current Record Wins', 0)), int(_btr.get('Current Record Losses', 0)))
-                        _status_notes.append(f"#{_br} {_bu} ({_bw}-{_bl})")
-
-                    if _status_notes:
-                        headlines.append(("🏟️", "Playoff Picture",
-                                          f"The top of the bracket is locked in. "
-                                          f"{', '.join(_status_notes)} are currently dictating the pace of the postseason."))
-
-            # ── 5. COLLAPSE WATCH ─────────────────────────────────────────
-            _cr_user  = str(collapse_row['USER'])
-            _cr_team  = str(collapse_row['TEAM'])
-            _cr_risk  = int(collapse_row['Collapse Risk'])
-            _cr_ovr   = int(collapse_row.get('OVERALL', 0))
-            headlines.append(("💀", "Collapse Watch",
-                f"<strong>{_cr_user}</strong> ({html.escape(_cr_team)}, {_cr_ovr} OVR) "
-                f"carries the highest volatility marker ({_cr_risk}% collapse risk). "
-                f"The model sees real downside if things break wrong — "
-                f"BCR, depth, and roster age all flagged."))
-
-            # ── 6. INJURY REPORT (live from injury_bulletin.csv) ─────────────
             try:
                 _inj_live = pd.read_csv('injury_bulletin.csv')
                 _inj_live['Year'] = pd.to_numeric(_inj_live.get('Year'), errors='coerce')
                 _inj_live['WeeksOut'] = pd.to_numeric(_inj_live.get('WeeksOut'), errors='coerce')
                 _inj_live['OVR'] = pd.to_numeric(_inj_live.get('OVR'), errors='coerce')
-                _inj_live = _inj_live[
-                    (_inj_live['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
-                    (_inj_live['WeeksOut'].fillna(0) >= 6)
-                ].sort_values(['WeeksOut','OVR'], ascending=[False,False])
+                _inj_live = _inj_live[(_inj_live['Year'].fillna(-1).astype(int) == CURRENT_YEAR) & (_inj_live['WeeksOut'].fillna(0) >= 4)].sort_values(['WeeksOut','OVR'], ascending=[False,False])
                 if not _inj_live.empty:
                     _ir = _inj_live.iloc[0]
-                    _ir_team = str(_ir.get('Team','')).strip()
-                    _ir_user = str(_ir.get('User','')).strip()
-                    if not _ir_user or _ir_user.lower() in ('nan',''):
-                        _ir_user = next((u for u,t in USER_TEAMS.items() if t==_ir_team), _ir_team)
-                    _ir_player = str(_ir.get('Player','')).strip()
-                    _ir_pos = str(_ir.get('Pos','')).strip()
-                    _ir_wks = int(_ir['WeeksOut'])
-                    _ir_inj = str(_ir.get('Injury','')).strip()
-                    _ir_ovr = int(_ir.get('OVR', 0) or 0)
-                    _ir_sev_color = '#ef4444' if _ir_wks >= 20 else '#f97316' if _ir_wks >= 12 else '#eab308'
-                    _ir_label = 'season-ending' if _ir_wks >= 20 else 'long-term'
-                    headlines.append(("🚑", "Injury Report",
-                        f"<strong>{_ir_user}</strong> ({html.escape(_ir_team)}) takes the biggest health hit — "
-                        f"<span style='color:{_ir_sev_color};font-weight:800;'>{_ir_player} ({_ir_pos}, {_ir_ovr} OVR) is out {_ir_wks} weeks</span> with a {_ir_inj}. "
-                        f"That's a {_ir_label} loss. The injury model has already docked their title odds. "
-                        f"You can't win it all in street clothes."))
-            except Exception:
-                pass
-
-            # ── 7. QB HEADLINES ───────────────────────────────────────────
-            qb_elite = model_2041[model_2041['QB Tier'] == 'Elite']
-            qb_ass   = model_2041[model_2041['QB Tier'] == 'Ass']
-            if not qb_elite.empty:
-                # List all elite QBs
-                _elite_list = ", ".join(
-                    f"<strong>{str(r['USER'])}</strong> ({int(r.get('QB OVR', 0))} OVR)"
-                    for _, r in qb_elite.sort_values(_natty_col, ascending=False).iterrows()
-                )
-                headlines.append(("🧠", "Elite QB Alert",
-                    f"Elite QBs still alive: {_elite_list}. "
-                    f"Every title in modern dynasty football has had one. "
-                    f"When your signal-caller can't be stopped, everything opens up."))
-            if not qb_ass.empty:
-                _ass_list = ", ".join(
-                    f"<strong>{str(r['USER'])}</strong> ({int(r.get('QB OVR', 0))} OVR)"
-                    for _, r in qb_ass.iterrows()
-                )
-                headlines.append(("🚨", "QB Disaster Watch",
-                    f"{_ass_list} — rolling out an Ass QB situation in bowl season. "
-                    f"A good roster can mask a bad quarterback for about three games. "
-                    f"That clock is ticking."))
-
-            # ── 8. RECRUITING KING ────────────────────────────────────────
-        try:
-            # LIVE RECRUITING OVERRIDE
-            _live_rec_df = get_overall_recruiting_snapshot()
-            if not _live_rec_df.empty:
-                _live_rec_king = _live_rec_df.sort_values('Rank').iloc[0]
-                _rk_team = str(_live_rec_king['Team'])
-                _rk_user = str(_live_rec_king.get('User', ''))
-                # Find user from model_2041 if missing
-                if not _rk_user or _rk_user.lower() in ('nan', ''):
-                    _u_match = model_2041[model_2041['TEAM'] == _rk_team]
-                    _rk_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else 'CPU'
-
-                _rk_pts = round(float(_live_rec_king.get('Points', 0)), 2)
-                headlines.append(("🎯", "Recruiting King",
-                                  f"<strong>{_rk_user}</strong> ({html.escape(_rk_team)}) is winning the "
-                                  f"recruiting war with the #1 overall class ({_rk_pts} pts). "
-                                  f"The roster that wins the natty in {CURRENT_YEAR + 2} starts with "
-                                  f"who you're landing right now."))
-            else:
-                raise Exception("Fallback to static")
-        except Exception:
-            if 'Recruit Score' in model_2041.columns:
-                _rk = model_2041.sort_values('Recruit Score', ascending=False).iloc[0]
-                _rk_user = str(_rk['USER'])
-                _rk_team = str(_rk['TEAM'])
-                _rk_score = round(float(_rk['Recruit Score']), 1)
-                headlines.append(("🎯", "Recruiting King",
-                                  f"<strong>{_rk_user}</strong> ({html.escape(_rk_team)}) is winning the "
-                                  f"recruiting war ({_rk_score} recruit score). "
-                                  f"The roster that wins the natty in {CURRENT_YEAR + 2} starts with "
-                                  f"who you're landing right now."))
-
-            # ── 9. SPEED MERCHANTS ────────────────────────────────────────
-        try:
-            # LIVE SPEED OVERRIDE
-            _sf_roster = pd.read_csv('cfb26_rosters_full.csv')
-            if 'Season' in _sf_roster.columns:
-                _sf_roster['Season'] = pd.to_numeric(_sf_roster['Season'], errors='coerce')
-                _avail = _sf_roster['Season'].dropna().unique()
-                _tgt = CURRENT_YEAR if CURRENT_YEAR in _avail else (int(max(_avail)) if len(_avail) else CURRENT_YEAR)
-                _sf_roster = _sf_roster[_sf_roster['Season'] == _tgt].copy()
-            _sf_roster['SPD'] = pd.to_numeric(_sf_roster['SPD'], errors='coerce')
-            _sf_roster['ACC'] = pd.to_numeric(_sf_roster['ACC'], errors='coerce')
-
-            # [ADDED] Load AGI and COD for the 4-Quad metric
-            _sf_roster['AGI'] = pd.to_numeric(_sf_roster.get('AGI', pd.Series(dtype=float)), errors='coerce')
-            _sf_roster['COD'] = pd.to_numeric(_sf_roster.get('COD', pd.Series(dtype=float)), errors='coerce')
-
-            _sf_active = _sf_roster.copy()  # REDSHIRT filter removed
-
-            _team_speeds = []
-            for _t in model_2041['TEAM'].unique():
-                _tdf = _sf_active[_sf_active['Team'] == _t]
-                _s90 = int((_tdf['SPD'] >= 90).sum())
-                _gen = int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum())
-
-                # [ADDED] Calculate 4-Quad (90+ SPD, ACC, AGI, COD)
-                _quad = int(((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 90) & (_tdf['AGI'] >= 90) & (_tdf['COD'] >= 90)).sum())
-
-                _team_speeds.append({'TEAM': _t, 'S90': _s90, 'GEN': _gen, 'QUAD': _quad})
-
-            _live_speed_df = pd.DataFrame(_team_speeds).sort_values(['S90', 'GEN'], ascending=False)
-            _sk = _live_speed_df.iloc[0]
-            _sk_team = str(_sk['TEAM'])
-            _sk_user = str(model_2041[model_2041['TEAM'] == _sk_team]['USER'].iloc[0])
-            _sk_num = int(_sk['S90'])
-            _sk_gen = int(_sk['GEN'])
-            _sk_quad = int(_sk['QUAD'])  # [ADDED] Extract Quad count
-
-            _gen_note = (f" including <strong>{_sk_gen} generational freak"
-                         f"{'s' if _sk_gen != 1 else ''}</strong>") if _sk_gen > 0 else ""
-
-            # [ADDED] Format the 4-Quad note string
-            _quad_note = (f" and <strong>{_sk_quad} 4-Quad athlete"
-                          f"{'s' if _sk_quad != 1 else ''}</strong>") if _sk_quad > 0 else ""
-
-            # [ADDED] Inject {_quad_note} into the headline string
-            headlines.append(("💨", "Speed Merchants",
-                              f"<strong>{_sk_user}</strong> ({html.escape(_sk_team)}) leads with "
-                              f"<strong>{_sk_num}</strong> active players at 90+ speed{_gen_note}{_quad_note}. "
-                              f"You can scheme around a lot of things. "
-                              f"You can't scheme around not being able to catch the other team's guys."))
-        except Exception:
-            if 'Team Speed (90+ Speed Guys)' in model_2041.columns:
-                _sk = model_2041.sort_values('Team Speed (90+ Speed Guys)', ascending=False).iloc[0]
-                _sk_user = str(_sk['USER'])
-                _sk_team = str(_sk['TEAM'])
-                _sk_num = int(_sk.get('Team Speed (90+ Speed Guys)', 0))
-                _sk_gen = int(_sk.get('Generational (96+ speed or 96+ Acceleration)', 0))
-
-                # [ADDED] Fallback logic for static data
-                _sk_quad = int(_sk.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0))
-
-                _gen_note = (f" including <strong>{_sk_gen} generational freak"
-                             f"{'s' if _sk_gen != 1 else ''}</strong>") if _sk_gen > 0 else ""
-
-                # [ADDED] Fallback note string
-                _quad_note = (f" and <strong>{_sk_quad} 4-Quad athlete"
-                              f"{'s' if _sk_quad != 1 else ''}</strong>") if _sk_quad > 0 else ""
-
-                # [ADDED] Inject {_quad_note} into the fallback headline string
-                headlines.append(("💨", "Speed Merchants",
-                                  f"<strong>{_sk_user}</strong> ({html.escape(_sk_team)}) leads with "
-                                  f"<strong>{_sk_num}</strong> players at 90+ speed{_gen_note}{_quad_note}. "
-                                  f"You can scheme around a lot of things. "
-                                  f"You can't scheme around not being able to catch the other team's guys."))
-
-            # ── 10. WIN STREAK TRACKER ───────────────────────────────────
-            try:
-                _ws_df = pd.read_csv('CPUscores_MASTER.csv')
-                _ws_df['YEAR'] = pd.to_numeric(_ws_df['YEAR'], errors='coerce')
-                _ws_df['Week'] = pd.to_numeric(_ws_df['Week'], errors='coerce')
-                _ws_df['Vis Score'] = pd.to_numeric(_ws_df['Vis Score'], errors='coerce')
-                _ws_df['Home Score'] = pd.to_numeric(_ws_df['Home Score'], errors='coerce')
-                _ws_cy = _ws_df[(_ws_df['YEAR'] == CURRENT_YEAR)].dropna(subset=['Vis Score','Home Score']).sort_values('Week')
-                _ws_df['V_User_Final'] = _ws_df['Vis_User'].astype(str).str.strip().str.title()
-                _ws_df['H_User_Final'] = _ws_df['Home_User'].astype(str).str.strip().str.title()
-                _ws_cy = _ws_df[(_ws_df['YEAR'] == CURRENT_YEAR)].dropna(subset=['Vis Score','Home Score']).sort_values('Week')
-
-                _best_streak = 0
-                _best_streak_team = ''
-                _best_streak_user = ''
-
-                for _st_team in model_2041['TEAM'].unique():
-                    _st_games = _ws_cy[
-                        (_ws_cy['Visitor'] == _st_team) | (_ws_cy['Home'] == _st_team)
-                    ].sort_values('Week')
-                    _streak = 0
-                    for _, _sg in _st_games.iterrows():
-                        _is_home = _sg['Home'] == _st_team
-                        _tm_pts = _sg['Home Score'] if _is_home else _sg['Vis Score']
-                        _op_pts = _sg['Vis Score'] if _is_home else _sg['Home Score']
-                        if _tm_pts > _op_pts:
-                            _streak += 1
-                        else:
-                            _streak = 0
-                    if _streak > _best_streak:
-                        _best_streak = _streak
-                        _best_streak_team = _st_team
-                        _u_match = model_2041[model_2041['TEAM'] == _st_team]
-                        _best_streak_user = str(_u_match.iloc[0]['USER']) if not _u_match.empty else ''
-
-                if _best_streak >= 3:
-                    _streak_adj = (
-                        'unstoppable' if _best_streak >= 8 else
-                        'locked in' if _best_streak >= 6 else
-                        'on a heater' if _best_streak >= 4 else
-                        'building momentum'
+                    _team = str(_ir.get('Team','')).strip()
+                    _user = str(_ir.get('User','')).strip()
+                    if not _user or _user.lower() in ('nan',''):
+                        _user = next((u for u,t in USER_TEAMS.items() if t == _team), _team)
+                    _player = str(_ir.get('Player','')).strip()
+                    _weeks = _hh_safe_int(_ir.get('WeeksOut', 0), 0)
+                    _ovr = _hh_safe_int(_ir.get('OVR', 0), 0)
+                    _ukey = f"injury_blow:{CURRENT_YEAR}:{_team}:{_player}:{_weeks}"
+                    _score = 70 + min(20, _weeks * 1.5) + min(12, max(0, _ovr - 80))
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(
+                        _headline_candidates,
+                        'injury_blow',
+                        {
+                            'user': html.escape(_user), 'team': html.escape(_team), 'player': html.escape(_player),
+                            'pos': html.escape(str(_ir.get('Pos','')).strip()), 'ovr': _ovr, 'weeks': _weeks,
+                            'injury': html.escape(str(_ir.get('Injury','')).strip() or 'injury')
+                        },
+                        team=_team, user=_user, player=_player, score=_score, uniqueness_key=_ukey
                     )
-                    headlines.append(("🔥", "Win Streak Alert",
-                        f"<strong>{_best_streak_user}</strong> ({html.escape(_best_streak_team)}) is {_streak_adj} — "
-                        f"<strong>{_best_streak} straight wins</strong> and counting. "
-                        f"Momentum is a real thing in dynasty football. "
-                        f"Don't sleep on a team that's found its groove."))
             except Exception:
                 pass
 
-            # ── 11. UPSET ALERT ──────────────────────────────────────────
             try:
-                _up_df = pd.read_csv('CPUscores_MASTER.csv')
-                _up_df['YEAR'] = pd.to_numeric(_up_df['YEAR'], errors='coerce')
-                _up_df['Week'] = pd.to_numeric(_up_df['Week'], errors='coerce')
-                _up_df['Vis Score'] = pd.to_numeric(_up_df['Vis Score'], errors='coerce')
-                _up_df['Home Score'] = pd.to_numeric(_up_df['Home Score'], errors='coerce')
-                _up_df['Visitor Rank'] = pd.to_numeric(_up_df['Visitor Rank'], errors='coerce')
-                _up_df['Home Rank'] = pd.to_numeric(_up_df['Home Rank'], errors='coerce')
-                _up_df['V_User_Final'] = _up_df['Vis_User'].astype(str).str.strip().str.title()
-                _up_df['H_User_Final'] = _up_df['Home_User'].astype(str).str.strip().str.title()
-
-                _known_users = set(USER_TEAMS.keys())
-                def _is_user(u): return str(u).strip().split()[0].title() in _known_users
-
-                _up_cy = _up_df[(_up_df['YEAR'] == CURRENT_YEAR)].dropna(subset=['Vis Score','Home Score'])
-                _best_upset_margin = 0
-                _best_upset_row = None
-                _best_upset_winner = ''
-                _best_upset_loser = ''
-                _best_upset_loser_rank = 0
-
-                for _, _ug in _up_cy.iterrows():
-                    _vis_user = _ug.get('V_User_Final','')
-                    _hom_user = _ug.get('H_User_Final','')
-                    _vis_rk = _ug.get('Visitor Rank', np.nan)
-                    _hom_rk = _ug.get('Home Rank', np.nan)
-                    _vs_pts = _ug['Vis Score']
-                    _hs_pts = _ug['Home Score']
-
-                    # User beats a ranked opponent
-                    if _is_user(_hom_user) and pd.notna(_vis_rk) and _vis_rk <= 10 and _hs_pts > _vs_pts:
-                        _margin = _hs_pts - _vs_pts
-                        if _vis_rk < _best_upset_loser_rank or _best_upset_loser_rank == 0:
-                            _best_upset_margin = _margin
-                            _best_upset_winner = str(_ug['Home'])
-                            _best_upset_loser = str(_ug['Visitor'])
-                            _best_upset_loser_rank = int(_vis_rk)
-                            _best_upset_row = _ug
-
-                    if _is_user(_vis_user) and pd.notna(_hom_rk) and _hom_rk <= 10 and _vs_pts > _hs_pts:
-                        _margin = _vs_pts - _hs_pts
-                        if _hom_rk < _best_upset_loser_rank or _best_upset_loser_rank == 0:
-                            _best_upset_margin = _margin
-                            _best_upset_winner = str(_ug['Visitor'])
-                            _best_upset_loser = str(_ug['Home'])
-                            _best_upset_loser_rank = int(_hom_rk)
-                            _best_upset_row = _ug
-
-                if _best_upset_row is not None and _best_upset_loser_rank <= 10:
-                    _up_u_match = model_2041[model_2041['TEAM'] == _best_upset_winner]
-                    _up_user = str(_up_u_match.iloc[0]['USER']) if not _up_u_match.empty else ''
-                    _up_wk = int(_best_upset_row.get('Week', 0) or 0)
-                    headlines.append(("🚨", "Statement Win",
-                        f"<strong>{_up_user}</strong> ({html.escape(_best_upset_winner)}) put the league on notice — "
-                        f"they knocked off <strong>#{_best_upset_loser_rank} {html.escape(_best_upset_loser)}</strong> "
-                        f"by {int(_best_upset_margin)} in Week {_up_wk}. "
-                        f"Résumé win, committee bait, and a message all at once. "
-                        f"That's the kind of win the bracket picture turns on."))
+                _qb_elite = model_2041[model_2041['QB Tier'].astype(str) == 'Elite'] if 'QB Tier' in model_2041.columns else pd.DataFrame()
+                if not _qb_elite.empty:
+                    _names = ", ".join(
+                        f"<strong>{html.escape(str(r['USER']))}</strong> ({_hh_safe_int(r.get('QB OVR', 0), 0)} OVR)"
+                        for _, r in _qb_elite.sort_values(_natty_col, ascending=False).head(4).iterrows()
+                    )
+                    _ukey = f"elite_qb:{CURRENT_YEAR}:{'|'.join(sorted(_qb_elite['TEAM'].astype(str).tolist()))}"
+                    _score = 66 + min(16, len(_qb_elite) * 3)
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(_headline_candidates, 'elite_qb', {'names': _names}, score=_score, uniqueness_key=_ukey)
+                _qb_ass = model_2041[model_2041['QB Tier'].astype(str) == 'Ass'] if 'QB Tier' in model_2041.columns else pd.DataFrame()
+                if not _qb_ass.empty:
+                    _names = ", ".join(
+                        f"<strong>{html.escape(str(r['USER']))}</strong> ({_hh_safe_int(r.get('QB OVR', 0), 0)} OVR)"
+                        for _, r in _qb_ass.head(4).iterrows()
+                    )
+                    _ukey = f"qb_disaster:{CURRENT_YEAR}:{'|'.join(sorted(_qb_ass['TEAM'].astype(str).tolist()))}"
+                    _score = 61 + min(14, len(_qb_ass) * 3)
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(_headline_candidates, 'qb_disaster', {'names': _names}, score=_score, uniqueness_key=_ukey)
             except Exception:
                 pass
 
-            # ── 12. CONFERENCE TITLE RACE ────────────────────────────────
             try:
-                _conf_df = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
-                _conf_df.columns = [c.strip() for c in _conf_df.columns]
-                _conf_col = next((c for c in _conf_df.columns if c.upper() in ('CONFERENCE','CONF')), None)
-                _team_col = next((c for c in _conf_df.columns if c.upper() == 'TEAM'), None)
-                _cw_col = next((c for c in _conf_df.columns if 'CONF' in c.upper() and 'W' in c.upper() and 'L' not in c.upper()), None)
-                if not _cw_col:
-                    _cw_col = next((c for c in _conf_df.columns if c.upper() in ('W','WINS','CONF W')), None)
-
-                if _conf_col and _team_col and _cw_col:
-                    _conf_df[_cw_col] = pd.to_numeric(_conf_df[_cw_col], errors='coerce').fillna(0)
-                    _user_team_set = set(model_2041['TEAM'].unique())
-
-                    _tightest_conf = None
-                    _tightest_gap = 99
-                    _tightest_leader = ''
-                    _tightest_chaser = ''
-
-                    for _conf_name, _cgrp in _conf_df.groupby(_conf_col):
-                        _user_in_conf = _cgrp[_cgrp[_team_col].isin(_user_team_set)]
-                        if len(_user_in_conf) >= 2:
-                            _sorted = _user_in_conf.sort_values(_cw_col, ascending=False)
-                            _gap = float(_sorted.iloc[0][_cw_col]) - float(_sorted.iloc[1][_cw_col])
-                            if _gap < _tightest_gap:
-                                _tightest_gap = _gap
-                                _tightest_conf = str(_conf_name)
-                                _tightest_leader = str(_sorted.iloc[0][_team_col])
-                                _tightest_chaser = str(_sorted.iloc[1][_team_col])
-
-                    if _tightest_conf and _tightest_gap <= 1.0:
-                        _tl_user = next((u for u,t in USER_TEAMS.items() if t == _tightest_leader), _tightest_leader)
-                        _tc_user = next((u for u,t in USER_TEAMS.items() if t == _tightest_chaser), _tightest_chaser)
-                        _race_desc = "dead even" if _tightest_gap == 0 else f"{_tightest_gap:.0f} game back"
-                        headlines.append(("🏁", "Conference Title Race",
-                            f"The {_tightest_conf} title is still up for grabs — "
-                            f"<strong>{_tl_user}</strong> ({html.escape(_tightest_leader)}) leads, "
-                            f"but <strong>{_tc_user}</strong> ({html.escape(_tightest_chaser)}) is {_race_desc}. "
-                            f"Conference titles mean automatic bids. This one matters."))
+                _live_rec_df = get_overall_recruiting_snapshot()
+                if _live_rec_df is not None and not _live_rec_df.empty:
+                    _rk = _live_rec_df.sort_values('Rank').iloc[0]
+                    _team = str(_rk.get('Team','')).strip()
+                    _user = str(_rk.get('User','')).strip()
+                    if not _user or _user.lower() in ('nan',''):
+                        _match = model_2041[model_2041['TEAM'] == _team]
+                        _user = str(_match.iloc[0]['USER']) if not _match.empty else _team
+                    _points = round(_hh_safe_num(_rk.get('Points', 0), 0), 2)
+                    _ukey = f"recruiting_king:{CURRENT_YEAR}:{_team}:{_points}"
+                    _score = 62 + min(18, _points / 8 if _points else 0)
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(
+                        _headline_candidates,
+                        'recruiting_king',
+                        {'user': html.escape(_user), 'team': html.escape(_team), 'points': _points},
+                        team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                    )
             except Exception:
                 pass
 
-            # ── 13. BEST/WORST RECORD CALLOUT ────────────────────────────
             try:
-                _cfp_snap2 = get_cfp_rankings_snapshot()
-                if not _cfp_snap2.empty and 'Wins' in _cfp_snap2.columns and 'Losses' in _cfp_snap2.columns:
-                    _cfp_snap2['Wins'] = pd.to_numeric(_cfp_snap2['Wins'], errors='coerce').fillna(0)
-                    _cfp_snap2['Losses'] = pd.to_numeric(_cfp_snap2['Losses'], errors='coerce').fillna(0)
-                    _cfp_snap2['TotalGames'] = _cfp_snap2['Wins'] + _cfp_snap2['Losses']
-                    _played = _cfp_snap2[_cfp_snap2['TotalGames'] >= 3]
-                    if not _played.empty:
-                        _cfp_snap2['WinPct'] = _cfp_snap2['Wins'] / _cfp_snap2['TotalGames'].replace(0, np.nan)
-                        _best_rec = _played.sort_values(['WinPct','Wins'], ascending=False).iloc[0]
-                        _worst_rec = _played.sort_values(['WinPct','Wins'], ascending=True).iloc[0]
-                        _br_team = str(_best_rec['Team'])
-                        _wr_team = str(_worst_rec['Team'])
-                        _br_user = next((u for u,t in USER_TEAMS.items() if t == _br_team), _br_team)
-                        _wr_user = next((u for u,t in USER_TEAMS.items() if t == _wr_team), _wr_team)
-                        _br_w = int(_best_rec['Wins']); _br_l = int(_best_rec['Losses'])
-                        _wr_w = int(_worst_rec['Wins']); _wr_l = int(_worst_rec['Losses'])
-                        if _br_team != _wr_team:
-                            headlines.append(("📊", "Record Watch",
-                                f"<strong>{_br_user}</strong> ({html.escape(_br_team)}) is running the table at <strong>{_br_w}-{_br_l}</strong>. "
-                                f"Meanwhile <strong>{_wr_user}</strong> ({html.escape(_wr_team)}) is fighting for their season at {_wr_w}-{_wr_l}. "
-                                f"The gap between the best and worst records in this league is real — "
-                                f"and it shows up when the bracket comes out."))
+                _sf_roster = pd.read_csv('cfb26_rosters_full.csv')
+                if 'Season' in _sf_roster.columns:
+                    _sf_roster['Season'] = pd.to_numeric(_sf_roster['Season'], errors='coerce')
+                    _avail = _sf_roster['Season'].dropna().unique()
+                    _tgt = CURRENT_YEAR if CURRENT_YEAR in _avail else (int(max(_avail)) if len(_avail) else CURRENT_YEAR)
+                    _sf_roster = _sf_roster[_sf_roster['Season'] == _tgt].copy()
+                for _col in ['SPD','ACC','AGI','COD']:
+                    _sf_roster[_col] = pd.to_numeric(_sf_roster.get(_col), errors='coerce')
+                _speed_rows = []
+                for _team in model_2041['TEAM'].unique():
+                    _tdf = _sf_roster[_sf_roster['Team'] == _team]
+                    _s90 = int((_tdf['SPD'] >= 90).sum())
+                    _gen = int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum())
+                    _quad = int(((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 90) & (_tdf['AGI'] >= 90) & (_tdf['COD'] >= 90)).sum())
+                    _speed_rows.append({'TEAM': _team, 'S90': _s90, 'GEN': _gen, 'QUAD': _quad})
+                _speed_df = pd.DataFrame(_speed_rows).sort_values(['S90','GEN','QUAD'], ascending=False)
+                if not _speed_df.empty:
+                    _sr = _speed_df.iloc[0]
+                    _team = str(_sr['TEAM'])
+                    _user = str(model_2041[model_2041['TEAM'] == _team]['USER'].iloc[0])
+                    _extras = []
+                    if int(_sr['GEN']) > 0:
+                        _extras.append(f" including <strong>{int(_sr['GEN'])}</strong> generational freak{'s' if int(_sr['GEN']) != 1 else ''}")
+                    if int(_sr['QUAD']) > 0:
+                        _extras.append(f" and <strong>{int(_sr['QUAD'])}</strong> 4-Quad athlete{'s' if int(_sr['QUAD']) != 1 else ''}")
+                    _ukey = f"speed_merchants:{CURRENT_YEAR}:{_team}:{int(_sr['S90'])}:{int(_sr['GEN'])}:{int(_sr['QUAD'])}"
+                    _score = 58 + min(20, int(_sr['S90']) * 2) + min(8, int(_sr['QUAD']) * 2)
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(
+                        _headline_candidates,
+                        'speed_merchants',
+                        {'user': html.escape(_user), 'team': html.escape(_team), 's90': int(_sr['S90']), 'extras': ''.join(_extras)},
+                        team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                    )
             except Exception:
                 pass
 
-            # ── 14. UPCOMING H2H TRASH TALK ──────────────────────────────
             try:
-                _h2h_df = pd.read_csv('CPUscores_MASTER.csv')
-                _h2h_df['YEAR'] = pd.to_numeric(_h2h_df['YEAR'], errors='coerce')
-                _h2h_df['Week'] = pd.to_numeric(_h2h_df['Week'], errors='coerce')
-                _h2h_df['Vis Score'] = pd.to_numeric(_h2h_df['Vis Score'], errors='coerce')
-                _h2h_df['Home Score'] = pd.to_numeric(_h2h_df['Home Score'], errors='coerce')
-                _h2h_cy = _h2h_df[_h2h_df['YEAR'] == CURRENT_YEAR].copy()
-                _completed = _h2h_cy.dropna(subset=['Vis Score','Home Score'])
-                _latest_played_wk = int(_completed['Week'].max()) if not _completed.empty else 0
-                _upcoming_wk = _latest_played_wk + 1
-                _upcoming = _h2h_cy[_h2h_cy['Week'] == _upcoming_wk]
+                _scores = pd.read_csv('CPUscores_MASTER.csv')
+                _scores['YEAR'] = pd.to_numeric(_scores.get('YEAR'), errors='coerce')
+                _scores['Week'] = pd.to_numeric(_scores.get('Week'), errors='coerce')
+                _scores['Vis Score'] = pd.to_numeric(_scores.get('Vis Score'), errors='coerce')
+                _scores['Home Score'] = pd.to_numeric(_scores.get('Home Score'), errors='coerce')
+                _scores['Visitor Rank'] = pd.to_numeric(_scores.get('Visitor Rank'), errors='coerce')
+                _scores['Home Rank'] = pd.to_numeric(_scores.get('Home Rank'), errors='coerce')
+                _scores['Vis_User'] = _scores.get('Vis_User', '').astype(str).str.strip().str.title()
+                _scores['Home_User'] = _scores.get('Home_User', '').astype(str).str.strip().str.title()
+                _scores_cy = _scores[_scores['YEAR'] == CURRENT_YEAR].copy()
+                _completed = _scores_cy.dropna(subset=['Vis Score','Home Score']).sort_values('Week')
 
-                _known_users_h2h = set(USER_TEAMS.keys())
-                def _is_user_h2h(u): return str(u).strip().split()[0].title() in _known_users_h2h
+                if not _completed.empty:
+                    _best_upset = None
+                    _best_upset_score = -1
+                    for _, _g in _completed.iterrows():
+                        _vs = _hh_safe_int(_g['Vis Score'], 0); _hs = _hh_safe_int(_g['Home Score'], 0)
+                        _winner_team = str(_g['Visitor']) if _vs > _hs else str(_g['Home'])
+                        _loser_team = str(_g['Home']) if _vs > _hs else str(_g['Visitor'])
+                        _winner_user = str(_g['Vis_User']) if _vs > _hs else str(_g['Home_User'])
+                        _loser_user = str(_g['Home_User']) if _vs > _hs else str(_g['Vis_User'])
+                        _loser_rank = _hh_safe_int(_g['Home Rank'] if _vs > _hs else _g['Visitor Rank'], 99)
+                        _winner_rank = _hh_safe_int(_g['Visitor Rank'] if _vs > _hs else _g['Home Rank'], 99)
+                        _margin = abs(_vs - _hs)
+                        _game_score = max(0, (26 - _loser_rank)) * 3 + max(0, _winner_rank - 10) + _margin
+                        if _winner_user in USER_TEAMS and _loser_rank <= 25 and _game_score > _best_upset_score:
+                            _best_upset_score = _game_score
+                            _best_upset = {
+                                'team': _winner_team, 'user': _winner_user, 'opponent': _loser_team,
+                                'opp_rank': _loser_rank, 'win_score': max(_vs, _hs), 'lose_score': min(_vs, _hs),
+                                'week': _hh_safe_int(_g['Week'], 0)
+                            }
+                    if _best_upset is not None:
+                        _ukey = f"upset_win:{CURRENT_YEAR}:{_best_upset['team']}:{_best_upset['opponent']}:{_best_upset['week']}"
+                        _score = 72 + min(28, _best_upset_score)
+                        _score -= _headline_recent_penalty(_headline_history, _ukey)
+                        _headline_add(
+                            _headline_candidates,
+                            'upset_win',
+                            {
+                                'user': html.escape(_best_upset['user']), 'team': html.escape(_best_upset['team']),
+                                'opponent': html.escape(_best_upset['opponent']), 'opp_rank': _best_upset['opp_rank'],
+                                'win_score': _best_upset['win_score'], 'lose_score': _best_upset['lose_score']
+                            },
+                            team=_best_upset['team'], user=_best_upset['user'], score=_score,
+                            uniqueness_key=_ukey, week=_best_upset['week']
+                        )
 
-                for _, _ug in _upcoming.iterrows():
-                    _vu = str(_ug.get('Vis_User','')).strip().title()
-                    _hu = str(_ug.get('Home_User','')).strip().title()
-                    if _is_user_h2h(_vu) and _is_user_h2h(_hu):
-                        _vis_t = str(_ug['Visitor']).strip()
-                        _hom_t = str(_ug['Home']).strip()
-                        _vis_rk_u = _rank_lookup.get(_vis_t.lower())
-                        _hom_rk_u = _rank_lookup.get(_hom_t.lower())
-                        _vis_str = f"#{_vis_rk_u} " if _vis_rk_u else ""
-                        _hom_str = f"#{_hom_rk_u} " if _hom_rk_u else ""
-                        headlines.append(("⚔️", "User vs User — On Deck",
-                            f"Circle it. <strong>{_vu}</strong> ({_vis_str}{html.escape(_vis_t)}) vs "
-                            f"<strong>{_hu}</strong> ({_hom_str}{html.escape(_hom_t)}) is coming up Week {_upcoming_wk}. "
-                            f"User matchups in dynasty football hit different — somebody's CFP hopes "
-                            f"are about to take a direct hit."))
+                    _best_streak = {'streak': 0, 'team': '', 'user': ''}
+                    for _team in model_2041['TEAM'].unique():
+                        _games = _completed[(_completed['Visitor'] == _team) | (_completed['Home'] == _team)].sort_values('Week')
+                        _streak = 0
+                        for _, _g in _games.iterrows():
+                            _is_home = str(_g['Home']) == str(_team)
+                            _tm = _hh_safe_int(_g['Home Score'] if _is_home else _g['Vis Score'], 0)
+                            _op = _hh_safe_int(_g['Vis Score'] if _is_home else _g['Home Score'], 0)
+                            if _tm > _op:
+                                _streak += 1
+                            else:
+                                _streak = 0
+                        if _streak > _best_streak['streak']:
+                            _match = model_2041[model_2041['TEAM'] == _team]
+                            _best_streak = {'streak': _streak, 'team': _team, 'user': str(_match.iloc[0]['USER']) if not _match.empty else _team}
+                    if _best_streak['streak'] >= 3:
+                        _ukey = f"win_streak:{CURRENT_YEAR}:{_best_streak['team']}:{_best_streak['streak']}"
+                        _score = 60 + min(22, _best_streak['streak'] * 3)
+                        _score -= _headline_recent_penalty(_headline_history, _ukey)
+                        _headline_add(
+                            _headline_candidates,
+                            'win_streak',
+                            {'user': html.escape(_best_streak['user']), 'team': html.escape(_best_streak['team']), 'streak': _best_streak['streak']},
+                            team=_best_streak['team'], user=_best_streak['user'], score=_score, uniqueness_key=_ukey
+                        )
+
+                    try:
+                        _cfp_snap = get_cfp_rankings_snapshot()
+                        if _cfp_snap is not None and not _cfp_snap.empty and {'Team','Wins','Losses'}.issubset(_cfp_snap.columns):
+                            _cfp_snap = _cfp_snap.copy()
+                            _cfp_snap['Wins'] = pd.to_numeric(_cfp_snap['Wins'], errors='coerce').fillna(0)
+                            _cfp_snap['Losses'] = pd.to_numeric(_cfp_snap['Losses'], errors='coerce').fillna(0)
+                            _cfp_snap['TotalGames'] = _cfp_snap['Wins'] + _cfp_snap['Losses']
+                            _played = _cfp_snap[_cfp_snap['TotalGames'] >= 3].copy()
+                            if not _played.empty:
+                                _played['WinPct'] = _played['Wins'] / _played['TotalGames'].replace(0, np.nan)
+                                _best = _played.sort_values(['WinPct','Wins'], ascending=False).iloc[0]
+                                _worst = _played.sort_values(['WinPct','Wins'], ascending=True).iloc[0]
+                                if str(_best['Team']) != str(_worst['Team']):
+                                    _best_user = next((u for u,t in USER_TEAMS.items() if t == str(_best['Team'])), str(_best['Team']))
+                                    _worst_user = next((u for u,t in USER_TEAMS.items() if t == str(_worst['Team'])), str(_worst['Team']))
+                                    _ukey = f"record_watch:{CURRENT_YEAR}:{_best['Team']}:{_worst['Team']}:{int(_best['Wins'])}-{int(_worst['Wins'])}"
+                                    _score = 57 + min(16, abs((_best['WinPct'] - _worst['WinPct']) * 100) / 4)
+                                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                                    _headline_add(
+                                        _headline_candidates,
+                                        'record_watch',
+                                        {
+                                            'best_user': html.escape(_best_user), 'best_team': html.escape(str(_best['Team'])),
+                                            'best_record': f"{int(_best['Wins'])}-{int(_best['Losses'])}",
+                                            'worst_user': html.escape(_worst_user), 'worst_team': html.escape(str(_worst['Team'])),
+                                            'worst_record': f"{int(_worst['Wins'])}-{int(_worst['Losses'])}",
+                                        },
+                                        team=str(_best['Team']), user=_best_user, score=_score, uniqueness_key=_ukey
+                                    )
+                    except Exception:
+                        pass
+
+                _upcoming_week = _hh_safe_int(_completed['Week'].max(), 0) + 1 if not _completed.empty else 1
+                _upcoming = _scores_cy[_scores_cy['Week'] == _upcoming_week]
+                for _, _g in _upcoming.iterrows():
+                    _vis_user = str(_g.get('Vis_User','')).strip().title()
+                    _home_user = str(_g.get('Home_User','')).strip().title()
+                    if _vis_user in USER_TEAMS and _home_user in USER_TEAMS:
+                        _ukey = f"user_h2h:{CURRENT_YEAR}:{_upcoming_week}:{_g.get('Visitor','')}:{_g.get('Home','')}"
+                        _score = 67 + max(0, 12 - _upcoming_week)
+                        _score -= _headline_recent_penalty(_headline_history, _ukey)
+                        _headline_add(
+                            _headline_candidates,
+                            'user_h2h',
+                            {
+                                'vis_user': html.escape(_vis_user), 'visitor': html.escape(str(_g.get('Visitor','')).strip()),
+                                'home_user': html.escape(_home_user), 'home': html.escape(str(_g.get('Home','')).strip()),
+                                'week': _upcoming_week,
+                            },
+                            team=str(_g.get('Visitor','')).strip(), user=_vis_user, score=_score, uniqueness_key=_ukey, week=_upcoming_week
+                        )
                         break
             except Exception:
                 pass
 
-            # ── 15. DYNASTY HISTORY — DID YOU KNOW? ─────────────────────
             try:
-                _dyk_champs = pd.read_csv('champs.csv')
-                _dyk_champs['YEAR'] = pd.to_numeric(_dyk_champs.get('YEAR'), errors='coerce')
-                _dyk_champs = _dyk_champs.dropna(subset=['YEAR']).copy()
-                _dyk_champs['YEAR'] = _dyk_champs['YEAR'].astype(int)
-                _dyk_valid = _dyk_champs[
-                    _dyk_champs['Team'].notna() &
-                    (_dyk_champs['Team'].astype(str).str.strip() != '') &
-                    (_dyk_champs['Team'].astype(str).str.lower().str.strip() != 'nan')
-                ].copy()
-                if not _dyk_valid.empty:
-                    # Show the earliest champ as a throwback
-                    _dyk_row = _dyk_valid.sort_values('YEAR').iloc[0]
-                    _dyk_year = int(_dyk_row['YEAR'])
-                    _dyk_team = str(_dyk_row.get('Team','')).strip()
-                    _dyk_user = str(_dyk_row.get('user','')).strip()
-                    _seasons_ago = CURRENT_YEAR - _dyk_year
-                    if _seasons_ago >= 2 and _dyk_team:
-                        _dyk_blurb = (
-                            f"<strong>{_dyk_user}</strong>'s {html.escape(_dyk_team)} won the very "
-                            f"first dynasty national title back in {_dyk_year} — "
-                            if _dyk_user and _dyk_user.lower() != 'nan'
-                            else f"{html.escape(_dyk_team)} won the very first dynasty national title "
-                            f"back in {_dyk_year} — "
+                _br = pd.read_csv('CFPbracketresults.csv')
+                _comp_col = next((c for c in _br.columns if c.strip().upper() == 'COMPLETED'), None)
+                if _comp_col:
+                    _br = _br[pd.to_numeric(_br[_comp_col], errors='coerce').fillna(0).astype(int) == 1].copy()
+                if not _br.empty:
+                    _t1 = next((c for c in _br.columns if c.strip().upper() in ['TEAM1','AWAY','VISITOR']), 'TEAM1')
+                    _t2 = next((c for c in _br.columns if c.strip().upper() in ['TEAM2','HOME']), 'TEAM2')
+                    _s1 = next((c for c in _br.columns if c.strip().upper() in ['TEAM1_SCORE','AWAY SCORE','VIS SCORE']), 'TEAM1_SCORE')
+                    _s2 = next((c for c in _br.columns if c.strip().upper() in ['TEAM2_SCORE','HOME SCORE']), 'TEAM2_SCORE')
+                    _rnd = next((c for c in _br.columns if c.strip().upper() in ['ROUND','WEEK']), 'ROUND')
+                    _br = _br.iloc[::-1]
+                    for _, _g in _br.iterrows():
+                        _team1 = str(_g.get(_t1,'')).strip(); _team2 = str(_g.get(_t2,'')).strip()
+                        _score1 = _hh_safe_int(_g.get(_s1, 0), 0); _score2 = _hh_safe_int(_g.get(_s2, 0), 0)
+                        if not _team1 or not _team2 or _score1 == _score2:
+                            continue
+                        _winner_team = _team1 if _score1 > _score2 else _team2
+                        _loser_team = _team2 if _score1 > _score2 else _team1
+                        _winner_user = next((u for u,t in USER_TEAMS.items() if t == _winner_team), _winner_team)
+                        _loser_user = next((u for u,t in USER_TEAMS.items() if t == _loser_team), _loser_team)
+                        _ukey = f"playoff_result:{CURRENT_YEAR}:{_winner_team}:{_loser_team}:{_hh_safe_int(_g.get(_rnd, 0), 0)}"
+                        _score = 84 + abs(_score1 - _score2) + (12 if _winner_team in USER_TEAMS.values() or _loser_team in USER_TEAMS.values() else 0)
+                        _score -= _headline_recent_penalty(_headline_history, _ukey)
+                        _headline_add(
+                            _headline_candidates,
+                            'playoff_result',
+                            {
+                                'winner_user': html.escape(str(_winner_user)), 'winner_team': html.escape(_winner_team),
+                                'loser_user': html.escape(str(_loser_user)), 'loser_team': html.escape(_loser_team),
+                                'win_score': max(_score1, _score2), 'lose_score': min(_score1, _score2),
+                                'round_name': html.escape(str(_g.get(_rnd, 'the playoff')).strip())
+                            },
+                            team=_winner_team, user=str(_winner_user), score=_score, uniqueness_key=_ukey
                         )
-                        # Count total titles in the dynasty
-                        _total_titles = len(_dyk_valid)
-                        _unique_champs = _dyk_valid['Team'].nunique()
-                        headlines.append(("📜", "Dynasty History",
-                            f"{_dyk_blurb}"
-                            f"that was {_seasons_ago} seasons ago. "
-                            f"Since then this dynasty has crowned <strong>{_total_titles} champions</strong> "
-                            f"across <strong>{_unique_champs} different programs</strong>. "
-                            f"Every great run starts somewhere."))
+                        break
             except Exception:
                 pass
 
-        # ── HTML CARD RENDERER ────────────────────────────────────────────
-        st.markdown("<br>", unsafe_allow_html=True)
+            try:
+                _champs = pd.read_csv('champs.csv')
+                _champs['YEAR'] = pd.to_numeric(_champs.get('YEAR'), errors='coerce')
+                _champs = _champs.dropna(subset=['YEAR']).copy()
+                _champs['YEAR'] = _champs['YEAR'].astype(int)
+                _valid = _champs[_champs['Team'].notna() & (_champs['Team'].astype(str).str.strip() != '')].copy()
+                if not _valid.empty:
+                    _first = _valid.sort_values('YEAR').iloc[0]
+                    _ukey = f"dynasty_history:{int(_first['YEAR'])}:{str(_first['Team']).strip()}"
+                    _score = 50
+                    _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    _headline_add(
+                        _headline_candidates,
+                        'dynasty_history',
+                        {
+                            'team': html.escape(str(_first['Team']).strip()), 'year': int(_first['YEAR']),
+                            'total_titles': len(_valid), 'unique_champs': _valid['Team'].nunique(),
+                        },
+                        team=str(_first['Team']).strip(), score=_score, uniqueness_key=_ukey
+                    )
+            except Exception:
+                pass
 
-        # Inject the CSS animation block for the cards
+        _selected_headlines = _headline_select(_headline_candidates, _headline_history, n=6)
+
+        st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""
         <style>
         .headline-card {
@@ -12257,51 +12331,39 @@ with tabs[0]:
         </style>
         """, unsafe_allow_html=True)
 
-        for _hl_emoji, _hl_title, _hl_body in headlines:
-            _team_name = ""
-            _body_lower = _hl_body.lower()
-
-            # 1. Try to find the team name from your active user dataframe
-            for _t in model_2041['TEAM'].unique():
-                _t_clean = str(_t).strip().lower()
-                if f"({_t_clean})" in _body_lower or f"({html.escape(str(_t)).strip().lower()})" in _body_lower:
-                    _team_name = _t
-                    break
-
-            # 2. User Fallback: If no team was found, look for the user's name
-            if not _team_name:
-                for _, _row in model_2041.iterrows():
-                    _u = str(_row['USER']).strip()
-                    if _u and _u.lower() not in ['nan', 'cpu', 'none', '']:
-                        if f"<strong>{_u.lower()}</strong>" in _body_lower or f" {_u.lower()} " in _body_lower or _body_lower.startswith(f"{_u.lower()}"):
-                            _team_name = str(_row['TEAM'])
-                            break
-
-            # 3. [ADDED] Global Fallback: If it's a CPU team like Nebraska, extract it directly from the text format!
-            if not _team_name:
-                import re
-                _cpu_match = re.search(r'</strong> \((.*?)\)', _hl_body)
-                if _cpu_match:
-                    # Clean up any HTML escaping just in case (e.g., Texas A&amp;M)
-                    _team_name = html.unescape(_cpu_match.group(1).strip())
-
-            # Fetch the logo using the app's native asset pipeline
-            _logo_uri = image_file_to_data_uri(get_logo_source(_team_name)) if _team_name else ""
-            _img_html = f"<img src='{_logo_uri}' width='55' style='margin-right: 15px; border-radius: 5px; object-fit: contain;'>" if _logo_uri else ""
-
-            # Use no indentation inside the HTML string to prevent Markdown code blocks
-            _card_html = f"""<div class="headline-card">
+        if not _selected_headlines:
+            st.info("No headline candidates available yet. Load current scores, rankings, injuries, or roster data to activate the story engine.")
+        else:
+            _history_rows = []
+            for _rank, _hl in enumerate(_selected_headlines, start=1):
+                _team_name = str(_hl.get('team','')).strip()
+                _logo_uri = image_file_to_data_uri(get_logo_source(_team_name)) if _team_name else ""
+                _img_html = f"<img src='{_logo_uri}' width='55' style='margin-right: 15px; border-radius: 5px; object-fit: contain;'>" if _logo_uri else ""
+                _card_html = f"""<div class="headline-card">
 {_img_html}
 <div>
 <h4 style="margin: 0; padding-bottom: 5px; font-size: 1.1rem; color: #ffffff;">
-{_hl_emoji} {_hl_title}
+{_hl['emoji']} {_hl['title']}
 </h4>
 <p style="margin: 0; font-size: 0.9rem; color: #cccccc; line-height: 1.4;">
-{_hl_body}
+{_hl['body']}
 </p>
 </div>
 </div>"""
-            st.markdown(_card_html, unsafe_allow_html=True)
+                st.markdown(_card_html, unsafe_allow_html=True)
+                _history_rows.append({
+                    'season': CURRENT_YEAR,
+                    'week': _hl.get('week', 0),
+                    'headline_id': f"{CURRENT_YEAR}-{_rank}-{_hl.get('event_type','headline')}",
+                    'event_type': _hl.get('event_type',''),
+                    'team': _hl.get('team',''),
+                    'player': _hl.get('player',''),
+                    'headline_text': re.sub(r'<[^>]+>', '', str(_hl.get('body',''))),
+                    'score': _hl.get('score', 0),
+                    'shown_rank': _rank,
+                    'uniqueness_key': _hl.get('uniqueness_key',''),
+                })
+            _headline_history_save(_history_rows)
 
 # ════════════════════════════════════════════════════════════════════
         # SECTION 3 — TOUGHEST MATCHUPS
