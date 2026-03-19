@@ -9771,6 +9771,10 @@ if data:
 
         _spd_rows = []
         for _t, _tdf in _active_r.groupby('Team'):
+            # Top-10 fastest players by SPD — used for How Fast? / How Quick? labels
+            _top10 = _tdf.nlargest(10, 'SPD')
+            _top10_spd_avg = round(float(_top10['SPD'].mean()), 1) if len(_top10) > 0 else 0.0
+            _top10_acc_avg = round(float(_top10['ACC'].mean()), 1) if len(_top10) > 0 else 0.0
             _spd_rows.append({
                 'TEAM': str(_t).strip(),
                 'Team Speed (90+ Speed Guys)':
@@ -9790,6 +9794,8 @@ if data:
                     )).sum()),
                 'Quick Hogs':
                     int((_tdf['PosNorm'].isin(_ol_pos) & (_tdf['AGI'] >= 85) & (_tdf['STR'] >= 90)).sum()),
+                'Top10_SPD_Avg': _top10_spd_avg,
+                'Top10_ACC_Avg': _top10_acc_avg,
             })
 
         _spd_df = pd.DataFrame(_spd_rows)
@@ -9798,7 +9804,7 @@ if data:
                 'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
                 'Generational (96+ speed or 96+ Acceleration)',
                 'Off Speed (90+ speed)', 'Def Speed (90+ speed)',
-                'Monsters', 'Quick Hogs',
+                'Monsters', 'Quick Hogs', 'Top10_SPD_Avg', 'Top10_ACC_Avg',
             ] if c in model_2041.columns]
             model_2041 = model_2041.drop(columns=_drop_spd, errors='ignore').merge(
                 _spd_df, on='TEAM', how='left'
@@ -9806,7 +9812,7 @@ if data:
             for _sc in ['Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
                         'Generational (96+ speed or 96+ Acceleration)',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)',
-                        'Monsters', 'Quick Hogs']:
+                        'Monsters', 'Quick Hogs', 'Top10_SPD_Avg', 'Top10_ACC_Avg']:
                 model_2041[_sc] = pd.to_numeric(model_2041[_sc], errors='coerce').fillna(0)
 
             # Alias: Quad 90 guys are also called Cheat Codes
@@ -13290,20 +13296,59 @@ with tabs[3]:
             projected_field_display['Rank'] if 'Rank' in projected_field_display.columns else 0,
             errors='coerce'
         ).fillna(999).astype(int)
-        projected_field_display['Make CFP'] = projected_field_display['CFP Make %'] if 'CFP Make %' in projected_field_display.columns else 0
-        projected_field_display['Bye Odds'] = projected_field_display['Bye %'] if 'Bye %' in projected_field_display.columns else 0
-        projected_field_display['Auto-Bid Path'] = projected_field_display['Auto-Bid Path %'] if 'Auto-Bid Path %' in projected_field_display.columns else 0
-        projected_field_display['Seed Score'] = projected_field_display['Score'] if 'Score' in projected_field_display.columns else 0
-        if 'Bubble Tier' not in projected_field_display.columns:
-            projected_field_display['Bubble Tier'] = ''
         if 'Record' not in projected_field_display.columns:
             projected_field_display['Record'] = ''
+
+        # ── Label helpers for How Fast? / How Quick? ─────────────────────────
+        def _how_fast_label(avg_spd):
+            """Top-10 SPD average → tiered label."""
+            if pd.isna(avg_spd) or avg_spd == 0:
+                return '—', '#475569'
+            v = float(avg_spd)
+            if v >= 95:   return 'WARP SPEED',    '#4ade80'
+            if v >= 93:   return 'BURNERS',        '#86efac'
+            if v >= 91:   return 'FAST',           '#fbbf24'
+            if v >= 89:   return 'ABOVE AVG',      '#fb923c'
+            if v >= 87:   return 'AVERAGE',        '#94a3b8'
+            return           'STANDARD',           '#475569'
+
+        def _how_quick_label(avg_acc):
+            """Top-10 ACC average → tiered label."""
+            if pd.isna(avg_acc) or avg_acc == 0:
+                return '—', '#475569'
+            v = float(avg_acc)
+            if v >= 95:   return 'LIGHTNING',      '#4ade80'
+            if v >= 93:   return 'EXPLOSIVE',      '#86efac'
+            if v >= 91:   return 'QUICK',          '#fbbf24'
+            if v >= 89:   return 'TWITCHY',        '#fb923c'
+            if v >= 87:   return 'AVERAGE',        '#94a3b8'
+            return           'STANDARD',           '#475569'
+
+        # ── Render the table ──────────────────────────────────────────────────
         projected_field_rows = []
         for _, row in projected_field_display.sort_values('Projected Seed Display', ascending=True).head(12).iterrows():
-            team = str(row.get('Team', ''))
+            team    = str(row.get('Team', ''))
             primary = get_team_primary_color(team)
-            logo_uri = image_file_to_data_uri(get_logo_source(team))
+            logo_uri  = image_file_to_data_uri(get_logo_source(team))
             logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:20px;'>🏈</div>"
+
+            # Team ratings — from TeamRatingsHistory via model_2041 merge
+            _ovr  = pd.to_numeric(row.get('OVERALL',  None), errors='coerce')
+            _off  = pd.to_numeric(row.get('OFFENSE',  None), errors='coerce')
+            _def  = pd.to_numeric(row.get('DEFENSE',  None), errors='coerce')
+            _ovr_disp = str(int(_ovr)) if pd.notna(_ovr) and _ovr > 0 else '—'
+            _off_disp = str(int(_off)) if pd.notna(_off) and _off > 0 else '—'
+            _def_disp = str(int(_def)) if pd.notna(_def) and _def > 0 else '—'
+
+            # Color OVR: 90+ gold, 85+ white, below silver
+            _ovr_color = '#fbbf24' if (pd.notna(_ovr) and _ovr >= 90) else ('#f1f5f9' if (pd.notna(_ovr) and _ovr >= 85) else '#94a3b8')
+
+            # How Fast? / How Quick? from Top10 roster averages
+            _spd_avg = pd.to_numeric(row.get('Top10_SPD_Avg', None), errors='coerce')
+            _acc_avg = pd.to_numeric(row.get('Top10_ACC_Avg', None), errors='coerce')
+            _fast_lbl, _fast_color = _how_fast_label(_spd_avg)
+            _quick_lbl, _quick_color = _how_quick_label(_acc_avg)
+
             cells = [f"""
             <td class="isp-td-pin">
               <div class="isp-flex-row">
@@ -13313,31 +13358,29 @@ with tabs[3]:
               </div>
             </td>
             """]
-            vals = [
-                str(int(row.get('Committee Rank Display', 0))),
-                html.escape(str(row.get('Record', ''))),
-                format_pct(row.get('Make CFP', 0), 1),
-                format_pct(row.get('Bye Odds', 0), 1),
-                format_pct(row.get('Auto-Bid Path', 0), 1),
-                html.escape(str(row.get('Bubble Tier', ''))),
-                f"{float(pd.to_numeric(row.get('Seed Score', 0), errors='coerce') or 0):.2f}",
-            ]
-            for disp in vals:
-                cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{disp}</td>")
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{str(int(row.get('Committee Rank Display', 0)))}</td>")
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(str(row.get('Record', '')))}</td>")
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:{_ovr_color};font-weight:700;'>{_ovr_disp}</td>")
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#60a5fa;'>{_off_disp}</td>")
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#f87171;'>{_def_disp}</td>")
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:{_fast_color};font-weight:700;font-size:0.78rem;letter-spacing:0.04em;'>{_fast_lbl}</td>")
+            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:{_quick_color};font-weight:700;font-size:0.78rem;letter-spacing:0.04em;'>{_quick_lbl}</td>")
+
             projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
+
         projected_field_html = f"""
         <div class="isp-table-wrap">
           <table class="isp-table">
             <thead>
               <tr class="isp-tr-header">
                 <th class="isp-th isp-th-left">Projected Field</th>
-                <th class="isp-th">Committee Rank</th>
+                <th class="isp-th">Rank</th>
                 <th class="isp-th">Record</th>
-                <th class="isp-th">Make CFP</th>
-                <th class="isp-th">Bye Odds</th>
-                <th class="isp-th">Auto-Bid Path</th>
-                <th class="isp-th">Bubble Tier</th>
-                <th class="isp-th">Seed Score</th>
+                <th class="isp-th">OVR</th>
+                <th class="isp-th">OFF</th>
+                <th class="isp-th">DEF</th>
+                <th class="isp-th">HOW FAST?</th>
+                <th class="isp-th">HOW QUICK?</th>
               </tr>
             </thead>
             <tbody>{''.join(projected_field_rows)}</tbody>
