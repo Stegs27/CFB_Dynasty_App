@@ -5570,9 +5570,11 @@ def compute_nil_value(row):
     _spd  = float(pd.to_numeric(row.get('SPD', 75), errors='coerce') or 75)
     _name = str(row.get('Name', 'X'))
 
-    # Base: quadratic on OVR. 99 OVR ≈ $1.41M, 90 OVR ≈ $844K, 80 OVR ≈ $375K, 70 OVR ≈ $94K
+    # Base: quadratic on OVR. 99 OVR ≈ $760K, 90 OVR ≈ $455K, 80 OVR ≈ $200K, 70 OVR ≈ $50K
+    # Calibrated so a 96 OVR team totals ~$47M (under $60M cap) and a
+    # hypothetical 99 OVR roster approaches ~$57M — close but never quite hits the ceiling.
     _base_factor = max(0.0, (_ovr - 60.0) / 40.0) ** 2
-    _base = _base_factor * 1_500_000
+    _base = _base_factor * 800_000
 
     # Position multipliers — QB is king, OL and specialists are the peasants
     _pos_mult = {
@@ -10957,15 +10959,15 @@ tabs = st.tabs([
     "📐 SOS & True Path",       # tabs[2]
     "🏆 Who's In?",             # tabs[3]
     "🥇 Recruiting Rankings",   # tabs[4]
-     "🚪 Roster Attrition",      # tabs[5]
-    "📺 Season Recap",          # tabs[6]
-    "🔍 Speed Freaks",          # tabs[7]
-    "🎯 Roster Matchup",        # tabs[8]
-    "🏛️ Coach Legacy",         # tabs[9]
-    "⚔️ H2H Matrix",            # tabs[10]
-    "🎬 ISPN Classics",         # tabs[11]
-    "🐐 GOAT Rankings",         # tabs[12]
-    "💰 NIL Board",             # tabs[13]
+    "🚪 Roster Attrition",      # tabs[5]
+    "💰 NIL Board",             # tabs[6]
+    "📺 Season Recap",          # tabs[7]
+    "🔍 Speed Freaks",          # tabs[8]
+    "🎯 Roster Matchup",        # tabs[9]
+    "🏛️ Coach Legacy",         # tabs[10]
+    "⚔️ H2H Matrix",            # tabs[11]
+    "🎬 ISPN Classics",         # tabs[12]
+    "🐐 GOAT Rankings",         # tabs[13]
 ])
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
@@ -14561,7 +14563,7 @@ with tabs[4]:
         st.caption("No recruiting history columns were found in recruiting.csv.")
 
     # --- H2H MATRIX ---
-with tabs[10]:
+with tabs[11]:
         st.header("⚔️ Head-to-Head Matrix")
         st.caption("All-time user vs. user records. Net Edge = wins minus losses. Rivalry Score weights game count and balance.")
 
@@ -14780,7 +14782,7 @@ with tabs[10]:
             )
 
 # --- SEASON RECAP ---
-with tabs[6]:
+with tabs[7]:
     st.header("📺 Season Recap")
     sel_year = int(st.selectbox("Select Season", years, key="season_year"))
     y_data = scores[scores[meta['yr']].astype(int) == sel_year].copy()
@@ -15043,7 +15045,7 @@ with tabs[6]:
 
 
 # --- SPEED FREAKS ---
-with tabs[7]:
+with tabs[8]:
     st.header("🔍 Speed Freaks")
     st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
 
@@ -15405,7 +15407,7 @@ with tabs[7]:
         st.dataframe(_table_df, hide_index=True, use_container_width=True)
 
 
-with tabs[9]:
+with tabs[10]:
         st.header("🏛️ Coach Legacy")
         st.caption("Career arc by coach across all schools. Powered by CPUscores_MASTER.csv, CFPbracketresults.csv, champs.csv, COTY.csv, recruiting_class_history_all.csv, and preseason_expectations_history.csv.")
 
@@ -16359,7 +16361,7 @@ with tabs[9]:
         st.markdown("### Schedule & Results")
         _sched = _schedule_df(target, int(selected_year))
         _render_coach_schedule_snapshot_table(_sched)
-with tabs[11]:
+with tabs[12]:
         st.header("🎬 ISPN Classics")
         st.caption(
             "The most iconic games in dynasty history — ranked by closeness, "
@@ -16496,7 +16498,7 @@ with tabs[11]:
                     _render_classic_card(_crow, _ci)
 
 # --- GOAT RANKINGS (Tab 12) ---
-with tabs[12]:
+with tabs[13]:
     st.header("🐐 The GOAT Council")
     st.caption("Legacy is built on titles, trophies, pipelines, and sustained dominance.")
 
@@ -20170,7 +20172,7 @@ with tabs[5]:
             st.info("No underclassmen currently flagged as possible early leavers.")
 
     # --- ROSTER MATCHUP ---
-    with tabs[8]:
+    with tabs[9]:
         render_roster_matchup_tab()
 
     # --- SIDEBAR CONTENT ---
@@ -20230,7 +20232,7 @@ with tabs[5]:
             if _ok:
                 st.cache_data.clear()
 # ── NIL BOARD (Tab 13) ────────────────────────────────────────────────────────
-with tabs[13]:
+with tabs[6]:
     st.header("💰 NIL Board")
     st.caption("Projected NIL valuations for every player on user rosters — computed from OVR, position scarcity, class year, and athleticism. Team totals show who's running a bag program.")
 
@@ -20259,7 +20261,7 @@ with tabs[13]:
             _nil_roster['NIL_Value'] = _nil_roster.apply(compute_nil_value, axis=1)
 
             # Cap each team's total at $40M — proportional scale-down preserves relative values
-            _NIL_TEAM_CAP = 40_000_000
+            _NIL_TEAM_CAP = 60_000_000
             _team_raw_totals = _nil_roster.groupby('Team')['NIL_Value'].transform('sum')
             _scale = (_NIL_TEAM_CAP / _team_raw_totals).clip(upper=1.0)
             _nil_roster['NIL_Value'] = (_nil_roster['NIL_Value'] * _scale).round(0)
