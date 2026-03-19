@@ -17856,21 +17856,25 @@ with tabs[5]:
                     _pidx = rosters[_tmask & (rosters['Pos'] == _pos)].sort_values('OVR', ascending=False).head(_n).index
                     rosters.loc[_pidx, 'Inferred Starter'] = True
 
-            seniors = rosters[rosters['Year'].str.contains('SR', na=False)].copy()
+            seniors = rosters[rosters['Year'].str.contains('SR', na=False)].reset_index(drop=True)
+
+            if seniors.empty:
+                return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
             auto_df = pd.DataFrame({
                 'Year': cur_year,
-                'Team': seniors['Team'],
-                'Player': seniors['Name'],
-                'Position': seniors['Pos'],
-                'OVR': seniors['OVR'],
-                'Class': seniors['Year'],
-                'Was Starter': seniors['Inferred Starter'].fillna(False).astype(bool)
+                'Team': seniors['Team'].values,
+                'Player': seniors['Name'].values,
+                'Position': seniors['Pos'].values,
+                'OVR': seniors['OVR'].values,
+                'Class': seniors['Year'].values,
+                'Was Starter': seniors['Inferred Starter'].fillna(False).astype(bool).values
             })
 
             return auto_df
 
-        except Exception:
+        except Exception as e:
+            st.warning(f"⚠️ get_auto_seniors error: {type(e).__name__}: {e}")
             return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
     auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
