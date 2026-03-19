@@ -9626,7 +9626,7 @@ if data:
             _roster_raw[_c] = pd.to_numeric(_roster_raw.get(_c), errors='coerce').fillna(0)
         _roster_raw['REDSHIRT'] = pd.to_numeric(_roster_raw.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
         _roster_raw['PosNorm'] = _roster_raw.get('Pos', pd.Series(dtype=str)).astype(str).str.upper().str.strip()
-        _active_r = _roster_raw[_roster_raw['REDSHIRT'] == 0].copy()
+        _active_r = _roster_raw.copy()  # REDSHIRT filter removed — tracked per team separately
 
         _front7  = {'DT','LEDG','REDG','SAM','MIKE','WILL'}
         _ol_pos  = {'LT','LG','C','RG','RT'}
@@ -11856,8 +11856,7 @@ with tabs[0]:
             _sf_roster['AGI'] = pd.to_numeric(_sf_roster.get('AGI', pd.Series(dtype=float)), errors='coerce')
             _sf_roster['COD'] = pd.to_numeric(_sf_roster.get('COD', pd.Series(dtype=float)), errors='coerce')
 
-            _sf_roster['REDSHIRT'] = pd.to_numeric(_sf_roster.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
-            _sf_active = _sf_roster[_sf_roster['REDSHIRT'] == 0]
+            _sf_active = _sf_roster.copy()  # REDSHIRT filter removed
 
             _team_speeds = []
             for _t in model_2041['TEAM'].unique():
@@ -13632,7 +13631,7 @@ with tabs[7]:
             _sf_roster['STR'] = pd.to_numeric(_sf_roster.get('STR'), errors='coerce')
             _sf_roster['REDSHIRT'] = pd.to_numeric(_sf_roster.get('REDSHIRT', 0), errors='coerce').fillna(0).astype(int)
             _sf_roster['PosNorm'] = _sf_roster.get('Pos', '').astype(str).str.upper().str.strip()
-            _sf_active = _sf_roster[_sf_roster['REDSHIRT'] == 0].copy()
+            _sf_active = _sf_roster.copy()  # REDSHIRT filter removed
 
             _front7 = {'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL'}
             _ol = {'LT', 'LG', 'C', 'RG', 'RT'}
@@ -17675,6 +17674,12 @@ with tabs[5]:
         # --- Build live OVR lookup from current roster ---
         try:
             rosters = pd.read_csv(roster_path)
+            # Filter to current season if Season column exists
+            if 'Season' in rosters.columns:
+                rosters['Season'] = pd.to_numeric(rosters['Season'], errors='coerce')
+                _avail = rosters['Season'].dropna().unique()
+                _tgt = cur_year if cur_year in _avail else (int(max(_avail)) if len(_avail) else cur_year)
+                rosters = rosters[rosters['Season'] == _tgt].copy()
             if 'Team' in rosters.columns and 'Name' in rosters.columns:
                 rosters['LookupKey'] = rosters['Team'].astype(str) + "_" + rosters['Name'].astype(str)
                 ovr_dict = dict(zip(rosters['LookupKey'], rosters['OVR'])) if 'OVR' in rosters.columns else {}
@@ -17812,6 +17817,13 @@ with tabs[5]:
             if 'Team' not in rosters.columns or 'Name' not in rosters.columns:
                 return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
+            # Filter to current season if Season column exists (multi-season roster file)
+            if 'Season' in rosters.columns:
+                rosters['Season'] = pd.to_numeric(rosters['Season'], errors='coerce')
+                _avail = rosters['Season'].dropna().unique()
+                _tgt = cur_year if cur_year in _avail else (int(max(_avail)) if len(_avail) else cur_year)
+                rosters = rosters[rosters['Season'] == _tgt].copy()
+
             rosters['Year'] = rosters['Year'].astype(str) if 'Year' in rosters.columns else ""
             rosters['Pos'] = rosters['Pos'].astype(str) if 'Pos' in rosters.columns else ""
             rosters['OVR'] = pd.to_numeric(rosters['OVR'], errors='coerce') if 'OVR' in rosters.columns else 0
@@ -17901,6 +17913,11 @@ with tabs[5]:
 
     try:
         full_roster_df = pd.read_csv('cfb26_rosters_full.csv')
+        if 'Season' in full_roster_df.columns:
+            full_roster_df['Season'] = pd.to_numeric(full_roster_df['Season'], errors='coerce')
+            _avail = full_roster_df['Season'].dropna().unique()
+            _tgt = current_yr if current_yr in _avail else (int(max(_avail)) if len(_avail) else current_yr)
+            full_roster_df = full_roster_df[full_roster_df['Season'] == _tgt].copy()
     except Exception:
         full_roster_df = pd.DataFrame()
 
