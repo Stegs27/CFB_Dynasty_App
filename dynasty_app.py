@@ -17877,18 +17877,12 @@ with tabs[5]:
             st.warning(f"⚠️ get_auto_seniors error: {type(e).__name__}: {e}")
             return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
-    auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', current_yr)
-
-    # graduates_df is built after selected_year is known (see below)
+    # auto_seniors_df is built after selected_year is known (departure_year used for season filter)
     # For available_years calculation use a temp version tagged with current_yr
-    _temp_grads = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True)
-    if not _temp_grads.empty:
-        _temp_grads['Year'] = current_yr  # temporary tag just for available_years calc
-
     # available_years = outlook seasons. A year appears when its departure data exists
     # (i.e. data tagged as year-1 in the CSVs), plus always include current_yr+1 (next outlook)
     _departure_years = set()
-    for df in [hs_df, tp_df, nfl_df, transfers_df, _temp_grads, incoming_df]:
+    for df in [hs_df, tp_df, nfl_df, transfers_df, manual_graduates_df, incoming_df]:
         if 'Year' in df.columns:
             _departure_years.update(df['Year'].dropna().unique())
     if not user_draft_results_df.empty and 'DraftYear' in user_draft_results_df.columns:
@@ -17939,9 +17933,9 @@ with tabs[5]:
     departure_year = selected_year - 1
     incoming_year  = selected_year
 
-    # Tag auto-seniors with departure_year now that we know it, then rebuild graduates_df
+    # Build auto_seniors using departure_year as the season filter
+    auto_seniors_df = get_auto_seniors('cfb26_rosters_full.csv', departure_year)
     if not auto_seniors_df.empty:
-        auto_seniors_df = auto_seniors_df.copy()
         auto_seniors_df['Year'] = departure_year
 
     graduates_df = pd.concat([manual_graduates_df, auto_seniors_df], ignore_index=True).drop_duplicates(
