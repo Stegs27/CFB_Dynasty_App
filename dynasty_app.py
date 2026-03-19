@@ -15013,7 +15013,11 @@ with tabs[1]:
             st.info("No NFL draft universe data yet. Fill cfb_user_draft_results.csv, then click Regenerate.")
         else:
             years = sorted(nfl_draft_hist["DraftYear"].dropna().unique().tolist())
-            sel_year = st.selectbox("Draft Year", years, index=len(years) - 1)
+
+            # ── Year selector state ───────────────────────────────────────
+            if "draft_central_year" not in st.session_state or st.session_state["draft_central_year"] not in years:
+                st.session_state["draft_central_year"] = years[-1]
+            sel_year = st.session_state["draft_central_year"]
 
             yr_df = nfl_draft_hist[nfl_draft_hist["DraftYear"] == sel_year].copy()
             yr_df = yr_df.sort_values(["DraftRoundCanon", "GeneratedOverallPick"])
@@ -15022,24 +15026,20 @@ with tabs[1]:
                 yr_df["DraftSource"].astype(str).str.strip().str.lower().eq("user_results")
             ].copy()
 
-            k1, k2, k3, k4, k5 = st.columns(5)
-            with k1:
-                st.metric("Players Drafted", len(yr_df))
-            with k2:
-                st.metric("1st Rounders", int((yr_df["DraftRoundCanon"] == 1).sum()))
-            with k3:
-                top_user = yr_df["CollegeUser"].value_counts().idxmax() if not yr_df["CollegeUser"].dropna().empty else "—"
-                st.metric("Top User Pipeline", top_user)
-            with k4:
-                if not tracked_yr_df.empty:
-                    best_pick = int(pd.to_numeric(tracked_yr_df["GeneratedOverallPick"], errors="coerce").min())
-                else:
-                    best_pick = int(pd.to_numeric(yr_df["GeneratedOverallPick"], errors="coerce").min()) if not yr_df.empty else 0
-                st.metric("Earliest User Pick", best_pick if best_pick else "—")
-            with k5:
-                top_bucket = yr_df["PosBucket"].value_counts().idxmax() if not yr_df["PosBucket"].dropna().empty else "—"
-                st.metric("Top Position Bucket", top_bucket)
+            # ── Compute metrics ───────────────────────────────────────────
+            _total_drafted = len(yr_df)
+            _first_rounders = int((yr_df["DraftRoundCanon"] == 1).sum())
+            _top_user = yr_df["CollegeUser"].value_counts().idxmax() if not yr_df["CollegeUser"].dropna().empty else "—"
+            if not tracked_yr_df.empty:
+                _best_pick_val = pd.to_numeric(tracked_yr_df["GeneratedOverallPick"], errors="coerce").min()
+            elif not yr_df.empty:
+                _best_pick_val = pd.to_numeric(yr_df["GeneratedOverallPick"], errors="coerce").min()
+            else:
+                _best_pick_val = None
+            _best_pick = f"#{int(_best_pick_val)}" if _best_pick_val and not pd.isna(_best_pick_val) else "—"
+            _top_bucket = yr_df["PosBucket"].value_counts().idxmax() if not yr_df["PosBucket"].dropna().empty else "—"
 
+            # ── Top pick data ─────────────────────────────────────────────
             if not tracked_yr_df.empty:
                 top_pick = tracked_yr_df.sort_values("GeneratedOverallPick", ascending=True).iloc[0]
             elif not yr_df.empty:
@@ -15048,61 +15048,170 @@ with tabs[1]:
                 top_pick = None
 
             if top_pick is not None:
+                _school      = str(top_pick.get("CollegeTeam", ""))
+                _nfl_team    = str(top_pick.get("GeneratedNFLTeam", ""))
+                _player      = str(top_pick.get("Player", ""))
+                _user_name   = clean_display(top_pick.get("CollegeUser", ""), "")
+                _pos         = str(top_pick.get("Pos", ""))
+                _pos_bucket  = str(top_pick.get("PosBucket", ""))
+                _rookie_role = str(top_pick.get("RookieRole", ""))
+                _career_tier = str(top_pick.get("CareerTier", ""))
+                _story_tag   = html.escape(str(top_pick.get("StoryTag", "")))
+                _pick_no     = int(safe_num(top_pick.get("GeneratedOverallPick", 0), 0))
+                _rnd         = int(safe_num(top_pick.get("DraftRoundCanon", 0), 0))
+                _college_ovr = int(safe_num(top_pick.get("CollegeOVR", 0), 0))
+                _nfl_ovr     = int(safe_num(top_pick.get("OVR", 0), 0))
+                _draft_src   = str(top_pick.get("DraftSource", "user_results")).strip().lower()
 
-                school = str(top_pick.get("CollegeTeam", ""))
-                nfl_team = str(top_pick.get("GeneratedNFLTeam", ""))
-                player = str(top_pick.get("Player", ""))
-                user_name = clean_display(top_pick.get("CollegeUser", ""), "")
-                pos = str(top_pick.get("Pos", ""))
-                pos_bucket = str(top_pick.get("PosBucket", ""))
-                rookie_role = str(top_pick.get("RookieRole", ""))
-                career_tier = str(top_pick.get("CareerTier", ""))
-                story_tag = str(top_pick.get("StoryTag", ""))
-                pick_no = int(safe_num(top_pick.get("GeneratedOverallPick", 0), 0))
-                rnd = int(safe_num(top_pick.get("DraftRoundCanon", 0), 0))
-                college_ovr = int(safe_num(top_pick.get("CollegeOVR", 0), 0))
-                ovr = int(safe_num(top_pick.get("OVR", 0), 0))
-                draft_source = str(top_pick.get("DraftSource", "user_results")).strip().lower()
+                # School logo
+                _school_logo_src = get_school_logo_src(_school) or ""
+                if _school_logo_src:
+                    _school_logo_html = f'<img src="{_school_logo_src}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;">'
+                else:
+                    _school_logo_html = '<div style="width:44px;height:44px;border-radius:6px;background:var(--secondary-background-color);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:20px;">🎓</div>'
 
-                left, mid, right = st.columns([1.15, 1.35, 1.1])
+                # NFL logo
+                _nfl_logo_src = get_nfl_logo_src(_nfl_team) or ""
+                if _nfl_logo_src:
+                    _nfl_logo_html = f'<img src="{_nfl_logo_src}" style="width:44px;height:44px;object-fit:contain;border-radius:6px;">'
+                else:
+                    _nfl_logo_html = '<div style="width:44px;height:44px;border-radius:6px;background:var(--secondary-background-color);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:20px;">🏈</div>'
 
-                with left:
-                    school_logo_src = get_school_logo_src(school)
-                    if school_logo_src:
-                        st.image(school_logo_src, width=58)
-                    st.caption("TOP USER PICK SCHOOL")
-                    st.markdown(f"**{school}**")
-                    st.write(f"{pos} / {pos_bucket} • {college_ovr} CFB OVR • {ovr} NFL Rookie OVR")
+                # User brand color chip
+                _primary_color = get_team_primary_color(_school) if _school else ""
+                if _draft_src == "background_r1":
+                    _user_chip = "<span style='display:inline-block;background:rgba(148,163,184,0.18);color:#94a3b8;border:1px solid rgba(148,163,184,0.30);font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;'>League Prospect</span>"
+                elif _user_name and _primary_color:
+                    import re as _re
+                    _hex = _primary_color.lstrip("#")
+                    try:
+                        _r, _g, _b = int(_hex[0:2],16), int(_hex[2:4],16), int(_hex[4:6],16)
+                        _user_chip = f"<span style='display:inline-block;background:rgba({_r},{_g},{_b},0.18);color:{_primary_color};border:1px solid rgba({_r},{_g},{_b},0.40);font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;'>{html.escape(_user_name)}</span>"
+                    except Exception:
+                        _user_chip = f"<span style='display:inline-block;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.35);font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;'>{html.escape(_user_name)}</span>"
+                elif _user_name:
+                    _user_chip = f"<span style='display:inline-block;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.35);font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;'>{html.escape(_user_name)}</span>"
+                else:
+                    _user_chip = "<span style='display:inline-block;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.35);font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;'>CPU</span>"
 
-                    if draft_source == "background_r1":
-                        st.markdown(
-                            "<span style='display:inline-block;background:rgba(148,163,184,0.18);color:#e2e8f0;border:1px solid rgba(148,163,184,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>League Prospect</span>",
-                            unsafe_allow_html=True
-                        )
-                    elif user_name:
-                        st.markdown(
-                            f"<span style='display:inline-block;background:rgba(34,197,94,0.18);color:#dcfce7;border:1px solid rgba(34,197,94,0.35);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>{html.escape(user_name)}</span>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            "<span style='display:inline-block;background:rgba(59,130,246,0.18);color:#dbeafe;border:1px solid rgba(59,130,246,0.30);font-size:0.78rem;font-weight:700;padding:4px 8px;border-radius:999px;margin-top:8px;'>CPU</span>",
-                            unsafe_allow_html=True
-                        )
+                # Career tier chip color
+                _tier_colors = {
+                    "superstar": ("rgba(250,204,21,0.18)", "#fbbf24", "rgba(250,204,21,0.40)"),
+                    "star":      ("rgba(74,222,128,0.15)", "#4ade80", "rgba(74,222,128,0.35)"),
+                    "starter":   ("rgba(96,165,250,0.15)", "#60a5fa", "rgba(96,165,250,0.35)"),
+                    "backup":    ("rgba(148,163,184,0.15)", "#94a3b8", "rgba(148,163,184,0.30)"),
+                }
+                _tc = _tier_colors.get(_career_tier.lower(), _tier_colors["backup"])
+                _tier_chip = f"<span style='display:inline-block;background:{_tc[0]};color:{_tc[1]};border:1px solid {_tc[2]};font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;'>{html.escape(_career_tier)}</span>"
+                _role_chip  = f"<span style='display:inline-block;background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.35);font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;'>{html.escape(_rookie_role)}</span>"
 
-                with mid:
-                    st.caption("EARLIEST USER PICK")
-                    st.markdown(f"## #{pick_no}")
-                    st.markdown(f"**{player}**")
-                    st.write(f"Round {rnd} • {rookie_role} • {career_tier}")
-                    st.caption(story_tag)
+                # Year selector pills for card header
+                _year_pills = ""
+                for _yr in years:
+                    _active_style = "background:#f1f5f9;color:#0f172a;border-color:transparent;" if int(_yr) == int(sel_year) else ""
+                    _year_pills += (
+                        f'<button onclick="window.parent.postMessage({{type:\'streamlit:setComponentValue\',value:{int(_yr)}}},\'*\')" '
+                        f'style="font-size:12px;font-weight:500;padding:4px 10px;border-radius:6px;cursor:pointer;'
+                        f'border:1px solid rgba(148,163,184,0.35);color:#94a3b8;background:transparent;{_active_style}">'
+                        f'{int(_yr)}</button>'
+                    )
 
-                with right:
-                    nfl_logo_src = get_nfl_logo_src(nfl_team)
-                    if nfl_logo_src:
-                        st.image(nfl_logo_src, width=58)
-                    st.caption("DRAFTED BY")
-                    st.markdown(f"**{nfl_team}**")
+                # ── Render spotlight card ─────────────────────────────────
+                components.html(f"""
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
+  .dc-metrics {{ display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; margin-bottom: 16px; }}
+  .dc-metric {{ background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px 12px; text-align: center; border: 1px solid rgba(255,255,255,0.08); }}
+  .dc-metric-num {{ font-size: 20px; font-weight: 500; color: #f1f5f9; line-height: 1.2; }}
+  .dc-metric-lbl {{ font-size: 10px; color: #64748b; margin-top: 3px; text-transform: uppercase; letter-spacing: .05em; }}
+  .dc-card {{ border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; overflow: hidden; }}
+  .dc-header {{ background: rgba(255,255,255,0.04); padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; gap: 12px; }}
+  .dc-header-label {{ font-size: 11px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }}
+  .dc-year-tabs {{ display: flex; gap: 4px; }}
+  .dc-body {{ display: grid; grid-template-columns: 1fr auto 1fr; }}
+  .dc-panel {{ padding: 18px 20px; }}
+  .dc-panel-mid {{ border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 24px; text-align: center; min-width: 190px; }}
+  .dc-panel-label {{ font-size: 10px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }}
+  .dc-logo-row {{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }}
+  .dc-team-name {{ font-size: 16px; font-weight: 500; color: #f1f5f9; }}
+  .dc-team-sub  {{ font-size: 12px; color: #64748b; margin-top: 2px; }}
+  .dc-chips {{ display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }}
+  .dc-chip-gray {{ display:inline-block;background:rgba(148,163,184,0.12);color:#94a3b8;border:1px solid rgba(148,163,184,0.25);font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px; }}
+  .dc-pick-label {{ font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .06em; }}
+  .dc-pick-num   {{ font-size: 52px; font-weight: 500; color: #f1f5f9; line-height: 1; margin: 2px 0 6px; }}
+  .dc-player-name {{ font-size: 18px; font-weight: 500; color: #f1f5f9; }}
+  .dc-player-sub  {{ font-size: 12px; color: #64748b; margin-top: 4px; }}
+  .dc-story {{ font-size: 12px; color: #64748b; margin-top: 10px; font-style: italic; border-left: 2px solid rgba(255,255,255,0.12); padding-left: 8px; line-height: 1.5; }}
+  .dc-nfl-row {{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; justify-content: flex-end; }}
+  .dc-nfl-name {{ font-size: 16px; font-weight: 500; color: #f1f5f9; text-align: right; }}
+  .dc-nfl-sub  {{ font-size: 12px; color: #64748b; margin-top: 2px; text-align: right; }}
+</style>
+
+<div style="padding:4px 0 0;">
+
+  <div class="dc-metrics">
+    <div class="dc-metric"><div class="dc-metric-num">{_total_drafted}</div><div class="dc-metric-lbl">Players Drafted</div></div>
+    <div class="dc-metric"><div class="dc-metric-num">{_first_rounders}</div><div class="dc-metric-lbl">1st Rounders</div></div>
+    <div class="dc-metric"><div class="dc-metric-num">{html.escape(str(_top_user))}</div><div class="dc-metric-lbl">Top Pipeline</div></div>
+    <div class="dc-metric"><div class="dc-metric-num">{_best_pick}</div><div class="dc-metric-lbl">Earliest Pick</div></div>
+    <div class="dc-metric"><div class="dc-metric-num">{html.escape(str(_top_bucket))}</div><div class="dc-metric-lbl">Top Position</div></div>
+  </div>
+
+  <div class="dc-card">
+    <div class="dc-header">
+      <span class="dc-header-label">Top User Pick</span>
+      <div class="dc-year-tabs">{_year_pills}</div>
+    </div>
+    <div class="dc-body">
+
+      <div class="dc-panel">
+        <div class="dc-panel-label">School</div>
+        <div class="dc-logo-row">
+          {_school_logo_html}
+          <div>
+            <div class="dc-team-name">{html.escape(_school)}</div>
+            <div class="dc-team-sub">{html.escape(_pos)} / {html.escape(_pos_bucket)}</div>
+          </div>
+        </div>
+        <div class="dc-chips">
+          {_user_chip}
+          <span class="dc-chip-gray">{_college_ovr} CFB OVR</span>
+        </div>
+      </div>
+
+      <div class="dc-panel-mid">
+        <div class="dc-pick-label">Overall Pick</div>
+        <div class="dc-pick-num">#{_pick_no}</div>
+        <div class="dc-player-name">{html.escape(_player)}</div>
+        <div class="dc-player-sub">Round {_rnd} &nbsp;·&nbsp; {_nfl_ovr} NFL Rookie OVR</div>
+        <div class="dc-chips" style="justify-content:center;margin-top:10px;">
+          {_tier_chip}
+          {_role_chip}
+        </div>
+        <div class="dc-story">{_story_tag}</div>
+      </div>
+
+      <div class="dc-panel">
+        <div class="dc-panel-label" style="text-align:right;">Drafted By</div>
+        <div class="dc-nfl-row">
+          <div>
+            <div class="dc-nfl-name">{html.escape(_nfl_team)}</div>
+          </div>
+          {_nfl_logo_html}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+""", height=280, scrolling=False)
+
+            # ── Year selector (hidden — driven by card pills via session state) ──
+            _sel_idx = years.index(sel_year) if sel_year in years else len(years) - 1
+            _new_year = st.selectbox("Draft Year", years, index=_sel_idx, key="draft_central_year_select", label_visibility="collapsed")
+            if _new_year != sel_year:
+                st.session_state["draft_central_year"] = _new_year
+                st.rerun()
 
             st.markdown("#### Draft Results")
 
