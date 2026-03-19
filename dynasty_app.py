@@ -14204,6 +14204,99 @@ with tabs[9]:
 
             return _df.fillna('—')
 
+        def _render_coach_legacy_snapshot_table(df):
+            if df.empty:
+                st.caption("No coach legacy rows available.")
+                return
+
+            _df = _pretty_legacy_table(df).copy()
+            _rows_html = []
+
+            for _, _row in _df.sort_values('Year', ascending=False).iterrows():
+                _team = str(_row.get('School', '')).strip()
+                _primary = get_team_primary_color(_team) if 'get_team_primary_color' in globals() else '#38bdf8'
+                _logo_uri = None
+                try:
+                    _logo_path = get_logo_source(_team) if 'get_logo_source' in globals() else None
+                    _logo_uri = image_file_to_data_uri(_logo_path) if _logo_path and 'image_file_to_data_uri' in globals() else None
+                except Exception:
+                    _logo_uri = None
+
+                _logo_html = f"<img src='{_logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if _logo_uri else "<div style='font-size:20px;'>🏫</div>"
+
+                _year_disp = html.escape(str(_row.get('Year', '—')))
+                _team_disp = html.escape(_team)
+                _record_disp = html.escape(str(_row.get('Record', '—')))
+                _cfp_disp = html.escape(str(_row.get('CFP Result', '—')))
+                _natty_disp = html.escape(str(_row.get('National Title', '—')))
+                _natty_color = '#fbbf24' if str(_row.get('National Title', 'No')).strip().lower() == 'yes' else '#e5e7eb'
+                _coty_disp = html.escape(str(_row.get('Coach of the Year', '—')))
+                _coty_color = '#60a5fa' if str(_row.get('Coach of the Year', 'No')).strip().lower() == 'yes' else '#e5e7eb'
+
+                _cells = [f'''
+                <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="font-weight:800;min-width:34px;text-align:center;color:#e5e7eb;">{_year_disp}</div>
+                    <div style="width:38px;text-align:center;">{_logo_html}</div>
+                    <div style="font-weight:800;color:{_primary};">{_team_disp}</div>
+                  </div>
+                </td>
+                ''']
+
+                _vals = [
+                    _record_disp,
+                    _cfp_disp,
+                    f"<span style='color:{_natty_color};font-weight:800;'>{_natty_disp}</span>",
+                    html.escape(str(_row.get('Preseason Natty Odds', '—'))),
+                    html.escape(str(_row.get('Preseason CFP Odds', '—'))),
+                    html.escape(str(_row.get('SOS', '—'))),
+                    html.escape(str(_row.get('SOS Tier', '—'))),
+                    html.escape(str(_row.get('Hardest Path', '—'))),
+                    html.escape(str(_row.get('Path Tier', '—'))),
+                    html.escape(str(_row.get('Final Rank', '—'))),
+                    html.escape(str(_row.get('Recruiting Overall', '—'))),
+                    html.escape(str(_row.get('Recruiting HS', '—'))),
+                    html.escape(str(_row.get('Recruiting Transfer', '—'))),
+                    html.escape(str(_row.get('Projected Wins', '—'))),
+                    html.escape(str(_row.get('Actual Wins', '—'))),
+                    f"<span style='color:{_coty_color};font-weight:800;'>{_coty_disp}</span>",
+                ]
+
+                for _disp in _vals:
+                    _cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{_disp}</td>")
+
+                _rows_html.append(f"<tr style='border-left:6px solid {_primary};background:linear-gradient(90deg,{_primary}22,rgba(15,23,42,.95) 14%);'>{''.join(_cells)}</tr>")
+
+            _table_html = f'''
+            <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="background:#111827;color:#f8fafc;">
+                    <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Year-by-Year Legacy</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Record</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">CFP Result</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Natty</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Natty Odds</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">CFP Odds</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">SOS</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">SOS Tier</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Hardest Path</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Path Tier</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Final Rank</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Rec Ovr</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">HS</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Portal</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Proj Wins</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Actual Wins</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">COTY</th>
+                  </tr>
+                </thead>
+                <tbody>{''.join(_rows_html)}</tbody>
+              </table>
+            </div>
+            '''
+            st.markdown(_table_html, unsafe_allow_html=True)
+
         if not legacy_df.empty:
             legacy_df['SOS Tier'] = legacy_df['SOS'].apply(_sos_tier) if 'SOS' in legacy_df.columns else "—"
             if 'Path Tier' not in legacy_df.columns and 'Hardest Path' in legacy_df.columns:
@@ -14292,11 +14385,7 @@ with tabs[9]:
             if _col in _display_df.columns:
                 _display_df[_col] = _display_df[_col].where(_display_df[_col].notna(), None)
         _legacy_table_show = _display_df[['Year','School','Record','CFP Result','National Title','Preseason Natty Odds','Preseason CFP Odds','SOS','SOS Tier','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']].copy()
-        st.dataframe(
-            _pretty_legacy_table(_legacy_table_show),
-            use_container_width=True,
-            hide_index=True
-        )
+        _render_coach_legacy_snapshot_table(_legacy_table_show)
 
         # Selected season controls
         _default_year = int(legacy_df['Year'].max()) if not legacy_df.empty else int(CURRENT_YEAR)
