@@ -4967,7 +4967,86 @@ IS_BOWL_WEEK        = _DYNASTY_STATE['IsBowlWeek']
 BOWL_ROUND          = _DYNASTY_STATE['BowlRound']
 
 st.markdown("""
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,600&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+    /* ── ISPN GLOBAL TYPOGRAPHY ──────────────────────────────────────────── */
+    html, body, [class*="css"], .stApp {
+        font-family: 'Barlow', sans-serif !important;
+    }
+
+    /* Headers — Barlow Condensed bold, slightly wider tracking */
+    h1, h2, h3, h4, h5, h6,
+    [data-testid="stHeading"],
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        font-family: 'Barlow Condensed', sans-serif !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.02em;
+    }
+
+    /* Tab labels */
+    button[data-testid="stBaseButton-tertiary"],
+    div[data-testid="stTabList"] button {
+        font-family: 'Barlow Condensed', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.04em;
+    }
+
+    /* Metric big numbers — Bebas Neue */
+    [data-testid="stMetricValue"] {
+        font-family: 'Bebas Neue', sans-serif !important;
+        font-size: 2rem !important;
+        letter-spacing: 0.03em;
+    }
+    [data-testid="stMetricLabel"] {
+        font-family: 'Barlow', sans-serif !important;
+        font-size: 0.72rem !important;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    /* Sidebar labels & select boxes */
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] .stSelectbox,
+    [data-testid="stSidebar"] p {
+        font-family: 'Barlow', sans-serif !important;
+    }
+
+    /* Dataframe / table text */
+    .stDataFrame, .dataframe, [data-testid="stDataFrame"] {
+        font-family: 'Barlow', sans-serif !important;
+        font-size: 0.85rem !important;
+    }
+
+    /* Captions */
+    .stCaption, [data-testid="stCaptionContainer"] {
+        font-family: 'Barlow', sans-serif !important;
+    }
+
+    /* Expander headers */
+    [data-testid="stExpander"] summary,
+    details summary {
+        font-family: 'Barlow Condensed', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.03em;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        font-family: 'Barlow Condensed', sans-serif !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    /* Selectbox / input labels */
+    label[data-testid="stWidgetLabel"] {
+        font-family: 'Barlow Condensed', sans-serif !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.04em;
+    }
+
     /* 1. HIDE DEFAULT STREAMLIT ELEMENTS */
     .stDeployButton {display:none;}
     [data-testid="stDecoration"] {display:none;}
@@ -12840,7 +12919,7 @@ with tabs[0]:
                 _cards_html += "\n  </div>\n</div>"
                 _n_cards = len(_featured_list)
                 _n_rows = -(-_n_cards // 3)  # ceiling div for 3-col layout
-                _card_height = 60 + (_n_rows * 240)
+                _card_height = 100 + (_n_rows * 310)
                 components.html(_cards_html, height=_card_height, scrolling=False)
 
                 with st.expander("⚡ How the Heisman Odds formula works"):
