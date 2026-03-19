@@ -11240,7 +11240,7 @@ with tabs[2]:
             _uvw_games = pd.DataFrame()
             _conf_st   = pd.DataFrame()
             try:
-                _conf_st = pd.read_csv('conf_standings_2041.csv')
+                _conf_st = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
                 _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
                 _conf_st['USER'] = _conf_st['USER'].fillna('')
                 _team_row = _conf_st[_conf_st['TEAM'] == sel_team_name]
@@ -11345,7 +11345,7 @@ with tabs[2]:
                 'B1G': "B1G — co-king of the dynasty. 9-game conf schedule.",
                 'ACC': "ACC — top-heavy, real teeth at the top.",
             }.get(sel_conf_name, f"{sel_conf_name}.")
-            src_note = "Record from conf_standings_2041.csv." if _from_standings else "⚠️ conf_standings_2041.csv not found — user-vs-user fallback only."
+            src_note = f"Record from conf_standings_{CURRENT_YEAR}.csv." if _from_standings else f"⚠️ conf_standings_{CURRENT_YEAR}.csv not found — user-vs-user fallback only."
             st.caption(f"📌 {conf_tier_note} {src_note} User-vs-user matchups shown individually.")
 
         else:
@@ -12153,10 +12153,15 @@ with tabs[0]:
                 st.caption("No Heisman data loaded.")
 
             # Current candidates from roster
-            st.markdown("#### 🌟 2041 Heisman Candidates")
+            st.markdown(f"#### 🌟 {CURRENT_YEAR} Heisman Candidates")
             st.caption("Top skill position players by OVR from current rosters.")
             try:
                 roster_for_awards = pd.read_csv('cfb26_rosters_full.csv')
+                if 'Season' in roster_for_awards.columns:
+                    roster_for_awards['Season'] = pd.to_numeric(roster_for_awards['Season'], errors='coerce')
+                    _avail = roster_for_awards['Season'].dropna().unique()
+                    _tgt = CURRENT_YEAR if CURRENT_YEAR in _avail else (int(max(_avail)) if len(_avail) else CURRENT_YEAR)
+                    roster_for_awards = roster_for_awards[roster_for_awards['Season'] == _tgt].copy()
                 skill_pos = ['QB','HB','WR','TE']
                 candidates = roster_for_awards[roster_for_awards['Pos'].isin(skill_pos)].nlargest(6, 'OVR')[['Team','Name','Pos','Year','OVR','SPD']].reset_index(drop=True)
 
@@ -12222,47 +12227,34 @@ with tabs[0]:
         st.subheader("🚑 Injury Report")
         st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
 
-        INJURY_DATA = [
-            {
-                "user": "Mike", "team": "San Jose State", "seed": 8,
-                "injuries": [
-                    {"name": "M.Shorter",  "pos": "QB",   "ovr": 85, "injury": "Torn Pectoral",       "weeks": 27, "status": "Injured"},
-                    {"name": "D.Caplan",   "pos": "LT",   "ovr": 86, "injury": "Broken Collarbone",    "weeks": 4,  "status": "Injured"},
-                ]
-            },
-            {
-                "user": "Noah", "team": "Texas Tech", "seed": 2,
-                "injuries": [
-                    {"name": "K.Cota",     "pos": "LT",   "ovr": 82, "injury": "Knee Cartilage Tear",  "weeks": 2,  "status": "Injured"},
-                ]
-            },
-            {
-                "user": "Josh", "team": "USF", "seed": 11,
-                "injuries": [
-                    {"name": "T.Christmas","pos": "RG",   "ovr": 76, "injury": "Dislocated Hip",        "weeks": 4,  "status": "Injured"},
-                ]
-            },
-            {
-                "user": "Devin", "team": "Bowling Green", "seed": 4,
-                "injuries": [
-                    {"name": "B.Franco",   "pos": "DT",   "ovr": 84, "injury": "Torn Pectoral",         "weeks": 24, "status": "Injured"},
-                ]
-            },
-            {
-                "user": "Doug", "team": "Florida", "seed": 24,
-                "injuries": [
-                    {"name": "S.Ivie",     "pos": "LEDG", "ovr": 80, "injury": "Dislocated Hip",         "weeks": 1,  "status": "Injured"},
-                    {"name": "R.Casey",    "pos": "MIKE", "ovr": 87, "injury": "Fractured Shoulder Blade","weeks": 14, "status": "Injured"},
-                ]
-            },
-            {
-                "user": "Nick", "team": "Florida State", "seed": 1,
-                "injuries": [
-                    {"name": "S.Winterswyk","pos": "QB",  "ovr": 80, "injury": "Dislocated Elbow",       "weeks": 3,  "status": "Injured"},
-                    {"name": "J.Fe'esago", "pos": "WR",   "ovr": 90, "injury": "Torn Pectoral",           "weeks": 20, "status": "Injured"},
-                ]
-            },
-        ]
+        INJURY_DATA = []
+        try:
+            _inj_csv = pd.read_csv('injury_bulletin.csv')
+            _inj_csv['Year'] = pd.to_numeric(_inj_csv.get('Year', CURRENT_YEAR), errors='coerce').fillna(CURRENT_YEAR).astype(int)
+            _inj_csv['WeeksOut'] = pd.to_numeric(_inj_csv.get('WeeksOut', 0), errors='coerce').fillna(0).astype(int)
+            _inj_csv['OVR'] = pd.to_numeric(_inj_csv.get('OVR', 0), errors='coerce').fillna(0).astype(int)
+            _inj_csv = _inj_csv[_inj_csv['Year'] == CURRENT_YEAR].copy()
+
+            # Group by team
+            _team_injuries = {}
+            for _, _ir in _inj_csv.iterrows():
+                _t = str(_ir.get('Team', '')).strip()
+                _u = str(_ir.get('User', '')).strip()
+                if not _t:
+                    continue
+                if _t not in _team_injuries:
+                    _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': 99, 'injuries': []}
+                _team_injuries[_t]['injuries'].append({
+                    'name':   str(_ir.get('Player', '—')),
+                    'pos':    str(_ir.get('Pos', '—')),
+                    'ovr':    int(_ir.get('OVR', 0)),
+                    'injury': str(_ir.get('Injury', '—')),
+                    'weeks':  int(_ir.get('WeeksOut', 0)),
+                    'status': str(_ir.get('Status', 'Out')),
+                })
+            INJURY_DATA = list(_team_injuries.values())
+        except Exception:
+            INJURY_DATA = []
 
         def injury_severity(weeks):
             if weeks >= 20: return ("🔴", "#ef4444", "Season-Ending")
