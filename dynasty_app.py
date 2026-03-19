@@ -2133,20 +2133,20 @@ def live_reveal_nfl_draft(generated_df, speed_mode="Broadcast"):
 
         stats_ph.markdown(textwrap.dedent(f"""
             <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:10px 0 16px 0;">
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Picks Revealed</div>
+                <div class="isp-stat-box">
+                    <div class="isp-muted">Picks Revealed</div>
                     <div style="font-size:1.6rem; font-weight:800; color:#fff;">{len(revealed_rows)}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Round 1 Picks</div>
+                <div class="isp-stat-box">
+                    <div class="isp-muted">Round 1 Picks</div>
                     <div style="font-size:1.6rem; font-weight:800; color:#fff;">{first_rounders}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Tracked Picks</div>
+                <div class="isp-stat-box">
+                    <div class="isp-muted">Tracked Picks</div>
                     <div style="font-size:1.6rem; font-weight:800; color:#fff;">{sum(1 for r in revealed_rows if r['Source'] == 'Tracked')}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:10px; text-align:center;">
-                    <div style="font-size:0.8rem; color:#9ca3af;">Top Pipeline</div>
+                <div class="isp-stat-box">
+                    <div class="isp-muted">Top Pipeline</div>
                     <div style="font-size:1.25rem; font-weight:800; color:#fff;">{html.escape(str(top_user))}</div>
                 </div>
             </div>
@@ -5034,6 +5034,92 @@ st.markdown("""
         h1 { font-size: 1.8rem !important; }
         h2 { font-size: 1.5rem !important; }
     }
+
+    /* ── ISPN UTILITY CLASSES ────────────────────────────────────────────
+       Global reusable classes replacing repeated inline styles.
+       Used across recruiting tables, CFP boards, SOS, H2H, Classics.
+    ─────────────────────────────────────────────────────────────────── */
+
+    /* Table containers */
+    .isp-table-wrap {
+        overflow-x: auto;
+        border: 1px solid #334155;
+        border-radius: 14px;
+        background: #0f172a;
+    }
+    .isp-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    /* Header rows */
+    .isp-tr-header {
+        background: #111827;
+        color: #f8fafc;
+    }
+
+    /* Table headers — dark bg (white text) */
+    .isp-th {
+        padding: 10px 12px;
+        color: #f8fafc;
+        font-weight: 800;
+    }
+    .isp-th-left {
+        text-align: left;
+    }
+
+    /* Table headers — light bg (dark text) */
+    .isp-th-light {
+        padding: 10px 12px;
+        color: #111827;
+        font-weight: 800;
+    }
+
+    /* Table cell — pinned/nowrap */
+    .isp-td-pin {
+        padding: 10px 12px;
+        border-bottom: 1px solid #334155;
+        white-space: nowrap;
+    }
+
+    /* Narrow number column */
+    .isp-td-num {
+        width: 38px;
+        text-align: center;
+    }
+
+    /* Stat box card */
+    .isp-stat-box {
+        background: rgba(255,255,255,0.05);
+        padding: 12px;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    /* Muted small caption text */
+    .isp-muted {
+        font-size: 0.8rem;
+        color: #9ca3af;
+    }
+
+    /* Centered block with bottom margin */
+    .isp-tc {
+        text-align: center;
+        margin-bottom: 10px;
+    }
+
+    /* Flex row with gap */
+    .isp-flex-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Logo sizes */
+    .isp-logo-55 { width: 55px; height: 55px; object-fit: contain; }
+    .isp-logo-60 { width: 60px; height: 60px; object-fit: contain; }
+    .isp-logo-65 { width: 65px; height: 65px; object-fit: contain; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -5299,7 +5385,7 @@ def render_war_room_table(board_df):
         cells = []
         team_cell = f"""
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
-          <div style="display:flex;align-items:center;gap:10px;">
+          <div class="isp-flex-row">
             <div style="width:44px;text-align:center;">{logo_html}</div>
             <div>
               <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
@@ -5333,22 +5419,22 @@ def render_war_room_table(board_df):
 
     table_html = f"""
     <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <table class="isp-table">
         <thead>
           <tr style="background:#f8fafc;color:#111827;">
-            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Team</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP Rank</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">SOS</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">QB Tier</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Power Index</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Natty Odds</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP Odds</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Natty if Lose to Unranked</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Natty if Lose to Ranked</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP if Lose to Unranked</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">CFP if Lose to Ranked</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Collapse Risk</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Program Stock</th>
+            <th class="isp-th-light isp-th-left">Team</th>
+            <th class="isp-th-light">CFP Rank</th>
+            <th class="isp-th-light">SOS</th>
+            <th class="isp-th-light">QB Tier</th>
+            <th class="isp-th-light">Power Index</th>
+            <th class="isp-th-light">Natty Odds</th>
+            <th class="isp-th-light">CFP Odds</th>
+            <th class="isp-th-light">Natty if Lose to Unranked</th>
+            <th class="isp-th-light">Natty if Lose to Ranked</th>
+            <th class="isp-th-light">CFP if Lose to Unranked</th>
+            <th class="isp-th-light">CFP if Lose to Ranked</th>
+            <th class="isp-th-light">Collapse Risk</th>
+            <th class="isp-th-light">Program Stock</th>
           </tr>
         </thead>
         <tbody>{''.join(rows_html)}</tbody>
@@ -7052,10 +7138,10 @@ def render_recruiting_snapshot_table(df):
         logo_uri = image_file_to_data_uri(get_logo_source(team))
         logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:20px;'>🏈</div>"
         cells = [f"""
-        <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
-          <div style="display:flex;align-items:center;gap:10px;">
+        <td class="isp-td-pin">
+          <div class="isp-flex-row">
             <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
-            <div style="width:38px;text-align:center;">{logo_html}</div>
+            <div class="isp-td-num">{logo_html}</div>
             <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
           </div>
         </td>
@@ -7072,17 +7158,17 @@ def render_recruiting_snapshot_table(df):
             cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(disp)}</td>")
         rows_html.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
     table_html = f"""
-    <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <div class="isp-table-wrap">
+      <table class="isp-table">
         <thead>
-          <tr style="background:#111827;color:#f8fafc;">
-            <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Top 25 Snapshot</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Total</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">5★</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">4★</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">3★</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Points</th>
-            <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Blue Chip Ratio</th>
+          <tr class="isp-tr-header">
+            <th class="isp-th isp-th-left">Top 25 Snapshot</th>
+            <th class="isp-th">Total</th>
+            <th class="isp-th">5★</th>
+            <th class="isp-th">4★</th>
+            <th class="isp-th">3★</th>
+            <th class="isp-th">Points</th>
+            <th class="isp-th">Blue Chip Ratio</th>
           </tr>
         </thead>
         <tbody>{''.join(rows_html)}</tbody>
@@ -7806,7 +7892,7 @@ def render_recruiting_table(df):
         logo_html = f"<img src='{logo_uri}' style='width:38px;height:38px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:22px;'>🏈</div>"
         cells = [f"""
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
-          <div style="display:flex;align-items:center;gap:10px;">
+          <div class="isp-flex-row">
             <div style="font-weight:800;min-width:24px;text-align:center;">#{int(row.get('Projected Seed Display', 0))}</div>
             <div style="width:40px;text-align:center;">{logo_html}</div>
             <div>
@@ -7832,19 +7918,19 @@ def render_recruiting_table(df):
         rows_html.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}12,transparent 14%);'>{''.join(cells)}</tr>")
     table_html = f"""
     <div style="overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <table class="isp-table">
         <thead>
           <tr style="background:#f8fafc;color:#111827;">
-            <th style="text-align:left;padding:10px 12px;color:#111827;font-weight:800;">Recruiting Board</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Recent Classes</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Weighted Avg Rank</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Heat Index</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Pipeline Score</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Speed Recruiter</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Blue Chip</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Class Tier</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Trajectory</th>
-            <th style="padding:10px 12px;color:#111827;font-weight:800;">Notes</th>
+            <th class="isp-th-light isp-th-left">Recruiting Board</th>
+            <th class="isp-th-light">Recent Classes</th>
+            <th class="isp-th-light">Weighted Avg Rank</th>
+            <th class="isp-th-light">Heat Index</th>
+            <th class="isp-th-light">Pipeline Score</th>
+            <th class="isp-th-light">Speed Recruiter</th>
+            <th class="isp-th-light">Blue Chip</th>
+            <th class="isp-th-light">Class Tier</th>
+            <th class="isp-th-light">Trajectory</th>
+            <th class="isp-th-light">Notes</th>
           </tr>
         </thead>
         <tbody>{''.join(rows_html)}</tbody>
@@ -8096,35 +8182,53 @@ def render_current_user_games_cards(games_df, model_df, scores_df):
         st.markdown(card_html, unsafe_allow_html=True)
 
 
-def _load_recruiting_csv(filename):
-    """Load a recruiting history CSV. Returns empty DataFrame with standard cols if missing."""
-    _std_cols = ['Year','Rank','Team','User','TotalCommits','FiveStar','FourStar',
+def _load_recruiting_csv(filename=None):
+    """
+    Load recruiting history. Always tries recruiting_class_history_all.csv first
+    (single source of truth). Falls back to the supplied filename only if the
+    primary file is missing or empty.
+    """
+    _std_cols = ['Year','ClassType','Rank','Team','User','TotalCommits','FiveStar','FourStar',
                  'ThreeStar','TwoStar','OneStar','Points']
-    try:
-        df = pd.read_csv(filename)
+
+    def _read_and_clean(path):
+        df = pd.read_csv(path)
         df.columns = [c.strip() for c in df.columns]
         for c in ['Rank','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Year']:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
         if 'Points' in df.columns:
             df['Points'] = pd.to_numeric(df['Points'], errors='coerce').fillna(0.0)
+        if 'ClassType' not in df.columns:
+            df['ClassType'] = 'OVERALL'
         return df
+
+    # Always try the primary file first
+    try:
+        df = _read_and_clean('recruiting_class_history_all.csv')
+        if not df.empty:
+            return df
     except Exception:
-        return pd.DataFrame(columns=_std_cols)
+        pass
+
+    # Fall back to the supplied filename if provided
+    if filename and filename != 'recruiting_class_history_all.csv':
+        try:
+            df = _read_and_clean(filename)
+            if not df.empty:
+                return df
+        except Exception:
+            pass
+
+    return pd.DataFrame(columns=_std_cols)
 
 
-def get_hs_recruiting_snapshot(year=None):
+def _recruiting_snapshot(class_type, year=None, fallback_file=None):
     """
-    Load HS recruiting class from recruiting_high_school_history.csv.
-    If year=None, returns the most recent year available.
-    CSV-first behavior: if the file is missing or empty, return an empty DataFrame.
+    Shared helper: reads recruiting_class_history_all.csv, filters by ClassType,
+    computes BlueChipRatio and Logo, and returns sorted by Rank.
+    Falls back to fallback_file if the primary has no matching rows.
     """
-    df = _load_recruiting_csv('recruiting_high_school_history.csv')
-    if not df.empty and 'Year' in df.columns:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-
-    # Standardise user-team mapping for user spotlight
     _user_team_map = {
         'Devin': ['Bowling Green','Hammond'],
         'Mike':  ['San Jose State','Rapid City','Wyoming','Maryland'],
@@ -8134,9 +8238,27 @@ def get_hs_recruiting_snapshot(year=None):
         'Nick':  ['Florida State','Nebraska','Gate City'],
     }
 
-    if df.empty:
-        df = pd.DataFrame(columns=['Rank','Team','TotalCommits','FiveStar','FourStar','ThreeStar','TwoStar','OneStar','Points','Year','User'])
+    df = _load_recruiting_csv(fallback_file)
 
+    if df.empty:
+        return pd.DataFrame()
+
+    # Filter to the requested class type
+    if 'ClassType' in df.columns and class_type:
+        df = df[df['ClassType'].str.upper() == class_type.upper()].copy()
+
+    if df.empty:
+        return pd.DataFrame()
+
+    # Year filter
+    if 'Year' in df.columns:
+        yr = int(year) if year else int(df['Year'].max())
+        df = df[df['Year'] == yr].copy()
+
+    if df.empty:
+        return pd.DataFrame()
+
+    # Fill User from team map if missing
     if 'User' not in df.columns:
         df['User'] = ''
     if df['User'].isna().all() or (df['User'].astype(str).str.strip() == '').all():
@@ -8144,8 +8266,8 @@ def get_hs_recruiting_snapshot(year=None):
         for usr, teams in _user_team_map.items():
             df.loc[df['Team'].isin(teams), 'User'] = usr
 
-    numeric_defaults = ['FiveStar','FourStar','TotalCommits']
-    for col in numeric_defaults:
+    # Numeric hygiene
+    for col in ['FiveStar','FourStar','TotalCommits']:
         if col not in df.columns:
             df[col] = 0
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
@@ -8154,36 +8276,30 @@ def get_hs_recruiting_snapshot(year=None):
         df['Rank'] = np.nan
     df['Rank'] = pd.to_numeric(df['Rank'], errors='coerce')
 
-    df['BlueChipRatio'] = ((df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, np.nan)).fillna(0).round(3)
+    df['BlueChipRatio'] = (
+        (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, np.nan)
+    ).fillna(0).round(3)
+
     if 'Team' not in df.columns:
         df['Team'] = ''
     df['Logo'] = df['Team'].apply(get_logo_source)
+
     return df.sort_values('Rank', na_position='last').reset_index(drop=True)
 
+
+def get_hs_recruiting_snapshot(year=None):
+    """HS recruiting class — reads from recruiting_class_history_all.csv (ClassType=HS)."""
+    return _recruiting_snapshot('HS', year=year, fallback_file='recruiting_high_school_history.csv')
+
+
 def get_portal_recruiting_snapshot(year=None):
-    """Load transfer portal class from recruiting_transfer_portal_history.csv."""
-    df = _load_recruiting_csv('recruiting_transfer_portal_history.csv')
-    if not df.empty and 'Year' in df.columns and len(df) > 0:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-        if not df.empty:
-            df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-            df['Logo'] = df['Team'].apply(get_logo_source)
-            return df.sort_values('Rank').reset_index(drop=True)
-    return pd.DataFrame()
+    """Transfer portal class — reads from recruiting_class_history_all.csv (ClassType=TRANSFER)."""
+    return _recruiting_snapshot('TRANSFER', year=year, fallback_file='recruiting_transfer_portal_history.csv')
 
 
 def get_overall_recruiting_snapshot(year=None):
-    """Load overall recruiting class from recruiting_overall_history.csv. CSV-first: no hardcoded or HS fallback."""
-    df = _load_recruiting_csv('recruiting_overall_history.csv')
-    if not df.empty and 'Year' in df.columns and len(df) > 0:
-        yr = int(year) if year else int(df['Year'].max())
-        df = df[df['Year'] == yr].copy()
-        if not df.empty:
-            df['BlueChipRatio'] = (df['FiveStar'] + df['FourStar']) / df['TotalCommits'].replace(0, 1)
-            df['Logo'] = df['Team'].apply(get_logo_source)
-            return df.sort_values('Rank').reset_index(drop=True)
-    return pd.DataFrame()
+    """Overall recruiting class — reads from recruiting_class_history_all.csv (ClassType=OVERALL)."""
+    return _recruiting_snapshot('OVERALL', year=year, fallback_file='recruiting_overall_history.csv')
 
 
 def get_current_recruiting_snapshot():
@@ -9649,9 +9765,9 @@ try:
                 _ll = get_header_logo(_l)
                 _lh = (f'<div style="display:flex;justify-content:center;align-items:center;'
                        f'gap:20px;margin-bottom:10px;">'
-                       f'<img src="{_wl}" style="width:55px;height:55px;object-fit:contain;">'
+                       f'<img src="{_wl}" class="isp-logo-55">'
                        f'<span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span>'
-                       f'<img src="{_ll}" style="width:55px;height:55px;object-fit:contain;"></div>')
+                       f'<img src="{_ll}" class="isp-logo-55"></div>')
                 _pri = _round_map.get(_rd, 1) * 100
                 # Ticker text: include ranks next to team names
                 _ticker_txt = f"{_rk(_w)}{_w} {ws} \u2013 {ls} {_rk(_l)}{_l}"
@@ -9695,7 +9811,7 @@ if not IS_BOWL_WEEK:
                     _no1_rec = ''
                     _rec_str = ''
                 _cfp_logo = get_header_logo(_cfp_no1_proper)
-                _cfp_lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_cfp_logo}" style="width:60px;height:60px;object-fit:contain;"></div>'
+                _cfp_lh = f'<div class="isp-tc"><img src="{_cfp_logo}" class="isp-logo-60"></div>'
                 _all_headlines.append({
                     'badge': 'CFP TOP 10',
                     'priority': 85,
@@ -9727,7 +9843,7 @@ try:
 
         if _hwn and _hwn.lower() != 'nan':
             _hl = get_header_logo(_hwt)
-            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
+            _lh = f'<div class="isp-tc"><img src="{_hl}" class="isp-logo-65"></div>'
 
             _text = f"{_hwn}"
             if _hwt and _hwp and _hwp.lower() != 'nan':
@@ -9769,7 +9885,7 @@ if not _heisman_won_this_year and not any(
                 _ht = str(_hrow.get('TEAM', '')).strip()
                 if _hp and _hp.lower() not in ['tbd', 'nan']:
                     _hl = get_header_logo(_ht)
-                    _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_hl}" style="width:65px;height:65px;object-fit:contain;"></div>'
+                    _lh = f'<div class="isp-tc"><img src="{_hl}" class="isp-logo-65"></div>'
 
                     _recent_game_str = ''
                     try:
@@ -9899,7 +10015,7 @@ try:
 
         if _dc_team and _dc_team.lower() != 'nan':
             _dcl = get_header_logo(_dc_team)
-            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_dcl}" style="width:65px;height:65px;object-fit:contain;"></div>'
+            _lh = f'<div class="isp-tc"><img src="{_dcl}" class="isp-logo-65"></div>'
             _dc_rk = _rk_inline(_dc_team)
 
             _next_season = _dc_year + 1
@@ -9922,7 +10038,8 @@ except Exception:
 
 # ── 6. USER RECRUITING CLASSES (OVERALL) ────────────────────────────
 try:
-    _rh = pd.read_csv('recruiting_overall_history.csv').copy()
+    _rh_all = _load_recruiting_csv()
+    _rh = _rh_all[_rh_all['ClassType'].str.upper() == 'OVERALL'].copy() if 'ClassType' in _rh_all.columns else _rh_all.copy()
 
     _rh['Year'] = pd.to_numeric(_rh['Year'], errors='coerce')
     _rh['Rank'] = pd.to_numeric(_rh['Rank'], errors='coerce')
@@ -9968,7 +10085,7 @@ try:
                 continue
 
             _rl = get_header_logo(_rt)
-            _lh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_rl}" style="width:60px;height:60px;object-fit:contain;"></div>'
+            _lh = f'<div class="isp-tc"><img src="{_rl}" class="isp-logo-60"></div>'
 
             _star_parts = []
             if _r5 > 0:
@@ -10016,7 +10133,7 @@ try:
             _iovr = int(pd.to_numeric(_inj.get('OVR'), errors='coerce') or 0)
 
             _il = get_header_logo(_it)
-            _ilh = f'<div style="text-align:center;margin-bottom:10px;"><img src="{_il}" style="width:60px;height:60px;object-fit:contain;"></div>'
+            _ilh = f'<div class="isp-tc"><img src="{_il}" class="isp-logo-60"></div>'
 
             _sev = "SEASON-ENDING" if _iw >= 20 else "LONG-TERM INJ"
 
@@ -10110,9 +10227,9 @@ try:
                     _lh = (
                         f'<div style="display:flex;justify-content:center;align-items:center;'
                         f'gap:20px;margin-bottom:10px;">'
-                        f'<img src="{_wl}" style="width:55px;height:55px;object-fit:contain;">'
+                        f'<img src="{_wl}" class="isp-logo-55">'
                         f'<span style="color:#94a3b8;font-weight:900;font-size:1.4rem;">VS</span>'
-                        f'<img src="{_ll}" style="width:55px;height:55px;object-fit:contain;"></div>'
+                        f'<img src="{_ll}" class="isp-logo-55"></div>'
                     )
 
                     _sb_blurb = f"{_sb_champ} won the Super Bowl"
@@ -10168,7 +10285,7 @@ try:
 
                     _logo = get_nfl_logo_src(_team) if _team else None
                     _lh = (
-                        f'<div style="text-align:center;margin-bottom:10px;"><img src="{_logo}" style="width:60px;height:60px;object-fit:contain;"></div>'
+                        f'<div class="isp-tc"><img src="{_logo}" class="isp-logo-60"></div>'
                         if _logo else ''
                     )
 
@@ -12171,10 +12288,10 @@ with tabs[3]:
             logo_uri = image_file_to_data_uri(get_logo_source(team))
             logo_html = f"<img src='{logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if logo_uri else "<div style='font-size:20px;'>🏈</div>"
             cells = [f"""
-            <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
-              <div style="display:flex;align-items:center;gap:10px;">
+            <td class="isp-td-pin">
+              <div class="isp-flex-row">
                 <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
-                <div style="width:38px;text-align:center;">{logo_html}</div>
+                <div class="isp-td-num">{logo_html}</div>
                 <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
               </div>
             </td>
@@ -12192,18 +12309,18 @@ with tabs[3]:
                 cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{disp}</td>")
             projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
         projected_field_html = f"""
-        <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <div class="isp-table-wrap">
+          <table class="isp-table">
             <thead>
-              <tr style="background:#111827;color:#f8fafc;">
-                <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Projected Field</th>
-                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Committee Rank</th>
-                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Record</th>
-                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Make CFP</th>
-                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Bye Odds</th>
-                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Auto-Bid Path</th>
-                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Bubble Tier</th>
-                <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Seed Score</th>
+              <tr class="isp-tr-header">
+                <th class="isp-th isp-th-left">Projected Field</th>
+                <th class="isp-th">Committee Rank</th>
+                <th class="isp-th">Record</th>
+                <th class="isp-th">Make CFP</th>
+                <th class="isp-th">Bye Odds</th>
+                <th class="isp-th">Auto-Bid Path</th>
+                <th class="isp-th">Bubble Tier</th>
+                <th class="isp-th">Seed Score</th>
               </tr>
             </thead>
             <tbody>{''.join(projected_field_rows)}</tbody>
@@ -13693,27 +13810,7 @@ with tabs[9]:
         ])
         coach_records.columns = [str(c).strip() for c in coach_records.columns]
 
-        recruit_hist = _load_first([
-            'recruiting_class_history_all.csv',
-            'recruiting_class_history.csv',
-        ])
-        if recruit_hist.empty:
-            try:
-                _hs = pd.read_csv('recruiting_high_school_history.csv')
-                _hs['ClassType'] = 'HS'
-            except Exception:
-                _hs = pd.DataFrame()
-            try:
-                _tp = pd.read_csv('recruiting_transfer_portal_history.csv')
-                _tp['ClassType'] = 'TRANSFER'
-            except Exception:
-                _tp = pd.DataFrame()
-            try:
-                _ov = pd.read_csv('recruiting_overall_history.csv')
-                _ov['ClassType'] = 'OVERALL'
-            except Exception:
-                _ov = pd.DataFrame()
-            recruit_hist = pd.concat([_hs, _tp, _ov], ignore_index=True) if (not _hs.empty or not _tp.empty or not _ov.empty) else pd.DataFrame()
+        recruit_hist = _load_recruiting_csv()
         recruit_hist.columns = [str(c).strip() for c in recruit_hist.columns]
 
         cfp_hist = _load_first(['cfp_rankings_history.csv'])
@@ -14317,10 +14414,10 @@ with tabs[9]:
                 _coty_color = '#60a5fa' if str(_row.get('Coach of the Year', 'No')).strip().lower() == 'yes' else '#e5e7eb'
 
                 _cells = [f'''
-                <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
-                  <div style="display:flex;align-items:center;gap:10px;">
+                <td class="isp-td-pin">
+                  <div class="isp-flex-row">
                     <div style="font-weight:800;min-width:34px;text-align:center;color:#e5e7eb;">{_year_disp}</div>
-                    <div style="width:38px;text-align:center;">{_logo_html}</div>
+                    <div class="isp-td-num">{_logo_html}</div>
                     <div style="font-weight:800;color:{_primary};">{_team_disp}</div>
                   </div>
                 </td>
@@ -14351,27 +14448,27 @@ with tabs[9]:
                 _rows_html.append(f"<tr style='border-left:6px solid {_primary};background:linear-gradient(90deg,{_primary}22,rgba(15,23,42,.95) 14%);'>{''.join(_cells)}</tr>")
 
             _table_html = f'''
-            <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
-              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <div class="isp-table-wrap">
+              <table class="isp-table">
                 <thead>
-                  <tr style="background:#111827;color:#f8fafc;">
-                    <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">Year-by-Year Legacy</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Record</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">CFP Result</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Natty</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Natty Odds</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">CFP Odds</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">SOS</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">SOS Tier</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Hardest Path</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Path Tier</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Final Rank</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Rec Ovr</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">HS</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Portal</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Proj Wins</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Actual Wins</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">COTY</th>
+                  <tr class="isp-tr-header">
+                    <th class="isp-th isp-th-left">Year-by-Year Legacy</th>
+                    <th class="isp-th">Record</th>
+                    <th class="isp-th">CFP Result</th>
+                    <th class="isp-th">Natty</th>
+                    <th class="isp-th">Natty Odds</th>
+                    <th class="isp-th">CFP Odds</th>
+                    <th class="isp-th">SOS</th>
+                    <th class="isp-th">SOS Tier</th>
+                    <th class="isp-th">Hardest Path</th>
+                    <th class="isp-th">Path Tier</th>
+                    <th class="isp-th">Final Rank</th>
+                    <th class="isp-th">Rec Ovr</th>
+                    <th class="isp-th">HS</th>
+                    <th class="isp-th">Portal</th>
+                    <th class="isp-th">Proj Wins</th>
+                    <th class="isp-th">Actual Wins</th>
+                    <th class="isp-th">COTY</th>
                   </tr>
                 </thead>
                 <tbody>{''.join(_rows_html)}</tbody>
@@ -15006,10 +15103,10 @@ with tabs[12]:
                 _legacy_score = int(_safe_int(_row.get('Legacy Score', 0), 0))
 
                 _cells = [f'''
-                <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
-                  <div style="display:flex;align-items:center;gap:10px;">
+                <td class="isp-td-pin">
+                  <div class="isp-flex-row">
                     <div style="font-weight:900;min-width:38px;text-align:center;color:#e5e7eb;">{_medal}</div>
-                    <div style="width:38px;text-align:center;">{_logo_html}</div>
+                    <div class="isp-td-num">{_logo_html}</div>
                     <div>
                       <div style="font-weight:900;color:{_primary};">{_coach}</div>
                       <div style="font-size:11px;color:#94a3b8;">{_team_disp}</div>
@@ -15041,26 +15138,26 @@ with tabs[12]:
                 _rows_html.append(f"<tr style='border-left:6px solid {_primary};background:linear-gradient(90deg,{_primary}22,rgba(15,23,42,.95) 14%);'>{''.join(_cells)}</tr>")
 
             _table_html = f'''
-            <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
-              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <div class="isp-table-wrap">
+              <table class="isp-table">
                 <thead>
-                  <tr style="background:#111827;color:#f8fafc;">
-                    <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">GOAT Rankings</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Legacy</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Titles</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Heismans</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">COTYs</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Conf</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">1st Rd</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Drafted</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Top 5</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Career</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Playoff</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Win %</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">PO Win %</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Prestige</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Level</th>
-                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Tier</th>
+                  <tr class="isp-tr-header">
+                    <th class="isp-th isp-th-left">GOAT Rankings</th>
+                    <th class="isp-th">Legacy</th>
+                    <th class="isp-th">Titles</th>
+                    <th class="isp-th">Heismans</th>
+                    <th class="isp-th">COTYs</th>
+                    <th class="isp-th">Conf</th>
+                    <th class="isp-th">1st Rd</th>
+                    <th class="isp-th">Drafted</th>
+                    <th class="isp-th">Top 5</th>
+                    <th class="isp-th">Career</th>
+                    <th class="isp-th">Playoff</th>
+                    <th class="isp-th">Win %</th>
+                    <th class="isp-th">PO Win %</th>
+                    <th class="isp-th">Prestige</th>
+                    <th class="isp-th">Level</th>
+                    <th class="isp-th">Tier</th>
                   </tr>
                 </thead>
                 <tbody>{''.join(_rows_html)}</tbody>
@@ -17154,15 +17251,14 @@ with tabs[5]:
                     df[col] = pd.NA
             return df
 
-        hs_df = safe_read_csv(
-            'recruiting_high_school_history.csv',
-            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
-        )
-
-        tp_df = safe_read_csv(
-            'recruiting_transfer_portal_history.csv',
-            ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
-        )
+        _rec_all = _load_recruiting_csv()
+        _std_rec_cols = ['Year', 'Rank', 'Team', 'User', 'TotalCommits', 'FiveStar', 'FourStar', 'ThreeStar', 'TwoStar', 'OneStar', 'Points']
+        if not _rec_all.empty and 'ClassType' in _rec_all.columns:
+            hs_df = _rec_all[_rec_all['ClassType'].str.upper() == 'HS'].copy().reset_index(drop=True)
+            tp_df = _rec_all[_rec_all['ClassType'].str.upper() == 'TRANSFER'].copy().reset_index(drop=True)
+        else:
+            hs_df = _rec_all.copy()
+            tp_df = pd.DataFrame(columns=_std_rec_cols)
 
         nfl = safe_read_csv(
             'attrition_nfl.csv',
