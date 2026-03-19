@@ -17841,50 +17841,21 @@ with tabs[5]:
             if seniors.empty:
                 return pd.DataFrame(columns=['Year', 'Team', 'Player', 'Position', 'OVR', 'Class', 'Was Starter'])
 
-            def infer_team_starters(team_df):
-                starter_slots = {
-                    'QB': 1,
-                    'HB': 1,
-                    'FB': 1,
-                    'WR': 3,
-                    'TE': 1,
-                    'LT': 1,
-                    'LG': 1,
-                    'C': 1,
-                    'RG': 1,
-                    'RT': 1,
-                    'OL': 5,
-                    'LEDG': 1,
-                    'REDG': 1,
-                    'DE': 2,
-                    'DT': 2,
-                    'SAM': 1,
-                    'MIKE': 1,
-                    'WILL': 1,
-                    'LB': 3,
-                    'CB': 3,
-                    'FS': 1,
-                    'SS': 1,
-                    'S': 2,
-                    'K': 1,
-                    'P': 1
-                }
+            # Infer starters by position — loop avoids pandas groupby.apply version issues
+            _starter_slots = {
+                'QB':1,'HB':1,'FB':1,'WR':3,'TE':1,
+                'LT':1,'LG':1,'C':1,'RG':1,'RT':1,
+                'LEDG':1,'REDG':1,'DE':2,'DT':2,
+                'SAM':1,'MIKE':1,'WILL':1,'LB':3,
+                'CB':3,'FS':1,'SS':1,'S':2,'K':1,'P':1
+            }
+            rosters['Inferred Starter'] = False
+            for _t in rosters['Team'].unique():
+                _tmask = rosters['Team'] == _t
+                for _pos, _n in _starter_slots.items():
+                    _pidx = rosters[_tmask & (rosters['Pos'] == _pos)].sort_values('OVR', ascending=False).head(_n).index
+                    rosters.loc[_pidx, 'Inferred Starter'] = True
 
-                team_df = team_df.copy()
-                team_df['Inferred Starter'] = False
-
-                if 'OVR' not in team_df.columns:
-                    team_df['OVR'] = 0
-
-                for pos, slot_count in starter_slots.items():
-                    pos_df = team_df[team_df['Pos'] == pos].sort_values(by='OVR', ascending=False)
-                    if not pos_df.empty:
-                        starter_idx = pos_df.head(slot_count).index
-                        team_df.loc[starter_idx, 'Inferred Starter'] = True
-
-                return team_df
-
-            rosters = rosters.groupby('Team', group_keys=False).apply(infer_team_starters)
             seniors = rosters[rosters['Year'].str.contains('SR', na=False)].copy()
 
             auto_df = pd.DataFrame({
