@@ -5527,6 +5527,37 @@ def ensure_columns(df, defaults):
     return df
 
 
+def project_class_nil(five_star, four_star, three_star, two_star=0, one_star=0):
+    """
+    Project total NIL commitment for a recruiting class based on star counts.
+    Uses expected OVR distributions per tier × position-adjusted NIL formula expectations.
+    Returns (total_projected, per_star_breakdown_dict).
+    """
+    # Expected NIL per recruit at each star tier.
+    # These are derived from compute_nil_value() outputs at representative OVR/Pos/Year combos:
+    #   5★ → avg 92 OVR, mix of premium positions, SR projection = ~$820K avg
+    #   4★ → avg 85 OVR, broader position mix, JR projection   = ~$290K avg
+    #   3★ → avg 78 OVR, depth positions, SO projection         = ~$85K avg
+    #   2★ → avg 72 OVR, mostly depth/ST                        = ~$22K avg
+    #   1★ → near walk-on, minimal value                        = ~$8K avg
+    _tier_values = {
+        5: 820_000,
+        4: 290_000,
+        3:  85_000,
+        2:  22_000,
+        1:   8_000,
+    }
+    breakdown = {
+        '5★': int(five_star)  * _tier_values[5],
+        '4★': int(four_star)  * _tier_values[4],
+        '3★': int(three_star) * _tier_values[3],
+        '2★': int(two_star)   * _tier_values[2],
+        '1★': int(one_star)   * _tier_values[1],
+    }
+    total = sum(breakdown.values())
+    return total, breakdown
+
+
 def compute_nil_value(row):
     """
     Projected NIL value per player in dollars.
@@ -14203,7 +14234,7 @@ with tabs[4]:
     st.markdown("---")
 
     # ── CLASS RANKS HIGHER ───────────────────────────────────────────────
-    recruit_tabs = st.tabs(["🏫 High School", "🔁 Transfer Portal", "📊 Overall"])
+    recruit_tabs = st.tabs(["🏫 High School", "🔁 Transfer Portal", "📊 Overall", "💰 NIL Projection"])
 
     with recruit_tabs[0]:
         st.subheader(f"{recruit_year} High School Recruiting Rankings")
@@ -14261,7 +14292,198 @@ with tabs[4]:
 
     st.markdown("---")
 
-    # ── COACH HISTORY AT BOTTOM ─────────────────────────────────────────
+    # ── NIL PROJECTION SUB-TAB ───────────────────────────────────────────────
+    with recruit_tabs[3]:
+        st.subheader(f"💰 {recruit_year} Class NIL Projection")
+        st.caption("Projected NIL commitment based on star ratings. 5★ commits command premium deals; this shows the dollar weight behind each class before anyone takes a snap.")
+
+        # Use HS class as the primary source; fall back to overall
+        _nil_proj_src = _hs_df if not _hs_df.empty else (_overall_df if not _overall_df.empty else None)
+
+        if _nil_proj_src is None or _nil_proj_src.empty:
+            st.info(f"No recruiting data found for {recruit_year}.")
+        else:
+            # Compute projections for every team in the snapshot
+            _proj_rows = []
+            for _, _pr in _nil_proj_src.iterrows():
+                _team   = str(_pr.get('Team', '')).strip()
+                _user   = str(_pr.get('User', '')).strip()
+                _rank   = int(_pr.get('Rank', 0))
+                _five   = int(pd.to_numeric(_pr.get('FiveStar',  0), errors='coerce') or 0)
+                _four   = int(pd.to_numeric(_pr.get('FourStar',  0), errors='coerce') or 0)
+                _three  = int(pd.to_numeric(_pr.get('ThreeStar', 0), errors='coerce') or 0)
+                _two    = int(pd.to_numeric(_pr.get('TwoStar',   0), errors='coerce') or 0)
+                _one    = int(pd.to_numeric(_pr.get('OneStar',   0), errors='coerce') or 0)
+                _total  = _five + _four + _three + _two + _one
+                _nil_total, _breakdown = project_class_nil(_five, _four, _three, _two, _one)
+                _bcr    = float(_pr.get('BlueChipRatio', 0) or 0)
+                _proj_rows.append({
+                    'Team': _team, 'User': _user, 'Rank': _rank,
+                    'FiveStar': _five, 'FourStar': _four, 'ThreeStar': _three,
+                    'TwoStar': _two, 'OneStar': _one, 'Total': _total,
+                    'NIL_Total': _nil_total,
+                    'NIL_Per_Commit': round(_nil_total / _total, 0) if _total > 0 else 0,
+                    'BlueChipRatio': _bcr,
+                })
+
+            _proj_df = pd.DataFrame(_proj_rows).sort_values('NIL_Total', ascending=False).reset_index(drop=True)
+
+            # ── HEADLINE METRICS ─────────────────────────────────────────
+            _user_proj = _proj_df[_proj_df['User'].isin(USER_TEAMS.keys())].copy()
+            if not _user_proj.empty:
+                _top_class   = _user_proj.sort_values('NIL_Total', ascending=False).iloc[0]
+                _best_value  = _user_proj.sort_values('NIL_Per_Commit', ascending=False).iloc[0]
+                _most_5star  = _user_proj.sort_values('FiveStar', ascending=False).iloc[0]
+                _league_class_total = _user_proj['NIL_Total'].sum()
+                mobile_metrics([
+                    {"label": "💰 Biggest Class Bag",   "value": str(_top_class.get('User','—')),    "delta": format_nil(_top_class['NIL_Total'])},
+                    {"label": "📈 Best Value/Commit",   "value": str(_best_value.get('User','—')),   "delta": format_nil(_best_value['NIL_Per_Commit']) + " avg"},
+                    {"label": "⭐ Most 5-Stars",         "value": str(_most_5star.get('User','—')),   "delta": f"{int(_most_5star['FiveStar'])} commits"},
+                    {"label": "🏛️ League Class Pool",   "value": format_nil(_league_class_total)},
+                ])
+                st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── USER TEAM CARDS ──────────────────────────────────────────
+            st.subheader("🏫 User Program Class Projections")
+
+            import plotly.graph_objects as go
+
+            _user_cards_html = """<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;'>"""
+            _user_proj_sorted = _user_proj.sort_values('NIL_Total', ascending=False)
+
+            for _, _uc in _user_proj_sorted.iterrows():
+                _ut   = str(_uc['Team']).strip()
+                _uu   = str(_uc['User']).strip()
+                _utc  = get_team_primary_color(_ut)
+                _ulogo_uri = image_file_to_data_uri(get_logo_source(_ut))
+                _ulogo_html = f"<img src='{_ulogo_uri}' style='width:40px;height:40px;object-fit:contain;'/>" if _ulogo_uri else "🏈"
+                _u_nil_total = format_nil(_uc['NIL_Total'])
+                _u_nil_avg   = format_nil(_uc['NIL_Per_Commit'])
+                _u_rank_disp = f"#{int(_uc['Rank'])}" if _uc['Rank'] > 0 else "UR"
+                _stars_bar   = (
+                    f"<div style='display:flex;gap:3px;margin-top:6px;align-items:center;'>"
+                    + (f"<span style='background:#fbbf24;color:#000;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:3px;'>⭐×{int(_uc['FiveStar'])}</span>" if _uc['FiveStar'] > 0 else "")
+                    + (f"<span style='background:#94a3b8;color:#000;font-size:0.6rem;font-weight:800;padding:1px 5px;border-radius:3px;'>4★×{int(_uc['FourStar'])}</span>" if _uc['FourStar'] > 0 else "")
+                    + (f"<span style='background:#334155;color:#94a3b8;font-size:0.6rem;padding:1px 5px;border-radius:3px;'>3★×{int(_uc['ThreeStar'])}</span>" if _uc['ThreeStar'] > 0 else "")
+                    + f"</div>"
+                )
+                _user_cards_html += f"""
+                <div style='background:linear-gradient(160deg,#0c1622,#111c2b);border:1px solid rgba(255,255,255,0.07);border-top:3px solid {_utc};border-radius:10px;padding:14px;'>
+                  <div style='display:flex;align-items:center;gap:10px;margin-bottom:10px;'>
+                    {_ulogo_html}
+                    <div>
+                      <div style='font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1.05rem;color:{_utc};'>{html.escape(_ut)}</div>
+                      <div style='font-size:0.65rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>{html.escape(_uu)} · Class Rank {_u_rank_disp}</div>
+                    </div>
+                  </div>
+                  {_stars_bar}
+                  <div style='margin-top:10px;display:flex;justify-content:space-between;align-items:flex-end;'>
+                    <div>
+                      <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>Projected Class NIL</div>
+                      <div style='font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:#4ade80;line-height:1;'>{_u_nil_total}</div>
+                    </div>
+                    <div style='text-align:right;'>
+                      <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>Avg / Commit</div>
+                      <div style='font-family:"Barlow Condensed",sans-serif;font-size:1rem;font-weight:700;color:#fbbf24;'>{_u_nil_avg}</div>
+                    </div>
+                  </div>
+                </div>"""
+
+            _user_cards_html += "</div>"
+            components.html(_user_cards_html, height=520, scrolling=False)
+
+            # ── FULL FIELD NIL TABLE ─────────────────────────────────────
+            st.subheader("📋 Full Class NIL Projection Board")
+            st.caption("All ranked teams — shows where your class sits against the field in total NIL commitment.")
+
+            _proj_rows_html = []
+            for _pi, (_, _pr2) in enumerate(_proj_df.head(25).iterrows(), 1):
+                _pt2   = str(_pr2['Team']).strip()
+                _pu2   = str(_pr2['User']).strip()
+                _pc2   = get_team_primary_color(_pt2)
+                _pl_uri = image_file_to_data_uri(get_logo_source(_pt2))
+                _pl_html = f"<img src='{_pl_uri}' style='width:26px;height:26px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if _pl_uri else ""
+                _is_user = _pu2 in USER_TEAMS
+                _row_bg  = f"border-left:5px solid {_pc2};background:linear-gradient(90deg,{_pc2}28,rgba(15,23,42,.95) 13%);" if _is_user else "border-left:5px solid #1e293b;background:rgba(15,23,42,0.6);"
+                _name_style = f"font-weight:800;color:{_pc2};" if _is_user else "font-weight:600;color:#94a3b8;"
+                _nil_disp2 = format_nil(_pr2['NIL_Total'])
+                _avg_disp2 = format_nil(_pr2['NIL_Per_Commit'])
+                _rank_d2   = f"#{int(_pr2['Rank'])}" if _pr2['Rank'] > 0 else "—"
+
+                # Star pills
+                _star_pills = ""
+                if _pr2['FiveStar'] > 0:  _star_pills += f"<span style='background:#fbbf2422;color:#fbbf24;border:1px solid #fbbf2455;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:2px;'>⭐{int(_pr2['FiveStar'])}</span>"
+                if _pr2['FourStar'] > 0:  _star_pills += f"<span style='background:#94a3b822;color:#94a3b8;border:1px solid #94a3b855;font-size:0.6rem;padding:1px 5px;border-radius:3px;margin-right:2px;'>4★{int(_pr2['FourStar'])}</span>"
+                if _pr2['ThreeStar'] > 0: _star_pills += f"<span style='background:#33415522;color:#475569;border:1px solid #47556955;font-size:0.6rem;padding:1px 5px;border-radius:3px;'>3★{int(_pr2['ThreeStar'])}</span>"
+
+                _proj_rows_html.append(f"""
+                <tr style='{_row_bg}'>
+                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#475569;text-align:center;font-weight:700;font-size:0.85rem;'>{_rank_d2}</td>
+                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;white-space:nowrap;'>
+                    <div style='display:flex;align-items:center;'>{_pl_html}<span style='{_name_style}'>{html.escape(_pt2)}</span></div>
+                  </td>
+                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;white-space:nowrap;'>{_star_pills}</td>
+                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#64748b;text-align:center;'>{int(_pr2['Total'])}</td>
+                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:"Bebas Neue",sans-serif;font-size:1.1rem;text-align:right;'>{_nil_disp2}</td>
+                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#fbbf24;font-size:0.85rem;text-align:right;'>{_avg_disp2}</td>
+                </tr>""")
+
+            _proj_table_html = f"""
+            <div class="isp-table-wrap">
+              <table class="isp-table">
+                <thead><tr class="isp-tr-header">
+                  <th class="isp-th">Rank</th>
+                  <th class="isp-th isp-th-left">Team</th>
+                  <th class="isp-th isp-th-left">Stars</th>
+                  <th class="isp-th">Commits</th>
+                  <th class="isp-th" style='text-align:right;padding-right:12px;'>Class NIL</th>
+                  <th class="isp-th" style='text-align:right;padding-right:12px;'>Avg/Commit</th>
+                </tr></thead>
+                <tbody>{"".join(_proj_rows_html)}</tbody>
+              </table>
+            </div>"""
+            st.markdown(_proj_table_html, unsafe_allow_html=True)
+
+            # ── USER CLASS NIL vs NATTIES ────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.subheader("🏆 Class NIL Spend vs. Championships")
+            st.caption(f"Does spending big on recruiting classes translate to rings? {recruit_year} class projected NIL vs. all-time natty count.")
+            try:
+                _cnc_df = _user_proj.copy()
+                _cnc_df['User'] = _cnc_df['User'].astype(str).str.strip().str.title()
+                _cnc_natty = stats_df[['User','Natties']].copy()
+                _cnc_natty['User'] = _cnc_natty['User'].astype(str).str.strip().str.title()
+                _cnc_df = _cnc_df.merge(_cnc_natty, on='User', how='left')
+                _cnc_df['Natties'] = pd.to_numeric(_cnc_df.get('Natties', 0), errors='coerce').fillna(0)
+
+                _fig_cnc = go.Figure()
+                for _, _cr in _cnc_df.iterrows():
+                    _crc = get_team_primary_color(_cr['Team'])
+                    _clogo = image_file_to_data_uri(get_logo_source(_cr['Team']))
+                    _fig_cnc.add_trace(go.Scatter(
+                        x=[_cr['NIL_Total'] / 1_000_000],
+                        y=[_cr['Natties']],
+                        mode='markers+text',
+                        marker=dict(size=18, color=_crc, line=dict(color='white', width=1.5)),
+                        text=[str(_cr.get('User', _cr['Team']))],
+                        textposition='top center',
+                        textfont=dict(color='#e2e8f0', size=11, family='Barlow Condensed'),
+                        name=_cr['Team'],
+                        showlegend=False,
+                        hovertemplate=f"<b>{_cr['Team']}</b><br>Class NIL: {format_nil(_cr['NIL_Total'])}<br>Natties: {int(_cr['Natties'])}<extra></extra>",
+                    ))
+                _fig_cnc.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(15,23,42,0.7)',
+                    font=dict(color='#e2e8f0', family='Barlow Condensed'),
+                    xaxis=dict(title=f'{recruit_year} Class NIL ($M)', gridcolor='rgba(255,255,255,0.07)', color='#94a3b8'),
+                    yaxis=dict(title='National Championships', gridcolor='rgba(255,255,255,0.07)', color='#94a3b8', dtick=1),
+                    height=380, margin=dict(t=20, b=40, l=50, r=20),
+                )
+                st.plotly_chart(_fig_cnc, use_container_width=True, config={'staticPlot': True})
+            except Exception:
+                st.caption("Natty correlation chart unavailable.")
+
+
     st.subheader("🕰️ Coach Recruiting History")
     st.caption("Pick a current user coach to see every school they have coached and the class ranks they posted there over time. Lower rank = better class.")
 
@@ -20035,6 +20257,12 @@ with tabs[13]:
         else:
             # Compute NIL per player
             _nil_roster['NIL_Value'] = _nil_roster.apply(compute_nil_value, axis=1)
+
+            # Cap each team's total at $40M — proportional scale-down preserves relative values
+            _NIL_TEAM_CAP = 40_000_000
+            _team_raw_totals = _nil_roster.groupby('Team')['NIL_Value'].transform('sum')
+            _scale = (_NIL_TEAM_CAP / _team_raw_totals).clip(upper=1.0)
+            _nil_roster['NIL_Value'] = (_nil_roster['NIL_Value'] * _scale).round(0)
             _nil_roster['NIL_Display'] = _nil_roster['NIL_Value'].apply(format_nil)
 
             # ── TEAM TOTALS ────────────────────────────────────────────────
@@ -20068,8 +20296,45 @@ with tabs[13]:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # ── TEAM SPEND BAR CHART ───────────────────────────────────────
+            # ── TEAM TOTALS TABLE WITH LOGOS ──────────────────────────────
             st.subheader("💼 Total Roster NIL by Program")
+            _totals_rows = []
+            for _ti2, (_, _trow2) in enumerate(_team_nil.iterrows(), 1):
+                _tt  = str(_trow2['Team']).strip()
+                _tc2 = get_team_primary_color(_tt)
+                _tlogo_uri = image_file_to_data_uri(get_logo_source(_tt))
+                _tlogo_html = f"<img src='{_tlogo_uri}' style='width:30px;height:30px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _tlogo_uri else ""
+                _t_top_name = html.escape(str(_top_earner_map.get(_tt, '—')))
+                _totals_rows.append(f"""
+                <tr style='border-left:6px solid {_tc2};background:linear-gradient(90deg,{_tc2}22,rgba(15,23,42,.95) 14%);'>
+                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;'>
+                    <div style='display:flex;align-items:center;'>{_tlogo_html}<span style='font-weight:800;color:{_tc2};'>{html.escape(_tt)}</span></div>
+                  </td>
+                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{html.escape(str(_trow2.get('User','—')))}</td>
+                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:"Bebas Neue",sans-serif;font-size:1.15rem;text-align:right;'>{_trow2['NIL_Display']}</td>
+                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;'>{_trow2['Avg_Display']}</td>
+                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:center;'>{int(_trow2['Roster_Size'])}</td>
+                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#fbbf24;font-size:0.82rem;'>{_t_top_name}</td>
+                </tr>""")
+            _totals_html = f"""
+            <div class="isp-table-wrap">
+              <table class="isp-table">
+                <thead><tr class="isp-tr-header">
+                  <th class="isp-th isp-th-left">Program</th>
+                  <th class="isp-th">User</th>
+                  <th class="isp-th" style='text-align:right;padding-right:16px;'>Total NIL</th>
+                  <th class="isp-th" style='text-align:right;padding-right:16px;'>Avg/Player</th>
+                  <th class="isp-th">Roster</th>
+                  <th class="isp-th isp-th-left">Top Earner</th>
+                </tr></thead>
+                <tbody>{"".join(_totals_rows)}</tbody>
+              </table>
+            </div>"""
+            st.markdown(_totals_html, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── TEAM SPEND BAR CHART ───────────────────────────────────────
             _bar_colors = [get_team_primary_color(t) for t in _team_nil['Team']]
             _bar_labels = [USER_TEAMS.get(u, t) if pd.notna(u) else t for u, t in zip(_team_nil['User'], _team_nil['Team'])]
             import plotly.graph_objects as go
@@ -20094,7 +20359,7 @@ with tabs[13]:
                 height=380, margin=dict(t=30, b=20, l=40, r=20),
                 bargap=0.35,
             )
-            st.plotly_chart(_fig_bar, use_container_width=True)
+            st.plotly_chart(_fig_bar, use_container_width=True, config={'staticPlot': True})
 
             # ── NATTY CORRELATION ──────────────────────────────────────────
             st.subheader("🏆 NIL Spend vs. Championship Runs")
@@ -20131,7 +20396,7 @@ with tabs[13]:
                     yaxis=dict(title='National Championships', gridcolor='rgba(255,255,255,0.07)', color='#94a3b8', dtick=1),
                     height=400, margin=dict(t=30, b=40, l=50, r=20),
                 )
-                st.plotly_chart(_fig_scatter, use_container_width=True)
+                st.plotly_chart(_fig_scatter, use_container_width=True, config={'staticPlot': True})
             except Exception:
                 st.caption("Natty correlation chart unavailable — stats data not loaded.")
 
@@ -20165,7 +20430,7 @@ with tabs[13]:
                 height=340, margin=dict(t=30, b=20, l=40, r=20),
                 showlegend=False,
             )
-            st.plotly_chart(_fig_pos, use_container_width=True)
+            st.plotly_chart(_fig_pos, use_container_width=True, config={'staticPlot': True})
 
             # ── TOP EARNERS TABLE ──────────────────────────────────────────
             st.subheader("🌟 Top Earners Across the League")
@@ -20180,13 +20445,15 @@ with tabs[13]:
                 _povr  = int(_pr.get('OVR', 0))
                 _pnil  = format_nil(_pr['NIL_Value'])
                 _puser = next((u for u, t in USER_TEAMS.items() if str(t).strip() == _pt), _pt)
+                _plogo_uri = image_file_to_data_uri(get_logo_source(_pt))
+                _plogo_html = f"<img src='{_plogo_uri}' style='width:26px;height:26px;object-fit:contain;vertical-align:middle;margin-right:5px;'/>" if _plogo_uri else ""
                 _top_rows.append(f"""
                 <tr style='border-left:4px solid {_pc};background:linear-gradient(90deg,{_pc}18,rgba(15,23,42,.95) 12%);'>
                   <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#64748b;text-align:center;font-weight:700;'>{_rank_n}</td>
                   <td style='padding:9px 12px;border-bottom:1px solid #1e293b;font-weight:700;color:#f1f5f9;'>{_pname}</td>
                   <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{_ppos}</td>
                   <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{_pyr}</td>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:{_pc};font-weight:700;text-align:center;'>{html.escape(_pt)}</td>
+                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;white-space:nowrap;'><div style='display:flex;align-items:center;gap:4px;'>{_plogo_html}<span style='color:{_pc};font-weight:700;'>{html.escape(_pt)}</span></div></td>
                   <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#60a5fa;text-align:center;'>{_povr}</td>
                   <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.1rem;text-align:right;'>{_pnil}</td>
                 </tr>""")
@@ -20247,7 +20514,7 @@ with tabs[13]:
                     height=280, margin=dict(t=20, b=10, l=30, r=10),
                     showlegend=False, title=dict(text=f"{_nil_sel_team} NIL by Position Group", font=dict(color='#94a3b8', size=13)),
                 )
-                st.plotly_chart(_fig_team_pos, use_container_width=True)
+                st.plotly_chart(_fig_team_pos, use_container_width=True, config={'staticPlot': True})
 
                 # Full roster NIL table for this team
                 _team_rows = []
