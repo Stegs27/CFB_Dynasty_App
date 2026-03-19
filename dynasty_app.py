@@ -13769,6 +13769,66 @@ with tabs[9]:
                 return "Brutal"
             return "Historic"
 
+        def _metric_descriptor(label, value):
+            try:
+                if pd.isna(value):
+                    return "—"
+                v = float(value)
+            except Exception:
+                return "—"
+            if label == 'Generational Freaks':
+                if v <= 0: return 'None'
+                if v <= 1: return 'Rare'
+                if v <= 3: return 'Loaded'
+                return 'Absurd'
+            if label == 'Cheat Codes':
+                if v <= 0: return 'None'
+                if v <= 2: return 'A Few'
+                if v <= 4: return 'Dangerous'
+                return 'Broken'
+            if label == 'Monsters':
+                if v <= 0: return 'None'
+                if v <= 2: return 'Nasty'
+                if v <= 4: return 'Problem'
+                return 'Terror Front'
+            if label == 'Quick Hogs':
+                if v <= 0: return 'None'
+                if v <= 2: return 'Agile Front'
+                if v <= 4: return 'Road Graders'
+                return 'Wall of Beef'
+            return '—'
+
+        def _pretty_legacy_table(df):
+            if df.empty:
+                return df
+            _df = df.copy()
+            _num_cols = [c for c in ['Preseason Natty Odds','Preseason CFP Odds','SOS','Hardest Path','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins'] if c in _df.columns]
+            for _c in _num_cols:
+                _df[_c] = pd.to_numeric(_df[_c], errors='coerce')
+            def _row_style(row):
+                _styles = [''] * len(row)
+                _title_idx = row.index.get_loc('National Title') if 'National Title' in row.index else None
+                _coty_idx = row.index.get_loc('Coach of the Year') if 'Coach of the Year' in row.index else None
+                if _title_idx is not None and str(row.iloc[_title_idx]).strip() == 'Yes':
+                    return ['background-color: rgba(245,158,11,0.10); color: #f8fafc; font-weight:700;'] * len(row)
+                if _coty_idx is not None and str(row.iloc[_coty_idx]).strip() == 'Yes':
+                    return ['background-color: rgba(59,130,246,0.08); color: #f8fafc;'] * len(row)
+                return _styles
+            _styler = _df.style.hide(axis='index').apply(_row_style, axis=1)
+            for _grad_col, _cmap in [('SOS','OrRd'), ('Hardest Path','Reds')]:
+                if _grad_col in _df.columns:
+                    _styler = _styler.background_gradient(subset=[_grad_col], cmap=_cmap)
+            if 'Final Rank' in _df.columns:
+                _styler = _styler.background_gradient(subset=['Final Rank'], cmap='Greens_r')
+            return _styler.format({
+                'Preseason Natty Odds': '{:.1f}%',
+                'Preseason CFP Odds': '{:.1f}%',
+                'SOS': '{:.1f}',
+                'Hardest Path': '{:.1f}',
+                'Projected Wins': '{:.1f}',
+                'Actual Wins': '{:.0f}',
+            }, na_rep='—')
+
         if not legacy_df.empty:
             legacy_df['SOS Tier'] = legacy_df['SOS'].apply(_sos_tier) if 'SOS' in legacy_df.columns else "—"
             if 'Path Tier' not in legacy_df.columns and 'Hardest Path' in legacy_df.columns:
@@ -13856,8 +13916,9 @@ with tabs[9]:
         for _col in ['Preseason Natty Odds', 'Preseason CFP Odds', 'SOS', 'Hardest Path', 'Final Rank', 'Recruiting Overall', 'Recruiting HS', 'Recruiting Transfer', 'Projected Wins']:
             if _col in _display_df.columns:
                 _display_df[_col] = _display_df[_col].where(_display_df[_col].notna(), None)
+        _legacy_table_show = _display_df[['Year','School','Record','CFP Result','National Title','Preseason Natty Odds','Preseason CFP Odds','SOS','SOS Tier','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']].copy()
         st.dataframe(
-            _display_df[['Year','School','Record','CFP Result','National Title','Preseason Natty Odds','Preseason CFP Odds','SOS','SOS Tier','Hardest Path','Path Tier','Final Rank','Recruiting Overall','Recruiting HS','Recruiting Transfer','Projected Wins','Actual Wins','Coach of the Year']],
+            _pretty_legacy_table(_legacy_table_show),
             use_container_width=True,
             hide_index=True
         )
@@ -13875,9 +13936,8 @@ with tabs[9]:
 
         mobile_metrics([
             {"label": "📘 Record", "value": str(_season_row['Record'])},
-            {"label": "📐 SOS", "value": f"{float(_season_row['SOS']):.1f}" if pd.notna(_season_row['SOS']) else "—"},
-            {"label": "🪓 Hardest Path", "value": f"{float(_season_row['Hardest Path']):.1f}" if pd.notna(_season_row['Hardest Path']) else "—"},
-            {"label": "🏷️ Path Tier", "value": str(_season_row['Path Tier'])},
+            {"label": "📐 SOS", "value": f"{float(_season_row['SOS']):.1f} • {_sos_tier(_season_row['SOS'])}" if pd.notna(_season_row['SOS']) else "—"},
+            {"label": "🪓 Hardest Path", "value": f"{float(_season_row['Hardest Path']):.1f} • {_path_tier_from_score(_season_row['Hardest Path'])}" if pd.notna(_season_row['Hardest Path']) else "—"},
             {"label": "🏈 CFP Result", "value": str(_season_row['CFP Result']) if str(_season_row.get('CFP Result', '')).strip() else "—"},
             {"label": "🏆 Natty Odds", "value": f"{float(_season_row['Preseason Natty Odds']):.1f}%" if pd.notna(_season_row['Preseason Natty Odds']) else "—"},
             {"label": "🎯 CFP Odds", "value": f"{float(_season_row['Preseason CFP Odds']):.1f}%" if pd.notna(_season_row['Preseason CFP Odds']) else "—"},
@@ -13914,7 +13974,8 @@ with tabs[9]:
                 ]:
                     _col = _smart(_season_rating, _cand)
                     if _col:
-                        _identity_rows.append({'Metric': _label, 'Value': _sr.get(_col, '—')})
+                        _val = _sr.get(_col, '—')
+                        _identity_rows.append({'Metric': _label, 'Value': _val, 'Descriptor': _metric_descriptor(_label, _val)})
             if not _season_exp.empty:
                 _se = _season_exp.iloc[0]
                 for _label, _cand in [
@@ -13924,8 +13985,13 @@ with tabs[9]:
                 ]:
                     _col = _smart(_season_exp, _cand)
                     if _col:
-                        _identity_rows.append({'Metric': _label, 'Value': _se.get(_col, '—')})
-            st.dataframe(pd.DataFrame(_identity_rows), use_container_width=True, hide_index=True)
+                        _val = _se.get(_col, '—')
+                        _identity_rows.append({'Metric': _label, 'Value': _val, 'Descriptor': _metric_descriptor(_label, _val)})
+            _identity_df = pd.DataFrame(_identity_rows)
+            if not _identity_df.empty:
+                st.dataframe(_identity_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No team identity data found for this season.")
 
         with _right:
             st.markdown("### Recruiting by Year")
@@ -13936,14 +14002,33 @@ with tabs[9]:
                 {'Metric': 'PPG', 'Value': (_season_row['PPG'] if pd.notna(_season_row['PPG']) else '—')},
                 {'Metric': 'Avg Margin', 'Value': (_season_row['Avg Margin'] if pd.notna(_season_row['Avg Margin']) else '—')},
             ]
-            st.dataframe(pd.DataFrame(_recruit_rows), use_container_width=True, hide_index=True)
+            _recruit_df = pd.DataFrame(_recruit_rows)
+            st.dataframe(_recruit_df, use_container_width=True, hide_index=True)
 
         st.markdown("### Schedule & Results")
         _sched = _schedule_df(target, int(selected_year))
         if _sched.empty:
             st.info("No schedule data found for this season.")
         else:
-            st.dataframe(_sched[['Week','Team','Opponent','Opponent Rank','Result','Score','Margin']], use_container_width=True, hide_index=True)
+            _sched_show = _sched[['Week','Team','Opponent','Opponent Rank','Result','Score','Margin']].copy()
+            try:
+                _sched_show['Result'] = _sched_show['Result'].map({'W':'✅ W','L':'❌ L'}).fillna(_sched_show['Result'])
+            except Exception:
+                pass
+            st.dataframe(
+                _sched_show,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    'Week': st.column_config.TextColumn('Week', width='small'),
+                    'Team': st.column_config.TextColumn('Team', width='medium'),
+                    'Opponent': st.column_config.TextColumn('Opponent', width='medium'),
+                    'Opponent Rank': st.column_config.NumberColumn('Opp Rank', format='%d'),
+                    'Result': st.column_config.TextColumn('Result', width='small'),
+                    'Score': st.column_config.TextColumn('Score', width='small'),
+                    'Margin': st.column_config.NumberColumn('Margin', format='%.1f'),
+                }
+            )
 with tabs[11]:
         st.header("🎬 ISPN Classics")
         st.caption(
