@@ -14697,98 +14697,331 @@ with tabs[11]:
 # --- GOAT RANKINGS (Tab 12) ---
 with tabs[12]:
     st.header("🐐 The GOAT Council")
-    st.caption("Legacy points: National Title (15), Heisman (5), COTY (3).")
+    st.caption("Legacy is built on titles, trophies, pipelines, and sustained dominance.")
 
-    # 1. INITIALIZE COACH STATS
-    # Deriving human users directly from the model
-    all_users = [u for u in model_2041['USER'].unique() if str(u).upper() not in ('CPU', 'NAN', '')]
-    user_awards = {u: {'rings': 0, 'heismans': 0, 'cotys': 0} for u in all_users}
+    def _safe_int(v, default=0):
+        try:
+            if pd.isna(v):
+                return default
+            return int(float(v))
+        except Exception:
+            return default
 
-    # 2. ACCUMULATE SUCCESS
-    # A. NATIONAL TITLES (Prioritizing champs.csv)
+    def _parse_record_parts(val):
+        s = str(val).strip()
+        s = s.replace('="', '').replace('"', '').replace('=', '')
+        if '-' in s:
+            try:
+                a, b = s.split('-', 1)
+                return _safe_int(a, 0), _safe_int(b, 0)
+            except Exception:
+                return 0, 0
+        return 0, 0
+
+    def _load_goat_base_users():
+        users = []
+        try:
+            if 'model_2041' in globals() and isinstance(model_2041, pd.DataFrame) and 'USER' in model_2041.columns:
+                users = [str(u).strip() for u in model_2041['USER'].dropna().astype(str).tolist() if str(u).strip().upper() not in ('CPU', 'NAN', '')]
+        except Exception:
+            users = []
+        return sorted(list(dict.fromkeys(users)))
+
+    all_users = _load_goat_base_users()
+    goat_stats = {
+        u: {
+            'rings': 0, 'heismans': 0, 'cotys': 0,
+            'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
+            'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
+            'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
+        }
+        for u in all_users
+    }
+
+    # coach_records.csv enrichment
+    coach_records = pd.DataFrame()
+    try:
+        if os.path.exists('coach_records.csv'):
+            coach_records = pd.read_csv('coach_records.csv')
+            for _, row in coach_records.iterrows():
+                u_name = str(row.get('User', '')).strip()
+                if not u_name:
+                    continue
+                if u_name not in goat_stats:
+                    goat_stats[u_name] = {
+                        'rings': 0, 'heismans': 0, 'cotys': 0,
+                        'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
+                        'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
+                        'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
+                    }
+
+                goat_stats[u_name]['current_team'] = clean_display(row.get('Team', ''), goat_stats[u_name]['current_team'])
+                goat_stats[u_name]['visible_coach_name'] = clean_display(row.get('VisibleCoachName', ''), goat_stats[u_name]['visible_coach_name'])
+                goat_stats[u_name]['prestige'] = clean_display(row.get('Prestige', ''), goat_stats[u_name]['prestige'])
+                goat_stats[u_name]['level'] = row.get('Level', goat_stats[u_name]['level'])
+
+                _cw, _cl = _parse_record_parts(row.get('CareerRecord', '0-0'))
+                _pw, _pl = _parse_record_parts(row.get('PlayoffRecord', '0-0'))
+                goat_stats[u_name]['career_wins'] = max(goat_stats[u_name]['career_wins'], _cw)
+                goat_stats[u_name]['career_losses'] = max(goat_stats[u_name]['career_losses'], _cl)
+                goat_stats[u_name]['playoff_wins'] = max(goat_stats[u_name]['playoff_wins'], _pw)
+                goat_stats[u_name]['playoff_losses'] = max(goat_stats[u_name]['playoff_losses'], _pl)
+                goat_stats[u_name]['rings'] = max(goat_stats[u_name]['rings'], _safe_int(row.get('NationalTitles', 0), 0))
+                goat_stats[u_name]['conf_titles'] = max(goat_stats[u_name]['conf_titles'], _safe_int(row.get('ConferenceTitles', 0), 0))
+                goat_stats[u_name]['first_rounders'] = max(goat_stats[u_name]['first_rounders'], _safe_int(row.get('FirstRounders', 0), 0))
+                goat_stats[u_name]['draft_picks'] = max(goat_stats[u_name]['draft_picks'], _safe_int(row.get('DraftPicks', 0), 0))
+                goat_stats[u_name]['top5_classes'] = max(goat_stats[u_name]['top5_classes'], _safe_int(row.get('Top5RecruitingClasses', 0), 0))
+    except Exception:
+        coach_records = pd.DataFrame()
+
+    # champs.csv
     try:
         if os.path.exists('champs.csv'):
             _champs_df = pd.read_csv('champs.csv')
-            # Identify the column containing the user/coach name
             _u_col = next((c for c in _champs_df.columns if str(c).upper() in ['USER', 'COACH', 'WINNER_USER']), None)
-            
             if _u_col:
                 for _, row in _champs_df.iterrows():
-                    u_name = str(row[_u_col]).strip()
-                    if u_name in user_awards:
-                        user_awards[u_name]['rings'] += 1
-            else:
-                st.warning("Found champs.csv but couldn't identify the 'User' column.")
-    except Exception as e:
-        st.error(f"Error loading champs.csv: {e}")
+                    u_name = str(row.get(_u_col, '')).strip()
+                    if not u_name:
+                        continue
+                    if u_name not in goat_stats:
+                        goat_stats[u_name] = {
+                            'rings': 0, 'heismans': 0, 'cotys': 0,
+                            'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
+                            'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
+                            'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
+                        }
+                    goat_stats[u_name]['rings'] += 1
+    except Exception:
+        pass
 
-    # B. HEISMANS (Using Heisman_Finalists.csv)
+    # Heismans
     try:
         if os.path.exists('Heisman_Finalists.csv'):
             _h_df = pd.read_csv('Heisman_Finalists.csv')
-            # Count winners (FINISH == 1)
-            _h_winners = _h_df[_h_df['FINISH'].astype(int) == 1]
-            for _, row in _h_winners.iterrows():
-                u_name = str(row.get('USER', '')).strip()
-                if u_name in user_awards:
-                    user_awards[u_name]['heismans'] += 1
-    except:
+            if 'FINISH' in _h_df.columns:
+                _h_df['FINISH'] = pd.to_numeric(_h_df['FINISH'], errors='coerce')
+                _h_winners = _h_df[_h_df['FINISH'] == 1].copy()
+                for _, row in _h_winners.iterrows():
+                    u_name = str(row.get('USER', '')).strip()
+                    if not u_name:
+                        continue
+                    if u_name not in goat_stats:
+                        goat_stats[u_name] = {
+                            'rings': 0, 'heismans': 0, 'cotys': 0,
+                            'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
+                            'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
+                            'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
+                        }
+                    goat_stats[u_name]['heismans'] += 1
+    except Exception:
         pass
 
-    # C. COACH OF THE YEAR (From coty dataframe)
-    if 'coty' in locals() and not coty.empty:
-        for _, row in coty.iterrows():
-            u_name = str(row.get('User', row.get('USER', ''))).strip()
-            if u_name in user_awards:
-                user_awards[u_name]['cotys'] += 1
+    # COTY
+    try:
+        if 'coty' in locals() and isinstance(coty, pd.DataFrame) and not coty.empty:
+            for _, row in coty.iterrows():
+                u_name = str(row.get('User', row.get('USER', ''))).strip()
+                if not u_name:
+                    continue
+                if u_name not in goat_stats:
+                    goat_stats[u_name] = {
+                        'rings': 0, 'heismans': 0, 'cotys': 0,
+                        'conf_titles': 0, 'draft_picks': 0, 'first_rounders': 0, 'top5_classes': 0,
+                        'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
+                        'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
+                    }
+                goat_stats[u_name]['cotys'] += 1
+    except Exception:
+        pass
 
-    # 3. BUILD LEADERBOARD
-    legacy_rows = []
-    for u, stats in user_awards.items():
-        # Score Calculation
-        score = (stats['rings'] * 15) + (stats['heismans'] * 5) + (stats['cotys'] * 3)
-        # Ring Display
-        rings_display = " 💍" * stats['rings']
-        
-        legacy_rows.append({
-            "Coach": f"{u}{rings_display}",
-            "Titles": stats['rings'],
-            "Heismans": stats['heismans'],
-            "COTYs": stats['cotys'],
-            "Legacy Score": score
+    def _legacy_tier(score):
+        if score >= 220:
+            return "Immortal"
+        if score >= 140:
+            return "Dynasty Titan"
+        if score >= 85:
+            return "Legend"
+        if score >= 45:
+            return "Builder"
+        return "Contender"
+
+    goat_rows = []
+    for u, stats in goat_stats.items():
+        rings = _safe_int(stats.get('rings', 0), 0)
+        heismans = _safe_int(stats.get('heismans', 0), 0)
+        cotys = _safe_int(stats.get('cotys', 0), 0)
+        conf_titles = _safe_int(stats.get('conf_titles', 0), 0)
+        draft_picks = _safe_int(stats.get('draft_picks', 0), 0)
+        first_rounders = _safe_int(stats.get('first_rounders', 0), 0)
+        top5_classes = _safe_int(stats.get('top5_classes', 0), 0)
+        cw = _safe_int(stats.get('career_wins', 0), 0)
+        cl = _safe_int(stats.get('career_losses', 0), 0)
+        pw = _safe_int(stats.get('playoff_wins', 0), 0)
+        pl = _safe_int(stats.get('playoff_losses', 0), 0)
+
+        score = (
+            rings * 15 +
+            heismans * 5 +
+            cotys * 3 +
+            conf_titles * 2 +
+            first_rounders * 1 +
+            min(15, int(draft_picks / 5)) +
+            top5_classes * 1 +
+            min(20, int(cw / 20)) +
+            min(12, int(pw / 4))
+        )
+
+        win_pct = round((cw / max(1, cw + cl)), 3) if (cw + cl) > 0 else np.nan
+        playoff_pct = round((pw / max(1, pw + pl)), 3) if (pw + pl) > 0 else np.nan
+        career_record = f"{cw}-{cl}" if (cw + cl) > 0 else "—"
+        playoff_record = f"{pw}-{pl}" if (pw + pl) > 0 else "—"
+
+        goat_rows.append({
+            'Coach': u,
+            'DisplayName': stats.get('visible_coach_name') or u,
+            'Team': stats.get('current_team', ''),
+            'Prestige': clean_display(stats.get('prestige', ''), '—'),
+            'Level': _safe_int(stats.get('level', 0), 0) if pd.notna(stats.get('level', pd.NA)) else '—',
+            'Career Record': career_record,
+            'Career Win %': win_pct,
+            'Playoff Record': playoff_record,
+            'Playoff Win %': playoff_pct,
+            'Titles': rings,
+            'Heismans': heismans,
+            'COTYs': cotys,
+            'Conf Titles': conf_titles,
+            '1st Rd': first_rounders,
+            'Draft Picks': draft_picks,
+            'Top 5 Classes': top5_classes,
+            'Legacy Score': score,
+            'Tier': _legacy_tier(score),
         })
 
-    legacy_df = pd.DataFrame(legacy_rows).sort_values(["Legacy Score", "Titles"], ascending=False)
-
-    # 4. RENDER UI
-    if not legacy_df.empty:
-        # Podium (Top 3)
-        top_3 = legacy_df.head(3).reset_index(drop=True)
-        p_cols = st.columns(3)
-        medals = ["🥇", "🥈", "🥉"]
-        
-        for i, row in top_3.iterrows():
-            with p_cols[i]:
-                st.metric(label=f"{medals[i]} {row['Coach']}", value=f"{row['Legacy Score']} pts")
-
-        st.write("---")
-        
-        # Rankings Table
-        st.dataframe(
-            legacy_df,
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "Legacy Score": st.column_config.NumberColumn("Legacy Score", format="%d pts"),
-                "Coach": st.column_config.TextColumn("Coach (All-Time Legacy)"),
-                "Titles": st.column_config.NumberColumn("💍 Titles"),
-                "Heismans": st.column_config.NumberColumn("🏅 Heismans"),
-                "COTYs": st.column_config.NumberColumn("🎓 COTYs")
-            }
-        )
-    else:
+    legacy_df = pd.DataFrame(goat_rows)
+    if legacy_df.empty:
         st.info("Win some hardware to enter the GOAT Council.")
+    else:
+        legacy_df = legacy_df.sort_values(
+            ['Legacy Score', 'Titles', 'Heismans', 'COTYs', 'Draft Picks'],
+            ascending=[False, False, False, False, False]
+        ).reset_index(drop=True)
 
+        top3 = legacy_df.head(3).copy()
+        p_cols = st.columns(3)
+        medals = ['🥇', '🥈', '🥉']
+        for i, (_, row) in enumerate(top3.iterrows()):
+            with p_cols[i]:
+                _team = clean_display(row.get('Team', ''), '')
+                _logo = get_school_logo_src(_team) if _team else None
+                if _logo:
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:center;margin-bottom:8px;'><img src='{_logo}' style='width:56px;height:56px;object-fit:contain;'></div>",
+                        unsafe_allow_html=True
+                    )
+                st.metric(
+                    label=f"{medals[i]} {row['Coach']}",
+                    value=f"{int(row['Legacy Score'])} pts",
+                    delta=f"{row['Tier']} • {row['Titles']} titles"
+                )
+
+        st.markdown("---")
+
+        def _render_goat_snapshot_table(df):
+            if df.empty:
+                st.caption("No GOAT rows available.")
+                return
+
+            _rows_html = []
+            for idx, _row in df.iterrows():
+                _team = str(_row.get('Team', '')).strip()
+                _primary = get_team_primary_color(_team) if 'get_team_primary_color' in globals() else '#38bdf8'
+                _logo_uri = None
+                try:
+                    _logo_path = get_logo_source(_team) if 'get_logo_source' in globals() else None
+                    _logo_uri = image_file_to_data_uri(_logo_path) if _logo_path and 'image_file_to_data_uri' in globals() else None
+                except Exception:
+                    _logo_uri = get_school_logo_src(_team) if _team else None
+
+                _logo_html = f"<img src='{_logo_uri}' style='width:34px;height:34px;object-fit:contain;'/>" if _logo_uri else "<div style='font-size:20px;'>🏫</div>"
+                _rank = idx + 1
+                _medal = "🥇" if _rank == 1 else ("🥈" if _rank == 2 else ("🥉" if _rank == 3 else f"#{_rank}"))
+                _coach = html.escape(str(_row.get('Coach', '—')))
+                _team_disp = html.escape(_team or '—')
+                _tier = html.escape(str(_row.get('Tier', '—')))
+                _prestige = html.escape(str(_row.get('Prestige', '—')))
+                _record = html.escape(str(_row.get('Career Record', '—')))
+                _playoff_record = html.escape(str(_row.get('Playoff Record', '—')))
+                _legacy_score = int(_safe_int(_row.get('Legacy Score', 0), 0))
+
+                _cells = [f'''
+                <td style="padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="font-weight:900;min-width:38px;text-align:center;color:#e5e7eb;">{_medal}</div>
+                    <div style="width:38px;text-align:center;">{_logo_html}</div>
+                    <div>
+                      <div style="font-weight:900;color:{_primary};">{_coach}</div>
+                      <div style="font-size:11px;color:#94a3b8;">{_team_disp}</div>
+                    </div>
+                  </div>
+                </td>
+                ''']
+
+                _vals = [
+                    f"<span style='font-weight:900;color:#f8fafc;'>{_legacy_score}</span>",
+                    html.escape(str(_row.get('Titles', 0))),
+                    html.escape(str(_row.get('Heismans', 0))),
+                    html.escape(str(_row.get('COTYs', 0))),
+                    html.escape(str(_row.get('Conf Titles', 0))),
+                    html.escape(str(_row.get('1st Rd', 0))),
+                    html.escape(str(_row.get('Draft Picks', 0))),
+                    html.escape(str(_row.get('Top 5 Classes', 0))),
+                    _record,
+                    _playoff_record,
+                    html.escape(f"{float(_row['Career Win %']):.3f}" if pd.notna(_row.get('Career Win %', np.nan)) else '—'),
+                    html.escape(f"{float(_row['Playoff Win %']):.3f}" if pd.notna(_row.get('Playoff Win %', np.nan)) else '—'),
+                    _prestige,
+                    html.escape(str(_row.get('Level', '—'))),
+                    f"<span style='font-weight:800;color:#fbbf24;'>{_tier}</span>",
+                ]
+                for _disp in _vals:
+                    _cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{_disp}</td>")
+
+                _rows_html.append(f"<tr style='border-left:6px solid {_primary};background:linear-gradient(90deg,{_primary}22,rgba(15,23,42,.95) 14%);'>{''.join(_cells)}</tr>")
+
+            _table_html = f'''
+            <div style="overflow-x:auto;border:1px solid #334155;border-radius:14px;background:#0f172a;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                  <tr style="background:#111827;color:#f8fafc;">
+                    <th style="text-align:left;padding:10px 12px;color:#f8fafc;font-weight:800;">GOAT Rankings</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Legacy</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Titles</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Heismans</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">COTYs</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Conf</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">1st Rd</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Drafted</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Top 5</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Career</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Playoff</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Win %</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">PO Win %</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Prestige</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Level</th>
+                    <th style="padding:10px 12px;color:#f8fafc;font-weight:800;">Tier</th>
+                  </tr>
+                </thead>
+                <tbody>{''.join(_rows_html)}</tbody>
+              </table>
+            </div>
+            '''
+            st.markdown(_table_html, unsafe_allow_html=True)
+
+        _render_goat_snapshot_table(legacy_df)
+
+        st.markdown("---")
+        st.caption("Legacy score weighting: National Title (15), Heisman (5), COTY (3), Conference Title (2), plus pipeline and résumé bonuses.")
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE
 # ──────────────────────────────────────────────────────────────────────
