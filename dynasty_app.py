@@ -15204,11 +15204,13 @@ with tabs[1]:
     </div>
   </div>
 </div>
-""", height=280, scrolling=False)
+""", height=340, scrolling=False)
 
-            # ── Year selector (hidden — driven by card pills via session state) ──
+            # ── Year selector — zero-height, invisible, driven by session state ──
+            st.markdown("<div style='height:0;overflow:hidden;margin:0;padding:0;'>", unsafe_allow_html=True)
             _sel_idx = years.index(sel_year) if sel_year in years else len(years) - 1
             _new_year = st.selectbox("Draft Year", years, index=_sel_idx, key="draft_central_year_select", label_visibility="collapsed")
+            st.markdown("</div>", unsafe_allow_html=True)
             if _new_year != sel_year:
                 st.session_state["draft_central_year"] = _new_year
                 st.rerun()
