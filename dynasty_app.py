@@ -7207,9 +7207,28 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     _new_q90 = 'Quad 90 (90+ SPD, ACC, AGI & COD)'
     if _old_gb in df.columns and _new_q90 not in df.columns:
         df = df.rename(columns={_old_gb: _new_q90})
-    if _new_q90 not in df.columns:
-        df[_new_q90] = 0
-    df[_new_q90] = pd.to_numeric(df[_new_q90], errors='coerce').fillna(0)
+
+    # Zero-fill speed cols — no longer in TeamRatingsHistory.csv.
+    # Live roster enrichment overwrites these after this function returns.
+    # They must exist here so scoring formulas don't KeyError.
+    for _spd_col in [
+        'Team Speed (90+ Speed Guys)',
+        'Quad 90 (90+ SPD, ACC, AGI & COD)',
+        'Generational (96+ speed or 96+ Acceleration)',
+        'Off Speed (90+ speed)',
+        'Def Speed (90+ speed)',
+        'Monsters',
+        'Quick Hogs',
+        'Cheat Codes',
+        'Current CFP Ranking',
+        'Current Record Wins',
+        'Current Record Losses',
+        'Combined Opponent Wins',
+        'Combined Opponent Losses',
+    ]:
+        if _spd_col not in df.columns:
+            df[_spd_col] = 0
+        df[_spd_col] = pd.to_numeric(df[_spd_col], errors='coerce').fillna(0)
 
     # Pull conference from TeamRatingsHistory if present
     if 'CONFERENCE' not in df.columns:
