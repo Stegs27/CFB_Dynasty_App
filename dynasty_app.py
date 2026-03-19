@@ -11618,7 +11618,10 @@ with tabs[0]:
                 return default
 
         def _headline_history_load():
-            cols = ['season','week','headline_id','event_type','team','player','headline_text','score','shown_rank','uniqueness_key']
+            cols = [
+                'season','week','headline_id','event_type','team','player','headline_text',
+                'score','shown_rank','uniqueness_key','story_group','tone','arc_stage'
+            ]
             try:
                 if _headline_history_path.exists():
                     _hh = pd.read_csv(_headline_history_path)
@@ -11636,6 +11639,10 @@ with tabs[0]:
                 _hh_new = pd.DataFrame(_rows)
                 if _hh_new.empty:
                     return
+                for _c in _hh_existing.columns:
+                    if _c not in _hh_new.columns:
+                        _hh_new[_c] = ''
+                _hh_new = _hh_new[_hh_existing.columns].copy()
                 _hh_all = pd.concat([_hh_existing, _hh_new], ignore_index=True)
                 _hh_all = _hh_all.drop_duplicates(subset=['season','week','uniqueness_key','headline_text'], keep='last')
                 _hh_all.to_csv(_headline_history_path, index=False)
@@ -11781,6 +11788,111 @@ with tabs[0]:
             },
         }
 
+        def _headline_team_identity(_team_name):
+            _team_name = str(_team_name).strip()
+            _identities = {
+                'Florida State': {'label': 'empire pressure', 'style': 'the standard', 'intro': 'The pressure around {team} never really leaves.'},
+                'Texas Tech': {'label': 'firepower swagger', 'style': "the league's loudest offense", 'intro': '{team} keeps turning Saturdays into track meets.'},
+                'Bowling Green': {'label': 'blue-collar bully', 'style': 'the giant-killer', 'intro': '{team} keeps showing up like a heavyweight in a mid-major body.'},
+                'USF': {'label': 'speed chaos', 'style': 'a speed trap', 'intro': '{team} looks built to stress every angle of the field.'},
+                'Florida': {'label': 'volatility pressure', 'style': 'high ceiling, hot seat', 'intro': '{team} feels one heater away from being terrifying and one stumble away from noise.'},
+                'San Jose State': {'label': 'builder spoiler', 'style': 'the underdog menace', 'intro': '{team} keeps living in the space between breakthrough and spoiler.'},
+            }
+            return _identities.get(_team_name, {'label': 'national story', 'style': 'a live storyline', 'intro': '{team} has become one of the live stories in the dynasty.'})
+
+        def _headline_story_group(_row_or_dict):
+            _etype = str(_row_or_dict.get('event_type', '')).strip()
+            _team = str(_row_or_dict.get('team', '')).strip()
+            _player = str(_row_or_dict.get('player', '')).strip()
+            if _player:
+                return f"player::{_player.lower()}::{_etype.lower()}"
+            if _team:
+                return f"team::{_team.lower()}::{_etype.lower()}"
+            return f"event::{_etype.lower()}"
+
+        def _headline_story_stage(_history_df, _story_group, _team=''):
+            if _history_df is None or _history_df.empty:
+                return 'emerging'
+            _h = _history_df.copy()
+            if 'story_group' not in _h.columns:
+                _h['story_group'] = ''
+            _story_group = str(_story_group).strip()
+            _same_group = _h[_h['story_group'].astype(str) == _story_group].copy()
+            if len(_same_group) >= 3:
+                return 'legacy'
+            if len(_same_group) == 2:
+                return 'crisis'
+            if len(_same_group) == 1:
+                return 'building'
+            if _team:
+                _team_hits = _h[_h['team'].astype(str).str.lower() == str(_team).strip().lower()].tail(6)
+                if len(_team_hits) >= 4:
+                    return 'pressure'
+            return 'emerging'
+
+        def _headline_arc_bonus(_history_df, _story_group, _team=''):
+            _stage = _headline_story_stage(_history_df, _story_group, _team)
+            _bonus_map = {
+                'emerging': 0.0,
+                'building': 6.0,
+                'pressure': 8.0,
+                'crisis': 11.0,
+                'legacy': 7.0,
+            }
+            return _bonus_map.get(_stage, 0.0)
+
+        def _headline_tone(_event_type, _stage, _team=''):
+            if _stage in {'crisis', 'pressure'}:
+                return 'pressure cooker'
+            if _event_type in {'upset_win', 'playoff_result', 'user_h2h'}:
+                return 'broadcast'
+            if _event_type in {'dynasty_history', 'title_favorite', 'power_alpha'}:
+                return 'dynasty lore'
+            if _team in {'Texas Tech', 'USF', 'Bowling Green'}:
+                return 'swagger'
+            return 'broadcast'
+
+        def _headline_apply_voice(_hl, _history_df):
+            _team = str(_hl.get('team', '')).strip()
+            _identity = _headline_team_identity(_team)
+            _story_group = _headline_story_group(_hl)
+            _stage = _headline_story_stage(_history_df, _story_group, _team)
+            _tone = _headline_tone(str(_hl.get('event_type', '')).strip(), _stage, _team)
+
+            _body = str(_hl.get('body', '')).strip()
+            _title = str(_hl.get('title', '')).strip()
+
+            _prefix_map = {
+                'emerging': 'Emerging story:',
+                'building': 'Building story:',
+                'pressure': 'Pressure check:',
+                'crisis': 'Boiling point:',
+                'legacy': 'Legacy watch:',
+            }
+            _body = f"<span style='color:#fca5a5;font-weight:700'>{_prefix_map.get(_stage, 'Storyline:')}</span> {_body}"
+
+            if _tone == 'dynasty lore':
+                _body += f" <span style='color:#cbd5e1'>{html.escape(_identity['intro'].format(team=_team))}</span>"
+            elif _tone == 'swagger':
+                _body += f" <span style='color:#fcd34d'>{html.escape(_team)} is playing like {html.escape(_identity['style'])}.</span>"
+            elif _tone == 'pressure cooker':
+                _body += f" <span style='color:#fda4af'>The next result will decide whether this becomes a warning or a defining chapter.</span>"
+
+            _hl['body'] = _body
+            _hl['title'] = _title if _stage == 'emerging' else f"{_title} • {str(_stage).title()}"
+            _hl['story_group'] = _story_group
+            _hl['arc_stage'] = _stage
+            _hl['tone'] = _tone
+            return _hl
+
+        def _headline_download_bytes(_path_obj):
+            try:
+                if Path(_path_obj).exists():
+                    return Path(_path_obj).read_bytes()
+            except Exception:
+                return None
+            return None
+
         def _headline_render(_event_type, _payload):
             _tmpl = _headline_templates.get(_event_type)
             if not _tmpl:
@@ -11807,6 +11919,9 @@ with tabs[0]:
                 'emoji': _rendered['emoji'],
                 'title': _rendered['title'],
                 'body': _rendered['body'],
+                'story_group': '',
+                'tone': '',
+                'arc_stage': '',
             })
 
         def _headline_recent_penalty(_history_df, _uniqueness_key):
@@ -12307,7 +12422,13 @@ with tabs[0]:
             except Exception:
                 pass
 
+        for _cand in _headline_candidates:
+            _sg = _headline_story_group(_cand)
+            _cand['story_group'] = _sg
+            _cand['score'] = float(_cand.get('score', 0)) + _headline_arc_bonus(_headline_history, _sg, _cand.get('team', ''))
+
         _selected_headlines = _headline_select(_headline_candidates, _headline_history, n=6)
+        _selected_headlines = [_headline_apply_voice(dict(_hl), _headline_history) for _hl in _selected_headlines]
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""
@@ -12330,6 +12451,8 @@ with tabs[0]:
         }
         </style>
         """, unsafe_allow_html=True)
+
+        _headline_debug_df = pd.DataFrame(_headline_candidates).sort_values('score', ascending=False) if _headline_candidates else pd.DataFrame()
 
         if not _selected_headlines:
             st.info("No headline candidates available yet. Load current scores, rankings, injuries, or roster data to activate the story engine.")
@@ -12362,6 +12485,9 @@ with tabs[0]:
                     'score': _hl.get('score', 0),
                     'shown_rank': _rank,
                     'uniqueness_key': _hl.get('uniqueness_key',''),
+                    'story_group': _hl.get('story_group',''),
+                    'tone': _hl.get('tone',''),
+                    'arc_stage': _hl.get('arc_stage',''),
                 })
             _headline_history_save(_history_rows)
 
@@ -12719,6 +12845,40 @@ with tabs[0]:
                              help="Clears cache and reloads all CSVs"):
                     st.cache_data.clear()
                     st.rerun()
+
+            st.markdown("#### Dynasty Headlines History")
+            _hh_exists = _headline_history_path.exists()
+            _hh_df = _headline_history_load()
+            _hh_cols_a, _hh_cols_b = st.columns([1.3, 1])
+            with _hh_cols_a:
+                if _hh_exists and not _hh_df.empty:
+                    _latest_season = _hh_safe_int(pd.to_numeric(_hh_df.get('season'), errors='coerce').dropna().max(), 0)
+                    _latest_week = _hh_safe_int(pd.to_numeric(_hh_df.get('week'), errors='coerce').dropna().max(), 0)
+                    st.caption(f"Rows stored: {len(_hh_df)} • Latest checkpoint: {_latest_season} week {_latest_week}")
+                else:
+                    st.caption("No headlines history file has been generated yet. It will appear after Dynasty Headlines renders and saves at least one batch.")
+            with _hh_cols_b:
+                _hh_bytes = _headline_download_bytes(_headline_history_path)
+                st.download_button(
+                    "⬇️ Download headlines history",
+                    data=_hh_bytes if _hh_bytes is not None else b"",
+                    file_name="dynasty_headlines_history.csv",
+                    mime="text/csv",
+                    key="comm_download_headlines_history",
+                    use_container_width=True,
+                    disabled=_hh_bytes is None
+                )
+
+            _cand_bytes = _headline_debug_df.to_csv(index=False).encode('utf-8') if '_headline_debug_df' in locals() and not _headline_debug_df.empty else None
+            st.download_button(
+                "⬇️ Download headline candidate debug",
+                data=_cand_bytes if _cand_bytes is not None else b"",
+                file_name="dynasty_headline_candidates_debug.csv",
+                mime="text/csv",
+                key="comm_download_headline_candidates",
+                use_container_width=True,
+                disabled=_cand_bytes is None
+            )
 
 
 
