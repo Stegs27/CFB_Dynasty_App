@@ -12838,7 +12838,10 @@ with tabs[0]:
     </div>"""
 
                 _cards_html += "\n  </div>\n</div>"
-                st.markdown(_cards_html, unsafe_allow_html=True)
+                _n_cards = len(_featured_list)
+                _n_rows = -(-_n_cards // 3)  # ceiling div for 3-col layout
+                _card_height = 60 + (_n_rows * 240)
+                components.html(_cards_html, height=_card_height, scrolling=False)
 
                 with st.expander("⚡ How the Heisman Odds formula works"):
                     st.markdown(
