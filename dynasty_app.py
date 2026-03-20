@@ -12079,12 +12079,28 @@ with tabs[0]:
             _wk_label = f'Week {_dn_week}'
 
         # ── Logo URIs for banner ──────────────────────────────────────────
-        _ncaa_logo_uri = image_file_to_data_uri('logos/NCAA.png') if os.path.exists('logos/NCAA.png') else \
-                         image_file_to_data_uri('NCAA.png') if os.path.exists('NCAA.png') else None
-        _nfl_logo_uri  = image_file_to_data_uri('logos/_NFL_logo.png') if os.path.exists('logos/_NFL_logo.png') else \
-                         image_file_to_data_uri('_NFL_logo.png') if os.path.exists('_NFL_logo.png') else None
-        _ncaa_img = f"<img src='{_ncaa_logo_uri}' style='height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _ncaa_logo_uri else ""
-        _nfl_img  = f"<img src='{_nfl_logo_uri}'  style='height:36px;object-fit:contain;vertical-align:middle;margin-left:8px;'/>"  if _nfl_logo_uri  else ""
+        def _safe_logo_uri(path):
+            try:
+                if path and os.path.exists(path):
+                    return image_file_to_data_uri(path)
+            except Exception:
+                pass
+            return None
+
+        _ncaa_logo_uri = (
+            _safe_logo_uri('logos/NCAA.png') or
+            _safe_logo_uri('NCAA.png') or
+            _safe_logo_uri('logos/ncaa.png')
+        )
+        _nfl_logo_uri = (
+            _safe_logo_uri('logos/_NFL_logo.png') or
+            _safe_logo_uri('_NFL_logo.png') or
+            _safe_logo_uri('logos/NFL.png')
+        )
+        _ncaa_img = (f"<img src='{_ncaa_logo_uri}' style='height:36px;object-fit:contain;"
+                     f"vertical-align:middle;margin-right:8px;'/>") if _ncaa_logo_uri else ""
+        _nfl_img  = (f"<img src='{_nfl_logo_uri}' style='height:36px;object-fit:contain;"
+                     f"vertical-align:middle;margin-left:8px;'/>") if _nfl_logo_uri else ""
 
         st.markdown(f"""
         <div style='display:flex;align-items:center;justify-content:center;gap:18px;
@@ -12285,6 +12301,29 @@ with tabs[0]:
             _rsnap = _rh[(_rh['YEAR'] == _ry) & (_rh['WEEK'] == _rw)]
             if 'RECORD' in _rsnap.columns:
                 _record_map = dict(zip(_rsnap['TEAM'].astype(str).str.strip(), _rsnap['RECORD'].astype(str)))
+        except Exception:
+            pass
+
+        # Fall back to conf_standings W-L for any team showing 0-0 or blank record
+        try:
+            _cs_rec = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
+            if 'YEAR' in _cs_rec.columns:
+                _cs_rec['YEAR'] = pd.to_numeric(_cs_rec['YEAR'], errors='coerce')
+                _cs_rec = _cs_rec[_cs_rec['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)]
+            _cs_rec['TEAM'] = _cs_rec['TEAM'].astype(str).str.strip()
+            _cs_rec['W'] = pd.to_numeric(_cs_rec.get('W', 0), errors='coerce').fillna(0).astype(int)
+            _cs_rec['L'] = pd.to_numeric(_cs_rec.get('L', 0), errors='coerce').fillna(0).astype(int)
+            for _, _cr in _cs_rec.iterrows():
+                _t = str(_cr['TEAM']).strip()
+                _existing = _record_map.get(_t, '')
+                _is_blank_or_zero = (
+                    not _existing or
+                    str(_existing).strip() in ('', 'nan', '0-0')
+                )
+                if _is_blank_or_zero:
+                    _w, _l = int(_cr['W']), int(_cr['L'])
+                    if _w > 0 or _l > 0:
+                        _record_map[_t] = f"{_w}-{_l}"
         except Exception:
             pass
 
@@ -19600,14 +19639,16 @@ with tabs[1]:
         # ── NFL Teams ─────────────────────────────────────────────────────
         with nfl_tabs[8]:
             st.subheader("🏟️ NFL Teams")
-            # nfl_roster = NFLroster26_MASTER.csv (loaded via universe["nfl_roster"])
             _nfl_master = universe.get("nfl_roster", pd.DataFrame()) if universe else pd.DataFrame()
             if _nfl_master.empty:
                 st.info("NFLroster26_MASTER.csv not found or empty — make sure it's pushed to the repo.")
             else:
-                team_needs = build_nfl_team_needs(nfl_roster)
-                nfl_teams = sorted(nfl_roster["Team"].dropna().astype(str).unique().tolist())
-                sel_nfl_team = st.selectbox("Select NFL Team", nfl_teams)
+                team_needs = build_nfl_team_needs(_nfl_master)
+                nfl_teams = sorted(_nfl_master["Team"].dropna().astype(str).unique().tolist())
+                if not nfl_teams:
+                    st.info("No teams found in NFLroster26_MASTER.csv.")
+                else:
+                    sel_nfl_team = str(st.selectbox("Select NFL Team", nfl_teams) or nfl_teams[0])
 
                 team_logo = get_nfl_logo_html(sel_nfl_team, width=52, margin="0 12px 0 0")
 
