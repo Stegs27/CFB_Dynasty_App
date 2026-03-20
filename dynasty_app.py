@@ -12180,7 +12180,7 @@ with tabs[0]:
                         _man_res = 'W' if _man_us > _man_os else ('L' if _man_os > _man_us else 'TIE')
                         _man_rc  = '#4ade80' if _man_res == 'W' else ('#f87171' if _man_res == 'L' else '#94a3b8')
                         _game_line = f"{_ha_disp} {_opp_chip} <span style='color:{_man_rc};font-weight:800;font-size:0.78rem;font-family:Barlow Condensed,sans-serif;'>{_man_res} {_man_us}–{_man_os}</span>"
-                        _status_chip = "<span style='background:#a78bfa22;color:#a78bfa;border:1px solid #a78bfa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>MANUAL</span>"
+                        _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
                     else:
                         _game_line = f"{_ha_disp} {_opp_chip}"
                         if _u_status == 'Ready':
@@ -12205,7 +12205,7 @@ with tabs[0]:
                 f"<div style='flex:1; min-width:200px; {bw_style}'>"
                 f"<span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else '#9ca3af'};'>{html.escape(team)}</span> "
                 f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span> {rank_badge}"
-                f"<div style='margin-top:3px;'>{official_badge} {defending_badge}</div>"
+                f"<div style='margin-top:3px;'>{official_badge}</div>"
                 f"{_game_strip}"
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
