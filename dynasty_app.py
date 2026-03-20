@@ -8361,6 +8361,67 @@ def estimate_game_line(team, opp, model_df, rank_map):
     return f"{favored} -{line}", favored
 
 
+def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_field=True):
+    """
+    Compute betting line using OVR/OFF/DEF ratings from team_ratings.csv.
+    ratings_map: dict of team → {'OVR': x, 'OFF': x, 'DEF': x}
+    Returns (line_str, favored_team, spread_value) or None if ratings missing.
+    home_field: True adds ~2.5pt HFA to home team.
+    """
+    hr = ratings_map.get(str(home_team).strip())
+    ar = ratings_map.get(str(away_team).strip())
+    if not hr or not ar:
+        return None
+    try:
+        h_ovr = float(hr.get('OVR', hr.get('OVERALL', 0)) or 0)
+        h_off = float(hr.get('OFF', hr.get('OFFENSE', 0)) or 0)
+        h_def = float(hr.get('DEF', hr.get('DEFENSE', 0)) or 0)
+        a_ovr = float(ar.get('OVR', ar.get('OVERALL', 0)) or 0)
+        a_off = float(ar.get('OFF', ar.get('OFFENSE', 0)) or 0)
+        a_def = float(ar.get('DEF', ar.get('DEFENSE', 0)) or 0)
+    except Exception:
+        return None
+    if h_ovr == 0 and a_ovr == 0:
+        return None
+    h_score = (h_off * 0.55 + (100 - a_def) * 0.45) * 0.32 + 7
+    a_score = (a_off * 0.55 + (100 - h_def) * 0.45) * 0.32 + 7
+    hfa = 2.5 if home_field else 0
+    diff = (h_score + hfa) - a_score
+    spread = round(abs(diff) * 10) / 10
+    if spread < 1.0:
+        return "Pick'em", None, 0.0
+    favored = home_team if diff > 0 else away_team
+    spread_str = f"{spread:.1f}" if spread % 1 != 0 else f"{int(spread)}"
+    return f"{favored} -{spread_str}", favored, diff
+
+
+def load_team_ratings(year=None):
+    """
+    Load team ratings from team_ratings.csv.
+    Returns dict: team_name → {'OVR': x, 'OFF': x, 'DEF': x}
+    Falls back to most recent year if requested year not found.
+    """
+    try:
+        tr = pd.read_csv('team_ratings.csv')
+        tr['YEAR'] = pd.to_numeric(tr['YEAR'], errors='coerce')
+        if year is not None:
+            yr_data = tr[tr['YEAR'] == int(year)]
+            if yr_data.empty:
+                yr_data = tr[tr['YEAR'] == tr['YEAR'].max()]
+        else:
+            yr_data = tr[tr['YEAR'] == tr['YEAR'].max()]
+        result = {}
+        for _, row in yr_data.iterrows():
+            result[str(row['TEAM']).strip()] = {
+                'OVR': row.get('OVR', row.get('OVERALL')),
+                'OFF': row.get('OFF', row.get('OFFENSE')),
+                'DEF': row.get('DEF', row.get('DEFENSE')),
+            }
+        return result
+    except Exception:
+        return {}
+
+
 def get_team_record_display(team, model_df, rankings_df):
     team = str(team).strip()
     rank_lookup = rankings_df.drop_duplicates('Team').set_index('Team') if rankings_df is not None and not rankings_df.empty else None
@@ -12099,6 +12160,9 @@ with tabs[0]:
         except Exception:
             pass
 
+        # ── Team ratings for betting lines ────────────────────────────────
+        _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
+
         # 5. Render the Cards
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
@@ -12290,12 +12354,31 @@ with tabs[0]:
                         else:
                             _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
 
+            # ── Betting line from CFP ratings ─────────────────────────────
+            _line_html = ""
+            if isinstance(_u_matchup, dict) and not _u_matchup.get('score') and not (_manual_score_map.get(user, {}).get('user_score',0) > 0):
+                _bl_opp   = str(_u_matchup.get('opp', '')).strip()
+                _bl_home  = _u_matchup.get('home', False)
+                _bl_hteam = team if _bl_home else _bl_opp
+                _bl_ateam = _bl_opp if _bl_home else team
+                _bl_result = estimate_game_line_from_ratings(_bl_hteam, _bl_ateam, _cfp_ratings_map, home_field=True)
+                if _bl_result and _bl_result != "Pick'em":
+                    _bl_str, _bl_fav, _bl_diff = _bl_result if len(_bl_result) == 3 else (_bl_result[0], _bl_result[1], 0)
+                    if _bl_str and _bl_str != "Pick'em":
+                        _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.65rem;"
+                                      f"color:#64748b;margin-left:4px;'>LINE: "
+                                      f"<strong style='color:#a78bfa;'>{html.escape(_bl_str)}</strong></span>")
+                elif _bl_result == "Pick'em" or (_bl_result and _bl_result[0] == "Pick'em"):
+                    _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.65rem;"
+                                  f"color:#64748b;margin-left:4px;'>LINE: <strong style='color:#94a3b8;'>Pick'em</strong></span>")
+
             _game_strip = (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;"
-                f"border-top:1px solid rgba(255,255,255,0.09);'>"
+                f"border-top:1px solid rgba(255,255,255,0.09);flex-wrap:wrap;'>"
                 f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.85rem;color:#334155;"
                 f"letter-spacing:0.08em;'>WK {_gs_week}</span>"
                 f"{_status_chip} {_game_line}"
+                f"{_line_html}"
                 f"</div>"
             )
 
@@ -14372,9 +14455,29 @@ with tabs[3]:
         except Exception:
             pass
 
+        # ── Load OVR/OFF/DEF ratings from team_ratings.csv ───────────────
+        _ratings_snap = load_team_ratings(year=CURRENT_YEAR)
+
+        def _rating_cell(val, stat='OVR'):
+            try:
+                v = int(float(val))
+                if stat == 'OVR':
+                    c = '#4ade80' if v >= 95 else ('#60a5fa' if v >= 90 else ('#fbbf24' if v >= 85 else '#94a3b8'))
+                elif stat == 'OFF':
+                    c = '#4ade80' if v >= 95 else ('#f59e0b' if v >= 90 else '#94a3b8')
+                else:  # DEF
+                    c = '#4ade80' if v >= 95 else ('#7c3aed' if v >= 90 else '#94a3b8')
+                return f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;font-weight:800;color:{c};font-family:Bebas Neue,sans-serif;font-size:1rem;'>{v}</td>"
+            except Exception:
+                return "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>"
+
         # ── Render the table ──────────────────────────────────────────────────
+        _show_all_cfp = st.session_state.get('_show_all_cfp_field', False)
+        _all_rows_sorted = projected_field_display.sort_values('Projected Seed Display', ascending=True)
+        _display_rows = _all_rows_sorted if _show_all_cfp else _all_rows_sorted.head(12)
+
         projected_field_rows = []
-        for _, row in projected_field_display.sort_values('Projected Seed Display', ascending=True).head(12).iterrows():
+        for _, row in _display_rows.iterrows():
             team    = str(row.get('Team', ''))
             primary = get_team_primary_color(team)
             logo_uri  = image_file_to_data_uri(get_logo_source(team))
@@ -14400,6 +14503,9 @@ with tabs[3]:
             else:
                 _mv_disp = '<span style="color:#64748b;">—</span>'
 
+            # OVR/OFF/DEF
+            _tr = _ratings_snap.get(team.strip(), {})
+
             cells = [f"""
             <td class="isp-td-pin">
               <div class="isp-flex-row">
@@ -14411,11 +14517,15 @@ with tabs[3]:
             """]
             cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{str(int(row.get('Committee Rank Display', 0)))}</td>")
             cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(str(row.get('Record', '')))}</td>")
+            cells.append(_rating_cell(_tr.get('OVR'), 'OVR'))
+            cells.append(_rating_cell(_tr.get('OFF'), 'OFF'))
+            cells.append(_rating_cell(_tr.get('DEF'), 'DEF'))
             cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:{_rec_color};font-weight:700;'>{_rec_disp}</td>")
             cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;'>{_mv_disp}</td>")
 
             projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
 
+        _btn_label = "▲ Show Top 12 Only" if _show_all_cfp else f"▼ Show All 25 Teams"
         projected_field_html = f"""
         <div class="isp-table-wrap">
           <table class="isp-table">
@@ -14424,7 +14534,10 @@ with tabs[3]:
                 <th class="isp-th isp-th-left">Projected Field</th>
                 <th class="isp-th">Rank</th>
                 <th class="isp-th">Record</th>
-                <th class="isp-th">{int(CURRENT_YEAR - 1)} Recruiting</th>
+                <th class="isp-th">OVR</th>
+                <th class="isp-th">OFF</th>
+                <th class="isp-th">DEF</th>
+                <th class="isp-th">{int(CURRENT_YEAR - 1)} Rec</th>
                 <th class="isp-th">Movement</th>
               </tr>
             </thead>
@@ -14433,6 +14546,9 @@ with tabs[3]:
         </div>
         """
         st.markdown(projected_field_html, unsafe_allow_html=True)
+        if st.button(_btn_label, key="toggle_cfp_field_25", use_container_width=False):
+            st.session_state['_show_all_cfp_field'] = not _show_all_cfp
+            st.rerun()
 
         st.subheader('First Four Out')
         render_first_four_out(first_four_out, rec_rank_map=_rec_rank_map, movement_map=_movement_map, current_year=CURRENT_YEAR)
