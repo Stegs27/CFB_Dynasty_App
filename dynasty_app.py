@@ -10405,15 +10405,42 @@ except Exception:
 if not IS_BOWL_WEEK:
     try:
         if _rank_lookup and _cfp_week_label:
-            _top10_teams = sorted(_rank_lookup.items(), key=lambda x: x[1])[:10]
-            _top10_str = '  ·  '.join(
-                f"#{r} {t.title()}" for t, r in _top10_teams
+            _top5_teams = sorted(_rank_lookup.items(), key=lambda x: x[1])[:5]
+
+            # Build logo strip for hero header — logos with rank numbers
+            _logo_strip_parts = []
+            for _t5name, _t5rank in _top5_teams:
+                try:
+                    _t5proper = next(
+                        (orig for orig in TEAM_VISUALS if orig.upper() == _t5name.upper()),
+                        _t5name.title()
+                    )
+                    _t5color  = get_team_primary_color(_t5proper)
+                    _t5logo   = get_header_logo(_t5proper)
+                    _t5lhtml  = f"<img src='{_t5logo}' style='width:44px;height:44px;object-fit:contain;'/>" if _t5logo else ""
+                    _logo_strip_parts.append(
+                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;'>"
+                        f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.75rem;color:{_t5color};'>"
+                        f"#{_t5rank}</span>"
+                        f"{_t5lhtml}"
+                        f"</div>"
+                    )
+                except Exception:
+                    pass
+            _cfp_logo_strip = (
+                f"<div style='display:flex;justify-content:center;align-items:flex-end;"
+                f"gap:16px;margin-bottom:6px;'>"
+                + "".join(_logo_strip_parts)
+                + "</div>"
             )
-            # Find the #1 team for hero logo
-            _cfp_no1_name = next((t for t, r in _top10_teams if r == 1), None)
+
+            # Ticker text stays as names (short, readable in the scroller)
+            _top5_str = '  ·  '.join(f"#{r} {t.title()}" for t, r in _top5_teams)
+
+            # Find #1 for blurb
+            _cfp_no1_name = next((t for t, r in _top5_teams if r == 1), None)
             if _cfp_no1_name:
                 _cfp_no1_proper = _cfp_no1_name.title()
-                # Try to get proper-cased name from original data
                 try:
                     _rl_snap2 = pd.read_csv('cfp_rankings_history.csv')
                     _rl_snap2['YEAR'] = pd.to_numeric(_rl_snap2['YEAR'], errors='coerce')
@@ -10431,14 +10458,13 @@ if not IS_BOWL_WEEK:
                 except Exception:
                     _no1_rec = ''
                     _rec_str = ''
-                _cfp_logo = get_header_logo(_cfp_no1_proper)
-                _cfp_lh = f'<div class="isp-tc"><img src="{_cfp_logo}" class="isp-logo-60"></div>'
+
                 _all_headlines.append({
-                    'badge': 'CFP TOP 10',
+                    'badge': 'CFP TOP 5',
                     'priority': 85,
-                    'text': f"Week {_cfp_week_label} CFP Rankings: {_top10_str}",
+                    'text': f"Week {_cfp_week_label} CFP Rankings: {_top5_str}",
                     'blurb': f"{_cfp_no1_proper}{_rec_str} is #1. The committee has spoken.",
-                    'logo_html': _cfp_lh,
+                    'logo_html': _cfp_logo_strip,
                 })
     except Exception:
         pass
