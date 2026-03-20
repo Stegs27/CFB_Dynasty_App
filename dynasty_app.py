@@ -13436,16 +13436,18 @@ with tabs[0]:
 
             if not _parts:
                 st.info(f"No draft prospects found for {CURRENT_YEAR + 1}. Push cpu_draft_pool.csv or cfb26_rosters_full.csv.")
-                with st.expander("🔍 Debug — data source status"):
-                    st.caption(f"**CPU pool:** {_mock_cpu_status}")
-                    st.caption(f"**User rosters:** {_mock_roster_status}")
+                st.caption(f"🔍 CPU pool: {_mock_cpu_status}")
+                st.caption(f"🔍 User rosters: {_mock_roster_status}")
             else:
                 _mock_all = pd.concat(_parts, ignore_index=True)
                 for _c in ['OVR','SPD','ACC','AGI','COD','AWR','DraftValueScore']:
                     _mock_all[_c] = pd.to_numeric(_mock_all.get(_c, 0), errors='coerce').fillna(0)
 
-                # Deduplicate by name+team — prefer USER source
-                _mock_all = _mock_all.sort_values('Source', ascending=True)  # USER < CPU alphabetically — USER wins
+                # Deduplicate by name+team — USER wins over CPU on same player
+                # Sort so USER comes first (ascending=False puts USER after CPU alphabetically,
+                # so we flip: mark priority then sort)
+                _mock_all['_sort_priority'] = _mock_all['Source'].map({'USER': 0, 'CPU': 1}).fillna(1)
+                _mock_all = _mock_all.sort_values('_sort_priority').drop(columns='_sort_priority')
                 _mock_all = _mock_all.drop_duplicates(subset=['Name','Team'], keep='first')
 
                 # Top 32 by DraftValueScore
@@ -13552,9 +13554,7 @@ with tabs[0]:
                 st.markdown(_mock_html, unsafe_allow_html=True)
                 _total_prospects = len(_mock_all)
                 st.caption(f"{_total_prospects} total prospects ({_user_count} from user rosters). NFL teams use 2025 real-life draft order as placeholder. User program players highlighted in team color.")
-                with st.expander("🔍 Data source status", expanded=False):
-                    st.caption(f"**CPU pool:** {_mock_cpu_status}")
-                    st.caption(f"**User rosters:** {_mock_roster_status}")
+                st.caption(f"🔍 CPU: {_mock_cpu_status}  |  Rosters: {_mock_roster_status}")
 
         except FileNotFoundError:
             st.info("Push cpu_draft_pool.csv or cfb26_rosters_full.csv to generate the mock draft board.")
