@@ -11877,8 +11877,8 @@ with tabs[0]:
         # ════════════════════════════════════════════════════════════════════
         # SECTION 1 — SEASON POWER RANKINGS
         # ════════════════════════════════════════════════════════════════════
-        st.subheader("📡 Preseason Power Rankings")
-        st.caption("Preseason projections only — ranked on roster strength, speed, recruiting, QB tier, and coaching pedigree.")
+        st.subheader("📡 Power Rankings & Game Status")
+        st.caption("Rankings built on roster strength, speed, recruiting, QB tier, and coaching pedigree. Game status set by commissioner.")
 
         # 1. Initialize Defaults and Load Data
         power_board = model_2041.copy()
@@ -11940,6 +11940,62 @@ with tabs[0]:
         rank_icons = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"]
         rank_labels = ["KING", "CONTENDER", "FRINGE", "BUBBLE", "LONG SHOT", "REBUILDING"]
         rank_colors = ["#f59e0b", "#9ca3af", "#b45309", "#6b7280", "#374151", "#374151"]
+
+        # 5. Load game matchups + commissioner status for current week
+        # ── Week game lookup from scores ─────────────────────────────────
+        _gs_week = _dn_week  # use the week we already derived from cfp_rankings
+        _gs_year = _dn_year
+
+        # Map: user → current week matchup string + result if played
+        _user_matchup = {}
+        try:
+            _sc_gs = scores[(scores['YEAR'] == _gs_year) & (scores['Week'] == _gs_week)].copy() if 'Week' in scores.columns else pd.DataFrame()
+            _user_list = list(USER_TEAMS.keys())
+            for _gu in _user_list:
+                _gteam = USER_TEAMS.get(_gu, '')
+                # visitor side
+                _v_row = _sc_gs[_sc_gs['Visitor_Final'].astype(str).str.strip() == _gteam]
+                # home side
+                _h_row = _sc_gs[_sc_gs['Home_Final'].astype(str).str.strip() == _gteam]
+                if not _v_row.empty:
+                    _gr = _v_row.iloc[0]
+                    _opp = str(_gr['Home_Final']).strip()
+                    _vp, _hp = _gr.get('V_Pts', None), _gr.get('H_Pts', None)
+                    if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
+                        _result = 'W' if float(_vp) > float(_hp) else 'L'
+                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_vp)}-{int(_hp)}", 'result': _result, 'home': False}
+                    else:
+                        _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': False}
+                elif not _h_row.empty:
+                    _gr = _h_row.iloc[0]
+                    _opp = str(_gr['Visitor_Final']).strip()
+                    _vp, _hp = _gr.get('V_Pts', None), _gr.get('H_Pts', None)
+                    if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
+                        _result = 'W' if float(_hp) > float(_vp) else 'L'
+                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_hp)}-{int(_vp)}", 'result': _result, 'home': True}
+                    else:
+                        _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': True}
+                else:
+                    _user_matchup[_gu] = None  # BYE or not scheduled
+        except Exception:
+            pass
+
+        # ── Commissioner-set game status ──────────────────────────────────
+        # week_game_status.csv: User, Year, Week, Status (Ready/Not Set)
+        _game_status_map = {}  # user → 'Ready' | 'Not Set'
+        try:
+            if os.path.exists('week_game_status.csv'):
+                _wgs = pd.read_csv('week_game_status.csv')
+                _wgs['Year'] = pd.to_numeric(_wgs.get('Year'), errors='coerce').fillna(0).astype(int)
+                _wgs['Week'] = pd.to_numeric(_wgs.get('Week'), errors='coerce').fillna(0).astype(int)
+                _wgs_cur = _wgs[(_wgs['Year'] == int(_gs_year)) & (_wgs['Week'] == int(_gs_week))].copy()
+                if not _wgs_cur.empty:
+                    _game_status_map = dict(zip(
+                        _wgs_cur['User'].astype(str).str.strip(),
+                        _wgs_cur['Status'].astype(str).str.strip()
+                    ))
+        except Exception:
+            pass
 
         # 5. Render the Cards
         for idx, row in power_board.iterrows():
@@ -12013,6 +12069,40 @@ with tabs[0]:
             icon = rank_icons[idx] if idx < len(rank_icons) else "▪️"
 
             # Render HTML Card
+            # Game status strip for this user
+            _u_matchup = _user_matchup.get(user)
+            _u_status  = _game_status_map.get(user, 'Not Set')
+
+            if _u_matchup is None:
+                _game_line = "<span style='color:#475569;font-size:0.75rem;'>BYE WEEK</span>"
+                _status_chip = "<span style='background:#1e293b;color:#475569;border:1px solid #334155;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>BYE</span>"
+            else:
+                _ha = "vs" if _u_matchup.get('home') else "@"
+                _opp_disp = html.escape(str(_u_matchup.get('opp', '?')))
+                if _u_matchup.get('score'):
+                    _res = _u_matchup['result']
+                    _res_color = '#4ade80' if _res == 'W' else '#f87171'
+                    _game_line = f"<span style='color:#94a3b8;font-size:0.75rem;'>{_ha} {_opp_disp}</span> <span style='color:{_res_color};font-weight:800;font-size:0.78rem;'>{_res} {_u_matchup['score']}</span>"
+                    _u_status = 'Final'
+                else:
+                    _game_line = f"<span style='color:#94a3b8;font-size:0.75rem;'>{_ha} {_opp_disp}</span>"
+
+            if _u_status == 'Ready':
+                _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+            elif _u_status == 'Final':
+                _status_chip = "<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>FINAL</span>"
+            elif _u_matchup is not None:
+                _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
+
+            _game_strip = (
+                f"<div style='display:flex;align-items:center;gap:8px;margin-top:5px;padding-top:5px;"
+                f"border-top:1px solid rgba(255,255,255,0.06);'>"
+                f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.6rem;color:#334155;"
+                f"text-transform:uppercase;letter-spacing:0.1em;'>WK {_gs_week}</span>"
+                f"{_status_chip} {_game_line}"
+                f"</div>"
+            )
+
             card_html = (
                 f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
                 f"border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
@@ -12023,7 +12113,9 @@ with tabs[0]:
                 f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span> {rank_badge}"
                 f"<div style='margin-top:4px;'>"
                 f"<span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:900; background:{lcolor if not bw_style else '#4b5563'}; color:white;'>{label}</span>"
-                f" {official_badge} {defending_badge}</div></div>"
+                f" {official_badge} {defending_badge}</div>"
+                f"{_game_strip}"
+                f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(float(pi),1)}</strong></span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 Pre: <strong style='color:white;'>{round(float(natty),1)}%</strong> | Live: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong></span><br>"
@@ -13524,6 +13616,54 @@ with tabs[0]:
                              help="Clears cache and reloads all CSVs"):
                     st.cache_data.clear()
                     st.rerun()
+
+            # ── Game Status Setter ────────────────────────────────────────
+            st.markdown("#### 🎮 Week Game Status")
+            st.caption(f"Set Ready / Not Set for each team for Week {_gs_week}, {_gs_year}. Saves to week_game_status.csv — push to repo.")
+
+            _gs_users = list(USER_TEAMS.keys())
+            _gs_cols = st.columns(3)
+            _gs_updates = {}
+            for _gi, _gu in enumerate(_gs_users):
+                with _gs_cols[_gi % 3]:
+                    _cur_status = _game_status_map.get(_gu, 'Not Set')
+                    _gs_updates[_gu] = st.selectbox(
+                        _gu,
+                        options=['Not Set', 'Ready'],
+                        index=1 if _cur_status == 'Ready' else 0,
+                        key=f"game_status_{_gu}_{_gs_week}_{_gs_year}"
+                    )
+
+            if st.button("💾 Save Game Status", use_container_width=True, key="save_game_status_btn", type="primary"):
+                try:
+                    # Load existing, strip this week, append new rows
+                    if os.path.exists('week_game_status.csv'):
+                        _wgs_existing = pd.read_csv('week_game_status.csv')
+                        _wgs_existing['Year'] = pd.to_numeric(_wgs_existing.get('Year'), errors='coerce').fillna(0).astype(int)
+                        _wgs_existing['Week'] = pd.to_numeric(_wgs_existing.get('Week'), errors='coerce').fillna(0).astype(int)
+                        _wgs_existing = _wgs_existing[~((_wgs_existing['Year'] == int(_gs_year)) & (_wgs_existing['Week'] == int(_gs_week)))].copy()
+                    else:
+                        _wgs_existing = pd.DataFrame(columns=['User','Year','Week','Status'])
+
+                    _new_rows = pd.DataFrame([
+                        {'User': _gu, 'Year': int(_gs_year), 'Week': int(_gs_week), 'Status': _gs_updates[_gu]}
+                        for _gu in _gs_users
+                    ])
+                    pd.concat([_wgs_existing, _new_rows], ignore_index=True).to_csv('week_game_status.csv', index=False)
+                    st.success(f"✅ Game status saved for Week {_gs_week}, {_gs_year}. Download and push week_game_status.csv to repo.")
+                except Exception as _gse:
+                    st.error(f"Save error: {_gse}")
+
+            if os.path.exists('week_game_status.csv'):
+                with open('week_game_status.csv', 'rb') as _gsf:
+                    st.download_button(
+                        "⬇️ Download week_game_status.csv",
+                        data=_gsf.read(),
+                        file_name="week_game_status.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_week_game_status"
+                    )
 
             st.markdown("#### Dynasty Headlines History")
             _hh_exists = _headline_history_path.exists()
