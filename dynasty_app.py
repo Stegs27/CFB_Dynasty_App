@@ -12123,26 +12123,41 @@ with tabs[0]:
             _u_matchup = _user_matchup.get(user)
             _u_status  = _game_status_map.get(user, 'Not Set')
 
+            # Helper: build opponent logo + rank chip
+            def _opp_logo_html(opp_name):
+                _ol_uri = image_file_to_data_uri(get_logo_source(str(opp_name).strip()))
+                _ol_img = f"<img src='{_ol_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _ol_uri else ""
+                _ol_rank = official_rank_map.get(str(opp_name).strip())
+                _ol_rank_html = ""
+                if _ol_rank and str(_ol_rank) != 'nan':
+                    try:
+                        _r_int = int(float(_ol_rank))
+                        _r_color = '#fbbf24' if _r_int <= 4 else '#60a5fa'
+                        _ol_rank_html = f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.7rem;color:{_r_color};vertical-align:middle;'>#{_r_int}</span>"
+                    except Exception:
+                        pass
+                return f"<span style='display:inline-flex;align-items:center;gap:3px;'>{_ol_rank_html}{_ol_img}</span>"
+
             if _u_matchup == 'BYE':
                 _game_line = "<span style='color:#475569;font-size:0.75rem;'>BYE WEEK</span>"
                 _status_chip = "<span style='background:#1e293b;color:#475569;border:1px solid #334155;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>BYE</span>"
             elif _u_matchup == 'UNSCHEDULED' or _u_matchup is None:
-                # Scores not loaded for this week yet — show commissioner status
                 _game_line = "<span style='color:#334155;font-size:0.75rem;'>Schedule pending</span>"
                 if _u_status == 'Ready':
                     _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
                 else:
                     _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
             else:
-                _ha = "vs" if _u_matchup.get('home') else "@"
-                _opp_disp = html.escape(str(_u_matchup.get('opp', '?')))
+                _ha_disp = "<span style='color:#475569;font-size:0.65rem;font-family:Barlow Condensed,sans-serif;'>vs</span>" if _u_matchup.get('home') else "<span style='color:#475569;font-size:0.65rem;font-family:Barlow Condensed,sans-serif;'>@</span>"
+                _opp_str = str(_u_matchup.get('opp', '?'))
+                _opp_chip = _opp_logo_html(_opp_str)
                 if _u_matchup.get('score'):
                     _res = _u_matchup['result']
                     _res_color = '#4ade80' if _res == 'W' else '#f87171'
-                    _game_line = f"<span style='color:#94a3b8;font-size:0.75rem;'>{_ha} {_opp_disp}</span> <span style='color:{_res_color};font-weight:800;font-size:0.78rem;'>{_res} {_u_matchup['score']}</span>"
+                    _game_line = f"{_ha_disp} {_opp_chip} <span style='color:{_res_color};font-weight:800;font-size:0.78rem;font-family:Barlow Condensed,sans-serif;'>{_res} {_u_matchup['score']}</span>"
                     _status_chip = "<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>FINAL</span>"
                 else:
-                    _game_line = f"<span style='color:#94a3b8;font-size:0.75rem;'>{_ha} {_opp_disp}</span>"
+                    _game_line = f"{_ha_disp} {_opp_chip}"
                     if _u_status == 'Ready':
                         _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
                     else:
