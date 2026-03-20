@@ -11920,6 +11920,10 @@ with tabs[2]:
                 _conf_st = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
                 _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
                 _conf_st['USER'] = _conf_st['USER'].fillna('')
+                # Filter to current year only — file may contain multiple seasons
+                if 'YEAR' in _conf_st.columns:
+                    _conf_st['YEAR'] = pd.to_numeric(_conf_st['YEAR'], errors='coerce')
+                    _conf_st = _conf_st[_conf_st['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
                 _team_row = _conf_st[_conf_st['TEAM'] == sel_team_name]
                 if _team_row.empty:
                     raise ValueError("team not in standings")
@@ -12074,14 +12078,25 @@ with tabs[0]:
         else:
             _wk_label = f'Week {_dn_week}'
 
+        # ── Logo URIs for banner ──────────────────────────────────────────
+        _ncaa_logo_uri = image_file_to_data_uri('logos/NCAA.png') if os.path.exists('logos/NCAA.png') else \
+                         image_file_to_data_uri('NCAA.png') if os.path.exists('NCAA.png') else None
+        _nfl_logo_uri  = image_file_to_data_uri('logos/_NFL_logo.png') if os.path.exists('logos/_NFL_logo.png') else \
+                         image_file_to_data_uri('_NFL_logo.png') if os.path.exists('_NFL_logo.png') else None
+        _ncaa_img = f"<img src='{_ncaa_logo_uri}' style='height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _ncaa_logo_uri else ""
+        _nfl_img  = f"<img src='{_nfl_logo_uri}'  style='height:36px;object-fit:contain;vertical-align:middle;margin-left:8px;'/>"  if _nfl_logo_uri  else ""
+
         st.markdown(f"""
         <div style='display:flex;align-items:center;justify-content:center;gap:18px;
                     background:linear-gradient(90deg,rgba(59,130,246,0.08),rgba(251,191,36,0.05));
                     border:1px solid rgba(255,255,255,0.07);border-radius:10px;
                     padding:14px 20px;margin-bottom:18px;'>
-            <div style='text-align:center;'>
-                <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#fbbf24;line-height:1;'>{_dn_year}</div>
-                <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>Season</div>
+            <div style='text-align:center;display:flex;align-items:center;'>
+                {_ncaa_img}
+                <div>
+                    <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#fbbf24;line-height:1;'>{_dn_year}</div>
+                    <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>Season</div>
+                </div>
             </div>
             <div style='width:1px;height:40px;background:rgba(255,255,255,0.1);'></div>
             <div style='text-align:center;'>
@@ -12089,9 +12104,12 @@ with tabs[0]:
                 <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>Current Week</div>
             </div>
             <div style='width:1px;height:40px;background:rgba(255,255,255,0.1);'></div>
-            <div style='text-align:center;'>
-                <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#4ade80;line-height:1;'>{CURRENT_YEAR + 1}</div>
-                <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>NFL Draft Class</div>
+            <div style='text-align:center;display:flex;align-items:center;'>
+                <div>
+                    <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#4ade80;line-height:1;'>{CURRENT_YEAR + 1}</div>
+                    <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>NFL Draft Class</div>
+                </div>
+                {_nfl_img}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -13514,6 +13532,10 @@ with tabs[0]:
 
             try:
                 _br = pd.read_csv('CFPbracketresults.csv')
+                # Only show results from the current season — not prior years
+                if 'YEAR' in _br.columns:
+                    _br['YEAR'] = pd.to_numeric(_br['YEAR'], errors='coerce')
+                    _br = _br[_br['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
                 _comp_col = next((c for c in _br.columns if c.strip().upper() == 'COMPLETED'), None)
                 if _comp_col:
                     _br = _br[pd.to_numeric(_br[_comp_col], errors='coerce').fillna(0).astype(int) == 1].copy()
@@ -14611,6 +14633,8 @@ with tabs[3]:
 
         # ── Load OVR/OFF/DEF ratings from team_ratings.csv ───────────────
         _ratings_snap = load_team_ratings(year=CURRENT_YEAR)
+        # ── Load conf performance stats ───────────────────────────────────
+        _perf_snap = load_team_performance(year=CURRENT_YEAR)
 
         def _rating_cell(val, stat='OVR'):
             try:
@@ -14622,6 +14646,13 @@ with tabs[3]:
                 else:  # DEF
                     c = '#4ade80' if v >= 95 else ('#7c3aed' if v >= 90 else '#94a3b8')
                 return f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;font-weight:800;color:{c};font-family:Bebas Neue,sans-serif;font-size:1rem;'>{v}</td>"
+            except Exception:
+                return "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>"
+
+        def _stat_cell(val, fmt='.1f', good='high'):
+            try:
+                v = float(val)
+                return f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#94a3b8;font-size:0.85rem;'>{v:{fmt}}</td>"
             except Exception:
                 return "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>"
 
@@ -14646,19 +14677,42 @@ with tabs[3]:
                 _rec_disp  = '—'
                 _rec_color = '#475569'
 
-            # Poll movement arrow
+            # Poll movement arrow — now 2nd column (where Rank was)
             _mv = _movement_map.get(team.strip())
             if _mv is None:
                 _mv_disp = '<span style="color:#475569;">—</span>'
             elif _mv > 0:
-                _mv_disp = f'<span style="color:#4ade80;font-weight:700;">▲ {int(abs(_mv))}</span>'
+                _mv_disp = f'<span style="color:#4ade80;font-weight:700;">▲{int(abs(_mv))}</span>'
             elif _mv < 0:
-                _mv_disp = f'<span style="color:#f87171;font-weight:700;">▼ {int(abs(_mv))}</span>'
+                _mv_disp = f'<span style="color:#f87171;font-weight:700;">▼{int(abs(_mv))}</span>'
             else:
                 _mv_disp = '<span style="color:#64748b;">—</span>'
 
-            # OVR/OFF/DEF
+            # OVR/OFF/DEF ratings
             _tr = _ratings_snap.get(team.strip(), {})
+
+            # Conf performance stats
+            _cp = _perf_snap.get(team.strip(), {})
+            _gp = (_cp.get('W', 0) or 0) + (_cp.get('L', 0) or 0)
+            _avg_pf = (_cp.get('PF', 0) or 0) / max(_gp, 1) if _gp > 0 else None
+            _avg_pa = (_cp.get('PA', 0) or 0) / max(_gp, 1) if _gp > 0 else None
+            _mov_val = _cp.get('MOV', None)
+            _stk_val = _cp.get('STK', None)
+
+            # STK chip
+            if _stk_val is not None:
+                try:
+                    _s = int(float(_stk_val))
+                    if _s > 0:
+                        _stk_disp = f'<span style="color:#4ade80;font-weight:700;">W{_s}</span>'
+                    elif _s < 0:
+                        _stk_disp = f'<span style="color:#f87171;font-weight:700;">L{abs(_s)}</span>'
+                    else:
+                        _stk_disp = '<span style="color:#475569;">—</span>'
+                except Exception:
+                    _stk_disp = '<span style="color:#475569;">—</span>'
+            else:
+                _stk_disp = '<span style="color:#475569;">—</span>'
 
             cells = [f"""
             <td class="isp-td-pin">
@@ -14669,13 +14723,18 @@ with tabs[3]:
               </div>
             </td>
             """]
-            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{str(int(row.get('Committee Rank Display', 0)))}</td>")
-            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(str(row.get('Record', '')))}</td>")
+            # Movement now in Rank's old slot (2nd col)
+            cells.append(f"<td style='padding:10px 8px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;'>{_mv_disp}</td>")
+            cells.append(f"<td style='padding:10px 10px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(str(row.get('Record', '')))}</td>")
             cells.append(_rating_cell(_tr.get('OVR'), 'OVR'))
             cells.append(_rating_cell(_tr.get('OFF'), 'OFF'))
             cells.append(_rating_cell(_tr.get('DEF'), 'DEF'))
-            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:{_rec_color};font-weight:700;'>{_rec_disp}</td>")
-            cells.append(f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;'>{_mv_disp}</td>")
+            cells.append(f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:{_rec_color};font-weight:700;'>{_rec_disp}</td>")
+            # Conf stats
+            cells.append(_stat_cell(_mov_val, fmt='+.1f' if (_mov_val or 0) >= 0 else '.1f'))
+            cells.append(f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;'>{_stk_disp}</td>")
+            cells.append(_stat_cell(_avg_pf, fmt='.1f') if _avg_pf is not None else "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>")
+            cells.append(_stat_cell(_avg_pa, fmt='.1f') if _avg_pa is not None else "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>")
 
             projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
 
@@ -14686,13 +14745,16 @@ with tabs[3]:
             <thead>
               <tr class="isp-tr-header">
                 <th class="isp-th isp-th-left">Projected Field</th>
-                <th class="isp-th">Rank</th>
+                <th class="isp-th">Move</th>
                 <th class="isp-th">Record</th>
                 <th class="isp-th">OVR</th>
                 <th class="isp-th">OFF</th>
                 <th class="isp-th">DEF</th>
                 <th class="isp-th">{int(CURRENT_YEAR - 1)} Rec</th>
-                <th class="isp-th">Movement</th>
+                <th class="isp-th">MOV</th>
+                <th class="isp-th">Streak</th>
+                <th class="isp-th">Avg PF</th>
+                <th class="isp-th">Avg PA</th>
               </tr>
             </thead>
             <tbody>{''.join(projected_field_rows)}</tbody>
@@ -14812,30 +14874,145 @@ with tabs[3]:
             st.caption("📊 Showing **projected bracket** — enter the official field above once the CFP announces.")
             render_playoff_bracket(projected_field)
 
-        st.subheader('CFP Chaos Simulator')
-        sim_team = st.selectbox('Pick a team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
-        sim_scenario = st.selectbox('Scenario', ['Win next game', 'Win over Top-12 team', 'Lose to ranked team', 'Lose to unranked team'], key='cfp_sim_scenario')
+        st.subheader('🌀 CFP Chaos Simulator')
+        st.caption("Stress-test any team's playoff picture. See what a win or loss does to their odds — and who else gets hurt or helped.")
+
+        _sim_col1, _sim_col2 = st.columns([1, 1])
+        with _sim_col1:
+            sim_team = st.selectbox('Team to stress-test', cfp_board.sort_values('Rank')['Team'].tolist(), key='cfp_sim_team')
+        with _sim_col2:
+            sim_scenario = st.selectbox('Scenario', [
+                'Win next game',
+                'Win over Top-12 team (marquee)',
+                'Win conference title',
+                'Lose to ranked team',
+                'Lose to unranked team',
+                'Upset alert — ranked team loses nearby',
+            ], key='cfp_sim_scenario')
+
         sim_row = cfp_board[cfp_board['Team'] == sim_team].iloc[0]
-        sim_result = simulate_cfp_chaos(sim_row, sim_scenario, cfp_board)
+        sim_result = simulate_cfp_chaos(sim_row, sim_scenario.split(' (')[0].split(' — ')[0], cfp_board)
 
-        mobile_metrics([
-            {"label": "Current CFP %",    "value": format_pct(sim_row['CFP Make %'], 1),
-             "delta": f"{sim_result['CFP Make %'] - sim_row['CFP Make %']:+.1f}%"},
-            {"label": "Current Bye %",    "value": format_pct(sim_row['Bye %'], 1),
-             "delta": f"{sim_result['Bye %'] - sim_row['Bye %']:+.1f}%"},
-            {"label": "New Record",       "value": sim_result['Record'], "delta_color": "off"},
-            {"label": "Projected Rank",   "value": f"#{int(sim_result['Rank'])}",
-             "delta": f"{int(sim_row['Rank']) - int(sim_result['Rank']):+d} spots", "delta_color": "inverse"},
-        ])
+        # Deltas
+        _d_cfp  = sim_result['CFP Make %'] - sim_row['CFP Make %']
+        _d_bye  = sim_result['Bye %'] - sim_row['Bye %']
+        _d_rank = int(sim_row['Rank']) - int(sim_result['Rank'])  # positive = moved up
 
-        if sim_scenario == 'Lose to unranked team':
-            st.warning(f"{sim_team} would set fire to a lot of goodwill with an unranked loss. The model treats that as a straight-up committee trust killer.")
-        elif sim_scenario == 'Lose to ranked team':
-            st.info(f"A ranked loss hurts {sim_team}, but it usually doesn't nuke the whole damn résumé unless the record was already hanging by a thread.")
-        elif sim_scenario == 'Win over Top-12 team':
-            st.success(f"That's a résumé steroid shot. A top-12 win would give {sim_team} a real committee argument and bye-path juice.")
+        # Color
+        _pos_color = '#4ade80'
+        _neg_color = '#f87171'
+        _neu_color = '#94a3b8'
+        _cfp_color  = _pos_color if _d_cfp > 0 else (_neg_color if _d_cfp < 0 else _neu_color)
+        _bye_color  = _pos_color if _d_bye > 0 else (_neg_color if _d_bye < 0 else _neu_color)
+        _rnk_color  = _pos_color if _d_rank > 0 else (_neg_color if _d_rank < 0 else _neu_color)
+
+        # Header banner
+        _sim_team_color = get_team_primary_color(sim_team)
+        _sim_logo_uri   = image_file_to_data_uri(get_logo_source(sim_team))
+        _sim_logo_html  = f"<img src='{_sim_logo_uri}' style='width:48px;height:48px;object-fit:contain;'/>" if _sim_logo_uri else ""
+        st.markdown(f"""
+        <div style='display:flex;align-items:center;gap:14px;background:linear-gradient(90deg,{_sim_team_color}18,#1f2937);
+                    border-left:5px solid {_sim_team_color};border-radius:10px;padding:12px 16px;margin:10px 0;'>
+          {_sim_logo_html}
+          <div style='flex:1;'>
+            <div style='font-family:"Barlow Condensed",sans-serif;font-size:1.1rem;font-weight:800;color:{_sim_team_color};'>{html.escape(sim_team)}</div>
+            <div style='font-size:0.78rem;color:#94a3b8;'>Currently #{int(sim_row['Rank'])} · {sim_row.get('Record','?')} · CFP {float(sim_row['CFP Make %']):.1f}%</div>
+          </div>
+          <div style='text-align:right;'>
+            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:#fbbf24;line-height:1;'>→ #{int(sim_result["Rank"])}</div>
+            <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Projected Rank</div>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+        # Delta chips
+        st.markdown(f"""
+        <div style='display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;'>
+          <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
+            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_cfp_color};'>{_d_cfp:+.1f}%</div>
+            <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>CFP Make %</div>
+            <div style='font-size:0.75rem;color:#64748b;'>{float(sim_row["CFP Make %"]):.1f}% → {float(sim_result["CFP Make %"]):.1f}%</div>
+          </div>
+          <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
+            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_bye_color};'>{_d_bye:+.1f}%</div>
+            <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Bye %</div>
+            <div style='font-size:0.75rem;color:#64748b;'>{float(sim_row["Bye %"]):.1f}% → {float(sim_result["Bye %"]):.1f}%</div>
+          </div>
+          <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
+            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_rnk_color};'>{_d_rank:+d}</div>
+            <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Rank Change</div>
+            <div style='font-size:0.75rem;color:#64748b;'>#{int(sim_row["Rank"])} → #{int(sim_result["Rank"])}</div>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+        # Scenario narrative
+        _narratives = {
+            'Win next game': (
+                f"🟢 A clean W keeps **{sim_team}** on track. Protects committee relationships and pushes the résumé forward. No drama, just business.",
+                'success'
+            ),
+            'Win over Top-12 team': (
+                f"🔥 **That's a résumé steroid shot.** A top-12 scalp gives **{sim_team}** a real committee argument and bye-path juice. The room starts talking.",
+                'success'
+            ),
+            'Win conference title': (
+                f"🏆 Conference champion status locks **{sim_team}** into the automatic qualifier tier. That's an AQ bid — the committee has to respect it.",
+                'success'
+            ),
+            'Lose to ranked team': (
+                f"📉 A ranked loss stings but doesn't automatically blow up the résumé. **{sim_team}** can survive it if the record was already built to take a punch.",
+                'info'
+            ),
+            'Lose to unranked team': (
+                f"💀 That's committee trust in flames. **{sim_team}** takes a serious credibility hit. An unranked loss with playoff hopes is a gut punch that takes weeks to recover from — if ever.",
+                'warning'
+            ),
+            'Upset alert': (
+                f"🌪️ If a team ranked near **{sim_team}** goes down, the rankings shuffle. This models the ripple effect from a nearby team dropping.",
+                'info'
+            ),
+        }
+        _nar_key = next((k for k in _narratives if sim_scenario.startswith(k)), 'Win next game')
+        _nar_text, _nar_type = _narratives[_nar_key]
+        if _nar_type == 'success':
+            st.success(_nar_text)
+        elif _nar_type == 'warning':
+            st.warning(_nar_text)
         else:
-            st.success(f"A clean win keeps {sim_team} moving and protects the committee relationship. No chaos, no stupid questions.")
+            st.info(_nar_text)
+
+        # Ripple effect — who else moves?
+        st.markdown("##### 🌊 Ripple Effect")
+        st.caption("Teams near the bubble who gain or lose ground if this scenario plays out.")
+        _bubble_teams = cfp_board[
+            (cfp_board['Team'] != sim_team) &
+            (cfp_board['CFP Make %'] >= 25) & (cfp_board['CFP Make %'] <= 90)
+        ].sort_values('CFP Make %', ascending=False).head(6)
+
+        if not _bubble_teams.empty:
+            _ripple_html = "<div style='display:flex;flex-direction:column;gap:4px;'>"
+            for _, _br in _bubble_teams.iterrows():
+                _bt = str(_br['Team'])
+                _bc = get_team_primary_color(_bt)
+                _bl = image_file_to_data_uri(get_logo_source(_bt))
+                _bl_html = f"<img src='{_bl}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if _bl else ""
+                # If sim_team wins big, bubble teams lose ground; if sim_team loses, bubble teams gain
+                _is_win = 'Lose' not in sim_scenario
+                _ripple_d = -1.5 if _is_win else +3.0
+                _rp_c = _neg_color if _is_win else _pos_color
+                _rp_s = f"{_ripple_d:+.1f}%"
+                _ripple_html += (
+                    f"<div style='display:flex;align-items:center;gap:8px;padding:5px 10px;"
+                    f"background:#0a1628;border-radius:5px;'>"
+                    f"{_bl_html}"
+                    f"<span style='color:{_bc};font-weight:700;flex:1;font-size:0.82rem;'>{html.escape(_bt)}</span>"
+                    f"<span style='font-size:0.75rem;color:#64748b;'>#{int(_br['Rank'])} · {float(_br['CFP Make %']):.1f}%</span>"
+                    f"<span style='color:{_rp_c};font-weight:800;font-size:0.8rem;min-width:48px;text-align:right;'>{_rp_s}</span>"
+                    f"</div>"
+                )
+            _ripple_html += "</div>"
+            st.markdown(_ripple_html, unsafe_allow_html=True)
+        else:
+            st.caption("No bubble teams found to show ripple effect.")
 
         # ════════════════════════════════════════════════════════════════
         # WHO WOULD WIN? — Championship Matchup Predictor
@@ -15744,12 +15921,49 @@ with tabs[4]:
                 st.markdown(f"#### {_hist_user}'s class-by-class results")
 
                 for _card in _school_cards:
-                    st.markdown(
-                        f"**{_card['team']}** — Best: #{_card['best_rank']} · "
-                        f"Latest: #{_card['latest_rank']} · Years: {_card['years_label']} · "
-                        f"Classes: {_card['classes']}"
+                    _cl_team   = _card['team']
+                    _cl_logo_uri = image_file_to_data_uri(get_logo_source(_cl_team))
+                    _cl_primary  = get_team_primary_color(_cl_team)
+                    _cl_logo_html = f"<img src='{_cl_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:7px;'/>" if _cl_logo_uri else ""
+                    _cl_label = (
+                        f"{_cl_team} — "
+                        f"Best #{_card['best_rank']} · "
+                        f"Latest #{_card['latest_rank']} · "
+                        f"{_card['years_label']} · "
+                        f"{_card['classes']} class{'es' if _card['classes'] != 1 else ''}"
                     )
-                    st.dataframe(_card['df'], hide_index=True, use_container_width=True)
+                    # Color the best rank green if top 10, gold if top 25
+                    _best_color = '#4ade80' if _card['best_rank'] <= 10 else ('#fbbf24' if _card['best_rank'] <= 25 else '#94a3b8')
+                    with st.expander(_cl_label, expanded=False):
+                        st.markdown(
+                            f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:10px;'>"
+                            f"{_cl_logo_html}"
+                            f"<span style='font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:1.05rem;color:{_cl_primary};'>{html.escape(_cl_team)}</span>"
+                            f"<span style='font-size:0.72rem;color:#475569;'>{_card['years_label']}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
+                        # Render year-by-year table with color coded ranks
+                        _yr_rows = []
+                        for _, _yr_row in _card['df'].iterrows():
+                            _rk = int(_yr_row['Class Rank'])
+                            _rk_color = '#4ade80' if _rk <= 10 else ('#fbbf24' if _rk <= 25 else ('#60a5fa' if _rk <= 50 else '#94a3b8'))
+                            _yr_rows.append(
+                                f"<tr><td style='padding:6px 12px;color:#94a3b8;'>{int(_yr_row['Year'])}</td>"
+                                f"<td style='padding:6px 12px;font-weight:800;color:{_rk_color};font-family:Bebas Neue,sans-serif;font-size:1.1rem;'>#{_rk}</td>"
+                                f"<td style='padding:6px 12px;'>"
+                                + ("🔥" if _rk <= 5 else ("⭐" if _rk <= 10 else ("📈" if _rk <= 25 else "")))
+                                + "</td></tr>"
+                            )
+                        st.markdown(
+                            f"<table style='width:100%;border-collapse:collapse;background:#080f1a;border-radius:6px;overflow:hidden;'>"
+                            f"<thead><tr style='background:#0a1220;'>"
+                            f"<th style='padding:6px 12px;color:#475569;font-size:0.65rem;text-align:left;'>Year</th>"
+                            f"<th style='padding:6px 12px;color:#475569;font-size:0.65rem;text-align:left;'>Class Rank</th>"
+                            f"<th style='padding:6px 12px;'></th>"
+                            f"</tr></thead><tbody>{''.join(_yr_rows)}</tbody></table>",
+                            unsafe_allow_html=True
+                        )
     else:
         st.caption("No recruiting history columns were found in recruiting.csv.")
 
@@ -16562,40 +16776,6 @@ with tabs[8]:
                 )
 
                 st.plotly_chart(_speed_style_fig, use_container_width=True, config={'displayModeBar': False})
-
-        st.markdown("---")
-        _show_cols = [
-            c for c in [
-                'TEAM SPEED Rank', 'USER', 'TEAM', 'Speedometer', 'Team Speed Score',
-                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
-                'Monsters', 'Quick Hogs', 'Generational (96+ speed or 96+ Acceleration)',
-                'Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Where is the Speed?'
-            ] if c in _sf_df.columns
-        ]
-
-        _table_df = _sf_df[_show_cols].copy()
-        if 'Speedometer' in _table_df.columns:
-            _table_df['Speedometer'] = _table_df['Speedometer'].map(lambda v: f"{float(v):.1f} MPH" if pd.notna(v) else '—')
-        if 'Team Speed Score' in _table_df.columns:
-            _table_df['Team Speed Score'] = _table_df['Team Speed Score'].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else '—')
-
-        rename_map = {
-            'TEAM SPEED Rank': 'Rank',
-            'USER': 'Coach',
-            'TEAM': 'Team',
-            'Speedometer': 'Speedometer',
-            'Team Speed Score': 'Speed Score',
-            'Team Speed (90+ Speed Guys)': '90+ Speed',
-            'Quad 90 (90+ SPD, ACC, AGI & COD)': 'Cheat Codes',
-            'Monsters': 'Monsters',
-            'Quick Hogs': 'Quick Hogs',
-            'Generational (96+ speed or 96+ Acceleration)': 'Generational Freaks',
-            'Off Speed (90+ speed)': 'Off Speed',
-            'Def Speed (90+ speed)': 'Def Speed',
-            'Where is the Speed?': 'Speed Location',
-        }
-        _table_df = _table_df.rename(columns=rename_map)
-        st.dataframe(_table_df, hide_index=True, use_container_width=True)
 
 
 with tabs[10]:
@@ -17785,7 +17965,7 @@ with tabs[13]:
                             'career_wins': 0, 'career_losses': 0, 'playoff_wins': 0, 'playoff_losses': 0,
                             'current_team': '', 'visible_coach_name': '', 'prestige': '', 'level': pd.NA
                         }
-                    goat_stats[u_name]['rings'] += 1
+                    goat_stats[u_name]['rings_champs'] = goat_stats[u_name].get('rings_champs', 0) + 1
     except Exception:
         pass
 
@@ -17846,6 +18026,12 @@ with tabs[13]:
             _safe_int(goat_stats[_u].get('rings_champs', 0), 0)
         )
 
+    # Remove CPU/non-user entries from GOAT rankings
+    _valid_goat_users = {str(u).strip().title() for u in USER_TEAMS.keys()}
+    goat_stats = {u: s for u, s in goat_stats.items()
+                  if str(u).strip().title() in _valid_goat_users or
+                  str(u).strip().upper() not in ('CPU', 'COMPUTER', 'AI', '')}
+
     goat_rows = []
     for u, stats in goat_stats.items():
         rings = _safe_int(stats.get('rings', 0), 0)
@@ -17860,6 +18046,35 @@ with tabs[13]:
         pw = _safe_int(stats.get('playoff_wins', 0), 0)
         pl = _safe_int(stats.get('playoff_losses', 0), 0)
 
+        # Extra stats — CFP appearances and Heisman finalists
+        cfp_appearances = pw + pl  # playoff games = total CFP app proxy
+        heisman_finals = 0
+        avg_rec_rank = None
+        try:
+            if os.path.exists('Heisman_Finalists.csv'):
+                _hf2 = pd.read_csv('Heisman_Finalists.csv')
+                _hf2_user = _hf2[_hf2['USER'].astype(str).str.strip().str.title() == str(u).strip().title()]
+                heisman_finals = len(_hf2_user)
+        except Exception:
+            pass
+        try:
+            _rec_hist2 = _load_recruiting_csv()
+            if not _rec_hist2.empty and 'USER' in _rec_hist2.columns:
+                _yr_cols2 = [c for c in _rec_hist2.columns if str(c).isdigit()]
+                _u_rows2 = _rec_hist2[_rec_hist2['USER'].astype(str).str.strip().str.title() == str(u).strip().title()]
+                if not _u_rows2.empty and _yr_cols2:
+                    _ranks2 = []
+                    for _yc2 in _yr_cols2:
+                        for _v2 in _u_rows2[_yc2].dropna():
+                            try:
+                                _ranks2.append(int(float(_v2)))
+                            except Exception:
+                                pass
+                    if _ranks2:
+                        avg_rec_rank = round(sum(_ranks2) / len(_ranks2), 1)
+        except Exception:
+            pass
+
         score = (
             rings * 15 +
             heismans * 5 +
@@ -17869,7 +18084,8 @@ with tabs[13]:
             min(15, int(draft_picks / 5)) +
             top5_classes * 1 +
             min(20, int(cw / 20)) +
-            min(12, int(pw / 4))
+            min(12, int(pw / 4)) +
+            min(8, heisman_finals // 2)  # bonus for Heisman finalist pipeline
         )
 
         win_pct = round((cw / max(1, cw + cl)), 3) if (cw + cl) > 0 else np.nan
@@ -17889,11 +18105,13 @@ with tabs[13]:
             'Playoff Win %': playoff_pct,
             'Titles': rings,
             'Heismans': heismans,
+            'Heisman Finals': heisman_finals,
             'COTYs': cotys,
             'Conf Titles': conf_titles,
             '1st Rd': first_rounders,
             'Draft Picks': draft_picks,
             'Top 5 Classes': top5_classes,
+            'Avg Rec Rank': f"#{avg_rec_rank}" if avg_rec_rank else "—",
             'Legacy Score': score,
             'Tier': _legacy_tier(score),
         })
@@ -17971,11 +18189,13 @@ with tabs[13]:
                     f"<span style='font-weight:900;color:#f8fafc;'>{_legacy_score}</span>",
                     html.escape(str(_row.get('Titles', 0))),
                     html.escape(str(_row.get('Heismans', 0))),
+                    html.escape(str(_row.get('Heisman Finals', 0))),
                     html.escape(str(_row.get('COTYs', 0))),
                     html.escape(str(_row.get('Conf Titles', 0))),
                     html.escape(str(_row.get('1st Rd', 0))),
                     html.escape(str(_row.get('Draft Picks', 0))),
                     html.escape(str(_row.get('Top 5 Classes', 0))),
+                    html.escape(str(_row.get('Avg Rec Rank', '—'))),
                     _record,
                     _playoff_record,
                     html.escape(f"{float(_row['Career Win %']):.3f}" if pd.notna(_row.get('Career Win %', np.nan)) else '—'),
@@ -17998,11 +18218,13 @@ with tabs[13]:
                     <th class="isp-th">Legacy</th>
                     <th class="isp-th">Titles</th>
                     <th class="isp-th">Heismans</th>
+                    <th class="isp-th">H Finals</th>
                     <th class="isp-th">COTYs</th>
                     <th class="isp-th">Conf</th>
                     <th class="isp-th">1st Rd</th>
                     <th class="isp-th">Drafted</th>
                     <th class="isp-th">Top 5</th>
+                    <th class="isp-th">Avg Rec</th>
                     <th class="isp-th">Career</th>
                     <th class="isp-th">Playoff</th>
                     <th class="isp-th">Win %</th>
@@ -18021,7 +18243,7 @@ with tabs[13]:
         _render_goat_snapshot_table(legacy_df)
 
         st.markdown("---")
-        st.caption("Legacy score weighting: National Title (15), Heisman (5), COTY (3), Conference Title (2), plus pipeline and résumé bonuses.")
+        st.caption("Legacy score weighting: National Title (15), Heisman Winner (5), COTY (3), Conf Title (2), plus pipeline bonuses for Heisman finalists, draft picks, and career wins. H Finals = Heisman finalist appearances. Avg Rec = average recruiting class rank.")
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE
 # ──────────────────────────────────────────────────────────────────────
@@ -19378,9 +19600,10 @@ with tabs[1]:
         # ── NFL Teams ─────────────────────────────────────────────────────
         with nfl_tabs[8]:
             st.subheader("🏟️ NFL Teams")
-
-            if nfl_roster.empty:
-                st.info("NFLroster26_MASTER.csv is missing.")
+            # nfl_roster = NFLroster26_MASTER.csv (loaded via universe["nfl_roster"])
+            _nfl_master = universe.get("nfl_roster", pd.DataFrame()) if universe else pd.DataFrame()
+            if _nfl_master.empty:
+                st.info("NFLroster26_MASTER.csv not found or empty — make sure it's pushed to the repo.")
             else:
                 team_needs = build_nfl_team_needs(nfl_roster)
                 nfl_teams = sorted(nfl_roster["Team"].dropna().astype(str).unique().tolist())
@@ -20022,7 +20245,8 @@ with tabs[1]:
               </table>
             </div>""", unsafe_allow_html=True)
 
-            if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
+            if st.button("🔄 Rebuild Current NFL Rosters", use_container_width=True, key="rebuild_current_nfl_rosters_now",
+                         help="Run this if rosters look stale after a new draft or offseason. Then download nfl_current_rosters.csv and push."):
                 try:
                     season_to_rebuild = get_current_nfl_season()
                     rebuilt = build_nfl_current_roster_for_season(
@@ -20032,116 +20256,80 @@ with tabs[1]:
                         nfl_player_hist_df=nfl_player_hist,
                         existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
                     )
-                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
+                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}. Download and push to repo.")
                     st.rerun()
                 except Exception as e:
                     import traceback
                     st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
                     st.code(traceback.format_exc())
 
-            if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
+            if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn",
+                         help="Only needed once — creates nfl_universe_settings.csv if it doesn't exist yet. Push to repo after."):
                 try:
                     initialize_nfl_universe_settings()
-                    st.success("nfl_universe_settings.csv created.")
+                    st.success("nfl_universe_settings.csv created. Download and push to repo.")
                 except Exception as e:
                     st.error(f"Settings file create error: {type(e).__name__}: {e}")
+
+            # ── Download workflow ──────────────────────────────────────────────
+            st.markdown("---")
+            st.markdown("#### 📥 Download & Push Workflow")
+            st.markdown("""
+            <div style='background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:12px 16px;font-size:0.82rem;color:#94a3b8;line-height:1.7;margin-bottom:12px;'>
+            <strong style='color:#fbbf24;'>After Sim Regular Season:</strong> Download and push → <code>nfl_standings_history.csv</code>, <code>nfl_player_history.csv</code>, <code>nfl_current_rosters.csv</code><br>
+            <strong style='color:#4ade80;'>After Sim Playoffs:</strong> Download and push → <code>nfl_playoff_history.csv</code>, <code>nfl_super_bowl_history.csv</code>, <code>nfl_awards_history.csv</code>, <code>nfl_story_events.csv</code>, <code>nfl_universe_settings.csv</code>, <code>nfl_current_rosters.csv</code><br>
+            <strong style='color:#60a5fa;'>After NFL Draft:</strong> Download and push → <code>nfl_draft_history.csv</code>, <code>nfl_player_history.csv</code>, <code>nfl_current_rosters.csv</code><br>
+            <strong style='color:#a78bfa;'>ZIP option:</strong> Downloads everything at once — push all files to repo.
+            </div>
+            """, unsafe_allow_html=True)
 
             if os.path.exists("nfl_universe_settings.csv"):
                 with open("nfl_universe_settings.csv", "rb") as f:
                     st.download_button(
-                        label="⬇️ Download NFL Settings",
-                        data=f.read(),
-                        file_name="nfl_universe_settings.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_universe_settings"
+                        label="⬇️ Settings — push after Sim Playoffs or season year change",
+                        data=f.read(), file_name="nfl_universe_settings.csv", mime="text/csv",
+                        use_container_width=True, key="download_nfl_universe_settings"
                     )
 
             zip_bytes, included_files = build_nfl_export_zip()
-
             if zip_bytes:
                 st.download_button(
-                    label="📦 Download Full NFL Universe ZIP",
-                    data=zip_bytes,
-                    file_name="nfl_universe_export.zip",
-                    mime="application/zip",
-                    use_container_width=True,
-                    key="download_nfl_universe_zip"
+                    label="📦 Download Full NFL Universe ZIP — push all files to repo",
+                    data=zip_bytes, file_name="nfl_universe_export.zip", mime="application/zip",
+                    use_container_width=True, key="download_nfl_universe_zip"
                 )
                 if included_files:
-                    st.caption("Included files: " + ", ".join(included_files))
+                    st.caption("Included: " + ", ".join(included_files))
             else:
                 st.info("No NFL files found yet to include in the ZIP export.")
 
-            # ── NFL Universe file status / downloads ──────────────────────────
             st.markdown("---")
-            st.markdown("#### Commissioner Downloads")
+            st.markdown("#### 📂 Individual File Downloads")
+            st.caption("Download these after the relevant sim phase, then push to GitHub repo.")
 
-            if os.path.exists("cfb_user_draft_results.csv"):
-                with open("cfb_user_draft_results.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Draft Input",
-                        data=f.read(),
-                        file_name="cfb_user_draft_results.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_cfb_user_draft_results"
-                    )
-
-            if os.path.exists("nfl_draft_history.csv"):
-                with open("nfl_draft_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Draft History",
-                        data=f.read(),
-                        file_name="nfl_draft_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_draft_history"
-                    )
-
-            if os.path.exists("nfl_player_history.csv"):
-                with open("nfl_player_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Player History",
-                        data=f.read(),
-                        file_name="nfl_player_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_player_history"
-                    )
-
-            if os.path.exists("nfl_super_bowl_history.csv"):
-                with open("nfl_super_bowl_history.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Super Bowl History",
-                        data=f.read(),
-                        file_name="nfl_super_bowl_history.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_super_bowl_history"
-                    )
-
-            if os.path.exists("nfl_story_events.csv"):
-                with open("nfl_story_events.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Story Events",
-                        data=f.read(),
-                        file_name="nfl_story_events.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_story_events"
-                    )
-
-            if os.path.exists("nfl_current_rosters.csv"):
-                with open("nfl_current_rosters.csv", "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download Current Rosters",
-                        data=f.read(),
-                        file_name="nfl_current_rosters.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_nfl_current_rosters"
-                    )
+            _dl_files = [
+                ("cfb_user_draft_results.csv",   "Draft Input",       "⬆️ Upload before NFL Draft sim"),
+                ("nfl_draft_history.csv",         "Draft History",     "⬇️ Push after NFL Draft"),
+                ("nfl_player_history.csv",        "Player History",    "⬇️ Push after Reg Season + Playoffs"),
+                ("nfl_super_bowl_history.csv",    "Super Bowl",        "⬇️ Push after Sim Playoffs"),
+                ("nfl_story_events.csv",          "Story Events",      "⬇️ Push after Sim Playoffs"),
+                ("nfl_current_rosters.csv",       "Current Rosters",   "⬇️ Push after Reg Season + Playoffs"),
+                ("nfl_standings_history.csv",     "Standings",         "⬇️ Push after Sim Regular Season"),
+                ("nfl_playoff_history.csv",       "Playoff Bracket",   "⬇️ Push after Sim Playoffs"),
+                ("nfl_awards_history.csv",        "Awards",            "⬇️ Push after Sim Playoffs"),
+            ]
+            _dl_keys = ["dl_draft_input","dl_draft_hist","dl_player_hist","dl_sb_hist",
+                        "dl_story","dl_curr_rosters","dl_standings","dl_playoff","dl_awards"]
+            for (_fname, _label, _note), _key in zip(_dl_files, _dl_keys):
+                if os.path.exists(_fname):
+                    with open(_fname, "rb") as _f:
+                        st.download_button(
+                            label=f"⬇️ {_label} — {_note}",
+                            data=_f.read(), file_name=_fname, mime="text/csv",
+                            use_container_width=True, key=_key
+                        )
+                else:
+                    st.caption(f"⬜ {_label} ({_fname}) — not generated yet")
 
 
     # --- ROSTER ATTRITION ---
@@ -21421,46 +21609,82 @@ with tabs[5]:
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # --- 10. In-Season Predictions Header ---
-    sel_logo_html = get_attrition_logo(selected_team, width=65, margin="0")
+    # --- 10. Incoming Players State Origin Map ---
+    st.markdown(get_mini_card("📍 Incoming Recruiting Pipeline — State Origins", sel_color), unsafe_allow_html=True)
+    st.caption("Where are the incoming players coming from? Each dot = one recruit. HS and Transfer portal combined.")
 
-    st.markdown(f"""
-        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 15px 20px; border-radius: 8px; border-left: 6px solid {sel_color}; display: flex; align-items: center; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-            <div style="margin-right: 20px; display: flex; align-items: center;">
-                {sel_logo_html}
-            </div>
-            <div>
-                <h3 style="margin: 0; padding: 0; font-size: 1.5rem; text-align: left !important; color: #FFFFFF;">Current {selected_team} Flight Risk</h3>
-                <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #BBBBBB; text-align: left !important;">
-                    Confirmed departures are separated from possible early leavers so the outlook can be viewed in Aggressive or Conservative mode.
-                </p>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    try:
+        _map_df = team_incoming.copy() if not team_incoming.empty else pd.DataFrame()
+        if not _map_df.empty and 'State' in _map_df.columns:
+            _map_df['State'] = _map_df['State'].astype(str).str.strip().str.upper()
+            _state_counts = _map_df['State'].value_counts().reset_index()
+            _state_counts.columns = ['State', 'Count']
+            _state_counts = _state_counts[_state_counts['State'].str.len() == 2].copy()
 
-    st.markdown(get_mini_card("Current Flight Risk Breakdown", sel_color), unsafe_allow_html=True)
+            if not _state_counts.empty:
+                import plotly.express as px
 
-    with st.expander(f"✅ Confirmed Departures ({len(confirmed_live_df)})", expanded=False):
-        if not confirmed_live_df.empty:
-            st.dataframe(
-                confirmed_live_df.drop(columns=['Team'], errors='ignore'),
-                hide_index=True,
-                use_container_width=True,
-                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
-            )
+                _state_fig = px.choropleth(
+                    _state_counts,
+                    locations='State',
+                    locationmode='USA-states',
+                    color='Count',
+                    scope='usa',
+                    color_continuous_scale=[
+                        [0, '#0f172a'],
+                        [0.01, '#1e3a5f'],
+                        [0.3, sel_color + '88'],
+                        [1.0, sel_color],
+                    ],
+                    labels={'Count': 'Recruits'},
+                    title=f"{selected_team} — {incoming_year} Incoming Class Origins"
+                )
+                _state_fig.update_layout(
+                    geo=dict(
+                        bgcolor='rgba(0,0,0,0)',
+                        lakecolor='rgba(0,0,0,0)',
+                        landcolor='#0f172a',
+                        subunitcolor='#1e293b',
+                        showlakes=True,
+                    ),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#e2e8f0'),
+                    coloraxis_colorbar=dict(
+                        title='Recruits',
+                        tickfont=dict(color='#94a3b8'),
+                        titlefont=dict(color='#94a3b8'),
+                    ),
+                    title_font=dict(color='#e2e8f0', size=14),
+                    margin=dict(l=0, r=0, t=40, b=0),
+                    height=380,
+                )
+                st.plotly_chart(_state_fig, use_container_width=True, config={'displayModeBar': False})
+
+                # State breakdown chips below map
+                _top_states = _state_counts.head(8)
+                _chip_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;'>"
+                for _, _sr in _top_states.iterrows():
+                    _chip_html += (
+                        f"<span style='background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);"
+                        f"border-radius:999px;padding:4px 12px;font-size:0.78rem;color:#e2e8f0;font-weight:700;'>"
+                        f"{html.escape(str(_sr['State']))} <span style='color:{sel_color};'>{int(_sr['Count'])}</span></span>"
+                    )
+                _chip_html += "</div>"
+                st.markdown(_chip_html, unsafe_allow_html=True)
+
+                # Type breakdown
+                if 'Type' in _map_df.columns:
+                    _hs_count  = int((_map_df['Type'].astype(str).str.upper() == 'HS').sum())
+                    _tp_count  = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
+                    _st_uniq   = _state_counts['State'].nunique()
+                    st.caption(f"📊 {len(_map_df)} total incoming · {_hs_count} HS · {_tp_count} transfers · {_st_uniq} states represented")
+            else:
+                st.info("No state data available for incoming players.")
         else:
-            st.info("No confirmed graduating NFL-related departures found.")
-
-    with st.expander(f"⚠️ Possible Early Leavers ({len(possible_early_df)})", expanded=False):
-        if not possible_early_df.empty:
-            st.dataframe(
-                possible_early_df.drop(columns=['Team'], errors='ignore'),
-                hide_index=True,
-                use_container_width=True,
-                column_config={"OVR": st.column_config.NumberColumn(format="%d ⭐")}
-            )
-        else:
-            st.info("No underclassmen currently flagged as possible early leavers.")
+            st.info("No incoming player data with State column found for this team/year.")
+    except Exception as _map_err:
+        st.caption(f"State map unavailable: {_map_err}")
 
     # --- ROSTER MATCHUP ---
     with tabs[9]:
