@@ -10599,11 +10599,12 @@ except Exception:
 if not IS_BOWL_WEEK:
     try:
         if _rank_lookup and _cfp_week_label:
-            _top5_teams = sorted(_rank_lookup.items(), key=lambda x: x[1])[:5]
+            _top12_teams = sorted(_rank_lookup.items(), key=lambda x: x[1])[:12]
+            _top5_teams_ticker = sorted(_rank_lookup.items(), key=lambda x: x[1])[:5]
 
-            # Build logo strip for hero header — logos with rank numbers
+            # Build logo strip for hero header — top 12 logos with rank numbers
             _logo_strip_parts = []
-            for _t5name, _t5rank in _top5_teams:
+            for _t5name, _t5rank in _top12_teams:
                 try:
                     _t5proper = next(
                         (orig for orig in TEAM_VISUALS if orig.upper() == _t5name.upper()),
@@ -10611,10 +10612,10 @@ if not IS_BOWL_WEEK:
                     )
                     _t5color  = get_team_primary_color(_t5proper)
                     _t5logo   = get_header_logo(_t5proper)
-                    _t5lhtml  = f"<img src='{_t5logo}' style='width:44px;height:44px;object-fit:contain;'/>" if _t5logo else ""
+                    _t5lhtml  = f"<img src='{_t5logo}' style='width:36px;height:36px;object-fit:contain;'/>" if _t5logo else ""
                     _logo_strip_parts.append(
-                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;'>"
-                        f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.75rem;color:{_t5color};'>"
+                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;'>"
+                        f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.68rem;color:{_t5color};'>"
                         f"#{_t5rank}</span>"
                         f"{_t5lhtml}"
                         f"</div>"
@@ -10623,13 +10624,14 @@ if not IS_BOWL_WEEK:
                     pass
             _cfp_logo_strip = (
                 f"<div style='display:flex;justify-content:center;align-items:flex-end;"
-                f"gap:16px;margin-bottom:6px;'>"
+                f"gap:10px;margin-bottom:6px;flex-wrap:wrap;'>"
                 + "".join(_logo_strip_parts)
                 + "</div>"
             )
 
-            # Ticker text stays as names (short, readable in the scroller)
-            _top5_str = '  ·  '.join(f"#{r} {t.title()}" for t, r in _top5_teams)
+            # Ticker text stays as TOP 5 — short and readable in the scroller
+            _top5_str = '  ·  '.join(f"#{r} {t.title()}" for t, r in _top5_teams_ticker)
+            _top5_teams = _top12_teams  # keep reference for blurb/no1 logic below
 
             # Find #1 for blurb
             _cfp_no1_name = next((t for t, r in _top5_teams if r == 1), None)
@@ -10654,7 +10656,7 @@ if not IS_BOWL_WEEK:
                     _rec_str = ''
 
                 _all_headlines.append({
-                    'badge': 'CFP TOP 5',
+                    'badge': 'CFP TOP 12',
                     'priority': 85,
                     'text': f"Week {_cfp_week_label} CFP Rankings: {_top5_str}",
                     'blurb': f"{_cfp_no1_proper}{_rec_str} is #1. The committee has spoken.",
@@ -12307,31 +12309,34 @@ with tabs[0]:
         # Fall back to CPUscores_MASTER.csv W-L for any team showing 0-0 or blank
         try:
             _cpu = pd.read_csv('CPUscores_MASTER.csv')
-            _cpu['YEAR'] = pd.to_numeric(_cpu.get('YEAR', _cpu.get('Year')), errors='coerce')
-            _cpu = _cpu[_cpu['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
-            _cpu['V_Pts'] = pd.to_numeric(_cpu.get('V_Pts', _cpu.get('Visitor Score', _cpu.get('VPts'))), errors='coerce')
-            _cpu['H_Pts'] = pd.to_numeric(_cpu.get('H_Pts', _cpu.get('Home Score', _cpu.get('HPts'))), errors='coerce')
-            _cpu = _cpu.dropna(subset=['V_Pts', 'H_Pts']).copy()
-            # Build W-L per team from completed games
-            _v_col = smart_col(_cpu, ['Visitor', 'V_Team', 'Away'])
-            _h_col = smart_col(_cpu, ['Home', 'H_Team'])
-            if _v_col and _h_col:
+            _yr_key_c  = smart_col(_cpu, ['YEAR', 'Year'])
+            _v_col_c   = smart_col(_cpu, ['Visitor', 'V_Team', 'Away', 'VISITOR'])
+            _h_col_c   = smart_col(_cpu, ['Home', 'H_Team', 'HOME'])
+            _vp_col_c  = smart_col(_cpu, ['V_Pts', 'V_Score', 'VisitorScore', 'V Score', 'VPts'])
+            _hp_col_c  = smart_col(_cpu, ['H_Pts', 'H_Score', 'HomeScore', 'H Score', 'HPts'])
+            if _yr_key_c and _v_col_c and _h_col_c and _vp_col_c and _hp_col_c:
+                _cpu['_YEAR'] = pd.to_numeric(_cpu[_yr_key_c], errors='coerce')
+                _cpu = _cpu[_cpu['_YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
+                _cpu['_VP'] = pd.to_numeric(_cpu[_vp_col_c], errors='coerce')
+                _cpu['_HP'] = pd.to_numeric(_cpu[_hp_col_c], errors='coerce')
+                _cpu = _cpu.dropna(subset=['_VP', '_HP']).copy()
+                # Build W-L per team from completed games
                 _wl = {}
                 for _, _g in _cpu.iterrows():
-                    _vt = str(_g[_v_col]).strip()
-                    _ht = str(_g[_h_col]).strip()
-                    _vp = float(_g['V_Pts'])
-                    _hp = float(_g['H_Pts'])
+                    _vt = str(_g[_v_col_c]).strip()
+                    _ht = str(_g[_h_col_c]).strip()
+                    _vp = float(_g['_VP'])
+                    _hp = float(_g['_HP'])
                     for _t in [_vt, _ht]:
                         if _t and _t.lower() != 'nan':
                             _wl.setdefault(_t, [0, 0])
                     if _vp > _hp:
-                        _wl[_vt][0] += 1
-                        _wl[_ht][1] += 1
-                    else:
-                        _wl[_ht][0] += 1
-                        _wl[_vt][1] += 1
-                # Only override blank or 0-0 entries
+                        _wl.get(_vt, [0, 0])[0] += 1
+                        _wl.get(_ht, [0, 0])[1] += 1
+                    elif _hp > _vp:
+                        _wl.get(_ht, [0, 0])[0] += 1
+                        _wl.get(_vt, [0, 0])[1] += 1
+                # Only override blank or 0-0 entries in the record map
                 for _t, (_w, _l) in _wl.items():
                     _existing = _record_map.get(_t, '')
                     _is_blank_or_zero = (
@@ -12607,8 +12612,9 @@ with tabs[0]:
             st.markdown(card_html, unsafe_allow_html=True)
 
             # ── TEAM OVERVIEW JUMP BUTTON ─────────────────────────────────────
+            _btn_user_label = user.title() if user and str(user).lower() not in ('nan', '') else team
             if st.button(
-                f"🏛️ View {team} Coach Legacy →",
+                f"🏛️ View {_btn_user_label}'s Coach Legacy →",
                 key=f"_goto_overview_{team}_{idx}",
                 use_container_width=False,
             ):
