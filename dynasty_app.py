@@ -13377,8 +13377,15 @@ with tabs[0]:
                     _mock_cpu[_c] = pd.to_numeric(_mock_cpu.get(_c, 75), errors='coerce').fillna(75)
                 if 'PosBucket' not in _mock_cpu.columns:
                     _mock_cpu['PosBucket'] = _mock_cpu['Pos'].astype(str).str.strip().str.upper().map(_MOCK_POS_BUCKET).fillna('OL')
-                if 'DraftValueScore' not in _mock_cpu.columns or (_mock_cpu['DraftValueScore'] == 0).all():
+                if ('DraftValueScore' not in _mock_cpu.columns
+                        or _mock_cpu['DraftValueScore'].isna().all()
+                        or (_mock_cpu['DraftValueScore'].fillna(0) == 0).all()):
                     _mock_cpu['DraftValueScore'] = _mock_cpu.apply(_mock_dvs, axis=1)
+                else:
+                    # Fill any individual NaN rows (e.g. newly appended players not yet prepped)
+                    _nan_mask = _mock_cpu['DraftValueScore'].isna()
+                    if _nan_mask.any():
+                        _mock_cpu.loc[_nan_mask, 'DraftValueScore'] = _mock_cpu[_nan_mask].apply(_mock_dvs, axis=1)
                 _mock_cpu['Source'] = 'CPU'
                 _mock_cpu = _mock_cpu.rename(columns={'Player':'Name','CollegeTeam':'Team'})
             except FileNotFoundError:
@@ -13553,8 +13560,13 @@ with tabs[0]:
                 </div>"""
                 st.markdown(_mock_html, unsafe_allow_html=True)
                 _total_prospects = len(_mock_all)
+                _cpu_in_r1  = int((_r1['Source'] == 'CPU').sum())  if 'Source' in _r1.columns else 0
+                _user_in_r1 = int((_r1['Source'] == 'USER').sum()) if 'Source' in _r1.columns else 0
+                _top_cpu_score  = float(_mock_all[_mock_all['Source']=='CPU']['DraftValueScore'].max())  if not _mock_cpu.empty  else 0
+                _top_user_score = float(_mock_all[_mock_all['Source']=='USER']['DraftValueScore'].max()) if not _mock_roster.empty else 0
                 st.caption(f"{_total_prospects} total prospects ({_user_count} from user rosters). NFL teams use 2025 real-life draft order as placeholder. User program players highlighted in team color.")
                 st.caption(f"🔍 CPU: {_mock_cpu_status}  |  Rosters: {_mock_roster_status}")
+                st.caption(f"🔍 Round 1 breakdown: {_cpu_in_r1} CPU picks / {_user_in_r1} user picks — Top CPU score: {_top_cpu_score:.1f} | Top user score: {_top_user_score:.1f}")
 
         except FileNotFoundError:
             st.info("Push cpu_draft_pool.csv or cfb26_rosters_full.csv to generate the mock draft board.")
