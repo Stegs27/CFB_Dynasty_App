@@ -15942,7 +15942,7 @@ with tabs[10]:
             setTimeout(function() {
                 try {
                     var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
-                    if (tabs && tabs[9]) { tabs[9].click(); }
+                    if (tabs && tabs[10]) { tabs[10].click(); }
                 } catch(e) {}
             }, 150);
             </script>
