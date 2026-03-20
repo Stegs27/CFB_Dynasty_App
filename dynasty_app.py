@@ -10465,6 +10465,7 @@ if not IS_BOWL_WEEK:
                     'text': f"Week {_cfp_week_label} CFP Rankings: {_top5_str}",
                     'blurb': f"{_cfp_no1_proper}{_rec_str} is #1. The committee has spoken.",
                     'logo_html': _cfp_logo_strip,
+                    'hide_text': True,
                 })
     except Exception:
         pass
@@ -10976,6 +10977,7 @@ top_headline = _top['text']
 game_blurb   = _top['blurb']
 badge_text   = _top['badge']
 logo_html    = _top['logo_html']
+hide_text    = _top.get('hide_text', False)
 is_gold      = True
 
 # Build team-colored headline HTML
@@ -11067,7 +11069,7 @@ st.markdown(f"""
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-0.5px;">📰 Dynasty News</h2>
   {logo_html}
   <div class="top-story-badge">{badge_text}</div>
-  <div style="font-size:1.15rem;font-weight:800;letter-spacing:0.5px;margin-bottom:4px;line-height:1.4;">{_hero_headline_html}</div>
+  {"" if hide_text else f'<div style="font-size:1.15rem;font-weight:800;letter-spacing:0.5px;margin-bottom:4px;line-height:1.4;">{_hero_headline_html}</div>'}
   <div style="color:#94a3b8;font-size:0.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(game_blurb)}"</div>
   <div style="color:#38bdf8;font-size:0.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
