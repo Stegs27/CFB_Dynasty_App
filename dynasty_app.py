@@ -925,6 +925,7 @@ def get_nfl_logo_path(team_name):
         return None
 
     candidates = [
+        os.path.join("logos", f"{slug}.png"),
         f"{slug}.png",
         os.path.join(".", f"{slug}.png"),
     ]
@@ -13316,7 +13317,122 @@ with tabs[0]:
                 disabled=_cand_bytes is None
             )
 
+        # ── NFL MOCK DRAFT — 1ST ROUND ────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader(f"🏈 {CURRENT_YEAR} NFL Mock Draft — 1st Round")
+        st.caption("Projected top 32 picks built from cpu_draft_pool.csv. Shows best available by DraftValueScore with position need context.")
 
+        try:
+            _mock_pool = pd.read_csv('cpu_draft_pool.csv')
+            _mock_pool['DraftYear'] = pd.to_numeric(_mock_pool.get('DraftYear'), errors='coerce')
+            _mock_pool = _mock_pool[_mock_pool['DraftYear'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
+
+            if _mock_pool.empty:
+                st.info(f"No cpu_draft_pool.csv entries for {CURRENT_YEAR} yet.")
+            else:
+                for _c in ['OVR', 'SPD', 'ACC', 'AGI', 'COD', 'AWR', 'DraftValueScore']:
+                    if _c in _mock_pool.columns:
+                        _mock_pool[_c] = pd.to_numeric(_mock_pool[_c], errors='coerce').fillna(0)
+
+                # Sort by DraftValueScore desc, take top 32
+                _sort_col = 'DraftValueScore' if 'DraftValueScore' in _mock_pool.columns else 'OVR'
+                _r1 = _mock_pool.sort_values(_sort_col, ascending=False).head(32).reset_index(drop=True)
+
+                # Position color map
+                _pos_colors = {
+                    'QB': '#f97316', 'RB': '#22c55e', 'WR': '#3b82f6', 'TE': '#a78bfa',
+                    'EDGE': '#ef4444', 'IDL': '#94a3b8', 'OL': '#64748b',
+                    'LB': '#fbbf24', 'CB': '#06b6d4', 'S': '#8b5cf6',
+                    'K': '#475569', 'P': '#475569',
+                }
+
+                _mock_rows = []
+                for _pick, (_, _p) in enumerate(_r1.iterrows(), 1):
+                    _pname    = html.escape(str(_p.get('Player', '—')))
+                    _pschool  = str(_p.get('CollegeTeam', '—')).strip()
+                    _ppos     = str(_p.get('Pos', '—')).strip()
+                    _pbucket  = str(_p.get('PosBucket', _ppos)).strip()
+                    _povr     = int(_p.get('OVR', 0))
+                    _pclass   = str(_p.get('Class', '')).strip()
+                    _pspd     = int(_p.get('SPD', 0))
+                    _pawr     = int(_p.get('AWR', 0))
+                    _pval     = float(_p.get(_sort_col, 0))
+
+                    # School logo
+                    _slogo_uri = image_file_to_data_uri(get_logo_source(_pschool))
+                    _slogo_html = f"<img src='{_slogo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if _slogo_uri else ""
+
+                    # Pos badge color
+                    _pc = _pos_colors.get(_pbucket, '#475569')
+
+                    # Pick tier styling — top 10 pop more
+                    if _pick <= 10:
+                        _pick_color = '#fbbf24'
+                        _pick_style = 'font-family:"Bebas Neue",sans-serif;font-size:1.3rem;'
+                    elif _pick <= 20:
+                        _pick_color = '#94a3b8'
+                        _pick_style = 'font-family:"Bebas Neue",sans-serif;font-size:1.15rem;'
+                    else:
+                        _pick_color = '#475569'
+                        _pick_style = 'font-family:"Bebas Neue",sans-serif;font-size:1.05rem;'
+
+                    # Check if from a user team
+                    _is_user_school = _pschool.strip() in USER_TEAMS.values()
+                    _user_tag = ''
+                    if _is_user_school:
+                        _pu = next((u for u, t in USER_TEAMS.items() if t == _pschool.strip()), '')
+                        _utc = get_team_primary_color(_pschool)
+                        _user_tag = f"<span style='background:{_utc}22;color:{_utc};border:1px solid {_utc}55;font-size:0.58rem;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.06em;'>{html.escape(_pu).upper()}</span>"
+
+                    _mock_rows.append(f"""
+                    <tr style='{"background:linear-gradient(90deg,rgba(251,191,36,0.06),transparent);" if _pick <= 5 else ""}'>
+                      <td style='padding:9px 12px;border-bottom:1px solid #0f172a;text-align:center;{_pick_style}color:{_pick_color};white-space:nowrap;'>{_pick}</td>
+                      <td style='padding:9px 12px;border-bottom:1px solid #0f172a;white-space:nowrap;'>
+                        <div style='display:flex;align-items:center;gap:8px;'>
+                          {_slogo_html}
+                          <div>
+                            <div style='font-weight:700;color:#f1f5f9;font-size:0.9rem;'>{_pname}{_user_tag}</div>
+                            <div style='font-size:0.68rem;color:#475569;'>{html.escape(_pschool)} · {html.escape(_pclass)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style='padding:9px 12px;border-bottom:1px solid #0f172a;text-align:center;'>
+                        <span style='background:{_pc}22;color:{_pc};border:1px solid {_pc}55;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.05em;'>{html.escape(_ppos)}</span>
+                      </td>
+                      <td style='padding:9px 12px;border-bottom:1px solid #0f172a;text-align:center;color:#e2e8f0;font-weight:700;'>{_povr}</td>
+                      <td style='padding:9px 12px;border-bottom:1px solid #0f172a;text-align:center;color:#94a3b8;'>{_pspd}</td>
+                      <td style='padding:9px 12px;border-bottom:1px solid #0f172a;text-align:center;color:#94a3b8;'>{_pawr}</td>
+                      <td style='padding:9px 12px;border-bottom:1px solid #0f172a;text-align:center;color:#60a5fa;font-family:"Bebas Neue",sans-serif;font-size:1.05rem;'>{_pval:.1f}</td>
+                    </tr>""")
+
+                _mock_html = f"""
+                <style>
+                .mock-wrap {{ overflow-x:auto; border:1px solid #1e293b; border-radius:10px; }}
+                .mock-table {{ width:100%; border-collapse:collapse; background:#080f1a; }}
+                </style>
+                <div class="mock-wrap">
+                  <table class="mock-table">
+                    <thead>
+                      <tr style='background:#0a1220;'>
+                        <th style='padding:9px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;text-align:center;white-space:nowrap;'>Pick</th>
+                        <th style='padding:9px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;text-align:left;'>Player</th>
+                        <th style='padding:9px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;text-align:center;'>Pos</th>
+                        <th style='padding:9px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;text-align:center;'>OVR</th>
+                        <th style='padding:9px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;text-align:center;'>SPD</th>
+                        <th style='padding:9px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;text-align:center;'>AWR</th>
+                        <th style='padding:9px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;text-align:center;'>Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>{"".join(_mock_rows)}</tbody>
+                  </table>
+                </div>"""
+                st.markdown(_mock_html, unsafe_allow_html=True)
+                st.caption(f"Sorted by DraftValueScore. Highlighted names are from user programs. {len(_mock_pool)} total prospects in the {CURRENT_YEAR} pool.")
+
+        except FileNotFoundError:
+            st.info("Push cpu_draft_pool.csv with DraftYear entries to generate the mock draft board.")
+        except Exception as _mock_err:
+            st.error(f"Mock draft error: {_mock_err}")
 
 
     # --- WHO'S IN? ---
