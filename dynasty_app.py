@@ -4251,6 +4251,193 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
 
     return season_df
 
+
+def simulate_nfl_regular_season_phase(season_year=None):
+    """
+    Phase 1 of the two-phase sim.
+    Runs: roster build → team strengths → regular season standings → player stats.
+    Writes: nfl_standings_history.csv, nfl_player_history.csv, nfl_current_rosters.csv (preview).
+    Does NOT run playoffs, awards, or advance CurrentNFLSeason.
+    """
+    universe = load_nfl_universe_data()
+    nfl_roster      = universe["nfl_roster"]
+    cfb_roster      = universe["cfb_roster"]
+    nfl_draft_hist  = universe["nfl_draft_hist"]
+    nfl_player_hist = universe["nfl_player_hist"]
+
+    if season_year is None:
+        season_year = get_current_nfl_season()
+    season_year = int(season_year)
+
+    nfl_current_roster = build_nfl_current_roster_for_season(
+        season_year=season_year,
+        nfl_roster_df=nfl_roster,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_player_hist_df=nfl_player_hist,
+        existing_current_rosters_df=universe.get("nfl_current_rosters")
+    )
+
+    team_strength_df = build_nfl_team_strengths(nfl_current_roster)
+    if team_strength_df.empty:
+        return None, "NFL roster data is missing — season cannot be simulated."
+
+    standings_df = simulate_nfl_regular_season(team_strength_df, season_year=season_year, games_per_team=17)
+
+    # Save standings
+    existing_standings = pd.read_csv("nfl_standings_history.csv") if os.path.exists("nfl_standings_history.csv") else pd.DataFrame(columns=NFL_STANDINGS_HISTORY_COLS)
+    if not existing_standings.empty and "Season" in existing_standings.columns:
+        existing_standings["Season"] = pd.to_numeric(existing_standings["Season"], errors="coerce")
+        existing_standings = existing_standings[existing_standings["Season"].fillna(-1).astype(int) != season_year].copy()
+    standings_to_save = standings_df.copy()
+    for col in NFL_STANDINGS_HISTORY_COLS:
+        if col not in standings_to_save.columns:
+            standings_to_save[col] = pd.NA
+    standings_to_save = standings_to_save[NFL_STANDINGS_HISTORY_COLS].copy()
+    pd.concat([existing_standings, standings_to_save], ignore_index=True).to_csv("nfl_standings_history.csv", index=False)
+
+    # Player stats
+    player_hist_combined = simulate_nfl_player_season(
+        season_year=season_year,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_roster_df=nfl_roster,
+        existing_player_hist_df=nfl_player_hist
+    )
+
+    base_roster_rows = simulate_base_nfl_roster_season_rows(
+        season_year=season_year,
+        nfl_current_rosters_df=nfl_current_roster,
+        existing_player_hist_df=player_hist_combined
+    )
+
+    if base_roster_rows is not None and not base_roster_rows.empty:
+        existing_nonseason = player_hist_combined.copy()
+        if "Season" in existing_nonseason.columns:
+            existing_nonseason["Season"] = pd.to_numeric(existing_nonseason["Season"], errors="coerce")
+            existing_nonseason = existing_nonseason[existing_nonseason["Season"].fillna(-1).astype(int) != season_year].copy()
+        season_dyn_rows = player_hist_combined[pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year].copy()
+        season_combined = pd.concat([season_dyn_rows, base_roster_rows], ignore_index=True)
+        if "PlayerID" in season_combined.columns:
+            season_combined = season_combined.drop_duplicates(subset=["PlayerID"], keep="first").copy()
+        player_hist_combined = pd.concat([existing_nonseason, season_combined], ignore_index=True)
+        for col in NFL_PLAYER_HISTORY_COLS:
+            if col not in player_hist_combined.columns:
+                player_hist_combined[col] = pd.NA
+        player_hist_combined = player_hist_combined[NFL_PLAYER_HISTORY_COLS].copy()
+        player_hist_combined.to_csv("nfl_player_history.csv", index=False)
+
+    # Build next-season roster preview so rosters are ready
+    nfl_current_roster.to_csv("nfl_current_rosters.csv", index=False)
+
+    # Build AFC/NFC leaders for the return summary
+    top_afc = standings_df[standings_df["Conference"].astype(str).str.upper() == "AFC"].sort_values("Wins", ascending=False).iloc[0]["Team"] if not standings_df[standings_df["Conference"].astype(str).str.upper() == "AFC"].empty else "—"
+    top_nfc = standings_df[standings_df["Conference"].astype(str).str.upper() == "NFC"].sort_values("Wins", ascending=False).iloc[0]["Team"] if not standings_df[standings_df["Conference"].astype(str).str.upper() == "NFC"].empty else "—"
+
+    return {
+        "season_year": season_year,
+        "standings": standings_df,
+        "player_history": player_hist_combined,
+    }, f"✅ {season_year} regular season complete. AFC leader: {top_afc} · NFC leader: {top_nfc}. Now sim the playoffs when ready."
+
+
+def simulate_nfl_playoffs_phase(season_year=None):
+    """
+    Phase 2 of the two-phase sim.
+    Reads standings from nfl_standings_history.csv, then runs:
+    playoffs → awards → Super Bowl → story events → next-season roster → advances CurrentNFLSeason.
+    Requires Phase 1 to have been run first.
+    """
+    universe        = load_nfl_universe_data()
+    nfl_roster      = universe["nfl_roster"]
+    cfb_roster      = universe["cfb_roster"]
+    nfl_draft_hist  = universe["nfl_draft_hist"]
+    nfl_player_hist = universe["nfl_player_hist"]
+    nfl_super_bowl  = universe["nfl_super_bowl"]
+    nfl_story       = universe["nfl_story"]
+
+    if season_year is None:
+        season_year = get_current_nfl_season()
+    season_year = int(season_year)
+
+    # Load standings that Phase 1 wrote
+    if not os.path.exists("nfl_standings_history.csv"):
+        return None, "No standings found — run the regular season sim first."
+    standings_hist = pd.read_csv("nfl_standings_history.csv")
+    standings_hist["Season"] = pd.to_numeric(standings_hist["Season"], errors="coerce")
+    standings_df = standings_hist[standings_hist["Season"].fillna(-1).astype(int) == season_year].copy()
+    if standings_df.empty:
+        return None, f"No {season_year} standings found — run the regular season sim first."
+
+    # Load player history Phase 1 wrote
+    player_hist_combined = pd.read_csv("nfl_player_history.csv") if os.path.exists("nfl_player_history.csv") else nfl_player_hist
+
+    champion, runner_up, score, playoff_log = simulate_nfl_playoffs(standings_df, season_year)
+    if champion is None:
+        return None, "Could not determine playoff results."
+
+    # Playoff history
+    existing_playoff = universe["nfl_playoff_hist"].copy() if universe["nfl_playoff_hist"] is not None else pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+    if not existing_playoff.empty and "Season" in existing_playoff.columns:
+        existing_playoff["Season"] = pd.to_numeric(existing_playoff["Season"], errors="coerce")
+        existing_playoff = existing_playoff[existing_playoff["Season"].fillna(-1).astype(int) != season_year].copy()
+    playoff_log_clean = playoff_log.copy() if playoff_log is not None else pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+    for col in NFL_PLAYOFF_HISTORY_COLS:
+        if col not in playoff_log_clean.columns:
+            playoff_log_clean[col] = pd.NA
+    playoff_log_clean = playoff_log_clean[NFL_PLAYOFF_HISTORY_COLS].copy()
+    pd.concat([existing_playoff, playoff_log_clean], ignore_index=True).to_csv("nfl_playoff_history.csv", index=False)
+
+    # Awards
+    season_player_df = player_hist_combined[pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year].copy()
+    awards_hist = simulate_nfl_awards(season_year=season_year, season_player_df=season_player_df, existing_awards_df=universe["nfl_awards_hist"])
+
+    # Super Bowl
+    mvp_name, mvp_team = choose_super_bowl_mvp(champion, season_player_df.copy())
+    sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
+    sb_signature_moment, sb_used_player = generate_super_bowl_signature_moment(champion=champion, runner_up=runner_up, score=score, season_player_df=season_player_df, nfl_draft_hist_df=nfl_draft_hist)
+    sb_user_note = generate_super_bowl_user_alumni_note(champion=champion, runner_up=runner_up, season_player_df=season_player_df, nfl_draft_hist_df=nfl_draft_hist, already_used_player=sb_used_player)
+    new_sb_row = pd.DataFrame([{"Season": season_year, "Champion": champion, "RunnerUp": runner_up, "Score": score, "MVP": mvp_name, "MVPTeam": mvp_team, "Headline": sb_headline, "GameMoment": sb_signature_moment, "UserAlumniNote": sb_user_note}])
+    existing_sb = nfl_super_bowl.copy() if nfl_super_bowl is not None else pd.DataFrame(columns=NFL_SUPER_BOWL_HISTORY_COLS)
+    if not existing_sb.empty and "Season" in existing_sb.columns:
+        existing_sb["Season"] = pd.to_numeric(existing_sb["Season"], errors="coerce")
+        existing_sb = existing_sb[existing_sb["Season"].fillna(-1).astype(int) != season_year].copy()
+    sb_combined = pd.concat([existing_sb, new_sb_row], ignore_index=True)
+    for col in NFL_SUPER_BOWL_HISTORY_COLS:
+        if col not in sb_combined.columns:
+            sb_combined[col] = pd.NA
+    sb_combined[NFL_SUPER_BOWL_HISTORY_COLS].to_csv("nfl_super_bowl_history.csv", index=False)
+
+    # Story events
+    season_story_rows = []
+    if not season_player_df.empty:
+        for _, r in season_player_df.sort_values(["CareerValue","OverallEnd"], ascending=[False,False]).head(3).iterrows():
+            season_story_rows.append({"Season": season_year, "Week": 21, "PlayerID": r.get("PlayerID",""), "Player": r.get("Player",""), "NFLTeam": r.get("NFLTeam",""), "EventType": "SeasonOutcome", "Headline": f"{r.get('Player','')} makes noise in year {max(1, season_year - int(get_latest_completed_draft_year() or season_year) + 1)}", "Description": f"{r.get('NFLTeam','')} {r.get('Pos','')} posted {r.get('StatLine','')}. Role: {r.get('Role','')}.", "ImpactScore": int(min(99, max(55, safe_num(r.get("CareerValue", 60), 60))))})
+        for _, r in season_player_df[season_player_df["Status"].astype(str) == "Retired"].head(6).iterrows():
+            season_story_rows.append({"Season": season_year, "Week": 24, "PlayerID": r.get("PlayerID",""), "Player": r.get("Player",""), "NFLTeam": r.get("NFLTeam",""), "EventType": "Retirement", "Headline": f"{r.get('Player','')} calls it a career", "Description": f"{r.get('NFLTeam','')} {r.get('Pos','')} retires after the {season_year} season.", "ImpactScore": 80})
+    season_awards = awards_hist[pd.to_numeric(awards_hist["Season"], errors="coerce").fillna(-1).astype(int) == season_year].copy()
+    for _, r in season_awards[season_awards["Result"].astype(str) == "Winner"].iterrows():
+        season_story_rows.append({"Season": season_year, "Week": 23, "PlayerID": r.get("PlayerID",""), "Player": r.get("Player",""), "NFLTeam": r.get("NFLTeam",""), "EventType": "Award", "Headline": f"{r.get('Player','')} wins {r.get('Award','')}", "Description": f"{r.get('NFLTeam','')} {r.get('Pos','')} earned {r.get('Award','')}. {r.get('Notes','')}", "ImpactScore": 92})
+    season_story_rows.append({"Season": season_year, "Week": 22, "PlayerID": "", "Player": mvp_name, "NFLTeam": champion, "EventType": "SuperBowl", "Headline": sb_headline, "Description": f"{champion} beat {runner_up}. Super Bowl MVP: {mvp_name}. Final score: {score}.", "ImpactScore": 99})
+    existing_story = nfl_story.copy() if nfl_story is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+    if not existing_story.empty and "Season" in existing_story.columns:
+        existing_story["Season"] = pd.to_numeric(existing_story["Season"], errors="coerce")
+        existing_story = existing_story[~(existing_story["Season"].fillna(-1).astype(int).eq(season_year) & existing_story["EventType"].astype(str).isin(["SeasonOutcome","SuperBowl"]))].copy()
+    story_combined = pd.concat([existing_story, pd.DataFrame(season_story_rows)], ignore_index=True)
+    for col in NFL_STORY_EVENTS_COLS:
+        if col not in story_combined.columns:
+            story_combined[col] = pd.NA
+    story_combined[NFL_STORY_EVENTS_COLS].to_csv("nfl_story_events.csv", index=False)
+
+    # Next season roster + advance settings
+    next_roster = build_nfl_current_roster_for_season(season_year=season_year+1, nfl_roster_df=nfl_roster, nfl_draft_hist_df=nfl_draft_hist, nfl_player_hist_df=player_hist_combined, existing_current_rosters_df=universe.get("nfl_current_rosters"))
+    next_roster = run_nfl_offseason_roster_maintenance(season_year=season_year+1, current_roster_df=next_roster, cfb_roster_df=cfb_roster, nfl_draft_hist_df=nfl_draft_hist)
+    save_nfl_universe_settings(current_season=season_year+1, last_draft_year=get_latest_completed_draft_year(), last_super_bowl_season=season_year)
+
+    return {
+        "season_year": season_year, "champion": champion, "runner_up": runner_up,
+        "score": score, "playoff_log": playoff_log,
+    }, f"🏆 {champion} win Super Bowl {season_year}! Settings advanced to {season_year + 1}."
+
+
 def simulate_nfl_season(season_year=None):
     universe = load_nfl_universe_data()
     nfl_roster = universe["nfl_roster"]
@@ -11638,6 +11825,55 @@ with tabs[0]:
         except Exception:
             preseason_rank_map = {}
 
+        # ── WEEK / SEASON STATUS BANNER ─────────────────────────────────────
+        # Derive the current week from cfp_rankings_history — the latest WEEK
+        # in the CSV is always the ground truth for where the season is.
+        _dn_week = CURRENT_WEEK_NUMBER
+        _dn_year = CURRENT_YEAR
+        _dn_is_bowl = IS_BOWL_WEEK
+        try:
+            _dn_cfp = pd.read_csv('cfp_rankings_history.csv')
+            if not _dn_cfp.empty and 'YEAR' in _dn_cfp.columns and 'WEEK' in _dn_cfp.columns:
+                _dn_cfp['YEAR'] = pd.to_numeric(_dn_cfp['YEAR'], errors='coerce')
+                _dn_cfp['WEEK'] = pd.to_numeric(_dn_cfp['WEEK'], errors='coerce')
+                _dn_latest_yr  = int(_dn_cfp['YEAR'].max())
+                _dn_latest_wk  = int(_dn_cfp.loc[_dn_cfp['YEAR'] == _dn_latest_yr, 'WEEK'].max())
+                # Use CFP rankings week as the authoritative current week
+                _dn_week = _dn_latest_wk
+                _dn_year = _dn_latest_yr
+        except Exception:
+            pass
+
+        # Week label — bowl weeks use round names
+        if _dn_is_bowl or _dn_week >= 16:
+            _bowl_names = {16: 'Bowl Season', 17: 'CFP First Round', 18: 'CFP Quarterfinals',
+                           19: 'CFP Semifinals', 20: 'CFP Championship', 21: 'CFP Championship'}
+            _wk_label = _bowl_names.get(_dn_week, f'Bowl Season')
+        else:
+            _wk_label = f'Week {_dn_week}'
+
+        st.markdown(f"""
+        <div style='display:flex;align-items:center;justify-content:center;gap:18px;
+                    background:linear-gradient(90deg,rgba(59,130,246,0.08),rgba(251,191,36,0.05));
+                    border:1px solid rgba(255,255,255,0.07);border-radius:10px;
+                    padding:14px 20px;margin-bottom:18px;'>
+            <div style='text-align:center;'>
+                <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#fbbf24;line-height:1;'>{_dn_year}</div>
+                <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>Season</div>
+            </div>
+            <div style='width:1px;height:40px;background:rgba(255,255,255,0.1);'></div>
+            <div style='text-align:center;'>
+                <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#60a5fa;line-height:1;'>{_wk_label}</div>
+                <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>Current Week</div>
+            </div>
+            <div style='width:1px;height:40px;background:rgba(255,255,255,0.1);'></div>
+            <div style='text-align:center;'>
+                <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#4ade80;line-height:1;'>{CURRENT_YEAR + 1}</div>
+                <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>NFL Draft Class</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         # ════════════════════════════════════════════════════════════════════
         # SECTION 1 — SEASON POWER RANKINGS
         # ════════════════════════════════════════════════════════════════════
@@ -13579,14 +13815,48 @@ with tabs[3]:
         st.header("🏆 Who's In? | CFP Bubble Watch")
         st.caption("Built from your uploaded CFP ranking screenshots, then sharpened with this app's SOS, resume, QB, recruiting, and roster-strength model. Current CFP standards are assumed: five highest-ranked conference champs get in, plus seven at-larges, with the top four seeds earning byes.")
 
-        # ── DATA FRESHNESS BANNER ────────────────────────────────────────────
+        # ── DATA FRESHNESS BANNER + WEEK SYNC ───────────────────────────────
+        _whos_in_week = None
+        _whos_in_year = CURRENT_YEAR
         try:
             _cfp_hist_check = pd.read_csv('cfp_rankings_history.csv')
             if not _cfp_hist_check.empty:
-                _ly = _cfp_hist_check['YEAR'].max()
-                _lw = _cfp_hist_check.loc[_cfp_hist_check['YEAR'] == _ly, 'WEEK'].max()
+                _cfp_hist_check['YEAR'] = pd.to_numeric(_cfp_hist_check['YEAR'], errors='coerce')
+                _cfp_hist_check['WEEK'] = pd.to_numeric(_cfp_hist_check['WEEK'], errors='coerce')
+                _ly = int(_cfp_hist_check['YEAR'].max())
+                _lw = int(_cfp_hist_check.loc[_cfp_hist_check['YEAR'] == _ly, 'WEEK'].max())
+                _whos_in_week = _lw
+                _whos_in_year = _ly
                 _snap_size = len(_cfp_hist_check[(_cfp_hist_check['YEAR'] == _ly) & (_cfp_hist_check['WEEK'] == _lw)])
-                st.success(f"📡 **Live data** — showing Week {int(_lw)}, {int(_ly)} rankings ({_snap_size} teams). Update `cfp_rankings_history.csv` each week to keep this current.")
+
+                # Auto-sync dynasty_state.csv if the CFP rankings week is ahead
+                # This keeps CurrentWeek in sync automatically every push
+                try:
+                    _ds = pd.read_csv('dynasty_state.csv') if os.path.exists('dynasty_state.csv') else pd.DataFrame()
+                    _ds_week = int(pd.to_numeric(_ds.get('CurrentWeek', pd.Series([0])), errors='coerce').iloc[0]) if not _ds.empty else 0
+                    if _lw > _ds_week or _ly != CURRENT_YEAR:
+                        if not _ds.empty:
+                            _ds.at[0, 'CurrentWeek'] = int(_lw)
+                            _ds.at[0, 'CurrentYear'] = int(_ly)
+                            _ds.to_csv('dynasty_state.csv', index=False)
+                except Exception:
+                    pass  # Read-only on Streamlit Cloud — that's fine
+
+                # Bowl week label
+                _bowl_names_wi = {16:'Bowl Season',17:'CFP First Round',18:'CFP Quarters',
+                                  19:'CFP Semis',20:'CFP Championship',21:'CFP Championship'}
+                _wk_label_wi = _bowl_names_wi.get(_lw, f'Week {_lw}') if _lw >= 16 else f'Week {_lw}'
+
+                col_fresh_l, col_fresh_r = st.columns([3, 1])
+                with col_fresh_l:
+                    st.success(f"📡 **Live data** — {_snap_size} teams ranked. Update `cfp_rankings_history.csv` each week to keep this current.")
+                with col_fresh_r:
+                    st.markdown(f"""
+                    <div style='background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);
+                                border-radius:8px;padding:8px 12px;text-align:center;'>
+                        <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#fbbf24;line-height:1;'>{_wk_label_wi}</div>
+                        <div style='font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;'>{_ly} Season</div>
+                    </div>""", unsafe_allow_html=True)
             else:
                 st.warning("⚠️ `cfp_rankings_history.csv` is empty — upload rows to the CSV to populate this board.")
         except Exception:
@@ -18980,36 +19250,128 @@ with tabs[1]:
                             st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
                             st.code(traceback.format_exc())
 
+            # ── Sim phase state detection ─────────────────────────────────────
+            _nfl_sim_year = get_current_nfl_season()
+            _reg_season_done = False
+            _playoffs_done   = False
+            try:
+                if os.path.exists("nfl_standings_history.csv"):
+                    _sh = pd.read_csv("nfl_standings_history.csv")
+                    _sh["Season"] = pd.to_numeric(_sh.get("Season"), errors="coerce")
+                    _reg_season_done = int(_nfl_sim_year) in _sh["Season"].dropna().astype(int).tolist()
+                if os.path.exists("nfl_super_bowl_history.csv"):
+                    _sbh = pd.read_csv("nfl_super_bowl_history.csv")
+                    _sbh["Season"] = pd.to_numeric(_sbh.get("Season"), errors="coerce")
+                    _playoffs_done = int(_nfl_sim_year) in _sbh["Season"].dropna().astype(int).tolist()
+            except Exception:
+                pass
+
+            # ── Phase status banner ────────────────────────────────────────────
+            if not _reg_season_done and not _playoffs_done:
+                _phase_msg = f"**{_nfl_sim_year} season not yet simmed.** Start with the regular season."
+                _phase_color = "#fbbf24"
+            elif _reg_season_done and not _playoffs_done:
+                _phase_msg = f"**{_nfl_sim_year} regular season complete.** Download files, push to repo, then sim the playoffs."
+                _phase_color = "#4ade80"
+            else:
+                _phase_msg = f"**{_nfl_sim_year} fully complete** (standings + playoffs). Settings advanced to {_nfl_sim_year + 1}."
+                _phase_color = "#60a5fa"
+
+            st.markdown(f"<div style='background:rgba(255,255,255,0.04);border-left:4px solid {_phase_color};border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:0.88rem;color:{_phase_color};'>{_phase_msg}</div>", unsafe_allow_html=True)
+
+            # ── Two-phase sim buttons ──────────────────────────────────────────
             sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
 
             with sim_c:
-                if st.button("🏆 Advance NFL Season", use_container_width=True, key="advance_nfl_season_btn_commish"):
+                # Phase 1 — Regular Season
+                _btn1_label = "✅ Reg Season Done — Re-sim?" if _reg_season_done else "🏈 Sim Regular Season"
+                if st.button(_btn1_label, use_container_width=True, key="sim_reg_season_btn"):
                     try:
-                        sim_result, sim_msg = simulate_nfl_season()
+                        with st.spinner(f"Simming {_nfl_sim_year} regular season..."):
+                            sim_result, sim_msg = simulate_nfl_regular_season_phase()
                         if sim_result is None:
                             st.warning(sim_msg)
                         else:
                             st.success(sim_msg)
                             st.rerun()
                     except Exception as e:
-                        st.error(f"NFL season sim error: {type(e).__name__}: {e}")
-
-                if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
-                    try:
-                        season_to_rebuild = get_current_nfl_season()
-                        rebuilt = build_nfl_current_roster_for_season(
-                            season_year=season_to_rebuild,
-                            nfl_roster_df=nfl_roster,
-                            nfl_draft_hist_df=nfl_draft_hist,
-                            nfl_player_hist_df=nfl_player_hist,
-                            existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
-                        )
-                        st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
-                        st.rerun()
-                    except Exception as e:
                         import traceback
-                        st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
+                        st.error(f"Regular season sim error: {type(e).__name__}: {e}")
                         st.code(traceback.format_exc())
+
+                # Phase 2 — Playoffs (only enabled after reg season)
+                if _reg_season_done and not _playoffs_done:
+                    if st.button("🏆 Sim Playoffs + Super Bowl", use_container_width=True, key="sim_playoffs_btn", type="primary"):
+                        try:
+                            with st.spinner(f"Simming {_nfl_sim_year} playoffs..."):
+                                sim_result, sim_msg = simulate_nfl_playoffs_phase()
+                            if sim_result is None:
+                                st.warning(sim_msg)
+                            else:
+                                st.success(sim_msg)
+                                st.rerun()
+                        except Exception as e:
+                            import traceback
+                            st.error(f"Playoffs sim error: {type(e).__name__}: {e}")
+                            st.code(traceback.format_exc())
+                elif not _reg_season_done:
+                    st.button("🏆 Sim Playoffs + Super Bowl", use_container_width=True, key="sim_playoffs_btn_disabled", disabled=True, help="Sim regular season first")
+
+            # ── CSV file status panel ──────────────────────────────────────────
+            st.markdown("---")
+            st.markdown("#### 📂 NFL Universe File Status")
+            st.caption("Files generated by the sim that need to be downloaded and pushed to your GitHub repo.")
+
+            _nfl_files = [
+                ("nfl_standings_history.csv",   "Standings",        "Generated after Sim Regular Season"),
+                ("nfl_player_history.csv",       "Player History",   "Generated after Sim Regular Season"),
+                ("nfl_current_rosters.csv",      "Current Rosters",  "Generated after Sim Regular Season"),
+                ("nfl_playoff_history.csv",       "Playoff Bracket",  "Generated after Sim Playoffs"),
+                ("nfl_super_bowl_history.csv",   "Super Bowl",       "Generated after Sim Playoffs"),
+                ("nfl_awards_history.csv",        "Awards",           "Generated after Sim Playoffs"),
+                ("nfl_story_events.csv",         "Story Events",     "Generated after Sim Playoffs"),
+                ("nfl_draft_history.csv",        "Draft History",    "Generated after NFL Draft"),
+                ("nfl_universe_settings.csv",    "Universe Settings","Advanced after Sim Playoffs"),
+                ("cfb_user_draft_results.csv",   "CFB Draft Input",  "Your upload — needed before draft sim"),
+            ]
+
+            _file_rows = []
+            for _fname, _label, _note in _nfl_files:
+                _exists = os.path.exists(_fname)
+                _icon   = "✅" if _exists else "❌"
+                _color  = "#4ade80" if _exists else "#f87171"
+                _action = "⬇️ Ready to download" if _exists else "Missing — will be generated by sim"
+                _file_rows.append(f"<tr><td style='padding:7px 12px;color:{_color};font-weight:700;'>{_icon}</td><td style='padding:7px 12px;color:#e2e8f0;font-weight:600;'>{_label}</td><td style='padding:7px 12px;color:#64748b;font-size:0.8rem;font-family:monospace;'>{_fname}</td><td style='padding:7px 12px;color:#94a3b8;font-size:0.78rem;'>{_note}</td></tr>")
+
+            st.markdown(f"""
+            <div style='border:1px solid #1e293b;border-radius:8px;overflow:hidden;margin-bottom:12px;'>
+              <table style='width:100%;border-collapse:collapse;background:#080f1a;font-family:Barlow,sans-serif;'>
+                <thead><tr style='background:#0a1220;'>
+                  <th style='padding:8px 12px;color:#475569;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:left;width:36px;'></th>
+                  <th style='padding:8px 12px;color:#475569;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:left;'>File</th>
+                  <th style='padding:8px 12px;color:#475569;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:left;'>Filename</th>
+                  <th style='padding:8px 12px;color:#475569;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:left;'>When generated</th>
+                </tr></thead>
+                <tbody>{"".join(_file_rows)}</tbody>
+              </table>
+            </div>""", unsafe_allow_html=True)
+
+            if st.button("Rebuild Current NFL Rosters Now", use_container_width=True, key="rebuild_current_nfl_rosters_now"):
+                try:
+                    season_to_rebuild = get_current_nfl_season()
+                    rebuilt = build_nfl_current_roster_for_season(
+                        season_year=season_to_rebuild,
+                        nfl_roster_df=nfl_roster,
+                        nfl_draft_hist_df=nfl_draft_hist,
+                        nfl_player_hist_df=nfl_player_hist,
+                        existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
+                    )
+                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}")
+                    st.rerun()
+                except Exception as e:
+                    import traceback
+                    st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
+                    st.code(traceback.format_exc())
 
             if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn"):
                 try:
