@@ -12304,25 +12304,41 @@ with tabs[0]:
         except Exception:
             pass
 
-        # Fall back to conf_standings W-L for any team showing 0-0 or blank record
+        # Fall back to CPUscores_MASTER.csv W-L for any team showing 0-0 or blank
         try:
-            _cs_rec = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
-            if 'YEAR' in _cs_rec.columns:
-                _cs_rec['YEAR'] = pd.to_numeric(_cs_rec['YEAR'], errors='coerce')
-                _cs_rec = _cs_rec[_cs_rec['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)]
-            _cs_rec['TEAM'] = _cs_rec['TEAM'].astype(str).str.strip()
-            _cs_rec['W'] = pd.to_numeric(_cs_rec.get('W', 0), errors='coerce').fillna(0).astype(int)
-            _cs_rec['L'] = pd.to_numeric(_cs_rec.get('L', 0), errors='coerce').fillna(0).astype(int)
-            for _, _cr in _cs_rec.iterrows():
-                _t = str(_cr['TEAM']).strip()
-                _existing = _record_map.get(_t, '')
-                _is_blank_or_zero = (
-                    not _existing or
-                    str(_existing).strip() in ('', 'nan', '0-0')
-                )
-                if _is_blank_or_zero:
-                    _w, _l = int(_cr['W']), int(_cr['L'])
-                    if _w > 0 or _l > 0:
+            _cpu = pd.read_csv('CPUscores_MASTER.csv')
+            _cpu['YEAR'] = pd.to_numeric(_cpu.get('YEAR', _cpu.get('Year')), errors='coerce')
+            _cpu = _cpu[_cpu['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
+            _cpu['V_Pts'] = pd.to_numeric(_cpu.get('V_Pts', _cpu.get('Visitor Score', _cpu.get('VPts'))), errors='coerce')
+            _cpu['H_Pts'] = pd.to_numeric(_cpu.get('H_Pts', _cpu.get('Home Score', _cpu.get('HPts'))), errors='coerce')
+            _cpu = _cpu.dropna(subset=['V_Pts', 'H_Pts']).copy()
+            # Build W-L per team from completed games
+            _v_col = smart_col(_cpu, ['Visitor', 'V_Team', 'Away'])
+            _h_col = smart_col(_cpu, ['Home', 'H_Team'])
+            if _v_col and _h_col:
+                _wl = {}
+                for _, _g in _cpu.iterrows():
+                    _vt = str(_g[_v_col]).strip()
+                    _ht = str(_g[_h_col]).strip()
+                    _vp = float(_g['V_Pts'])
+                    _hp = float(_g['H_Pts'])
+                    for _t in [_vt, _ht]:
+                        if _t and _t.lower() != 'nan':
+                            _wl.setdefault(_t, [0, 0])
+                    if _vp > _hp:
+                        _wl[_vt][0] += 1
+                        _wl[_ht][1] += 1
+                    else:
+                        _wl[_ht][0] += 1
+                        _wl[_vt][1] += 1
+                # Only override blank or 0-0 entries
+                for _t, (_w, _l) in _wl.items():
+                    _existing = _record_map.get(_t, '')
+                    _is_blank_or_zero = (
+                        not _existing or
+                        str(_existing).strip() in ('', 'nan', '0-0')
+                    )
+                    if _is_blank_or_zero and (_w > 0 or _l > 0):
                         _record_map[_t] = f"{_w}-{_l}"
         except Exception:
             pass
@@ -14697,8 +14713,25 @@ with tabs[3]:
 
         # ── Render the table ──────────────────────────────────────────────────
         _show_all_cfp = st.session_state.get('_show_all_cfp_field', False)
-        _all_rows_sorted = projected_field_display.sort_values('Projected Seed Display', ascending=True)
-        _display_rows = _all_rows_sorted if _show_all_cfp else _all_rows_sorted.head(12)
+        # When showing all 25, pull from full cfp_board sorted by rank
+        if _show_all_cfp:
+            _all_rows_sorted = cfp_board.copy()
+            # Ensure Projected Seed Display exists (NaN for non-field teams)
+            if 'Projected Seed Display' not in _all_rows_sorted.columns:
+                _all_rows_sorted['Projected Seed Display'] = 999
+            else:
+                _all_rows_sorted['Projected Seed Display'] = pd.to_numeric(
+                    _all_rows_sorted['Projected Seed Display'], errors='coerce').fillna(999).astype(int)
+            if 'Committee Rank Display' not in _all_rows_sorted.columns:
+                _all_rows_sorted['Committee Rank Display'] = pd.to_numeric(
+                    _all_rows_sorted.get('Rank', 99), errors='coerce').fillna(99).astype(int)
+            if 'Record' not in _all_rows_sorted.columns:
+                _all_rows_sorted['Record'] = ''
+            _all_rows_sorted = _all_rows_sorted.sort_values('Rank', ascending=True)
+            _display_rows = _all_rows_sorted
+        else:
+            _all_rows_sorted = projected_field_display.sort_values('Projected Seed Display', ascending=True)
+            _display_rows = _all_rows_sorted.head(12)
 
         projected_field_rows = []
         for _, row in _display_rows.iterrows():
@@ -14929,13 +14962,34 @@ with tabs[3]:
                 'Upset alert — ranked team loses nearby',
             ], key='cfp_sim_scenario')
 
-        sim_row = cfp_board[cfp_board['Team'] == sim_team].iloc[0]
+        sim_row = cfp_board[cfp_board['Team'] == sim_team].iloc[0].copy()
+        # Fill NaN fields the sim depends on so we don't get NaN output
+        for _f, _d in [('CFP Make %', 50.0), ('Bye %', 10.0), ('Rank', 13),
+                        ('Wins', 0), ('Losses', 0), ('SOS', 55.0), ('Resume Score', 58.0)]:
+            if pd.isna(sim_row.get(_f, float('nan'))):
+                sim_row[_f] = _d
+        # Parse Wins/Losses from Record if still 0
+        if sim_row.get('Wins', 0) == 0 and sim_row.get('Losses', 0) == 0:
+            _rec = str(sim_row.get('Record', '0-0'))
+            try:
+                _rp = _rec.split('-')
+                sim_row['Wins']   = int(_rp[0])
+                sim_row['Losses'] = int(_rp[1])
+            except Exception:
+                pass
         sim_result = simulate_cfp_chaos(sim_row, sim_scenario.split(' (')[0].split(' — ')[0], cfp_board)
 
-        # Deltas
-        _d_cfp  = sim_result['CFP Make %'] - sim_row['CFP Make %']
-        _d_bye  = sim_result['Bye %'] - sim_row['Bye %']
-        _d_rank = int(sim_row['Rank']) - int(sim_result['Rank'])  # positive = moved up
+        # Deltas — guard against NaN
+        def _safe_float(v, default=0.0):
+            try:
+                f = float(v)
+                return f if not (f != f) else default  # NaN check
+            except Exception:
+                return default
+
+        _d_cfp  = _safe_float(sim_result['CFP Make %']) - _safe_float(sim_row['CFP Make %'])
+        _d_bye  = _safe_float(sim_result['Bye %'])      - _safe_float(sim_row['Bye %'])
+        _d_rank = int(_safe_float(sim_row['Rank'], 13)) - int(_safe_float(sim_result['Rank'], 13))
 
         # Color
         _pos_color = '#4ade80'
@@ -14955,7 +15009,7 @@ with tabs[3]:
           {_sim_logo_html}
           <div style='flex:1;'>
             <div style='font-family:"Barlow Condensed",sans-serif;font-size:1.1rem;font-weight:800;color:{_sim_team_color};'>{html.escape(sim_team)}</div>
-            <div style='font-size:0.78rem;color:#94a3b8;'>Currently #{int(sim_row['Rank'])} · {sim_row.get('Record','?')} · CFP {float(sim_row['CFP Make %']):.1f}%</div>
+            <div style='font-size:0.78rem;color:#94a3b8;'>Currently #{int(_safe_float(sim_row['Rank'], 13))} · {sim_row.get('Record','?')} · CFP {_safe_float(sim_row['CFP Make %']):.1f}%</div>
           </div>
           <div style='text-align:right;'>
             <div style='font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:#fbbf24;line-height:1;'>→ #{int(sim_result["Rank"])}</div>
@@ -14969,17 +15023,17 @@ with tabs[3]:
           <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
             <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_cfp_color};'>{_d_cfp:+.1f}%</div>
             <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>CFP Make %</div>
-            <div style='font-size:0.75rem;color:#64748b;'>{float(sim_row["CFP Make %"]):.1f}% → {float(sim_result["CFP Make %"]):.1f}%</div>
+            <div style='font-size:0.75rem;color:#64748b;'>{_safe_float(sim_row["CFP Make %"]):.1f}% → {_safe_float(sim_result["CFP Make %"]):.1f}%</div>
           </div>
           <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
             <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_bye_color};'>{_d_bye:+.1f}%</div>
             <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Bye %</div>
-            <div style='font-size:0.75rem;color:#64748b;'>{float(sim_row["Bye %"]):.1f}% → {float(sim_result["Bye %"]):.1f}%</div>
+            <div style='font-size:0.75rem;color:#64748b;'>{_safe_float(sim_row["Bye %"]):.1f}% → {_safe_float(sim_result["Bye %"]):.1f}%</div>
           </div>
           <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
             <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_rnk_color};'>{_d_rank:+d}</div>
             <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Rank Change</div>
-            <div style='font-size:0.75rem;color:#64748b;'>#{int(sim_row["Rank"])} → #{int(sim_result["Rank"])}</div>
+            <div style='font-size:0.75rem;color:#64748b;'>#{int(_safe_float(sim_row["Rank"], 13))} → #{int(_safe_float(sim_result["Rank"], 13))}</div>
           </div>
         </div>""", unsafe_allow_html=True)
 
@@ -15894,11 +15948,19 @@ with tabs[4]:
 
 
     st.subheader("🕰️ Coach Recruiting History")
-    st.caption("Pick a current user coach to see every school they have coached and the class ranks they posted there over time. Lower rank = better class.")
+    st.caption(f"Class ranks by coach and school over time. Data from recruiting.csv — year columns (e.g. 2039, 2040, 2041) must be populated there for each season. Current year {CURRENT_YEAR} class won't appear until you enter it.")
 
-    _history_year_cols = [c for c in rec.columns if str(c).isdigit()] if rec is not None and not rec.empty else []
+    _history_year_cols = []
+    if rec is not None and not rec.empty:
+        for c in rec.columns:
+            try:
+                _yr_int = int(float(str(c)))
+                if 2000 <= _yr_int <= 2100:   # sanity range for a CFB dynasty year
+                    _history_year_cols.append(c)
+            except Exception:
+                pass
     if _history_year_cols:
-        _history_year_cols = sorted(_history_year_cols, key=lambda x: int(str(x)))
+        _history_year_cols = sorted(_history_year_cols, key=lambda x: int(float(str(x))))
         _rec_hist = rec.copy()
         _rec_hist['USER'] = _rec_hist['USER'].astype(str).str.strip().str.title()
         _rec_hist['Teams'] = _rec_hist['Teams'].astype(str).str.strip().map(normalize_history_team_name)
@@ -15926,7 +15988,8 @@ with tabs[4]:
                     if pd.notna(_v) and str(_v).strip() not in ('', 'nan', '-', '--'):
                         try:
                             _rank_val = int(float(_v))
-                            _year_vals.append({'Year': int(_yc), 'Class Rank': _rank_val})
+                            _yr_int   = int(float(str(_yc)))
+                            _year_vals.append({'Year': _yr_int, 'Class Rank': _rank_val})
                         except Exception:
                             pass
 
@@ -21665,6 +21728,20 @@ with tabs[5]:
             if not _state_counts.empty:
                 import plotly.express as px
 
+                # Convert hex team color to rgba for valid plotly colorscale entries
+                def _hex_to_rgba(hex_color, alpha=1.0):
+                    try:
+                        h = hex_color.lstrip('#')
+                        if len(h) == 6:
+                            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+                            return f'rgba({r},{g},{b},{alpha})'
+                    except Exception:
+                        pass
+                    return f'rgba(96,165,250,{alpha})'
+
+                _team_rgba_full = _hex_to_rgba(sel_color, 1.0)
+                _team_rgba_mid  = _hex_to_rgba(sel_color, 0.5)
+
                 _state_fig = px.choropleth(
                     _state_counts,
                     locations='State',
@@ -21672,10 +21749,10 @@ with tabs[5]:
                     color='Count',
                     scope='usa',
                     color_continuous_scale=[
-                        [0, '#0f172a'],
-                        [0.01, '#1e3a5f'],
-                        [0.3, sel_color + '88'],
-                        [1.0, sel_color],
+                        [0.0,  'rgb(15,23,42)'],
+                        [0.01, 'rgb(30,58,95)'],
+                        [0.3,  _team_rgba_mid],
+                        [1.0,  _team_rgba_full],
                     ],
                     labels={'Count': 'Recruits'},
                     title=f"{selected_team} — {incoming_year} Incoming Class Origins"
