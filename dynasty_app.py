@@ -958,6 +958,12 @@ def get_nfl_logo_html(team_name, width=52, margin="0"):
 def get_nfl_logo_src(team_name):
     team = str(team_name).strip().lower()
 
+    # Route full names ("Tennessee Titans") through get_nfl_logo_slug first,
+    # then fall back to the nickname alias map below
+    slug_from_full = get_nfl_logo_slug(team_name)
+    if slug_from_full:
+        team = slug_from_full
+
     team_aliases = {
         "cardinals": "cardinals",
         "falcons": "falcons",
