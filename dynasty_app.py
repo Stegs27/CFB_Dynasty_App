@@ -12062,6 +12062,43 @@ with tabs[0]:
         except Exception:
             pass
 
+        # ── Record lookup from cfp_rankings_history (latest week) ────────
+        _record_map = {}
+        try:
+            _rh = pd.read_csv('cfp_rankings_history.csv')
+            _rh['YEAR'] = pd.to_numeric(_rh['YEAR'], errors='coerce')
+            _rh['WEEK'] = pd.to_numeric(_rh['WEEK'], errors='coerce')
+            _ry = _rh['YEAR'].max()
+            _rw = _rh[_rh['YEAR'] == _ry]['WEEK'].max()
+            _rsnap = _rh[(_rh['YEAR'] == _ry) & (_rh['WEEK'] == _rw)]
+            if 'RECORD' in _rsnap.columns:
+                _record_map = dict(zip(_rsnap['TEAM'].astype(str).str.strip(), _rsnap['RECORD'].astype(str)))
+        except Exception:
+            pass
+
+        # ── Conf rank lookup from conf_standings CSV ──────────────────────
+        _conf_rank_map = {}
+        try:
+            _cs = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
+            # Expect columns: TEAM, CONF_RANK or rank within conference
+            # Try to derive rank from wins within each conference
+            if 'TEAM' in _cs.columns:
+                _cs['TEAM'] = _cs['TEAM'].astype(str).str.strip()
+                if 'CONF_RANK' in _cs.columns:
+                    _conf_rank_map = dict(zip(_cs['TEAM'], pd.to_numeric(_cs['CONF_RANK'], errors='coerce')))
+                elif 'RANK' in _cs.columns:
+                    _conf_rank_map = dict(zip(_cs['TEAM'], pd.to_numeric(_cs['RANK'], errors='coerce')))
+                else:
+                    # Derive rank from wins within each conf group
+                    _conf_col = next((c for c in _cs.columns if 'CONF' in c.upper() and c.upper() != 'TEAM'), None)
+                    _wins_col = next((c for c in _cs.columns if 'WIN' in c.upper()), None)
+                    if _conf_col and _wins_col:
+                        _cs[_wins_col] = pd.to_numeric(_cs[_wins_col], errors='coerce').fillna(0)
+                        _cs['_cr'] = _cs.groupby(_conf_col)[_wins_col].rank(ascending=False, method='min').astype(int)
+                        _conf_rank_map = dict(zip(_cs['TEAM'], _cs['_cr']))
+        except Exception:
+            pass
+
         # 5. Render the Cards
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
@@ -12152,35 +12189,37 @@ with tabs[0]:
                     f"color:#475569;line-height:1;'>UR</span></div>"
                 )
 
-            # ── SOS + Path tier chips (replaces rank badge) ───────────────
-            _sos_val = row.get('SOS', None)
-            _path_val = row.get('Hardest Path', row.get('Path', None))
-            def _quick_sos_tier(x):
+            # ── Record + Conf rank chips ──────────────────────────────────
+            # Record from cfp_rankings_history latest snapshot
+            _rec_str = _record_map.get(team.strip(), '')
+            # Conf rank from conf_standings CSV
+            _conf_rank = _conf_rank_map.get(team.strip(), None)
+
+            _tier_chips = ""
+            # Overall record chip
+            if _rec_str and str(_rec_str).lower() not in ('nan',''):
+                _rec_w = str(_rec_str).split('-')[0].strip() if '-' in str(_rec_str) else '?'
+                _rec_l = str(_rec_str).split('-')[1].strip() if '-' in str(_rec_str) else '?'
                 try:
-                    x = float(x)
-                except Exception: return None
-                if x < 4:   return ("Soft",      "#22c55e")
-                if x < 6:   return ("Manageable","#84cc16")
-                if x < 8:   return ("Solid",     "#f59e0b")
-                if x < 10:  return ("Tough",     "#f97316")
-                return             ("Brutal",    "#ef4444")
-            def _quick_path_tier(x):
+                    _rw_int = int(_rec_w)
+                    _rec_color = '#4ade80' if _rw_int >= 1 and (_rw_int > int(_rec_l) if _rec_l.isdigit() else True) else '#f87171' if _rw_int == 0 else '#94a3b8'
+                except Exception:
+                    _rec_color = '#94a3b8'
+                _tier_chips += (f"<span style='font-size:0.72rem;font-weight:800;padding:2px 7px;"
+                                f"border-radius:3px;background:{_rec_color}22;color:{_rec_color};"
+                                f"border:1px solid {_rec_color}55;font-family:Barlow Condensed,sans-serif;"
+                                f"letter-spacing:0.04em;'>{html.escape(str(_rec_str))}</span> ")
+            # Conf rank chip
+            if _conf_rank is not None:
                 try:
-                    x = float(x)
-                except Exception: return None
-                if x < 25:  return ("Manageable","#84cc16")
-                if x < 50:  return ("Tough",     "#f59e0b")
-                if x < 75:  return ("Brutal",    "#f97316")
-                return             ("Historic",  "#ef4444")
-            _sos_result  = _quick_sos_tier(_sos_val)
-            _path_result = _quick_path_tier(_path_val)
-            _tier_chips  = ""
-            if _sos_result:
-                _st, _sc = _sos_result
-                _tier_chips += f"<span style='font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;background:{_sc}22;color:{_sc};border:1px solid {_sc}55;font-family:Barlow Condensed,sans-serif;'>SOS {_st}</span> "
-            if _path_result:
-                _pt, _pc = _path_result
-                _tier_chips += f"<span style='font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;background:{_pc}22;color:{_pc};border:1px solid {_pc}55;font-family:Barlow Condensed,sans-serif;'>PATH {_pt}</span>"
+                    _cr_int = int(_conf_rank)
+                    _cr_color = '#fbbf24' if _cr_int == 1 else ('#60a5fa' if _cr_int <= 3 else '#94a3b8')
+                    _tier_chips += (f"<span style='font-size:0.72rem;font-weight:800;padding:2px 7px;"
+                                    f"border-radius:3px;background:{_cr_color}22;color:{_cr_color};"
+                                    f"border:1px solid {_cr_color}55;font-family:Barlow Condensed,sans-serif;"
+                                    f"letter-spacing:0.04em;'>#{_cr_int} CONF</span>")
+                except Exception:
+                    pass
 
             # ── Live PI (show when we have real season data) ──────────────
             _live_pi = float(row.get('Power Index', 0))
