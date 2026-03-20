@@ -12131,7 +12131,70 @@ with tabs[0]:
 
             qb_tier = row.get('QB Tier', '—')
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
-            icon = rank_icons[idx] if idx < len(rank_icons) else "▪️"
+
+            # ── CFP rank circle (replaces medal emoji) ────────────────────
+            if curr_rank != "UR":
+                _rn = int(curr_rank)
+                _rc = '#fbbf24' if _rn <= 4 else ('#60a5fa' if _rn <= 25 else '#64748b')
+                _rank_circle = (
+                    f"<div style='min-width:36px;height:36px;width:36px;border-radius:50%;"
+                    f"border:2px solid {_rc};display:flex;align-items:center;justify-content:center;"
+                    f"background:{_rc}18;{bw_style}'>"
+                    f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:{'1rem' if _rn < 10 else '0.85rem'};"
+                    f"color:{_rc};line-height:1;'>#{_rn}</span></div>"
+                )
+            else:
+                _rank_circle = (
+                    f"<div style='min-width:36px;height:36px;width:36px;border-radius:50%;"
+                    f"border:2px solid #334155;display:flex;align-items:center;justify-content:center;"
+                    f"background:#33415518;{bw_style}'>"
+                    f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.5rem;"
+                    f"color:#475569;line-height:1;'>UR</span></div>"
+                )
+
+            # ── SOS + Path tier chips (replaces rank badge) ───────────────
+            _sos_val = row.get('SOS', None)
+            _path_val = row.get('Hardest Path', row.get('Path', None))
+            def _quick_sos_tier(x):
+                try:
+                    x = float(x)
+                except Exception: return None
+                if x < 4:   return ("Soft",      "#22c55e")
+                if x < 6:   return ("Manageable","#84cc16")
+                if x < 8:   return ("Solid",     "#f59e0b")
+                if x < 10:  return ("Tough",     "#f97316")
+                return             ("Brutal",    "#ef4444")
+            def _quick_path_tier(x):
+                try:
+                    x = float(x)
+                except Exception: return None
+                if x < 25:  return ("Manageable","#84cc16")
+                if x < 50:  return ("Tough",     "#f59e0b")
+                if x < 75:  return ("Brutal",    "#f97316")
+                return             ("Historic",  "#ef4444")
+            _sos_result  = _quick_sos_tier(_sos_val)
+            _path_result = _quick_path_tier(_path_val)
+            _tier_chips  = ""
+            if _sos_result:
+                _st, _sc = _sos_result
+                _tier_chips += f"<span style='font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;background:{_sc}22;color:{_sc};border:1px solid {_sc}55;font-family:Barlow Condensed,sans-serif;'>SOS {_st}</span> "
+            if _path_result:
+                _pt, _pc = _path_result
+                _tier_chips += f"<span style='font-size:0.62rem;font-weight:700;padding:1px 5px;border-radius:3px;background:{_pc}22;color:{_pc};border:1px solid {_pc}55;font-family:Barlow Condensed,sans-serif;'>PATH {_pt}</span>"
+
+            # ── Live PI (show when we have real season data) ──────────────
+            _live_pi = float(row.get('Power Index', 0))
+            _pre_pi  = float(row.get('Preseason PI', _live_pi))
+            _pi_diff = _live_pi - _pre_pi
+            if abs(_pi_diff) > 1 and _live_pi > 0:
+                _pi_arrow = "▲" if _pi_diff > 0 else "▼"
+                _pi_arrow_color = "#4ade80" if _pi_diff > 0 else "#f87171"
+                _pi_line = (f"<span style='font-size:0.8rem;color:#d1d5db;'>PI: "
+                            f"<strong style='color:white;'>{round(_live_pi,1)}</strong>"
+                            f"<span style='color:{_pi_arrow_color};font-size:0.7rem;'> {_pi_arrow}{abs(round(_pi_diff,1))}</span>"
+                            f"</span><br>")
+            else:
+                _pi_line = f"<span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(_pre_pi,1)}</strong></span><br>"
 
             # Render HTML Card
             # Game status strip for this user
@@ -12200,16 +12263,16 @@ with tabs[0]:
             card_html = (
                 f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
                 f"border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
-                f"<div style='font-size:1.6rem; min-width:36px; {bw_style}'>{icon}</div>"
+                f"{_rank_circle}"
                 f"{logo_html}"
                 f"<div style='flex:1; min-width:200px; {bw_style}'>"
                 f"<span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else '#9ca3af'};'>{html.escape(team)}</span> "
-                f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span> {rank_badge}"
-                f"<div style='margin-top:3px;'>{official_badge}</div>"
+                f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span>"
+                f"<div style='margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;'>{_tier_chips} {official_badge}</div>"
                 f"{_game_strip}"
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(float(pi),1)}</strong></span><br>"
+                f"{_pi_line}"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 Pre: <strong style='color:white;'>{round(float(natty),1)}%</strong> | Live: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong></span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>CFP Pre: <strong style='color:white;'>{round(float(cfp_pct),1)}%</strong> | Live: <strong style='color:#3b82f6;'>{round(float(live_cfp),1)}%</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
