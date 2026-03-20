@@ -12566,7 +12566,7 @@ with tabs[0]:
                         placeholder="Commissioner password"
                     )
                 if _pw_input:
-                    if _pw_input == "ISPN2042":
+                    if _pw_input == "Chicken83$":
                         st.session_state["_comm_unlocked"] = True
                         st.rerun()
                     else:
