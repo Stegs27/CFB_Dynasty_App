@@ -7328,7 +7328,7 @@ def render_recruiting_snapshot_table(df):
         cells = [f"""
         <td class="isp-td-pin">
           <div class="isp-flex-row">
-            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
+            <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Rank', 0))}</div>
             <div class="isp-td-num">{logo_html}</div>
             <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
           </div>
@@ -17110,16 +17110,24 @@ with tabs[1]:
     if "nfl_universe_loaded" not in st.session_state:
         st.session_state["nfl_universe_loaded"] = False
 
+    universe = None
+    nfl_roster = pd.DataFrame()
+    cfb_draft = pd.DataFrame()
+
     if not st.session_state["nfl_universe_loaded"]:
         st.markdown("<div style='text-align:center; padding: 40px 0 20px 0;'>", unsafe_allow_html=True)
         if st.button("🏈 Load NFL Universe", use_container_width=False, key="nfl_universe_load_btn"):
             st.session_state["nfl_universe_loaded"] = True
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
-        # Don't st.stop() — that kills all other tabs too. Just skip the rest of this tab.
-        universe = None
-        nfl_roster = pd.DataFrame()
-        cfb_draft = pd.DataFrame()
+    else:
+        try:
+            universe = load_nfl_universe_data()
+            nfl_roster = universe.get("nfl_current_rosters", pd.DataFrame())
+            cfb_draft  = universe.get("cfb_draft", pd.DataFrame())
+        except Exception as _univ_err:
+            st.error(f"Error loading NFL Universe data: {_univ_err}")
+            universe = None
     if universe is not None:
         nfl_draft_hist = universe["nfl_draft_hist"]
         nfl_current_rosters = universe["nfl_current_rosters"]
