@@ -8422,6 +8422,139 @@ def load_team_ratings(year=None):
         return {}
 
 
+def load_team_performance(year=None):
+    """
+    Load in-season performance stats from conf_standings_{year}.csv.
+    Returns dict: team → {PF, PA, DIFF, MOV, HOME_W, HOME_L, AWAY_W, AWAY_L, W, L, STK}
+    HOME/AWAY columns are W-L strings e.g. "7-2". DIFF and MOV pre-computed.
+    """
+    if year is None:
+        year = CURRENT_YEAR
+    try:
+        cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
+        cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
+
+        def _parse_wl(s):
+            try:
+                parts = str(s).split('-')
+                return int(parts[0]), int(parts[1])
+            except Exception:
+                return 0, 0
+
+        result = {}
+        for _, row in cs.iterrows():
+            team = str(row['TEAM']).strip()
+            pf   = float(row['PF'])   if pd.notna(row.get('PF'))   else 0.0
+            pa   = float(row['PA'])   if pd.notna(row.get('PA'))   else 0.0
+            w    = int(row['W'])      if pd.notna(row.get('W'))    else 0
+            l    = int(row['L'])      if pd.notna(row.get('L'))    else 0
+            diff = float(row['DIFF']) if pd.notna(row.get('DIFF')) else (pf - pa)
+            mov  = float(row['MOV'])  if pd.notna(row.get('MOV'))  else (diff / max(w + l, 1))
+            stk  = float(row['STK'])  if pd.notna(row.get('STK'))  else 0.0
+            hw, hl = _parse_wl(row.get('HOME', '0-0'))
+            aw, al = _parse_wl(row.get('AWAY', '0-0'))
+            result[team] = {
+                'PF': pf, 'PA': pa, 'DIFF': diff, 'MOV': mov,
+                'HOME_W': hw, 'HOME_L': hl, 'AWAY_W': aw, 'AWAY_L': al,
+                'W': w, 'L': l, 'STK': stk,
+            }
+        return result
+    except Exception:
+        return {}
+
+
+def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_field=True, perf_map=None):
+    """
+    Compute betting line using OVR/OFF/DEF from team_ratings.csv,
+    sharpened by in-season PF/PA/MOV/home+away splits from conf_standings.
+
+    ratings_map : dict team → {OVR, OFF, DEF}
+    perf_map    : dict team → {PF, PA, DIFF, MOV, HOME_W, HOME_L, AWAY_W, AWAY_L}
+    home_field  : True adds base 2.5pt HFA (reduced if away team is strong on road)
+    """
+    hr = ratings_map.get(str(home_team).strip())
+    ar = ratings_map.get(str(away_team).strip())
+    if not hr or not ar:
+        return None
+    try:
+        h_off = float(hr.get('OFF', hr.get('OFFENSE', 0)) or 0)
+        h_def = float(hr.get('DEF', hr.get('DEFENSE', 0)) or 0)
+        a_off = float(ar.get('OFF', ar.get('OFFENSE', 0)) or 0)
+        a_def = float(ar.get('DEF', ar.get('DEFENSE', 0)) or 0)
+        h_ovr = float(hr.get('OVR', hr.get('OVERALL', 0)) or 0)
+        a_ovr = float(ar.get('OVR', ar.get('OVERALL', 0)) or 0)
+    except Exception:
+        return None
+    if h_ovr == 0 and a_ovr == 0:
+        return None
+
+    # Base score estimate from ratings
+    h_score = (h_off * 0.55 + (100 - a_def) * 0.45) * 0.32 + 7
+    a_score = (a_off * 0.55 + (100 - h_def) * 0.45) * 0.32 + 7
+
+    # ── Sharpen with in-season performance if available ───────────────
+    if perf_map:
+        hp = perf_map.get(str(home_team).strip(), {})
+        ap = perf_map.get(str(away_team).strip(), {})
+
+        # MOV adjustment: each 10pt MOV advantage shifts line ~1.5pts
+        h_mov = hp.get('MOV')
+        a_mov = ap.get('MOV')
+        if h_mov is not None and a_mov is not None:
+            mov_diff = h_mov - a_mov
+            h_score += mov_diff * 0.15
+
+        # PF/PA efficiency: if a team is dramatically over/under their rating
+        h_pf = hp.get('PF')
+        a_pa = ap.get('PA')
+        a_pf = ap.get('PF')
+        h_pa = hp.get('PA')
+        if h_pf is not None and a_pa is not None:
+            # Blend actual scoring pace with rating estimate (60/40 ratings/actual)
+            h_score = h_score * 0.6 + (h_pf / max(hp.get('W',0) + hp.get('L',0), 1)) * 0.4
+        if a_pf is not None and h_pa is not None:
+            a_score = a_score * 0.6 + (a_pf / max(ap.get('W',0) + ap.get('L',0), 1)) * 0.4
+
+        # Home/away splits: adjust HFA based on away team's road record
+        if home_field:
+            aw = ap.get('AWAY_W', 0)
+            al = ap.get('AWAY_L', 0)
+            road_gp = (aw or 0) + (al or 0)
+            if road_gp >= 3:
+                road_pct = aw / road_gp
+                hfa = 2.5 + (0.5 - road_pct) * 3.0
+            else:
+                hfa = 2.5
+        else:
+            hfa = 0
+
+        # ── Streak momentum — compounds as it grows ───────────────────────
+        # STK > 0 = win streak, STK < 0 = losing streak
+        # Formula: sign(STK) * 0.3 * STK^1.4  (sub-linear early, accelerates late)
+        # W1=0.3  W3=1.1  W5=2.2  W7=3.5  W10=5.6  (pts of line movement)
+        # Losing streak hurts the team on a skid by the same scale
+        h_stk = float(hp.get('STK', 0) or 0)
+        a_stk = float(ap.get('STK', 0) or 0)
+        def _streak_bump(s):
+            import math
+            if abs(s) < 2:   return 0.0   # 0–1 game streak = noise, ignore
+            sign = 1 if s > 0 else -1
+            return sign * 0.30 * (abs(s) ** 1.4)
+        h_score += _streak_bump(h_stk)
+        a_score += _streak_bump(a_stk)
+
+    else:
+        hfa = 2.5 if home_field else 0
+
+    diff = (h_score + hfa) - a_score
+    spread = round(abs(diff) * 10) / 10
+    if spread < 1.0:
+        return "Pick'em", None, 0.0
+    favored = home_team if diff > 0 else away_team
+    spread_str = f"{spread:.1f}" if spread % 1 != 0 else f"{int(spread)}"
+    return f"{favored} -{spread_str}", favored, diff
+
+
 def get_team_record_display(team, model_df, rankings_df):
     team = str(team).strip()
     rank_lookup = rankings_df.drop_duplicates('Team').set_index('Team') if rankings_df is not None and not rankings_df.empty else None
@@ -12141,27 +12274,25 @@ with tabs[0]:
         _conf_rank_map = {}
         try:
             _cs = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
-            # Expect columns: TEAM, CONF_RANK or rank within conference
-            # Try to derive rank from wins within each conference
             if 'TEAM' in _cs.columns:
                 _cs['TEAM'] = _cs['TEAM'].astype(str).str.strip()
-                if 'CONF_RANK' in _cs.columns:
-                    _conf_rank_map = dict(zip(_cs['TEAM'], pd.to_numeric(_cs['CONF_RANK'], errors='coerce')))
-                elif 'RANK' in _cs.columns:
-                    _conf_rank_map = dict(zip(_cs['TEAM'], pd.to_numeric(_cs['RANK'], errors='coerce')))
-                else:
-                    # Derive rank from wins within each conf group
-                    _conf_col = next((c for c in _cs.columns if 'CONF' in c.upper() and c.upper() != 'TEAM'), None)
-                    _wins_col = next((c for c in _cs.columns if 'WIN' in c.upper()), None)
-                    if _conf_col and _wins_col:
-                        _cs[_wins_col] = pd.to_numeric(_cs[_wins_col], errors='coerce').fillna(0)
-                        _cs['_cr'] = _cs.groupby(_conf_col)[_wins_col].rank(ascending=False, method='min').astype(int)
-                        _conf_rank_map = dict(zip(_cs['TEAM'], _cs['_cr']))
+                _cs_yr = _cs[_cs['YEAR'] == CURRENT_YEAR] if 'YEAR' in _cs.columns else _cs
+                if 'RANK' in _cs_yr.columns:
+                    # RANK is CFP rank — derive conf rank from W within each conference
+                    _cs_yr = _cs_yr.copy()
+                    _cs_yr['W'] = pd.to_numeric(_cs_yr['W'], errors='coerce').fillna(0)
+                    _cs_yr['CONF_W'] = pd.to_numeric(_cs_yr.get('CONF_W', 0), errors='coerce').fillna(0)
+                    if 'CONFERENCE' in _cs_yr.columns:
+                        _cs_yr['_cr'] = _cs_yr.groupby('CONFERENCE')['CONF_W'].rank(ascending=False, method='min').astype(int)
+                        _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['_cr']))
+                    else:
+                        _conf_rank_map = {}
         except Exception:
             pass
 
         # ── Team ratings for betting lines ────────────────────────────────
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
+        _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
 
         # 5. Render the Cards
         for idx, row in power_board.iterrows():
@@ -12361,7 +12492,7 @@ with tabs[0]:
                 _bl_home  = _u_matchup.get('home', False)
                 _bl_hteam = team if _bl_home else _bl_opp
                 _bl_ateam = _bl_opp if _bl_home else team
-                _bl_result = estimate_game_line_from_ratings(_bl_hteam, _bl_ateam, _cfp_ratings_map, home_field=True)
+                _bl_result = estimate_game_line_from_ratings(_bl_hteam, _bl_ateam, _cfp_ratings_map, home_field=True, perf_map=_cfp_perf_map)
                 if _bl_result and _bl_result != "Pick'em":
                     _bl_str, _bl_fav, _bl_diff = _bl_result if len(_bl_result) == 3 else (_bl_result[0], _bl_result[1], 0)
                     if _bl_str and _bl_str != "Pick'em":
