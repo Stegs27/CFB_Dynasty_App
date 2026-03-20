@@ -13325,7 +13325,7 @@ with tabs[0]:
 
         # ── NFL MOCK DRAFT — 1ST ROUND ────────────────────────────────────────────
         st.markdown("---")
-        st.subheader(f"🏈 {CURRENT_YEAR} NFL Mock Draft — 1st Round")
+        st.subheader(f"🏈 {CURRENT_YEAR + 1} NFL Mock Draft — 1st Round")
         st.caption("Top 32 prospects: CPU pool + eligible user roster players (SR/SR(RS), or JR/SO(RS) with 92+ OVR). Assigned to 2025 NFL draft order until simulation results are available.")
 
         # 2025 NFL Draft order — used until simulation results exist
@@ -13369,7 +13369,7 @@ with tabs[0]:
             try:
                 _mock_cpu = pd.read_csv('cpu_draft_pool.csv')
                 _mock_cpu['DraftYear'] = pd.to_numeric(_mock_cpu.get('DraftYear'), errors='coerce')
-                _mock_cpu = _mock_cpu[_mock_cpu['DraftYear'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
+                _mock_cpu = _mock_cpu[_mock_cpu['DraftYear'].fillna(-1).astype(int) == int(CURRENT_YEAR + 1)].copy()
                 for _c in ['OVR','SPD','ACC','AGI','COD','AWR']:
                     _mock_cpu[_c] = pd.to_numeric(_mock_cpu.get(_c, 75), errors='coerce').fillna(75)
                 if 'PosBucket' not in _mock_cpu.columns:
@@ -13389,8 +13389,11 @@ with tabs[0]:
                 if 'Season' in _mock_r_raw.columns:
                     _mock_r_raw['Season'] = pd.to_numeric(_mock_r_raw['Season'], errors='coerce')
                     _mock_r_avail = sorted(_mock_r_raw['Season'].dropna().astype(int).unique())
-                    _mock_r_season = CURRENT_YEAR if CURRENT_YEAR in _mock_r_avail else (max(_mock_r_avail) if _mock_r_avail else CURRENT_YEAR)
-                    _mock_r_raw = _mock_r_raw[_mock_r_raw['Season'].fillna(-1).astype(int) == int(_mock_r_season)].copy()
+                    if CURRENT_YEAR not in _mock_r_avail:
+                        # 2042 rosters not uploaded yet — skip roster pool entirely rather than pulling wrong year
+                        _mock_r_raw = pd.DataFrame()
+                    else:
+                        _mock_r_raw = _mock_r_raw[_mock_r_raw['Season'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
 
                 for _c in ['OVR','SPD','ACC','AGI','COD','AWR']:
                     _mock_r_raw[_c] = pd.to_numeric(_mock_r_raw.get(_c, 75), errors='coerce').fillna(75)
@@ -13425,7 +13428,7 @@ with tabs[0]:
                 _parts.append(_mock_roster[[c for c in _keep_cols if c in _mock_roster.columns]].copy())
 
             if not _parts:
-                st.info(f"No draft prospects found for {CURRENT_YEAR}. Push cpu_draft_pool.csv or cfb26_rosters_full.csv.")
+                st.info(f"No draft prospects found for {CURRENT_YEAR + 1}. Push cpu_draft_pool.csv or cfb26_rosters_full.csv.")
             else:
                 _mock_all = pd.concat(_parts, ignore_index=True)
                 for _c in ['OVR','SPD','ACC','AGI','COD','AWR','DraftValueScore']:
