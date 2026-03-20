@@ -925,6 +925,7 @@ def get_nfl_logo_path(team_name):
         return None
 
     candidates = [
+        os.path.join("logos", f"{slug}.png"),
         f"{slug}.png",
         os.path.join(".", f"{slug}.png"),
     ]
@@ -956,6 +957,12 @@ def get_nfl_logo_html(team_name, width=52, margin="0"):
 
 def get_nfl_logo_src(team_name):
     team = str(team_name).strip().lower()
+
+    # Route full names ("Tennessee Titans") through get_nfl_logo_slug first,
+    # then fall back to the nickname alias map below
+    slug_from_full = get_nfl_logo_slug(team_name)
+    if slug_from_full:
+        team = slug_from_full
 
     team_aliases = {
         "cardinals": "cardinals",
@@ -13316,7 +13323,243 @@ with tabs[0]:
                 disabled=_cand_bytes is None
             )
 
+        # ── NFL MOCK DRAFT — 1ST ROUND ────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader(f"🏈 {CURRENT_YEAR + 1} NFL Mock Draft — 1st Round")
+        st.caption("Top 32 prospects: CPU pool + eligible user roster players (SR/SR(RS), or JR/SO(RS) with 92+ OVR). Assigned to 2025 NFL draft order until simulation results are available.")
 
+        # 2025 NFL Draft order — used until simulation results exist
+        _NFL_DRAFT_ORDER = [
+            "Tennessee Titans", "Cleveland Browns", "New York Giants", "New England Patriots",
+            "Jacksonville Jaguars", "Las Vegas Raiders", "New York Jets", "Carolina Panthers",
+            "New Orleans Saints", "Chicago Bears", "San Francisco 49ers", "Dallas Cowboys",
+            "Miami Dolphins", "Indianapolis Colts", "Atlanta Falcons", "Arizona Cardinals",
+            "Cincinnati Bengals", "Seattle Seahawks", "Tampa Bay Buccaneers", "Denver Broncos",
+            "Pittsburgh Steelers", "Los Angeles Chargers", "Green Bay Packers", "Minnesota Vikings",
+            "Houston Texans", "Los Angeles Rams", "Baltimore Ravens", "Detroit Lions",
+            "Washington Commanders", "Buffalo Bills", "Kansas City Chiefs", "Philadelphia Eagles",
+        ]
+
+        # Position bucket map (mirrors prep_cpu_draft_pool.py)
+        _MOCK_POS_BUCKET = {
+            'QB':'QB','HB':'RB','RB':'RB','FB':'RB','WR':'WR','TE':'TE',
+            'LT':'OL','LG':'OL','C':'OL','RG':'OL','RT':'OL',
+            'LEDG':'EDGE','REDG':'EDGE','DT':'IDL',
+            'MIKE':'LB','WILL':'LB','SAM':'LB',
+            'CB':'CB','FS':'S','SS':'S','K':'K','P':'P',
+        }
+        _MOCK_POS_BONUS = {
+            'CB':8.97,'WR':8.81,'QB':8.36,'EDGE':8.31,'OL':6.71,
+            'IDL':6.26,'S':5.93,'RB':4.80,'LB':3.53,'TE':1.90,'P':1.56,'K':1.46,
+        }
+
+        def _mock_dvs(row):
+            ovr  = float(row.get('OVR',  0) or 0)
+            spd  = float(row.get('SPD', 75) or 75)
+            acc  = float(row.get('ACC', 75) or 75)
+            agi  = float(row.get('AGI', 75) or 75)
+            cod  = float(row.get('COD', 75) or 75)
+            awr  = float(row.get('AWR', 75) or 75)
+            bkt  = str(row.get('PosBucket', 'OL')).strip()
+            return round(ovr*0.80 + (spd+acc+agi+cod)/4*0.12 + awr*0.10 + _MOCK_POS_BONUS.get(bkt, 5.0), 2)
+
+        try:
+            # ── 1. CPU draft pool prospects ───────────────────────────────
+            _mock_cpu = pd.DataFrame()
+            _mock_cpu_status = ''
+            try:
+                _mock_cpu = pd.read_csv('cpu_draft_pool.csv')
+                _all_years = sorted(_mock_cpu['DraftYear'].dropna().astype(int).unique().tolist())
+                _mock_cpu['DraftYear'] = pd.to_numeric(_mock_cpu.get('DraftYear'), errors='coerce')
+                _mock_cpu = _mock_cpu[_mock_cpu['DraftYear'].fillna(-1).astype(int) == int(CURRENT_YEAR + 1)].copy()
+                _mock_cpu_status = f"cpu_draft_pool.csv found — years in file: {_all_years} — filtering for {CURRENT_YEAR + 1} → {len(_mock_cpu)} rows"
+                for _c in ['OVR','SPD','ACC','AGI','COD','AWR']:
+                    _mock_cpu[_c] = pd.to_numeric(_mock_cpu.get(_c, 75), errors='coerce').fillna(75)
+                if 'PosBucket' not in _mock_cpu.columns:
+                    _mock_cpu['PosBucket'] = _mock_cpu['Pos'].astype(str).str.strip().str.upper().map(_MOCK_POS_BUCKET).fillna('OL')
+                if 'DraftValueScore' not in _mock_cpu.columns or (_mock_cpu['DraftValueScore'] == 0).all():
+                    _mock_cpu['DraftValueScore'] = _mock_cpu.apply(_mock_dvs, axis=1)
+                _mock_cpu['Source'] = 'CPU'
+                _mock_cpu = _mock_cpu.rename(columns={'Player':'Name','CollegeTeam':'Team'})
+            except FileNotFoundError:
+                _mock_cpu_status = "cpu_draft_pool.csv not found in repo — push the file as cpu_draft_pool.csv"
+            except Exception as _cpu_e:
+                _mock_cpu_status = f"cpu_draft_pool.csv error: {_cpu_e}"
+
+            # ── 2. User roster eligible prospects ─────────────────────────
+            _mock_roster = pd.DataFrame()
+            _mock_roster_status = ''
+            try:
+                _mock_r_raw = pd.read_csv('cfb26_rosters_full.csv')
+                # Season filter
+                if 'Season' in _mock_r_raw.columns:
+                    _mock_r_raw['Season'] = pd.to_numeric(_mock_r_raw['Season'], errors='coerce')
+                    _mock_r_avail = sorted(_mock_r_raw['Season'].dropna().astype(int).unique())
+                    if CURRENT_YEAR not in _mock_r_avail:
+                        _mock_roster_status = f"cfb26_rosters_full.csv seasons available: {_mock_r_avail} — {CURRENT_YEAR} not found, skipping user pool"
+                        _mock_r_raw = pd.DataFrame()
+                    else:
+                        _mock_r_raw = _mock_r_raw[_mock_r_raw['Season'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
+                        _mock_roster_status = f"cfb26_rosters_full.csv: {CURRENT_YEAR} season found ({len(_mock_r_raw)} rows)"
+            except FileNotFoundError:
+                _mock_roster_status = "cfb26_rosters_full.csv not found"
+                _mock_r_raw = pd.DataFrame()
+            except Exception as _rst_e:
+                _mock_roster_status = f"cfb26_rosters_full.csv error: {_rst_e}"
+                _mock_r_raw = pd.DataFrame()
+
+            if not _mock_r_raw.empty:
+                for _c in ['OVR','SPD','ACC','AGI','COD','AWR']:
+                    _mock_r_raw[_c] = pd.to_numeric(_mock_r_raw.get(_c, 75), errors='coerce').fillna(75)
+                _mock_r_raw['OVR'] = pd.to_numeric(_mock_r_raw['OVR'], errors='coerce').fillna(0)
+                _yr_raw = _mock_r_raw['Year'].astype(str).str.strip().str.upper()
+                _sr_mask  = _yr_raw.isin(['SR', 'SR (RS)'])
+                _jr_mask  = _yr_raw.isin(['JR', 'JR (RS)', 'SO (RS)']) & (_mock_r_raw['OVR'] >= 92)
+                _mock_r_elig = _mock_r_raw[_sr_mask | _jr_mask].copy()
+                _mock_r_elig = _mock_r_elig[_mock_r_elig['Team'].astype(str).str.strip().isin(list(USER_TEAMS.values()))].copy()
+                if not _mock_r_elig.empty:
+                    _mock_r_elig['PosBucket'] = _mock_r_elig['Pos'].astype(str).str.strip().str.upper().map(_MOCK_POS_BUCKET).fillna('OL')
+                    _mock_r_elig['DraftValueScore'] = _mock_r_elig.apply(_mock_dvs, axis=1)
+                    _mock_r_elig['Source'] = 'USER'
+                    _mock_r_elig['Class'] = _mock_r_elig['Year']
+                    _mock_roster = _mock_r_elig[['Name','Team','Pos','PosBucket','Class','OVR','SPD','ACC','AGI','COD','AWR','DraftValueScore','Source']].copy()
+                    _mock_roster_status += f" → {len(_mock_roster)} eligible prospects from user teams"
+
+            # ── 3. Merge and deduplicate ───────────────────────────────────
+            _keep_cols = ['Name','Team','Pos','PosBucket','Class','OVR','SPD','ACC','AGI','COD','AWR','DraftValueScore','Source']
+            _parts = []
+            if not _mock_cpu.empty:
+                _cpu_cols = {c: c for c in _keep_cols if c in _mock_cpu.columns}
+                _parts.append(_mock_cpu[[c for c in _keep_cols if c in _mock_cpu.columns]].copy())
+            if not _mock_roster.empty:
+                _parts.append(_mock_roster[[c for c in _keep_cols if c in _mock_roster.columns]].copy())
+
+            if not _parts:
+                st.info(f"No draft prospects found for {CURRENT_YEAR + 1}. Push cpu_draft_pool.csv or cfb26_rosters_full.csv.")
+                with st.expander("🔍 Debug — data source status"):
+                    st.caption(f"**CPU pool:** {_mock_cpu_status}")
+                    st.caption(f"**User rosters:** {_mock_roster_status}")
+            else:
+                _mock_all = pd.concat(_parts, ignore_index=True)
+                for _c in ['OVR','SPD','ACC','AGI','COD','AWR','DraftValueScore']:
+                    _mock_all[_c] = pd.to_numeric(_mock_all.get(_c, 0), errors='coerce').fillna(0)
+
+                # Deduplicate by name+team — prefer USER source
+                _mock_all = _mock_all.sort_values('Source', ascending=True)  # USER < CPU alphabetically — USER wins
+                _mock_all = _mock_all.drop_duplicates(subset=['Name','Team'], keep='first')
+
+                # Top 32 by DraftValueScore
+                _r1 = _mock_all.sort_values('DraftValueScore', ascending=False).head(32).reset_index(drop=True)
+
+                # Position color map
+                _pos_colors = {
+                    'QB':'#f97316','RB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa',
+                    'EDGE':'#ef4444','IDL':'#94a3b8','OL':'#64748b',
+                    'LB':'#fbbf24','CB':'#06b6d4','S':'#8b5cf6',
+                    'K':'#475569','P':'#475569',
+                }
+
+                _mock_rows = []
+                for _pick, (_, _p) in enumerate(_r1.iterrows(), 1):
+                    _pname   = html.escape(str(_p.get('Name', '—')))
+                    _pschool = str(_p.get('Team', '—')).strip()
+                    _ppos    = str(_p.get('Pos', '—')).strip()
+                    _pbucket = str(_p.get('PosBucket', _ppos)).strip()
+                    _povr    = int(_p.get('OVR', 0))
+                    _pclass  = str(_p.get('Class', '')).strip()
+                    _pspd    = int(_p.get('SPD', 0))
+                    _pawr    = int(_p.get('AWR', 0))
+                    _pval    = float(_p.get('DraftValueScore', 0))
+                    _psrc    = str(_p.get('Source', 'CPU'))
+                    _nfl_team = _NFL_DRAFT_ORDER[_pick - 1] if _pick <= 32 else ''
+
+                    # Logos
+                    _slogo_uri = image_file_to_data_uri(get_logo_source(_pschool))
+                    _slogo_html = f"<img src='{_slogo_uri}' style='width:26px;height:26px;object-fit:contain;vertical-align:middle;'/>" if _slogo_uri else ""
+                    _nfl_logo_uri = get_nfl_logo_src(_nfl_team)
+                    _nfl_logo_html = f"<img src='{_nfl_logo_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _nfl_logo_uri else ""
+
+                    _pc = _pos_colors.get(_pbucket, '#475569')
+
+                    # Pick number color tiers
+                    if _pick <= 10:
+                        _pick_color = '#fbbf24'
+                        _pick_fs = '1.3rem'
+                    elif _pick <= 20:
+                        _pick_color = '#94a3b8'
+                        _pick_fs = '1.15rem'
+                    else:
+                        _pick_color = '#475569'
+                        _pick_fs = '1.05rem'
+
+                    # User team tag
+                    _is_user = _pschool.strip() in USER_TEAMS.values()
+                    _user_tag = ''
+                    if _is_user:
+                        _pu  = next((u for u, t in USER_TEAMS.items() if t == _pschool.strip()), '')
+                        _utc = get_team_primary_color(_pschool)
+                        _user_tag = f"<span style='background:{_utc}22;color:{_utc};border:1px solid {_utc}55;font-size:0.58rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:5px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.06em;'>{html.escape(_pu).upper()}</span>"
+
+                    _row_bg = "background:linear-gradient(90deg,rgba(251,191,36,0.06),transparent);" if _pick <= 5 else ("background:rgba(59,130,246,0.04);" if _is_user else "")
+
+                    _mock_rows.append(f"""
+                    <tr style='{_row_bg}'>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;font-family:"Bebas Neue",sans-serif;font-size:{_pick_fs};color:{_pick_color};white-space:nowrap;'>{_pick}</td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;white-space:nowrap;'>
+                        <div style='display:flex;align-items:center;gap:4px;'>{_nfl_logo_html}<span style='font-size:0.72rem;color:#64748b;font-family:Barlow Condensed,sans-serif;'>{html.escape(_nfl_team)}</span></div>
+                      </td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;white-space:nowrap;'>
+                        <div style='display:flex;align-items:center;gap:7px;'>
+                          {_slogo_html}
+                          <div>
+                            <div style='font-weight:700;color:#f1f5f9;font-size:0.88rem;'>{_pname}{_user_tag}</div>
+                            <div style='font-size:0.65rem;color:#475569;'>{html.escape(_pschool)} · {html.escape(_pclass)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;'>
+                        <span style='background:{_pc}22;color:{_pc};border:1px solid {_pc}44;font-size:0.68rem;font-weight:700;padding:2px 7px;border-radius:3px;font-family:Barlow Condensed,sans-serif;'>{html.escape(_ppos)}</span>
+                      </td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#e2e8f0;font-weight:700;'>{_povr}</td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#94a3b8;'>{_pspd}</td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#94a3b8;'>{_pawr}</td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#60a5fa;font-family:"Bebas Neue",sans-serif;font-size:1rem;'>{_pval:.1f}</td>
+                    </tr>""")
+
+                _user_count = int((_r1['Source'] == 'USER').sum()) if 'Source' in _r1.columns else 0
+                _mock_html = f"""
+                <style>
+                .mock-wrap {{ overflow-x:auto; border:1px solid #1e293b; border-radius:10px; }}
+                .mock-table {{ width:100%; border-collapse:collapse; background:#080f1a; }}
+                </style>
+                <div class="mock-wrap">
+                  <table class="mock-table">
+                    <thead>
+                      <tr style='background:#0a1220;'>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;white-space:nowrap;'>Pick</th>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:left;'>NFL Team</th>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:left;'>Player</th>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Pos</th>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>OVR</th>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>SPD</th>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>AWR</th>
+                        <th style='padding:8px 10px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>{"".join(_mock_rows)}</tbody>
+                  </table>
+                </div>"""
+                st.markdown(_mock_html, unsafe_allow_html=True)
+                _total_prospects = len(_mock_all)
+                st.caption(f"{_total_prospects} total prospects ({_user_count} from user rosters). NFL teams use 2025 real-life draft order as placeholder. User program players highlighted in team color.")
+                with st.expander("🔍 Data source status", expanded=False):
+                    st.caption(f"**CPU pool:** {_mock_cpu_status}")
+                    st.caption(f"**User rosters:** {_mock_roster_status}")
+
+        except FileNotFoundError:
+            st.info("Push cpu_draft_pool.csv or cfb26_rosters_full.csv to generate the mock draft board.")
+        except Exception as _mock_err:
+            st.error(f"Mock draft error: {_mock_err}")
 
 
     # --- WHO'S IN? ---
