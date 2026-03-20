@@ -11943,40 +11943,62 @@ with tabs[0]:
 
         # 5. Load game matchups + commissioner status for current week
         # ── Week game lookup from scores ─────────────────────────────────
-        _gs_week = _dn_week  # use the week we already derived from cfp_rankings
-        _gs_year = _dn_year
+        _gs_week = _dn_week  # week derived from cfp_rankings for display
+        _gs_year = CURRENT_YEAR  # scores always filed under dynasty CURRENT_YEAR
 
-        # Map: user → current week matchup string + result if played
+
+        # ── Week game lookup — read raw CSV to include unplayed games ─────
+        # global `scores` drops rows with no score (dropna on V_Pts/H_Pts),
+        # so unplayed Week 1 games won't appear in it. Read raw CSV directly.
         _user_matchup = {}
+        _week_has_games = False
         try:
-            _sc_gs = scores[(scores['YEAR'] == _gs_year) & (scores['Week'] == _gs_week)].copy() if 'Week' in scores.columns else pd.DataFrame()
-            _user_list = list(USER_TEAMS.keys())
-            for _gu in _user_list:
+            _raw_sched = pd.read_csv('CPUscores_MASTER.csv')
+            _raw_sched['YEAR'] = pd.to_numeric(_raw_sched.get('YEAR', _raw_sched.get('Year')), errors='coerce')
+            _wk_col_raw = smart_col(_raw_sched, ['Week','WEEK','week'])
+            if _wk_col_raw:
+                _raw_sched['_Week'] = pd.to_numeric(_raw_sched[_wk_col_raw], errors='coerce')
+            else:
+                _raw_sched['_Week'] = float('nan')
+            _vis_col = smart_col(_raw_sched, ['Visitor','VISITOR','Vis'])
+            _hom_col = smart_col(_raw_sched, ['Home','HOME'])
+            _vsc_col = smart_col(_raw_sched, ['Vis Score','Vis_Score','V_Score','V_Pts'])
+            _hsc_col = smart_col(_raw_sched, ['Home Score','Home_Score','H_Score','H_Pts'])
+            _raw_sched['_Vis']  = _raw_sched[_vis_col].astype(str).str.strip() if _vis_col else ''
+            _raw_sched['_Hom']  = _raw_sched[_hom_col].astype(str).str.strip() if _hom_col else ''
+            _raw_sched['_VPts'] = pd.to_numeric(_raw_sched[_vsc_col], errors='coerce') if _vsc_col else float('nan')
+            _raw_sched['_HPts'] = pd.to_numeric(_raw_sched[_hsc_col], errors='coerce') if _hsc_col else float('nan')
+
+            _sc_gs = _raw_sched[
+                (_raw_sched['YEAR'].fillna(-1).astype(int) == int(_gs_year)) &
+                (_raw_sched['_Week'].fillna(-1).astype(int) == int(_gs_week))
+            ].copy()
+            _week_has_games = not _sc_gs.empty
+
+            for _gu in list(USER_TEAMS.keys()):
                 _gteam = USER_TEAMS.get(_gu, '')
-                # visitor side
-                _v_row = _sc_gs[_sc_gs['Visitor_Final'].astype(str).str.strip() == _gteam]
-                # home side
-                _h_row = _sc_gs[_sc_gs['Home_Final'].astype(str).str.strip() == _gteam]
+                _v_row = _sc_gs[_sc_gs['_Vis'] == _gteam]
+                _h_row = _sc_gs[_sc_gs['_Hom'] == _gteam]
                 if not _v_row.empty:
-                    _gr = _v_row.iloc[0]
-                    _opp = str(_gr['Home_Final']).strip()
-                    _vp, _hp = _gr.get('V_Pts', None), _gr.get('H_Pts', None)
+                    _gr  = _v_row.iloc[0]
+                    _opp = str(_gr['_Hom']).strip()
+                    _vp, _hp = _gr.get('_VPts'), _gr.get('_HPts')
                     if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
-                        _result = 'W' if float(_vp) > float(_hp) else 'L'
-                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_vp)}-{int(_hp)}", 'result': _result, 'home': False}
+                        _res = 'W' if float(_vp) > float(_hp) else 'L'
+                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_vp)}-{int(_hp)}", 'result': _res, 'home': False}
                     else:
                         _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': False}
                 elif not _h_row.empty:
-                    _gr = _h_row.iloc[0]
-                    _opp = str(_gr['Visitor_Final']).strip()
-                    _vp, _hp = _gr.get('V_Pts', None), _gr.get('H_Pts', None)
+                    _gr  = _h_row.iloc[0]
+                    _opp = str(_gr['_Vis']).strip()
+                    _vp, _hp = _gr.get('_VPts'), _gr.get('_HPts')
                     if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
-                        _result = 'W' if float(_hp) > float(_vp) else 'L'
-                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_hp)}-{int(_vp)}", 'result': _result, 'home': True}
+                        _res = 'W' if float(_hp) > float(_vp) else 'L'
+                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_hp)}-{int(_vp)}", 'result': _res, 'home': True}
                     else:
                         _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': True}
                 else:
-                    _user_matchup[_gu] = None  # BYE or not scheduled
+                    _user_matchup[_gu] = 'BYE' if _week_has_games else 'UNSCHEDULED'
         except Exception:
             pass
 
@@ -12073,9 +12095,16 @@ with tabs[0]:
             _u_matchup = _user_matchup.get(user)
             _u_status  = _game_status_map.get(user, 'Not Set')
 
-            if _u_matchup is None:
+            if _u_matchup == 'BYE':
                 _game_line = "<span style='color:#475569;font-size:0.75rem;'>BYE WEEK</span>"
                 _status_chip = "<span style='background:#1e293b;color:#475569;border:1px solid #334155;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>BYE</span>"
+            elif _u_matchup == 'UNSCHEDULED' or _u_matchup is None:
+                # Scores not loaded for this week yet — show commissioner status
+                _game_line = "<span style='color:#334155;font-size:0.75rem;'>Schedule pending</span>"
+                if _u_status == 'Ready':
+                    _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+                else:
+                    _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
             else:
                 _ha = "vs" if _u_matchup.get('home') else "@"
                 _opp_disp = html.escape(str(_u_matchup.get('opp', '?')))
@@ -12083,16 +12112,13 @@ with tabs[0]:
                     _res = _u_matchup['result']
                     _res_color = '#4ade80' if _res == 'W' else '#f87171'
                     _game_line = f"<span style='color:#94a3b8;font-size:0.75rem;'>{_ha} {_opp_disp}</span> <span style='color:{_res_color};font-weight:800;font-size:0.78rem;'>{_res} {_u_matchup['score']}</span>"
-                    _u_status = 'Final'
+                    _status_chip = "<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>FINAL</span>"
                 else:
                     _game_line = f"<span style='color:#94a3b8;font-size:0.75rem;'>{_ha} {_opp_disp}</span>"
-
-            if _u_status == 'Ready':
-                _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
-            elif _u_status == 'Final':
-                _status_chip = "<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>FINAL</span>"
-            elif _u_matchup is not None:
-                _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
+                    if _u_status == 'Ready':
+                        _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+                    else:
+                        _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
 
             _game_strip = (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-top:5px;padding-top:5px;"
