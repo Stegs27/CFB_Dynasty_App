@@ -12031,8 +12031,7 @@ with tabs[0]:
             pass
 
         # ── Commissioner-set game status ──────────────────────────────────
-        # week_game_status.csv: User, Year, Week, Status (Ready/Not Set)
-        _game_status_map = {}  # user → 'Ready' | 'Not Set'
+        _game_status_map = {}
         try:
             if os.path.exists('week_game_status.csv'):
                 _wgs = pd.read_csv('week_game_status.csv')
@@ -12044,6 +12043,22 @@ with tabs[0]:
                         _wgs_cur['User'].astype(str).str.strip(),
                         _wgs_cur['Status'].astype(str).str.strip()
                     ))
+        except Exception:
+            pass
+
+        # ── Manual scores (pre-CSV override) ──────────────────────────────
+        _manual_score_map = {}  # user → {user_score, opp_score}
+        try:
+            if os.path.exists('week_manual_scores.csv'):
+                _msc = pd.read_csv('week_manual_scores.csv')
+                _msc['Year'] = pd.to_numeric(_msc.get('Year'), errors='coerce').fillna(0).astype(int)
+                _msc['Week'] = pd.to_numeric(_msc.get('Week'), errors='coerce').fillna(0).astype(int)
+                _msc_cur = _msc[(_msc['Year'] == int(_gs_year)) & (_msc['Week'] == int(_gs_week))].copy()
+                for _, _mr in _msc_cur.iterrows():
+                    _manual_score_map[str(_mr.get('User','')).strip()] = {
+                        'user_score': int(pd.to_numeric(_mr.get('UserScore', 0), errors='coerce') or 0),
+                        'opp_score':  int(pd.to_numeric(_mr.get('OppScore',  0), errors='coerce') or 0),
+                    }
         except Exception:
             pass
 
@@ -12140,7 +12155,7 @@ with tabs[0]:
 
             if _u_matchup == 'BYE':
                 _game_line = "<span style='color:#475569;font-size:0.75rem;'>BYE WEEK</span>"
-                _status_chip = "<span style='background:#1e293b;color:#475569;border:1px solid #334155;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>BYE</span>"
+                _status_chip = "<span style='background:#1e293b;color:#475569;border:1px solid #334155;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.78rem;letter-spacing:0.07em;'>BYE</span>"
             elif _u_matchup == 'UNSCHEDULED' or _u_matchup is None:
                 _game_line = "<span style='color:#334155;font-size:0.75rem;'>Schedule pending</span>"
                 if _u_status == 'Ready':
@@ -12157,17 +12172,27 @@ with tabs[0]:
                     _game_line = f"{_ha_disp} {_opp_chip} <span style='color:{_res_color};font-weight:800;font-size:0.78rem;font-family:Barlow Condensed,sans-serif;'>{_res} {_u_matchup['score']}</span>"
                     _status_chip = "<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>FINAL</span>"
                 else:
-                    _game_line = f"{_ha_disp} {_opp_chip}"
-                    if _u_status == 'Ready':
-                        _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+                    # Check manual scores as pre-CSV fallback
+                    _man = _manual_score_map.get(user, {})
+                    _man_us = _man.get('user_score', 0)
+                    _man_os = _man.get('opp_score', 0)
+                    if _man_us > 0 or _man_os > 0:
+                        _man_res = 'W' if _man_us > _man_os else ('L' if _man_os > _man_us else 'TIE')
+                        _man_rc  = '#4ade80' if _man_res == 'W' else ('#f87171' if _man_res == 'L' else '#94a3b8')
+                        _game_line = f"{_ha_disp} {_opp_chip} <span style='color:{_man_rc};font-weight:800;font-size:0.78rem;font-family:Barlow Condensed,sans-serif;'>{_man_res} {_man_us}–{_man_os}</span>"
+                        _status_chip = "<span style='background:#a78bfa22;color:#a78bfa;border:1px solid #a78bfa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>MANUAL</span>"
                     else:
-                        _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
+                        _game_line = f"{_ha_disp} {_opp_chip}"
+                        if _u_status == 'Ready':
+                            _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+                        else:
+                            _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
 
             _game_strip = (
-                f"<div style='display:flex;align-items:center;gap:8px;margin-top:5px;padding-top:5px;"
-                f"border-top:1px solid rgba(255,255,255,0.06);'>"
-                f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.6rem;color:#334155;"
-                f"text-transform:uppercase;letter-spacing:0.1em;'>WK {_gs_week}</span>"
+                f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;"
+                f"border-top:1px solid rgba(255,255,255,0.09);'>"
+                f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.85rem;color:#334155;"
+                f"letter-spacing:0.08em;'>WK {_gs_week}</span>"
                 f"{_status_chip} {_game_line}"
                 f"</div>"
             )
@@ -12180,9 +12205,7 @@ with tabs[0]:
                 f"<div style='flex:1; min-width:200px; {bw_style}'>"
                 f"<span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else '#9ca3af'};'>{html.escape(team)}</span> "
                 f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span> {rank_badge}"
-                f"<div style='margin-top:4px;'>"
-                f"<span style='display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.7rem; font-weight:900; background:{lcolor if not bw_style else '#4b5563'}; color:white;'>{label}</span>"
-                f" {official_badge} {defending_badge}</div>"
+                f"<div style='margin-top:3px;'>{official_badge} {defending_badge}</div>"
                 f"{_game_strip}"
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
@@ -12207,6 +12230,160 @@ with tabs[0]:
             st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════════════════════
+        # ── Commissioner Tools + Manual Scores ──────────────────────────────
+        st.markdown("---")
+        with st.expander("⚙️ Commissioner Tools", expanded=False):
+            st.caption(f"Admin controls — manual scores, game status, and stat sync for Week {_gs_week}, {_gs_year}.")
+
+            col_sync, col_ref = st.columns(2)
+            with col_sync:
+                if st.button("📊 Sync Stats", use_container_width=True, key="comm_sync_stats"):
+                    with st.spinner("Syncing…"):
+                        _ok, _msgs = sync_derived_stats()
+                    for _m in _msgs:
+                        if _m.startswith("✅"): st.success(_m)
+                        elif _m.startswith("⚠️"): st.warning(_m)
+                        else: st.error(_m)
+                    if _ok: st.cache_data.clear()
+            with col_ref:
+                if st.button("🔄 Refresh Data", use_container_width=True, key="comm_refresh_data"):
+                    st.cache_data.clear()
+                    st.rerun()
+
+            # ── Manual Score Entry ────────────────────────────────────────
+            st.markdown("#### 🏈 Manual Game Scores")
+            st.caption(f"Enter scores before CPUscores_MASTER.csv is pushed. Saves to week_manual_scores.csv.")
+
+            _msc_map = {}
+            try:
+                if os.path.exists('week_manual_scores.csv'):
+                    _msc_df = pd.read_csv('week_manual_scores.csv')
+                    _msc_df['Year'] = pd.to_numeric(_msc_df.get('Year'), errors='coerce').fillna(0).astype(int)
+                    _msc_df['Week'] = pd.to_numeric(_msc_df.get('Week'), errors='coerce').fillna(0).astype(int)
+                    _msc_cur = _msc_df[(_msc_df['Year'] == int(_gs_year)) & (_msc_df['Week'] == int(_gs_week))].copy()
+                    for _, _msr in _msc_cur.iterrows():
+                        _msc_map[str(_msr.get('User','')).strip()] = {
+                            'opp': str(_msr.get('Opponent','')).strip(),
+                            'user_score': int(pd.to_numeric(_msr.get('UserScore', 0), errors='coerce') or 0),
+                            'opp_score':  int(pd.to_numeric(_msr.get('OppScore',  0), errors='coerce') or 0),
+                        }
+            except Exception:
+                pass
+
+            _msc_new = {}
+            for _msu in list(USER_TEAMS.keys()):
+                _msu_matchup = _user_matchup.get(_msu)
+                if isinstance(_msu_matchup, dict):
+                    _msu_opp = str(_msu_matchup.get('opp', '')).strip()
+                    _cur_msc = _msc_map.get(_msu, {})
+                    _ha_lbl  = "vs" if _msu_matchup.get('home') else "@"
+                    _opp_logo_uri = image_file_to_data_uri(get_logo_source(_msu_opp))
+                    _opp_logo_sm  = f"<img src='{_opp_logo_uri}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:3px;'/>" if _opp_logo_uri else ""
+                    st.markdown(
+                        f"<div style='font-family:Barlow Condensed,sans-serif;font-weight:700;"
+                        f"font-size:0.88rem;color:#94a3b8;margin:6px 0 2px 0;'>"
+                        f"<strong style='color:#e2e8f0;'>{html.escape(_msu)}</strong> "
+                        f"— {_ha_lbl} {_opp_logo_sm}{html.escape(_msu_opp)}</div>",
+                        unsafe_allow_html=True
+                    )
+                    _mc1, _mc2, _mc3 = st.columns([1, 1, 2])
+                    with _mc1:
+                        _us = st.number_input(f"{_msu} score", min_value=0, max_value=99,
+                                              value=_cur_msc.get('user_score', 0),
+                                              key=f"mscore_u_{_msu}_{_gs_week}_{_gs_year}",
+                                              label_visibility="collapsed")
+                    with _mc2:
+                        _os = st.number_input(f"Opp score", min_value=0, max_value=99,
+                                              value=_cur_msc.get('opp_score', 0),
+                                              key=f"mscore_o_{_msu}_{_gs_week}_{_gs_year}",
+                                              label_visibility="collapsed")
+                    with _mc3:
+                        if _us > 0 or _os > 0:
+                            _rl = "W" if _us > _os else ("L" if _os > _us else "TIE")
+                            _rc = "#4ade80" if _rl == "W" else ("#f87171" if _rl == "L" else "#94a3b8")
+                            st.markdown(f"<span style='color:{_rc};font-weight:800;"
+                                        f"font-family:Bebas Neue,sans-serif;font-size:1.1rem;'>"
+                                        f"{_rl} {_us}–{_os}</span>", unsafe_allow_html=True)
+                    _msc_new[_msu] = {'opp': _msu_opp, 'user_score': _us, 'opp_score': _os}
+
+            if st.button("💾 Save Manual Scores", use_container_width=True, key="save_manual_scores_btn", type="primary"):
+                try:
+                    _msc_base = pd.read_csv('week_manual_scores.csv') if os.path.exists('week_manual_scores.csv') else pd.DataFrame(columns=['User','Year','Week','Opponent','UserScore','OppScore'])
+                    for _c2 in ['Year','Week']:
+                        _msc_base[_c2] = pd.to_numeric(_msc_base.get(_c2), errors='coerce').fillna(0).astype(int)
+                    _msc_base = _msc_base[~((_msc_base['Year']==int(_gs_year))&(_msc_base['Week']==int(_gs_week)))].copy()
+                    _msc_save = pd.DataFrame([
+                        {'User':_u,'Year':int(_gs_year),'Week':int(_gs_week),'Opponent':v['opp'],'UserScore':v['user_score'],'OppScore':v['opp_score']}
+                        for _u,v in _msc_new.items() if v['user_score']>0 or v['opp_score']>0
+                    ])
+                    pd.concat([_msc_base, _msc_save], ignore_index=True).to_csv('week_manual_scores.csv', index=False)
+                    st.success(f"✅ Scores saved for Week {_gs_week}. Download and push week_manual_scores.csv.")
+                except Exception as _mse:
+                    st.error(f"Save error: {_mse}")
+
+            if os.path.exists('week_manual_scores.csv'):
+                with open('week_manual_scores.csv','rb') as _msf:
+                    st.download_button("⬇️ Download week_manual_scores.csv", data=_msf.read(),
+                                       file_name="week_manual_scores.csv", mime="text/csv",
+                                       use_container_width=True, key="dl_week_manual_scores")
+
+            # ── Game Status Setter ────────────────────────────────────────
+            st.markdown("#### 🎮 Week Game Status")
+            _gs_users  = list(USER_TEAMS.keys())
+            _gs_cols2  = st.columns(3)
+            _gs_updates = {}
+            for _gi, _gu in enumerate(_gs_users):
+                with _gs_cols2[_gi % 3]:
+                    _gs_updates[_gu] = st.selectbox(
+                        _gu, options=['Not Set','Ready'],
+                        index=1 if _game_status_map.get(_gu,'Not Set')=='Ready' else 0,
+                        key=f"game_status_{_gu}_{_gs_week}_{_gs_year}"
+                    )
+            if st.button("💾 Save Game Status", use_container_width=True, key="save_game_status_btn"):
+                try:
+                    _wgs_base = pd.read_csv('week_game_status.csv') if os.path.exists('week_game_status.csv') else pd.DataFrame(columns=['User','Year','Week','Status'])
+                    for _c3 in ['Year','Week']:
+                        _wgs_base[_c3] = pd.to_numeric(_wgs_base.get(_c3), errors='coerce').fillna(0).astype(int)
+                    _wgs_base = _wgs_base[~((_wgs_base['Year']==int(_gs_year))&(_wgs_base['Week']==int(_gs_week)))].copy()
+                    pd.concat([_wgs_base, pd.DataFrame([
+                        {'User':_gu,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_gs_updates[_gu]}
+                        for _gu in _gs_users
+                    ])], ignore_index=True).to_csv('week_game_status.csv', index=False)
+                    st.success(f"✅ Status saved for Week {_gs_week}.")
+                except Exception as _gse:
+                    st.error(f"Save error: {_gse}")
+            if os.path.exists('week_game_status.csv'):
+                with open('week_game_status.csv','rb') as _gsf:
+                    st.download_button("⬇️ Download week_game_status.csv", data=_gsf.read(),
+                                       file_name="week_game_status.csv", mime="text/csv",
+                                       use_container_width=True, key="dl_week_game_status")
+
+            # ── Headlines History ─────────────────────────────────────────
+            st.markdown("#### Dynasty Headlines History")
+            _hh_exists = _headline_history_path.exists()
+            _hh_df = _headline_history_load()
+            _hh_cols_a, _hh_cols_b = st.columns([1.3, 1])
+            with _hh_cols_a:
+                if _hh_exists and not _hh_df.empty:
+                    _latest_season = _hh_safe_int(pd.to_numeric(_hh_df.get('season'), errors='coerce').dropna().max(), 0)
+                    _latest_week   = _hh_safe_int(pd.to_numeric(_hh_df.get('week'),   errors='coerce').dropna().max(), 0)
+                    st.caption(f"Rows: {len(_hh_df)} • Latest: {_latest_season} wk {_latest_week}")
+                else:
+                    st.caption("No headlines history yet.")
+            with _hh_cols_b:
+                _hh_bytes = _headline_download_bytes(_headline_history_path)
+                st.download_button("⬇️ Download headlines history",
+                    data=_hh_bytes if _hh_bytes is not None else b"",
+                    file_name="dynasty_headlines_history.csv", mime="text/csv",
+                    key="comm_download_headlines_history", use_container_width=True,
+                    disabled=_hh_bytes is None)
+            _cand_bytes = _headline_debug_df.to_csv(index=False).encode('utf-8') if '_headline_debug_df' in locals() and not _headline_debug_df.empty else None
+            st.download_button("⬇️ Download headline debug",
+                data=_cand_bytes if _cand_bytes is not None else b"",
+                file_name="dynasty_headline_candidates_debug.csv", mime="text/csv",
+                key="comm_download_headline_candidates", use_container_width=True,
+                disabled=_cand_bytes is None)
+
         # SECTION 2 — DYNASTY HEADLINES
         # Dynamic story engine built from live model data, schedules,
         # results, roster snapshots, injuries, recruiting, and dynasty history.
@@ -13655,118 +13832,6 @@ with tabs[0]:
         if healthy:
             h_names = ", ".join(f"**{u}**" for u in sorted(healthy))
             st.caption(f"✅ No injuries reported: {h_names}")
-
-        # ── Commissioner Tools ────────────────────────────────────────────────
-        st.markdown("---")
-        with st.expander("⚙️ Commissioner Tools", expanded=False):
-            st.caption("Admin controls for advancing the season and syncing stats.")
-
-            col_sync, col_ref = st.columns(2)
-
-            with col_sync:
-                if st.button("📊 Sync Stats", use_container_width=True,
-                             key="comm_sync_stats",
-                             help="Auto-derives CFP wins/losses, natty counts from CSVs"):
-                    with st.spinner("Syncing…"):
-                        _ok, _msgs = sync_derived_stats()
-                    for _m in _msgs:
-                        if _m.startswith("✅"):
-                            st.success(_m)
-                        elif _m.startswith("⚠️"):
-                            st.warning(_m)
-                        else:
-                            st.error(_m)
-                    if _ok:
-                        st.cache_data.clear()
-
-            with col_ref:
-                if st.button("🔄 Refresh Data", use_container_width=True,
-                             key="comm_refresh_data",
-                             help="Clears cache and reloads all CSVs"):
-                    st.cache_data.clear()
-                    st.rerun()
-
-            # ── Game Status Setter ────────────────────────────────────────
-            st.markdown("#### 🎮 Week Game Status")
-            st.caption(f"Set Ready / Not Set for each team for Week {_gs_week}, {_gs_year}. Saves to week_game_status.csv — push to repo.")
-
-            _gs_users = list(USER_TEAMS.keys())
-            _gs_cols = st.columns(3)
-            _gs_updates = {}
-            for _gi, _gu in enumerate(_gs_users):
-                with _gs_cols[_gi % 3]:
-                    _cur_status = _game_status_map.get(_gu, 'Not Set')
-                    _gs_updates[_gu] = st.selectbox(
-                        _gu,
-                        options=['Not Set', 'Ready'],
-                        index=1 if _cur_status == 'Ready' else 0,
-                        key=f"game_status_{_gu}_{_gs_week}_{_gs_year}"
-                    )
-
-            if st.button("💾 Save Game Status", use_container_width=True, key="save_game_status_btn", type="primary"):
-                try:
-                    # Load existing, strip this week, append new rows
-                    if os.path.exists('week_game_status.csv'):
-                        _wgs_existing = pd.read_csv('week_game_status.csv')
-                        _wgs_existing['Year'] = pd.to_numeric(_wgs_existing.get('Year'), errors='coerce').fillna(0).astype(int)
-                        _wgs_existing['Week'] = pd.to_numeric(_wgs_existing.get('Week'), errors='coerce').fillna(0).astype(int)
-                        _wgs_existing = _wgs_existing[~((_wgs_existing['Year'] == int(_gs_year)) & (_wgs_existing['Week'] == int(_gs_week)))].copy()
-                    else:
-                        _wgs_existing = pd.DataFrame(columns=['User','Year','Week','Status'])
-
-                    _new_rows = pd.DataFrame([
-                        {'User': _gu, 'Year': int(_gs_year), 'Week': int(_gs_week), 'Status': _gs_updates[_gu]}
-                        for _gu in _gs_users
-                    ])
-                    pd.concat([_wgs_existing, _new_rows], ignore_index=True).to_csv('week_game_status.csv', index=False)
-                    st.success(f"✅ Game status saved for Week {_gs_week}, {_gs_year}. Download and push week_game_status.csv to repo.")
-                except Exception as _gse:
-                    st.error(f"Save error: {_gse}")
-
-            if os.path.exists('week_game_status.csv'):
-                with open('week_game_status.csv', 'rb') as _gsf:
-                    st.download_button(
-                        "⬇️ Download week_game_status.csv",
-                        data=_gsf.read(),
-                        file_name="week_game_status.csv",
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_week_game_status"
-                    )
-
-            st.markdown("#### Dynasty Headlines History")
-            _hh_exists = _headline_history_path.exists()
-            _hh_df = _headline_history_load()
-            _hh_cols_a, _hh_cols_b = st.columns([1.3, 1])
-            with _hh_cols_a:
-                if _hh_exists and not _hh_df.empty:
-                    _latest_season = _hh_safe_int(pd.to_numeric(_hh_df.get('season'), errors='coerce').dropna().max(), 0)
-                    _latest_week = _hh_safe_int(pd.to_numeric(_hh_df.get('week'), errors='coerce').dropna().max(), 0)
-                    st.caption(f"Rows stored: {len(_hh_df)} • Latest checkpoint: {_latest_season} week {_latest_week}")
-                else:
-                    st.caption("No headlines history file has been generated yet. It will appear after Dynasty Headlines renders and saves at least one batch.")
-            with _hh_cols_b:
-                _hh_bytes = _headline_download_bytes(_headline_history_path)
-                st.download_button(
-                    "⬇️ Download headlines history",
-                    data=_hh_bytes if _hh_bytes is not None else b"",
-                    file_name="dynasty_headlines_history.csv",
-                    mime="text/csv",
-                    key="comm_download_headlines_history",
-                    use_container_width=True,
-                    disabled=_hh_bytes is None
-                )
-
-            _cand_bytes = _headline_debug_df.to_csv(index=False).encode('utf-8') if '_headline_debug_df' in locals() and not _headline_debug_df.empty else None
-            st.download_button(
-                "⬇️ Download headline candidate debug",
-                data=_cand_bytes if _cand_bytes is not None else b"",
-                file_name="dynasty_headline_candidates_debug.csv",
-                mime="text/csv",
-                key="comm_download_headline_candidates",
-                use_container_width=True,
-                disabled=_cand_bytes is None
-            )
 
         # ── NFL MOCK DRAFT — 1ST ROUND ────────────────────────────────────────────
         st.markdown("---")
