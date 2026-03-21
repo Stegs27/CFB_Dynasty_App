@@ -8434,13 +8434,6 @@ def load_team_performance(year=None):
         cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
         cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
 
-        # If multiple rows per team (weekly snapshots), keep the latest week only
-        if 'WEEK' in cs.columns:
-            cs['WEEK'] = pd.to_numeric(cs['WEEK'], errors='coerce').fillna(0)
-            cs = cs.sort_values('WEEK', ascending=True).drop_duplicates(subset=['TEAM'], keep='last')
-        else:
-            cs = cs.drop_duplicates(subset=['TEAM'], keep='last')
-
         def _parse_wl(s):
             try:
                 parts = str(s).split('-')
@@ -11417,8 +11410,6 @@ with tabs[2]:
             return _known_users.get(first, u)
 
         if not _cpu_sos.empty:
-            # Deduplicate — CPUscores_MASTER can have duplicate rows for the same game
-            _cpu_sos = _cpu_sos.drop_duplicates(subset=['YEAR', 'Week', 'Visitor', 'Home'], keep='first').copy()
             _cpu_sos['Vis_User']  = _cpu_sos['Vis_User'].apply(_norm_user)
             _cpu_sos['Home_User'] = _cpu_sos['Home_User'].apply(_norm_user)
             for _c in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
@@ -21105,7 +21096,7 @@ with tabs[5]:
 
     if not team_incoming.empty and 'Type' in team_incoming.columns:
         hs_individual = len(
-            team_incoming[team_incoming['Type'].astype(str).str.upper().isin(['HS', 'JUCO'])]
+            team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS']
         )
         tp_individual = len(
             team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER']
@@ -21627,7 +21618,7 @@ with tabs[5]:
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
-        st.markdown(get_stat_card(f"{selected_year} HS & JUCO Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
+        st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m2:
         st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color, delta=f"{tp_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m3:
@@ -21728,9 +21719,9 @@ with tabs[5]:
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # --- 10. Incoming Players State Origin Map ---
+    # --- 10. Incoming Recruiting Pipeline — State Origins ---
     st.markdown(get_mini_card("📍 Incoming Recruiting Pipeline — State Origins", sel_color), unsafe_allow_html=True)
-    st.caption("Where are the incoming players coming from? Each dot = one recruit. HS and Transfer portal combined.")
+    st.caption("Where are the incoming players coming from? HS, JUCO, and Transfer portal combined.")
 
     try:
         _map_df = team_incoming.copy() if not team_incoming.empty else pd.DataFrame()
@@ -21741,83 +21732,52 @@ with tabs[5]:
             _state_counts = _state_counts[_state_counts['State'].str.len() == 2].copy()
 
             if not _state_counts.empty:
-                import plotly.express as px
+                _max_count = int(_state_counts['Count'].max()) or 1
+                _total     = int(_state_counts['Count'].sum())
+                _st_uniq   = len(_state_counts)
 
-                # Convert hex team color to rgba for valid plotly colorscale entries
-                def _hex_to_rgba(hex_color, alpha=1.0):
-                    try:
-                        h = hex_color.lstrip('#')
-                        if len(h) == 6:
-                            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-                            return f'rgba({r},{g},{b},{alpha})'
-                    except Exception:
-                        pass
-                    return f'rgba(96,165,250,{alpha})'
-
-                _team_rgba_full = _hex_to_rgba(sel_color, 1.0)
-                _team_rgba_mid  = _hex_to_rgba(sel_color, 0.5)
-
-                _state_fig = px.choropleth(
-                    _state_counts,
-                    locations='State',
-                    locationmode='USA-states',
-                    color='Count',
-                    scope='usa',
-                    color_continuous_scale=[
-                        [0.0,  'rgb(15,23,42)'],
-                        [0.01, 'rgb(30,58,95)'],
-                        [0.3,  _team_rgba_mid],
-                        [1.0,  _team_rgba_full],
-                    ],
-                    labels={'Count': 'Recruits'},
-                    title=f"{selected_team} — {incoming_year} Incoming Class Origins"
-                )
-                _state_fig.update_layout(
-                    geo=dict(
-                        bgcolor='rgba(0,0,0,0)',
-                        lakecolor='rgba(0,0,0,0)',
-                        landcolor='#0f172a',
-                        subunitcolor='#1e293b',
-                        showlakes=True,
-                    ),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#e2e8f0'),
-                    coloraxis=dict(colorbar=dict(
-                        title='Recruits',
-                        tickfont=dict(color='#94a3b8'),
-                        titlefont=dict(color='#94a3b8'),
-                    )),
-                    title_font=dict(color='#e2e8f0', size=14),
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    height=380,
-                )
-                st.plotly_chart(_state_fig, use_container_width=True, config={'displayModeBar': False})
-
-                # State breakdown chips below map
-                _top_states = _state_counts.head(8)
-                _chip_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;'>"
-                for _, _sr in _top_states.iterrows():
-                    _chip_html += (
-                        f"<span style='background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);"
-                        f"border-radius:999px;padding:4px 12px;font-size:0.78rem;color:#e2e8f0;font-weight:700;'>"
-                        f"{html.escape(str(_sr['State']))} <span style='color:{sel_color};'>{int(_sr['Count'])}</span></span>"
-                    )
-                _chip_html += "</div>"
-                st.markdown(_chip_html, unsafe_allow_html=True)
-
-                # Type breakdown
+                # Type breakdown counts
                 if 'Type' in _map_df.columns:
-                    _hs_count  = int((_map_df['Type'].astype(str).str.upper().isin(['HS', 'JUCO'])).sum())
-                    _tp_count  = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
-                    _st_uniq   = _state_counts['State'].nunique()
-                    st.caption(f"📊 {len(_map_df)} total incoming · {_hs_count} HS/JUCO · {_tp_count} transfers · {_st_uniq} states represented")
+                    _hs_juco_count = int((_map_df['Type'].astype(str).str.upper().isin(['HS','JUCO'])).sum())
+                    _tp_count      = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
+                else:
+                    _hs_juco_count = _total
+                    _tp_count      = 0
+
+                # Parse team color for bar fill
+                try:
+                    _hx = sel_color.lstrip('#')
+                    _cr, _cg, _cb = int(_hx[0:2],16), int(_hx[2:4],16), int(_hx[4:6],16)
+                    _bar_color = f'rgba({_cr},{_cg},{_cb},0.85)'
+                    _bar_bg    = f'rgba({_cr},{_cg},{_cb},0.12)'
+                except Exception:
+                    _bar_color = 'rgba(96,165,250,0.85)'
+                    _bar_bg    = 'rgba(96,165,250,0.12)'
+
+                # Summary stat row
+                st.markdown(
+                    f"<div style='display:flex;gap:24px;margin-bottom:14px;'>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#e2e8f0;'>{_total}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>Total Incoming</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:{sel_color};'>{_st_uniq}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>States</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#60a5fa;'>{_hs_juco_count}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>HS / JUCO</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#a78bfa;'>{_tp_count}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>Transfers</div></div>"                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+                # Horizontal bar chart — all states with at least 1 recruit
+                _bars_html = "<div style='display:flex;flex-direction:column;gap:5px;margin-bottom:12px;'>"
+                for _, _sr in _state_counts.iterrows():
+                    _st   = html.escape(str(_sr['State']))
+                    _cnt  = int(_sr['Count'])
+                    _pct  = _cnt / _max_count * 100
+                    _bars_html += (
+                        f"<div style='display:flex;align-items:center;gap:8px;'>"                        f"<div style='width:28px;text-align:right;font-size:0.75rem;font-weight:800;color:#94a3b8;flex-shrink:0;'>{_st}</div>"                        f"<div style='flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:18px;overflow:hidden;'>"                        f"<div style='width:{_pct:.1f}%;background:{_bar_color};height:100%;border-radius:3px;transition:width 0.3s;'></div></div>"                        f"<div style='width:18px;font-size:0.75rem;font-weight:800;color:{sel_color};flex-shrink:0;'>{_cnt}</div>"                        f"</div>"
+                    )
+                _bars_html += "</div>"
+                st.markdown(_bars_html, unsafe_allow_html=True)
+
             else:
                 st.info("No state data available for incoming players.")
         else:
             st.info("No incoming player data with State column found for this team/year.")
     except Exception as _map_err:
-        st.caption(f"State map unavailable: {_map_err}")
+        st.caption(f"Pipeline state breakdown unavailable: {_map_err}")
 
     # --- ROSTER MATCHUP ---
     with tabs[9]:
