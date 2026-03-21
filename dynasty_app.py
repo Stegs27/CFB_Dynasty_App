@@ -12875,7 +12875,7 @@ with tabs[0]:
                         _hh_new[_c] = ''
                 _hh_new = _hh_new[_hh_existing.columns].copy()
                 _hh_all = pd.concat([_hh_existing, _hh_new], ignore_index=True)
-                _hh_all = _hh_all.drop_duplicates(subset=['season','week','uniqueness_key','headline_text'], keep='last')
+                _hh_all = _hh_all.drop_duplicates(subset=['season','week','uniqueness_key'], keep='last')
                 _hh_all.to_csv(_headline_history_path, index=False)
             except Exception:
                 pass
@@ -13144,7 +13144,7 @@ with tabs[0]:
                 'team': str(team or _payload.get('team', '')).strip(),
                 'user': str(user or _payload.get('user', '')).strip(),
                 'player': str(player or _payload.get('player', '')).strip(),
-                'week': _hh_safe_int(week, 0),
+                'week': _hh_safe_int(week if week is not None else CURRENT_WEEK_NUMBER, CURRENT_WEEK_NUMBER),
                 'score': float(score),
                 'uniqueness_key': str(uniqueness_key or f"{_event_type}:{team}:{player}:{week}").strip(),
                 'emoji': _rendered['emoji'],
