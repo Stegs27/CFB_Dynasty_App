@@ -8434,6 +8434,13 @@ def load_team_performance(year=None):
         cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
         cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
 
+        # If multiple rows per team (weekly snapshots), keep the latest week only
+        if 'WEEK' in cs.columns:
+            cs['WEEK'] = pd.to_numeric(cs['WEEK'], errors='coerce').fillna(0)
+            cs = cs.sort_values('WEEK', ascending=True).drop_duplicates(subset=['TEAM'], keep='last')
+        else:
+            cs = cs.drop_duplicates(subset=['TEAM'], keep='last')
+
         def _parse_wl(s):
             try:
                 parts = str(s).split('-')
@@ -11410,6 +11417,8 @@ with tabs[2]:
             return _known_users.get(first, u)
 
         if not _cpu_sos.empty:
+            # Deduplicate — CPUscores_MASTER can have duplicate rows for the same game
+            _cpu_sos = _cpu_sos.drop_duplicates(subset=['YEAR', 'Week', 'Visitor', 'Home'], keep='first').copy()
             _cpu_sos['Vis_User']  = _cpu_sos['Vis_User'].apply(_norm_user)
             _cpu_sos['Home_User'] = _cpu_sos['Home_User'].apply(_norm_user)
             for _c in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
@@ -21096,7 +21105,7 @@ with tabs[5]:
 
     if not team_incoming.empty and 'Type' in team_incoming.columns:
         hs_individual = len(
-            team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS']
+            team_incoming[team_incoming['Type'].astype(str).str.upper().isin(['HS', 'JUCO'])]
         )
         tp_individual = len(
             team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER']
@@ -21618,7 +21627,7 @@ with tabs[5]:
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
-        st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
+        st.markdown(get_stat_card(f"{selected_year} HS & JUCO Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m2:
         st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color, delta=f"{tp_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m3:
@@ -21774,13 +21783,11 @@ with tabs[5]:
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(color='#e2e8f0'),
-                    coloraxis=dict(
-                        colorbar=dict(
-                            title=dict(text='Recruits', font=dict(color='#94a3b8')),
-                            tickfont=dict(color='#94a3b8'),
-                            bgcolor='rgba(0,0,0,0)',
-                        )
-                    ),
+                    coloraxis=dict(colorbar=dict(
+                        title='Recruits',
+                        tickfont=dict(color='#94a3b8'),
+                        titlefont=dict(color='#94a3b8'),
+                    )),
                     title_font=dict(color='#e2e8f0', size=14),
                     margin=dict(l=0, r=0, t=40, b=0),
                     height=380,
@@ -21801,10 +21808,10 @@ with tabs[5]:
 
                 # Type breakdown
                 if 'Type' in _map_df.columns:
-                    _hs_count  = int((_map_df['Type'].astype(str).str.upper() == 'HS').sum())
+                    _hs_count  = int((_map_df['Type'].astype(str).str.upper().isin(['HS', 'JUCO'])).sum())
                     _tp_count  = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
                     _st_uniq   = _state_counts['State'].nunique()
-                    st.caption(f"📊 {len(_map_df)} total incoming · {_hs_count} HS · {_tp_count} transfers · {_st_uniq} states represented")
+                    st.caption(f"📊 {len(_map_df)} total incoming · {_hs_count} HS/JUCO · {_tp_count} transfers · {_st_uniq} states represented")
             else:
                 st.info("No state data available for incoming players.")
         else:
