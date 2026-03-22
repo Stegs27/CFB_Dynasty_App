@@ -12638,6 +12638,21 @@ with tabs[0]:
                     _cs_yr['CONF_RANK'] = pd.to_numeric(_cs_yr['CONF_RANK'], errors='coerce')
                     # Treat 0 as blank — model sometimes outputs 0 for unranked instead of blank
                     _cs_yr.loc[_cs_yr['CONF_RANK'] == 0, 'CONF_RANK'] = np.nan
+                    # For any missing CONF_RANKs, derive from position within each conference group
+                    if _cs_yr['CONF_RANK'].isna().any() and 'CONFERENCE' in _cs_yr.columns:
+                        for _conf_grp, _conf_rows in _cs_yr[_cs_yr['CONF_RANK'].isna()].groupby('CONFERENCE'):
+                            # Assign sequential rank based on row order within conference
+                            for _seq_i, _seq_idx in enumerate(_conf_rows.index, 1):
+                                # Only fill if still blank after checking against existing ranks in that conf
+                                _existing_ranks = set(_cs_yr.loc[
+                                    (_cs_yr['CONFERENCE'] == _conf_grp) & (_cs_yr['CONF_RANK'].notna()),
+                                    'CONF_RANK'
+                                ].astype(int).tolist())
+                                _next_rank = _seq_i
+                                while _next_rank in _existing_ranks:
+                                    _next_rank += 1
+                                _existing_ranks.add(_next_rank)
+                                _cs_yr.at[_seq_idx, 'CONF_RANK'] = float(_next_rank)
                     _cs_yr['CONF_RANK'] = _cs_yr['CONF_RANK'].fillna(99).astype(int)
                     _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['CONF_RANK']))
                 elif 'CONF_W' in _cs_yr.columns and 'CONFERENCE' in _cs_yr.columns:
