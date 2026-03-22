@@ -95,92 +95,92 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2040,,Texas Tech,Wyoming,44,69,no,Noah,Mike,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2040,,USF,Bowling Green,35,38,yes,Josh,Devin,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2040,,UTSA,USF,21,34,no,Doug,Josh,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2041,1,SMU,Bowling Green,61,63,,CPU,Devin,,,6-5,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,1,Death Valley,Florida,13,41,,CPU,Doug,,,3-6,9-2,1,0,0,0,FINAL,Florida schedule screenshot
-2041,1,Georgia Tech,Florida State,10,63,,CPU,Nick,13,,8-1,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,1,Appalachian State,San Jose State,39,51,,CPU,Mike,25,,8-1,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,1,Arizona State,Texas Tech,28,42,,CPU,Noah,,,5-4,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,1,Baylor,USF,20,52,,CPU,Josh,,,6-5,9-0,1,0,0,0,FINAL,USF schedule screenshot
-2041,2,Bowling Green,Alabaster,49,35,,Devin,CPU,,10,9-0,7-2,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,2,West Virginia,Florida,30,49,,CPU,Doug,,,6-3,9-2,1,0,0,0,FINAL,Florida schedule screenshot
-2041,2,Maryland,Florida State,16,42,,CPU,Nick,,,4-5,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,2,USF,NC State,35,17,,Josh,CPU,,18,9-0,8-1,1,0,0,0,FINAL,USF schedule screenshot
-2041,2,Texas Tech,Pittsburgh,52,20,,Noah,CPU,,,9-1,4-6,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,2,California,San Jose State,17,63,,CPU,Mike,,,3-7,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,3,USF,Alabama,35,25,,Josh,CPU,,,9-0,5-4,1,0,0,0,FINAL,USF schedule screenshot
-2041,3,West Virginia,Bowling Green,21,28,,CPU,Devin,,,6-3,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,3,North Carolina,Florida State,55,57,,CPU,Nick,,,5-4,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,3,Florida,Penn State,42,37,,Doug,CPU,,16,9-2,9-2,1,0,0,0,FINAL,Florida schedule screenshot
-2041,3,Ole Miss,San Jose State,49,35,,CPU,Mike,,,4-6,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,3,LSU,Texas Tech,21,55,,CPU,Noah,,,4-5,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,4,Florida,Auburn,35,21,,Doug,CPU,,,5-5,9-2,1,0,0,0,FINAL,Florida schedule screenshot
-2041,4,Notre Dame,Bowling Green,31,42,,CPU,Devin,23,,7-3,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,4,Clemson,Florida State,33,36,,CPU,Nick,17,,8-1,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,4,Iowa,San Jose State,34,41,,CPU,Mike,,,6-4,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,4,Nebraska,USF,21,55,,CPU,Josh,11,,7-2,9-0,1,0,0,0,FINAL,USF schedule screenshot
-2041,4,Texas Tech,Washington,59,49,,Noah,CPU,,,9-1,6-4,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,5,USF,Ohio State,52,38,,Josh,CPU,,22,9-0,6-3,1,0,0,0,FINAL,USF schedule screenshot
-2041,5,Maryland,San Jose State,34,48,,CPU,Mike,,,4-5,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,5,Florida State,Texas,42,34,,Nick,CPU,,6,9-1,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,6,Bowling Green,Florida,56,52,,Devin,Doug,,21,9-0,9-2,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,6,Ole Miss,Florida State,23,35,,CPU,Nick,,,4-6,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,6,San Jose State,Illinois,55,21,,Mike,CPU,,,2-7,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,6,Wisconsin,Texas Tech,41,44,,CPU,Noah,,,5-4,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,6,Oregon,USF,20,38,,CPU,Josh,19,,6-3,9-0,1,0,0,0,FINAL,USF schedule screenshot
-2041,7,Wyoming,Bowling Green,17,35,,CPU,Devin,,,6-5,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,7,Florida,Tennessee,48,31,,Doug,CPU,,,9-2,4-5,1,0,0,0,FINAL,Florida schedule screenshot
-2041,7,Iowa,Texas Tech,7,59,,CPU,Noah,,,6-4,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,8,Florida State,Bowling Green,21,52,,Nick,Devin,4,,9-1,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,8,Florida,LSU,35,28,,Doug,CPU,,,9-2,4-5,1,0,0,0,FINAL,Florida schedule screenshot
-2041,8,USF,Minnesota,84,17,,Josh,CPU,,,9-0,5-4,1,0,0,0,FINAL,USF schedule screenshot
-2041,8,San Jose State,Texas Tech,62,27,,Mike,Noah,2,7,9-1,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,9,Alabama,Florida,20,45,,CPU,Doug,,,5-4,9-2,1,0,0,0,FINAL,Florida schedule screenshot
-2041,9,Auburn,Florida State,22,50,,CPU,Nick,,,5-5,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,9,San Jose State,Indiana,55,21,,Mike,CPU,,,4-6,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,9,Bowling Green,Missouri,44,13,,Devin,CPU,,,9-0,3-6,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,9,Illinois,Texas Tech,23,41,,CPU,Noah,,,2-7,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,9,Purdue,USF,14,41,,CPU,Josh,,,2-8,9-0,1,0,0,0,FINAL,USF schedule screenshot
-2041,10,Georgia,Bowling Green,21,49,,CPU,Devin,8,,8-1,9-0,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,10,USF,Michigan State,63,20,,Josh,CPU,,,9-0,3-6,1,0,0,0,FINAL,USF schedule screenshot
-2041,10,Texas Tech,Penn State,63,17,,Noah,CPU,,16,9-1,9-2,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,10,Michigan,San Jose State,31,48,,CPU,Mike,,,5-4,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,10,Florida,South Carolina,41,16,,Doug,CPU,,,9-2,2-7,1,0,0,0,FINAL,Florida schedule screenshot
-2041,10,Florida State,Tennessee,52,14,,Nick,CPU,,,4-5,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,11,Texas,Florida,63,42,,CPU,Doug,6,,9-1,9-2,1,0,0,0,FINAL,Florida schedule screenshot
-2041,11,Nebraska,San Jose State,17,31,,CPU,Mike,11,,7-2,9-1,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,11,Florida State,Texas A&M,28,7,,Nick,CPU,,15,7-2,9-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,11,Maryland,Texas Tech,17,70,,CPU,Noah,,,4-5,9-1,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,12,Oklahoma State,Florida,31,43,,CPU,Doug,,,6-4,9-2,1,0,0,0,FINAL,Florida schedule screenshot
-2041,12,LSU,Florida State,24,42,,CPU,Nick,,,5-7,12-1,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,12,San Jose State,Ohio State,24,31,,Mike,CPU,,22,10-4,8-4,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,12,Bowling Green,South Carolina,49,7,,Devin,CPU,,,12-1,3-9,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,12,Penn State,USF,28,49,,CPU,Josh,16,,9-3,10-2,1,0,0,0,FINAL,USF schedule screenshot
-2041,13,Texas Tech,Indiana,63,38,,Noah,CPU,,,12-1,4-8,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,13,Bowling Green,LSU,35,25,,Devin,CPU,,,12-1,5-7,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,13,San Jose State,USF,38,35,,Mike,Josh,2,,10-4,10-2,1,0,0,0,FINAL,USF schedule screenshot
-2041,14,Oklahoma,Bowling Green,35,56,,CPU,Devin,,,8-4,12-1,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,14,Florida State,Florida,56,21,,Nick,Doug,4,,12-1,9-3,1,0,0,0,FINAL,Florida schedule screenshot
-2041,14,Texas Tech,USF,43,42,,Noah,Josh,7,3,12-1,10-2,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,16,Florida State,Bowling Green,35,28,,Nick,Devin,3,1,12-1,12-1,0,1,0,0,FINAL,FSU schedule screenshot
-2041,16,San Jose State,Texas Tech,43,70,,Mike,Noah,8,2,10-4,12-1,0,1,0,0,FINAL,TTU schedule screenshot
-2041,17,Georgia Tech,Alabaster,28,49,Yes,CPU,CPU,10,7,11-3,11-4,0,0,0,0,FINAL,CFP bracket screenshot
-2041,17,San Diego State,Clemson,43,49,Yes,CPU,CPU,12,5,12-2,14-2,0,0,0,0,FINAL,CFP bracket screenshot
-2041,17,Florida,North Texas,52,27,,Doug,CPU,24,,9-3,9-4,0,0,1,0,FINAL,Florida schedule screenshot / user correction
-2041,17,Texas,San Jose State,40,27,Yes,CPU,Mike,9,8,11-3,10-4,0,0,0,0,FINAL,CFP bracket screenshot
-2041,17,USF,Texas A&M,63,34,Yes,Josh,CPU,11,6,12-3,10-3,0,0,0,0,FINAL,CFP bracket screenshot
-2041,18,Clemson,Bowling Green,89,77,Yes,CPU,Devin,5,4,14-2,12-2,0,0,0,0,FINAL,CFP bracket screenshot
-2041,18,Texas,Florida State,27,42,Yes,CPU,Nick,9,1,11-3,14-2,0,0,0,0,FINAL,CFP bracket screenshot
-2041,18,USF,Rapid City,42,31,Yes,Josh,CPU,11,3,12-3,12-2,0,0,0,0,FINAL,CFP bracket screenshot
-2041,18,Alabaster,Texas Tech,38,56,Yes,CPU,Noah,7,2,11-4,15-1,0,0,0,0,FINAL,CFP bracket screenshot
-2041,19,Clemson,Florida State,31,34,Yes,CPU,Nick,5,1,14-2,14-2,0,0,0,0,FINAL,CFP bracket screenshot
-2041,19,USF,Texas Tech,28,42,Yes,Josh,Noah,11,2,12-3,15-1,0,0,0,0,FINAL,CFP bracket screenshot
-2041,20,Texas Tech,Florida State,35,28,Yes,Noah,Nick,2,1,15-1,14-2,0,0,0,Yes,FINAL,CFP bracket screenshot
-2042,1,Miami,Bowling Green,28,56,,CPU,Devin,21,4,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,Washington,Florida,21,56,,CPU,Doug,25,18,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,North Carolina,Florida State,35,56,,CPU,Nick,,1,0-1,1-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,Texas Tech,Georgia Tech,48,10,,Noah,CPU,6,4,1-0,1-1,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,USF,Hammond,24,77,,Josh,CPU,24,14,0-2,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,Stanford,San Jose State,61,71,,CPU,Mike,,15,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,1,SMU,Bowling Green,61,63,,CPU,Devin,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,1,Death Valley,Florida,13,41,,CPU,Doug,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,1,Georgia Tech,Florida State,10,63,,CPU,Nick,13,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,1,Appalachian State,San Jose State,39,51,,CPU,Mike,25,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,1,Arizona State,Texas Tech,28,42,,CPU,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,1,Baylor,USF,20,52,,CPU,Josh,,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,2,Bowling Green,Alabaster,49,35,,Devin,CPU,,10,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,2,West Virginia,Florida,30,49,,CPU,Doug,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,2,Maryland,Florida State,16,42,,CPU,Nick,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,2,USF,NC State,35,17,,Josh,CPU,,18,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,2,Texas Tech,Pittsburgh,52,20,,Noah,CPU,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,2,California,San Jose State,17,63,,CPU,Mike,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,3,USF,Alabama,35,25,,Josh,CPU,,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,3,West Virginia,Bowling Green,21,28,,CPU,Devin,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,3,North Carolina,Florida State,55,57,,CPU,Nick,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,3,Florida,Penn State,42,37,,Doug,CPU,,16,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,3,Ole Miss,San Jose State,49,35,,CPU,Mike,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,3,LSU,Texas Tech,21,55,,CPU,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,4,Florida,Auburn,35,21,,Doug,CPU,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,4,Notre Dame,Bowling Green,31,42,,CPU,Devin,23,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,4,Clemson,Florida State,33,36,,CPU,Nick,17,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,4,Iowa,San Jose State,34,41,,CPU,Mike,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,4,Nebraska,USF,21,55,,CPU,Josh,11,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,4,Texas Tech,Washington,59,49,,Noah,CPU,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,5,USF,Ohio State,52,38,,Josh,CPU,,22,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,5,Maryland,San Jose State,34,48,,CPU,Mike,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,5,Florida State,Texas,42,34,,Nick,CPU,,6,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,6,Bowling Green,Florida,56,52,,Devin,Doug,,21,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,6,Ole Miss,Florida State,23,35,,CPU,Nick,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,6,San Jose State,Illinois,55,21,,Mike,CPU,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,6,Wisconsin,Texas Tech,41,44,,CPU,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,6,Oregon,USF,20,38,,CPU,Josh,19,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,7,Wyoming,Bowling Green,17,35,,CPU,Devin,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,7,Florida,Tennessee,48,31,,Doug,CPU,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,7,Iowa,Texas Tech,7,59,,CPU,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,8,Florida State,Bowling Green,21,52,,Nick,Devin,4,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,8,Florida,LSU,35,28,,Doug,CPU,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,8,USF,Minnesota,84,17,,Josh,CPU,,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,8,San Jose State,Texas Tech,62,27,,Mike,Noah,2,7,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,9,Alabama,Florida,20,45,,CPU,Doug,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,9,Auburn,Florida State,22,50,,CPU,Nick,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,9,San Jose State,Indiana,55,21,,Mike,CPU,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,9,Bowling Green,Missouri,44,13,,Devin,CPU,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,9,Illinois,Texas Tech,23,41,,CPU,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,9,Purdue,USF,14,41,,CPU,Josh,,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,10,Georgia,Bowling Green,21,49,,CPU,Devin,8,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,10,USF,Michigan State,63,20,,Josh,CPU,,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,10,Texas Tech,Penn State,63,17,,Noah,CPU,,16,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,10,Michigan,San Jose State,31,48,,CPU,Mike,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,10,Florida,South Carolina,41,16,,Doug,CPU,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,10,Florida State,Tennessee,52,14,,Nick,CPU,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,11,Texas,Florida,63,42,,CPU,Doug,6,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,11,Nebraska,San Jose State,17,31,,CPU,Mike,11,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,11,Florida State,Texas A&M,28,7,,Nick,CPU,,15,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,11,Maryland,Texas Tech,17,70,,CPU,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,12,Oklahoma State,Florida,31,43,,CPU,Doug,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,12,LSU,Florida State,24,42,,CPU,Nick,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,12,San Jose State,Ohio State,24,31,,Mike,CPU,,22,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,12,Bowling Green,South Carolina,49,7,,Devin,CPU,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,12,Penn State,USF,28,49,,CPU,Josh,16,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,13,Texas Tech,Indiana,63,38,,Noah,CPU,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,13,Bowling Green,LSU,35,25,,Devin,CPU,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,13,San Jose State,USF,38,35,,Mike,Josh,2,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,14,Oklahoma,Bowling Green,35,56,,CPU,Devin,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,14,Florida State,Florida,56,21,,Nick,Doug,4,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,14,Texas Tech,USF,43,42,,Noah,Josh,7,3,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,16,Florida State,Bowling Green,35,28,,Nick,Devin,3,1,,,0,1,0,0,FINAL,FSU schedule screenshot
+2041,16,San Jose State,Texas Tech,43,70,,Mike,Noah,8,2,,,0,1,0,0,FINAL,TTU schedule screenshot
+2041,17,Georgia Tech,Alabaster,28,49,Yes,CPU,CPU,10,7,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,17,San Diego State,Clemson,43,49,Yes,CPU,CPU,12,5,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,17,Florida,North Texas,52,27,,Doug,CPU,24,,,,0,0,1,0,FINAL,Florida schedule screenshot / user correction
+2041,17,Texas,San Jose State,40,27,Yes,CPU,Mike,9,8,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,17,USF,Texas A&M,63,34,Yes,Josh,CPU,11,6,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,18,Clemson,Bowling Green,89,77,Yes,CPU,Devin,5,4,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,18,Texas,Florida State,27,42,Yes,CPU,Nick,9,1,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,18,USF,Rapid City,42,31,Yes,Josh,CPU,11,3,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,18,Alabaster,Texas Tech,38,56,Yes,CPU,Noah,7,2,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,19,Clemson,Florida State,31,34,Yes,CPU,Nick,5,1,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,19,USF,Texas Tech,28,42,Yes,Josh,Noah,11,2,,,0,0,0,0,FINAL,CFP bracket screenshot
+2041,20,Texas Tech,Florida State,35,28,Yes,Noah,Nick,2,1,,,0,0,0,Yes,FINAL,CFP bracket screenshot
+2042,1,Miami,Bowling Green,28,56,,CPU,Devin,21,4,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,1,Washington,Florida,21,56,,CPU,Doug,25,18,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,1,North Carolina,Florida State,35,56,,CPU,Nick,,1,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,1,Texas Tech,Georgia Tech,48,10,,Noah,CPU,6,4,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,1,USF,Hammond,77,24,,Josh,CPU,24,14,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,1,Stanford,San Jose State,61,71,,CPU,Mike,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,2,NC State,Florida,26,43,,CPU,Doug,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,2,Florida State,Nebraska,21,43,,Nick,CPU,14,11,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,2,Bowling Green,Penn State,49,21,,Devin,CPU,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
