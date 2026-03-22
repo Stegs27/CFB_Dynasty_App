@@ -13212,6 +13212,18 @@ with tabs[0]:
                     "CFP <strong>#{rank}</strong> for <strong>{team}</strong>. The {record} record is doing exactly what <strong>{user}</strong> needed it to do.",
                 ]
             },
+            'upset_loss': {
+                'emoji': '💔',
+                'title': 'Upset Loss',
+                'bodies': [
+                    "<strong>{user}</strong>'s <strong>{team}</strong> just got knocked off by <strong>{opponent}</strong>. The résumé took a hit it cannot ignore.",
+                    "Stunner. <strong>{team}</strong> loses to <strong>{opponent}</strong> — a result that was not supposed to happen. <strong>{user}</strong> has questions to answer.",
+                    "<strong>{opponent}</strong> just handed <strong>{team}</strong> a loss it will have to explain for weeks. <strong>{user}</strong>'s CFP case got more complicated in a hurry.",
+                    "Nobody saw this one coming. <strong>{team}</strong> goes down to <strong>{opponent}</strong>. <strong>{user}</strong> is going to be answering questions about this for a while.",
+                    "The committee noticed. <strong>{team}</strong> drops a game to <strong>{opponent}</strong> that the model said should not have happened. <strong>{user}</strong>'s path just narrowed.",
+                    "You cannot play your way out of a loss on film. <strong>{opponent}</strong> beat <strong>{team}</strong> and <strong>{user}</strong> now has work to do.",
+                ]
+            },
             'upset_win': {
                 'emoji': '🚨',
                 'title': 'Statement Win',
@@ -13591,6 +13603,10 @@ with tabs[0]:
                 _score = 90 + (_natty * 1.6) + max(0, (26 - _rank))
                 _ukey = f"title_favorite:{CURRENT_YEAR}:{_team}"
                 _score -= _headline_recent_penalty(_headline_history, _ukey)
+                # Suppress if team just lost — can't be title favorite narrative right after an L
+                try:
+                    if _user in _recent_user_losses: _score -= 55
+                except Exception: pass
                 _headline_add(
                     _headline_candidates,
                     'title_favorite',
@@ -13640,6 +13656,11 @@ with tabs[0]:
                     _ukey = f"dynasty_gap:{CURRENT_YEAR}:{_team}:{_hh_safe_int(_gr['_gap'], 0)}"
                     _score = 63 + min(18, _hh_safe_num(_gr['_gap'], 0) * 2.5)
                     _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    # Suppress if this team just lost — "underseeded" narrative is wrong right after a loss
+                    try:
+                        if _user in _recent_user_losses:
+                            _score -= 60  # effectively kills it
+                    except Exception: pass
                     _headline_add(
                         _headline_candidates,
                         'dynasty_gap',
@@ -13803,6 +13824,11 @@ with tabs[0]:
                     _ukey = f"speed_merchants:{CURRENT_YEAR}:{_team}:{int(_sr['S90'])}:{int(_sr['GEN'])}:{int(_sr['QUAD'])}"
                     _score = 58 + min(20, int(_sr['S90']) * 2) + min(8, int(_sr['QUAD']) * 2)
                     _score -= _headline_recent_penalty(_headline_history, _ukey)
+                    # Suppress if this team just lost — speed talk rings hollow after an L
+                    try:
+                        if _user in _recent_user_losses:
+                            _score -= 50
+                    except Exception: pass
                     _headline_add(
                         _headline_candidates,
                         'speed_merchants',
@@ -13832,6 +13858,36 @@ with tabs[0]:
                 _completed = _scores_cy.dropna(subset=['Vis Score','Home Score']).sort_values('Week')
 
                 if not _completed.empty:
+                    # Build map of user teams that lost in the MOST RECENT week
+                    # Used to suppress positive hype headlines and generate upset_loss ones
+                    _latest_played_week = int(_completed['Week'].max())
+                    _recent_week_games = _completed[_completed['Week'] == _latest_played_week]
+                    _recent_user_losses = {}   # user → {'team', 'opponent', 'opp_rank', 'was_ranked', 'score', 'opp_score'}
+                    _recent_user_wins   = {}   # user → {'team', 'opponent'}
+                    for _, _rg in _recent_week_games.iterrows():
+                        _rvs = _hh_safe_int(_rg['Vis Score'], 0)
+                        _rhs = _hh_safe_int(_rg['Home Score'], 0)
+                        _rv_user = str(_rg['Vis_User'])
+                        _rh_user = str(_rg['Home_User'])
+                        for _chk_user, _is_vis in [(_rv_user, True), (_rh_user, False)]:
+                            if _chk_user not in USER_TEAMS:
+                                continue
+                            _my_s  = _rvs if _is_vis else _rhs
+                            _opp_s = _rhs if _is_vis else _rvs
+                            _my_team  = str(_rg['Visitor'] if _is_vis else _rg['Home'])
+                            _opp_team = str(_rg['Home'] if _is_vis else _rg['Visitor'])
+                            _my_rank  = _hh_safe_int(_rg['Visitor Rank'] if _is_vis else _rg['Home Rank'], 99)
+                            _opp_rank_v = _hh_safe_int(_rg['Home Rank'] if _is_vis else _rg['Visitor Rank'], 99)
+                            if _my_s > _opp_s:
+                                _recent_user_wins[_chk_user] = {'team': _my_team, 'opponent': _opp_team}
+                            elif _opp_s > _my_s:
+                                _recent_user_losses[_chk_user] = {
+                                    'team': _my_team, 'opponent': _opp_team,
+                                    'opp_rank': _opp_rank_v, 'my_rank': _my_rank,
+                                    'was_upset': _opp_rank_v > _my_rank + 3 or (_my_rank <= 10 and _opp_rank_v > 15),
+                                    'score': _my_s, 'opp_score': _opp_s
+                                }
+
                     _best_upset = None
                     _best_upset_score = -1
                     for _, _g in _completed.iterrows():
@@ -13867,6 +13923,26 @@ with tabs[0]:
                             uniqueness_key=_ukey, week=_best_upset['week']
                         )
 
+                    # ── Generate upset_loss headlines for each user that just got knocked off ──
+                    for _ul_user, _ul_data in _recent_user_losses.items():
+                        if _ul_data['was_upset']:
+                            _ul_ukey = f"upset_loss:{CURRENT_YEAR}:{_ul_data['team']}:{_ul_data['opponent']}:{_latest_played_week}"
+                            _ul_score = 88 + max(0, 15 - _ul_data['opp_rank'])  # Higher ranked victim = bigger story
+                            _ul_score -= _headline_recent_penalty(_headline_history, _ul_ukey)
+                            _headline_add(
+                                _headline_candidates,
+                                'upset_loss',
+                                {
+                                    'user': html.escape(_ul_user),
+                                    'team': html.escape(_ul_data['team']),
+                                    'opponent': html.escape(_ul_data['opponent']),
+                                    'opp_rank': _ul_data['opp_rank'],
+                                },
+                                team=_ul_data['team'], user=_ul_user,
+                                score=_ul_score, uniqueness_key=_ul_ukey,
+                                week=_latest_played_week
+                            )
+
                     _best_streak = {'streak': 0, 'team': '', 'user': ''}
                     for _team in model_2041['TEAM'].unique():
                         _games = _completed[(_completed['Visitor'] == _team) | (_completed['Home'] == _team)].sort_values('Week')
@@ -13886,6 +13962,10 @@ with tabs[0]:
                         _ukey = f"win_streak:{CURRENT_YEAR}:{_best_streak['team']}:{_best_streak['streak']}"
                         _score = 60 + min(22, _best_streak['streak'] * 3)
                         _score -= _headline_recent_penalty(_headline_history, _ukey)
+                        # Suppress entirely if team just lost — streak is over, don't run it
+                        try:
+                            if _best_streak['user'] in _recent_user_losses: _score -= 80
+                        except Exception: pass
                         _headline_add(
                             _headline_candidates,
                             'win_streak',
