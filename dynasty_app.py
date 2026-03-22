@@ -11415,6 +11415,24 @@ with tabs[2]:
             for _c in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
                 _cpu_sos[_c] = pd.to_numeric(_cpu_sos.get(_c, 0), errors='coerce')
 
+        # 3. OPPONENT W-L LOOKUP — from conf_standings for current year
+        _opp_record_map = {}  # team_name_lower → (W, L, win_pct)
+        try:
+            _cs_opp = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+            _cs_opp['TEAM'] = _cs_opp['TEAM'].astype(str).str.strip()
+            _cs_opp['W'] = pd.to_numeric(_cs_opp['W'], errors='coerce').fillna(0).astype(int)
+            _cs_opp['L'] = pd.to_numeric(_cs_opp['L'], errors='coerce').fillna(0).astype(int)
+            # If multiple rows per team (weekly snapshots), keep latest
+            if 'WEEK' in _cs_opp.columns:
+                _cs_opp['WEEK'] = pd.to_numeric(_cs_opp['WEEK'], errors='coerce').fillna(0)
+                _cs_opp = _cs_opp.sort_values('WEEK').drop_duplicates('TEAM', keep='last')
+            for _, _cr in _cs_opp.iterrows():
+                _gp = int(_cr['W']) + int(_cr['L'])
+                _wp = round(int(_cr['W']) / max(_gp, 1), 3)
+                _opp_record_map[str(_cr['TEAM']).strip().lower()] = (int(_cr['W']), int(_cr['L']), _wp)
+        except Exception:
+            pass
+
         # 3. SPEED DATA — sourced from model_2041 (pre-computed from roster CSV)
 
         # 4. OFFICIAL RANK LOOKUP (LATEST CFP)
@@ -11463,13 +11481,20 @@ with tabs[2]:
                 if not pd.isna(my_s) and not pd.isna(opp_s):
                     res = 'W' if my_s > opp_s else 'L'
 
+                # Look up opponent W-L from conf_standings
+                _opp_key = str(opp_n).strip().lower()
+                _opp_wl = _opp_record_map.get(_opp_key, (0, 0, 0.0))
+
                 results.append({
                     'week': str(g['Week']), 'opponent': opp_n, 'result': res,
                     'effective_rank': eff_rank, 'opp_ranked_final': not pd.isna(eff_rank),
                     'opp_ranked': not pd.isna(opp_r),
                     'opp_rank': opp_r,
                     'home_away': 'Away' if is_vis else 'Home',
-                    'margin': (my_s - opp_s) if res != 'TBD' else None
+                    'margin': (my_s - opp_s) if res != 'TBD' else None,
+                    'opp_wins': _opp_wl[0],
+                    'opp_losses': _opp_wl[1],
+                    'opp_win_pct': _opp_wl[2],
                 })
             return pd.DataFrame(results)
 
@@ -11482,25 +11507,39 @@ with tabs[2]:
             return round(spd_raw + qb_base, 2)
 
         def _sos_score(games_df):
-            if games_df.empty: return 0, 0, 0, 0
+            if games_df.empty: return 0, 0, 0, 0, 0.0
             rw = int(((games_df['result']=='W') & games_df['opp_ranked_final']).sum())
             t10 = int(((games_df['result']=='W') & (games_df['effective_rank'] <= 10)).sum())
             rl = int(((games_df['result']=='L') & games_df['opp_ranked_final']).sum())
             comp = games_df[games_df['opp_ranked_final']]
             avg_r = float(comp['effective_rank'].mean()) if not comp.empty else 99.0
-            base = (rw * 8.5) + (t10 * 4.0) - (rl * 1.5) + (max(0, (25 - avg_r)) * 0.8)
-            return round(base, 1), rw, t10, round(avg_r, 1)
+
+            # Opponent win % bonus — rewards beating teams with winning records
+            # Uses conf_standings data; falls back gracefully if not available
+            _opp_wp_col = 'opp_win_pct' if 'opp_win_pct' in games_df.columns else None
+            avg_opp_wp = 0.0
+            opp_record_bonus = 0.0
+            if _opp_wp_col:
+                completed = games_df[games_df['result'].isin(['W','L'])]
+                if not completed.empty:
+                    avg_opp_wp = float(completed['opp_win_pct'].fillna(0).mean())
+                    # Bonus: avg opponent win% vs .500 baseline, scaled to ±6 pts
+                    opp_record_bonus = round((avg_opp_wp - 0.500) * 12.0, 2)
+
+            base = (rw * 8.5) + (t10 * 4.0) - (rl * 1.5) + (max(0, (25 - avg_r)) * 0.8) + opp_record_bonus
+            return round(base, 1), rw, t10, round(avg_r, 1), round(avg_opp_wp, 3)
 
         # 7. BUILD RÉSUMÉ DATA
         resume_rows = []
         for user in USER_TEAMS:
             g = _get_user_games(user)
-            base, rw, t10, avg_opp = _sos_score(g)
+            base, rw, t10, avg_opp, avg_opp_wp = _sos_score(g)
             hcap = _speed_handicap(user)
             resume_rows.append({
                 'User': user, 'Team': USER_TEAMS[user],
                 'Record': f"{int((g['result']=='W').sum() if not g.empty else 0)}-{int((g['result']=='L').sum() if not g.empty else 0)}",
                 'Ranked Wins': rw, 'Top-10 Wins': t10, 'Avg Opp Rank': avg_opp if avg_opp < 99 else '—',
+                'Avg Opp Win%': round(avg_opp_wp * 100, 1),
                 'Base SOS': base, '_handicap': hcap, 'Adj SOS': round(base + hcap, 1),
                 'Team Speed': int(_speed_map.get(user, {}).get('team_speed', 0)),
                 'QB Tier': _speed_map.get(user, {}).get('qb_tier', '—'),
@@ -11516,7 +11555,7 @@ with tabs[2]:
         _fastest = resume_df.sort_values('Team Speed', ascending=False).iloc[0]
 
         mobile_metrics([
-            {"label": "📋 Best Résumé",      "value": _top['User'],        "delta": f"Adj SOS: {_top['Adj SOS']}"},
+            {"label": "📋 Best Résumé",      "value": _top['User'],        "delta": f"Adj SOS: {_top['Adj SOS']} · Opp W%: {_top.get('Avg Opp Win%',0):.1f}%"},
             {"label": "💪 Most Ranked Wins",  "value": _most_rw['User'],    "delta": f"{_most_rw['Ranked Wins']} ranked W"},
             {"label": "🐢 Hardest Path",      "value": _hardest['User'],    "delta": f"Handicap +{_hardest['_handicap']:.1f}"},
             {"label": "⚡ Speed Advantage",   "value": _fastest['User'],    "delta": f"{_fastest['Team Speed']} speed guys"},
@@ -11690,11 +11729,25 @@ with tabs[2]:
             else:
                 parts.append(f"only {hrw} ranked win to show for it")
 
+            hopp_wp = float(hr.get('Avg Opp Win%', 0))
             # Join narrative
             if len(parts) >= 3:
                 narrative = f"{parts[0].capitalize()}, {parts[1]}, {parts[2]} — {parts[3]}."
             else:
                 narrative = ". ".join(p.capitalize() for p in parts) + "."
+            # Append opponent quality sentence
+            if hopp_wp >= 65:
+                opp_qual = f"Opponents winning at {hopp_wp:.1f}% — a murderous draw."
+            elif hopp_wp >= 55:
+                opp_qual = f"Opponents at {hopp_wp:.1f}% wins — a legitimately tough schedule."
+            elif hopp_wp >= 45:
+                opp_qual = f"Opponents hovering at {hopp_wp:.1f}% — near-.500 competition."
+            elif hopp_wp > 0:
+                opp_qual = f"Opponents only at {hopp_wp:.1f}% wins — a weaker schedule on paper."
+            else:
+                opp_qual = ""
+            if opp_qual:
+                narrative += " " + opp_qual
 
             # Difficulty bar (0–10 scale, handicap capped at ±10)
             bar_pct = min(100, max(0, int((hcap + 6) / 16 * 100)))
@@ -11718,7 +11771,7 @@ with tabs[2]:
                 </div>
                 <div style='text-align:right;'>
                   <div style='color:white;font-weight:800;font-size:0.9rem;'>{hrec}</div>
-                  <div style='color:#475569;font-size:0.72rem;'>{hrw} ranked W · {ht10} top-10 W</div>
+                  <div style='color:#475569;font-size:0.72rem;'>{hrw} ranked W · {ht10} top-10 W · opp {float(hr.get('Avg Opp Win%',0)):.1f}% W</div>
                 </div>
               </div>
               <div style='margin-bottom:8px;'>
@@ -12571,26 +12624,6 @@ with tabs[0]:
                 _bl_hteam = team if _bl_home else _bl_opp
                 _bl_ateam = _bl_opp if _bl_home else team
                 _bl_result = estimate_game_line_from_ratings(_bl_hteam, _bl_ateam, _cfp_ratings_map, home_field=True, perf_map=_cfp_perf_map)
-
-                # Fallback: if ratings missing for either team, estimate from Power Index in model_2041
-                if not _bl_result and not model_2041.empty and 'Power Index' in model_2041.columns:
-                    try:
-                        _pi_col = 'Power Index'
-                        _h_pi = model_2041[model_2041['TEAM'].astype(str).str.strip() == _bl_hteam][_pi_col]
-                        _a_pi = model_2041[model_2041['TEAM'].astype(str).str.strip() == _bl_ateam][_pi_col]
-                        if not _h_pi.empty and not _a_pi.empty:
-                            _pi_diff = float(_h_pi.iloc[0]) - float(_a_pi.iloc[0])
-                            _hf_bonus = 2.5  # home field
-                            _spread_pi = round(abs(_pi_diff * 0.08 + _hf_bonus) * 2) / 2
-                            if _spread_pi >= 1.0:
-                                _fav_pi = _bl_hteam if (_pi_diff + _hf_bonus) >= 0 else _bl_ateam
-                                _spread_pi_str = f"{_spread_pi:.1f}" if _spread_pi % 1 else f"{int(_spread_pi)}"
-                                _bl_result = (f"{_fav_pi} -{_spread_pi_str}", _fav_pi, _pi_diff)
-                            else:
-                                _bl_result = ("Pick'em", _bl_hteam, 0)
-                    except Exception:
-                        pass
-
                 if _bl_result and _bl_result != "Pick'em":
                     _bl_str, _bl_fav, _bl_diff = _bl_result if len(_bl_result) == 3 else (_bl_result[0], _bl_result[1], 0)
                     if _bl_str and _bl_str != "Pick'em":
@@ -14812,22 +14845,10 @@ with tabs[3]:
             else:
                 _stk_disp = '<span style="color:#475569;">—</span>'
 
-            # In show-all mode, use CFP rank for teams outside the projected field
-            _seed_val = int(row.get('Projected Seed Display', 999))
-            if _show_all_cfp and _seed_val >= 999:
-                _seed_disp_str = f"#{int(row.get('Committee Rank Display', row.get('Rank', '?')))}"
-                _seed_color = '#475569'  # muted — not in field
-            elif _seed_val < 999:
-                _seed_disp_str = f"#{_seed_val}"
-                _seed_color = '#e5e7eb'
-            else:
-                _seed_disp_str = '—'
-                _seed_color = '#475569'
-
             cells = [f"""
             <td class="isp-td-pin">
               <div class="isp-flex-row">
-                <div style="font-weight:800;min-width:28px;text-align:center;color:{_seed_color};font-size:0.85rem;">{_seed_disp_str}</div>
+                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
                 <div class="isp-td-num">{logo_html}</div>
                 <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
               </div>
