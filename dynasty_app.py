@@ -11431,6 +11431,8 @@ with tabs[2]:
             return _known_users.get(first, u)
 
         if not _cpu_sos.empty:
+            # Deduplicate — CPUscores_MASTER can have duplicate rows
+            _cpu_sos = _cpu_sos.drop_duplicates(subset=['YEAR','Week','Visitor','Home'], keep='first').copy()
             _cpu_sos['Vis_User']  = _cpu_sos['Vis_User'].apply(_norm_user)
             _cpu_sos['Home_User'] = _cpu_sos['Home_User'].apply(_norm_user)
             for _c in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
@@ -12983,7 +12985,7 @@ with tabs[0]:
                         _hh_new[_c] = ''
                 _hh_new = _hh_new[_hh_existing.columns].copy()
                 _hh_all = pd.concat([_hh_existing, _hh_new], ignore_index=True)
-                _hh_all = _hh_all.drop_duplicates(subset=['season','week','uniqueness_key','headline_text'], keep='last')
+                _hh_all = _hh_all.drop_duplicates(subset=['season','week','uniqueness_key'], keep='last')
                 _hh_all.to_csv(_headline_history_path, index=False)
             except Exception:
                 pass
@@ -12995,6 +12997,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) leads the title race at <strong>{natty:.1f}%</strong>. The model says this is the roster everyone else has to solve.",
                     "The championship chase runs through <strong>{team}</strong>. <strong>{user}</strong> is sitting on a <strong>{natty:.1f}%</strong> natty shot with the deepest résumé in the field.",
+                    "The numbers keep pointing the same direction. <strong>{team}</strong> at <strong>{natty:.1f}%</strong> — <strong>{user}</strong> has built the cleanest profile in this dynasty.",
+                    "<strong>{natty:.1f}%</strong>. That's what the model gives <strong>{team}</strong> to cut nets. <strong>{user}</strong> is not quietly confident — the data is loud.",
+                    "If the bracket holds chalk, <strong>{user}</strong>'s <strong>{team}</strong> is the last team standing. <strong>{natty:.1f}%</strong> title odds and climbing.",
+                    "Nobody in this field has more runway than <strong>{team}</strong>. <strong>{user}</strong> at <strong>{natty:.1f}%</strong> — the committee is going to have to deal with this roster all season.",
                 ]
             },
             'power_alpha': {
@@ -13003,6 +13009,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) is the neutral-field monster right now. Their <strong>{pi:.1f}</strong> Power Index is tops in the dynasty.",
                     "Forget the noise — <strong>{team}</strong> is the scariest team on paper. <strong>{user}</strong> owns the best Power Index at <strong>{pi:.1f}</strong>.",
+                    "The model does not have a bias. It just watches film. <strong>{team}</strong> at <strong>{pi:.1f}</strong> Power Index is the honest number — and <strong>{user}</strong> built it.",
+                    "On a neutral field against anyone in this league, <strong>{team}</strong> is the pick. <strong>{user}</strong>'s <strong>{pi:.1f}</strong> Power Index says so.",
+                    "<strong>{pi:.1f}</strong>. That is <strong>{team}</strong>'s Power Index right now. <strong>{user}</strong> has assembled something the computers genuinely respect.",
+                    "Strip away the rankings noise and the model says one thing: <strong>{team}</strong> is the best team in this dynasty. <strong>{pi:.1f}</strong> Power Index. <strong>{user}</strong>'s fingerprints are all over it.",
                 ]
             },
             'rank_jump': {
@@ -13011,6 +13021,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) climbed <strong>{delta}</strong> spots to No. <strong>{rank}</strong>. The résumé is starting to catch up to the talent.",
                     "The latest poll gave <strong>{team}</strong> a real bump. <strong>{user}</strong> is up <strong>{delta}</strong> slots and pushing into the inner circle.",
+                    "Up <strong>{delta}</strong> spots to <strong>#{rank}</strong>. The committee is noticing <strong>{team}</strong> and <strong>{user}</strong> is not surprised.",
+                    "<strong>{team}</strong> moved <strong>{delta}</strong> spots in the latest rankings. <strong>{user}</strong> is now sitting at <strong>#{rank}</strong> and this climb does not feel finished.",
+                    "The résumé just got louder. <strong>{user}</strong> ({team}) jumped <strong>{delta}</strong> positions to <strong>#{rank}</strong> — the voters are catching on.",
+                    "Poll momentum is a real thing and <strong>{team}</strong> has it right now. Up <strong>{delta}</strong> to <strong>#{rank}</strong> for <strong>{user}</strong>.",
                 ]
             },
             'committee_darling': {
@@ -13019,6 +13033,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) sits at <strong>CFP #{rank}</strong> with a {record} record. The committee is all-in on this profile.",
                     "The committee loves what <strong>{team}</strong> is selling. <strong>{user}</strong> is parked at <strong>#{rank}</strong> with a {record} mark.",
+                    "At <strong>#{rank}</strong> with a {record} record, <strong>{team}</strong> is exactly where the committee wants them. <strong>{user}</strong> has given the voters nothing to argue about.",
+                    "<strong>{user}</strong> ({team}) is the committee's problem right now — in the best way. <strong>#{rank}</strong>, {record}, and nobody is making a real case against them.",
+                    "The profile at <strong>#{rank}</strong> with {record} is clean. <strong>{team}</strong> is not gaming the system — <strong>{user}</strong> just built a team the algorithm keeps rewarding.",
+                    "CFP <strong>#{rank}</strong> for <strong>{team}</strong>. The {record} record is doing exactly what <strong>{user}</strong> needed it to do.",
                 ]
             },
             'upset_win': {
@@ -13027,6 +13045,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) just knocked off <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. That's the kind of result that bends a season.",
                     "Statement made: <strong>{team}</strong> dropped <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. <strong>{user}</strong> just changed the bracket math.",
+                    "<strong>#{opp_rank} {opponent}</strong> came in and got sent home. <strong>{team}</strong> wins {win_score}-{lose_score} and <strong>{user}</strong> just forced every committee member to update their notes.",
+                    "That is going to echo. <strong>{user}</strong>'s <strong>{team}</strong> beat <strong>#{opp_rank} {opponent}</strong> by {win_score}-{lose_score}. The résumé officially has a signature win.",
+                    "Nobody saw <strong>{team}</strong> dropping <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. <strong>{user}</strong> did. This is what program-building looks like.",
+                    "<strong>{user}</strong> has been building toward a result like this. <strong>{team}</strong> over <strong>#{opp_rank} {opponent}</strong>, {win_score}-{lose_score}. The rest of the field just got a warning.",
                 ]
             },
             'playoff_result': {
@@ -13035,6 +13057,10 @@ with tabs[0]:
                 'bodies': [
                     "The bracket moved. <strong>{winner_user}</strong> ({winner_team}) sent {loser_user} ({loser_team}) home <strong>{win_score}-{lose_score}</strong> in {round_name}.",
                     "Survive and advance: <strong>{winner_team}</strong> beat {loser_team} <strong>{win_score}-{lose_score}</strong> in {round_name}. <strong>{winner_user}</strong> keeps breathing.",
+                    "{round_name} is settled. <strong>{winner_team}</strong> over {loser_team}, <strong>{win_score}-{lose_score}</strong>. <strong>{winner_user}</strong> is still alive and <strong>{loser_user}</strong> is going home.",
+                    "One more round in the books. <strong>{winner_user}</strong>'s <strong>{winner_team}</strong> handled {loser_team} {win_score}-{lose_score} in {round_name} and the run continues.",
+                    "<strong>{winner_team}</strong> {win_score}, {loser_team} {lose_score}. <strong>{winner_user}</strong> advances out of {round_name}. <strong>{loser_user}</strong> is done.",
+                    "This dynasty does not hand out participation banners. <strong>{winner_team}</strong> closed out {loser_team} in {round_name}, <strong>{win_score}-{lose_score}</strong>. <strong>{winner_user}</strong> is one step closer.",
                 ]
             },
             'collapse_watch': {
@@ -13043,6 +13069,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) owns the dynasty's highest collapse flag at <strong>{risk}%</strong>. The upside is real, but so is the trap door.",
                     "Volatility alert: <strong>{team}</strong> carries a <strong>{risk}%</strong> collapse risk. <strong>{user}</strong> is walking a tightrope right now.",
+                    "The model is flashing yellow on <strong>{team}</strong>. A <strong>{risk}%</strong> collapse risk is not a prediction — it is a warning. <strong>{user}</strong> needs answers soon.",
+                    "<strong>{risk}%</strong> collapse probability on <strong>{team}</strong>. That is not a number <strong>{user}</strong> can ignore. The schedule does not get easier from here.",
+                    "Something is off with <strong>{team}</strong> and the model sees it. <strong>{risk}%</strong> collapse flag — <strong>{user}</strong> needs a result before this narrative takes hold.",
+                    "The gap between what <strong>{team}</strong> looks like on paper and what the model projects is real. <strong>{risk}%</strong> collapse risk. <strong>{user}</strong> has some explaining to do.",
                 ]
             },
             'injury_blow': {
@@ -13051,14 +13081,22 @@ with tabs[0]:
                 'bodies': [
                     "Brutal hit for <strong>{user}</strong> ({team}): <strong>{player}</strong> ({pos}, {ovr} OVR) is out <strong>{weeks}</strong> weeks with a {injury}.",
                     "Depth chart damage in {team}. <strong>{player}</strong> is shelved for <strong>{weeks}</strong> weeks, and <strong>{user}</strong> just lost a major piece.",
+                    "<strong>{player}</strong> is done for <strong>{weeks}</strong> weeks. The {ovr} OVR {pos} was a core piece for <strong>{team}</strong> and now <strong>{user}</strong> has to figure out a next man up answer.",
+                    "The injury report is not <strong>{user}</strong>'s friend right now. <strong>{player}</strong> ({pos}) goes down for <strong>{weeks}</strong> weeks and <strong>{team}</strong>'s depth just got tested.",
+                    "Season-altering news out of <strong>{team}</strong>. <strong>{player}</strong> is out <strong>{weeks}</strong> weeks — that is a {ovr} OVR {pos} off the field for <strong>{user}</strong> at the worst time.",
+                    "The {injury} cost <strong>{team}</strong> a real one. <strong>{player}</strong>, {ovr} OVR {pos}, is shelved for <strong>{weeks}</strong> weeks. <strong>{user}</strong> needs the depth chart to step up immediately.",
                 ]
             },
             'elite_qb': {
                 'emoji': '🧠',
                 'title': 'Elite QB Alert',
                 'bodies': [
-                    "Elite QB room check: {names}. Every defense problem gets worse when quarterbacks like this are still alive.",
+                    "The dynasty's quarterback tier is elite right now. {names} — defenses do not get a break when these guys are on the field.",
                     "The title path still runs through star quarterback play. Right now the elite tier belongs to {names}.",
+                    "Championship DNA starts under center. The best QB situations in the dynasty right now: {names}. Everyone else is playing catch-up.",
+                    "Want to know who has a real shot this season? Start with the QB room. {names} are operating at a level this dynasty does not see every year.",
+                    "{names} — that is the elite quarterback conversation in this dynasty right now. Every one of those programs is dangerous because of it.",
+                    "High-end quarterback play is the great equalizer and {names} all have it. Whatever else happens this season, those programs have the most important position locked.",
                 ]
             },
             'qb_disaster': {
@@ -13067,6 +13105,10 @@ with tabs[0]:
                 'bodies': [
                     "The danger list at quarterback is {names}. A roster can hide bad QB play for a while — not forever.",
                     "Somebody's offense is one bad Saturday from combusting. The roughest QB situations right now: {names}.",
+                    "You can scheme around a lot of things in this dynasty. A bad quarterback is not one of them. Right now the concern list reads: {names}.",
+                    "The QB situation is going to be the story for {names} before this season is over. The rest of the roster can only carry so much.",
+                    "Not every program has solved the most important position on the field. {names} are the names the model is flagging at quarterback right now.",
+                    "Wins cover up QB problems until they do not. {names} are the situations worth watching — the margin for error is thin at those positions.",
                 ]
             },
             'recruiting_king': {
@@ -13075,6 +13117,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) owns the No. 1 recruiting haul right now at <strong>{points}</strong> points. Future power is being stockpiled in real time.",
                     "Roster building never stops. <strong>{team}</strong> sits on the top class in the country, and <strong>{user}</strong> is already loading the next wave.",
+                    "The pipeline is wide open at <strong>{team}</strong>. <strong>{points}</strong> recruiting points — <strong>{user}</strong> is not just building for now, they are building for three years from now.",
+                    "<strong>{user}</strong> is winning the recruiting war and it is not particularly close. <strong>{team}</strong> at <strong>{points}</strong> points leads the dynasty. The talent gap is going to widen.",
+                    "Championship programs are built on the trail before they are built on the field. <strong>{team}</strong> leads all recruiters at <strong>{points}</strong> points. <strong>{user}</strong> is doing the work.",
+                    "While everyone else is focused on this week's game, <strong>{user}</strong> is winning the next two seasons on the trail. <strong>{team}</strong> at <strong>{points}</strong> recruiting points — the future belongs to them.",
                 ]
             },
             'speed_merchants': {
@@ -13083,6 +13129,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) leads the dynasty with <strong>{s90}</strong> active 90+ speed players{extras}. You cannot coach people into catching that.",
                     "The fastest room in the dynasty belongs to <strong>{team}</strong>. <strong>{user}</strong> has <strong>{s90}</strong> true burners{extras}.",
+                    "<strong>{s90}</strong> players clocked at 90+ speed on <strong>{team}</strong>'s roster{extras}. <strong>{user}</strong> has turned the depth chart into a track meet entry list.",
+                    "Every coordinator in this dynasty game-plans for speed. None of them have an answer for <strong>{team}</strong>. <strong>{s90}</strong> burners{extras} — <strong>{user}</strong> built a problem.",
+                    "The athleticism on <strong>{team}</strong>'s roster is not normal. <strong>{s90}</strong> players at 90+ speed{extras}. <strong>{user}</strong> is recruiting a different kind of weapon.",
+                    "On paper, <strong>{team}</strong> is the fastest program in this dynasty right now. <strong>{s90}</strong> players with elite speed{extras}. <strong>{user}</strong> made sure of it.",
                 ]
             },
             'win_streak': {
@@ -13091,6 +13141,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) has ripped off <strong>{streak}</strong> straight wins. Momentum is doing real work here.",
                     "Nobody wants this version of <strong>{team}</strong> right now. <strong>{user}</strong> is on a <strong>{streak}-game heater</strong>.",
+                    "<strong>{streak}</strong> in a row for <strong>{team}</strong>. This is not a hot stretch anymore — this is a statement. <strong>{user}</strong> has their program locked in.",
+                    "The wins keep coming for <strong>{user}</strong>. <strong>{team}</strong> at <strong>{streak}</strong> straight and the margin on the field suggests this is not slowing down.",
+                    "Do not sleep on what <strong>{team}</strong> is doing right now. <strong>{streak}</strong> consecutive wins for <strong>{user}</strong> — the résumé is building itself.",
+                    "<strong>{user}</strong> has <strong>{team}</strong> rolling. <strong>{streak}</strong> straight wins and the model is upgrading this program with every result.",
                 ]
             },
             'record_watch': {
@@ -13099,6 +13153,10 @@ with tabs[0]:
                 'bodies': [
                     "At the top, <strong>{best_user}</strong> ({best_team}) is cruising at <strong>{best_record}</strong>. At the other end, {worst_user} ({worst_team}) is stuck at {worst_record}.",
                     "The gap in this league is showing. <strong>{best_team}</strong> is thriving at <strong>{best_record}</strong>, while {worst_team} is scraping at {worst_record}.",
+                    "<strong>{best_team}</strong> at <strong>{best_record}</strong> and {worst_team} at {worst_record}. The separation between the programs in this dynasty is not subtle right now.",
+                    "The standings tell the story. <strong>{best_user}</strong>'s <strong>{best_team}</strong> is playing its best football at <strong>{best_record}</strong>. {worst_user}'s {worst_team} at {worst_record} needs a different answer.",
+                    "Two different seasons happening at once. <strong>{best_team}</strong> is {best_record} and rolling. {worst_team} is {worst_record} and looking for answers. This dynasty has real separation right now.",
+                    "<strong>{best_record}</strong> for <strong>{best_user}</strong>. {worst_record} for {worst_user}. The difference between winning a dynasty and rebuilding one is showing up in the record column.",
                 ]
             },
             'user_h2h': {
@@ -13107,6 +13165,10 @@ with tabs[0]:
                 'bodies': [
                     "Circle it: <strong>{vis_user}</strong> ({visitor}) vs <strong>{home_user}</strong> ({home}) is coming in Week <strong>{week}</strong>. Somebody's season is about to take a direct hit.",
                     "The next must-watch game is set. <strong>{visitor}</strong> and <strong>{home}</strong> are about to collide in Week <strong>{week}</strong>.",
+                    "Week <strong>{week}</strong> is going to matter. <strong>{vis_user}</strong> bringing <strong>{visitor}</strong> into <strong>{home_user}</strong>'s house. One of these programs is walking out with a different season.",
+                    "This one has implications. <strong>{visitor}</strong> vs <strong>{home}</strong> in Week <strong>{week}</strong> — <strong>{vis_user}</strong> and <strong>{home_user}</strong> both need this result.",
+                    "The schedule set up a good one. <strong>{vis_user}</strong> ({visitor}) at <strong>{home_user}</strong> ({home}) in Week <strong>{week}</strong>. Dynasty bragging rights on the line.",
+                    "Mark Week <strong>{week}</strong> on the calendar. <strong>{visitor}</strong> versus <strong>{home}</strong> is the matchup this dynasty has been waiting for — <strong>{vis_user}</strong> against <strong>{home_user}</strong> with real stakes.",
                 ]
             },
             'dynasty_history': {
@@ -13115,6 +13177,10 @@ with tabs[0]:
                 'bodies': [
                     "Did you know? <strong>{team}</strong> won the first tracked national title back in <strong>{year}</strong>. This world has crowned <strong>{total_titles}</strong> champions since then.",
                     "Throwback time: the first banner in this dynasty went up in <strong>{year}</strong>. Since then we've seen <strong>{total_titles}</strong> title seasons across <strong>{unique_champs}</strong> programs.",
+                    "The dynasty started in <strong>{year}</strong> with <strong>{team}</strong> cutting the nets. <strong>{total_titles}</strong> titles have been claimed since — across <strong>{unique_champs}</strong> different programs.",
+                    "This world was built on a foundation. <strong>{team}</strong> won the first title in <strong>{year}</strong> and since then <strong>{total_titles}</strong> championships have been handed out to <strong>{unique_champs}</strong> different programs.",
+                    "<strong>{total_titles}</strong> national championships. <strong>{unique_champs}</strong> programs. It started with <strong>{team}</strong> in <strong>{year}</strong> and this dynasty has not stopped producing stories since.",
+                    "Every dynasty has a beginning. <strong>{team}</strong> wrote the first chapter in <strong>{year}</strong>. <strong>{total_titles}</strong> titles later, across <strong>{unique_champs}</strong> programs, the story is still being written.",
                 ]
             },
             'dynasty_gap': {
@@ -13123,6 +13189,10 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) has the biggest gap between model strength and ranking right now. The computers think this team is better than the poll does.",
                     "Nobody has a wider perception gap than <strong>{team}</strong>. <strong>{user}</strong> looks under-seeded compared to the model.",
+                    "The voters and the model are not agreeing on <strong>{team}</strong> right now. <strong>{user}</strong> is ranked lower than the algorithm says they should be — and gaps like this have a way of closing violently.",
+                    "Something does not add up with <strong>{team}</strong>'s ranking. The model says they are better than the poll shows. <strong>{user}</strong> is either undervalued or about to be exposed — the next few weeks decide which.",
+                    "This is the most mis-seeded team in the dynasty right now. <strong>{team}</strong> has the production profile of a program ranked much higher. <strong>{user}</strong> is flying under the radar — intentionally or not.",
+                    "The committee is underselling <strong>{team}</strong> and the model has receipts. <strong>{user}</strong> has built something the poll has not fully accounted for yet.",
                 ]
             },
         }
@@ -13130,12 +13200,12 @@ with tabs[0]:
         def _headline_team_identity(_team_name):
             _team_name = str(_team_name).strip()
             _identities = {
-                'Florida State': {'label': 'empire pressure', 'style': 'the standard', 'intro': 'The pressure around {team} never really leaves.'},
-                'Texas Tech': {'label': 'firepower swagger', 'style': "the league's loudest offense", 'intro': '{team} keeps turning Saturdays into track meets.'},
-                'Bowling Green': {'label': 'blue-collar bully', 'style': 'the giant-killer', 'intro': '{team} keeps showing up like a heavyweight in a mid-major body.'},
-                'USF': {'label': 'speed chaos', 'style': 'a speed trap', 'intro': '{team} looks built to stress every angle of the field.'},
-                'Florida': {'label': 'volatility pressure', 'style': 'high ceiling, hot seat', 'intro': '{team} feels one heater away from being terrifying and one stumble away from noise.'},
-                'San Jose State': {'label': 'builder spoiler', 'style': 'the underdog menace', 'intro': '{team} keeps living in the space between breakthrough and spoiler.'},
+                'Florida State': {'label': 'established power', 'style': 'a program that expects to win', 'intro': 'The standard at {team} is a championship or a disappointment. There is no middle ground.'},
+                'Texas Tech': {'label': 'offensive threat', 'style': 'a team that can score on anyone', 'intro': '{team} has the firepower to beat anyone in this dynasty on any given Saturday.'},
+                'Bowling Green': {'label': 'SEC disruptor', 'style': 'a program punching at the top of the food chain', 'intro': '{team} has carved out a legitimate identity in the SEC and the rest of the conference knows it.'},
+                'USF': {'label': 'speed-first program', 'style': 'the fastest team on the field', 'intro': '{team} is built to make the game uncomfortable for anyone who lines up across from them.'},
+                'Florida': {'label': 'blue blood pressure', 'style': 'a sleeping giant with a short fuse', 'intro': 'The expectation at {team} never goes away — it just gets louder when results do not match the roster.'},
+                'San Jose State': {'label': 'rising program', 'style': 'a team that keeps finding ways to win', 'intro': '{team} has built something real and the rest of the dynasty is starting to take notice.'},
             }
             return _identities.get(_team_name, {'label': 'national story', 'style': 'a live storyline', 'intro': '{team} has become one of the live stories in the dynasty.'})
 
@@ -13252,7 +13322,7 @@ with tabs[0]:
                 'team': str(team or _payload.get('team', '')).strip(),
                 'user': str(user or _payload.get('user', '')).strip(),
                 'player': str(player or _payload.get('player', '')).strip(),
-                'week': _hh_safe_int(week, 0),
+                'week': _hh_safe_int(week if week is not None else CURRENT_WEEK_NUMBER, CURRENT_WEEK_NUMBER),
                 'score': float(score),
                 'uniqueness_key': str(uniqueness_key or f"{_event_type}:{team}:{player}:{week}").strip(),
                 'emoji': _rendered['emoji'],
@@ -21486,7 +21556,7 @@ with tabs[5]:
 
     if not team_incoming.empty and 'Type' in team_incoming.columns:
         hs_individual = len(
-            team_incoming[team_incoming['Type'].astype(str).str.upper() == 'HS']
+            team_incoming[team_incoming['Type'].astype(str).str.upper() .isin(['HS','JUCO'])]
         )
         tp_individual = len(
             team_incoming[team_incoming['Type'].astype(str).str.upper() == 'TRANSFER']
@@ -22008,7 +22078,7 @@ with tabs[5]:
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     with col_m1:
-        st.markdown(get_stat_card(f"{selected_year} HS Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
+        st.markdown(get_stat_card(f"{selected_year} HS & JUCO Recruits", str(hs_recruits), sel_color, delta=f"{hs_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m2:
         st.markdown(get_stat_card(f"{selected_year} Transfers In", str(transfers_in), sel_color, delta=f"{tp_individual} named", delta_color="#9CA3AF"), unsafe_allow_html=True)
     with col_m3:
@@ -22109,9 +22179,9 @@ with tabs[5]:
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # --- 10. Incoming Players State Origin Map ---
+    # --- 10. Incoming Recruiting Pipeline — State Origins ---
     st.markdown(get_mini_card("📍 Incoming Recruiting Pipeline — State Origins", sel_color), unsafe_allow_html=True)
-    st.caption("Where are the incoming players coming from? Each dot = one recruit. HS and Transfer portal combined.")
+    st.caption("Where are the incoming players coming from? HS, JUCO, and Transfer portal combined.")
 
     try:
         _map_df = team_incoming.copy() if not team_incoming.empty else pd.DataFrame()
@@ -22122,83 +22192,52 @@ with tabs[5]:
             _state_counts = _state_counts[_state_counts['State'].str.len() == 2].copy()
 
             if not _state_counts.empty:
-                import plotly.express as px
+                _max_count = int(_state_counts['Count'].max()) or 1
+                _total     = int(_state_counts['Count'].sum())
+                _st_uniq   = len(_state_counts)
 
-                # Convert hex team color to rgba for valid plotly colorscale entries
-                def _hex_to_rgba(hex_color, alpha=1.0):
-                    try:
-                        h = hex_color.lstrip('#')
-                        if len(h) == 6:
-                            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-                            return f'rgba({r},{g},{b},{alpha})'
-                    except Exception:
-                        pass
-                    return f'rgba(96,165,250,{alpha})'
-
-                _team_rgba_full = _hex_to_rgba(sel_color, 1.0)
-                _team_rgba_mid  = _hex_to_rgba(sel_color, 0.5)
-
-                _state_fig = px.choropleth(
-                    _state_counts,
-                    locations='State',
-                    locationmode='USA-states',
-                    color='Count',
-                    scope='usa',
-                    color_continuous_scale=[
-                        [0.0,  'rgb(15,23,42)'],
-                        [0.01, 'rgb(30,58,95)'],
-                        [0.3,  _team_rgba_mid],
-                        [1.0,  _team_rgba_full],
-                    ],
-                    labels={'Count': 'Recruits'},
-                    title=f"{selected_team} — {incoming_year} Incoming Class Origins"
-                )
-                _state_fig.update_layout(
-                    geo=dict(
-                        bgcolor='rgba(0,0,0,0)',
-                        lakecolor='rgba(0,0,0,0)',
-                        landcolor='#0f172a',
-                        subunitcolor='#1e293b',
-                        showlakes=True,
-                    ),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#e2e8f0'),
-                    coloraxis_colorbar=dict(
-                        title='Recruits',
-                        tickfont=dict(color='#94a3b8'),
-                        titlefont=dict(color='#94a3b8'),
-                    ),
-                    title_font=dict(color='#e2e8f0', size=14),
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    height=380,
-                )
-                st.plotly_chart(_state_fig, use_container_width=True, config={'displayModeBar': False})
-
-                # State breakdown chips below map
-                _top_states = _state_counts.head(8)
-                _chip_html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;'>"
-                for _, _sr in _top_states.iterrows():
-                    _chip_html += (
-                        f"<span style='background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);"
-                        f"border-radius:999px;padding:4px 12px;font-size:0.78rem;color:#e2e8f0;font-weight:700;'>"
-                        f"{html.escape(str(_sr['State']))} <span style='color:{sel_color};'>{int(_sr['Count'])}</span></span>"
-                    )
-                _chip_html += "</div>"
-                st.markdown(_chip_html, unsafe_allow_html=True)
-
-                # Type breakdown
+                # Type breakdown counts
                 if 'Type' in _map_df.columns:
-                    _hs_count  = int((_map_df['Type'].astype(str).str.upper() == 'HS').sum())
-                    _tp_count  = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
-                    _st_uniq   = _state_counts['State'].nunique()
-                    st.caption(f"📊 {len(_map_df)} total incoming · {_hs_count} HS · {_tp_count} transfers · {_st_uniq} states represented")
+                    _hs_juco_count = int((_map_df['Type'].astype(str).str.upper().isin(['HS','JUCO'])).sum())
+                    _tp_count      = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
+                else:
+                    _hs_juco_count = _total
+                    _tp_count      = 0
+
+                # Parse team color for bar fill
+                try:
+                    _hx = sel_color.lstrip('#')
+                    _cr, _cg, _cb = int(_hx[0:2],16), int(_hx[2:4],16), int(_hx[4:6],16)
+                    _bar_color = f'rgba({_cr},{_cg},{_cb},0.85)'
+                    _bar_bg    = f'rgba({_cr},{_cg},{_cb},0.12)'
+                except Exception:
+                    _bar_color = 'rgba(96,165,250,0.85)'
+                    _bar_bg    = 'rgba(96,165,250,0.12)'
+
+                # Summary stat row
+                st.markdown(
+                    f"<div style='display:flex;gap:24px;margin-bottom:14px;'>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#e2e8f0;'>{_total}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>Total Incoming</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:{sel_color};'>{_st_uniq}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>States</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#60a5fa;'>{_hs_juco_count}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>HS / JUCO</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#a78bfa;'>{_tp_count}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>Transfers</div></div>"                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+                # Horizontal bar chart — all states with at least 1 recruit
+                _bars_html = "<div style='display:flex;flex-direction:column;gap:5px;margin-bottom:12px;'>"
+                for _, _sr in _state_counts.iterrows():
+                    _st   = html.escape(str(_sr['State']))
+                    _cnt  = int(_sr['Count'])
+                    _pct  = _cnt / _max_count * 100
+                    _bars_html += (
+                        f"<div style='display:flex;align-items:center;gap:8px;'>"                        f"<div style='width:28px;text-align:right;font-size:0.75rem;font-weight:800;color:#94a3b8;flex-shrink:0;'>{_st}</div>"                        f"<div style='flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:18px;overflow:hidden;'>"                        f"<div style='width:{_pct:.1f}%;background:{_bar_color};height:100%;border-radius:3px;transition:width 0.3s;'></div></div>"                        f"<div style='width:18px;font-size:0.75rem;font-weight:800;color:{sel_color};flex-shrink:0;'>{_cnt}</div>"                        f"</div>"
+                    )
+                _bars_html += "</div>"
+                st.markdown(_bars_html, unsafe_allow_html=True)
+
             else:
                 st.info("No state data available for incoming players.")
         else:
             st.info("No incoming player data with State column found for this team/year.")
     except Exception as _map_err:
-        st.caption(f"State map unavailable: {_map_err}")
+        st.caption(f"Pipeline state breakdown unavailable: {_map_err}")
 
     # --- ROSTER MATCHUP ---
     with tabs[9]:
