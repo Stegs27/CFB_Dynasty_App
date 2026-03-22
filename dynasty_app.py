@@ -7603,6 +7603,177 @@ CONF_STRENGTH = {
 def conf_bonus(conference):
     return CONF_STRENGTH.get(str(conference).strip(), 0.0)
 
+def build_national_odds(year=None):
+    """
+    Compute national championship and CFP Make % odds across ALL teams with
+    ratings data — not just the 6 user teams.
+
+    Sources (all optional/graceful):
+      team_ratings.csv       → OVR, OFF, DEF for up to 42 teams
+      cfp_rankings_history   → current CFP rank per team
+      CPUscores_MASTER.csv   → W/L record this season
+      injury_bulletin.csv    → live injury penalties (replaces hardcoded dict)
+      conf_standings_{year}  → MOV for quality bonus
+
+    Returns dict: team_name → {'natty_pct': float, 'cfp_pct': float, 'raw': float}
+    """
+    if year is None:
+        year = CURRENT_YEAR
+
+    # ── 1. Load base ratings ────────────────────────────────────────────────
+    ratings = load_team_ratings(year=year)   # team → {OVR, OFF, DEF}
+    if not ratings:
+        return {}
+
+    # ── 2. CFP rank lookup ──────────────────────────────────────────────────
+    cfp_rank_map = {}   # team → rank int
+    try:
+        _rh = pd.read_csv('cfp_rankings_history.csv')
+        _rh['YEAR'] = pd.to_numeric(_rh['YEAR'], errors='coerce')
+        _rh['WEEK'] = pd.to_numeric(_rh['WEEK'], errors='coerce')
+        _rh['RANK'] = pd.to_numeric(_rh['RANK'], errors='coerce')
+        _cy = _rh[_rh['YEAR'] == int(year)]
+        if not _cy.empty:
+            _lw = _cy['WEEK'].max()
+            _snap = _cy[_cy['WEEK'] == _lw]
+            for _, _r in _snap.iterrows():
+                _rk = int(_r['RANK']) if pd.notna(_r['RANK']) else 99
+                if _rk > 0:
+                    cfp_rank_map[str(_r['TEAM']).strip()] = _rk
+    except Exception:
+        pass
+
+    # ── 3. W/L record this season ───────────────────────────────────────────
+    wl_map = {}   # team → (wins, losses)
+    try:
+        _cpu = pd.read_csv('CPUscores_MASTER.csv')
+        _cpu['YEAR'] = pd.to_numeric(_cpu.get('YEAR', _cpu.get('Year', 0)), errors='coerce')
+        _cpu = _cpu[_cpu['YEAR'].fillna(-1).astype(int) == int(year)].copy()
+        _vp = pd.to_numeric(_cpu.get('V_Pts', _cpu.get('Vis Score', None)), errors='coerce')
+        _hp = pd.to_numeric(_cpu.get('H_Pts', _cpu.get('Home Score', None)), errors='coerce')
+        _cpu = _cpu.assign(_VP=_vp, _HP=_hp).dropna(subset=['_VP','_HP'])
+        for _t in pd.concat([_cpu['Visitor'], _cpu['Home']]).dropna().unique():
+            _t = str(_t).strip()
+            if not _t: continue
+            _hg = _cpu[_cpu['Home'] == _t]
+            _vg = _cpu[_cpu['Visitor'] == _t]
+            _w  = int(((_hg['_HP'] > _hg['_VP']).sum()) + ((_vg['_VP'] > _vg['_HP']).sum()))
+            _l  = int(len(_hg) + len(_vg) - _w)
+            wl_map[_t] = (_w, _l)
+    except Exception:
+        pass
+
+    # ── 4. Live injury penalty map ──────────────────────────────────────────
+    inj_penalty_map = {}   # team → penalty_pts
+    try:
+        _inj = pd.read_csv('injury_bulletin.csv')
+        _inj['Year']     = pd.to_numeric(_inj.get('Year'), errors='coerce')
+        _inj['WeeksOut'] = pd.to_numeric(_inj.get('WeeksOut'), errors='coerce').fillna(0)
+        _inj['OVR']      = pd.to_numeric(_inj.get('OVR'), errors='coerce').fillna(75)
+        _inj = _inj[(_inj['Year'].fillna(-1).astype(int) == int(year)) &
+                    (_inj['WeeksOut'] > 0)].copy()
+        for _, _ir in _inj.iterrows():
+            _tm  = str(_ir.get('Team', '')).strip()
+            _pos = str(_ir.get('Pos', _ir.get('Position', ''))).strip().upper()
+            _ovr = float(_ir.get('OVR', 75))
+            _wks = float(_ir.get('WeeksOut', 0))
+            if not _tm or _wks <= 0:
+                continue
+            _omult = max(0.1, min(1.0, (_ovr - 75) / 20.0))
+            if _pos in ('QB',):
+                _base = 32.0 if _wks >= 8 else (16.0 if _wks >= 3 else 7.0)
+            elif _pos in ('WR', 'HB', 'TE'):
+                _base = 12.0 if _wks >= 8 else (7.0 if _wks >= 3 else 2.5)
+            elif _pos in ('LT','RT','LG','RG','C','MIKE','LEDG','REDG'):
+                _base = 8.0 if _wks >= 8 else (4.0 if _wks >= 3 else 1.5)
+            else:
+                _base = 4.0 if _wks >= 8 else (2.0 if _wks >= 3 else 0.8)
+            inj_penalty_map[_tm] = inj_penalty_map.get(_tm, 0.0) + _base * _omult
+    except Exception:
+        pass
+
+    # ── 5. MOV from conf_standings ──────────────────────────────────────────
+    perf_map = load_team_performance(year=year)
+
+    # ── 6. Score every team ─────────────────────────────────────────────────
+    rows = []
+    for team, r in ratings.items():
+        try:
+            ovr  = float(r.get('OVR') or r.get('OVERALL') or 75)
+            off  = float(r.get('OFF') or r.get('OFFENSE') or 75)
+            dfs  = float(r.get('DEF') or r.get('DEFENSE') or 75)
+            rank = cfp_rank_map.get(team, None)
+            wins, losses = wl_map.get(team, (0, 0))
+            gp   = wins + losses
+            win_pct = wins / gp if gp > 0 else 0.5
+            mov  = perf_map.get(team, {}).get('MOV', 0.0) or 0.0
+            inj  = inj_penalty_map.get(team, 0.0)
+
+            # Raw score — OVR/OFF/DEF anchored, rank + record as live modifiers
+            raw = (
+                ovr * 3.5
+                + off * 0.7
+                + dfs * 0.7
+                + cfp_rank_bonus(rank) * 1.2      # 0 if unranked, up to ~60 for #1
+                + win_pct * 35.0                  # 0–35 pts based on win rate
+                + mov * 0.8                        # quality wins bonus
+                - losses * 8.0                    # each loss hurts — not just 2nd+
+                - (losses ** 1.6) * 3.5           # accelerating penalty for multiple losses
+                - inj                              # live injury deduction
+            )
+
+            # Hard floor cuts for elimination-level situations
+            if losses >= 3:  raw -= 40
+            if ovr < 82:     raw -= 20
+            if rank is None and losses >= 2: raw -= 15  # unranked + 2 losses = out
+
+            rows.append({'team': team, 'raw': raw, 'rank': rank,
+                         'wins': wins, 'losses': losses, 'ovr': ovr})
+        except Exception:
+            continue
+
+    if not rows:
+        return {}
+
+    df_nat = pd.DataFrame(rows)
+
+    # ── 7. Natty odds — softmax over ALL teams (true national field) ────────
+    # Lower temperature = more separation between tiers
+    _nat_shift = df_nat['raw'] - df_nat['raw'].max()
+    _nat_temp  = max(12.0, df_nat['raw'].std() * 0.85)
+    _nat_exp   = np.exp(_nat_shift / _nat_temp)
+    df_nat['natty_pct'] = (_nat_exp / _nat_exp.sum() * 100).round(2)
+
+    # ── 8. CFP Make % — top-12 probability proxy ───────────────────────────
+    # Rank teams by raw score. Teams in top 12 get base 60–95%.
+    # Teams 13–25 get 10–45%. Below 25 get <10%.
+    df_nat = df_nat.sort_values('raw', ascending=False).reset_index(drop=True)
+    df_nat['score_rank'] = df_nat.index + 1
+    n = len(df_nat)
+
+    def _cfp_pct(row):
+        sr = row['score_rank']
+        # Use CFP rank if available — committee has already voted
+        actual_rank = row.get('rank')
+        effective_rank = int(actual_rank) if actual_rank else sr
+        if effective_rank <= 4:   return min(97.0, 88 + (4 - effective_rank) * 2.5)
+        if effective_rank <= 12:  return min(88.0, 72 + (12 - effective_rank) * 2.0)
+        if effective_rank <= 16:  return min(55.0, 42 + (16 - effective_rank) * 3.0)
+        if effective_rank <= 25:  return min(35.0, 22 + (25 - effective_rank) * 1.4)
+        return max(2.0, 12 - (effective_rank - 25) * 0.4)
+
+    df_nat['cfp_pct'] = df_nat.apply(_cfp_pct, axis=1).round(1)
+
+    return {
+        row['team']: {
+            'natty_pct': row['natty_pct'],
+            'cfp_pct':   row['cfp_pct'],
+            'raw':       round(row['raw'], 1),
+        }
+        for _, row in df_nat.iterrows()
+    }
+
+
 def build_2041_model_table(r_2041, stats_df, rec_df):
     df = r_2041.copy()
 
@@ -7773,57 +7944,41 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             raw -= 6
         if row['Team Speed (90+ Speed Guys)'] < 10:
             raw -= 6
-        if row['Current Record Losses'] >= 2:
-            raw -= 3.5 * (row['Current Record Losses'] - 1)
+        if row['Current Record Losses'] >= 1:
+            _l = row['Current Record Losses']
+            raw -= _l * 8.0 + (_l ** 1.6) * 3.5   # sharper: 1 loss ≈ -11, 2 ≈ -27, 3 ≈ -48
 
-        # ── INJURY PENALTY ──────────────────────────────────────────────────────
-        # Injuries that affect Bowl Week 1 eligibility (weeks remaining > 0 at bowl time).
-        # Week penalties are relative to current bowl round.
-        # QB down = brutal. Skill/OL = moderate. DL = small.
-        INJURY_IMPACT = {
-            # (team_name): [(pos, ovr, weeks_remaining, status)]
-            'San Jose State': [
-                ('QB',   85, 27, 'Injured'),   # Shorter — out all bowls
-                ('LT',   86,  4, 'Injured'),   # Caplan — out Bowl 1
-            ],
-            'Texas Tech': [
-                ('LT',   82,  2, 'Injured'),   # Cota — back for Bowl 2
-            ],
-            'USF': [
-                ('RG',   76,  4, 'Injured'),   # Christmas — out Bowl 1
-            ],
-            'Bowling Green': [
-                ('DT',   84, 24, 'Injured'),   # Franco — out all bowls
-            ],
-            'Florida': [
-                ('LEDG', 80,  1, 'Injured'),   # Ivie — likely back Bowl 1
-                ('MIKE', 87, 14, 'Injured'),   # Casey — out Bowl 1
-            ],
-            'Florida State': [
-                ('QB',   80,  3, 'Injured'),   # Winterswyk — back Bowl 1
-                ('WR',   90, 20, 'Injured'),   # Fe'esago — out all bowls
-            ],
-        }
-
-        team_name = row.get('TEAM', '')
-        injuries  = INJURY_IMPACT.get(team_name, [])
-        inj_penalty = 0.0
-        for pos, ovr, weeks, status in injuries:
-            if status != 'Injured' or weeks <= 0:
-                continue
-            ovr_mult = (ovr - 75) / 20.0  # scale: 75 OVR=0.0, 95 OVR=1.0
-            ovr_mult = max(0.1, min(1.0, ovr_mult))
-            if pos in ('QB',):
-                base = 38.0 if weeks >= 8 else (18.0 if weeks >= 3 else 8.0)
-            elif pos in ('WR', 'HB', 'TE'):
-                base = 14.0 if weeks >= 8 else (8.0 if weeks >= 3 else 3.0)
-            elif pos in ('LT', 'RT', 'LG', 'RG', 'C', 'MIKE', 'LEDG', 'REDG'):
-                base = 10.0 if weeks >= 8 else (5.0 if weeks >= 3 else 2.0)
-            else:  # DT, DE, CB, S, etc.
-                base = 6.0 if weeks >= 8 else (3.0 if weeks >= 3 else 1.0)
-            inj_penalty += base * ovr_mult
-
-        raw -= inj_penalty
+        # ── INJURY PENALTY — reads live from injury_bulletin.csv ────────────
+        # Replaces old hardcoded INJURY_IMPACT dict which was stale bowl-week data.
+        try:
+            _inj_live_model = pd.read_csv('injury_bulletin.csv')
+            _inj_live_model['Year']     = pd.to_numeric(_inj_live_model.get('Year'), errors='coerce')
+            _inj_live_model['WeeksOut'] = pd.to_numeric(_inj_live_model.get('WeeksOut'), errors='coerce').fillna(0)
+            _inj_live_model['OVR']      = pd.to_numeric(_inj_live_model.get('OVR'), errors='coerce').fillna(75)
+            _inj_live_model = _inj_live_model[
+                (_inj_live_model['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
+                (_inj_live_model['WeeksOut'] > 0) &
+                (_inj_live_model['Team'].astype(str).str.strip() == str(row.get('TEAM','')).strip())
+            ].copy()
+            inj_penalty = 0.0
+            for _, _ir in _inj_live_model.iterrows():
+                _pos = str(_ir.get('Pos', _ir.get('Position', ''))).strip().upper()
+                _ovr = float(_ir.get('OVR', 75) or 75)
+                _wks = float(_ir.get('WeeksOut', 0) or 0)
+                if _wks <= 0: continue
+                _omult = max(0.1, min(1.0, (_ovr - 75) / 20.0))
+                if _pos in ('QB',):
+                    _base = 32.0 if _wks >= 8 else (16.0 if _wks >= 3 else 7.0)
+                elif _pos in ('WR','HB','TE'):
+                    _base = 12.0 if _wks >= 8 else (7.0 if _wks >= 3 else 2.5)
+                elif _pos in ('LT','RT','LG','RG','C','MIKE','LEDG','REDG'):
+                    _base = 8.0 if _wks >= 8 else (4.0 if _wks >= 3 else 1.5)
+                else:
+                    _base = 4.0 if _wks >= 8 else (2.0 if _wks >= 3 else 0.8)
+                inj_penalty += _base * _omult
+            raw -= inj_penalty
+        except Exception:
+            pass
         return raw
 
     df['Contender Raw'] = df.apply(raw_contender_score, axis=1)
@@ -8494,15 +8649,24 @@ def load_team_performance(year=None):
         result = {}
         for _, row in cs.iterrows():
             team = str(row['TEAM']).strip()
-            pf   = float(row['PF'])   if pd.notna(row.get('PF'))   else 0.0
-            pa   = float(row['PA'])   if pd.notna(row.get('PA'))   else 0.0
-            w    = int(row['W'])      if pd.notna(row.get('W'))    else 0
-            l    = int(row['L'])      if pd.notna(row.get('L'))    else 0
-            diff = float(row['DIFF']) if pd.notna(row.get('DIFF')) else (pf - pa)
-            mov  = float(row['MOV'])  if pd.notna(row.get('MOV'))  else (diff / max(w + l, 1))
-            stk  = _parse_stk(row.get('STK', 0))
-            hw, hl = _parse_wl(row.get('HOME', '0-0'))
-            aw, al = _parse_wl(row.get('AWAY', '0-0'))
+            def _fcol(*names):
+                for n in names:
+                    if n in row.index and pd.notna(row[n]):
+                        try: return float(row[n])
+                        except: pass
+                return None
+            def _icol(*names):
+                v = _fcol(*names)
+                return int(v) if v is not None else 0
+            pf   = _fcol('PF','PointsFor','Points For','PTS_FOR') or 0.0
+            pa   = _fcol('PA','PointsAgainst','Points Against','PTS_AGAINST') or 0.0
+            w    = _icol('W','WINS','Wins')
+            l    = _icol('L','LOSSES','Losses')
+            diff = _fcol('DIFF','POINT_DIFF','Diff') or (pf - pa)
+            mov  = _fcol('MOV','Margin','AVG_MOV') or (diff / max(w + l, 1))
+            stk  = _parse_stk(row.get('STK', row.get('STREAK', row.get('Streak', 0))))
+            hw, hl = _parse_wl(row.get('HOME', row.get('Home', '0-0')))
+            aw, al = _parse_wl(row.get('AWAY', row.get('Away', '0-0')))
             result[team] = {
                 'PF': pf, 'PA': pa, 'DIFF': diff, 'MOV': mov,
                 'HOME_W': hw, 'HOME_L': hl, 'AWAY_W': aw, 'AWAY_L': al,
@@ -10537,6 +10701,42 @@ if data:
                 model_2041['CFP Make %'] = model_2041['CFP Make %'].fillna(model_2041['CFP Odds'])
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
+
+    # ── Merge national odds (42-team field) into model_2041 ──────────────────
+    # Replaces 6-team softmax Natty Odds and normalized CFP Odds with true
+    # national percentages across the full rated field — so wins/losses/injuries
+    # move the needle visibly and odds are calibrated against real competition.
+    try:
+        _nat_odds_model = build_national_odds(year=CURRENT_YEAR)
+        if _nat_odds_model:
+            # Build lookup rows aligned to model_2041 TEAM column
+            _nat_rows = []
+            for _, _mr in model_2041.iterrows():
+                _mt = str(_mr.get('TEAM', '')).strip()
+                _nd = _nat_odds_model.get(_mt)
+                if _nd is None:
+                    # fuzzy match
+                    _mtl = _mt.lower()
+                    for _nk, _nv in _nat_odds_model.items():
+                        if _nk.lower() == _mtl or _nk.lower().replace('&','and') == _mtl.replace('&','and'):
+                            _nd = _nv
+                            break
+                _nat_rows.append({
+                    'TEAM': _mt,
+                    'Natty Odds':       _nd['natty_pct'] if _nd else _mr.get('Natty Odds', 0),
+                    'CFP Odds':         _nd['cfp_pct']   if _nd else _mr.get('CFP Odds', 20),
+                    'Preseason Natty Odds': _nd['natty_pct'] if _nd else _mr.get('Preseason Natty Odds', 0),
+                    'Preseason CFP %':  _nd['cfp_pct']   if _nd else _mr.get('Preseason CFP %', 20),
+                })
+            _nat_df = pd.DataFrame(_nat_rows)
+            # Drop old softmax columns and replace with national odds
+            _drop_nat = [c for c in ['Natty Odds','CFP Odds','Preseason Natty Odds','Preseason CFP %']
+                         if c in model_2041.columns]
+            model_2041 = model_2041.drop(columns=_drop_nat, errors='ignore').merge(
+                _nat_df, on='TEAM', how='left'
+            )
+    except Exception:
+        pass
 
     # ── USER_TEAMS: auto-derived from team_conferences.csv ───────────────
     # Falls back to hardcoded dict only if CSV is missing or empty.
@@ -12889,8 +13089,8 @@ with tabs[0]:
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
                 f"{_pi_line}"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 Pre: <strong style='color:white;'>{round(float(natty),1)}%</strong> | Live: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong></span><br>"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>CFP Pre: <strong style='color:white;'>{round(float(cfp_pct),1)}%</strong> | Live: <strong style='color:#3b82f6;'>{round(float(live_cfp),1)}%</strong></span>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 Natty: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong> &nbsp;|&nbsp; CFP: <strong style='color:#60a5fa;'>{round(float(live_cfp),1)}%</strong></span><br>"
+                f"<span style='font-size:0.72rem; color:#475569; font-style:italic;'>vs full 42-team rated field</span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
                 f"</div></div>"
             )
@@ -14587,7 +14787,22 @@ with tabs[0]:
                     _gs_pm_cy = _gs_pm[_gs_pm[_pm_yr_c] == CURRENT_YEAR].copy() if _pm_yr_c else _gs_pm.copy()
 
                     def _pmq(row, prefix, q):
-                        for c in [f'Q{q}_{prefix}',f'{prefix}_Q{q}',f'Q{q}{prefix}',f'{prefix}Q{q}']:
+                        for c in [f'Q{q}_{prefix}',f'{prefix}_Q{q}',f'Q{q}{prefix}',f'{prefix}Q{q}',
+                                  f'{prefix.lower()}q{q}',f'q{q}_{prefix.lower()}']:
+                            if c in row.index:
+                                v = pd.to_numeric(row[c], errors='coerce')
+                                if pd.notna(v): return int(v)
+                        return None
+
+                    def _pm_final(row, candidates):
+                        for c in candidates:
+                            if c in row.index:
+                                v = pd.to_numeric(row[c], errors='coerce')
+                                if pd.notna(v): return int(v)
+                        return None
+
+                    def _pm_stat(row, candidates):
+                        for c in candidates:
                             if c in row.index:
                                 v = pd.to_numeric(row[c], errors='coerce')
                                 if pd.notna(v): return int(v)
@@ -14607,44 +14822,70 @@ with tabs[0]:
                             _pm_vq3 = _pmq(_pmr,'Visitor',3) or _pmq(_pmr,'Away',3)
                             _pm_vq4 = _pmq(_pmr,'Visitor',4) or _pmq(_pmr,'Away',4)
 
-                            _pm_h_half = (_pm_hq1 or 0) + (_pm_hq2 or 0) if (_pm_hq1 or _pm_hq2) else None
-                            _pm_v_half = (_pm_vq1 or 0) + (_pm_vq2 or 0) if (_pm_vq1 or _pm_vq2) else None
-                            _pm_hf = sum(x for x in [_pm_hq1,_pm_hq2,_pm_hq3,_pm_hq4] if x is not None) or None
-                            _pm_vf = sum(x for x in [_pm_vq1,_pm_vq2,_pm_vq3,_pm_vq4] if x is not None) or None
+                            _pm_h_half = ((_pm_hq1 or 0) + (_pm_hq2 or 0)) if (_pm_hq1 is not None or _pm_hq2 is not None) else None
+                            _pm_v_half = ((_pm_vq1 or 0) + (_pm_vq2 or 0)) if (_pm_vq1 is not None or _pm_vq2 is not None) else None
 
-                            # Derive peak moment narrative from actual Q data
-                            if _pm_hf is not None and _pm_vf is not None:
-                                _pm_margin = abs(_pm_hf - _pm_vf)
-                                _pm_winner_half = _pm_h_half if _pm_hf > _pm_vf else _pm_v_half
-                                _pm_loser_half  = _pm_v_half if _pm_hf > _pm_vf else _pm_h_half
-                                _pm_hq3_diff = (_pm_hq3 or 0) - (_pm_vq3 or 0) if _pm_hq3 is not None else None
-                                _pm_hq4_diff = (_pm_hq4 or 0) - (_pm_vq4 or 0) if _pm_hq4 is not None else None
+                            # ── Try explicit final score cols first (works even with no Q data) ──
+                            _pm_hf = _pm_final(_pmr, ['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome','HomeFinal','Home_Final'])
+                            _pm_vf = _pm_final(_pmr, ['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore','VisitorFinal','Visitor_Final','Away_Final'])
 
-                                # Halftime comeback
-                                if (_pm_winner_half is not None and _pm_loser_half is not None
-                                        and _pm_loser_half > _pm_winner_half + 3):
-                                    _deficit = _pm_loser_half - _pm_winner_half
-                                    _pm_peak = f"Down {_deficit} at half, won it in Q3–Q4"
-                                # Overtime
-                                elif _pmq(_pmr,'Home','OT') is not None or _pmq(_pmr,'Visitor','OT') is not None or _pmq(_pmr,'Away','OT') is not None:
-                                    _pm_peak = "Overtime — neither side would quit"
-                                # Q4 won it
-                                elif _pm_hq4_diff is not None and abs(_pm_hq4_diff) >= (_pm_margin - 3) and _pm_margin <= 7:
-                                    _pm_peak = "Q4 decided it — final drive"
-                                # Big Q3 swing
-                                elif _pm_hq3_diff is not None and abs(_pm_hq3_diff) >= 14:
-                                    _pm_peak = "Q3 blowup — game flipped in the third"
-                                # Blowout — first half
-                                elif _pm_margin >= 28 and _pm_h_half is not None and abs((_pm_h_half or 0) - (_pm_v_half or 0)) >= 14:
-                                    _pm_peak = "Over by halftime — dominant from the start"
-                                # High scoring
-                                elif (_pm_hf + _pm_vf) >= 90:
-                                    _pm_peak = f"{_pm_hf + _pm_vf} total pts — offensive shootout"
+                            # Fall back to quarter sum if no explicit final
+                            if _pm_hf is None and any(x is not None for x in [_pm_hq1,_pm_hq2,_pm_hq3,_pm_hq4]):
+                                _pm_hf = sum(x for x in [_pm_hq1,_pm_hq2,_pm_hq3,_pm_hq4] if x is not None)
+                            if _pm_vf is None and any(x is not None for x in [_pm_vq1,_pm_vq2,_pm_vq3,_pm_vq4]):
+                                _pm_vf = sum(x for x in [_pm_vq1,_pm_vq2,_pm_vq3,_pm_vq4] if x is not None)
+
+                            if _pm_hf is None or _pm_vf is None:
+                                continue  # no final score at all — can't generate narrative
+
+                            _pm_margin = abs(_pm_hf - _pm_vf)
+                            _pm_total  = _pm_hf + _pm_vf
+                            _pm_winner_half = _pm_h_half if _pm_hf > _pm_vf else _pm_v_half
+                            _pm_loser_half  = _pm_v_half if _pm_hf > _pm_vf else _pm_h_half
+                            _pm_hq3_diff = (_pm_hq3 or 0) - (_pm_vq3 or 0) if _pm_hq3 is not None and _pm_vq3 is not None else None
+                            _pm_hq4_diff = (_pm_hq4 or 0) - (_pm_vq4 or 0) if _pm_hq4 is not None and _pm_vq4 is not None else None
+
+                            # Stat context for narratives
+                            _pm_h_to = _pm_stat(_pmr,['Turnovers_Home','HomeTurnovers','H_TO'])
+                            _pm_v_to = _pm_stat(_pmr,['Turnovers_Visitor','VisitorTurnovers','V_TO','Turnovers_Away'])
+                            _pm_h_pass = _pm_stat(_pmr,['PassYds_Home','HomePassYds','H_PassYds'])
+                            _pm_v_pass = _pm_stat(_pmr,['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_Away','AwayPassYds'])
+
+                            # ── Derive narrative — Q data when available, finals-only when not ──
+                            _pm_peak = None
+                            has_q = any(x is not None for x in [_pm_hq1,_pm_hq2,_pm_hq3,_pm_hq4])
+
+                            if _pmq(_pmr,'Home','OT') is not None or _pmq(_pmr,'Visitor','OT') is not None or _pmq(_pmr,'Away','OT') is not None:
+                                _pm_peak = "Overtime — neither side would quit"
+                            elif has_q and _pm_winner_half is not None and _pm_loser_half is not None and _pm_loser_half > _pm_winner_half + 3:
+                                _deficit = _pm_loser_half - _pm_winner_half
+                                _pm_peak = f"Down {_deficit} at half, won it in Q3–Q4"
+                            elif has_q and _pm_hq4_diff is not None and abs(_pm_hq4_diff) >= max(1, _pm_margin - 3) and _pm_margin <= 7:
+                                _pm_peak = "Q4 decided it — final drive"
+                            elif has_q and _pm_hq3_diff is not None and abs(_pm_hq3_diff) >= 14:
+                                _pm_peak = "Q3 blowup — game flipped in the third"
+                            elif has_q and _pm_margin >= 28 and _pm_h_half is not None and abs((_pm_h_half or 0) - (_pm_v_half or 0)) >= 14:
+                                _pm_peak = "Over by halftime — dominant from the start"
+                            elif _pm_total >= 90:
+                                _pm_peak = f"{_pm_total} total pts — offensive shootout"
+                            elif _pm_margin <= 3:
+                                _pm_peak = f"One-score game to the end — {_pm_hf}–{_pm_vf}"
+                            elif _pm_margin <= 7:
+                                _pm_peak = f"Final 7: held on {_pm_hf}–{_pm_vf}"
+                            elif _pm_margin >= 28:
+                                _win_pass = _pm_h_pass if _pm_hf > _pm_vf else _pm_v_pass
+                                _win_to   = _pm_h_to   if _pm_hf > _pm_vf else _pm_v_to
+                                if _win_pass and _win_pass >= 300:
+                                    _pm_peak = f"Aerial assault — {_win_pass} pass yds in a {_pm_margin}-pt win"
                                 else:
-                                    _pm_peak = f"Q4: {_pm_hq4}–{_pm_vq4}" if _pm_hq4 is not None and _pm_vq4 is not None else None
+                                    _pm_peak = f"Dominant — won by {_pm_margin} pts"
+                            elif (_pm_h_to or 0) + (_pm_v_to or 0) >= 5:
+                                _pm_peak = f"Turnover chaos — {(_pm_h_to or 0) + (_pm_v_to or 0)} combined TOs"
+                            else:
+                                _pm_peak = f"Final: {_pm_hf}–{_pm_vf}"
 
-                                if _pm_peak:
-                                    _gs_peak_lookup[(_pm_vt, _pm_ht, _pm_wk)] = _pm_peak
+                            if _pm_peak:
+                                _gs_peak_lookup[(_pm_vt, _pm_ht, _pm_wk)] = _pm_peak
                         except Exception:
                             continue
                 except Exception:
@@ -15751,8 +15992,35 @@ with tabs[3]:
         _ratings_snap = load_team_ratings(year=CURRENT_YEAR)
         # ── Load conf performance stats ───────────────────────────────────
         _perf_snap = load_team_performance(year=CURRENT_YEAR)
+        # Build a lowercase key index for fuzzy fallback on name mismatches
+        _perf_snap_lower = {k.lower(): v for k, v in _perf_snap.items()}
 
-        def _rating_cell(val, stat='OVR'):
+        def _get_perf(team_name):
+            t = str(team_name).strip()
+            if t in _perf_snap:
+                return _perf_snap[t]
+            tl = t.lower()
+            if tl in _perf_snap_lower:
+                return _perf_snap_lower[tl]
+            tn = tl.replace('&', 'and').replace('  ', ' ')
+            for k, v in _perf_snap_lower.items():
+                if k.replace('&', 'and').replace('  ', ' ') == tn:
+                    return v
+            return {}
+
+        # ── National odds across all ~42 rated teams ──────────────────────────
+        _national_odds = build_national_odds(year=CURRENT_YEAR)
+        # Fuzzy lookup for national odds (same name-mismatch tolerance)
+        def _get_natl_odds(team_name):
+            t = str(team_name).strip()
+            if t in _national_odds: return _national_odds[t]
+            tl = t.lower()
+            for k, v in _national_odds.items():
+                if k.lower() == tl: return v
+            tn = tl.replace('&','and')
+            for k, v in _national_odds.items():
+                if k.lower().replace('&','and') == tn: return v
+            return None
             try:
                 v = int(float(val))
                 if stat == 'OVR':
@@ -15825,12 +16093,37 @@ with tabs[3]:
             _tr = _ratings_snap.get(team.strip(), {})
 
             # Conf performance stats
-            _cp = _perf_snap.get(team.strip(), {})
+            _cp = _get_perf(team)
             _gp = (_cp.get('W', 0) or 0) + (_cp.get('L', 0) or 0)
             _avg_pf = (_cp.get('PF', 0) or 0) / max(_gp, 1) if _gp > 0 else None
             _avg_pa = (_cp.get('PA', 0) or 0) / max(_gp, 1) if _gp > 0 else None
             _mov_val = _cp.get('MOV', None)
             _stk_val = _cp.get('STK', None)
+
+            # National odds
+            _nord = _get_natl_odds(team)
+            _natty_pct = _nord['natty_pct'] if _nord else None
+            _cfp_make  = _nord['cfp_pct']   if _nord else None
+
+            def _odds_cell(val, label=''):
+                if val is None:
+                    return "<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>"
+                v = float(val)
+                if v >= 15:   c = '#4ade80'
+                elif v >= 8:  c = '#fbbf24'
+                elif v >= 3:  c = '#f97316'
+                else:         c = '#64748b'
+                return f"<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;font-weight:700;color:{c};white-space:nowrap;'>{v:.1f}%</td>"
+
+            def _cfp_odds_cell(val):
+                if val is None:
+                    return "<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>"
+                v = float(val)
+                if v >= 70:   c = '#4ade80'
+                elif v >= 40: c = '#fbbf24'
+                elif v >= 20: c = '#f97316'
+                else:         c = '#64748b'
+                return f"<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;font-weight:700;color:{c};white-space:nowrap;'>{v:.0f}%</td>"
 
             # STK chip
             if _stk_val is not None:
@@ -15880,6 +16173,8 @@ with tabs[3]:
             cells.append(f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;'>{_stk_disp}</td>")
             cells.append(_stat_cell(_avg_pf, fmt='.1f') if _avg_pf is not None else "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>")
             cells.append(_stat_cell(_avg_pa, fmt='.1f') if _avg_pa is not None else "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>")
+            cells.append(_cfp_odds_cell(_cfp_make))
+            cells.append(_odds_cell(_natty_pct))
 
             projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
 
@@ -15900,6 +16195,8 @@ with tabs[3]:
                 <th class="isp-th">Streak</th>
                 <th class="isp-th">Avg PF</th>
                 <th class="isp-th">Avg PA</th>
+                <th class="isp-th">CFP%</th>
+                <th class="isp-th">Natty%</th>
               </tr>
             </thead>
             <tbody>{''.join(projected_field_rows)}</tbody>
@@ -22245,8 +22542,17 @@ with tabs[5]:
     with col_sel1:
         selected_team = st.selectbox("🏈 Select Team to View", user_teams_list, key="attrition_team_select")
     with col_sel2:
-        _default_outlook = available_years[0]  # highest year = most recent data
-        _default_yr_idx = 0
+        # Default to current season outlook until Week 9, then jump to next season
+        _cutover_week = 9
+        if CURRENT_WEEK_NUMBER < _cutover_week:
+            _preferred_outlook = current_yr        # e.g. Week 4 of 2042 → show 2042 outlook
+        else:
+            _preferred_outlook = current_yr + 1   # e.g. Week 9+ of 2042 → show 2043 outlook
+        _default_yr_idx = (
+            available_years.index(_preferred_outlook)
+            if _preferred_outlook in available_years
+            else 0
+        )
         selected_year = st.selectbox("🔮 Outlook Season", available_years, index=_default_yr_idx, key="attrition_year_select")
     with col_sel3:
         outlook_mode = st.selectbox(
