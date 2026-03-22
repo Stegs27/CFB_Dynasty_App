@@ -10980,6 +10980,10 @@ try:
         _inj_df['Year'] = pd.to_numeric(_inj_df.get('Year'), errors='coerce')
         _inj_df['WeeksOut'] = pd.to_numeric(_inj_df.get('WeeksOut'), errors='coerce')
         _inj_df['OVR'] = pd.to_numeric(_inj_df.get('OVR'), errors='coerce')
+        # Normalize IsStarter — Yes/True/1 = starter, blank/No/False = unknown/backup
+        if 'IsStarter' not in _inj_df.columns:
+            _inj_df['IsStarter'] = ''
+        _inj_df['IsStarter'] = _inj_df['IsStarter'].astype(str).str.strip().str.lower()
 
         _inj_df = _inj_df[
             (_inj_df['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
@@ -11034,24 +11038,48 @@ try:
                 "S": "starting safety",
             }
 
-            _role_text = _role_map.get(_ip, f"key {_ip}")
+            # Determine if confirmed starter from CSV, else infer from OVR
+            _is_starter_raw = str(_inj.get('IsStarter', '')).strip().lower()
+            _confirmed_starter = _is_starter_raw in ('yes', 'true', '1')
+            _inferred_starter  = _iovr >= 80  # high OVR = likely starter if not specified
+            _is_starter = _confirmed_starter or (_is_starter_raw == '' and _inferred_starter)
+
+            if _is_starter:
+                _role_text = _role_map.get(_ip, f"key {_ip}")
+            else:
+                # Backup/depth player — less dramatic framing
+                _role_text = f"{_ip} depth player" if _ip else "depth player" 
 
             if _iw >= 20:
-                _headline_options = [
-                    f"{_iu}'s season takes a hit — loses {_role_text} to {_ii}",
-                    f"{_iu} loses {_role_text} for the season — {_ii}",
-                    f"Disaster for {_iu} — {_role_text} done for the year with {_ii}",
-                ]
+                if _is_starter:
+                    _headline_options = [
+                        f"{_iu}'s season takes a hit — loses {_role_text} to {_ii}",
+                        f"{_iu} loses {_role_text} for the season — {_ii}",
+                        f"Disaster for {_iu} — {_role_text} done for the year with {_ii}",
+                    ]
+                else:
+                    _headline_options = [
+                        f"Depth blow for {_iu} — {_role_text} lost for season with {_ii}",
+                        f"{_iu} loses {_role_text} to season-ending {_ii}",
+                        f"Roster hit for {_iu} — {_role_text} sidelined all year",
+                    ]
                 _blurb = (
                     f"{_iu}'s {_it} will be without {_iname} ({_ip}, {_iovr} OVR) for the rest of the year "
                     f"after a {_ii.lower()}."
                 )
             else:
-                _headline_options = [
-                    f"{_iu} loses {_role_text} long term — {_ii}",
-                    f"{_iu}'s depth chart takes a hit — {_role_text} out with {_ii}",
-                    f"Big injury blow for {_iu} — {_role_text} sidelined by {_ii}",
-                ]
+                if _is_starter:
+                    _headline_options = [
+                        f"{_iu} loses {_role_text} long term — {_ii}",
+                        f"{_iu}'s depth chart takes a hit — {_role_text} out with {_ii}",
+                        f"Big injury blow for {_iu} — {_role_text} sidelined by {_ii}",
+                    ]
+                else:
+                    _headline_options = [
+                        f"Depth hit for {_iu} — {_role_text} out {_iw} weeks with {_ii}",
+                        f"{_iu} loses {_role_text} to {_ii} — {_iw}-week timeline",
+                        f"Roster shuffle for {_iu} — {_role_text} sidelined by {_ii}",
+                    ]
                 _blurb = (
                     f"{_iu}'s {_it} is without {_iname} ({_ip}, {_iovr} OVR) for about {_iw} weeks "
                     f"with a {_ii.lower()}."
@@ -11065,6 +11093,94 @@ try:
                 'text': _headline_text,
                 'blurb': _blurb,
                 'logo_html': _ilh,
+            })
+except Exception:
+    pass
+
+# ── 7B. INJURY RETURNS — fire headline when player's return week arrives ──
+try:
+    _ret_df = pd.read_csv('injury_bulletin.csv')
+    if not _ret_df.empty:
+        _ret_df['Year']     = pd.to_numeric(_ret_df.get('Year'),     errors='coerce')
+        _ret_df['Week']     = pd.to_numeric(_ret_df.get('Week'),     errors='coerce')
+        _ret_df['WeeksOut'] = pd.to_numeric(_ret_df.get('WeeksOut'), errors='coerce')
+        _ret_df['OVR']      = pd.to_numeric(_ret_df.get('OVR'),      errors='coerce')
+        if 'IsStarter' not in _ret_df.columns:
+            _ret_df['IsStarter'] = ''
+        _ret_df['IsStarter'] = _ret_df['IsStarter'].astype(str).str.strip().str.lower()
+
+        # Only current year, only rows where Week is known, only non-season-ending
+        _ret_df = _ret_df[
+            (_ret_df['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
+            (_ret_df['Week'].notna()) &
+            (_ret_df['WeeksOut'].fillna(0).astype(int) < 20)  # exclude season-ending
+        ].copy()
+
+        for _, _ret in _ret_df.iterrows():
+            _rweek_in  = int(_ret.get('Week', 0) or 0)
+            _rweeks_out = int(_ret.get('WeeksOut', 0) or 0)
+            _return_week = _rweek_in + _rweeks_out
+
+            # Fire only in the exact week the player returns
+            if _return_week != CURRENT_WEEK_NUMBER:
+                continue
+
+            _rt   = str(_ret.get('Team',   '')).strip()
+            _ru   = str(_ret.get('User',   '')).strip()
+            _rp   = str(_ret.get('Pos',    '')).strip()
+            _rname = str(_ret.get('Player','Unknown')).strip()
+            _rii  = str(_ret.get('Injury', 'injury')).strip()
+            _rovr = int(pd.to_numeric(_ret.get('OVR'), errors='coerce') or 0)
+
+            _is_starter_raw = str(_ret.get('IsStarter', '')).strip().lower()
+            _ret_is_starter = _is_starter_raw in ('yes','true','1') or (
+                _is_starter_raw == '' and _rovr >= 80
+            )
+
+            _ret_il  = get_header_logo(_rt)
+            _ret_ilh = f'<div class="isp-tc"><img src="{_ret_il}" class="isp-logo-60"></div>'
+
+            _ret_role_map = {
+                "QB": "starting QB", "HB": "starting RB", "RB": "starting RB",
+                "WR": "top WR", "TE": "starting TE",
+                "LT": "starting LT", "LG": "starting guard", "C": "starting center",
+                "RG": "starting guard", "RT": "starting RT",
+                "LEDG": "top pass rusher", "REDG": "top pass rusher", "EDGE": "top pass rusher",
+                "LE": "top pass rusher", "RE": "top pass rusher",
+                "DT": "starting DT", "IDL": "starting DT",
+                "MIKE": "starting linebacker", "WILL": "starting linebacker",
+                "SAM": "starting linebacker", "MLB": "starting linebacker",
+                "LOLB": "starting linebacker", "ROLB": "starting linebacker", "LB": "starting linebacker",
+                "CB": "starting corner", "FS": "starting safety", "SS": "starting safety", "S": "starting safety",
+            }
+            _ret_role = _ret_role_map.get(_rp, f"{_rp}") if _ret_is_starter else f"{_rp} depth player"
+
+            if _ret_is_starter:
+                _ret_headline_options = [
+                    f"{_ru}'s {_ret_role} is back — {_rname} returns from {_rii.lower()}",
+                    f"Good news for {_ru} — {_rname} cleared to return after {_rii.lower()}",
+                    f"{_rname} back in the lineup for {_ru} — missed {_rweeks_out} weeks with {_rii.lower()}",
+                    f"{_ru} gets a boost — {_ret_role} {_rname} returns this week",
+                ]
+                _ret_blurb = (
+                    f"{_rname} ({_rp}, {_rovr} OVR) is back for {_ru}'s {_rt} this week after missing "
+                    f"{_rweeks_out} weeks with a {_rii.lower()}."
+                )
+            else:
+                _ret_headline_options = [
+                    f"Depth returns for {_ru} — {_rname} back from {_rii.lower()}",
+                    f"{_rname} returns to {_ru}'s roster after {_rweeks_out}-week absence",
+                ]
+                _ret_blurb = (
+                    f"{_rname} ({_rp}, {_rovr} OVR) returns for {_rt} after {_rweeks_out} weeks out."
+                )
+
+            _all_headlines.append({
+                'badge': '🏥 RETURN',
+                'priority': 75,
+                'text': random.choice(_ret_headline_options),
+                'blurb': _ret_blurb,
+                'logo_html': _ret_ilh,
             })
 except Exception:
     pass
@@ -14180,203 +14296,36 @@ with tabs[0]:
         # SECTION 3 — HEISMAN CANDIDATES
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
-        st.subheader("🏆 2042 Heisman Candidates")
-        st.caption("Preseason board built from roster talent, athletic juice, awareness, position value, and team context. Odds update from live roster + model context.")
-
-        def _heisman_find_col(df, options):
-            for _c in options:
-                if _c in df.columns:
-                    return _c
-            _norm = {str(c).strip().lower(): c for c in df.columns}
-            for _c in options:
-                if str(_c).strip().lower() in _norm:
-                    return _norm[str(_c).strip().lower()]
-            return None
-
-        def _heisman_team_context(team_name):
-            _ctx = {"rank": None, "natty_odds": None, "cfp_odds": None, "proj_wins": None}
-            try:
-                _rank_val = preseason_rank_map.get(team_name)
-                if _rank_val:
-                    _ctx["rank"] = float(_rank_val)
-            except Exception:
-                pass
-
-            try:
-                _m = model_2041.copy() if 'model_2041' in globals() else pd.DataFrame()
-            except Exception:
-                _m = pd.DataFrame()
-
-            if _m is not None and not _m.empty:
-                _team_col = _heisman_find_col(_m, ['TEAM','Team','team'])
-                if _team_col:
-                    _mm = _m[_m[_team_col].astype(str).str.strip() == str(team_name).strip()].copy()
-                    if not _mm.empty:
-                        _row = _mm.iloc[0]
-
-                        _rank_col = _heisman_find_col(_mm, ['Rank','RANK','AP Rank','AP_Rank','Preseason Rank','Projected Rank'])
-                        _natty_col = _heisman_find_col(_mm, ['Natty Odds','National Title Odds','Title Odds','Preseason Natty Odds'])
-                        _cfp_col = _heisman_find_col(_mm, ['CFP Odds','Playoff Odds','Preseason CFP Odds'])
-                        _wins_col = _heisman_find_col(_mm, ['Projected Wins','Proj Wins','Expected Wins','Wins Projection'])
-
-                        if _ctx["rank"] is None and _rank_col:
-                            try:
-                                _rv = pd.to_numeric(pd.Series([_row.get(_rank_col)]), errors='coerce').iloc[0]
-                                if pd.notna(_rv):
-                                    _ctx["rank"] = float(_rv)
-                            except Exception:
-                                pass
-                        if _natty_col:
-                            try:
-                                _nv = pd.to_numeric(pd.Series([_row.get(_natty_col)]), errors='coerce').iloc[0]
-                                if pd.notna(_nv):
-                                    _ctx["natty_odds"] = float(_nv)
-                            except Exception:
-                                pass
-                        if _cfp_col:
-                            try:
-                                _cv = pd.to_numeric(pd.Series([_row.get(_cfp_col)]), errors='coerce').iloc[0]
-                                if pd.notna(_cv):
-                                    _ctx["cfp_odds"] = float(_cv)
-                            except Exception:
-                                pass
-                        if _wins_col:
-                            try:
-                                _wv = pd.to_numeric(pd.Series([_row.get(_wins_col)]), errors='coerce').iloc[0]
-                                if pd.notna(_wv):
-                                    _ctx["proj_wins"] = float(_wv)
-                            except Exception:
-                                pass
-            return _ctx
-
-        def _compute_heisman_odds(_row):
-            _pos = str(_row.get('Pos', '')).strip().upper()
-            _ovr = float(pd.to_numeric(pd.Series([_row.get('OVR', 0)]), errors='coerce').fillna(0).iloc[0])
-            _awr = float(pd.to_numeric(pd.Series([_row.get('AWR', 75)]), errors='coerce').fillna(75).iloc[0])
-            _spd = float(pd.to_numeric(pd.Series([_row.get('SPD', 75)]), errors='coerce').fillna(75).iloc[0])
-            _acc = float(pd.to_numeric(pd.Series([_row.get('ACC', 75)]), errors='coerce').fillna(75).iloc[0])
-            _agi = float(pd.to_numeric(pd.Series([_row.get('AGI', 75)]), errors='coerce').fillna(75).iloc[0])
-            _cod = float(pd.to_numeric(pd.Series([_row.get('COD', 75)]), errors='coerce').fillna(75).iloc[0])
-            _car = float(pd.to_numeric(pd.Series([_row.get('CAR', 75)]), errors='coerce').fillna(75).iloc[0])
-            _bcv = float(pd.to_numeric(pd.Series([_row.get('BCV', 75)]), errors='coerce').fillna(75).iloc[0])
-            _year = str(_row.get('Year', '')).strip().upper()
-            _team = str(_row.get('Team', '')).strip()
-
-            _ctx = _heisman_team_context(_team)
-
-            _pos_bonus = {'QB': 18, 'HB': 11, 'WR': 7, 'TE': 4}.get(_pos, 0)
-            _class_bonus = {
-                'JR': 2.0, 'JR (RS)': 2.5,
-                'SR': 3.0, 'SR (RS)': 3.5,
-                'SO': -0.5, 'SO (RS)': 0.0,
-                'FR': -2.0, 'FR (RS)': -1.0
-            }.get(_year, 0.0)
-
-            _athletic = (_spd + _acc + _agi + _cod) / 4.0
-            _ball_bonus = ((_car + _bcv) / 2.0) if _pos in {'QB','HB','WR','TE'} else 75.0
-
-            _rank_bonus = 0.0
-            if _ctx["rank"] is not None and not pd.isna(_ctx["rank"]):
-                _rank_bonus = max(0.0, 26.0 - float(_ctx["rank"])) * 1.25
-
-            _natty_bonus = 0.0 if _ctx["natty_odds"] is None else float(_ctx["natty_odds"]) * 0.40
-            _cfp_bonus = 0.0 if _ctx["cfp_odds"] is None else float(_ctx["cfp_odds"]) * 0.18
-            _wins_bonus = 0.0 if _ctx["proj_wins"] is None else max(0.0, float(_ctx["proj_wins"]) - 7.0) * 1.15
-
-            _score = (
-                _ovr * 1.55 +
-                _awr * 0.32 +
-                _athletic * 0.18 +
-                _ball_bonus * 0.08 +
-                _pos_bonus +
-                _class_bonus +
-                _rank_bonus +
-                _natty_bonus +
-                _cfp_bonus +
-                _wins_bonus
-            )
-
-            return pd.Series({
-                'HeismanScore': round(_score, 2),
-                'RankBonus': round(_rank_bonus, 2),
-                'NattyBonus': round(_natty_bonus, 2),
-                'CFPBonus': round(_cfp_bonus, 2),
-                'ProjWinsBonus': round(_wins_bonus, 2),
-                'TeamRankCtx': _ctx["rank"],
-                'NattyOddsCtx': _ctx["natty_odds"],
-                'CFPOddsCtx': _ctx["cfp_odds"],
-                'ProjWinsCtx': _ctx["proj_wins"],
-            })
+        st.subheader(f"🏆 {CURRENT_YEAR} Heisman Watch")
 
         try:
-            _hc_roster = pd.read_csv('cfb26_rosters_full.csv')
-            _season_col = _heisman_find_col(_hc_roster, ['Season','YEAR','Year'])
-            _team_col   = _heisman_find_col(_hc_roster, ['Team','TEAM'])
-            _name_col   = _heisman_find_col(_hc_roster, ['Name','NAME','Player'])
-            _pos_col    = _heisman_find_col(_hc_roster, ['Pos','POS','Position'])
-            _year_col   = _heisman_find_col(_hc_roster, ['Year','Class','YEAR'])
-            _ovr_col    = _heisman_find_col(_hc_roster, ['OVR','Overall'])
-            if _season_col:
-                _hc_roster[_season_col] = pd.to_numeric(_hc_roster[_season_col], errors='coerce')
-                _avail = _hc_roster[_season_col].dropna().astype(int)
-                _target_season = CURRENT_YEAR if CURRENT_YEAR in set(_avail.tolist()) else (int(_avail.max()) if not _avail.empty else CURRENT_YEAR)
-                _hc_roster = _hc_roster[_hc_roster[_season_col].fillna(-1).astype(int) == int(_target_season)].copy()
+            _hw = pd.read_csv('Heisman_watch_history.csv')
+            _hw['YEAR'] = pd.to_numeric(_hw['YEAR'], errors='coerce')
+            _hw['WEEK'] = pd.to_numeric(_hw['WEEK'], errors='coerce')
+            _hw['RANK'] = pd.to_numeric(_hw['RANK'], errors='coerce')
+            _hw['NAME'] = _hw['NAME'].astype(str).str.strip()
+            _hw['POS']  = _hw['POS'].astype(str).str.strip().str.upper()
+            _hw['TEAM'] = _hw['TEAM'].astype(str).str.strip()
+
+            # Filter to current year
+            _hw_cy = _hw[_hw['YEAR'] == CURRENT_YEAR].copy()
+
+            if _hw_cy.empty:
+                st.info("No Heisman watch data yet for this season — import from the PS5 screenshot tool.")
             else:
-                _target_season = CURRENT_YEAR
+                # Use latest week available
+                _hw_latest_wk = int(_hw_cy['WEEK'].max())
+                _hw_snap = _hw_cy[_hw_cy['WEEK'] == _hw_latest_wk].sort_values('RANK').reset_index(drop=True)
 
-            _skill_pos = {'QB','HB','WR','TE'}
-            _hc_roster = _hc_roster[
-                _hc_roster[_pos_col].astype(str).str.upper().isin(_skill_pos)
-            ].copy()
+                # Build reverse lookup: team → user
+                _team_to_user = {str(t).strip(): str(u) for u, t in USER_TEAMS.items()}
 
-            _hc_roster = _hc_roster[
-                _hc_roster[_team_col].astype(str).isin(list(USER_TEAMS.values()))
-            ].copy()
+                # Week label
+                _wk_lbl = "Preseason" if _hw_latest_wk == 0 else f"Week {_hw_latest_wk}"
+                st.caption(f"Voter rankings — {_wk_lbl} snapshot · {len(_hw_snap)} players listed · User team players marked with coach name")
 
-            _rename_map = {
-                _team_col: 'Team',
-                _name_col: 'Name',
-                _pos_col: 'Pos',
-                _year_col: 'Year',
-                _ovr_col: 'OVR',
-            }
-            for _maybe in ['SPD','ACC','AGI','COD','AWR','CAR','BCV']:
-                _real = _heisman_find_col(_hc_roster, [_maybe])
-                if _real:
-                    _rename_map[_real] = _maybe
-
-            _hc_roster = _hc_roster.rename(columns=_rename_map).copy()
-            for _need in ['SPD','ACC','AGI','COD','AWR','CAR','BCV']:
-                if _need not in _hc_roster.columns:
-                    _hc_roster[_need] = 75
-
-            _hc_roster['OVR'] = pd.to_numeric(_hc_roster['OVR'], errors='coerce').fillna(0)
-            _hc_roster[['SPD','ACC','AGI','COD','AWR','CAR','BCV']] = _hc_roster[['SPD','ACC','AGI','COD','AWR','CAR','BCV']].apply(pd.to_numeric, errors='coerce').fillna(75)
-
-            _heisman_calc = _hc_roster.apply(_compute_heisman_odds, axis=1)
-            _hc_roster = pd.concat([_hc_roster.reset_index(drop=True), _heisman_calc.reset_index(drop=True)], axis=1)
-
-            # ── One featured candidate per user team ──────────────────────────
-            _hc_roster = _hc_roster.sort_values(
-                ['HeismanScore','OVR','AWR','SPD','Name'],
-                ascending=[False, False, False, False, True]
-            ).reset_index(drop=True)
-
-            _featured_list = []
-            for _ut in USER_TEAMS.values():
-                _team_rows = _hc_roster[_hc_roster['Team'].astype(str).str.strip() == str(_ut).strip()].copy()
-                if not _team_rows.empty:
-                    _featured_list.append(_team_rows.iloc[0].to_dict())
-
-            if _featured_list:
-                _featured_df = pd.DataFrame(_featured_list).reset_index(drop=True)
-                # Recalculate odds among just these 6 finalists
-                _exp6 = np.exp((_featured_df['HeismanScore'] - _featured_df['HeismanScore'].max()) / 5.0)
-                _featured_df['HeismanOdds'] = (_exp6 / _exp6.sum() * 100.0).round(1)
-                _featured_df = _featured_df.sort_values('HeismanOdds', ascending=False).reset_index(drop=True)
-
-                # ── ESPN-style candidate cards ─────────────────────────────────
-                _pos_colors_map = {'QB': '#f97316', 'HB': '#22c55e', 'WR': '#3b82f6', 'TE': '#a78bfa'}
+                _pos_colors_map = {'QB': '#f97316', 'HB': '#22c55e', 'WR': '#3b82f6', 'TE': '#a78bfa', 'K': '#94a3b8', 'P': '#94a3b8'}
+                _medal_map = {1: '🥇', 2: '🥈', 3: '🥉'}
 
                 _cards_html = """
 <style>
@@ -14388,162 +14337,127 @@ with tabs[0]:
 @media (max-width: 500px) { .hgrid { grid-template-columns: 1fr; } }
 .hcard {
     background: linear-gradient(160deg, #0c1622 0%, #111c2b 100%);
-    border-radius: 10px;
-    overflow: hidden;
+    border-radius: 10px; overflow: hidden;
     border: 1px solid rgba(255,255,255,0.07);
     box-shadow: 0 4px 20px rgba(0,0,0,0.45);
     transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
+.hcard.user-card { border-color: rgba(251,191,36,0.35); box-shadow: 0 4px 24px rgba(251,191,36,0.12); }
 .hcard:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(0,0,0,0.6); }
 .hcard-stripe { height: 3px; width: 100%; }
 .hcard-body { padding: 13px 14px 12px 14px; }
 .hcard-toprow { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 7px; }
-.hcard-rank { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; line-height: 1; opacity: 0.18; }
-.hcard-odds-col { text-align: right; }
-.hcard-odds-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.1rem; line-height: 1; }
-.hcard-odds-lbl { font-family: 'Barlow', sans-serif; font-size: 0.56rem; color: #475569; text-transform: uppercase; letter-spacing: 0.1em; }
-.hcard-name { font-family: 'Barlow Condensed', sans-serif; font-size: 1.2rem; font-weight: 700; color: #f1f5f9; line-height: 1.1; margin: 0 0 4px 0; }
-.hcard-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 9px; }
+.hcard-rank-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; line-height: 1; opacity: 0.22; }
+.hcard-rank-medal { font-size: 2.0rem; line-height: 1; }
+.hcard-logo { width: 44px; height: 44px; object-fit: contain; }
+.hcard-name { font-family: 'Barlow Condensed', sans-serif; font-size: 1.15rem; font-weight: 700; color: #f1f5f9; line-height: 1.1; margin: 0 0 5px 0; }
+.hcard-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 7px; }
 .pos-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; }
-.class-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; background: rgba(255,255,255,0.07); font-family: 'Barlow', sans-serif; font-size: 0.60rem; color: #94a3b8; }
-.team-tag { font-family: 'Barlow', sans-serif; font-size: 0.60rem; color: #64748b; }
-.hbar-bg { background: rgba(255,255,255,0.07); border-radius: 3px; height: 4px; margin-bottom: 10px; overflow: hidden; }
-.hbar-fill { height: 100%; border-radius: 3px; }
-.hstats { display: flex; gap: 5px; margin-bottom: 9px; }
-.hstat { flex: 1; background: rgba(255,255,255,0.04); border-radius: 5px; padding: 5px 3px; text-align: center; border: 1px solid rgba(255,255,255,0.06); }
-.hstat-val { font-family: 'Barlow Condensed', sans-serif; font-size: 0.92rem; font-weight: 700; color: #e2e8f0; }
-.hstat-lbl { font-family: 'Barlow', sans-serif; font-size: 0.52rem; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; }
-.hfactors { display: flex; flex-wrap: wrap; gap: 4px; }
-.hfactor { font-family: 'Barlow', sans-serif; font-size: 0.58rem; padding: 2px 7px; border-radius: 8px; background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.09); }
-.hcard-user { font-family: 'Barlow Condensed', sans-serif; font-size: 0.62rem; color: #334155; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 9px; }
+.hcard-team { font-family: 'Barlow', sans-serif; font-size: 0.60rem; color: #64748b; }
+.hcard-user-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.35); font-family: 'Barlow Condensed', sans-serif; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; margin-top: 7px; }
+.hcard-cpu-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: rgba(100,116,139,0.1); color: #475569; border: 1px solid rgba(100,116,139,0.2); font-family: 'Barlow Condensed', sans-serif; font-size: 0.62rem; letter-spacing: 0.06em; margin-top: 7px; }
+.hmove { font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 700; }
+.hmove-up { color: #22c55e; }
+.hmove-dn { color: #ef4444; }
+.hmove-same { color: #475569; }
 </style>
 <div class="hboard-wrap">
-  <div class="hboard-subhead">◈ CURRENT_YEAR_PLACEHOLDER Heisman Board &nbsp;·&nbsp; Top Candidate Per Team</div>
   <div class="hgrid">
 """
-                _cards_html = _cards_html.replace("CURRENT_YEAR_PLACEHOLDER", str(CURRENT_YEAR))
 
-                for _rank_i, _r in _featured_df.iterrows():
-                    _team  = str(_r.get('Team', '')).strip()
-                    _name  = html.escape(str(_r.get('Name', '')).strip())
-                    _pos   = str(_r.get('Pos', '')).strip().upper()
-                    _yr    = str(_r.get('Year', '')).strip()
-                    _ovr   = int(float(str(_r.get('OVR', 0)).replace(',','') or 0))
-                    _awr   = int(float(str(_r.get('AWR', 75)).replace(',','') or 75))
-                    _spd   = int(float(str(_r.get('SPD', 75)).replace(',','') or 75))
-                    _odds  = float(_r.get('HeismanOdds', 0.0))
-                    _score = float(_r.get('HeismanScore', 0.0))
+                # Build prev-week lookup for movement arrows
+                _prev_wks = sorted(_hw_cy[_hw_cy['WEEK'] < _hw_latest_wk]['WEEK'].dropna().unique())
+                _prev_snap = {}
+                if _prev_wks:
+                    _pw = int(_prev_wks[-1])
+                    for _, _pr in _hw_cy[_hw_cy['WEEK'] == _pw].iterrows():
+                        _prev_snap[str(_pr['NAME']).strip().lower()] = int(_pr['RANK'])
 
-                    _tc  = get_team_primary_color(_team)
-                    _pc  = _pos_colors_map.get(_pos, '#94a3b8')
-                    # Bar width: scale so leader fills ~90% of bar
-                    _max_odds = float(_featured_df['HeismanOdds'].max())
-                    _bar_w = int((_odds / _max_odds) * 90) if _max_odds > 0 else 0
+                for _, _r in _hw_snap.iterrows():
+                    _rank   = int(_r['RANK'])
+                    _name   = str(_r['NAME']).strip()
+                    _pos    = str(_r['POS']).strip().upper()
+                    _team   = str(_r['TEAM']).strip()
+                    _user   = _team_to_user.get(_team, None)
+                    _is_user = _user is not None
 
-                    _user = next((u for u, t in USER_TEAMS.items() if str(t).strip() == _team), _team)
+                    _tc   = get_team_primary_color(_team)
+                    _pc   = _pos_colors_map.get(_pos, '#94a3b8')
+                    _logo_uri = image_file_to_data_uri(get_logo_source(_team))
+                    _logo_html = f"<img class='hcard-logo' src='{_logo_uri}'/>" if _logo_uri else ""
 
-                    # Team rank context
-                    _rctx = _r.get('TeamRankCtx')
-                    _rctx_clean = None
-                    try:
-                        _rctx_clean = float(_rctx) if pd.notna(_rctx) and str(_rctx).strip() not in ('', 'nan') else None
-                    except Exception:
-                        pass
-                    _rank_tag = f"#{int(_rctx_clean)}" if _rctx_clean is not None else "UR"
+                    # Movement vs prior week
+                    _prev_rank = _prev_snap.get(_name.lower())
+                    if _prev_rank is not None:
+                        _diff = _prev_rank - _rank
+                        if _diff > 0:
+                            _move_html = f"<span class='hmove hmove-up'>▲{_diff}</span>"
+                        elif _diff < 0:
+                            _move_html = f"<span class='hmove hmove-dn'>▼{abs(_diff)}</span>"
+                        else:
+                            _move_html = "<span class='hmove hmove-same'>—</span>"
+                    elif _rank <= len(_prev_snap) + 1 and _prev_snap:
+                        _move_html = "<span class='hmove hmove-up' style='font-size:0.6rem;'>NEW</span>"
+                    else:
+                        _move_html = ""
 
-                    _nctx = _r.get('NattyOddsCtx')
-                    _nctx_clean = None
-                    try:
-                        _nctx_clean = float(_nctx) if pd.notna(_nctx) and str(_nctx).strip() not in ('', 'nan') else None
-                    except Exception:
-                        pass
+                    # Rank display
+                    _medal = _medal_map.get(_rank)
+                    _rank_html = (f"<span class='hcard-rank-medal'>{_medal}</span>"
+                                  if _medal else
+                                  f"<span class='hcard-rank-num' style='color:{_tc};'>{_rank}</span>")
 
-                    _cctx = _r.get('CFPOddsCtx')
-                    _cctx_clean = None
-                    try:
-                        _cctx_clean = float(_cctx) if pd.notna(_cctx) and str(_cctx).strip() not in ('', 'nan') else None
-                    except Exception:
-                        pass
-
-                    # Factor tags
-                    _factors = []
-                    if _pos == 'QB':
-                        _factors.append("QB Premium")
-                    if _rctx_clean is not None and _rctx_clean <= 10:
-                        _factors.append("Top-10 Team")
-                    elif _rctx_clean is not None and _rctx_clean <= 25:
-                        _factors.append("Ranked Team")
-                    if _nctx_clean is not None and _nctx_clean > 0:
-                        _factors.append(f"{_nctx_clean:.0f}% Title")
-                    if _cctx_clean is not None and _cctx_clean > 0:
-                        _factors.append(f"{_cctx_clean:.0f}% CFP")
-                    if _ovr >= 92:
-                        _factors.append("Elite OVR")
-                    elif _ovr >= 88:
-                        _factors.append("High OVR")
-                    if _spd >= 93:
-                        _factors.append("Burner Speed")
-                    if not _factors:
-                        _factors.append("Pure Talent")
-                    _factors = _factors[:4]
-                    _factors_html = "".join(
-                        f'<span class="hfactor">{html.escape(str(f))}</span>' for f in _factors
-                    )
-                    _num = _rank_i + 1
+                    # User or CPU badge
+                    if _is_user:
+                        _badge_html = f"<div class='hcard-user-badge'>👤 {html.escape(str(_user).upper())} · {html.escape(_team)}</div>"
+                        _card_cls = "hcard user-card"
+                    else:
+                        _badge_html = f"<div class='hcard-cpu-badge'>{html.escape(_team)}</div>"
+                        _card_cls = "hcard"
 
                     _cards_html += f"""
-    <div class="hcard">
+    <div class="{_card_cls}">
       <div class="hcard-stripe" style="background:{_tc};"></div>
       <div class="hcard-body">
         <div class="hcard-toprow">
-          <span class="hcard-rank" style="color:{_tc};">{_num}</span>
-          <div class="hcard-odds-col">
-            <div class="hcard-odds-num" style="color:{_tc};">{_odds:.1f}%</div>
-            <div class="hcard-odds-lbl">Heisman Odds</div>
-          </div>
+          {_rank_html}
+          <div style="display:flex;align-items:center;gap:6px;">{_move_html}{_logo_html}</div>
         </div>
-        <div class="hcard-name">{_name}</div>
+        <div class="hcard-name">{html.escape(_name)}</div>
         <div class="hcard-meta">
-          <span class="pos-badge" style="background:{_pc}22;color:{_pc};border:1px solid {_pc}55;">{_pos}</span>
-          <span class="class-badge">{html.escape(_yr)}</span>
-          <span class="team-tag">· {html.escape(_team)} · {_rank_tag}</span>
+          <span class="pos-badge" style="background:{_pc}22;color:{_pc};border:1px solid {_pc}55;">{html.escape(_pos)}</span>
         </div>
-        <div class="hbar-bg"><div class="hbar-fill" style="width:{_bar_w}%;background:linear-gradient(90deg,{_tc},{_tc}99);"></div></div>
-        <div class="hstats">
-          <div class="hstat"><div class="hstat-val">{_ovr}</div><div class="hstat-lbl">OVR</div></div>
-          <div class="hstat"><div class="hstat-val">{_awr}</div><div class="hstat-lbl">AWR</div></div>
-          <div class="hstat"><div class="hstat-val">{_spd}</div><div class="hstat-lbl">SPD</div></div>
-          <div class="hstat"><div class="hstat-val">{_score:.0f}</div><div class="hstat-lbl">Score</div></div>
-        </div>
-        <div class="hfactors">{_factors_html}</div>
-        <div class="hcard-user">👤 {html.escape(str(_user))}</div>
+        {_badge_html}
       </div>
     </div>"""
 
                 _cards_html += "\n  </div>\n</div>"
-                _n_cards = len(_featured_list)
-                _n_rows = -(-_n_cards // 3)  # ceiling div for 3-col layout
-                _card_height = 100 + (_n_rows * 310)
-                components.html(_cards_html, height=_card_height, scrolling=False)
 
-                with st.expander("⚡ How the Heisman Odds formula works"):
-                    st.markdown(
-                        """
-                        - **Talent base:** OVR is the heaviest input — if you're not good, you're not on the board.
-                        - **Player quality modifiers:** awareness (AWR), athletic juice (SPD/ACC/AGI/COD), and ball-carrier tools (CAR/BCV) create separation between similarly-rated players.
-                        - **Position value:** QBs get the biggest premium (+18), then HBs (+11), WRs (+7), TEs (+4). This reflects Heisman voting reality — voters love quarterbacks.
-                        - **Team context:** preseason/live rank, natty odds, CFP odds, and projected wins all boost players on nationally relevant teams. A 99 OVR HB on a 4-win squad isn't winning anything.
-                        - **Odds conversion:** raw scores run through a softmax-style scaling so the board reads like a race, not a flat ranking.
-                        - **One per team:** only the top skill candidate from each user team appears — makes the board represent the full league rather than stacking one dominant roster.
-                        """
-                    )
-            else:
-                st.info("No user-team skill players were found for the current season Heisman board.")
-        except Exception:
-            st.info("Load cfb26_rosters_full.csv to generate the Heisman board.")
+                _n_cards = len(_hw_snap)
+                _n_rows  = -(-_n_cards // 3)
+                _card_height = 80 + (_n_rows * 200)
+                components.html(_cards_html, height=_card_height, scrolling=True)
 
-        # ════════════════════════════════════════════════════════════════════
-        # SECTION 4 — AWARD WATCH
+                # Show snapshot history expander if multiple weeks
+                _all_weeks = sorted(_hw_cy['WEEK'].dropna().unique().tolist(), reverse=True)
+                if len(_all_weeks) > 1:
+                    with st.expander(f"📅 View all {len(_all_weeks)} weekly snapshots"):
+                        for _wk in _all_weeks:
+                            _snap_wk = _hw_cy[_hw_cy['WEEK'] == _wk].sort_values('RANK')
+                            _wk_label = "Preseason" if _wk == 0 else f"Week {int(_wk)}"
+                            st.markdown(f"**{_wk_label}**")
+                            _snap_rows = []
+                            for _, _sr in _snap_wk.iterrows():
+                                _su = _team_to_user.get(str(_sr['TEAM']).strip(), '')
+                                _user_tag = f" 👤 **{_su}**" if _su else ""
+                                _snap_rows.append(f"#{int(_sr['RANK'])} {_sr['NAME']} · {_sr['POS']} · {_sr['TEAM']}{_user_tag}")
+                            st.caption("  ·  ".join(_snap_rows))
+
+        except Exception as _hw_err:
+            st.info(f"Heisman watch data unavailable: {_hw_err}")
+
+
+                # SECTION 4 — AWARD WATCH
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🏆 Award Watch")
@@ -14651,13 +14565,18 @@ with tabs[0]:
                     continue
                 if _t not in _team_injuries:
                     _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': 99, 'injuries': []}
+                _is_raw = str(_ir.get('IsStarter', '')).strip().lower()
+                _starter_flag = _is_raw in ('yes', 'true', '1') or (
+                    _is_raw == '' and int(_ir.get('OVR', 0) or 0) >= 80
+                )
                 _team_injuries[_t]['injuries'].append({
-                    'name':   str(_ir.get('Player', '—')),
-                    'pos':    str(_ir.get('Pos', '—')),
-                    'ovr':    int(_ir.get('OVR', 0)),
-                    'injury': str(_ir.get('Injury', '—')),
-                    'weeks':  int(_ir.get('WeeksOut', 0)),
-                    'status': str(_ir.get('Status', 'Out')),
+                    'name':      str(_ir.get('Player', '—')),
+                    'pos':       str(_ir.get('Pos', '—')),
+                    'ovr':       int(_ir.get('OVR', 0) or 0),
+                    'injury':    str(_ir.get('Injury', '—')),
+                    'weeks':     int(_ir.get('WeeksOut', 0) or 0),
+                    'status':    str(_ir.get('Status', 'Out')),
+                    'is_starter': _starter_flag,
                 })
             INJURY_DATA = list(_team_injuries.values())
         except Exception:
@@ -14684,11 +14603,23 @@ with tabs[0]:
             rows_html = ""
             for p in team_data['injuries']:
                 dot, color, label = injury_severity(p['weeks'])
+                _starter_badge = (
+                    "<span style='display:inline-block;padding:0px 5px;border-radius:3px;"
+                    "background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);"
+                    "font-size:0.58rem;font-weight:700;font-family:Barlow Condensed,sans-serif;"
+                    "letter-spacing:0.06em;margin-left:5px;vertical-align:middle;'>STARTER</span>"
+                    if p.get('is_starter') else
+                    "<span style='display:inline-block;padding:0px 5px;border-radius:3px;"
+                    "background:rgba(100,116,139,0.1);color:#475569;border:1px solid rgba(100,116,139,0.2);"
+                    "font-size:0.58rem;font-family:Barlow Condensed,sans-serif;"
+                    "letter-spacing:0.06em;margin-left:5px;vertical-align:middle;'>BACKUP</span>"
+                )
                 rows_html += (
                     f"<div style='display:flex;justify-content:space-between;align-items:center;"
                     f"padding:6px 8px;border-bottom:1px solid #1f2937;'>"
                     f"<div>"
                     f"<span style='font-weight:700;color:#f3f4f6;font-size:0.85rem;'>{html.escape(p['name'])}</span>"
+                    f"{_starter_badge}"
                     f"<span style='color:#9ca3af;font-size:0.75rem;margin-left:6px;'>{p['pos']} · {p['ovr']} OVR</span><br>"
                     f"<span style='color:#d1d5db;font-size:0.78rem;'>{html.escape(p['injury'])}</span>"
                     f"</div>"

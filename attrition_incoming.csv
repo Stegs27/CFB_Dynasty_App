@@ -159,9 +159,11 @@ Year,User,Team,RecruitSlot,Name,Pos,HT,WT,ClassLabel,RecruitType,State,StarRatin
 2041,Josh,USF,20,O. Ellington,LEDG,"6'0""",221,HS,HS,NC,3,1276,67,58,8
 2041,Josh,USF,21,J. Spriggs,RT,"6'6""",293,HS,HS,NC,3,1491,95,66,8
 2041,Josh,USF,22,D. Cavka,C,"6'1""",280,HS,HS,FL,3,1679,52,180,8
-2042,Josh,USF,1,D. Joslin,TE,"6'4""",205,HS,HS,SC,4,48,5,2,7
-2042,Josh,USF,2,M. Orakpo,REDG,"6'2""",243,HS,HS,GA,4,313,34,24,7
-2042,Josh,USF,3,D. Fry,HB,"6'0""",185,JUCO(SO),JUCO,FL,3,1361,182,158,7
+2042,Josh,USF,1,D. Joslin,TE,"6'4""",205,HS,HS,SC,4,48,5,2,
+2042,Josh,USF,3,M. Orakpo,REDG,"6'2""",243,HS,HS,GA,4,313,34,24,
+2042,Josh,USF,4,D. Fry,HB,"6'0""",185,JUCO (SO),JUCO,FL,3,1361,182,158,
 2042,Devin,Bowling Green,1,S. Keenan,DT,"6'2""",286,HS,HS,OH,4,92,7,3,4
 2042,Devin,Bowling Green,2,L. Linder,CB,"6'2""",193,HS,HS,IL,4,281,22,3,4
 2042,Noah,Texas Tech,1,J. Emanuel,LG,"6'3""",306,HS,HS,TX,4,104,11,19,5
+2042,Josh,USF,2,K. Styles,REDG,"6'3""",236,HS,HS,FL,4,305,32,39,
+2042,Mike,San Jose State,1,F. Cavka,SS,"6'2""",208,HS,HS,CA,3,453,5,36,

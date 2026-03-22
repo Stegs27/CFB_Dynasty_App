@@ -9,3 +9,6 @@ Year,Week,User,Team,Player,Pos,OVR,Injury,WeeksOut,Status,IsStarter
 2041,,Nick,Florida State,S.Winterswyk,QB,80,Dislocated Elbow,3,Out,Yes
 2041,,Nick,Florida State,J.Fe'esago,WR,90,Torn Pectoral,20,Out,Yes
 2042,0,None,,,,,,,,
+2042,4,Mike,San Jose State,A. Wint,C,81,Dislocated Elbow,1,,Yes
+2042,4,Mike,San Jose State,E. McDaniels,HB,84,Broken Collarbone,7,,Yes
+2042,4,Devin,Bowling Green,S. Fogg,LT,85,Torn Labrum,3,,Yes
