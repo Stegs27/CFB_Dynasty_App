@@ -13787,22 +13787,29 @@ with tabs[0]:
             try:
                 _live_rec_df = get_overall_recruiting_snapshot()
                 if _live_rec_df is not None and not _live_rec_df.empty:
-                    _rk = _live_rec_df.sort_values('Rank').iloc[0]
-                    _team = str(_rk.get('Team','')).strip()
-                    _user = str(_rk.get('User','')).strip()
-                    if not _user or _user.lower() in ('nan',''):
-                        _match = model_2041[model_2041['TEAM'] == _team]
-                        _user = str(_match.iloc[0]['USER']) if not _match.empty else _team
-                    _points = round(_hh_safe_num(_rk.get('Points', 0), 0), 2)
-                    _ukey = f"recruiting_king:{CURRENT_YEAR}:{_team}:{_points}"
-                    _score = 62 + min(18, _points / 8 if _points else 0)
-                    _score -= _headline_recent_penalty(_headline_history, _ukey)
-                    _headline_add(
-                        _headline_candidates,
-                        'recruiting_king',
-                        {'user': html.escape(_user), 'team': html.escape(_team), 'points': _points},
-                        team=_team, user=_user, score=_score, uniqueness_key=_ukey
-                    )
+                    # Check if current year recruiting data exists
+                    # After week 3, suppress last season's recruiting headlines until new class is imported
+                    _rec_year_in_data = int(_live_rec_df['Year'].max()) if 'Year' in _live_rec_df.columns else 0
+                    _rec_is_current = (_rec_year_in_data == CURRENT_YEAR)
+                    _rec_suppress = (CURRENT_WEEK_NUMBER > 3 and not _rec_is_current)
+
+                    if not _rec_suppress:
+                        _rk = _live_rec_df.sort_values('Rank').iloc[0]
+                        _team = str(_rk.get('Team','')).strip()
+                        _user = str(_rk.get('User','')).strip()
+                        if not _user or _user.lower() in ('nan',''):
+                            _match = model_2041[model_2041['TEAM'] == _team]
+                            _user = str(_match.iloc[0]['USER']) if not _match.empty else _team
+                        _points = round(_hh_safe_num(_rk.get('Points', 0), 0), 2)
+                        _ukey = f"recruiting_king:{CURRENT_YEAR}:{_team}:{_points}"
+                        _score = 62 + min(18, _points / 8 if _points else 0)
+                        _score -= _headline_recent_penalty(_headline_history, _ukey)
+                        _headline_add(
+                            _headline_candidates,
+                            'recruiting_king',
+                            {'user': html.escape(_user), 'team': html.escape(_team), 'points': _points},
+                            team=_team, user=_user, score=_score, uniqueness_key=_ukey
+                        )
             except Exception:
                 pass
 
