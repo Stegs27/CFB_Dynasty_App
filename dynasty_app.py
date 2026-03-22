@@ -14573,6 +14573,83 @@ with tabs[0]:
                     "📺 MARQUEE":     ("#60a5fa", "#030f1f"),
                 }
 
+                # Build game_summaries lookup for peak moment enrichment
+                _gs_peak_lookup = {}   # (vis_team_lower, home_team_lower, week) → enriched peak string
+                try:
+                    _gs_pm = pd.read_csv('game_summaries.csv')
+                    _gs_pm.columns = [str(c).strip() for c in _gs_pm.columns]
+                    _pm_yr_c = next((c for c in _gs_pm.columns if c.upper() in ['YEAR','YR']), None)
+                    _pm_wk_c = next((c for c in _gs_pm.columns if c.upper() == 'WEEK'), None)
+                    _pm_hm_c = next((c for c in _gs_pm.columns if c.upper() in ['HOMETEAM','HOME']), None)
+                    _pm_vs_c = next((c for c in _gs_pm.columns if c.upper() in ['VISITORTEAM','VISITOR','AWAY','AWAYTEAM']), None)
+                    if _pm_yr_c: _gs_pm[_pm_yr_c] = pd.to_numeric(_gs_pm[_pm_yr_c], errors='coerce')
+                    if _pm_wk_c: _gs_pm[_pm_wk_c] = pd.to_numeric(_gs_pm[_pm_wk_c], errors='coerce')
+                    _gs_pm_cy = _gs_pm[_gs_pm[_pm_yr_c] == CURRENT_YEAR].copy() if _pm_yr_c else _gs_pm.copy()
+
+                    def _pmq(row, prefix, q):
+                        for c in [f'Q{q}_{prefix}',f'{prefix}_Q{q}',f'Q{q}{prefix}',f'{prefix}Q{q}']:
+                            if c in row.index:
+                                v = pd.to_numeric(row[c], errors='coerce')
+                                if pd.notna(v): return int(v)
+                        return None
+
+                    for _, _pmr in _gs_pm_cy.iterrows():
+                        try:
+                            _pm_ht = str(_pmr.get(_pm_hm_c, '')).strip().lower() if _pm_hm_c else ''
+                            _pm_vt = str(_pmr.get(_pm_vs_c, '')).strip().lower() if _pm_vs_c else ''
+                            _pm_wk = int(_pmr[_pm_wk_c]) if _pm_wk_c and pd.notna(_pmr[_pm_wk_c]) else 0
+                            if not _pm_ht and not _pm_vt: continue
+
+                            _pm_hq1 = _pmq(_pmr,'Home',1); _pm_hq2 = _pmq(_pmr,'Home',2)
+                            _pm_hq3 = _pmq(_pmr,'Home',3); _pm_hq4 = _pmq(_pmr,'Home',4)
+                            _pm_vq1 = _pmq(_pmr,'Visitor',1) or _pmq(_pmr,'Away',1)
+                            _pm_vq2 = _pmq(_pmr,'Visitor',2) or _pmq(_pmr,'Away',2)
+                            _pm_vq3 = _pmq(_pmr,'Visitor',3) or _pmq(_pmr,'Away',3)
+                            _pm_vq4 = _pmq(_pmr,'Visitor',4) or _pmq(_pmr,'Away',4)
+
+                            _pm_h_half = (_pm_hq1 or 0) + (_pm_hq2 or 0) if (_pm_hq1 or _pm_hq2) else None
+                            _pm_v_half = (_pm_vq1 or 0) + (_pm_vq2 or 0) if (_pm_vq1 or _pm_vq2) else None
+                            _pm_hf = sum(x for x in [_pm_hq1,_pm_hq2,_pm_hq3,_pm_hq4] if x is not None) or None
+                            _pm_vf = sum(x for x in [_pm_vq1,_pm_vq2,_pm_vq3,_pm_vq4] if x is not None) or None
+
+                            # Derive peak moment narrative from actual Q data
+                            if _pm_hf is not None and _pm_vf is not None:
+                                _pm_margin = abs(_pm_hf - _pm_vf)
+                                _pm_winner_half = _pm_h_half if _pm_hf > _pm_vf else _pm_v_half
+                                _pm_loser_half  = _pm_v_half if _pm_hf > _pm_vf else _pm_h_half
+                                _pm_hq3_diff = (_pm_hq3 or 0) - (_pm_vq3 or 0) if _pm_hq3 is not None else None
+                                _pm_hq4_diff = (_pm_hq4 or 0) - (_pm_vq4 or 0) if _pm_hq4 is not None else None
+
+                                # Halftime comeback
+                                if (_pm_winner_half is not None and _pm_loser_half is not None
+                                        and _pm_loser_half > _pm_winner_half + 3):
+                                    _deficit = _pm_loser_half - _pm_winner_half
+                                    _pm_peak = f"Down {_deficit} at half, won it in Q3–Q4"
+                                # Overtime
+                                elif _pmq(_pmr,'Home','OT') is not None or _pmq(_pmr,'Visitor','OT') is not None or _pmq(_pmr,'Away','OT') is not None:
+                                    _pm_peak = "Overtime — neither side would quit"
+                                # Q4 won it
+                                elif _pm_hq4_diff is not None and abs(_pm_hq4_diff) >= (_pm_margin - 3) and _pm_margin <= 7:
+                                    _pm_peak = "Q4 decided it — final drive"
+                                # Big Q3 swing
+                                elif _pm_hq3_diff is not None and abs(_pm_hq3_diff) >= 14:
+                                    _pm_peak = "Q3 blowup — game flipped in the third"
+                                # Blowout — first half
+                                elif _pm_margin >= 28 and _pm_h_half is not None and abs((_pm_h_half or 0) - (_pm_v_half or 0)) >= 14:
+                                    _pm_peak = "Over by halftime — dominant from the start"
+                                # High scoring
+                                elif (_pm_hf + _pm_vf) >= 90:
+                                    _pm_peak = f"{_pm_hf + _pm_vf} total pts — offensive shootout"
+                                else:
+                                    _pm_peak = f"Q4: {_pm_hq4}–{_pm_vq4}" if _pm_hq4 is not None and _pm_vq4 is not None else None
+
+                                if _pm_peak:
+                                    _gs_peak_lookup[(_pm_vt, _pm_ht, _pm_wk)] = _pm_peak
+                        except Exception:
+                            continue
+                except Exception:
+                    pass  # game_summaries not found — silent
+
                 _tv_table_rows = []
                 for _rank, _tg in enumerate(_tv_top10, 1):
                     _r = _tg["row"]
@@ -14661,7 +14738,7 @@ with tabs[0]:
                         <div style='font-size:0.58rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>viewers</div>
                       </td>
                       <td style='padding:10px 12px;'>
-                        <div style='font-size:0.72rem;color:#94a3b8;font-style:italic;max-width:160px;'>{html.escape(_peak)}</div>
+                        <div style='font-size:0.72rem;color:#94a3b8;font-style:italic;max-width:160px;'>{html.escape(_gs_peak_lookup.get((_vis_team.lower(), _home_team.lower(), _week), _peak))}</div>
                       </td>
                     </tr>""")
 
@@ -14752,13 +14829,9 @@ with tabs[0]:
                             _games_with_box.append((_tg, _match))
 
                     if _games_with_box:
-                        st.markdown(
-                            f"<div style='margin:14px 0 6px 0;font-size:0.68rem;font-weight:700;"
-                            f"color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;'>"
-                            f"📋 Box Scores Available — {len(_games_with_box)} of {len(_tv_top10)} top-rated games captured</div>",
-                            unsafe_allow_html=True
-                        )
-
+                        # Build all box score accordions as ONE html string with a shared <style> block
+                        # (st.expander + st.markdown tables render as raw HTML — this fixes it)
+                        _tv_bx_cards = []
                         for _tg2, _gs_row in _games_with_box:
                             _r2 = _tg2["row"]
                             _vt2 = str(_r2.get("Visitor","")).strip()
@@ -14766,13 +14839,11 @@ with tabs[0]:
                             _vs2 = int(_r2["Vis Score"])
                             _hs2 = int(_r2["Home Score"])
                             _wk2 = int(_r2["Week"]) if not pd.isna(_r2.get("Week")) else 0
-                            _vc2 = get_team_primary_color(_vt2)
-                            _hc2 = get_team_primary_color(_ht2)
                             _vl2 = image_file_to_data_uri(get_logo_source(_vt2))
                             _hl2 = image_file_to_data_uri(get_logo_source(_ht2))
-                            _vi2 = f"<img src='{_vl2}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _vl2 else "🏈"
-                            _hi2 = f"<img src='{_hl2}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _hl2 else "🏈"
-                            _v_won2 = _vs2 > _hs2
+                            _vi2b = "<img src='" + str(_vl2) + "' class='tvbx-logo'/>" if _vl2 else "🏈"
+                            _hi2b = "<img src='" + str(_hl2) + "' class='tvbx-logo'/>" if _hl2 else "🏈"
+                            _vw2 = _vs2 > _hs2
 
                             _vq1 = _extract_q(_gs_row,'Visitor',1) or _extract_q(_gs_row,'Away',1)
                             _vq2 = _extract_q(_gs_row,'Visitor',2) or _extract_q(_gs_row,'Away',2)
@@ -14784,82 +14855,98 @@ with tabs[0]:
                             _hq3 = _extract_q(_gs_row,'Home',3)
                             _hq4 = _extract_q(_gs_row,'Home',4)
                             _hot = _extract_q(_gs_row,'Home','OT') or _extract_q(_gs_row,'Home',5)
-
                             _vf2 = _extract_final(_gs_row,['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore']) or _vs2
                             _hf2 = _extract_final(_gs_row,['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome']) or _hs2
                             _has_ot2 = (_vot is not None or _hot is not None)
 
                             _vpass2 = _extract_stat(_gs_row,['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_Away','AwayPassYds'])
                             _vrush2 = _extract_stat(_gs_row,['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_Away','AwayRushYds'])
-                            _vto2   = _extract_stat(_gs_row,['Turnovers_Visitor','VisitorTurnovers','V_TO','TO_Visitor','Turnovers_Away'])
+                            _vto2   = _extract_stat(_gs_row,['Turnovers_Visitor','VisitorTurnovers','V_TO','Turnovers_Away'])
                             _hpass2 = _extract_stat(_gs_row,['PassYds_Home','HomePassYds','H_PassYds'])
                             _hrush2 = _extract_stat(_gs_row,['RushYds_Home','HomeRushYds','H_RushYds'])
                             _hto2   = _extract_stat(_gs_row,['Turnovers_Home','HomeTurnovers','H_TO'])
 
-                            def _qcell(val):
-                                if val is None: return "<td style='padding:3px 8px;text-align:center;color:#475569;font-size:0.75rem;'>—</td>"
-                                return f"<td style='padding:3px 8px;text-align:center;color:#94a3b8;font-size:0.78rem;font-weight:500;'>{val}</td>"
+                            def _tvbx_qcell(val, final=False, won=False):
+                                if val is None:
+                                    return "<td class='tvbx-q tvbx-empty'>—</td>"
+                                if final:
+                                    return "<td class='tvbx-q tvbx-final " + ("tvbx-won" if won else "tvbx-lost") + "'>" + ("&#9654; " if won else "") + str(val) + "</td>"
+                                return "<td class='tvbx-q'>" + str(val) + "</td>"
 
-                            def _fcell(val, won):
-                                c = "#f1f5f9" if won else "#475569"
-                                fw = "900" if won else "500"
-                                return f"<td style='padding:3px 8px;text-align:center;font-size:1.0rem;font-weight:{fw};color:{c};border-left:1px solid #1e293b;'>{'▶ ' if won else ''}{val}</td>"
+                            def _tvbx_chips(p, r, t):
+                                out = []
+                                if p: out.append(f"<span class='tvbx-chip tvbx-pass'>&#9992; {p}</span>")
+                                if r: out.append(f"<span class='tvbx-chip tvbx-rush'>&#127939; {r}</span>")
+                                if t:
+                                    tc = 'tvbx-to-hot' if t >= 3 else ('tvbx-to-warn' if t >= 2 else 'tvbx-to-ok')
+                                    out.append(f"<span class='tvbx-chip {tc}'>&#9889; {t} TO</span>")
+                                return "<div class='tvbx-chips'>" + "".join(out) + "</div>" if out else ""
 
-                            def _stat_chips(pass_y, rush_y, turnovers):
-                                chips = []
-                                if pass_y    is not None: chips.append(f"<span style='font-size:0.63rem;color:#93c5fd;background:rgba(96,165,250,0.12);border-radius:3px;padding:1px 5px;'>✈️ {pass_y}</span>")
-                                if rush_y    is not None: chips.append(f"<span style='font-size:0.63rem;color:#6ee7b7;background:rgba(52,211,153,0.10);border-radius:3px;padding:1px 5px;'>🏃 {rush_y}</span>")
-                                if turnovers is not None:
-                                    _to_col = "#f87171" if turnovers >= 3 else ("#fbbf24" if turnovers >= 2 else "#94a3b8")
-                                    chips.append(f"<span style='font-size:0.63rem;color:{_to_col};background:rgba(239,68,68,0.08);border-radius:3px;padding:1px 5px;'>⚡ {turnovers} TO</span>")
-                                return "<div style='display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;'>" + "".join(chips) + "</div>" if chips else ""
+                            _ot_th2 = "<th class='tvbx-th tvbx-tc'>OT</th>" if _has_ot2 else ""
+                            _sum_txt = html.escape(_vt2) + " " + str(_vs2) + "&#8211;" + str(_hs2) + " " + html.escape(_ht2) + " &middot; Wk " + str(_wk2)
 
-                            _ot_th2 = "<th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>OT</th>" if _has_ot2 else ""
+                            _card2 = (
+                                "<details class='tvbx-details'>"
+                                "<summary class='tvbx-summary'>&#128203; " + _sum_txt + "</summary>"
+                                "<div class='tvbx-body'>"
+                                "<table class='tvbx-table'>"
+                                "<thead><tr class='tvbx-hdr'>"
+                                "<th class='tvbx-th tvbx-tl'>Team</th>"
+                                "<th class='tvbx-th tvbx-tc'>Q1</th><th class='tvbx-th tvbx-tc'>Q2</th>"
+                                "<th class='tvbx-th tvbx-tc'>Q3</th><th class='tvbx-th tvbx-tc'>Q4</th>"
+                                + _ot_th2 +
+                                "<th class='tvbx-th tvbx-final-th'>FINAL</th>"
+                                "</tr></thead><tbody>"
+                                "<tr class='tvbx-row'>"
+                                "<td class='tvbx-team'><div class='tvbx-ti'>" + _vi2b + "<div><div class='" + ("tvbx-nw" if _vw2 else "tvbx-nl") + "'>" + html.escape(_vt2) + "</div>" + _tvbx_chips(_vpass2,_vrush2,_vto2) + "</div></div></td>"
+                                + _tvbx_qcell(_vq1) + _tvbx_qcell(_vq2) + _tvbx_qcell(_vq3) + _tvbx_qcell(_vq4)
+                                + (_tvbx_qcell(_vot) if _has_ot2 else "")
+                                + _tvbx_qcell(_vf2, final=True, won=_vw2) +
+                                "</tr><tr class='tvbx-row'>"
+                                "<td class='tvbx-team'><div class='tvbx-ti'>" + _hi2b + "<div><div class='" + ("tvbx-nw" if not _vw2 else "tvbx-nl") + "'>" + html.escape(_ht2) + "</div>" + _tvbx_chips(_hpass2,_hrush2,_hto2) + "</div></div></td>"
+                                + _tvbx_qcell(_hq1) + _tvbx_qcell(_hq2) + _tvbx_qcell(_hq3) + _tvbx_qcell(_hq4)
+                                + (_tvbx_qcell(_hot) if _has_ot2 else "")
+                                + _tvbx_qcell(_hf2, final=True, won=not _vw2) +
+                                "</tr></tbody></table></div></details>"
+                            )
+                            _tv_bx_cards.append(_card2)
 
-                            with st.expander(f"📋 {_vt2} {_vs2}–{_hs2} {_ht2}  ·  Wk {_wk2}", expanded=False):
-                                st.markdown(f"""
-                                <table style='width:100%;border-collapse:collapse;background:#080f1a;border-radius:8px;overflow:hidden;'>
-                                  <thead>
-                                    <tr style='background:#0a1220;'>
-                                      <th style='padding:6px 10px;text-align:left;color:#475569;font-size:0.65rem;min-width:130px;'>Team</th>
-                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q1</th>
-                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q2</th>
-                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q3</th>
-                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q4</th>
-                                      {_ot_th2}
-                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;border-left:1px solid #1e293b;'>FINAL</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    <tr style='border-top:1px solid #1e293b;'>
-                                      <td style='padding:7px 10px;'>
-                                        <div style='display:flex;align-items:center;gap:6px;'>
-                                          {_vi2}
-                                          <div>
-                                            <div style='font-weight:{"900" if _v_won2 else "600"};color:{"#f1f5f9" if _v_won2 else "#94a3b8"};font-size:0.8rem;'>{html.escape(_vt2)}</div>
-                                            {_stat_chips(_vpass2,_vrush2,_vto2)}
-                                          </div>
-                                        </div>
-                                      </td>
-                                      {_qcell(_vq1)}{_qcell(_vq2)}{_qcell(_vq3)}{_qcell(_vq4)}{"" if not _has_ot2 else _qcell(_vot)}
-                                      {_fcell(_vf2, _v_won2)}
-                                    </tr>
-                                    <tr style='border-top:1px solid #1e293b;'>
-                                      <td style='padding:7px 10px;'>
-                                        <div style='display:flex;align-items:center;gap:6px;'>
-                                          {_hi2}
-                                          <div>
-                                            <div style='font-weight:{"900" if not _v_won2 else "600"};color:{"#f1f5f9" if not _v_won2 else "#94a3b8"};font-size:0.8rem;'>{html.escape(_ht2)}</div>
-                                            {_stat_chips(_hpass2,_hrush2,_hto2)}
-                                          </div>
-                                        </div>
-                                      </td>
-                                      {_qcell(_hq1)}{_qcell(_hq2)}{_qcell(_hq3)}{_qcell(_hq4)}{"" if not _has_ot2 else _qcell(_hot)}
-                                      {_fcell(_hf2, not _v_won2)}
-                                    </tr>
-                                  </tbody>
-                                </table>
-                                """, unsafe_allow_html=True)
+                        _tv_bx_html = """
+<style>
+.tvbx-header{margin:14px 0 6px 0;font-size:0.68rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;}
+.tvbx-details{background:#0a1628;border:1px solid #1e293b;border-radius:8px;margin-bottom:6px;overflow:hidden;}
+.tvbx-summary{padding:10px 14px;cursor:pointer;font-size:0.82rem;font-weight:700;color:#94a3b8;list-style:none;display:flex;align-items:center;gap:6px;}
+.tvbx-summary::-webkit-details-marker{display:none;}
+.tvbx-details[open] .tvbx-summary{color:#f1f5f9;border-bottom:1px solid #1e293b;}
+.tvbx-body{padding:10px 14px;}
+.tvbx-table{width:100%;border-collapse:collapse;background:#080f1a;}
+.tvbx-hdr{background:#0a1220;}
+.tvbx-th{padding:4px 8px;color:#475569;font-size:0.63rem;font-weight:600;}
+.tvbx-tl{text-align:left;min-width:120px;}
+.tvbx-tc{text-align:center;}
+.tvbx-final-th{text-align:center;border-left:1px solid #1e293b;}
+.tvbx-row{border-top:1px solid #1e293b;}
+.tvbx-team{padding:5px 8px;}
+.tvbx-ti{display:flex;align-items:center;gap:6px;}
+.tvbx-logo{width:22px;height:22px;object-fit:contain;}
+.tvbx-nw{font-weight:900;color:#f1f5f9;font-size:0.78rem;}
+.tvbx-nl{font-weight:600;color:#64748b;font-size:0.78rem;}
+.tvbx-q{padding:3px 8px;text-align:center;color:#94a3b8;font-size:0.75rem;}
+.tvbx-empty{color:#334155;}
+.tvbx-final{padding:3px 8px;text-align:center;font-size:1.0rem;font-weight:900;border-left:1px solid #1e293b;}
+.tvbx-won{color:#f1f5f9;}
+.tvbx-lost{color:#475569;}
+.tvbx-chips{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px;}
+.tvbx-chip{border-radius:3px;padding:1px 5px;font-size:0.62rem;font-weight:700;}
+.tvbx-pass{color:#93c5fd;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.25);}
+.tvbx-rush{color:#6ee7b7;background:rgba(52,211,153,0.10);border:1px solid rgba(52,211,153,0.22);}
+.tvbx-to-hot{color:#f87171;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.25);}
+.tvbx-to-warn{color:#fbbf24;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);}
+.tvbx-to-ok{color:#94a3b8;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.18);}
+</style>
+<div class='tvbx-header'>&#128203; Box Scores Available &#8212; """ + str(len(_games_with_box)) + " of " + str(len(_tv_top10)) + """ top-rated games captured</div>
+""" + "".join(_tv_bx_cards)
+                        st.markdown(_tv_bx_html, unsafe_allow_html=True)
 
                 except FileNotFoundError:
                     pass  # game_summaries.csv not found — silent, no clutter in news feed
@@ -19018,164 +19105,161 @@ with tabs[12]:
                             if _gs_week_col:
                                 _gs_view = _gs_view.sort_values(_gs_week_col, ascending=False)
 
+                            # ── Build all box score cards as ONE html string + style block ──
+                            # (Streamlit sanitizes <table> inside per-call st.markdown;
+                            #  wrapping everything with a <style> block in a single call fixes it)
+                            def _bx_q(row, prefix, q):
+                                for c in [f'Q{q}_{prefix}', f'{prefix}_Q{q}', f'Q{q}{prefix}', f'{prefix}Q{q}']:
+                                    if c in row.index:
+                                        v = pd.to_numeric(row[c], errors='coerce')
+                                        if pd.notna(v): return int(v)
+                                return None
+
+                            def _bx_final(row, cols):
+                                for c in cols:
+                                    if c in row.index:
+                                        v = pd.to_numeric(row[c], errors='coerce')
+                                        if pd.notna(v): return int(v)
+                                return None
+
+                            def _bx_stat(row, cols):
+                                for c in cols:
+                                    if c in row.index:
+                                        v = pd.to_numeric(row[c], errors='coerce')
+                                        if pd.notna(v): return int(v)
+                                return None
+
+                            _all_cards_html = []
                             for _, _gr in _gs_view.iterrows():
                                 _bx_home = str(_gr.get(_gs_home_col, 'Home')) if _gs_home_col else 'Home'
                                 _bx_vis  = str(_gr.get(_gs_vis_col,  'Visitor')) if _gs_vis_col else 'Visitor'
                                 _bx_wk   = int(_gr.get(_gs_week_col, 0)) if _gs_week_col and pd.notna(_gr.get(_gs_week_col)) else 0
                                 _bx_yr   = int(_gr.get(_gs_year_col, CURRENT_YEAR)) if _gs_year_col and pd.notna(_gr.get(_gs_year_col)) else CURRENT_YEAR
 
-                                # Q-by-Q score columns — try various naming conventions
-                                def _qscore(team_prefix, q):
-                                    candidates = [
-                                        f'Q{q}_{team_prefix}', f'{team_prefix}_Q{q}',
-                                        f'Q{q}{team_prefix}', f'{team_prefix}Q{q}',
-                                        f'Q{q}Home' if 'Home' in team_prefix else f'Q{q}Visitor',
-                                        f'Q{q}Away' if 'Away' in team_prefix else None,
-                                    ]
-                                    for c in candidates:
-                                        if c and c in _gr.index:
-                                            v = pd.to_numeric(_gr[c], errors='coerce')
-                                            return int(v) if pd.notna(v) else None
-                                    return None
+                                _hq1 = _bx_q(_gr,'Home',1); _hq2 = _bx_q(_gr,'Home',2)
+                                _hq3 = _bx_q(_gr,'Home',3); _hq4 = _bx_q(_gr,'Home',4)
+                                _vq1 = _bx_q(_gr,'Visitor',1) or _bx_q(_gr,'Away',1)
+                                _vq2 = _bx_q(_gr,'Visitor',2) or _bx_q(_gr,'Away',2)
+                                _vq3 = _bx_q(_gr,'Visitor',3) or _bx_q(_gr,'Away',3)
+                                _vq4 = _bx_q(_gr,'Visitor',4) or _bx_q(_gr,'Away',4)
+                                _hot = _bx_q(_gr,'Home','OT') or _bx_q(_gr,'Home',5)
+                                _vot = _bx_q(_gr,'Visitor','OT') or _bx_q(_gr,'Away','OT') or _bx_q(_gr,'Visitor',5)
 
-                                def _final_score(team_prefix, fallback_col_list):
-                                    for fc in fallback_col_list:
-                                        if fc and fc in _gr.index:
-                                            v = pd.to_numeric(_gr[fc], errors='coerce')
-                                            if pd.notna(v):
-                                                return int(v)
-                                    return None
+                                _hf = _bx_final(_gr,['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome'])
+                                _vf = _bx_final(_gr,['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore'])
+                                if _hf is None and any(x is not None for x in [_hq1,_hq2,_hq3,_hq4]):
+                                    _hf = sum(x for x in [_hq1,_hq2,_hq3,_hq4,_hot] if x is not None)
+                                if _vf is None and any(x is not None for x in [_vq1,_vq2,_vq3,_vq4]):
+                                    _vf = sum(x for x in [_vq1,_vq2,_vq3,_vq4,_vot] if x is not None)
 
-                                _h_q1 = _qscore('Home', 1); _h_q2 = _qscore('Home', 2)
-                                _h_q3 = _qscore('Home', 3); _h_q4 = _qscore('Home', 4)
-                                _v_q1 = _qscore('Visitor', 1) or _qscore('Away', 1)
-                                _v_q2 = _qscore('Visitor', 2) or _qscore('Away', 2)
-                                _v_q3 = _qscore('Visitor', 3) or _qscore('Away', 3)
-                                _v_q4 = _qscore('Visitor', 4) or _qscore('Away', 4)
+                                _hw = bool(_hf is not None and _vf is not None and _hf > _vf)
+                                _vw = bool(_hf is not None and _vf is not None and _vf > _hf)
 
-                                _h_ot = _qscore('Home', 'OT') or _qscore('Home', '5')
-                                _v_ot = _qscore('Visitor', 'OT') or _qscore('Away', 'OT') or _qscore('Visitor', '5')
+                                _hc2 = get_team_primary_color(_bx_home)
+                                _vc2 = get_team_primary_color(_bx_vis)
+                                _hlu2 = image_file_to_data_uri(get_logo_source(_bx_home))
+                                _vlu2 = image_file_to_data_uri(get_logo_source(_bx_vis))
+                                _hi2 = "<img src='" + str(_hlu2) + "' class='bx-logo'/>" if _hlu2 else "🏈"
+                                _vi2 = "<img src='" + str(_vlu2) + "' class='bx-logo'/>" if _vlu2 else "🏈"
 
-                                _h_final = _final_score('Home', ['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome'])
-                                _v_final = _final_score('Visitor', ['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore'])
+                                _hpass = _bx_stat(_gr,['PassYds_Home','HomePassYds','H_PassYds'])
+                                _hrush = _bx_stat(_gr,['RushYds_Home','HomeRushYds','H_RushYds'])
+                                _hto   = _bx_stat(_gr,['Turnovers_Home','HomeTurnovers','H_TO'])
+                                _vpass = _bx_stat(_gr,['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_Away','AwayPassYds'])
+                                _vrush = _bx_stat(_gr,['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_Away','AwayRushYds'])
+                                _vto   = _bx_stat(_gr,['Turnovers_Visitor','VisitorTurnovers','V_TO','Turnovers_Away'])
 
-                                # If no final but quarters exist, sum them
-                                if _h_final is None and any(x is not None for x in [_h_q1,_h_q2,_h_q3,_h_q4]):
-                                    _h_final = sum(x for x in [_h_q1,_h_q2,_h_q3,_h_q4,_h_ot] if x is not None)
-                                if _v_final is None and any(x is not None for x in [_v_q1,_v_q2,_v_q3,_v_q4]):
-                                    _v_final = sum(x for x in [_v_q1,_v_q2,_v_q3,_v_q4,_v_ot] if x is not None)
+                                def _chips(p, r, t):
+                                    out = []
+                                    if p: out.append(f"<span class='bx-chip bx-chip-pass'>✈ {p} pass</span>")
+                                    if r: out.append(f"<span class='bx-chip bx-chip-rush'>&#127939; {r} rush</span>")
+                                    if t:
+                                        tc = 'bx-chip-to-hot' if t >= 3 else ('bx-chip-to-warn' if t >= 2 else 'bx-chip-to-ok')
+                                        out.append(f"<span class='bx-chip {tc}'>&#9889; {t} TO</span>")
+                                    return "<div class='bx-chips'>" + "".join(out) + "</div>" if out else ""
 
-                                _h_won = (_h_final is not None and _v_final is not None and _h_final > _v_final)
-                                _v_won = (_h_final is not None and _v_final is not None and _v_final > _h_final)
-
-                                _hc  = get_team_primary_color(_bx_home)
-                                _vc  = get_team_primary_color(_bx_vis)
-                                _hlu = image_file_to_data_uri(get_logo_source(_bx_home))
-                                _vlu = image_file_to_data_uri(get_logo_source(_bx_vis))
-                                _h_img = f"<img src='{_hlu}' style='width:36px;height:36px;object-fit:contain;'/>" if _hlu else "🏈"
-                                _v_img = f"<img src='{_vlu}' style='width:36px;height:36px;object-fit:contain;'/>" if _vlu else "🏈"
-
-                                _wk_label = f"Wk {_bx_wk}" if _bx_wk else ""
-                                _yr_label = str(_bx_yr)
-
-                                def _q_cell(val, is_final=False, won=False):
+                                def _qcell(val, final=False, won=False):
                                     if val is None:
-                                        return "<td style='padding:4px 10px;text-align:center;color:#475569;font-size:0.75rem;'>—</td>"
-                                    _fw = "font-weight:900;" if is_final else "font-weight:500;"
-                                    _color = "#f1f5f9" if is_final and won else ("#94a3b8" if not is_final else "#64748b")
-                                    _size = "1.0rem" if is_final else "0.8rem"
-                                    return f"<td style='padding:4px 10px;text-align:center;color:{_color};font-size:{_size};{_fw}'>{val}</td>"
+                                        return "<td class='bx-q bx-q-empty'>—</td>"
+                                    cls = "bx-final " + ("bx-won" if won else "bx-lost") if final else "bx-q"
+                                    return f"<td class='{cls}'>{val}</td>"
 
-                                _ot_header = "<th style='padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;'>OT</th>" if (_h_ot is not None or _v_ot is not None) else ""
-                                _ot_h_cell = _q_cell(_h_ot) if (_h_ot is not None or _v_ot is not None) else ""
-                                _ot_v_cell = _q_cell(_v_ot) if (_h_ot is not None or _v_ot is not None) else ""
+                                _has_ot = (_hot is not None or _vot is not None)
+                                _ot_th = "<th class='bx-th bx-th-center'>OT</th>" if _has_ot else ""
 
-                                # Stat columns (pass/rush yds etc)
-                                def _stat(col_candidates):
-                                    for c in col_candidates:
-                                        if c in _gr.index:
-                                            v = pd.to_numeric(_gr[c], errors='coerce')
-                                            if pd.notna(v):
-                                                return int(v)
-                                    return None
+                                _card = (
+                                    "<div class='bx-card'>"
+                                    f"<div class='bx-meta'>{html.escape(str(_bx_yr))} &middot; Wk {_bx_wk}</div>"
+                                    "<table class='bx-table'>"
+                                    "<thead><tr>"
+                                    "<th class='bx-th bx-th-left'>Team</th>"
+                                    "<th class='bx-th bx-th-center'>Q1</th>"
+                                    "<th class='bx-th bx-th-center'>Q2</th>"
+                                    "<th class='bx-th bx-th-center'>Q3</th>"
+                                    "<th class='bx-th bx-th-center'>Q4</th>"
+                                    + _ot_th +
+                                    "<th class='bx-th bx-th-final'>FINAL</th>"
+                                    "</tr></thead>"
+                                    "<tbody>"
+                                    "<tr class='bx-row'>"
+                                    "<td class='bx-team-cell'>"
+                                    "<div class='bx-team-inner'>"
+                                    + _vi2 +
+                                    "<div>"
+                                    f"<div class='{'bx-name-w' if _vw else 'bx-name-l'}'>{html.escape(_bx_vis)}</div>"
+                                    + _chips(_vpass, _vrush, _vto) +
+                                    "</div></div></td>"
+                                    + _qcell(_vq1) + _qcell(_vq2) + _qcell(_vq3) + _qcell(_vq4)
+                                    + (_qcell(_vot) if _has_ot else "")
+                                    + _qcell(_vf, final=True, won=_vw) +
+                                    "</tr>"
+                                    "<tr class='bx-row bx-row-b'>"
+                                    "<td class='bx-team-cell'>"
+                                    "<div class='bx-team-inner'>"
+                                    + _hi2 +
+                                    "<div>"
+                                    f"<div class='{'bx-name-w' if _hw else 'bx-name-l'}'>{html.escape(_bx_home)}</div>"
+                                    + _chips(_hpass, _hrush, _hto) +
+                                    "</div></div></td>"
+                                    + _qcell(_hq1) + _qcell(_hq2) + _qcell(_hq3) + _qcell(_hq4)
+                                    + (_qcell(_hot) if _has_ot else "")
+                                    + _qcell(_hf, final=True, won=_hw) +
+                                    "</tr>"
+                                    "</tbody></table></div>"
+                                )
+                                _all_cards_html.append(_card)
 
-                                _h_pass = _stat(['PassYds_Home','HomePassYds','H_PassYds','PassYds_H'])
-                                _h_rush = _stat(['RushYds_Home','HomeRushYds','H_RushYds','RushYds_H'])
-                                _h_to   = _stat(['Turnovers_Home','HomeTurnovers','H_TO','TO_Home'])
-                                _v_pass = _stat(['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_V','PassYds_Away','AwayPassYds'])
-                                _v_rush = _stat(['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_V','RushYds_Away','AwayRushYds'])
-                                _v_to   = _stat(['Turnovers_Visitor','VisitorTurnovers','V_TO','TO_Visitor','Turnovers_Away'])
-
-                                _has_stats = any(x is not None for x in [_h_pass, _h_rush, _v_pass, _v_rush])
-
-                                def _stat_chip_row(pass_yds, rush_yds, turnovers, color):
-                                    chips = []
-                                    if pass_yds is not None:
-                                        chips.append(f"<span style='background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.3);border-radius:4px;padding:2px 7px;font-size:0.68rem;font-weight:700;color:#93c5fd;'>✈️ {pass_yds} pass</span>")
-                                    if rush_yds is not None:
-                                        chips.append(f"<span style='background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);border-radius:4px;padding:2px 7px;font-size:0.68rem;font-weight:700;color:#6ee7b7;'>🏃 {rush_yds} rush</span>")
-                                    if turnovers is not None:
-                                        _to_c = "#f87171" if turnovers >= 3 else ("#fbbf24" if turnovers >= 2 else "#94a3b8")
-                                        chips.append(f"<span style='background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.25);border-radius:4px;padding:2px 7px;font-size:0.68rem;font-weight:700;color:{_to_c};'>⚡ {turnovers} TO</span>")
-                                    return "<div style='display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;'>" + "".join(chips) + "</div>" if chips else ""
-
-                                _h_stat_row = _stat_chip_row(_h_pass, _h_rush, _h_to, _hc)
-                                _v_stat_row = _stat_chip_row(_v_pass, _v_rush, _v_to, _vc)
-
-                                st.markdown(f"""
-                                <div style="background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;
-                                            border-radius:12px;padding:14px 16px;margin-bottom:10px;">
-                                    <div style="display:flex;justify-content:space-between;align-items:center;
-                                                margin-bottom:10px;font-size:0.65rem;color:#475569;font-weight:700;letter-spacing:.06em;">
-                                        <span>{html.escape(_yr_label)} · {html.escape(_wk_label)}</span>
-                                    </div>
-                                    <table style="width:100%;border-collapse:collapse;">
-                                        <thead>
-                                            <tr>
-                                                <th style="padding:4px 10px;text-align:left;color:#64748b;font-size:0.7rem;min-width:120px;">Team</th>
-                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q1</th>
-                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q2</th>
-                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q3</th>
-                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q4</th>
-                                                {_ot_header}
-                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;border-left:1px solid #1e293b;">FINAL</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr style="border-top:1px solid #1e293b;">
-                                                <td style="padding:6px 10px;">
-                                                    <div style="display:flex;align-items:center;gap:8px;">
-                                                        {_v_img}
-                                                        <div>
-                                                            <div style="font-weight:{'900' if _v_won else '600'};color:{'#f1f5f9' if _v_won else '#94a3b8'};font-size:0.85rem;">{html.escape(_bx_vis)}</div>
-                                                            {_v_stat_row}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                {_q_cell(_v_q1)}{_q_cell(_v_q2)}{_q_cell(_v_q3)}{_q_cell(_v_q4)}{_ot_v_cell}
-                                                <td style="padding:4px 10px;text-align:center;border-left:1px solid #1e293b;">
-                                                    <span style="font-size:1.3rem;font-weight:900;color:{'#f1f5f9' if _v_won else '#475569'};">{'▶ ' if _v_won else ''}{_v_final if _v_final is not None else '—'}</span>
-                                                </td>
-                                            </tr>
-                                            <tr style="border-top:1px solid #1e293b;">
-                                                <td style="padding:6px 10px;">
-                                                    <div style="display:flex;align-items:center;gap:8px;">
-                                                        {_h_img}
-                                                        <div>
-                                                            <div style="font-weight:{'900' if _h_won else '600'};color:{'#f1f5f9' if _h_won else '#94a3b8'};font-size:0.85rem;">{html.escape(_bx_home)}</div>
-                                                            {_h_stat_row}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                {_q_cell(_h_q1)}{_q_cell(_h_q2)}{_q_cell(_h_q3)}{_q_cell(_h_q4)}{_ot_h_cell}
-                                                <td style="padding:4px 10px;text-align:center;border-left:1px solid #1e293b;">
-                                                    <span style="font-size:1.3rem;font-weight:900;color:{'#f1f5f9' if _h_won else '#475569'};">{'▶ ' if _h_won else ''}{_h_final if _h_final is not None else '—'}</span>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                """, unsafe_allow_html=True)
+                            _bx_full_html = """
+<style>
+.bx-card{background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+.bx-meta{font-size:0.65rem;color:#475569;font-weight:700;letter-spacing:.06em;margin-bottom:8px;}
+.bx-table{width:100%;border-collapse:collapse;}
+.bx-th{padding:4px 10px;color:#64748b;font-size:0.68rem;font-weight:600;}
+.bx-th-left{text-align:left;min-width:130px;}
+.bx-th-center{text-align:center;}
+.bx-th-final{text-align:center;border-left:1px solid #1e293b;}
+.bx-row{border-top:1px solid #1e293b;}
+.bx-row-b{border-top:1px solid #0f172a;}
+.bx-team-cell{padding:6px 10px;}
+.bx-team-inner{display:flex;align-items:center;gap:8px;}
+.bx-logo{width:34px;height:34px;object-fit:contain;}
+.bx-name-w{font-weight:900;color:#f1f5f9;font-size:0.85rem;}
+.bx-name-l{font-weight:600;color:#64748b;font-size:0.85rem;}
+.bx-q{padding:4px 10px;text-align:center;color:#94a3b8;font-size:0.8rem;font-weight:500;}
+.bx-q-empty{padding:4px 10px;text-align:center;color:#334155;font-size:0.75rem;}
+.bx-final{padding:4px 10px;text-align:center;font-size:1.05rem;font-weight:900;border-left:1px solid #1e293b;}
+.bx-won{color:#f1f5f9;}
+.bx-lost{color:#475569;}
+.bx-chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;}
+.bx-chip{border-radius:4px;padding:2px 6px;font-size:0.65rem;font-weight:700;}
+.bx-chip-pass{background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.3);color:#93c5fd;}
+.bx-chip-rush{background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#6ee7b7;}
+.bx-chip-to-hot{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;}
+.bx-chip-to-warn{background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);color:#fbbf24;}
+.bx-chip-to-ok{background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);color:#94a3b8;}
+</style>
+""" + "".join(_all_cards_html)
+                            st.markdown(_bx_full_html, unsafe_allow_html=True)
 
                 except FileNotFoundError:
                     st.info("📋 **game_summaries.csv** not found. Start capturing game summaries via the ISPN Data Importer to populate this tab.")
