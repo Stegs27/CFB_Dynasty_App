@@ -7152,8 +7152,6 @@ def sync_derived_stats():
             "CFP Losses":                  cfp_l,
             "National Titles":             natty_titles,
             "National Title Appearances":  natty_apps,
-            "Career Wins":                 user_career_wins.get(u, 0),
-            "Career Losses":               user_career_losses.get(u, 0),
         }
         for col, val in updates.items():
             if col in udp.columns and int(udp.at[i, col]) != int(val):
@@ -7202,9 +7200,9 @@ def sync_derived_stats():
                 pwp = round(pw / max(1, pw + pl), 3)
 
                 sync_map = {
-                    "CareerWins":       cw,
-                    "CareerLosses":     cl,
-                    "CareerWinPct":     cwp,
+                    "CareerWins":       user_career_wins.get(u, 0),
+                    "CareerLosses":     user_career_losses.get(u, 0),
+                    "CareerWinPct":     round(user_career_wins.get(u,0) / max(1, user_career_wins.get(u,0) + user_career_losses.get(u,0)), 3),
                     "PlayoffWins":      pw,
                     "PlayoffLosses":    pl,
                     "PlayoffWinPct":    pwp,
