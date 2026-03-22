@@ -7045,8 +7045,10 @@ def sync_derived_stats():
       coach_records.csv   → CareerWins, CareerLosses, CareerWinPct, PlayoffWins,
                             PlayoffLosses, PlayoffWinPct, NationalTitles, ConferenceTitles
 
-    Fields intentionally left manual:
-      Career Wins/Losses, Conference Titles, Guys Sent to NFL, 1st Rounders
+    Auto-derives from CPUscores_MASTER.csv as of each load:
+      Career Wins/Losses derived from all FINAL game results across all seasons.
+    Fields still intentionally left manual:
+      Conference Titles (use champs.csv), Guys Sent to NFL, 1st Rounders
     """
     import os as _os
     import pandas as _pd
@@ -7070,6 +7072,33 @@ def sync_derived_stats():
             t = str(row.get(t_col, "")).strip()
             if u and u.upper() != "CPU" and u.lower() not in ("nan", ""):
                 user_teams_all.setdefault(u, set()).add(t.lower())
+
+    # ── 2b. Derive Career Wins/Losses from CPUscores_MASTER ────────────────
+    # Count all FINAL games where user's team won/lost across ALL years
+    user_career_wins   = {}  # user -> int
+    user_career_losses = {}
+    scores_final = scores_raw[
+        scores_raw['Status'].astype(str).str.upper() == 'FINAL'
+    ].copy()
+    scores_final['Vis Score']  = _pd.to_numeric(scores_final.get('Vis Score'),  errors='coerce')
+    scores_final['Home Score'] = _pd.to_numeric(scores_final.get('Home Score'), errors='coerce')
+    scores_final = scores_final.dropna(subset=['Vis Score','Home Score'])
+
+    for _, _sr in scores_final.iterrows():
+        _vs = float(_sr['Vis Score']); _hs = float(_sr['Home Score'])
+        for _ucol, _scol, _opp_scol in [
+            ('Vis_User',  'Vis Score', 'Home Score'),
+            ('Home_User', 'Home Score', 'Vis Score'),
+        ]:
+            _u = str(_sr.get(_ucol, '')).strip().title()
+            if not _u or _u.upper() == 'CPU' or _u.lower() in ('nan',''):
+                continue
+            _my_s  = float(_sr[_scol])
+            _opp_s = float(_sr[_opp_scol])
+            if _my_s > _opp_s:
+                user_career_wins[_u]   = user_career_wins.get(_u, 0) + 1
+            elif _opp_s > _my_s:
+                user_career_losses[_u] = user_career_losses.get(_u, 0) + 1
 
     # ── 3. Derive CFP stats from CFPbracketresults.csv ───────────────────────
     cfp_done = cfp[cfp["COMPLETED"] == 1].copy()
@@ -7123,6 +7152,8 @@ def sync_derived_stats():
             "CFP Losses":                  cfp_l,
             "National Titles":             natty_titles,
             "National Title Appearances":  natty_apps,
+            "Career Wins":                 user_career_wins.get(u, 0),
+            "Career Losses":               user_career_losses.get(u, 0),
         }
         for col, val in updates.items():
             if col in udp.columns and int(udp.at[i, col]) != int(val):
@@ -12622,59 +12653,9 @@ with tabs[0]:
             pass
 
         # ── Conf rank lookup from conf_standings CSV ──────────────────────
-        # ── Conference Standings Rank — NCAA tiebreaker rules ─────────────────
-        # Primary: CONF_W (conf wins). Tiebreakers by conference:
-        # All Power 4 (SEC/B1G/ACC/Big 12): 1) H2H 2) Record vs common conf opps
-        #   3) Cumulative conf opp win% 4) Scoring margin vs conf opps 5) Total W
-        # Group of 6 (MWC/MAC/Sun Belt/American/CUSA): 1) CONF_W% 2) Total W% 3) MOV
-        # Sources: CBS Sports Oct 2025, NCAA.com 2026
-        _conf_rank_map = {}
-        try:
-            _cs = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
-            if 'TEAM' in _cs.columns:
-                _cs['TEAM'] = _cs['TEAM'].astype(str).str.strip()
-                _cs_yr = _cs[_cs['YEAR'] == CURRENT_YEAR].copy() if 'YEAR' in _cs.columns else _cs.copy()
-                if 'WEEK' in _cs_yr.columns:
-                    _cs_yr['WEEK'] = pd.to_numeric(_cs_yr['WEEK'], errors='coerce').fillna(0)
-                    _cs_yr = _cs_yr.sort_values('WEEK').drop_duplicates('TEAM', keep='last')
+        _conf_rank_map = {}  # Conference rank removed — calculated on-screen instead
 
-                for _nc in ['W','L','CONF_W','CONF_L','PF','PA','MOV','DIFF']:
-                    if _nc in _cs_yr.columns:
-                        _cs_yr[_nc] = pd.to_numeric(_cs_yr[_nc], errors='coerce').fillna(0)
-                    else:
-                        _cs_yr[_nc] = 0
-
-                if 'CONFERENCE' in _cs_yr.columns:
-                    _POWER4 = {'SEC','B1G','ACC','Big 12'}
-                    _result_parts = []
-                    for _conf, _grp in _cs_yr.groupby('CONFERENCE', sort=False):
-                        _grp = _grp.copy()
-                        _gp_conf = _grp['CONF_W'] + _grp['CONF_L']
-                        _grp['_conf_pct'] = _grp['CONF_W'] / _gp_conf.replace(0, np.nan).fillna(1)
-                        _gp_all  = _grp['W'] + _grp['L']
-                        _grp['_ovr_pct']  = _grp['W'] / _gp_all.replace(0, np.nan).fillna(1)
-                        # MOV from CSV if available, else compute from PF/PA/games
-                        if 'MOV' in _grp.columns and _grp['MOV'].abs().max() > 0:
-                            _grp['_mov'] = pd.to_numeric(_grp['MOV'], errors='coerce').fillna(0)
-                        else:
-                            _total_gp = (_gp_all).replace(0, np.nan).fillna(1)
-                            _grp['_mov'] = (_grp['PF'] - _grp['PA']) / _total_gp
-                        # Sort: conf win%, overall win%, MOV — covers all tiebreaker levels
-                        # (full H2H and common-opponent calc requires game-level data not in standings CSV)
-                        _grp = _grp.sort_values(
-                            ['_conf_pct','CONF_W','_ovr_pct','W','_mov'],
-                            ascending=[False, False, False, False, False]
-                        ).reset_index(drop=True)
-                        _grp['_calc_cr'] = range(1, len(_grp) + 1)
-                        _result_parts.append(_grp)
-
-                    if _result_parts:
-                        _cs_ranked = pd.concat(_result_parts)
-                        _conf_rank_map = dict(zip(_cs_ranked['TEAM'], _cs_ranked['_calc_cr']))
-        except Exception:
-            pass
-
-        # ── Team ratings for betting lines ────────────────────────────────
+                # ── Team ratings for betting lines ────────────────────────────────
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
 
@@ -12773,8 +12754,6 @@ with tabs[0]:
             # Record from cfp_rankings_history latest snapshot
             _rec_str = _record_map.get(team.strip(), '')
             # Conf rank from conf_standings CSV
-            _conf_rank = _conf_rank_map.get(team.strip(), None)
-
             _tier_chips = ""
             # Overall record chip
             if _rec_str and str(_rec_str).lower() not in ('nan',''):
@@ -12789,17 +12768,7 @@ with tabs[0]:
                                 f"border-radius:3px;background:{_rec_color}22;color:{_rec_color};"
                                 f"border:1px solid {_rec_color}55;font-family:Barlow Condensed,sans-serif;"
                                 f"letter-spacing:0.04em;'>{html.escape(str(_rec_str))}</span> ")
-            # Conf rank chip
-            if _conf_rank is not None:
-                try:
-                    _cr_int = int(_conf_rank)
-                    _cr_color = '#fbbf24' if _cr_int == 1 else ('#60a5fa' if _cr_int <= 3 else '#94a3b8')
-                    _tier_chips += (f"<span style='font-size:0.72rem;font-weight:800;padding:2px 7px;"
-                                    f"border-radius:3px;background:{_cr_color}22;color:{_cr_color};"
-                                    f"border:1px solid {_cr_color}55;font-family:Barlow Condensed,sans-serif;"
-                                    f"letter-spacing:0.04em;'>#{_cr_int} CONF</span>")
-                except Exception:
-                    pass
+            # Conf rank chip removed
 
             # ── Live PI (show when we have real season data) ──────────────
             _live_pi = float(row.get('Power Index', 0))
