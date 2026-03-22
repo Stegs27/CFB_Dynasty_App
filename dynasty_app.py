@@ -12624,17 +12624,30 @@ with tabs[0]:
             _cs = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
             if 'TEAM' in _cs.columns:
                 _cs['TEAM'] = _cs['TEAM'].astype(str).str.strip()
-                _cs_yr = _cs[_cs['YEAR'] == CURRENT_YEAR] if 'YEAR' in _cs.columns else _cs
-                if 'RANK' in _cs_yr.columns:
-                    # RANK is CFP rank — derive conf rank from W within each conference
-                    _cs_yr = _cs_yr.copy()
-                    _cs_yr['W'] = pd.to_numeric(_cs_yr['W'], errors='coerce').fillna(0)
-                    _cs_yr['CONF_W'] = pd.to_numeric(_cs_yr.get('CONF_W', 0), errors='coerce').fillna(0)
-                    if 'CONFERENCE' in _cs_yr.columns:
-                        _cs_yr['_cr'] = _cs_yr.groupby('CONFERENCE')['CONF_W'].rank(ascending=False, method='min').astype(int)
+                _cs_yr = _cs[_cs['YEAR'] == CURRENT_YEAR].copy() if 'YEAR' in _cs.columns else _cs.copy()
+                # Keep latest week if multiple rows per team
+                if 'WEEK' in _cs_yr.columns:
+                    _cs_yr['WEEK'] = pd.to_numeric(_cs_yr['WEEK'], errors='coerce').fillna(0)
+                    _cs_yr = _cs_yr.sort_values('WEEK').drop_duplicates('TEAM', keep='last')
+
+                if 'CONF_RANK' in _cs_yr.columns:
+                    # Use directly-captured conf rank from screenshot (most accurate)
+                    _cs_yr['CONF_RANK'] = pd.to_numeric(_cs_yr['CONF_RANK'], errors='coerce').fillna(99).astype(int)
+                    _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['CONF_RANK']))
+                elif 'CONF_W' in _cs_yr.columns and 'CONFERENCE' in _cs_yr.columns:
+                    # Fall back: derive from conf wins (works once games are played)
+                    _cs_yr['CONF_W'] = pd.to_numeric(_cs_yr['CONF_W'], errors='coerce').fillna(0)
+                    _cs_yr['W']      = pd.to_numeric(_cs_yr.get('W', 0), errors='coerce').fillna(0)
+                    # Only rank if there are non-zero conf wins to work with
+                    if _cs_yr['CONF_W'].max() > 0:
+                        _cs_yr['_cr'] = _cs_yr.groupby('CONFERENCE')['CONF_W'].rank(
+                            ascending=False, method='min').astype(int)
                         _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['_cr']))
                     else:
-                        _conf_rank_map = {}
+                        # Pre-season: rank by overall wins then alphabetical
+                        _cs_yr['_cr'] = _cs_yr.groupby('CONFERENCE')['W'].rank(
+                            ascending=False, method='min').astype(int)
+                        _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['_cr']))
         except Exception:
             pass
 
