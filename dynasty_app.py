@@ -8427,6 +8427,7 @@ def load_team_performance(year=None):
     Load in-season performance stats from conf_standings_{year}.csv.
     Returns dict: team → {PF, PA, DIFF, MOV, HOME_W, HOME_L, AWAY_W, AWAY_L, W, L, STK}
     HOME/AWAY columns are W-L strings e.g. "7-2". DIFF and MOV pre-computed.
+    Handles multiple rows per team (weekly snapshots) by taking the latest week.
     """
     if year is None:
         year = CURRENT_YEAR
@@ -8434,12 +8435,32 @@ def load_team_performance(year=None):
         cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
         cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
 
+        # Filter to correct year if YEAR column present
+        if 'YEAR' in cs.columns:
+            cs['YEAR'] = pd.to_numeric(cs['YEAR'], errors='coerce')
+            cs = cs[cs['YEAR'].fillna(-1).astype(int) == int(year)].copy()
+
+        # If multiple rows per team (weekly snapshots), keep the latest week
+        if 'WEEK' in cs.columns:
+            cs['WEEK'] = pd.to_numeric(cs['WEEK'], errors='coerce').fillna(0)
+            cs = cs.sort_values('WEEK', ascending=True).drop_duplicates(subset=['TEAM'], keep='last')
+
         def _parse_wl(s):
             try:
                 parts = str(s).split('-')
                 return int(parts[0]), int(parts[1])
             except Exception:
                 return 0, 0
+
+        def _parse_stk(s):
+            # Handles both integer and string formats like "W1", "L2", "3", "-2"
+            try:
+                s = str(s).strip()
+                if s.startswith('W'): return int(s[1:])
+                if s.startswith('L'): return -int(s[1:])
+                return int(float(s))
+            except Exception:
+                return 0
 
         result = {}
         for _, row in cs.iterrows():
@@ -8450,7 +8471,7 @@ def load_team_performance(year=None):
             l    = int(row['L'])      if pd.notna(row.get('L'))    else 0
             diff = float(row['DIFF']) if pd.notna(row.get('DIFF')) else (pf - pa)
             mov  = float(row['MOV'])  if pd.notna(row.get('MOV'))  else (diff / max(w + l, 1))
-            stk  = float(row['STK'])  if pd.notna(row.get('STK'))  else 0.0
+            stk  = _parse_stk(row.get('STK', 0))
             hw, hl = _parse_wl(row.get('HOME', '0-0'))
             aw, al = _parse_wl(row.get('AWAY', '0-0'))
             result[team] = {
@@ -13820,6 +13841,270 @@ with tabs[0]:
             _headline_history_save(_history_rows)
 
 # ════════════════════════════════════════════════════════════════════
+        # SECTION 2B — HIGHEST TV RATINGS
+        # Formula-driven fake viewership for marquee/exciting games.
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("📺 Highest Rated Games of the Season")
+        st.caption("Viewership formula based on matchup stakes, rankings, rivalry, margin, and game context. Peak = moment the broadcast peaked.")
+
+        try:
+            _tv_scores_df = pd.read_csv("CPUscores_MASTER.csv")
+            _tv_scores_df["YEAR"] = pd.to_numeric(_tv_scores_df["YEAR"], errors="coerce")
+            _tv_scores_df["Week"] = pd.to_numeric(_tv_scores_df["Week"], errors="coerce")
+            _tv_scores_df["Vis Score"] = pd.to_numeric(_tv_scores_df["Vis Score"], errors="coerce")
+            _tv_scores_df["Home Score"] = pd.to_numeric(_tv_scores_df["Home Score"], errors="coerce")
+            _tv_scores_df["Visitor Rank"] = pd.to_numeric(_tv_scores_df["Visitor Rank"], errors="coerce")
+            _tv_scores_df["Home Rank"] = pd.to_numeric(_tv_scores_df["Home Rank"], errors="coerce")
+
+            _tv_cy = _tv_scores_df[
+                (_tv_scores_df["YEAR"] == CURRENT_YEAR) &
+                (_tv_scores_df["Status"].astype(str).str.upper() == "FINAL")
+            ].dropna(subset=["Vis Score", "Home Score"]).copy()
+
+            _tv_cy["Vis_User"] = _tv_cy["Vis_User"].astype(str).str.strip().str.title()
+            _tv_cy["Home_User"] = _tv_cy["Home_User"].astype(str).str.strip().str.title()
+
+            def _tv_rating(row):
+                """Returns (viewership_millions, badge, peak_moment) tuple."""
+                vs = float(row["Vis Score"])
+                hs = float(row["Home Score"])
+                vr = float(row["Visitor Rank"]) if not pd.isna(row["Visitor Rank"]) else 99
+                hr = float(row["Home Rank"]) if not pd.isna(row["Home Rank"]) else 99
+                margin = abs(vs - hs)
+                total_pts = vs + hs
+                vis_user = str(row.get("Vis_User", "")).strip()
+                home_user = str(row.get("Home_User", "")).strip()
+                is_user_game = (vis_user in USER_TEAMS) or (home_user in USER_TEAMS)
+                is_h2h = (vis_user in USER_TEAMS) and (home_user in USER_TEAMS)
+                week = float(row.get("Week", 0) or 0)
+                is_playoff = week >= 16
+                is_conf_title = str(row.get("Conf Title", "0")).strip() in ("1", "Yes", "yes")
+                is_natty = str(row.get("Natty Game", "0")).strip().upper() in ("1", "YES", "YES")
+
+                # Base: ranked matchup prestige
+                top_rank = min(vr, hr)
+                both_ranked = vr <= 25 and hr <= 25
+                base = 2.0
+                if top_rank <= 5:   base += 6.5
+                elif top_rank <= 10: base += 4.5
+                elif top_rank <= 15: base += 2.8
+                elif top_rank <= 25: base += 1.5
+                if both_ranked:     base += 2.5
+
+                # Drama bonus: close game
+                if margin <= 3:    base += 3.5
+                elif margin <= 7:  base += 2.0
+                elif margin <= 14: base += 0.8
+
+                # High-scoring games draw eyeballs
+                if total_pts >= 100: base += 1.5
+                elif total_pts >= 80: base += 0.8
+
+                # Context bonuses
+                if is_natty:       base += 5.0
+                elif is_playoff:   base += 3.2
+                elif is_conf_title: base += 2.0
+                if is_h2h:         base += 2.5
+                elif is_user_game: base += 1.2
+
+                # Late-season premium
+                if week >= 12:     base += 1.0
+                elif week >= 8:    base += 0.4
+
+                # Upset multiplier: underdog wins
+                winner_rank = vr if vs > hs else hr
+                loser_rank  = hr if vs > hs else vr
+                is_upset = (loser_rank <= 10 and winner_rank > loser_rank + 5)
+                if is_upset:       base += 2.0
+
+                # Viewership in millions — add seeded noise for variety
+                import hashlib
+                seed_str = f"{row["YEAR"]}{row["Week"]}{row["Visitor"]}{row["Home"]}"
+                _hash = int(hashlib.md5(seed_str.encode()).hexdigest()[:6], 16)
+                noise = (_hash % 100) / 100.0 * 0.8 - 0.4  # ±0.4M
+                viewers = round(max(0.5, base + noise), 2)
+
+                # Badge
+                if is_natty:       badge = "🏆 NATTY"
+                elif is_playoff:   badge = "🏟️ PLAYOFF"
+                elif is_conf_title: badge = "🎖️ CONF TITLE"
+                elif is_h2h:       badge = "⚔️ H2H"
+                elif is_upset:     badge = "🚨 UPSET"
+                elif both_ranked:  badge = "🔥 RANKED"
+                elif margin <= 3:  badge = "💀 THRILLER"
+                else:              badge = "📺 MARQUEE"
+
+                # Peak moment
+                if is_natty or is_playoff:
+                    peak = "4th quarter, final drive"
+                elif margin <= 3:
+                    peak = "Final possession"
+                elif margin <= 7 and week >= 10:
+                    peak = "4th quarter comeback"
+                elif total_pts >= 90:
+                    peak = "Back-to-back scoring drives, Q3"
+                elif both_ranked and margin <= 14:
+                    peak = "3rd quarter lead change"
+                elif is_conf_title:
+                    peak = "Halftime — stakes set"
+                else:
+                    peak = "Opening drive + Q4"
+
+                return viewers, badge, peak, is_upset
+
+            # Score every completed game and pick top 10
+            _tv_rows = []
+            for _, _trow in _tv_cy.iterrows():
+                try:
+                    _v, _badge, _peak, _up = _tv_rating(_trow)
+                    _tv_rows.append({
+                        "row": _trow,
+                        "viewers": _v,
+                        "badge": _badge,
+                        "peak": _peak,
+                        "upset": _up,
+                    })
+                except Exception:
+                    pass
+
+            _tv_rows.sort(key=lambda x: x["viewers"], reverse=True)
+            _tv_top10 = _tv_rows[:10]
+
+            if _tv_top10:
+                _badge_colors = {
+                    "🏆 NATTY":      ("#fbbf24", "#451a03"),
+                    "🏟️ PLAYOFF":    ("#22d3ee", "#0c1a2e"),
+                    "🎖️ CONF TITLE": ("#a78bfa", "#1e0a3c"),
+                    "⚔️ H2H":        ("#f97316", "#2c0a00"),
+                    "🚨 UPSET":       ("#ef4444", "#1a0000"),
+                    "🔥 RANKED":      ("#4ade80", "#001a08"),
+                    "💀 THRILLER":    ("#f43f5e", "#1a000a"),
+                    "📺 MARQUEE":     ("#60a5fa", "#030f1f"),
+                }
+
+                _tv_table_rows = []
+                for _rank, _tg in enumerate(_tv_top10, 1):
+                    _r = _tg["row"]
+                    _vis_team  = str(_r.get("Visitor", "")).strip()
+                    _home_team = str(_r.get("Home",    "")).strip()
+                    _vis_score = int(_r["Vis Score"])
+                    _home_score = int(_r["Home Score"])
+                    _vis_rank  = int(_r["Visitor Rank"]) if not pd.isna(_r["Visitor Rank"]) else None
+                    _home_rank = int(_r["Home Rank"])    if not pd.isna(_r["Home Rank"])    else None
+                    _week      = int(_r["Week"]) if not pd.isna(_r.get("Week")) else 0
+                    _badge     = _tg["badge"]
+                    _peak      = _tg["peak"]
+                    _viewers   = _tg["viewers"]
+                    _vis_user  = str(_r.get("Vis_User",  "")).strip()
+                    _home_user = str(_r.get("Home_User", "")).strip()
+                    _margin    = abs(_vis_score - _home_score)
+                    _winner    = _vis_team if _vis_score > _home_score else _home_team
+
+                    # Logos
+                    _vl_uri = image_file_to_data_uri(get_logo_source(_vis_team))
+                    _hl_uri = image_file_to_data_uri(get_logo_source(_home_team))
+                    _vl_html = f"<img src='{_vl_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if _vl_uri else "🏈"
+                    _hl_html = f"<img src='{_hl_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if _hl_uri else "🏈"
+
+                    # Team colors
+                    _vc = get_team_primary_color(_vis_team)
+                    _hc = get_team_primary_color(_home_team)
+
+                    # Rank labels
+                    _vr_label = f"<span style='font-size:0.6rem;color:#94a3b8;'>#{_vis_rank} </span>" if _vis_rank else ""
+                    _hr_label = f"<span style='font-size:0.6rem;color:#94a3b8;'>#{_home_rank} </span>" if _home_rank else ""
+
+                    # Score display — bold winner
+                    _vis_bold  = "font-weight:900;color:#f1f5f9;" if _vis_score > _home_score else "color:#64748b;"
+                    _home_bold = "font-weight:900;color:#f1f5f9;" if _home_score > _vis_score else "color:#64748b;"
+
+                    # User tags
+                    def _utag(user):
+                        if user in USER_TEAMS:
+                            _tc = get_team_primary_color(USER_TEAMS.get(user, ""))
+                            return f"<span style='background:{_tc}22;color:{_tc};border:1px solid {_tc}55;font-size:0.55rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:3px;'>{html.escape(user.upper())}</span>"
+                        return ""
+
+                    _badge_bg, _badge_fg = _badge_colors.get(_badge, ("#3b82f6", "#030f1f"))
+
+                    # Week label
+                    _wk_labels = {16:"CFP R1",17:"CFP R1",18:"CFP QF",19:"CFP SF",20:"NCG",21:"NCG"}
+                    _wk_disp = _wk_labels.get(_week, f"Wk {_week}") if _week else ""
+
+                    # Rank pick color
+                    _rk_color = "#fbbf24" if _rank <= 3 else ("#94a3b8" if _rank <= 6 else "#475569")
+                    _rk_medals = {1:"🥇",2:"🥈",3:"🥉"}
+                    _rk_disp = _rk_medals.get(_rank, str(_rank))
+
+                    _tv_table_rows.append(f"""
+                    <tr style='background:linear-gradient(90deg,rgba(15,23,42,0.95),rgba(10,18,35,0.95));border-bottom:1px solid #0f172a;'>
+                      <td style='padding:10px 12px;text-align:center;font-family:"Bebas Neue",sans-serif;font-size:1.2rem;color:{_rk_color};white-space:nowrap;'>{_rk_disp}</td>
+                      <td style='padding:10px 8px;white-space:nowrap;'>
+                        <span style='background:{_badge_bg};color:{_badge_fg};font-size:0.6rem;font-weight:900;padding:2px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.08em;'>{_badge}</span>
+                        <div style='font-size:0.6rem;color:#475569;margin-top:2px;'>{_wk_disp}</div>
+                      </td>
+                      <td style='padding:10px 12px;'>
+                        <div style='display:flex;align-items:center;gap:10px;'>
+                          <div style='display:flex;align-items:center;gap:5px;'>
+                            {_vl_html}
+                            <div>
+                              <div style='font-size:0.78rem;font-weight:700;color:{_vc};white-space:nowrap;'>{_vr_label}{html.escape(_vis_team)}{_utag(_vis_user)}</div>
+                            </div>
+                          </div>
+                          <div style='color:#334155;font-weight:900;font-size:0.75rem;'>vs</div>
+                          <div style='display:flex;align-items:center;gap:5px;'>
+                            {_hl_html}
+                            <div>
+                              <div style='font-size:0.78rem;font-weight:700;color:{_hc};white-space:nowrap;'>{_hr_label}{html.escape(_home_team)}{_utag(_home_user)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style='padding:10px 12px;text-align:center;white-space:nowrap;'>
+                        <span style='{_vis_bold}font-family:"Bebas Neue",sans-serif;font-size:1.1rem;'>{_vis_score}</span>
+                        <span style='color:#334155;font-weight:900;margin:0 3px;'>–</span>
+                        <span style='{_home_bold}font-family:"Bebas Neue",sans-serif;font-size:1.1rem;'>{_home_score}</span>
+                      </td>
+                      <td style='padding:10px 12px;text-align:center;'>
+                        <div style='font-family:"Bebas Neue",sans-serif;font-size:1.35rem;color:#fbbf24;line-height:1;'>{_viewers:.1f}M</div>
+                        <div style='font-size:0.58rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>viewers</div>
+                      </td>
+                      <td style='padding:10px 12px;'>
+                        <div style='font-size:0.72rem;color:#94a3b8;font-style:italic;max-width:160px;'>{html.escape(_peak)}</div>
+                      </td>
+                    </tr>""")
+
+                _tv_html = f"""
+                <style>
+                .tv-wrap {{ overflow-x:auto; border:1px solid #1e293b; border-radius:10px; margin-bottom:8px; }}
+                .tv-table {{ width:100%; border-collapse:collapse; background:#080f1a; }}
+                </style>
+                <div class="tv-wrap">
+                  <table class="tv-table">
+                    <thead>
+                      <tr style='background:#0a1220;'>
+                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Rank</th>
+                        <th style='padding:8px 8px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;'>Type</th>
+                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;'>Matchup</th>
+                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Result</th>
+                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Viewership</th>
+                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;'>Peak Moment</th>
+                      </tr>
+                    </thead>
+                    <tbody>{"" .join(_tv_table_rows)}</tbody>
+                  </table>
+                </div>"""
+                st.markdown(_tv_html, unsafe_allow_html=True)
+                st.caption(f"📺 Viewership formula: matchup prestige + ranked status + margin + context (playoffs, rivalry, H2H). Seeded per game for consistency. {len(_tv_cy)} games rated this season.")
+            else:
+                st.info("No completed games yet this season — check back after Week 1 results are in.")
+
+        except Exception as _tv_err:
+            st.caption(f"TV ratings unavailable: {_tv_err}")
+
+
+# ════════════════════════════════════════════════════════════════════
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 3 — HEISMAN CANDIDATES
@@ -14885,10 +15170,22 @@ with tabs[3]:
             else:
                 _stk_disp = '<span style="color:#475569;">—</span>'
 
+            # Show seed for field teams, CFP rank for teams outside the field
+            _seed_val = int(row.get('Projected Seed Display', 999))
+            if _seed_val < 999:
+                _seed_disp_str = f"#{_seed_val}"
+                _seed_color = '#e5e7eb'
+            elif _show_all_cfp:
+                _seed_disp_str = f"#{int(row.get('Committee Rank Display', row.get('Rank', '?')))}"
+                _seed_color = '#475569'
+            else:
+                _seed_disp_str = '—'
+                _seed_color = '#475569'
+
             cells = [f"""
             <td class="isp-td-pin">
               <div class="isp-flex-row">
-                <div style="font-weight:800;min-width:24px;text-align:center;color:#e5e7eb;">#{int(row.get('Projected Seed Display', 0))}</div>
+                <div style="font-weight:800;min-width:28px;text-align:center;color:{_seed_color};font-size:0.85rem;">{_seed_disp_str}</div>
                 <div class="isp-td-num">{logo_html}</div>
                 <div style="font-weight:800;color:{primary};">{html.escape(team)}</div>
               </div>
