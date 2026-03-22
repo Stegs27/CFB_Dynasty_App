@@ -13371,6 +13371,54 @@ with tabs[0]:
                     "The committee is underselling <strong>{team}</strong> and the model has receipts. <strong>{user}</strong> has built something the poll has not fully accounted for yet.",
                 ]
             },
+            'halftime_comeback': {
+                'emoji': '⚡',
+                'title': 'Halftime Comeback',
+                'bodies': [
+                    "<strong>{user}</strong>'s <strong>{team}</strong> trailed <strong>{opp}</strong> {deficit}-{half_score} at the half and won {final_w}-{final_l}. That is a different kind of team.",
+                    "Down <strong>{deficit}-{half_score}</strong> at halftime against <strong>{opp}</strong>. Final score: <strong>{team} {final_w}, {opp} {final_l}</strong>. <strong>{user}</strong> does not panic — this program finds a way.",
+                    "The halftime locker room had to be electric. <strong>{team}</strong> was behind {deficit}-{half_score} and came back to beat <strong>{opp}</strong> {final_w}-{final_l}. <strong>{user}</strong> just delivered a statement.",
+                    "<strong>{opp}</strong> led {deficit}-{half_score} at the break and it was not enough. <strong>{user}</strong>'s <strong>{team}</strong> stormed back to win {final_w}-{final_l}. The second half belonged to one team.",
+                    "Halftime score: <strong>{opp} {deficit}, {team} {half_score}</strong>. Final: <strong>{team} {final_w}, {opp} {final_l}</strong>. That is the entire story. <strong>{user}</strong> refused to stay down.",
+                    "You cannot count out <strong>{team}</strong>. Down {deficit}-{half_score} at the half to <strong>{opp}</strong>, <strong>{user}</strong> watched this roster flip the game and win {final_w}-{final_l}.",
+                ]
+            },
+            'blowout_win': {
+                'emoji': '💥',
+                'title': 'Dominant Win',
+                'bodies': [
+                    "<strong>{user}</strong>'s <strong>{team}</strong> just put <strong>{opp}</strong> away <strong>{final_w}-{final_l}</strong>. That was not a football game — that was a statement.",
+                    "The final score was <strong>{final_w}-{final_l}</strong> and it felt like more. <strong>{team}</strong> walked through <strong>{opp}</strong> and <strong>{user}</strong> did not have to sweat a single quarter.",
+                    "<strong>{final_w}-{final_l}</strong>. <strong>{team}</strong> over <strong>{opp}</strong>. <strong>{user}</strong> just released a tape the committee is going to have to study for a week.",
+                    "That was a clinic. <strong>{user}</strong>'s <strong>{team}</strong> dropped <strong>{opp}</strong> by {margin} points and never looked threatened. The résumé just got a lot louder.",
+                    "If the goal is to send a message, <strong>{team}</strong> sent one. <strong>{final_w}-{final_l}</strong> over <strong>{opp}</strong>. <strong>{user}</strong> is playing at a different level right now.",
+                    "<strong>{opp}</strong> had no answer. <strong>{team}</strong> wins {final_w}-{final_l} in a performance that was never in doubt. <strong>{user}</strong>'s program is hitting its ceiling at the right time.",
+                ]
+            },
+            'offensive_explosion': {
+                'emoji': '🚀',
+                'title': 'Offensive Explosion',
+                'bodies': [
+                    "<strong>{user}</strong>'s <strong>{team}</strong> put up <strong>{total_pts} points</strong> against <strong>{opp}</strong>. The offense is clicking at a level this dynasty does not often see.",
+                    "<strong>{total_pts} points</strong>. <strong>{team}</strong> torched <strong>{opp}</strong> and <strong>{user}</strong> has an offense that is impossible to game-plan against right now.",
+                    "The scoring line reads <strong>{team} {total_pts}, {opp} {opp_pts}</strong>. When <strong>{user}</strong>'s offense gets going like this, nobody in this field has an answer.",
+                    "Consider this a warning. <strong>{team}</strong> just went for <strong>{total_pts} points</strong> and <strong>{user}</strong>'s offense has not shown a ceiling yet.",
+                    "<strong>{total_pts} points</strong> from <strong>{team}</strong>. <strong>{user}</strong> built an offense that can score on anyone — <strong>{opp}</strong> just learned that the hard way.",
+                    "The efficiency numbers on <strong>{team}</strong> right now are absurd. <strong>{total_pts} points</strong> against <strong>{opp}</strong> — <strong>{user}</strong> has this machine running.",
+                ]
+            },
+            'turnover_disaster': {
+                'emoji': '💀',
+                'title': 'Turnover Disaster',
+                'bodies': [
+                    "<strong>{user}</strong>'s <strong>{team}</strong> coughed it up <strong>{turnovers} times</strong> against <strong>{opp}</strong> and paid the price. Turnover margin is the sport's most unforgiving stat.",
+                    "<strong>{turnovers} turnovers</strong>. That is the <strong>{team}</strong> box score against <strong>{opp}</strong>. <strong>{user}</strong> cannot win a title giving the ball away like that.",
+                    "The stat that kills drives: <strong>{team}</strong> committed <strong>{turnovers} turnovers</strong> against <strong>{opp}</strong>. <strong>{user}</strong> has to fix this before the schedule gets harder.",
+                    "You cannot sustain drives and you cannot sustain a season with <strong>{turnovers} turnovers</strong>. <strong>{team}</strong> found that out against <strong>{opp}</strong>. <strong>{user}</strong> has a problem to solve.",
+                    "The margin in college football is always thinner than it looks. <strong>{team}</strong> put the ball on the ground <strong>{turnovers} times</strong> against <strong>{opp}</strong> — <strong>{user}</strong> is lucky this did not cost more.",
+                    "<strong>{turnovers} giveaways</strong> against <strong>{opp}</strong>. <strong>{user}</strong>'s <strong>{team}</strong> is too talented to lose games to itself — but that is exactly what almost happened here.",
+                ]
+            },
         }
 
         def _headline_team_identity(_team_name):
@@ -14032,8 +14080,206 @@ with tabs[0]:
             except Exception:
                 pass
 
+            # ── GAME SUMMARIES: Q-by-Q story engine ──────────────────────────────
+            # Fires halftime_comeback, blowout_win, offensive_explosion, turnover_disaster
+            # based on captured box score data — richer narratives than score-only headlines.
             try:
-                _br = pd.read_csv('CFPbracketresults.csv')
+                _gs_hl = pd.read_csv('game_summaries.csv')
+                _gs_hl.columns = [str(c).strip() for c in _gs_hl.columns]
+
+                def _gsh_col(candidates):
+                    return next((c for c in candidates if c in _gs_hl.columns), None)
+
+                _gsh_yr_c  = _gsh_col(['YEAR','Year','year'])
+                _gsh_wk_c  = _gsh_col(['Week','WEEK','week'])
+                _gsh_hm_c  = _gsh_col(['HomeTeam','Home','HOME','Home Team'])
+                _gsh_vs_c  = _gsh_col(['VisitorTeam','Visitor','VISITOR','Away','AwayTeam','Away Team'])
+
+                if _gsh_yr_c: _gs_hl[_gsh_yr_c] = pd.to_numeric(_gs_hl[_gsh_yr_c], errors='coerce')
+                if _gsh_wk_c: _gs_hl[_gsh_wk_c] = pd.to_numeric(_gs_hl[_gsh_wk_c], errors='coerce')
+
+                # Filter to current year only
+                _gs_cy_hl = _gs_hl[_gs_hl[_gsh_yr_c] == CURRENT_YEAR].copy() if _gsh_yr_c else _gs_hl.copy()
+
+                def _gsh_q(row, team_key, q):
+                    for c in [f'Q{q}_{team_key}', f'{team_key}_Q{q}',
+                               f'Q{q}{team_key}', f'{team_key}Q{q}']:
+                        if c in row.index:
+                            v = pd.to_numeric(row[c], errors='coerce')
+                            if pd.notna(v): return int(v)
+                    return None
+
+                def _gsh_final(row, candidates):
+                    for c in candidates:
+                        if c in row.index:
+                            v = pd.to_numeric(row[c], errors='coerce')
+                            if pd.notna(v): return int(v)
+                    return None
+
+                def _gsh_stat(row, candidates):
+                    for c in candidates:
+                        if c in row.index:
+                            v = pd.to_numeric(row[c], errors='coerce')
+                            if pd.notna(v): return int(v)
+                    return None
+
+                def _gsh_user_for_team(team_name):
+                    return next((u for u, t in USER_TEAMS.items() if t == str(team_name).strip()), None)
+
+                for _, _gr in _gs_cy_hl.iterrows():
+                    try:
+                        _gsh_home = str(_gr[_gsh_hm_c]).strip() if _gsh_hm_c else ''
+                        _gsh_vis  = str(_gr[_gsh_vs_c]).strip() if _gsh_vs_c else ''
+                        _gsh_wk   = int(_gr[_gsh_wk_c]) if _gsh_wk_c and pd.notna(_gr[_gsh_wk_c]) else 0
+
+                        # Home scores
+                        _hq1 = _gsh_q(_gr,'Home',1); _hq2 = _gsh_q(_gr,'Home',2)
+                        _hq3 = _gsh_q(_gr,'Home',3); _hq4 = _gsh_q(_gr,'Home',4)
+                        _hf  = _gsh_final(_gr,['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome'])
+                        # Visitor scores
+                        _vq1 = _gsh_q(_gr,'Visitor',1) or _gsh_q(_gr,'Away',1)
+                        _vq2 = _gsh_q(_gr,'Visitor',2) or _gsh_q(_gr,'Away',2)
+                        _vq3 = _gsh_q(_gr,'Visitor',3) or _gsh_q(_gr,'Away',3)
+                        _vq4 = _gsh_q(_gr,'Visitor',4) or _gsh_q(_gr,'Away',4)
+                        _vf  = _gsh_final(_gr,['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore'])
+
+                        # Sum quarters to build halftime scores if we have Q data
+                        _h_half = ((_hq1 or 0) + (_hq2 or 0)) if (_hq1 is not None or _hq2 is not None) else None
+                        _v_half = ((_vq1 or 0) + (_vq2 or 0)) if (_vq1 is not None or _vq2 is not None) else None
+                        # Derive final from quarters if not explicit
+                        if _hf is None and any(x is not None for x in [_hq1,_hq2,_hq3,_hq4]):
+                            _hf = sum(x for x in [_hq1,_hq2,_hq3,_hq4] if x is not None)
+                        if _vf is None and any(x is not None for x in [_vq1,_vq2,_vq3,_vq4]):
+                            _vf = sum(x for x in [_vq1,_vq2,_vq3,_vq4] if x is not None)
+
+                        if _hf is None or _vf is None:
+                            continue  # can't do anything without final scores
+
+                        # Stats
+                        _h_to = _gsh_stat(_gr,['Turnovers_Home','HomeTurnovers','H_TO','TO_Home'])
+                        _v_to = _gsh_stat(_gr,['Turnovers_Visitor','VisitorTurnovers','V_TO','TO_Visitor','Turnovers_Away'])
+                        _h_pass = _gsh_stat(_gr,['PassYds_Home','HomePassYds','H_PassYds'])
+                        _h_rush = _gsh_stat(_gr,['RushYds_Home','HomeRushYds','H_RushYds'])
+                        _v_pass = _gsh_stat(_gr,['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_Away','AwayPassYds'])
+                        _v_rush = _gsh_stat(_gr,['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_Away','AwayRushYds'])
+
+                        _h_won = _hf > _vf
+                        _winner_team = _gsh_home if _h_won else _gsh_vis
+                        _loser_team  = _gsh_vis  if _h_won else _gsh_home
+                        _winner_f    = _hf if _h_won else _vf
+                        _loser_f     = _vf if _h_won else _hf
+                        _winner_half = _h_half if _h_won else _v_half
+                        _loser_half  = _v_half if _h_won else _h_half
+                        _winner_to   = _h_to if _h_won else _v_to
+                        _loser_to    = _v_to if _h_won else _h_to
+                        _winner_pts_total = _winner_f
+                        _winner_pass = _h_pass if _h_won else _v_pass
+                        _winner_rush = _h_rush if _h_won else _v_rush
+                        _margin = abs(_hf - _vf)
+
+                        _w_user = _gsh_user_for_team(_winner_team)
+                        _l_user = _gsh_user_for_team(_loser_team)
+
+                        # ── HALFTIME COMEBACK ────────────────────────────────────────────
+                        # Winner was losing at halftime by 4+ points
+                        if (_w_user and _winner_half is not None and _loser_half is not None
+                                and _loser_half > _winner_half + 3):
+                            _ukey = f"halftime_comeback:{CURRENT_YEAR}:{_winner_team}:{_loser_team}:{_gsh_wk}"
+                            _deficit_gap = _loser_half - _winner_half
+                            _cb_score = 78 + min(20, _deficit_gap * 2)
+                            _cb_score -= _headline_recent_penalty(_headline_history, _ukey)
+                            _headline_add(
+                                _headline_candidates,
+                                'halftime_comeback',
+                                {
+                                    'user':       html.escape(_w_user),
+                                    'team':       html.escape(_winner_team),
+                                    'opp':        html.escape(_loser_team),
+                                    'deficit':    _loser_half,
+                                    'half_score': _winner_half,
+                                    'final_w':    _winner_f,
+                                    'final_l':    _loser_f,
+                                },
+                                team=_winner_team, user=_w_user,
+                                score=_cb_score, uniqueness_key=_ukey, week=_gsh_wk
+                            )
+
+                        # ── BLOWOUT WIN ──────────────────────────────────────────────────
+                        # User team won by 28+ points
+                        if _w_user and _margin >= 28:
+                            _ukey = f"blowout_win:{CURRENT_YEAR}:{_winner_team}:{_loser_team}:{_gsh_wk}"
+                            _bl_score = 62 + min(25, (_margin - 28))
+                            _bl_score -= _headline_recent_penalty(_headline_history, _ukey)
+                            _headline_add(
+                                _headline_candidates,
+                                'blowout_win',
+                                {
+                                    'user':    html.escape(_w_user),
+                                    'team':    html.escape(_winner_team),
+                                    'opp':     html.escape(_loser_team),
+                                    'final_w': _winner_f,
+                                    'final_l': _loser_f,
+                                    'margin':  _margin,
+                                },
+                                team=_winner_team, user=_w_user,
+                                score=_bl_score, uniqueness_key=_ukey, week=_gsh_wk
+                            )
+
+                        # ── OFFENSIVE EXPLOSION ──────────────────────────────────────────
+                        # User team scored 45+ OR had 450+ total yards
+                        _winner_total_yds = ((_winner_pass or 0) + (_winner_rush or 0)) if (_winner_pass or _winner_rush) else None
+                        _is_explosion = (_winner_pts_total >= 45) or (_winner_total_yds is not None and _winner_total_yds >= 450)
+                        if _w_user and _is_explosion:
+                            _ukey = f"offensive_explosion:{CURRENT_YEAR}:{_winner_team}:{_loser_team}:{_gsh_wk}"
+                            _ex_score = 65 + min(22, max(0, _winner_pts_total - 45) + (0 if _winner_total_yds is None else max(0, _winner_total_yds - 450) // 20))
+                            _ex_score -= _headline_recent_penalty(_headline_history, _ukey)
+                            _headline_add(
+                                _headline_candidates,
+                                'offensive_explosion',
+                                {
+                                    'user':      html.escape(_w_user),
+                                    'team':      html.escape(_winner_team),
+                                    'opp':       html.escape(_loser_team),
+                                    'total_pts': _winner_pts_total,
+                                    'opp_pts':   _loser_f,
+                                },
+                                team=_winner_team, user=_w_user,
+                                score=_ex_score, uniqueness_key=_ukey, week=_gsh_wk
+                            )
+
+                        # ── TURNOVER DISASTER ────────────────────────────────────────────
+                        # A user team (winner OR loser) had 3+ turnovers
+                        for _to_team, _to_user, _to_opp, _to_count, _to_won in [
+                            (_winner_team, _w_user, _loser_team,  _winner_to, True),
+                            (_loser_team,  _l_user, _winner_team, _loser_to,  False),
+                        ]:
+                            if _to_user and _to_count is not None and _to_count >= 3:
+                                _ukey = f"turnover_disaster:{CURRENT_YEAR}:{_to_team}:{_to_opp}:{_gsh_wk}"
+                                # Higher score if they LOST with high TOs, slight discount if they won despite them
+                                _td_score = 70 + min(18, _to_count * 4) + (0 if _to_won else 12)
+                                _td_score -= _headline_recent_penalty(_headline_history, _ukey)
+                                _headline_add(
+                                    _headline_candidates,
+                                    'turnover_disaster',
+                                    {
+                                        'user':      html.escape(_to_user),
+                                        'team':      html.escape(_to_team),
+                                        'opp':       html.escape(_to_opp),
+                                        'turnovers': _to_count,
+                                    },
+                                    team=_to_team, user=_to_user,
+                                    score=_td_score, uniqueness_key=_ukey, week=_gsh_wk
+                                )
+
+                    except Exception:
+                        continue  # Bad row — skip silently
+
+            except FileNotFoundError:
+                pass  # game_summaries.csv not yet populated — silent
+            except Exception:
+                pass
+
+            try:
                 # Only show results from the current season — not prior years
                 if 'YEAR' in _br.columns:
                     _br['YEAR'] = pd.to_numeric(_br['YEAR'], errors='coerce')
@@ -14430,6 +14676,185 @@ with tabs[0]:
                 </div>"""
                 st.markdown(_tv_html, unsafe_allow_html=True)
                 st.caption(f"📺 Viewership formula: matchup prestige + ranked status + margin + context (playoffs, rivalry, H2H). Seeded per game for consistency. {len(_tv_cy)} games rated this season.")
+
+                # ── Box Score Pull-down for Top-Rated Games ───────────────────────
+                try:
+                    _gs_raw = pd.read_csv('game_summaries.csv')
+                    _gs_raw.columns = [str(c).strip() for c in _gs_raw.columns]
+
+                    def _gs_find_col(candidates):
+                        return next((c for c in candidates if c in _gs_raw.columns), None)
+
+                    _gs_yr_c = _gs_find_col(['YEAR','Year','year'])
+                    _gs_wk_c = _gs_find_col(['Week','WEEK','week'])
+                    _gs_hm_c = _gs_find_col(['HomeTeam','Home','HOME','Home Team'])
+                    _gs_vs_c = _gs_find_col(['VisitorTeam','Visitor','VISITOR','Away','AwayTeam','Away Team'])
+
+                    if _gs_yr_c: _gs_raw[_gs_yr_c] = pd.to_numeric(_gs_raw[_gs_yr_c], errors='coerce')
+                    if _gs_wk_c: _gs_raw[_gs_wk_c] = pd.to_numeric(_gs_raw[_gs_wk_c], errors='coerce')
+
+                    def _lookup_box(vis_team, home_team, year, week):
+                        if _gs_raw.empty or not (_gs_yr_c and _gs_wk_c):
+                            return None
+                        _mask = (
+                            (_gs_raw[_gs_yr_c] == int(year)) &
+                            (_gs_raw[_gs_wk_c] == int(week))
+                        )
+                        if _gs_hm_c:
+                            _mask &= _gs_raw[_gs_hm_c].astype(str).str.strip().str.lower().isin(
+                                [home_team.lower(), vis_team.lower()])
+                        _hits = _gs_raw[_mask]
+                        return _hits.iloc[0] if not _hits.empty else None
+
+                    def _extract_q(row, team_key, q):
+                        for c in [f'Q{q}_{team_key}', f'{team_key}_Q{q}',
+                                  f'Q{q}{team_key}', f'{team_key}Q{q}']:
+                            if c in row.index:
+                                v = pd.to_numeric(row[c], errors='coerce')
+                                if pd.notna(v): return int(v)
+                        return None
+
+                    def _extract_final(row, candidates):
+                        for c in candidates:
+                            if c in row.index:
+                                v = pd.to_numeric(row[c], errors='coerce')
+                                if pd.notna(v): return int(v)
+                        return None
+
+                    def _extract_stat(row, candidates):
+                        for c in candidates:
+                            if c in row.index:
+                                v = pd.to_numeric(row[c], errors='coerce')
+                                if pd.notna(v): return int(v)
+                        return None
+
+                    # Find which top games have captured box scores
+                    _games_with_box = []
+                    for _tg in _tv_top10:
+                        _r = _tg["row"]
+                        _vt = str(_r.get("Visitor","")).strip()
+                        _ht = str(_r.get("Home","")).strip()
+                        _yr = int(_r.get("YEAR", CURRENT_YEAR))
+                        _wk = int(_r["Week"]) if not pd.isna(_r.get("Week")) else 0
+                        _match = _lookup_box(_vt, _ht, _yr, _wk)
+                        if _match is not None:
+                            _games_with_box.append((_tg, _match))
+
+                    if _games_with_box:
+                        st.markdown(
+                            f"<div style='margin:14px 0 6px 0;font-size:0.68rem;font-weight:700;"
+                            f"color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;'>"
+                            f"📋 Box Scores Available — {len(_games_with_box)} of {len(_tv_top10)} top-rated games captured</div>",
+                            unsafe_allow_html=True
+                        )
+
+                        for _tg2, _gs_row in _games_with_box:
+                            _r2 = _tg2["row"]
+                            _vt2 = str(_r2.get("Visitor","")).strip()
+                            _ht2 = str(_r2.get("Home","")).strip()
+                            _vs2 = int(_r2["Vis Score"])
+                            _hs2 = int(_r2["Home Score"])
+                            _wk2 = int(_r2["Week"]) if not pd.isna(_r2.get("Week")) else 0
+                            _vc2 = get_team_primary_color(_vt2)
+                            _hc2 = get_team_primary_color(_ht2)
+                            _vl2 = image_file_to_data_uri(get_logo_source(_vt2))
+                            _hl2 = image_file_to_data_uri(get_logo_source(_ht2))
+                            _vi2 = f"<img src='{_vl2}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _vl2 else "🏈"
+                            _hi2 = f"<img src='{_hl2}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _hl2 else "🏈"
+                            _v_won2 = _vs2 > _hs2
+
+                            _vq1 = _extract_q(_gs_row,'Visitor',1) or _extract_q(_gs_row,'Away',1)
+                            _vq2 = _extract_q(_gs_row,'Visitor',2) or _extract_q(_gs_row,'Away',2)
+                            _vq3 = _extract_q(_gs_row,'Visitor',3) or _extract_q(_gs_row,'Away',3)
+                            _vq4 = _extract_q(_gs_row,'Visitor',4) or _extract_q(_gs_row,'Away',4)
+                            _vot = _extract_q(_gs_row,'Visitor','OT') or _extract_q(_gs_row,'Away','OT') or _extract_q(_gs_row,'Visitor',5)
+                            _hq1 = _extract_q(_gs_row,'Home',1)
+                            _hq2 = _extract_q(_gs_row,'Home',2)
+                            _hq3 = _extract_q(_gs_row,'Home',3)
+                            _hq4 = _extract_q(_gs_row,'Home',4)
+                            _hot = _extract_q(_gs_row,'Home','OT') or _extract_q(_gs_row,'Home',5)
+
+                            _vf2 = _extract_final(_gs_row,['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore']) or _vs2
+                            _hf2 = _extract_final(_gs_row,['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome']) or _hs2
+                            _has_ot2 = (_vot is not None or _hot is not None)
+
+                            _vpass2 = _extract_stat(_gs_row,['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_Away','AwayPassYds'])
+                            _vrush2 = _extract_stat(_gs_row,['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_Away','AwayRushYds'])
+                            _vto2   = _extract_stat(_gs_row,['Turnovers_Visitor','VisitorTurnovers','V_TO','TO_Visitor','Turnovers_Away'])
+                            _hpass2 = _extract_stat(_gs_row,['PassYds_Home','HomePassYds','H_PassYds'])
+                            _hrush2 = _extract_stat(_gs_row,['RushYds_Home','HomeRushYds','H_RushYds'])
+                            _hto2   = _extract_stat(_gs_row,['Turnovers_Home','HomeTurnovers','H_TO'])
+
+                            def _qcell(val):
+                                if val is None: return "<td style='padding:3px 8px;text-align:center;color:#475569;font-size:0.75rem;'>—</td>"
+                                return f"<td style='padding:3px 8px;text-align:center;color:#94a3b8;font-size:0.78rem;font-weight:500;'>{val}</td>"
+
+                            def _fcell(val, won):
+                                c = "#f1f5f9" if won else "#475569"
+                                fw = "900" if won else "500"
+                                return f"<td style='padding:3px 8px;text-align:center;font-size:1.0rem;font-weight:{fw};color:{c};border-left:1px solid #1e293b;'>{'▶ ' if won else ''}{val}</td>"
+
+                            def _stat_chips(pass_y, rush_y, turnovers):
+                                chips = []
+                                if pass_y    is not None: chips.append(f"<span style='font-size:0.63rem;color:#93c5fd;background:rgba(96,165,250,0.12);border-radius:3px;padding:1px 5px;'>✈️ {pass_y}</span>")
+                                if rush_y    is not None: chips.append(f"<span style='font-size:0.63rem;color:#6ee7b7;background:rgba(52,211,153,0.10);border-radius:3px;padding:1px 5px;'>🏃 {rush_y}</span>")
+                                if turnovers is not None:
+                                    _to_col = "#f87171" if turnovers >= 3 else ("#fbbf24" if turnovers >= 2 else "#94a3b8")
+                                    chips.append(f"<span style='font-size:0.63rem;color:{_to_col};background:rgba(239,68,68,0.08);border-radius:3px;padding:1px 5px;'>⚡ {turnovers} TO</span>")
+                                return "<div style='display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;'>" + "".join(chips) + "</div>" if chips else ""
+
+                            _ot_th2 = "<th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>OT</th>" if _has_ot2 else ""
+
+                            with st.expander(f"📋 {_vt2} {_vs2}–{_hs2} {_ht2}  ·  Wk {_wk2}", expanded=False):
+                                st.markdown(f"""
+                                <table style='width:100%;border-collapse:collapse;background:#080f1a;border-radius:8px;overflow:hidden;'>
+                                  <thead>
+                                    <tr style='background:#0a1220;'>
+                                      <th style='padding:6px 10px;text-align:left;color:#475569;font-size:0.65rem;min-width:130px;'>Team</th>
+                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q1</th>
+                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q2</th>
+                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q3</th>
+                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;'>Q4</th>
+                                      {_ot_th2}
+                                      <th style='padding:3px 8px;text-align:center;color:#475569;font-size:0.65rem;border-left:1px solid #1e293b;'>FINAL</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr style='border-top:1px solid #1e293b;'>
+                                      <td style='padding:7px 10px;'>
+                                        <div style='display:flex;align-items:center;gap:6px;'>
+                                          {_vi2}
+                                          <div>
+                                            <div style='font-weight:{"900" if _v_won2 else "600"};color:{"#f1f5f9" if _v_won2 else "#94a3b8"};font-size:0.8rem;'>{html.escape(_vt2)}</div>
+                                            {_stat_chips(_vpass2,_vrush2,_vto2)}
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {_qcell(_vq1)}{_qcell(_vq2)}{_qcell(_vq3)}{_qcell(_vq4)}{"" if not _has_ot2 else _qcell(_vot)}
+                                      {_fcell(_vf2, _v_won2)}
+                                    </tr>
+                                    <tr style='border-top:1px solid #1e293b;'>
+                                      <td style='padding:7px 10px;'>
+                                        <div style='display:flex;align-items:center;gap:6px;'>
+                                          {_hi2}
+                                          <div>
+                                            <div style='font-weight:{"900" if not _v_won2 else "600"};color:{"#f1f5f9" if not _v_won2 else "#94a3b8"};font-size:0.8rem;'>{html.escape(_ht2)}</div>
+                                            {_stat_chips(_hpass2,_hrush2,_hto2)}
+                                          </div>
+                                        </div>
+                                      </td>
+                                      {_qcell(_hq1)}{_qcell(_hq2)}{_qcell(_hq3)}{_qcell(_hq4)}{"" if not _has_ot2 else _qcell(_hot)}
+                                      {_fcell(_hf2, not _v_won2)}
+                                    </tr>
+                                  </tbody>
+                                </table>
+                                """, unsafe_allow_html=True)
+
+                except FileNotFoundError:
+                    pass  # game_summaries.csv not found — silent, no clutter in news feed
+                except Exception as _gs_tv_err:
+                    st.caption(f"Box score pull unavailable: {_gs_tv_err}")
+
             else:
                 st.info("No completed games yet this season — check back after Week 1 results are in.")
 
@@ -18391,9 +18816,9 @@ with tabs[12]:
         if _classics_df.empty:
             st.info("No game data available yet.")
         else:
-            # ── Sub-tabs: ALL / UPSETS / CLOSEST ─────────────────────────────────
-            _ctab_all, _ctab_upsets, _ctab_close = st.tabs(
-                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games"])
+            # ── Sub-tabs: ALL / UPSETS / CLOSEST / BOX SCORES ────────────────────
+            _ctab_all, _ctab_upsets, _ctab_close, _ctab_box = st.tabs(
+                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores"])
 
             def _render_classic_card(row, rank_num):
                 """Render a single broadcast-style game card."""
@@ -18513,6 +18938,232 @@ with tabs[12]:
                 _close = _classics_df.sort_values('Margin').head(20)
                 for _ci, (_idx, _crow) in enumerate(_close.iterrows(), 1):
                     _render_classic_card(_crow, _ci)
+
+            with _ctab_box:
+                st.caption("Quarter-by-quarter box scores from captured game summaries. Import via the ISPN Data Importer.")
+
+                try:
+                    _gs_df = pd.read_csv('game_summaries.csv')
+                    _gs_df.columns = [str(c).strip() for c in _gs_df.columns]
+
+                    if _gs_df.empty:
+                        st.info("No game summaries yet. Use the ISPN Data Importer → Game Summary to capture box scores.")
+                    else:
+                        # Normalize column names (handle various schemas)
+                        def _gs_col(candidates):
+                            return next((c for c in candidates if c in _gs_df.columns), None)
+
+                        _gs_year_col = _gs_col(['YEAR', 'Year', 'year'])
+                        _gs_week_col = _gs_col(['Week', 'WEEK', 'week'])
+                        _gs_home_col = _gs_col(['HomeTeam', 'Home', 'HOME', 'Home Team'])
+                        _gs_vis_col  = _gs_col(['VisitorTeam', 'Visitor', 'VISITOR', 'Away', 'Away Team', 'AwayTeam'])
+
+                        # Coerce year/week
+                        if _gs_year_col:
+                            _gs_df[_gs_year_col] = pd.to_numeric(_gs_df[_gs_year_col], errors='coerce')
+                        if _gs_week_col:
+                            _gs_df[_gs_week_col] = pd.to_numeric(_gs_df[_gs_week_col], errors='coerce')
+
+                        # Filters
+                        _box_c1, _box_c2, _box_c3 = st.columns([1, 1, 1])
+                        with _box_c1:
+                            _box_years = sorted(
+                                _gs_df[_gs_year_col].dropna().astype(int).unique().tolist(),
+                                reverse=True
+                            ) if _gs_year_col else [CURRENT_YEAR]
+                            _box_yr_sel = st.selectbox("Season", _box_years, key="box_year_sel",
+                                                        index=0 if _box_years else 0)
+                        with _box_c2:
+                            _gs_yr_filt = _gs_df[_gs_df[_gs_year_col] == int(_box_yr_sel)].copy() if _gs_year_col else _gs_df.copy()
+                            _box_weeks = sorted(
+                                _gs_yr_filt[_gs_week_col].dropna().astype(int).unique().tolist(),
+                                reverse=True
+                            ) if _gs_week_col and not _gs_yr_filt.empty else []
+                            _box_wk_sel = st.selectbox("Week", ["All"] + [str(w) for w in _box_weeks],
+                                                        key="box_week_sel")
+                        with _box_c3:
+                            _box_team_options = ["All Teams"] + sorted(list(USER_TEAMS.values())) if 'USER_TEAMS' in globals() else ["All Teams"]
+                            _box_team_sel = st.selectbox("Team Filter", _box_team_options, key="box_team_sel")
+
+                        # Apply filters
+                        _gs_view = _gs_yr_filt.copy()
+                        if _box_wk_sel != "All" and _gs_week_col:
+                            _gs_view = _gs_view[_gs_view[_gs_week_col] == int(_box_wk_sel)]
+                        if _box_team_sel != "All Teams" and (_gs_home_col or _gs_vis_col):
+                            _home_match = _gs_view[_gs_home_col].astype(str).str.strip() == _box_team_sel if _gs_home_col else pd.Series([False]*len(_gs_view))
+                            _vis_match  = _gs_view[_gs_vis_col].astype(str).str.strip()  == _box_team_sel if _gs_vis_col  else pd.Series([False]*len(_gs_view))
+                            _gs_view = _gs_view[_home_match | _vis_match]
+
+                        if _gs_view.empty:
+                            st.info("No box scores match those filters.")
+                        else:
+                            # Sort by week desc
+                            if _gs_week_col:
+                                _gs_view = _gs_view.sort_values(_gs_week_col, ascending=False)
+
+                            for _, _gr in _gs_view.iterrows():
+                                _bx_home = str(_gr.get(_gs_home_col, 'Home')) if _gs_home_col else 'Home'
+                                _bx_vis  = str(_gr.get(_gs_vis_col,  'Visitor')) if _gs_vis_col else 'Visitor'
+                                _bx_wk   = int(_gr.get(_gs_week_col, 0)) if _gs_week_col and pd.notna(_gr.get(_gs_week_col)) else 0
+                                _bx_yr   = int(_gr.get(_gs_year_col, CURRENT_YEAR)) if _gs_year_col and pd.notna(_gr.get(_gs_year_col)) else CURRENT_YEAR
+
+                                # Q-by-Q score columns — try various naming conventions
+                                def _qscore(team_prefix, q):
+                                    candidates = [
+                                        f'Q{q}_{team_prefix}', f'{team_prefix}_Q{q}',
+                                        f'Q{q}{team_prefix}', f'{team_prefix}Q{q}',
+                                        f'Q{q}Home' if 'Home' in team_prefix else f'Q{q}Visitor',
+                                        f'Q{q}Away' if 'Away' in team_prefix else None,
+                                    ]
+                                    for c in candidates:
+                                        if c and c in _gr.index:
+                                            v = pd.to_numeric(_gr[c], errors='coerce')
+                                            return int(v) if pd.notna(v) else None
+                                    return None
+
+                                def _final_score(team_prefix, fallback_col_list):
+                                    for fc in fallback_col_list:
+                                        if fc and fc in _gr.index:
+                                            v = pd.to_numeric(_gr[fc], errors='coerce')
+                                            if pd.notna(v):
+                                                return int(v)
+                                    return None
+
+                                _h_q1 = _qscore('Home', 1); _h_q2 = _qscore('Home', 2)
+                                _h_q3 = _qscore('Home', 3); _h_q4 = _qscore('Home', 4)
+                                _v_q1 = _qscore('Visitor', 1) or _qscore('Away', 1)
+                                _v_q2 = _qscore('Visitor', 2) or _qscore('Away', 2)
+                                _v_q3 = _qscore('Visitor', 3) or _qscore('Away', 3)
+                                _v_q4 = _qscore('Visitor', 4) or _qscore('Away', 4)
+
+                                _h_ot = _qscore('Home', 'OT') or _qscore('Home', '5')
+                                _v_ot = _qscore('Visitor', 'OT') or _qscore('Away', 'OT') or _qscore('Visitor', '5')
+
+                                _h_final = _final_score('Home', ['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome'])
+                                _v_final = _final_score('Visitor', ['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore'])
+
+                                # If no final but quarters exist, sum them
+                                if _h_final is None and any(x is not None for x in [_h_q1,_h_q2,_h_q3,_h_q4]):
+                                    _h_final = sum(x for x in [_h_q1,_h_q2,_h_q3,_h_q4,_h_ot] if x is not None)
+                                if _v_final is None and any(x is not None for x in [_v_q1,_v_q2,_v_q3,_v_q4]):
+                                    _v_final = sum(x for x in [_v_q1,_v_q2,_v_q3,_v_q4,_v_ot] if x is not None)
+
+                                _h_won = (_h_final is not None and _v_final is not None and _h_final > _v_final)
+                                _v_won = (_h_final is not None and _v_final is not None and _v_final > _h_final)
+
+                                _hc  = get_team_primary_color(_bx_home)
+                                _vc  = get_team_primary_color(_bx_vis)
+                                _hlu = image_file_to_data_uri(get_logo_source(_bx_home))
+                                _vlu = image_file_to_data_uri(get_logo_source(_bx_vis))
+                                _h_img = f"<img src='{_hlu}' style='width:36px;height:36px;object-fit:contain;'/>" if _hlu else "🏈"
+                                _v_img = f"<img src='{_vlu}' style='width:36px;height:36px;object-fit:contain;'/>" if _vlu else "🏈"
+
+                                _wk_label = f"Wk {_bx_wk}" if _bx_wk else ""
+                                _yr_label = str(_bx_yr)
+
+                                def _q_cell(val, is_final=False, won=False):
+                                    if val is None:
+                                        return "<td style='padding:4px 10px;text-align:center;color:#475569;font-size:0.75rem;'>—</td>"
+                                    _fw = "font-weight:900;" if is_final else "font-weight:500;"
+                                    _color = "#f1f5f9" if is_final and won else ("#94a3b8" if not is_final else "#64748b")
+                                    _size = "1.0rem" if is_final else "0.8rem"
+                                    return f"<td style='padding:4px 10px;text-align:center;color:{_color};font-size:{_size};{_fw}'>{val}</td>"
+
+                                _ot_header = "<th style='padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;'>OT</th>" if (_h_ot is not None or _v_ot is not None) else ""
+                                _ot_h_cell = _q_cell(_h_ot) if (_h_ot is not None or _v_ot is not None) else ""
+                                _ot_v_cell = _q_cell(_v_ot) if (_h_ot is not None or _v_ot is not None) else ""
+
+                                # Stat columns (pass/rush yds etc)
+                                def _stat(col_candidates):
+                                    for c in col_candidates:
+                                        if c in _gr.index:
+                                            v = pd.to_numeric(_gr[c], errors='coerce')
+                                            if pd.notna(v):
+                                                return int(v)
+                                    return None
+
+                                _h_pass = _stat(['PassYds_Home','HomePassYds','H_PassYds','PassYds_H'])
+                                _h_rush = _stat(['RushYds_Home','HomeRushYds','H_RushYds','RushYds_H'])
+                                _h_to   = _stat(['Turnovers_Home','HomeTurnovers','H_TO','TO_Home'])
+                                _v_pass = _stat(['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_V','PassYds_Away','AwayPassYds'])
+                                _v_rush = _stat(['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_V','RushYds_Away','AwayRushYds'])
+                                _v_to   = _stat(['Turnovers_Visitor','VisitorTurnovers','V_TO','TO_Visitor','Turnovers_Away'])
+
+                                _has_stats = any(x is not None for x in [_h_pass, _h_rush, _v_pass, _v_rush])
+
+                                def _stat_chip_row(pass_yds, rush_yds, turnovers, color):
+                                    chips = []
+                                    if pass_yds is not None:
+                                        chips.append(f"<span style='background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.3);border-radius:4px;padding:2px 7px;font-size:0.68rem;font-weight:700;color:#93c5fd;'>✈️ {pass_yds} pass</span>")
+                                    if rush_yds is not None:
+                                        chips.append(f"<span style='background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);border-radius:4px;padding:2px 7px;font-size:0.68rem;font-weight:700;color:#6ee7b7;'>🏃 {rush_yds} rush</span>")
+                                    if turnovers is not None:
+                                        _to_c = "#f87171" if turnovers >= 3 else ("#fbbf24" if turnovers >= 2 else "#94a3b8")
+                                        chips.append(f"<span style='background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.25);border-radius:4px;padding:2px 7px;font-size:0.68rem;font-weight:700;color:{_to_c};'>⚡ {turnovers} TO</span>")
+                                    return "<div style='display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;'>" + "".join(chips) + "</div>" if chips else ""
+
+                                _h_stat_row = _stat_chip_row(_h_pass, _h_rush, _h_to, _hc)
+                                _v_stat_row = _stat_chip_row(_v_pass, _v_rush, _v_to, _vc)
+
+                                st.markdown(f"""
+                                <div style="background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;
+                                            border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;
+                                                margin-bottom:10px;font-size:0.65rem;color:#475569;font-weight:700;letter-spacing:.06em;">
+                                        <span>{html.escape(_yr_label)} · {html.escape(_wk_label)}</span>
+                                    </div>
+                                    <table style="width:100%;border-collapse:collapse;">
+                                        <thead>
+                                            <tr>
+                                                <th style="padding:4px 10px;text-align:left;color:#64748b;font-size:0.7rem;min-width:120px;">Team</th>
+                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q1</th>
+                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q2</th>
+                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q3</th>
+                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;">Q4</th>
+                                                {_ot_header}
+                                                <th style="padding:4px 10px;text-align:center;color:#64748b;font-size:0.7rem;border-left:1px solid #1e293b;">FINAL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr style="border-top:1px solid #1e293b;">
+                                                <td style="padding:6px 10px;">
+                                                    <div style="display:flex;align-items:center;gap:8px;">
+                                                        {_v_img}
+                                                        <div>
+                                                            <div style="font-weight:{'900' if _v_won else '600'};color:{'#f1f5f9' if _v_won else '#94a3b8'};font-size:0.85rem;">{html.escape(_bx_vis)}</div>
+                                                            {_v_stat_row}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                {_q_cell(_v_q1)}{_q_cell(_v_q2)}{_q_cell(_v_q3)}{_q_cell(_v_q4)}{_ot_v_cell}
+                                                <td style="padding:4px 10px;text-align:center;border-left:1px solid #1e293b;">
+                                                    <span style="font-size:1.3rem;font-weight:900;color:{'#f1f5f9' if _v_won else '#475569'};">{'▶ ' if _v_won else ''}{_v_final if _v_final is not None else '—'}</span>
+                                                </td>
+                                            </tr>
+                                            <tr style="border-top:1px solid #1e293b;">
+                                                <td style="padding:6px 10px;">
+                                                    <div style="display:flex;align-items:center;gap:8px;">
+                                                        {_h_img}
+                                                        <div>
+                                                            <div style="font-weight:{'900' if _h_won else '600'};color:{'#f1f5f9' if _h_won else '#94a3b8'};font-size:0.85rem;">{html.escape(_bx_home)}</div>
+                                                            {_h_stat_row}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                {_q_cell(_h_q1)}{_q_cell(_h_q2)}{_q_cell(_h_q3)}{_q_cell(_h_q4)}{_ot_h_cell}
+                                                <td style="padding:4px 10px;text-align:center;border-left:1px solid #1e293b;">
+                                                    <span style="font-size:1.3rem;font-weight:900;color:{'#f1f5f9' if _h_won else '#475569'};">{'▶ ' if _h_won else ''}{_h_final if _h_final is not None else '—'}</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                except FileNotFoundError:
+                    st.info("📋 **game_summaries.csv** not found. Start capturing game summaries via the ISPN Data Importer to populate this tab.")
+                except Exception as _bx_err:
+                    st.error(f"Box Scores error: {_bx_err}")
 
 # --- GOAT RANKINGS (Tab 12) ---
 with tabs[13]:
@@ -22316,6 +22967,301 @@ with tabs[5]:
             st.info("No incoming player data with State column found for this team/year.")
     except Exception as _map_err:
         st.caption(f"Pipeline state breakdown unavailable: {_map_err}")
+
+    # ─── 11. PIPELINE EFFICIENCY ─────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(get_mini_card("⚡ Pipeline Efficiency", sel_color), unsafe_allow_html=True)
+    st.caption("How efficiently does your recruiting investment convert into NFL draft capital? Weighted by star ratings vs. draftees produced.")
+
+    try:
+        # Weighted recruit total: 5★=1.0, 4★=0.4, 3★=0.1
+        def _calc_pipeline_eff(hs_df_all, tp_df_all, team, draft_results_df):
+            # All-time HS recruiting for this team
+            t_hs = hs_df_all[hs_df_all['Team'] == team].copy() if 'Team' in hs_df_all.columns else pd.DataFrame()
+            t_tp = tp_df_all[tp_df_all['Team'] == team].copy() if 'Team' in tp_df_all.columns else pd.DataFrame()
+
+            def _weighted_recruits(df):
+                if df.empty:
+                    return 0.0, 0, 0, 0
+                five  = pd.to_numeric(df.get('FiveStar',  pd.Series([0]*len(df))), errors='coerce').fillna(0).sum()
+                four  = pd.to_numeric(df.get('FourStar',  pd.Series([0]*len(df))), errors='coerce').fillna(0).sum()
+                three = pd.to_numeric(df.get('ThreeStar', pd.Series([0]*len(df))), errors='coerce').fillna(0).sum()
+                weighted = five * 1.0 + four * 0.4 + three * 0.1
+                return float(weighted), int(five), int(four), int(three)
+
+            hs_w, hs_5, hs_4, hs_3   = _weighted_recruits(t_hs)
+            tp_w, tp_5, tp_4, tp_3   = _weighted_recruits(t_tp)
+            total_w  = hs_w + tp_w
+            total_5  = hs_5 + tp_5
+            total_4  = hs_4 + tp_4
+            total_3  = hs_3 + tp_3
+
+            # All-time NFL draft picks from this team
+            if draft_results_df.empty or 'CollegeTeam' not in draft_results_df.columns:
+                total_drafted = 0
+                rd1 = 0
+            else:
+                t_drafted = draft_results_df[
+                    draft_results_df['CollegeTeam'].astype(str).str.strip() == str(team).strip()
+                ]
+                total_drafted = len(t_drafted)
+                rd1 = int((pd.to_numeric(t_drafted.get('DraftRound', pd.Series([])), errors='coerce') == 1).sum()) if not t_drafted.empty else 0
+
+            # Pipeline efficiency = drafted players per weighted-star unit
+            eff = (total_drafted / total_w * 10.0) if total_w > 0 else 0.0  # scaled to ~0-100 range
+            eff = min(eff, 100.0)
+
+            return eff, total_drafted, rd1, total_w, total_5, total_4, total_3
+
+        _eff_score, _eff_drafted, _eff_rd1, _eff_wt, _eff_5, _eff_4, _eff_3 = _calc_pipeline_eff(
+            hs_df, tp_df, selected_team, user_draft_results_df
+        )
+
+        # Tier labels
+        if _eff_score >= 55:
+            _eff_tier = "🔥 Elite Pipeline"
+            _eff_color = "#FACC15"
+            _eff_desc = "Extraordinary return on recruiting investment. Your classes are turning blue-chips into NFL picks at a top-5 program rate."
+        elif _eff_score >= 35:
+            _eff_tier = "💪 Strong Pipeline"
+            _eff_color = "#34D399"
+            _eff_desc = "Above-average conversion. You're developing your recruits — most blue-chips are making good on their star ratings."
+        elif _eff_score >= 18:
+            _eff_tier = "📈 Developing Pipeline"
+            _eff_color = "#60A5FA"
+            _eff_desc = "Solid foundation, room to grow. Star ratings are converting to NFL picks, but there's efficiency left on the table."
+        elif _eff_score >= 5:
+            _eff_tier = "🔧 Building Pipeline"
+            _eff_color = "#F59E0B"
+            _eff_desc = "Recruiting volume hasn't fully converted yet. Could be early dynasty years or transfers not panning out."
+        else:
+            _eff_tier = "⚠️ Pipeline Lag"
+            _eff_color = "#EF4444"
+            _eff_desc = "Low conversion rate. Either the recruiting volume is thin or player development hasn't clicked yet."
+
+        _eff_bar_pct = min(100, _eff_score)
+
+        try:
+            _hx2 = sel_color.lstrip('#')
+            _cr2, _cg2, _cb2 = int(_hx2[0:2],16), int(_hx2[2:4],16), int(_hx2[4:6],16)
+            _eff_bar_fill = f'rgba({_cr2},{_cg2},{_cb2},0.85)'
+        except Exception:
+            _eff_bar_fill = 'rgba(96,165,250,0.85)'
+
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02));
+                    border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:18px 20px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+                <div>
+                    <div style="font-size:1.35rem;font-weight:900;color:{_eff_color};">{_eff_tier}</div>
+                    <div style="font-size:0.8rem;color:#94a3b8;margin-top:3px;">{_eff_desc}</div>
+                </div>
+                <div style="text-align:center;background:rgba(0,0,0,0.35);padding:10px 20px;border-radius:8px;min-width:90px;">
+                    <div style="font-size:2rem;font-weight:900;color:{_eff_color};">{_eff_score:.1f}</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;">Eff Score</div>
+                </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.05);border-radius:4px;height:10px;margin-bottom:14px;overflow:hidden;">
+                <div style="width:{_eff_bar_pct:.1f}%;background:{_eff_bar_fill};height:100%;border-radius:4px;transition:width 0.4s;"></div>
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                <div style="text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:800;color:#f1f5f9;">{_eff_drafted}</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">NFL Picks</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:800;color:#FACC15;">{_eff_rd1}</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">1st Rounders</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:800;color:{sel_color};">{_eff_wt:.1f}</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Weighted Recruits</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:800;color:#e2e8f0;">{_eff_5}★★★★★ / {_eff_4}★★★★ / {_eff_3}★★★</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Recruit Stars (all-time)</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    except Exception as _pe_err:
+        st.caption(f"Pipeline Efficiency unavailable: {_pe_err}")
+
+    # ─── 12. NATTY DNA ────────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(get_mini_card("🧬 Natty DNA", sel_color), unsafe_allow_html=True)
+    st.caption("Championship roster players who made it to the NFL. The true measure of a dynasty program.")
+
+    try:
+        _natty_champs = pd.read_csv('champs.csv')
+        _natty_champs.columns = [str(c).strip() for c in _natty_champs.columns]
+
+        # Find column names
+        _nc_year_col = next((c for c in _natty_champs.columns if 'YEAR' in c.upper() or c.upper() == 'SEASON'), None)
+        _nc_team_col = next((c for c in _natty_champs.columns if 'TEAM' in c.upper() and 'USER' not in c.upper()), None)
+        _nc_user_col = next((c for c in _natty_champs.columns if 'USER' in c.upper()), None)
+
+        _team_natties = pd.DataFrame()
+        if _nc_year_col and (_nc_team_col or _nc_user_col):
+            _match_col = _nc_team_col if _nc_team_col else _nc_user_col
+            _team_natties = _natty_champs[
+                _natty_champs[_match_col].astype(str).str.strip() == str(selected_team).strip()
+            ].copy()
+            if _team_natties.empty and _nc_user_col:
+                # Try user name match
+                _rev_user = {v: k for k, v in USER_TEAMS.items()} if 'USER_TEAMS' in globals() else {}
+                _sel_user = _rev_user.get(selected_team, "")
+                if _sel_user:
+                    _team_natties = _natty_champs[
+                        _natty_champs[_nc_user_col].astype(str).str.strip().str.lower() == _sel_user.lower()
+                    ].copy()
+
+        if _team_natties.empty:
+            st.info(f"No championship seasons found for {selected_team}. Win a natty first! 🏆")
+        else:
+            _natty_years = sorted(
+                pd.to_numeric(_team_natties[_nc_year_col], errors='coerce').dropna().astype(int).tolist()
+            )
+
+            # For each natty, find players from that team who were drafted in years [natty_yr to natty_yr+5]
+            _draft_src = user_draft_results_df.copy() if not user_draft_results_df.empty else pd.DataFrame()
+
+            # Also try nfl_draft_history.csv for richer data
+            try:
+                _ndh = pd.read_csv('nfl_draft_history.csv')
+                _ndh.columns = [str(c).strip() for c in _ndh.columns]
+                if 'CollegeTeam' in _ndh.columns and 'DraftYear' in _ndh.columns:
+                    _ndh['DraftYear'] = pd.to_numeric(_ndh['DraftYear'], errors='coerce')
+                    _ndh['DraftRound'] = pd.to_numeric(_ndh.get('DraftRoundCanon', _ndh.get('DraftRound', pd.Series())), errors='coerce')
+                    _draft_src_nfl = _ndh[
+                        _ndh['CollegeTeam'].astype(str).str.strip() == str(selected_team).strip()
+                    ][['DraftYear','Player','Pos','DraftRound','CollegeOVR']].rename(
+                        columns={'CollegeOVR': 'OVR', 'Pos': 'Position'}
+                    ).copy()
+                else:
+                    _draft_src_nfl = pd.DataFrame()
+            except Exception:
+                _draft_src_nfl = pd.DataFrame()
+
+            # Merge both draft sources
+            _draft_combined = pd.DataFrame()
+            _pieces = []
+            if not _draft_src.empty and 'CollegeTeam' in _draft_src.columns:
+                _t_draft = _draft_src[
+                    _draft_src['CollegeTeam'].astype(str).str.strip() == str(selected_team).strip()
+                ].rename(columns={'DraftRound':'DraftRoundNum','Pos':'Position'}).copy()
+                _t_draft['DraftRoundNum'] = pd.to_numeric(_t_draft.get('DraftRoundNum', pd.Series()), errors='coerce')
+                _pieces.append(_t_draft[['DraftYear','Player','Position','DraftRoundNum','OVR']].rename(columns={'DraftRoundNum':'DraftRound'}))
+            if not _draft_src_nfl.empty:
+                _pieces.append(_draft_src_nfl[['DraftYear','Player','Position','DraftRound','OVR']])
+            if _pieces:
+                _draft_combined = pd.concat(_pieces, ignore_index=True).drop_duplicates(subset=['Player']).copy()
+                _draft_combined['DraftYear'] = pd.to_numeric(_draft_combined['DraftYear'], errors='coerce')
+                _draft_combined['DraftRound'] = pd.to_numeric(_draft_combined['DraftRound'], errors='coerce')
+                _draft_combined['OVR'] = pd.to_numeric(_draft_combined['OVR'], errors='coerce')
+
+            total_natty_dna = 0
+            total_natty_rd1 = 0
+
+            for _ny in _natty_years:
+                # Lookup window: players drafted in [natty_yr, natty_yr+5]
+                _ny_picks = pd.DataFrame()
+                if not _draft_combined.empty:
+                    _ny_picks = _draft_combined[
+                        (_draft_combined['DraftYear'] >= _ny) &
+                        (_draft_combined['DraftYear'] <= _ny + 5)
+                    ].copy()
+
+                total_natty_dna += len(_ny_picks)
+                total_natty_rd1 += int((_ny_picks['DraftRound'] == 1).sum()) if not _ny_picks.empty else 0
+
+                # Championship logo
+                _ny_logo = get_attrition_logo(selected_team, width=40, margin="0 12px 0 0")
+
+                # Build player chips
+                _player_chips = ""
+                if not _ny_picks.empty:
+                    _ny_picks_sorted = _ny_picks.sort_values('DraftRound', ascending=True)
+                    for _, _pp in _ny_picks_sorted.iterrows():
+                        _pp_name  = html.escape(str(_pp.get('Player', '?')))
+                        _pp_pos   = html.escape(str(_pp.get('Position', '')))
+                        _pp_rnd   = _pp.get('DraftRound', pd.NA)
+                        _pp_ovr   = _pp.get('OVR', pd.NA)
+                        _pp_yr    = int(_pp.get('DraftYear', _ny)) if pd.notna(_pp.get('DraftYear')) else _ny
+
+                        if pd.notna(_pp_rnd) and int(_pp_rnd) == 1:
+                            _chip_bg = "rgba(250,204,21,0.18)"
+                            _chip_border = "#FACC15"
+                            _chip_rnd_str = "🥇 Rd 1"
+                        elif pd.notna(_pp_rnd) and int(_pp_rnd) <= 3:
+                            _chip_bg = "rgba(96,165,250,0.14)"
+                            _chip_border = "#60A5FA"
+                            _chip_rnd_str = f"Rd {int(_pp_rnd)}"
+                        else:
+                            _chip_bg = "rgba(148,163,184,0.10)"
+                            _chip_border = "rgba(148,163,184,0.3)"
+                            _chip_rnd_str = f"Rd {int(_pp_rnd)}" if pd.notna(_pp_rnd) else "UDFA"
+
+                        _ovr_str = f" · {int(_pp_ovr)} OVR" if pd.notna(_pp_ovr) else ""
+                        _yr_str  = f" '{str(_pp_yr)[-2:]}" if _pp_yr != _ny else ""
+
+                        _player_chips += (
+                            f"<div style='display:inline-flex;align-items:center;gap:6px;"
+                            f"background:{_chip_bg};border:1px solid {_chip_border};"
+                            f"border-radius:6px;padding:5px 10px;margin:3px 4px 3px 0;'>"
+                            f"<span style='font-weight:700;color:#f1f5f9;font-size:0.78rem;'>{_pp_name}</span>"
+                            f"<span style='font-size:0.65rem;color:#94a3b8;'>{_pp_pos}{_ovr_str}</span>"
+                            f"<span style='font-size:0.65rem;font-weight:700;color:{_chip_border};'>{_chip_rnd_str}{_yr_str}</span>"
+                            f"</div>"
+                        )
+                else:
+                    _player_chips = "<span style='color:#64748b;font-size:0.8rem;font-style:italic;'>No NFL draft picks linked to this championship window yet.</span>"
+
+                _dna_count_str = f"{len(_ny_picks)} player{'s' if len(_ny_picks) != 1 else ''} to the NFL"
+                _rd1_str = f" · {int((_ny_picks['DraftRound'] == 1).sum())} 1st rounder(s)" if not _ny_picks.empty and int((_ny_picks['DraftRound'] == 1).sum()) > 0 else ""
+
+                st.markdown(f"""
+                <div style="background:linear-gradient(135deg,rgba(250,204,21,0.08),rgba(15,23,42,0.95));
+                            border:1px solid rgba(250,204,21,0.25);border-radius:12px;
+                            padding:16px 18px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;margin-bottom:10px;">
+                        {_ny_logo}
+                        <div>
+                            <div style="font-size:1.1rem;font-weight:900;color:#FACC15;">
+                                🏆 {_ny} National Champions
+                            </div>
+                            <div style="font-size:0.75rem;color:#94a3b8;margin-top:2px;">
+                                {_dna_count_str}{_rd1_str}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0;">
+                        {_player_chips}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Cross-dynasty summary bar
+            if len(_natty_years) > 0:
+                _dna_per_natty = total_natty_dna / len(_natty_years) if len(_natty_years) else 0
+                st.markdown(
+                    f"<div style='background:rgba(255,255,255,0.04);border-radius:8px;padding:12px 16px;"
+                    f"display:flex;gap:24px;flex-wrap:wrap;border:1px solid rgba(255,255,255,0.08);margin-top:4px;'>"
+                    f"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:900;color:#FACC15;'>{len(_natty_years)}</div>"
+                    f"<div style='font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;'>Championships</div></div>"
+                    f"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:900;color:#f1f5f9;'>{total_natty_dna}</div>"
+                    f"<div style='font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;'>Total NFL Picks</div></div>"
+                    f"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:900;color:#FACC15;'>{total_natty_rd1}</div>"
+                    f"<div style='font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;'>1st Rounders</div></div>"
+                    f"<div style='text-align:center;'><div style='font-size:1.5rem;font-weight:900;color:#60a5fa;'>{_dna_per_natty:.1f}</div>"
+                    f"<div style='font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;'>NFL Picks / Natty</div></div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+    except Exception as _nd_err:
+        st.caption(f"Natty DNA unavailable: {_nd_err}")
 
     # --- ROSTER MATCHUP ---
     with tabs[9]:
