@@ -11830,6 +11830,16 @@ with tabs[2]:
             hcap_color = "#ef4444" if hcap > 4 else ("#f97316" if hcap > 1 else ("#fbbf24" if hcap > 0 else "#22c55e"))
             adj_color = "#22c55e" if row['Adj SOS'] >= resume_df['Adj SOS'].median() else "#f97316"
 
+            # SOS tier label — contextualizes the raw number
+            def _adj_sos_tier(v):
+                if v >= 45: return ("Gauntlet",   "#ef4444")
+                if v >= 30: return ("Brutal",      "#f97316")
+                if v >= 18: return ("Tough",       "#fbbf24")
+                if v >= 8:  return ("Solid",       "#60a5fa")
+                if v >= 1:  return ("Manageable",  "#94a3b8")
+                return            ("Soft",         "#64748b")
+            _sos_tier_label, _sos_tier_color = _adj_sos_tier(float(row['Adj SOS']))
+
             # QB Badge Color
             _qt = str(row.get('QB Tier', '—'))
             _qtc = {'Elite':('#22c55e','#0d2010'),'Leader':('#60a5fa','#0d1829'),'Average Joe':('#fbbf24','#1c1400'),'Ass':('#ef4444','#200808')}.get(_qt, ('#6b7280','#1f2937'))
@@ -11875,6 +11885,7 @@ with tabs[2]:
                   <div style='color:white;font-weight:800;font-size:0.95rem;'>{row['Record']}</div>
                   <div style='color:{adj_color};font-weight:900;font-size:1.1rem;'>{row['Adj SOS']}</div>
                   <div style='color:#475569;font-size:0.62rem;'>Adj SOS</div>
+                  <div style='color:{_sos_tier_color};font-size:0.62rem;font-weight:700;letter-spacing:.04em;'>{_sos_tier_label}</div>
                 </div>
               </div>
               <div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;'>
@@ -15133,10 +15144,16 @@ with tabs[0]:
             for _, _ir in _inj_csv.iterrows():
                 _t = str(_ir.get('Team', '')).strip()
                 _u = str(_ir.get('User', '')).strip()
-                if not _t:
+                # Skip blank rows or literal 'nan' values from malformed CSV
+                if not _t or _t.lower() == 'nan':
                     continue
+                if not _u or _u.lower() == 'nan':
+                    _u = ''
                 if _t not in _team_injuries:
-                    _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': 99, 'injuries': []}
+                    # Real CFP rank via global lookup — nan means unranked
+                    _rk_raw = get_current_rank(_t)
+                    _rk_disp = int(_rk_raw) if not (isinstance(_rk_raw, float) and _rk_raw != _rk_raw) else None
+                    _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': _rk_disp, 'injuries': []}
                 _is_raw = str(_ir.get('IsStarter', '')).strip().lower()
                 _starter_flag = _is_raw in ('yes', 'true', '1') or (
                     _is_raw == '' and int(_ir.get('OVR', 0) or 0) >= 80
@@ -15208,7 +15225,7 @@ with tabs[0]:
                 f"display:flex;align-items:center;'>"
                 f"{logo_html}"
                 f"<div>"
-                f"<div style='font-weight:800;color:#f3f4f6;font-size:0.9rem;'>#{seed} {html.escape(team)}</div>"
+                f"<div style='font-weight:800;color:#f3f4f6;font-size:0.9rem;'>{'#'+str(seed)+' ' if seed else 'NR · '}{html.escape(team)}</div>"
                 f"<div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(user)} · {len(team_data['injuries'])} player{'s' if len(team_data['injuries'])>1 else ''} out</div>"
                 f"</div>"
                 f"</div>"
