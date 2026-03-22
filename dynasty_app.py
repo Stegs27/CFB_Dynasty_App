@@ -7605,28 +7605,29 @@ def conf_bonus(conference):
 
 def build_national_odds(year=None):
     """
-    Compute national championship and CFP Make % odds across ALL teams with
-    ratings data — not just the 6 user teams.
+    National championship + CFP Make % odds across the full 136-team field.
 
-    Sources (all optional/graceful):
-      team_ratings.csv       → OVR, OFF, DEF for up to 42 teams
-      cfp_rankings_history   → current CFP rank per team
-      CPUscores_MASTER.csv   → W/L record this season
-      injury_bulletin.csv    → live injury penalties (replaces hardcoded dict)
-      conf_standings_{year}  → MOV for quality bonus
+    Architecture:
+      BASE (all 136): conf_standings_{year}.csv — W/L, MOV, DIFF, PF, PA, Streak
+      SIGNAL:         cfp_rankings_history.csv  — live committee rankings
+      SUPPLEMENT:     team_ratings.csv          — OVR/OFF/DEF for ~42 teams
+      INJURIES:       injury_bulletin.csv        — live starter penalties
+
+    Softmax over all 136 produces true national percentages.
+    OVR is a quality supplement, not the anchor — record + rank drive the number.
 
     Returns dict: team_name → {'natty_pct': float, 'cfp_pct': float, 'raw': float}
     """
     if year is None:
         year = CURRENT_YEAR
 
-    # ── 1. Load base ratings ────────────────────────────────────────────────
-    ratings = load_team_ratings(year=year)   # team → {OVR, OFF, DEF}
-    if not ratings:
-        return {}
+    # ── 1. Base: conf_standings — all 136 teams ─────────────────────────────
+    perf_map = load_team_performance(year=year)
+    if not perf_map:
+        return {}   # No conf_standings yet — can't compute
 
     # ── 2. CFP rank lookup ──────────────────────────────────────────────────
-    cfp_rank_map = {}   # team → rank int
+    cfp_rank_map = {}
     try:
         _rh = pd.read_csv('cfp_rankings_history.csv')
         _rh['YEAR'] = pd.to_numeric(_rh['YEAR'], errors='coerce')
@@ -7643,28 +7644,11 @@ def build_national_odds(year=None):
     except Exception:
         pass
 
-    # ── 3. W/L record this season ───────────────────────────────────────────
-    wl_map = {}   # team → (wins, losses)
-    try:
-        _cpu = pd.read_csv('CPUscores_MASTER.csv')
-        _cpu['YEAR'] = pd.to_numeric(_cpu.get('YEAR', _cpu.get('Year', 0)), errors='coerce')
-        _cpu = _cpu[_cpu['YEAR'].fillna(-1).astype(int) == int(year)].copy()
-        _vp = pd.to_numeric(_cpu.get('V_Pts', _cpu.get('Vis Score', None)), errors='coerce')
-        _hp = pd.to_numeric(_cpu.get('H_Pts', _cpu.get('Home Score', None)), errors='coerce')
-        _cpu = _cpu.assign(_VP=_vp, _HP=_hp).dropna(subset=['_VP','_HP'])
-        for _t in pd.concat([_cpu['Visitor'], _cpu['Home']]).dropna().unique():
-            _t = str(_t).strip()
-            if not _t: continue
-            _hg = _cpu[_cpu['Home'] == _t]
-            _vg = _cpu[_cpu['Visitor'] == _t]
-            _w  = int(((_hg['_HP'] > _hg['_VP']).sum()) + ((_vg['_VP'] > _vg['_HP']).sum()))
-            _l  = int(len(_hg) + len(_vg) - _w)
-            wl_map[_t] = (_w, _l)
-    except Exception:
-        pass
+    # ── 3. OVR/OFF/DEF supplement for ~42 rated teams ─────────────────────
+    ratings_map = load_team_ratings(year=year)  # team → {OVR, OFF, DEF}
 
-    # ── 4. Live injury penalty map ──────────────────────────────────────────
-    inj_penalty_map = {}   # team → penalty_pts
+    # ── 4. Live injury penalties ────────────────────────────────────────────
+    inj_penalty_map = {}
     try:
         _inj = pd.read_csv('injury_bulletin.csv')
         _inj['Year']     = pd.to_numeric(_inj.get('Year'), errors='coerce')
@@ -7677,12 +7661,11 @@ def build_national_odds(year=None):
             _pos = str(_ir.get('Pos', _ir.get('Position', ''))).strip().upper()
             _ovr = float(_ir.get('OVR', 75))
             _wks = float(_ir.get('WeeksOut', 0))
-            if not _tm or _wks <= 0:
-                continue
+            if not _tm or _wks <= 0: continue
             _omult = max(0.1, min(1.0, (_ovr - 75) / 20.0))
             if _pos in ('QB',):
                 _base = 32.0 if _wks >= 8 else (16.0 if _wks >= 3 else 7.0)
-            elif _pos in ('WR', 'HB', 'TE'):
+            elif _pos in ('WR','HB','TE'):
                 _base = 12.0 if _wks >= 8 else (7.0 if _wks >= 3 else 2.5)
             elif _pos in ('LT','RT','LG','RG','C','MIKE','LEDG','REDG'):
                 _base = 8.0 if _wks >= 8 else (4.0 if _wks >= 3 else 1.5)
@@ -7692,43 +7675,95 @@ def build_national_odds(year=None):
     except Exception:
         pass
 
-    # ── 5. MOV from conf_standings ──────────────────────────────────────────
-    perf_map = load_team_performance(year=year)
+    # ── 5. Fuzzy name helper ────────────────────────────────────────────────
+    def _fuzzy_get(d, name):
+        if name in d: return d[name]
+        nl = name.lower()
+        for k, v in d.items():
+            if k.lower() == nl: return v
+        nn = nl.replace('&', 'and')
+        for k, v in d.items():
+            if k.lower().replace('&', 'and') == nn: return v
+        return None
 
-    # ── 6. Score every team ─────────────────────────────────────────────────
+    # ── 6. Score every team in conf_standings ───────────────────────────────
     rows = []
-    for team, r in ratings.items():
+    for team, perf in perf_map.items():
         try:
-            ovr  = float(r.get('OVR') or r.get('OVERALL') or 75)
-            off  = float(r.get('OFF') or r.get('OFFENSE') or 75)
-            dfs  = float(r.get('DEF') or r.get('DEFENSE') or 75)
-            rank = cfp_rank_map.get(team, None)
-            wins, losses = wl_map.get(team, (0, 0))
-            gp   = wins + losses
-            win_pct = wins / gp if gp > 0 else 0.5
-            mov  = perf_map.get(team, {}).get('MOV', 0.0) or 0.0
-            inj  = inj_penalty_map.get(team, 0.0)
+            w    = int(perf.get('W', 0) or 0)
+            l    = int(perf.get('L', 0) or 0)
+            gp   = w + l
+            if gp == 0:
+                continue   # skip teams with no games (wouldn't be in standings)
+            win_pct  = w / gp
+            mov      = float(perf.get('MOV', 0.0) or 0.0)
+            diff     = float(perf.get('DIFF', 0.0) or 0.0)
+            pf_per_g = float(perf.get('PF', 0.0) or 0.0) / gp
+            pa_per_g = float(perf.get('PA', 0.0) or 0.0) / gp
+            stk      = int(perf.get('STK', 0) or 0)
 
-            # Raw score — OVR/OFF/DEF anchored, rank + record as live modifiers
+            # CFP rank signal — primary committee verdict
+            rank = _fuzzy_get(cfp_rank_map, team)
+            rank_pts = cfp_rank_bonus(rank) * 1.4 if rank else 0.0
+
+            # OVR supplement — compressed to avoid dominating
+            # Scale OVR 65-99 → 0-25 pts (not 0-119 pts)
+            _r = _fuzzy_get(ratings_map, team)
+            if _r:
+                ovr = float(_r.get('OVR') or _r.get('OVERALL') or 82)
+                off = float(_r.get('OFF') or _r.get('OFFENSE') or 82)
+                dfs = float(_r.get('DEF') or _r.get('DEFENSE') or 82)
+                ovr_clamped = max(65.0, min(99.0, ovr))
+                ovr_pts = ((ovr_clamped - 65.0) / 34.0) * 25.0   # 0–25 pts
+                off_pts = ((max(65.0, min(99.0, off)) - 65.0) / 34.0) * 6.0
+                def_pts = ((max(65.0, min(99.0, dfs)) - 65.0) / 34.0) * 6.0
+            else:
+                # No ratings — impute from MOV/PF
+                # A dominant team with +20 MOV and 45 PF/G is probably high OVR
+                _implied = 75.0 + min(10.0, mov * 0.5) + min(5.0, (pf_per_g - 28) * 0.15)
+                ovr_clamped = max(65.0, min(90.0, _implied))
+                ovr_pts = ((ovr_clamped - 65.0) / 34.0) * 20.0   # slightly less when imputed
+                off_pts = 0.0
+                def_pts = 0.0
+
+            # ── Raw score — record + performance anchored, rank + quality as boosters ──
             raw = (
-                ovr * 3.5
-                + off * 0.7
-                + dfs * 0.7
-                + cfp_rank_bonus(rank) * 1.2      # 0 if unranked, up to ~60 for #1
-                + win_pct * 35.0                  # 0–35 pts based on win rate
-                + mov * 0.8                        # quality wins bonus
-                - losses * 8.0                    # each loss hurts — not just 2nd+
-                - (losses ** 1.6) * 3.5           # accelerating penalty for multiple losses
-                - inj                              # live injury deduction
+                # Record is the primary driver
+                win_pct * 50.0                         # 0-50 pts — being undefeated matters
+                + w * 2.0                              # games played depth (W-heavy)
+                - l * 10.0                             # each loss punished directly
+                - (l ** 1.7) * 4.0                    # accelerating multi-loss penalty
+
+                # Margin of victory — quality of wins
+                + min(mov, 35.0) * 0.9                 # capped at +35 to prevent runaway blowout teams
+                + min(diff / max(gp, 1), 30.0) * 0.4  # point differential per game bonus
+
+                # Scoring efficiency
+                + max(0.0, pf_per_g - 25.0) * 0.5     # bonus above league baseline ~25 ppg
+                - max(0.0, pa_per_g - 25.0) * 0.4     # defensive penalty
+
+                # Win streak momentum
+                + max(0, stk) * 1.5                    # active win streak bonus
+                - max(0, -stk) * 2.0                   # active loss streak penalty
+
+                # Committee signal
+                + rank_pts                             # 0 if unranked, up to ~78 for #1
+
+                # Quality supplement
+                + ovr_pts + off_pts + def_pts          # 0–37 pts for top teams, 0 for unrated
+
+                # Injury deduction
+                - inj_penalty_map.get(team, 0.0)
             )
 
-            # Hard floor cuts for elimination-level situations
-            if losses >= 3:  raw -= 40
-            if ovr < 82:     raw -= 20
-            if rank is None and losses >= 2: raw -= 15  # unranked + 2 losses = out
+            # Hard elimination floors
+            if l >= 4: raw -= 60
+            elif l == 3: raw -= 30
+            if rank is None and l >= 2: raw -= 20  # unranked + 2 losses = out of conversation
+            if win_pct < 0.4: raw -= 30            # losing record programs eliminated
 
             rows.append({'team': team, 'raw': raw, 'rank': rank,
-                         'wins': wins, 'losses': losses, 'ovr': ovr})
+                         'w': w, 'l': l, 'mov': mov, 'ovr_pts': ovr_pts})
         except Exception:
             continue
 
@@ -7737,32 +7772,35 @@ def build_national_odds(year=None):
 
     df_nat = pd.DataFrame(rows)
 
-    # ── 7. Natty odds — softmax over ALL teams (true national field) ────────
-    # Lower temperature = more separation between tiers
+    # ── 7. Natty odds — softmax over full field ─────────────────────────────
+    # Higher temperature than 6-team model — spread over 136 naturally compresses
+    # individual percentages (correct: real natty probability for anyone is low)
     _nat_shift = df_nat['raw'] - df_nat['raw'].max()
-    _nat_temp  = max(12.0, df_nat['raw'].std() * 0.85)
+    _nat_temp  = max(18.0, df_nat['raw'].std() * 1.1)
     _nat_exp   = np.exp(_nat_shift / _nat_temp)
     df_nat['natty_pct'] = (_nat_exp / _nat_exp.sum() * 100).round(2)
 
-    # ── 8. CFP Make % — top-12 probability proxy ───────────────────────────
-    # Rank teams by raw score. Teams in top 12 get base 60–95%.
-    # Teams 13–25 get 10–45%. Below 25 get <10%.
+    # ── 8. CFP Make % — probability of being in top 12 ─────────────────────
     df_nat = df_nat.sort_values('raw', ascending=False).reset_index(drop=True)
-    df_nat['score_rank'] = df_nat.index + 1
-    n = len(df_nat)
 
-    def _cfp_pct(row):
-        sr = row['score_rank']
-        # Use CFP rank if available — committee has already voted
+    def _cfp_pct_calc(row):
+        # Use actual CFP rank when known — committee has already voted
         actual_rank = row.get('rank')
-        effective_rank = int(actual_rank) if actual_rank else sr
-        if effective_rank <= 4:   return min(97.0, 88 + (4 - effective_rank) * 2.5)
-        if effective_rank <= 12:  return min(88.0, 72 + (12 - effective_rank) * 2.0)
-        if effective_rank <= 16:  return min(55.0, 42 + (16 - effective_rank) * 3.0)
-        if effective_rank <= 25:  return min(35.0, 22 + (25 - effective_rank) * 1.4)
-        return max(2.0, 12 - (effective_rank - 25) * 0.4)
+        score_rank  = int(row.name) + 1
+        # nan is truthy in Python but breaks int() — guard explicitly
+        try:
+            eff_rank = int(actual_rank) if (actual_rank is not None and actual_rank == actual_rank) else score_rank
+        except (ValueError, TypeError):
+            eff_rank = score_rank
 
-    df_nat['cfp_pct'] = df_nat.apply(_cfp_pct, axis=1).round(1)
+        if eff_rank <= 4:   return round(min(97.0, 90 + (4 - eff_rank) * 2.0), 1)
+        if eff_rank <= 8:   return round(min(88.0, 76 + (8 - eff_rank) * 3.0), 1)
+        if eff_rank <= 12:  return round(min(74.0, 58 + (12 - eff_rank) * 4.0), 1)
+        if eff_rank <= 16:  return round(min(52.0, 32 + (16 - eff_rank) * 5.0), 1)
+        if eff_rank <= 25:  return round(min(28.0, 10 + (25 - eff_rank) * 2.0), 1)
+        return round(max(1.0, 8.0 - (eff_rank - 25) * 0.3), 1)
+
+    df_nat['cfp_pct'] = df_nat.apply(_cfp_pct_calc, axis=1)
 
     return {
         row['team']: {
@@ -8002,7 +8040,66 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     # ── PRESEASON VERSIONS (Dynasty News only) ────────────────────────────────
     # Uses only inputs known before the season starts — no win%, no CFP rank,
-    # no resume, no current losses, no injuries. Pure roster + history.
+    # no resume, no current losses, no injuries.
+    # Enriched with: full speed profile, BCR, recruiting history, roster
+    # attrition net (departures vs incoming talent), QB tier, pedigree.
+    # These are the 6 user teams scored against each other — not the national field.
+
+    # ── Pre-load attrition signals for each user team ──────────────────────────
+    # departure_year = CURRENT_YEAR - 1 (what they lost heading into this season)
+    # incoming_year  = CURRENT_YEAR     (what arrived)
+    _atr_penalty = {}   # team → raw penalty pts from departures
+    _atr_bonus   = {}   # team → raw bonus pts from incoming talent
+    try:
+        _dep_year = CURRENT_YEAR - 1
+        _inc_year = CURRENT_YEAR
+
+        # NFL departures — starters lost to the draft
+        _nfl_dep = pd.read_csv('attrition_nfl.csv')
+        _nfl_dep['Year'] = pd.to_numeric(_nfl_dep.get('Year'), errors='coerce')
+        _nfl_dep['OVR']  = pd.to_numeric(_nfl_dep.get('OVR'), errors='coerce').fillna(80)
+        _nfl_dep = _nfl_dep[_nfl_dep['Year'].fillna(-1).astype(int) == _dep_year].copy()
+        for _, _dr in _nfl_dep.iterrows():
+            _tm = str(_dr.get('Team', '')).strip()
+            _ovr = float(_dr.get('OVR', 80))
+            _ws  = str(_dr.get('Was Starter', '')).strip().lower() in ('yes','true','1')
+            pts = ((_ovr - 75) / 20.0) * (8.0 if _ws else 3.0)
+            _atr_penalty[_tm] = _atr_penalty.get(_tm, 0.0) + pts
+    except Exception:
+        pass
+
+    try:
+        # Transfer portal exits
+        _xfer_out = pd.read_csv('attrition_transfers.csv')
+        _xfer_out['Year'] = pd.to_numeric(_xfer_out.get('Year'), errors='coerce')
+        _xfer_out['OVR']  = pd.to_numeric(_xfer_out.get('OVR'), errors='coerce').fillna(78)
+        _xfer_out = _xfer_out[_xfer_out['Year'].fillna(-1).astype(int) == _dep_year].copy()
+        for _, _xr in _xfer_out.iterrows():
+            _tm = str(_xr.get('Team', '')).strip()
+            _ovr = float(_xr.get('OVR', 78))
+            _st  = str(_xr.get('TransferStatus', '')).strip().lower()
+            if _st != 'leaving': continue
+            pts = ((_ovr - 75) / 20.0) * 5.0
+            _atr_penalty[_tm] = _atr_penalty.get(_tm, 0.0) + pts
+    except Exception:
+        pass
+
+    try:
+        # Incoming recruits / transfers
+        _inc = pd.read_csv('attrition_incoming.csv')
+        _inc['Year']  = pd.to_numeric(_inc.get('Year'), errors='coerce')
+        _inc['Stars'] = pd.to_numeric(_inc.get('Stars', _inc.get('StarRating', 0)), errors='coerce').fillna(0)
+        _inc = _inc[_inc['Year'].fillna(-1).astype(int) == _inc_year].copy()
+        for _, _ir in _inc.iterrows():
+            _tm   = str(_ir.get('Team', '')).strip()
+            stars = float(_ir.get('Stars', 0))
+            role  = str(_ir.get('ProjectedRole', '')).strip().lower()
+            role_mult = 1.5 if role == 'starter' else (1.0 if role == 'rotation' else 0.4)
+            pts = (stars / 5.0) * role_mult * 4.0
+            _atr_bonus[_tm] = _atr_bonus.get(_tm, 0.0) + pts
+    except Exception:
+        pass
+
     def preseason_contender_score(row):
         _u_s_rows = stats_df[stats_df['User'] == row['USER']]
         u_s = _u_s_rows.iloc[0] if not _u_s_rows.empty else pd.Series({
@@ -8018,11 +8115,22 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         )
         heartbreak_penalty = max(0, u_s['Natty Apps'] - u_s['Natties']) * 0.5
         cfp_fail_penalty = u_s['CFP Losses'] * 0.8
+
         team_speed_component = (
             row['Team Speed (90+ Speed Guys)'] * 3.0
             + row['Off Speed (90+ speed)'] * 1.55
             + row['Def Speed (90+ speed)'] * 1.55
         )
+
+        # Attrition net — talent balance heading into the season
+        _tm = str(row.get('TEAM', '')).strip()
+        _dep_pts = _atr_penalty.get(_tm, 0.0)
+        _inc_pts = _atr_bonus.get(_tm, 0.0)
+        _net_atr = _inc_pts - _dep_pts   # positive = net gain, negative = net loss
+
+        # Roster trajectory — OVR improvement year-over-year
+        improvement = float(row.get('Improvement', 0) or 0)
+
         raw = (
             row['OVERALL'] * 3.7
             + row['OFFENSE'] * 0.68
@@ -8034,28 +8142,21 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
             + row['Recruit Score'] * 0.58
             + row['Career Win %'] * 0.26
             + row['SOS'] * 0.40
+            + improvement * 2.5              # trajectory signal — rising program bonus
+            + _net_atr * 0.8                 # attrition net: gaining > losing adds pts
             + qb_natty_bonus(row)
             + pedigree_bonus
             - heartbreak_penalty
             - cfp_fail_penalty
             + conf_bonus(row.get('CONFERENCE', 'Other'))
-            # ── intentionally excluded ──
-            # Current Win %   — unknown preseason
-            # Resume Score    — built from game results
-            # CFP Rank bonus  — doesn't exist preseason
-            # Current losses  — unknown preseason
-            # Injury penalty  — happened during season
         )
-        if row['OVERALL'] < 88:
-            raw -= 24
-        if row['OFFENSE'] < 85:
-            raw -= 6
-        if row['DEFENSE'] < 85:
-            raw -= 6
-        if row['BCR_Val'] < 35:
-            raw -= 6
-        if row['Team Speed (90+ Speed Guys)'] < 10:
-            raw -= 6
+
+        if row['OVERALL'] < 88:   raw -= 24
+        if row['OFFENSE'] < 85:   raw -= 6
+        if row['DEFENSE'] < 85:   raw -= 6
+        if row['BCR_Val'] < 35:   raw -= 6
+        if row['Team Speed (90+ Speed Guys)'] < 10: raw -= 6
+
         return raw
 
     _pre_raw = df.apply(preseason_contender_score, axis=1)
@@ -10702,36 +10803,31 @@ if data:
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
 
-    # ── Merge national odds (42-team field) into model_2041 ──────────────────
-    # Replaces 6-team softmax Natty Odds and normalized CFP Odds with true
-    # national percentages across the full rated field — so wins/losses/injuries
-    # move the needle visibly and odds are calibrated against real competition.
+    # ── Merge national odds (136-team field) into model_2041 for LIVE columns ──
+    # Preseason Natty Odds / Preseason CFP % stay as the 6-team rich model output.
+    # Only Natty Odds and CFP Odds (the "live" columns) get the national numbers.
     try:
         _nat_odds_model = build_national_odds(year=CURRENT_YEAR)
         if _nat_odds_model:
-            # Build lookup rows aligned to model_2041 TEAM column
             _nat_rows = []
             for _, _mr in model_2041.iterrows():
                 _mt = str(_mr.get('TEAM', '')).strip()
                 _nd = _nat_odds_model.get(_mt)
                 if _nd is None:
-                    # fuzzy match
                     _mtl = _mt.lower()
                     for _nk, _nv in _nat_odds_model.items():
                         if _nk.lower() == _mtl or _nk.lower().replace('&','and') == _mtl.replace('&','and'):
                             _nd = _nv
                             break
+                # Only replace live columns — preseason stays from 6-team model above
                 _nat_rows.append({
-                    'TEAM': _mt,
-                    'Natty Odds':       _nd['natty_pct'] if _nd else _mr.get('Natty Odds', 0),
-                    'CFP Odds':         _nd['cfp_pct']   if _nd else _mr.get('CFP Odds', 20),
-                    'Preseason Natty Odds': _nd['natty_pct'] if _nd else _mr.get('Preseason Natty Odds', 0),
-                    'Preseason CFP %':  _nd['cfp_pct']   if _nd else _mr.get('Preseason CFP %', 20),
+                    'TEAM':      _mt,
+                    'Natty Odds': _nd['natty_pct'] if _nd else float(_mr.get('Natty Odds', 0) or 0),
+                    'CFP Odds':   _nd['cfp_pct']   if _nd else float(_mr.get('CFP Odds', 20) or 20),
                 })
             _nat_df = pd.DataFrame(_nat_rows)
-            # Drop old softmax columns and replace with national odds
-            _drop_nat = [c for c in ['Natty Odds','CFP Odds','Preseason Natty Odds','Preseason CFP %']
-                         if c in model_2041.columns]
+            # Only drop and replace live columns — leave Preseason columns intact
+            _drop_nat = [c for c in ['Natty Odds', 'CFP Odds'] if c in model_2041.columns]
             model_2041 = model_2041.drop(columns=_drop_nat, errors='ignore').merge(
                 _nat_df, on='TEAM', how='left'
             )
@@ -13089,8 +13185,12 @@ with tabs[0]:
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
                 f"{_pi_line}"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 Natty: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong> &nbsp;|&nbsp; CFP: <strong style='color:#60a5fa;'>{round(float(live_cfp),1)}%</strong></span><br>"
-                f"<span style='font-size:0.72rem; color:#475569; font-style:italic;'>vs full 42-team rated field</span>"
+                f"<span style='font-size:0.75rem; color:#94a3b8; font-weight:600;'>📋 Preseason</span> "
+                f"<span style='font-size:0.65rem; color:#475569; font-style:italic;'>(6-team roster model)</span><br>"
+                f"<span style='font-size:0.82rem; color:#d1d5db;'>🏆 Natty: <strong style='color:white;'>{round(float(natty),1)}%</strong> &nbsp; CFP: <strong style='color:white;'>{round(float(cfp_pct),1)}%</strong></span><br>"
+                f"<span style='font-size:0.75rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 National</span> "
+                f"<span style='font-size:0.65rem; color:#475569; font-style:italic;'>(136-team live field)</span><br>"
+                f"<span style='font-size:0.82rem; color:#d1d5db;'>🏆 Natty: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong> &nbsp; CFP: <strong style='color:#60a5fa;'>{round(float(live_cfp),1)}%</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
                 f"</div></div>"
             )
@@ -16008,8 +16108,11 @@ with tabs[3]:
                     return v
             return {}
 
-        # ── National odds across all ~42 rated teams ──────────────────────────
-        _national_odds = build_national_odds(year=CURRENT_YEAR)
+        # ── National odds across full 136-team field ──────────────────────────
+        try:
+            _national_odds = build_national_odds(year=CURRENT_YEAR)
+        except Exception:
+            _national_odds = {}
         # Fuzzy lookup for national odds (same name-mismatch tolerance)
         def _get_natl_odds(team_name):
             t = str(team_name).strip()
@@ -16021,6 +16124,8 @@ with tabs[3]:
             for k, v in _national_odds.items():
                 if k.lower().replace('&','and') == tn: return v
             return None
+
+        def _rating_cell(val, stat='OVR'):
             try:
                 v = int(float(val))
                 if stat == 'OVR':
