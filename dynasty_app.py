@@ -11435,14 +11435,48 @@ with tabs[2]:
 
         # 3. SPEED DATA — sourced from model_2041 (pre-computed from roster CSV)
 
-        # 4. OFFICIAL RANK LOOKUP (LATEST CFP)
+        # 4. OFFICIAL RANK LOOKUP (LATEST CFP) + WEEK-BY-WEEK RANK LOOKUP
+        _final_rank_lookup = {}
+        _week_rank_lookup  = {}  # (team_lower, week_int) -> rank_int
+        _available_rank_weeks = []
         try:
             _cfp_master = pd.read_csv('cfp_rankings_history.csv')
-            _latest_wk = _cfp_master['WEEK'].max()
-            _latest_snap = _cfp_master[_cfp_master['WEEK'] == _latest_wk]
-            _final_rank_lookup = dict(zip(_latest_snap['TEAM'].str.strip(), _latest_snap['RANK'].astype(int)))
+            _cfp_master['YEAR'] = pd.to_numeric(_cfp_master['YEAR'], errors='coerce')
+            _cfp_master['WEEK'] = pd.to_numeric(_cfp_master['WEEK'], errors='coerce')
+            _cfp_master['RANK'] = pd.to_numeric(_cfp_master['RANK'], errors='coerce')
+            _cfp_master['TEAM'] = _cfp_master['TEAM'].astype(str).str.strip()
+
+            _cy_cfp = _cfp_master[_cfp_master['YEAR'] == CURRENT_YEAR]
+            if not _cy_cfp.empty:
+                _latest_wk   = int(_cy_cfp['WEEK'].max())
+                _latest_snap = _cy_cfp[_cy_cfp['WEEK'] == _latest_wk]
+                _final_rank_lookup = dict(zip(
+                    _latest_snap['TEAM'].str.lower(),
+                    _latest_snap['RANK'].astype(int)
+                ))
+                _available_rank_weeks = sorted(_cy_cfp['WEEK'].dropna().unique().tolist())
+                for _, _rr in _cy_cfp.iterrows():
+                    _week_rank_lookup[(str(_rr['TEAM']).lower(), int(_rr['WEEK']))] = int(_rr['RANK'])
         except Exception:
-            _final_rank_lookup = {}
+            pass
+
+        def _get_rank_at_week(_team, _game_week):
+            # Return CFP rank for team at time of game_week — walk back to nearest earlier snapshot
+            _t = str(_team).strip().lower()
+            _w = int(_game_week) if not pd.isna(_game_week) else 0
+            for _wk in sorted(_available_rank_weeks, reverse=True):
+                if _wk <= _w:
+                    _r = _week_rank_lookup.get((_t, int(_wk)))
+                    if _r is not None:
+                        return float(_r)
+            return float('nan')
+
+        # Overwrite Visitor Rank / Home Rank with accurate at-game-time ranks
+        if not _cpu_sos.empty and _week_rank_lookup:
+            _cpu_sos['Visitor Rank'] = _cpu_sos.apply(
+                lambda r: _get_rank_at_week(r['Visitor'], r['Week']), axis=1)
+            _cpu_sos['Home Rank'] = _cpu_sos.apply(
+                lambda r: _get_rank_at_week(r['Home'], r['Week']), axis=1)
 
         # 5. BUILD SPEED MAP
         _speed_map = {}
@@ -13522,6 +13556,12 @@ with tabs[0]:
                 _scores['Home Score'] = pd.to_numeric(_scores.get('Home Score'), errors='coerce')
                 _scores['Visitor Rank'] = pd.to_numeric(_scores.get('Visitor Rank'), errors='coerce')
                 _scores['Home Rank'] = pd.to_numeric(_scores.get('Home Rank'), errors='coerce')
+                # Overwrite with accurate at-game-time ranks from cfp_rankings_history
+                if _week_rank_lookup:
+                    _scores['Visitor Rank'] = _scores.apply(
+                        lambda r: _get_rank_at_week(r.get('Visitor',''), r.get('Week', 0)), axis=1)
+                    _scores['Home Rank'] = _scores.apply(
+                        lambda r: _get_rank_at_week(r.get('Home',''), r.get('Week', 0)), axis=1)
                 _scores['Vis_User'] = _scores.get('Vis_User', '').astype(str).str.strip().str.title()
                 _scores['Home_User'] = _scores.get('Home_User', '').astype(str).str.strip().str.title()
                 _scores_cy = _scores[_scores['YEAR'] == CURRENT_YEAR].copy()

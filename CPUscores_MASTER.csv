@@ -178,66 +178,66 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2042,1,Miami,Bowling Green,28,56,,CPU,Devin,21,4,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1,Washington,Florida,21,56,,CPU,Doug,25,18,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1,North Carolina,Florida State,35,56,,CPU,Nick,,1,0-1,1-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,Texas Tech,Georgia Tech,10,48,,Noah,CPU,6,4,0-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,1,Texas Tech,Georgia Tech,48,10,,Noah,CPU,6,4,1-0,1-1,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1,USF,Hammond,24,77,,Josh,CPU,24,14,0-2,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1,Stanford,San Jose State,61,71,,CPU,Mike,,15,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,NC State,Florida,26,43,,CPU,Doug,,15,0-2,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,Florida State,Nebraska,43,21,,Nick,CPU,11,14,1-1,1-1,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,Bowling Green,Penn State,49,21,,Devin,CPU,21,14,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,San Jose State,Texas,38,37,,Mike,CPU,11,8,1-1,1-1,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,TCU,Texas Tech,13,36,,CPU,Noah,,4,1-1,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,Arkansas,USF,16,56,,CPU,Josh,,7,0-2,2-0,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,3,Auburn,San Jose State,,,,CPU,Mike,22,11,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,3,Texas Tech,Tennessee,,,,Noah,CPU,6,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,3,Bowling Green,Toledo,,,,Devin,CPU,4,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,3,Oklahoma,USF,,,,CPU,Josh,,9,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,4,Kentucky,Bowling Green,,,,CPU,Devin,,4,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,4,Texas,Florida,,,,CPU,Doug,2,18,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,4,USF,San Jose State,,,,Josh,Mike,9,15,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,4,Florida State,South Carolina,,,,Nick,CPU,1,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,4,Oregon,Texas Tech,,,,CPU,Noah,13,6,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,5,Florida,Bowling Green,,,,Doug,Devin,18,4,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,5,Auburn,Florida State,,,,CPU,Nick,22,1,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,5,USC,Texas Tech,,,,CPU,Noah,23,6,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,5,San Jose State,Washington,,,,Mike,CPU,15,20,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Missouri,Bowling Green,,,,CPU,Devin,,4,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Oklahoma State,Florida,,,,CPU,Doug,25,18,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Georgia,Florida State,,,,CPU,Nick,11,1,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Texas Tech,Purdue,,,,Noah,CPU,6,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,San Jose State,USC,,,,Mike,CPU,15,23,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Indiana,USF,,,,CPU,Josh,,9,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Florida State,Miami,,,,Nick,CPU,1,21,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,USF,Nebraska,,,,Josh,CPU,9,12,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Florida,Ole Miss,,,,Doug,CPU,18,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Indiana,San Jose State,,,,CPU,Mike,,15,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Bowling Green,South Carolina,,,,Devin,CPU,4,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Penn State,Texas Tech,,,,CPU,Noah,17,6,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,8,Notre Dame,Bowling Green,,,,CPU,Devin,8,4,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,8,Florida State,Oklahoma,,,,Nick,CPU,1,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,8,Texas Tech,San Jose State,,,,Noah,Mike,6,15,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,8,Florida,Tennessee,,,,Doug,CPU,18,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,8,Michigan,USF,,,,CPU,Josh,16,9,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,9,Oklahoma,Bowling Green,,,,CPU,Devin,,4,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,9,Alabama,Florida,,,,CPU,Doug,,18,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,9,USF,Michigan State,,,,Josh,CPU,9,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,9,San Jose State,Nebraska,,,,Mike,CPU,15,12,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,9,Texas Tech,Ohio State,,,,Noah,CPU,6,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,10,Ole Miss,Florida State,,,,CPU,Nick,,1,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,10,Bowling Green,Georgia,,,,Devin,CPU,4,11,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,10,Florida,Iowa,,,,Doug,CPU,18,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,10,Michigan,San Jose State,,,,CPU,Mike,16,15,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,10,USF,Texas Tech,,,,Josh,Noah,9,6,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,11,Bowling Green,Auburn,,,,Devin,CPU,4,22,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,11,Florida,LSU,,,,Doug,CPU,18,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,11,Florida State,Oregon,,,,Nick,CPU,1,13,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,11,Iowa,Texas Tech,,,,CPU,Noah,,6,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,11,Minnesota,USF,,,,CPU,Josh,,9,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,11,San Jose State,Wisconsin,,,,Mike,CPU,15,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,12,Wyoming,Florida,,,,CPU,Doug,,18,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,12,Florida State,Kentucky,,,,Nick,CPU,1,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,12,Texas Tech,Wisconsin,,,,Noah,CPU,6,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,13,Bowling Green,Florida State,,,,Devin,Nick,4,1,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,13,USF,Maryland,,,,Josh,CPU,9,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,14,Florida,Florida State,,,,Doug,Nick,18,1,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,14,San Jose State,Michigan State,,,,Mike,CPU,15,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,14,Penn State,USF,,,,CPU,Josh,17,9,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,2,NC State,Florida,26,43,,CPU,Doug,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,Florida State,Nebraska,21,43,,Nick,CPU,14,11,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,Bowling Green,Penn State,49,21,,Devin,CPU,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,San Jose State,Texas,38,37,,Mike,CPU,3,8,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,TCU,Texas Tech,13,36,,CPU,Noah,,4,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,Arkansas,USF,16,56,,CPU,Josh,,6,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,3,Auburn,San Jose State,,,,CPU,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,3,Texas Tech,Tennessee,,,,Noah,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,3,Bowling Green,Toledo,,,,Devin,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,3,Oklahoma,USF,,,,CPU,Josh,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,4,Kentucky,Bowling Green,,,,CPU,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,4,Texas,Florida,,,,CPU,Doug,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,4,USF,San Jose State,,,,Josh,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,4,Florida State,South Carolina,,,,Nick,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,4,Oregon,Texas Tech,,,,CPU,Noah,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,5,Florida,Bowling Green,,,,Doug,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,5,Auburn,Florida State,,,,CPU,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,5,USC,Texas Tech,,,,CPU,Noah,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,5,San Jose State,Washington,,,,Mike,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Missouri,Bowling Green,,,,CPU,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Oklahoma State,Florida,,,,CPU,Doug,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Georgia,Florida State,,,,CPU,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Texas Tech,Purdue,,,,Noah,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,San Jose State,USC,,,,Mike,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Indiana,USF,,,,CPU,Josh,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Florida State,Miami,,,,Nick,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,USF,Nebraska,,,,Josh,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Florida,Ole Miss,,,,Doug,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Indiana,San Jose State,,,,CPU,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Bowling Green,South Carolina,,,,Devin,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Penn State,Texas Tech,,,,CPU,Noah,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,8,Notre Dame,Bowling Green,,,,CPU,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,8,Florida State,Oklahoma,,,,Nick,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,8,Texas Tech,San Jose State,,,,Noah,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,8,Florida,Tennessee,,,,Doug,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,8,Michigan,USF,,,,CPU,Josh,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,9,Oklahoma,Bowling Green,,,,CPU,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,9,Alabama,Florida,,,,CPU,Doug,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,9,USF,Michigan State,,,,Josh,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,9,San Jose State,Nebraska,,,,Mike,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,9,Texas Tech,Ohio State,,,,Noah,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,10,Ole Miss,Florida State,,,,CPU,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,10,Bowling Green,Georgia,,,,Devin,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,10,Florida,Iowa,,,,Doug,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,10,Michigan,San Jose State,,,,CPU,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,10,USF,Texas Tech,,,,Josh,Noah,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,11,Bowling Green,Auburn,,,,Devin,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,11,Florida,LSU,,,,Doug,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,11,Florida State,Oregon,,,,Nick,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,11,Iowa,Texas Tech,,,,CPU,Noah,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,11,Minnesota,USF,,,,CPU,Josh,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,11,San Jose State,Wisconsin,,,,Mike,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,12,Wyoming,Florida,,,,CPU,Doug,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,12,Florida State,Kentucky,,,,Nick,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,12,Texas Tech,Wisconsin,,,,Noah,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,13,Bowling Green,Florida State,,,,Devin,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,13,USF,Maryland,,,,Josh,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,14,Florida,Florida State,,,,Doug,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,14,San Jose State,Michigan State,,,,Mike,CPU,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,14,Penn State,USF,,,,CPU,Josh,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
