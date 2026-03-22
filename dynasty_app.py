@@ -9136,7 +9136,8 @@ try:
     if not _grh_cy.empty:
         _GLOBAL_RANK_WEEKS = sorted(_grh_cy['WEEK'].dropna().unique().tolist())
         for _, _gr in _grh_cy.iterrows():
-            _GLOBAL_WEEK_RANK_LOOKUP[(str(_gr['TEAM']).lower(), int(_gr['WEEK']))] = int(_gr['RANK'])
+            if int(_gr['RANK']) > 0:  # skip 0 — means unranked, not rank 0
+                _GLOBAL_WEEK_RANK_LOOKUP[(str(_gr['TEAM']).lower(), int(_gr['WEEK']))] = int(_gr['RANK'])
         # Latest week = current standings
         _lw = int(_grh_cy['WEEK'].max())
         for _, _gr in _grh_cy[_grh_cy['WEEK'] == _lw].iterrows():
@@ -12424,6 +12425,8 @@ with tabs[0]:
             _latest_yr = _cfp_hist['YEAR'].max()
             _latest_wk = _cfp_hist[_cfp_hist['YEAR'] == _latest_yr]['WEEK'].max()
             _latest_snap = _cfp_hist[(_cfp_hist['YEAR'] == _latest_yr) & (_cfp_hist['WEEK'] == _latest_wk)]
+            # Filter out rank 0 — model sometimes outputs 0 for unranked teams
+            _latest_snap = _latest_snap[_latest_snap['RANK'].fillna(0).astype(int) > 0]
             official_rank_map = dict(zip(_latest_snap['TEAM'].str.strip(), _latest_snap['RANK'].astype(int)))
         except:
             official_rank_map = {}
@@ -12632,7 +12635,10 @@ with tabs[0]:
 
                 if 'CONF_RANK' in _cs_yr.columns:
                     # Use directly-captured conf rank from screenshot (most accurate)
-                    _cs_yr['CONF_RANK'] = pd.to_numeric(_cs_yr['CONF_RANK'], errors='coerce').fillna(99).astype(int)
+                    _cs_yr['CONF_RANK'] = pd.to_numeric(_cs_yr['CONF_RANK'], errors='coerce')
+                    # Treat 0 as blank — model sometimes outputs 0 for unranked instead of blank
+                    _cs_yr.loc[_cs_yr['CONF_RANK'] == 0, 'CONF_RANK'] = np.nan
+                    _cs_yr['CONF_RANK'] = _cs_yr['CONF_RANK'].fillna(99).astype(int)
                     _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['CONF_RANK']))
                 elif 'CONF_W' in _cs_yr.columns and 'CONFERENCE' in _cs_yr.columns:
                     # Fall back: derive from conf wins (works once games are played)
@@ -12667,7 +12673,8 @@ with tabs[0]:
 
             # --- THE FIX: Official Rank & Gold Glow Logic ---
             _team_name = team.strip()
-            curr_rank = official_rank_map.get(_team_name, "UR")
+            _raw_rank = official_rank_map.get(_team_name, "UR")
+            curr_rank = "UR" if _raw_rank == 0 or _raw_rank == "0" else _raw_rank
 
             if curr_rank != "UR" and int(curr_rank) <= 4:
                 # Top 4 Playoff Bound - Gold Glow
@@ -13563,6 +13570,10 @@ with tabs[0]:
         _headline_candidates = []
 
         if not model_2041.empty:
+            # Initialize early so all headline generators can reference safely
+            _recent_user_losses = {}  # populated later from scores CSV
+            _recent_user_wins   = {}
+            _latest_played_week = 0
             try:
                 _live_cfp_df = get_cfp_rankings_snapshot()
                 _live_cfp_map = _live_cfp_df.set_index('Team') if _live_cfp_df is not None and not _live_cfp_df.empty else pd.DataFrame()
@@ -13858,12 +13869,9 @@ with tabs[0]:
                 _completed = _scores_cy.dropna(subset=['Vis Score','Home Score']).sort_values('Week')
 
                 if not _completed.empty:
-                    # Build map of user teams that lost in the MOST RECENT week
-                    # Used to suppress positive hype headlines and generate upset_loss ones
+                    # Populate recent losses/wins from most recent played week
                     _latest_played_week = int(_completed['Week'].max())
                     _recent_week_games = _completed[_completed['Week'] == _latest_played_week]
-                    _recent_user_losses = {}   # user → {'team', 'opponent', 'opp_rank', 'was_ranked', 'score', 'opp_score'}
-                    _recent_user_wins   = {}   # user → {'team', 'opponent'}
                     for _, _rg in _recent_week_games.iterrows():
                         _rvs = _hh_safe_int(_rg['Vis Score'], 0)
                         _rhs = _hh_safe_int(_rg['Home Score'], 0)
@@ -13899,13 +13907,18 @@ with tabs[0]:
                         _loser_rank = _hh_safe_int(_g['Home Rank'] if _vs > _hs else _g['Visitor Rank'], 99)
                         _winner_rank = _hh_safe_int(_g['Visitor Rank'] if _vs > _hs else _g['Home Rank'], 99)
                         _margin = abs(_vs - _hs)
-                        _game_score = max(0, (26 - _loser_rank)) * 3 + max(0, _winner_rank - 10) + _margin
+                        _game_wk = _hh_safe_int(_g['Week'], 0)
+                        # Recency decay: games older than current week lose score rapidly
+                        # Same week = no penalty, 1 week old = -15, 2 weeks old = -30, etc.
+                        _weeks_ago = max(0, _latest_played_week - _game_wk)
+                        _recency_penalty = _weeks_ago * 15
+                        _game_score = max(0, (26 - _loser_rank)) * 3 + max(0, _winner_rank - 10) + _margin - _recency_penalty
                         if _winner_user in USER_TEAMS and _loser_rank <= 25 and _game_score > _best_upset_score:
                             _best_upset_score = _game_score
                             _best_upset = {
                                 'team': _winner_team, 'user': _winner_user, 'opponent': _loser_team,
                                 'opp_rank': _loser_rank, 'win_score': max(_vs, _hs), 'lose_score': min(_vs, _hs),
-                                'week': _hh_safe_int(_g['Week'], 0)
+                                'week': _game_wk
                             }
                     if _best_upset is not None:
                         _ukey = f"upset_win:{CURRENT_YEAR}:{_best_upset['team']}:{_best_upset['opponent']}:{_best_upset['week']}"
