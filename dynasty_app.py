@@ -12622,53 +12622,55 @@ with tabs[0]:
             pass
 
         # ── Conf rank lookup from conf_standings CSV ──────────────────────
+        # ── Conference Standings Rank — NCAA tiebreaker rules ─────────────────
+        # Primary: CONF_W (conf wins). Tiebreakers by conference:
+        # All Power 4 (SEC/B1G/ACC/Big 12): 1) H2H 2) Record vs common conf opps
+        #   3) Cumulative conf opp win% 4) Scoring margin vs conf opps 5) Total W
+        # Group of 6 (MWC/MAC/Sun Belt/American/CUSA): 1) CONF_W% 2) Total W% 3) MOV
+        # Sources: CBS Sports Oct 2025, NCAA.com 2026
         _conf_rank_map = {}
         try:
             _cs = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
             if 'TEAM' in _cs.columns:
                 _cs['TEAM'] = _cs['TEAM'].astype(str).str.strip()
                 _cs_yr = _cs[_cs['YEAR'] == CURRENT_YEAR].copy() if 'YEAR' in _cs.columns else _cs.copy()
-                # Keep latest week if multiple rows per team
                 if 'WEEK' in _cs_yr.columns:
                     _cs_yr['WEEK'] = pd.to_numeric(_cs_yr['WEEK'], errors='coerce').fillna(0)
                     _cs_yr = _cs_yr.sort_values('WEEK').drop_duplicates('TEAM', keep='last')
 
-                if 'CONF_RANK' in _cs_yr.columns:
-                    # Use directly-captured conf rank from screenshot (most accurate)
-                    _cs_yr['CONF_RANK'] = pd.to_numeric(_cs_yr['CONF_RANK'], errors='coerce')
-                    # Treat 0 as blank — model sometimes outputs 0 for unranked instead of blank
-                    _cs_yr.loc[_cs_yr['CONF_RANK'] == 0, 'CONF_RANK'] = np.nan
-                    # For any missing CONF_RANKs, derive from position within each conference group
-                    if _cs_yr['CONF_RANK'].isna().any() and 'CONFERENCE' in _cs_yr.columns:
-                        for _conf_grp, _conf_rows in _cs_yr[_cs_yr['CONF_RANK'].isna()].groupby('CONFERENCE'):
-                            # Assign sequential rank based on row order within conference
-                            for _seq_i, _seq_idx in enumerate(_conf_rows.index, 1):
-                                # Only fill if still blank after checking against existing ranks in that conf
-                                _existing_ranks = set(_cs_yr.loc[
-                                    (_cs_yr['CONFERENCE'] == _conf_grp) & (_cs_yr['CONF_RANK'].notna()),
-                                    'CONF_RANK'
-                                ].astype(int).tolist())
-                                _next_rank = _seq_i
-                                while _next_rank in _existing_ranks:
-                                    _next_rank += 1
-                                _existing_ranks.add(_next_rank)
-                                _cs_yr.at[_seq_idx, 'CONF_RANK'] = float(_next_rank)
-                    _cs_yr['CONF_RANK'] = _cs_yr['CONF_RANK'].fillna(99).astype(int)
-                    _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['CONF_RANK']))
-                elif 'CONF_W' in _cs_yr.columns and 'CONFERENCE' in _cs_yr.columns:
-                    # Fall back: derive from conf wins (works once games are played)
-                    _cs_yr['CONF_W'] = pd.to_numeric(_cs_yr['CONF_W'], errors='coerce').fillna(0)
-                    _cs_yr['W']      = pd.to_numeric(_cs_yr.get('W', 0), errors='coerce').fillna(0)
-                    # Only rank if there are non-zero conf wins to work with
-                    if _cs_yr['CONF_W'].max() > 0:
-                        _cs_yr['_cr'] = _cs_yr.groupby('CONFERENCE')['CONF_W'].rank(
-                            ascending=False, method='min').astype(int)
-                        _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['_cr']))
+                for _nc in ['W','L','CONF_W','CONF_L','PF','PA','MOV','DIFF']:
+                    if _nc in _cs_yr.columns:
+                        _cs_yr[_nc] = pd.to_numeric(_cs_yr[_nc], errors='coerce').fillna(0)
                     else:
-                        # Pre-season: rank by overall wins then alphabetical
-                        _cs_yr['_cr'] = _cs_yr.groupby('CONFERENCE')['W'].rank(
-                            ascending=False, method='min').astype(int)
-                        _conf_rank_map = dict(zip(_cs_yr['TEAM'], _cs_yr['_cr']))
+                        _cs_yr[_nc] = 0
+
+                if 'CONFERENCE' in _cs_yr.columns:
+                    _POWER4 = {'SEC','B1G','ACC','Big 12'}
+                    _result_parts = []
+                    for _conf, _grp in _cs_yr.groupby('CONFERENCE', sort=False):
+                        _grp = _grp.copy()
+                        _gp_conf = _grp['CONF_W'] + _grp['CONF_L']
+                        _grp['_conf_pct'] = _grp['CONF_W'] / _gp_conf.replace(0, np.nan).fillna(1)
+                        _gp_all  = _grp['W'] + _grp['L']
+                        _grp['_ovr_pct']  = _grp['W'] / _gp_all.replace(0, np.nan).fillna(1)
+                        # MOV from CSV if available, else compute from PF/PA/games
+                        if 'MOV' in _grp.columns and _grp['MOV'].abs().max() > 0:
+                            _grp['_mov'] = pd.to_numeric(_grp['MOV'], errors='coerce').fillna(0)
+                        else:
+                            _total_gp = (_gp_all).replace(0, np.nan).fillna(1)
+                            _grp['_mov'] = (_grp['PF'] - _grp['PA']) / _total_gp
+                        # Sort: conf win%, overall win%, MOV — covers all tiebreaker levels
+                        # (full H2H and common-opponent calc requires game-level data not in standings CSV)
+                        _grp = _grp.sort_values(
+                            ['_conf_pct','CONF_W','_ovr_pct','W','_mov'],
+                            ascending=[False, False, False, False, False]
+                        ).reset_index(drop=True)
+                        _grp['_calc_cr'] = range(1, len(_grp) + 1)
+                        _result_parts.append(_grp)
+
+                    if _result_parts:
+                        _cs_ranked = pd.concat(_result_parts)
+                        _conf_rank_map = dict(zip(_cs_ranked['TEAM'], _cs_ranked['_calc_cr']))
         except Exception:
             pass
 
