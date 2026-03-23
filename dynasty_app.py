@@ -5314,12 +5314,15 @@ st.markdown("""
     /* Table containers */
     .isp-table-wrap {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
         border: 1px solid #334155;
         border-radius: 14px;
         background: #0f172a;
+        max-width: 100%;
     }
     .isp-table {
         width: 100%;
+        min-width: 480px;
         border-collapse: collapse;
         font-size: 13px;
     }
@@ -12978,6 +12981,9 @@ with tabs[0]:
             _raw_sched['_Hom']  = _raw_sched[_hom_col].astype(str).str.strip() if _hom_col else ''
             _raw_sched['_VPts'] = pd.to_numeric(_raw_sched[_vsc_col], errors='coerce') if _vsc_col else float('nan')
             _raw_sched['_HPts'] = pd.to_numeric(_raw_sched[_hsc_col], errors='coerce') if _hsc_col else float('nan')
+            # Case-insensitive lookup columns
+            _raw_sched['_VisL'] = _raw_sched['_Vis'].str.lower()
+            _raw_sched['_HomL'] = _raw_sched['_Hom'].str.lower()
 
             _sc_gs = _raw_sched[
                 (_raw_sched['YEAR'].fillna(-1).astype(int) == int(_gs_year)) &
@@ -12987,8 +12993,9 @@ with tabs[0]:
 
             for _gu in list(USER_TEAMS.keys()):
                 _gteam = USER_TEAMS.get(_gu, '')
-                _v_row = _sc_gs[_sc_gs['_Vis'] == _gteam]
-                _h_row = _sc_gs[_sc_gs['_Hom'] == _gteam]
+                _gteamL = _gteam.lower()
+                _v_row = _sc_gs[_sc_gs['_VisL'] == _gteamL]
+                _h_row = _sc_gs[_sc_gs['_HomL'] == _gteamL]
                 if not _v_row.empty:
                     _gr  = _v_row.iloc[0]
                     _opp = str(_gr['_Hom']).strip()
@@ -13407,16 +13414,17 @@ with tabs[0]:
             _nat_natty_color = _odds_tier_color(live_natty)
             _nat_cfp_color   = _odds_tier_color(live_cfp)
 
-            # Green outline when READY or game is FINAL
+            # Team color outline when READY/FINAL, green outline otherwise
             _is_ready_or_final = (
                 _u_status == 'Ready' or
                 (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
                 bool(_manual_score_map.get(user, {}).get('user_score', 0))
             )
-            _ready_outline = "box-shadow:0 0 0 2px #4ade80; " if _is_ready_or_final and not bw_style else ""
+            _ready_outline = f"box-shadow:0 0 0 2px {tc}; " if _is_ready_or_final and not bw_style else ""
 
             card_html = (
-                f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
+                f"<div style='display:flex; align-items:center; "
+                f"background:linear-gradient(90deg,{tc}40 0%,{tc}18 25%,#1f2937 60%); "
                 f"border-left:5px solid {tc}; {card_glow}{_ready_outline} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
                 f"{_rank_circle}"
                 f"{logo_html}"
@@ -21744,7 +21752,7 @@ with tabs[1]:
                 selected_team_key = normalize_nfl_team_key(sel_nfl_team)
 
                 current_roster_df = nfl_current_rosters.copy() if nfl_current_rosters is not None and not nfl_current_rosters.empty else pd.DataFrame()
-                base_roster_df = nfl_roster.copy() if nfl_roster is not None and not nfl_roster.empty else pd.DataFrame()
+                base_roster_df = _nfl_master.copy() if not _nfl_master.empty else pd.DataFrame()
 
                 def _prep_roster(df):
                     if df is None or df.empty:
