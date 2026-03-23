@@ -12035,24 +12035,23 @@ st.markdown(f"""
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
     "🗞️ Dynasty News",          # tabs[0]
-    "▶️ Dynasty YouTube",        # tabs[1]
-    "🏈 NFL Universe",          # tabs[2]
-    "📐 SOS & True Path",       # tabs[3]
-    "🏆 Who's In?",             # tabs[4]
-    "🥇 Recruiting Rankings",   # tabs[5]
-    "🚪 Roster Attrition",      # tabs[6]
-    "💰 NIL Board",             # tabs[7]
-    "📺 Season Recap",          # tabs[8]
-    "🔍 Speed Freaks",          # tabs[9]
-    "🎯 Roster Matchup",        # tabs[10]
-    "🏛️ Coach Legacy",         # tabs[11]
-    "⚔️ H2H Matrix",            # tabs[12]
-    "🎬 ISPN Classics",         # tabs[13]
-    "🐐 GOAT Rankings",         # tabs[14]
+    "🏈 NFL Universe",          # tabs[1]
+    "📐 SOS & True Path",       # tabs[2]
+    "🏆 Who's In?",             # tabs[3]
+    "🥇 Recruiting Rankings",   # tabs[4]
+    "🚪 Roster Attrition",      # tabs[5]
+    "💰 NIL Board",             # tabs[6]
+    "📺 Season Recap",          # tabs[7]
+    "🔍 Speed Freaks",          # tabs[8]
+    "🎯 Roster Matchup",        # tabs[9]
+    "🏛️ Coach Legacy",         # tabs[10]
+    "⚔️ H2H Matrix",            # tabs[11]
+    "🎬 ISPN Classics",         # tabs[12]
+    "🐐 GOAT Rankings",         # tabs[13]
 ])
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
-with tabs[3]:
+with tabs[2]:
         st.header("📐 SOS & True Path")
         st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
 
@@ -16167,7 +16166,7 @@ with tabs[0]:
 
 
     # --- WHO'S IN? ---
-with tabs[4]:
+with tabs[3]:
         st.header("🏆 Who's In? | CFP Bubble Watch")
         st.caption("Built from your uploaded CFP ranking screenshots, then sharpened with this app's SOS, resume, QB, recruiting, and roster-strength model. Current CFP standards are assumed: five highest-ranked conference champs get in, plus seven at-larges, with the top four seeds earning byes.")
 
@@ -17094,7 +17093,7 @@ with tabs[4]:
             st.info(f"Who Would Win requires champs.csv and TeamRatingsHistory.csv. ({_www_e})")
 
         # --- RECRUITING RANKINGS ---
-with tabs[5]:
+with tabs[4]:
     # ── Year selector ─────────────────────────────────────────────────────
     try:
         _rec_all_years = _load_recruiting_csv()
@@ -17438,7 +17437,7 @@ with tabs[5]:
             with st.expander("Show full HS table"):
                 st.dataframe(hs_display, hide_index=True, use_container_width=True)
 
-    with recruit_tabs[2]:
+    with recruit_tabs[1]:
         st.subheader(f"{recruit_year} Transfer Portal Rankings")
         if _portal_df.empty:
             st.info("No transfer portal recruiting data available for this year.")
@@ -17456,7 +17455,7 @@ with tabs[5]:
             with st.expander("Show full portal table"):
                 st.dataframe(portal_display, hide_index=True, use_container_width=True)
 
-    with recruit_tabs[3]:
+    with recruit_tabs[2]:
         st.subheader(f"{recruit_year} Overall Recruiting Rankings")
         if _overall_df.empty:
             st.info("No overall recruiting data available.")
@@ -17477,7 +17476,7 @@ with tabs[5]:
     st.markdown("---")
 
     # ── NIL PROJECTION SUB-TAB ───────────────────────────────────────────────
-    with recruit_tabs[4]:
+    with recruit_tabs[3]:
         st.subheader(f"💰 {recruit_year} Class NIL Projection")
         st.caption("Projected NIL commitment based on star ratings. 5★ commits command premium deals; this shows the dollar weight behind each class before anyone takes a snap.")
 
@@ -17791,7 +17790,7 @@ with tabs[5]:
         st.caption("No recruiting history columns were found in recruiting.csv.")
 
     # --- H2H MATRIX ---
-with tabs[12]:
+with tabs[11]:
         st.header("⚔️ Head-to-Head Matrix")
         st.caption("All-time user vs. user records. Net Edge = wins minus losses. Rivalry Score weights game count and balance.")
 
@@ -18010,7 +18009,7 @@ with tabs[12]:
             )
 
 # --- SEASON RECAP ---
-with tabs[8]:
+with tabs[7]:
     st.header("📺 Season Recap")
     _recap_default = (CURRENT_YEAR - 1) if CURRENT_WEEK_NUMBER < 13 else CURRENT_YEAR
     _recap_default = _recap_default if _recap_default in years else (years[-1] if years else CURRENT_YEAR)
@@ -18239,7 +18238,7 @@ with tabs[8]:
                     }
                 )
 
-        with aa_tabs[2]:
+        with aa_tabs[1]:
             second_df = prep_aa_table(aa_year_df[aa_year_df["TeamType"] == "2nd Team"].copy())
             if second_df.empty:
                 st.caption("No 2nd Team rows found.")
@@ -18258,7 +18257,7 @@ with tabs[8]:
                     }
                 )
 
-        with aa_tabs[3]:
+        with aa_tabs[2]:
             fresh_df = prep_aa_table(aa_year_df[aa_year_df["TeamType"] == "Freshman"].copy())
             if fresh_df.empty:
                 st.caption("No Freshman rows found.")
@@ -18281,7 +18280,7 @@ with tabs[8]:
 
 
 # --- SPEED FREAKS ---
-with tabs[9]:
+with tabs[8]:
     st.header("🔍 Speed Freaks")
     st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
 
@@ -18747,7 +18746,7 @@ with tabs[9]:
                             st.plotly_chart(_fig_p, use_container_width=True, config={'staticPlot': True})
 
 
-with tabs[11]:
+with tabs[10]:
         st.header("🏛️ Coach Legacy")
         st.caption("Career arc by coach across all schools. Powered by CPUscores_MASTER.csv, CFPbracketresults.csv, champs.csv, COTY.csv, recruiting_class_history_all.csv, and preseason_expectations_history.csv.")
 
@@ -18757,7 +18756,7 @@ with tabs[11]:
             setTimeout(function() {
                 try {
                     var tabs = window.parent.document.querySelectorAll('[data-baseweb="tab"]');
-                    if (tabs && tabs[11]) { tabs[11].click(); }
+                    if (tabs && tabs[10]) { tabs[10].click(); }
                 } catch(e) {}
             }, 150);
             </script>
@@ -19932,526 +19931,6 @@ def _format_archive_row(row, scores_df=None, gs_df=None):
         out["summary"] = str(out.get("notes","")).strip()
     return out
 
-def render_dynasty_youtube_tab():
-    """Full-page, broadcast-grade Dynasty YouTube Archives tab."""
-    import html as _html
-
-    archive_df = load_stream_archive_data()
-    archive_df = archive_df[archive_df["platform"].astype(str).str.lower().eq("youtube")].copy()
-
-    scores_df = _load_cpu_scores_for_archives()
-    gs_df     = _load_game_summaries_for_archives()
-
-    if not archive_df.empty:
-        formatted_rows = [_format_archive_row(r, scores_df, gs_df) for _, r in archive_df.iterrows()]
-        adf = pd.DataFrame(formatted_rows)
-    else:
-        adf = pd.DataFrame()
-
-    # ── helpers ──────────────────────────────────────────────────────────────
-    def _logo_img(team, sz=64):
-        try:
-            src = image_file_to_data_uri(get_logo_source(str(team)))
-            if src:
-                return f"<img src='{src}' style='width:{sz}px;height:{sz}px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));'/>"
-        except Exception:
-            pass
-        return "<span style='font-size:2rem;'>🏈</span>"
-
-    def _team_color(team):
-        try:
-            return get_team_primary_color(str(team))
-        except Exception:
-            return "#334155"
-
-    def _archive_type_badge(atype, is_playoff):
-        atype_str = str(atype).strip().lower()
-        if is_playoff:
-            return "<span style='background:#7c2d12;color:#fed7aa;border:1px solid #c2410c;padding:3px 10px;border-radius:4px;font-size:.65rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;'>🏆 CFP/BOWL</span>"
-        if "featured" in atype_str:
-            return "<span style='background:#1e1b4b;color:#c7d2fe;border:1px solid #4338ca;padding:3px 10px;border-radius:4px;font-size:.65rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;'>⭐ FEATURED</span>"
-        return "<span style='background:#0f172a;color:#64748b;border:1px solid #1e293b;padding:3px 10px;border-radius:4px;font-size:.65rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;'>▶ ARCHIVE</span>"
-
-    def _result_badge(result):
-        r = str(result).strip().upper()
-        if r == "W":
-            return "<span style='background:#14532d;color:#4ade80;border:1px solid #16a34a;padding:4px 14px;border-radius:4px;font-size:.75rem;font-weight:900;letter-spacing:.1em;'>WIN</span>"
-        if r == "L":
-            return "<span style='background:#7f1d1d;color:#fca5a5;border:1px solid #dc2626;padding:4px 14px;border-radius:4px;font-size:.75rem;font-weight:900;letter-spacing:.1em;'>LOSS</span>"
-        return ""
-
-    def _streamer_badge(streamer):
-        s = str(streamer).strip()
-        if not s or s.lower() in ("nan",""):
-            return ""
-        return f"<span style='background:#1e293b;color:#94a3b8;border:1px solid #334155;padding:3px 10px;border-radius:999px;font-size:.65rem;font-weight:700;'>📡 {_html.escape(s)}</span>"
-
-    # ── CSS ──────────────────────────────────────────────────────────────────
-    st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,900&family=Inter:wght@400;600;700&display=swap');
-
-    .yt-page-bg {
-        background: linear-gradient(180deg, #060810 0%, #0a0d1a 40%, #070a14 100%);
-        min-height: 100vh;
-    }
-
-    /* ── MASTHEAD ─────────────────────────── */
-    .yt-masthead {
-        position:relative; overflow:hidden;
-        background: linear-gradient(135deg, #0f0f1a 0%, #13111e 50%, #0a0d1a 100%);
-        border: 1px solid #1e233a;
-        border-radius: 18px;
-        padding: 26px 24px 20px 24px;
-        margin-bottom: 20px;
-    }
-    .yt-masthead::before {
-        content:'';
-        position:absolute; top:0; left:0; right:0; bottom:0;
-        background: repeating-linear-gradient(
-            -55deg,
-            transparent,
-            transparent 18px,
-            rgba(255,255,255,.012) 18px,
-            rgba(255,255,255,.012) 19px
-        );
-        pointer-events:none;
-    }
-    .yt-masthead-eyebrow {
-        display:flex; align-items:center; gap:10px; margin-bottom:8px;
-    }
-    .yt-live-dot {
-        width:9px; height:9px; border-radius:50%;
-        background:#ef4444;
-        box-shadow:0 0 0 3px rgba(239,68,68,.25);
-        animation: yt-pulse 1.8s ease-in-out infinite;
-        flex-shrink:0;
-    }
-    @keyframes yt-pulse {
-        0%,100% { box-shadow:0 0 0 3px rgba(239,68,68,.25); }
-        50%      { box-shadow:0 0 0 7px rgba(239,68,68,.05); }
-    }
-    .yt-eyebrow-text {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:.72rem; font-weight:700; letter-spacing:.14em;
-        color:#ef4444; text-transform:uppercase;
-    }
-    .yt-masthead-title {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:2.5rem; font-weight:900; line-height:.95;
-        color:#f8fafc; letter-spacing:-.01em;
-        margin-bottom:4px;
-    }
-    .yt-masthead-title span { color:#ef4444; }
-    .yt-masthead-sub {
-        font-family:'Inter',sans-serif;
-        font-size:.82rem; color:#64748b; font-weight:600;
-    }
-    .yt-stat-strip {
-        display:flex; gap:20px; margin-top:18px; flex-wrap:wrap;
-    }
-    .yt-stat-chip {
-        background:rgba(255,255,255,.04);
-        border:1px solid #1e293b;
-        border-radius:8px;
-        padding:8px 16px;
-        text-align:center;
-    }
-    .yt-stat-chip-val {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:1.5rem; font-weight:900; color:#f8fafc;
-        line-height:1;
-    }
-    .yt-stat-chip-lbl {
-        font-family:'Inter',sans-serif;
-        font-size:.62rem; font-weight:700; color:#64748b;
-        letter-spacing:.08em; text-transform:uppercase;
-        margin-top:2px;
-    }
-
-    /* ── FEATURED HERO ────────────────────── */
-    .yt-hero-wrap {
-        position:relative; overflow:hidden;
-        border-radius:20px;
-        margin-bottom:22px;
-        border:1px solid #1e293b;
-    }
-    .yt-hero-header {
-        padding:20px 22px 16px 22px;
-        display:flex; flex-direction:column; gap:10px;
-    }
-    .yt-hero-meta-row {
-        display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    }
-    .yt-hero-title {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:2rem; font-weight:900; color:#f8fafc;
-        line-height:1.05;
-    }
-    .yt-hero-matchup {
-        display:flex; align-items:center; justify-content:center;
-        gap:18px; padding:16px 0 12px 0;
-    }
-    .yt-hero-team-block { text-align:center; min-width:80px; }
-    .yt-hero-team-name {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:.8rem; font-weight:700; color:#94a3b8;
-        letter-spacing:.06em; text-transform:uppercase;
-        margin-top:6px;
-    }
-    .yt-hero-vs {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:2.8rem; font-weight:900; color:#1e293b;
-        letter-spacing:.04em; line-height:1;
-    }
-    .yt-hero-score-block {
-        background:rgba(0,0,0,.35);
-        border:1px solid rgba(255,255,255,.08);
-        border-radius:12px;
-        padding:10px 24px;
-        text-align:center;
-        min-width:160px;
-    }
-    .yt-hero-score {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:1.55rem; font-weight:900; color:#f8fafc;
-        letter-spacing:.02em;
-    }
-    .yt-hero-score-lbl {
-        font-size:.62rem; font-weight:700; color:#64748b;
-        letter-spacing:.1em; text-transform:uppercase;
-        margin-top:1px;
-    }
-    .yt-hero-footer {
-        display:flex; align-items:center; justify-content:space-between;
-        padding:12px 22px 16px 22px;
-        border-top:1px solid rgba(255,255,255,.06);
-        flex-wrap:wrap; gap:8px;
-    }
-    .yt-season-week {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:.88rem; font-weight:700; color:#64748b;
-        letter-spacing:.08em; text-transform:uppercase;
-    }
-    .yt-summary-box {
-        background:rgba(0,0,0,.3);
-        border:1px solid #1e293b;
-        border-left:3px solid #ef4444;
-        border-radius:0 10px 10px 0;
-        padding:12px 16px;
-        margin:0 22px 18px 22px;
-        font-family:'Inter',sans-serif;
-        font-size:.88rem; color:#cbd5e1; line-height:1.55;
-    }
-    .yt-summary-box strong { color:#f8fafc; }
-
-    /* ── CARD GRID ────────────────────────── */
-    .yt-section-header {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:1.2rem; font-weight:900;
-        color:#f8fafc; letter-spacing:.04em; text-transform:uppercase;
-        display:flex; align-items:center; gap:10px;
-        margin-bottom:14px; margin-top:4px;
-    }
-    .yt-section-header::after {
-        content:''; flex:1; height:1px;
-        background:linear-gradient(90deg,#1e293b,transparent);
-    }
-
-    .yt-card {
-        background: linear-gradient(160deg, #111827 0%, #0f172a 100%);
-        border: 1px solid #1e293b;
-        border-radius: 16px;
-        overflow: hidden;
-        transition: border-color .2s, transform .15s;
-        height: 100%;
-    }
-    .yt-card:hover { border-color:#334155; transform:translateY(-1px); }
-
-    .yt-card-top-bar {
-        height:4px;
-    }
-    .yt-card-body { padding:14px 16px 12px 16px; }
-    .yt-card-meta-row {
-        display:flex; align-items:center; justify-content:space-between;
-        margin-bottom:10px; gap:6px; flex-wrap:wrap;
-    }
-    .yt-card-title {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:1.08rem; font-weight:900; color:#f8fafc;
-        line-height:1.15; margin-bottom:8px;
-    }
-    .yt-card-matchup {
-        display:flex; align-items:center; justify-content:center;
-        gap:14px; padding:8px 0 10px 0;
-    }
-    .yt-card-team { text-align:center; }
-    .yt-card-team-name {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:.7rem; font-weight:700; color:#64748b;
-        letter-spacing:.06em; text-transform:uppercase;
-        margin-top:4px;
-    }
-    .yt-card-vs {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:1.6rem; font-weight:900; color:#1e293b;
-    }
-    .yt-card-score {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:.95rem; font-weight:900; color:#e2e8f0;
-        text-align:center; margin-bottom:4px;
-    }
-    .yt-card-footer {
-        display:flex; align-items:center; justify-content:space-between;
-        margin-top:10px; padding-top:10px;
-        border-top:1px solid #1e293b;
-        gap:6px; flex-wrap:wrap;
-    }
-    .yt-card-season {
-        font-family:'Barlow Condensed',sans-serif;
-        font-size:.72rem; font-weight:700; color:#475569;
-        letter-spacing:.08em; text-transform:uppercase;
-    }
-    .yt-card-summary {
-        font-family:'Inter',sans-serif;
-        font-size:.78rem; color:#64748b; line-height:1.45;
-        margin-top:8px;
-        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-        overflow:hidden;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ── MASTHEAD ─────────────────────────────────────────────────────────────
-    total_vids = len(adf) if not adf.empty else 0
-    if not adf.empty and "season" in adf.columns:
-        seasons_covered = adf["season"].dropna().nunique()
-        wins = (adf["result"].astype(str).str.upper() == "W").sum() if "result" in adf.columns else 0
-        losses = (adf["result"].astype(str).str.upper() == "L").sum() if "result" in adf.columns else 0
-    else:
-        seasons_covered = 0; wins = 0; losses = 0
-
-    playoff_count = int(adf["is_playoff"].sum()) if (not adf.empty and "is_playoff" in adf.columns) else 0
-
-    st.markdown(f"""
-    <div class="yt-masthead">
-      <div class="yt-masthead-eyebrow">
-        <div class="yt-live-dot"></div>
-        <span class="yt-eyebrow-text">ISPN Dynasty Network — Video Archive</span>
-      </div>
-      <div class="yt-masthead-title">DYNASTY <span>YOUTUBE</span><br>ARCHIVES</div>
-      <div class="yt-masthead-sub">Every streamed game. Every dynasty moment. All six franchises. All on tape.</div>
-      <div class="yt-stat-strip">
-        <div class="yt-stat-chip">
-          <div class="yt-stat-chip-val">{total_vids}</div>
-          <div class="yt-stat-chip-lbl">Total Videos</div>
-        </div>
-        <div class="yt-stat-chip">
-          <div class="yt-stat-chip-val">{seasons_covered}</div>
-          <div class="yt-stat-chip-lbl">Seasons</div>
-        </div>
-        <div class="yt-stat-chip">
-          <div class="yt-stat-chip-val" style="color:#4ade80;">{wins}</div>
-          <div class="yt-stat-chip-lbl">Wins Archived</div>
-        </div>
-        <div class="yt-stat-chip">
-          <div class="yt-stat-chip-val" style="color:#f87171;">{losses}</div>
-          <div class="yt-stat-chip-lbl">Losses Archived</div>
-        </div>
-        <div class="yt-stat-chip">
-          <div class="yt-stat-chip-val" style="color:#fbbf24;">{playoff_count}</div>
-          <div class="yt-stat-chip-lbl">Bowl/CFP Games</div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if adf.empty:
-        st.info("No YouTube archives found yet. Add games to stream_archive.csv to get started.")
-        return
-
-    adf["season_num"] = pd.to_numeric(adf["season"], errors="coerce").fillna(0).astype(int)
-    adf["week_num"]   = pd.to_numeric(adf["week"],   errors="coerce").fillna(999).astype(int)
-
-    # ── FEATURED PICK ────────────────────────────────────────────────────────
-    current_season_num = adf["season_num"].max()
-    season_scores = scores_df[pd.to_numeric(scores_df.get("YEAR", pd.Series(dtype=float)), errors="coerce") == current_season_num].copy() if (not scores_df.empty and "YEAR" in scores_df.columns) else pd.DataFrame()
-    playoffs_started = False
-    if not season_scores.empty and "CFP" in season_scores.columns:
-        playoffs_started = bool(season_scores["CFP"].astype(str).str.lower().isin(["yes","y","1","true"]).any())
-
-    featured = None
-    if playoffs_started:
-        pc = adf[adf.get("is_playoff", pd.Series([False]*len(adf))) == True].copy()
-        if not pc.empty:
-            featured = pc.sort_values(["season_num","week_num"], ascending=[False,False]).iloc[0].to_dict()
-    if featured is None:
-        tgt = adf[(adf["user_team"].astype(str).str.lower() == "san jose state") & (adf["opponent"].astype(str).str.lower() == "texas")]
-        featured = tgt.iloc[0].to_dict() if not tgt.empty else adf.sort_values(["season_num","week_num"], ascending=[False,True]).iloc[0].to_dict()
-
-    rest = adf[adf["url"].astype(str) != str(featured.get("url",""))].sort_values(["season_num","week_num"], ascending=[False,True])
-
-    # ── HERO SECTION ─────────────────────────────────────────────────────────
-    f_team_l    = str(featured.get("user_team","")).strip()
-    f_team_r    = str(featured.get("opponent","")).strip()
-    f_cl        = _team_color(f_team_l)
-    f_cr        = _team_color(f_team_r)
-    f_logo_l    = _logo_img(f_team_l, 72)
-    f_logo_r    = _logo_img(f_team_r, 72)
-    f_score     = str(featured.get("score","")).strip()
-    f_result    = str(featured.get("result","")).strip().upper()
-    f_summary   = str(featured.get("summary","")).strip()
-    f_is_playoff= bool(featured.get("is_playoff", False))
-    f_atype     = str(featured.get("archive_type","")).strip()
-    f_streamer  = str(featured.get("streamer","")).strip()
-    f_season    = featured.get("season_num", featured.get("season",""))
-    f_week      = featured.get("week_num",   featured.get("week",""))
-    f_title     = str(featured.get("stream_title","Featured Game"))
-
-    st.markdown(f"""
-    <div class="yt-hero-wrap">
-      <div style="height:5px;background:linear-gradient(90deg,{f_cl},{f_cr});"></div>
-      <div class="yt-hero-header"
-           style="background:linear-gradient(160deg,rgba({','.join(str(int(f_cl.lstrip('#')[i:i+2],16)) for i in (0,2,4))},0.18) 0%,rgba(10,13,26,0) 100%);">
-        <div class="yt-hero-meta-row">
-          {_archive_type_badge(f_atype, f_is_playoff)}
-          {_result_badge(f_result)}
-          {_streamer_badge(f_streamer)}
-        </div>
-        <div class="yt-hero-title">{_html.escape(f_title)}</div>
-        <div class="yt-hero-matchup">
-          <div class="yt-hero-team-block">
-            {f_logo_l}
-            <div class="yt-hero-team-name">{_html.escape(f_team_l)}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-            <div class="yt-hero-vs">VS</div>
-            {f'<div class="yt-hero-score-block"><div class="yt-hero-score">' + _html.escape(f_score) + '</div><div class="yt-hero-score-lbl">Final Score</div></div>' if f_score else ''}
-          </div>
-          <div class="yt-hero-team-block">
-            {f_logo_r}
-            <div class="yt-hero-team-name">{_html.escape(f_team_r)}</div>
-          </div>
-        </div>
-        <div class="yt-hero-footer">
-          <span class="yt-season-week">Season {_html.escape(str(f_season))} • Week {_html.escape(str(f_week))}</span>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    embed = _youtube_embed_html(featured.get("url",""), height=540)
-    if embed:
-        components.html(embed, height=570)
-    else:
-        _w = _youtube_watch_url(featured.get("url",""))
-        if _w:
-            st.link_button("▶️  Watch on YouTube", _w, use_container_width=True)
-
-    if f_summary and f_summary.lower() not in ("nan",""):
-        st.markdown(f"""
-        <div class="yt-summary-box">
-          <strong>🎙 Game Summary:</strong> {_html.escape(f_summary)}
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ── FILTER CONTROLS ──────────────────────────────────────────────────────
-    if not rest.empty:
-        all_seasons = sorted(rest["season_num"].unique(), reverse=True)
-        season_options = ["All Seasons"] + [f"Season {s}" for s in all_seasons]
-
-        all_teams = sorted(set(
-            list(rest["user_team"].dropna().astype(str).str.strip()) +
-            list(rest["opponent"].dropna().astype(str).str.strip())
-        ))
-        team_options = ["All Teams"] + [t for t in all_teams if t.lower() not in ("nan","")]
-
-        st.markdown("<div class='yt-section-header'>📼  More Archives</div>", unsafe_allow_html=True)
-
-        fc1, fc2 = st.columns([1,1])
-        with fc1:
-            sel_season = st.selectbox("Filter by Season", season_options, key="yt_season_filter", label_visibility="collapsed")
-        with fc2:
-            sel_team = st.selectbox("Filter by Team", team_options, key="yt_team_filter", label_visibility="collapsed")
-
-        filtered = rest.copy()
-        if sel_season != "All Seasons":
-            s_num = int(sel_season.split()[-1])
-            filtered = filtered[filtered["season_num"] == s_num]
-        if sel_team != "All Teams":
-            filtered = filtered[
-                (filtered["user_team"].astype(str).str.strip() == sel_team) |
-                (filtered["opponent"].astype(str).str.strip() == sel_team)
-            ]
-
-        if filtered.empty:
-            st.caption("No archives match that filter. Try broadening your search.")
-            return
-
-        # ── CARD GRID ─────────────────────────────────────────────────────────
-        col_a, col_b = st.columns(2, gap="medium")
-        for idx, (_, row) in enumerate(filtered.iterrows()):
-            col = col_a if idx % 2 == 0 else col_b
-
-            r_team_l  = str(row.get("user_team","")).strip()
-            r_team_r  = str(row.get("opponent","")).strip()
-            r_cl      = _team_color(r_team_l)
-            r_cr      = _team_color(r_team_r)
-            r_logo_l  = _logo_img(r_team_l, 52)
-            r_logo_r  = _logo_img(r_team_r, 52)
-            r_score   = str(row.get("score","")).strip()
-            r_result  = str(row.get("result","")).strip().upper()
-            r_summary = str(row.get("summary","")).strip()
-            r_title   = str(row.get("stream_title","Archive"))
-            r_season  = row.get("season_num", row.get("season",""))
-            r_week    = row.get("week_num",   row.get("week",""))
-            r_is_p    = bool(row.get("is_playoff", False))
-            r_atype   = str(row.get("archive_type",""))
-            r_stream  = str(row.get("streamer","")).strip()
-
-            with col:
-                st.markdown(f"""
-                <div class="yt-card">
-                  <div class="yt-card-top-bar"
-                       style="background:linear-gradient(90deg,{r_cl},{r_cr});"></div>
-                  <div class="yt-card-body">
-                    <div class="yt-card-meta-row">
-                      {_archive_type_badge(r_atype, r_is_p)}
-                      {_result_badge(r_result)}
-                    </div>
-                    <div class="yt-card-title">{_html.escape(r_title)}</div>
-                    <div class="yt-card-matchup">
-                      <div class="yt-card-team">
-                        {r_logo_l}
-                        <div class="yt-card-team-name">{_html.escape(r_team_l)}</div>
-                      </div>
-                      <div class="yt-card-vs">VS</div>
-                      <div class="yt-card-team">
-                        {r_logo_r}
-                        <div class="yt-card-team-name">{_html.escape(r_team_r)}</div>
-                      </div>
-                    </div>
-                    {f'<div class="yt-card-score">{_html.escape(r_score)}</div>' if r_score else ''}
-                    {f'<div class="yt-card-summary">{_html.escape(r_summary)}</div>' if r_summary and r_summary.lower() != "nan" else ''}
-                    <div class="yt-card-footer">
-                      <span class="yt-card-season">S{_html.escape(str(r_season))} · WK {_html.escape(str(r_week))}</span>
-                      {_streamer_badge(r_stream)}
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                _watch = _youtube_watch_url(row.get("url",""))
-                if _watch:
-                    with st.expander(f"▶  Watch: {r_title}", expanded=False):
-                        _ehtml = _youtube_embed_html(_watch, height=380)
-                        if _ehtml:
-                            components.html(_ehtml, height=410)
-                        else:
-                            st.link_button("Open on YouTube", _watch, use_container_width=True)
-                st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
-
-
 def render_dynasty_youtube_archives_tab():
     archive_df = load_stream_archive_data()
     archive_df = archive_df[archive_df["platform"].astype(str).str.lower().eq("youtube")].copy()
@@ -20595,7 +20074,7 @@ def render_dynasty_youtube_archives_tab():
                 else:
                     st.link_button("Open Archive", _watch, use_container_width=True)
 
-with tabs[13]:
+with tabs[12]:
         st.header("🎬 ISPN Classics")
         st.caption(
             "The most iconic games in dynasty history — ranked by closeness, "
@@ -20959,7 +20438,7 @@ with tabs[13]:
                     st.error(f"Box Scores error: {_bx_err}")
 
 # --- GOAT RANKINGS (Tab 12) ---
-with tabs[14]:
+with tabs[13]:
     st.header("🐐 The GOAT Council")
     st.caption("Legacy is built on titles, trophies, pipelines, and sustained dominance.")
 
@@ -21339,15 +20818,9 @@ with tabs[14]:
         st.markdown("---")
         st.caption("Legacy score weighting: National Title (40 — dominant), Heisman Winner (5), COTY (3), Conf Title (2), plus pipeline bonuses for Heisman finalists, draft picks, and career wins. A coach with 0 titles cannot outscore a coach with 1+. H Finals = Heisman finalist appearances. Avg Rec = average recruiting class rank.")
 # ──────────────────────────────────────────────────────────────────────
-# DYNASTY YOUTUBE ARCHIVES
-# ──────────────────────────────────────────────────────────────────────
-with tabs[1]:
-    render_dynasty_youtube_tab()
-
-# ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE
 # ──────────────────────────────────────────────────────────────────────
-with tabs[2]:
+with tabs[1]:
     nfl_universe_logo_path = "_NFL_logo.png"
     if os.path.exists(nfl_universe_logo_path):
         logo_uri = file_to_data_uri(nfl_universe_logo_path)
@@ -21769,7 +21242,7 @@ with tabs[2]:
                 st.dataframe(user_sum, hide_index=True, use_container_width=True)
             
     # ── Season Recap ────────────────────────────────────────────────
-        with nfl_tabs[2]:
+        with nfl_tabs[1]:
             st.subheader("🏁 NFL Season Recap")
 
             if nfl_standings_hist.empty and nfl_super_bowl.empty:
@@ -22003,7 +21476,7 @@ with tabs[2]:
                     
                     
     # ── Awards ───────────────────────────────────────────────────────
-        with nfl_tabs[3]:
+        with nfl_tabs[2]:
             st.subheader("🏅 NFL Awards")
 
             if nfl_awards_hist.empty:
@@ -22164,7 +21637,7 @@ with tabs[2]:
                         )
 
     # ── Offseason Recap ───────────────────────────────────────────────
-        with nfl_tabs[4]:
+        with nfl_tabs[3]:
             st.subheader("🧾 NFL Offseason Recap")
 
             offseason_season = get_current_nfl_season()
@@ -22319,7 +21792,7 @@ with tabs[2]:
 
                         st.dataframe(rookie_show.head(50), hide_index=True, use_container_width=True)          
                         # ── NFL Player Database ───────────────────────────────────────────
-        with nfl_tabs[5]:
+        with nfl_tabs[4]:
             st.subheader("📚 NFL Player Database")
 
             if nfl_player_hist is None or nfl_player_hist.empty:
@@ -22501,7 +21974,7 @@ with tabs[2]:
                         )                        
                                                                                                                   
         # ── Alumni Tracker ────────────────────────────────────────────────
-        with nfl_tabs[6]:
+        with nfl_tabs[5]:
             st.subheader("👤 Alumni Tracker")
 
             if nfl_draft_hist.empty:
@@ -22557,7 +22030,7 @@ with tabs[2]:
                 )
 
         # ── Super Bowl History ────────────────────────────────────────────
-        with nfl_tabs[7]:
+        with nfl_tabs[6]:
             st.subheader("🏆 Super Bowl History")
 
             if nfl_super_bowl.empty:
@@ -22596,7 +22069,7 @@ with tabs[2]:
                 )
 
     # ── Storylines ────────────────────────────────────────────────────
-        with nfl_tabs[8]:
+        with nfl_tabs[7]:
             st.subheader("📰 Storylines")
 
             if nfl_story.empty and not nfl_draft_hist.empty:
@@ -22698,7 +22171,7 @@ with tabs[2]:
                     )
 
         # ── NFL Teams ─────────────────────────────────────────────────────
-        with nfl_tabs[9]:
+        with nfl_tabs[8]:
             st.subheader("🏟️ NFL Teams")
             _nfl_master = universe.get("nfl_roster", pd.DataFrame()) if universe else pd.DataFrame()
             if _nfl_master.empty:
@@ -23435,7 +22908,7 @@ with tabs[2]:
 
 
     # --- ROSTER ATTRITION ---
-with tabs[6]:
+with tabs[5]:
     # --- 0. Logos & Header ---
     def get_attrition_logo(team_name, width=45, margin="0"):
         if 'image_file_to_data_uri' in globals() and 'get_local_logo_path' in globals():
@@ -25109,7 +24582,7 @@ with tabs[6]:
         st.caption(f"Natty DNA unavailable: {_nd_err}")
 
     # --- ROSTER MATCHUP ---
-    with tabs[10]:
+    with tabs[9]:
         render_roster_matchup_tab()
 
     # --- SIDEBAR CONTENT ---
@@ -25169,7 +24642,7 @@ with tabs[6]:
             if _ok:
                 st.cache_data.clear()
 # ── NIL BOARD (Tab 13) ────────────────────────────────────────────────────────
-with tabs[7]:
+with tabs[6]:
     st.header("💰 NIL Board")
     st.caption("Projected NIL valuations for every player on user rosters — computed from OVR, position scarcity, class year, and athleticism. Team totals show who's running a bag program.")
 
