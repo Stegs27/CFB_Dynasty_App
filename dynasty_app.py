@@ -19939,18 +19939,34 @@ def _extract_youtube_video_id(url):
         _parsed = urllib.parse.urlparse(_u)
         _host = (_parsed.netloc or '').lower()
         _path = (_parsed.path or '').strip('/')
+        _qs = urllib.parse.parse_qs(_parsed.query or '')
+
+        def _clean_candidate(_candidate):
+            _candidate = str(_candidate or '').strip().split('&')[0].split('?')[0].strip('/')
+            return _candidate if re.fullmatch(r'[A-Za-z0-9_-]{11}', _candidate) else ''
+
         if 'youtu.be' in _host:
-            return _path.split('/')[0]
-        if 'youtube.com' in _host:
+            _candidate = _path.split('/')[0]
+            _candidate = _clean_candidate(_candidate)
+            if _candidate:
+                return _candidate
+
+        if 'youtube.com' in _host or 'youtube-nocookie.com' in _host:
             if _path == 'watch':
-                _qs = urllib.parse.parse_qs(_parsed.query or '')
-                return (_qs.get('v') or [''])[0]
-            if _path.startswith('live/'):
-                return _path.split('/', 1)[1].split('/')[0]
-            if _path.startswith('shorts/'):
-                return _path.split('/', 1)[1].split('/')[0]
-            if _path.startswith('embed/'):
-                return _path.split('/', 1)[1].split('/')[0]
+                _candidate = (_qs.get('v') or [''])[0]
+                _candidate = _clean_candidate(_candidate)
+                if _candidate:
+                    return _candidate
+            for _prefix in ('live/', 'shorts/', 'embed/', 'v/'):
+                if _path.startswith(_prefix):
+                    _candidate = _path.split('/', 1)[1].split('/')[0]
+                    _candidate = _clean_candidate(_candidate)
+                    if _candidate:
+                        return _candidate
+
+        _match = re.search(r'(?:v=|/)([A-Za-z0-9_-]{11})(?:[?&#/]|$)', _u)
+        if _match:
+            return _match.group(1)
     except Exception:
         return ''
     return ''
@@ -19959,22 +19975,34 @@ def _extract_youtube_video_id(url):
 def _render_youtube_embed(url, height=640):
     _video_id = _extract_youtube_video_id(url)
     if not _video_id:
+        st.warning('This YouTube link could not be converted into a player.')
         st.link_button('Open YouTube Archive', url, use_container_width=True)
-        st.caption('Could not convert this YouTube link into an embeddable player, so it is opening as a normal link instead.')
         return
-    _embed_url = f"https://www.youtube.com/embed/{_video_id}?rel=0"
-    _iframe_html = f"""
-    <div style='position:relative;width:100%;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:16px;'>
-      <iframe
-        src='{_embed_url}'
-        title='YouTube video player'
-        allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
-        referrerpolicy='strict-origin-when-cross-origin'
-        allowfullscreen
-        style='position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:16px;'></iframe>
-    </div>
-    """
-    components.html(_iframe_html, height=height)
+
+    _watch_url = f"https://www.youtube.com/watch?v={_video_id}"
+    _embed_url = f"https://www.youtube.com/embed/{_video_id}?rel=0&modestbranding=1&playsinline=1"
+
+    # Prefer Streamlit's native player first. Converting every YouTube URL to a
+    # canonical watch URL is more reliable than passing through /live/ links.
+    try:
+        st.video(_watch_url)
+    except Exception:
+        _iframe_html = f"""
+        <div style='width:100%;max-width:100%;border-radius:16px;overflow:hidden;background:#000;'>
+          <iframe
+            width='100%'
+            height='{max(int(height)-10, 315)}'
+            src='{_embed_url}'
+            title='YouTube video player'
+            allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+            referrerpolicy='strict-origin-when-cross-origin'
+            allowfullscreen
+            style='display:block;width:100%;border:0;aspect-ratio:16/9;'></iframe>
+        </div>
+        """
+        components.html(_iframe_html, height=height, scrolling=False)
+
+    st.link_button('Open in YouTube', _watch_url, use_container_width=True)
 
 
 with tabs[12]:
