@@ -6887,7 +6887,7 @@ def render_roster_matchup_tab():
         fig2.add_trace(go.Bar(name=team_a, x=classes, y=[cb_a[c] for c in classes], marker_color=color_a, opacity=0.85))
         fig2.add_trace(go.Bar(name=team_b, x=classes, y=[cb_b[c] for c in classes], marker_color=color_b, opacity=0.85))
         fig2.update_layout(barmode="group", height=320, margin=dict(t=30, b=30, l=20, r=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, config={'staticPlot': True})
 
         mobile_metrics([
             {"label": f"{team_a} Redshirts", "value": str(cb_a["Redshirts"])},
@@ -7004,7 +7004,7 @@ def render_roster_matchup_tab():
             xaxis=dict(gridcolor="#374151"), yaxis=dict(gridcolor="#374151"),
             legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
         )
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, use_container_width=True, config={'staticPlot': True})
         st.caption("Bubble size = Speed rating. Stars (🌠) = High Ceiling players. Upper-left quadrant = low OVR but high future value -- the gems.")
 
         # Top 10 FV players each team
@@ -10502,7 +10502,7 @@ def render_automation_v2_tab(model_df, rec_df):
                 hover_data=['USER', 'Years', 'Latest Rank']
             )
             fig.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
     with right:
         st.subheader("SOS Heatmap")
         if sos_df.empty:
@@ -10516,7 +10516,7 @@ def render_automation_v2_tab(model_df, rec_df):
                 color_continuous_scale='RdYlGn'
             )
             fig_h.update_layout(height=380, margin=dict(l=10, r=10, t=30, b=10))
-            st.plotly_chart(fig_h, use_container_width=True)
+            st.plotly_chart(fig_h, use_container_width=True, config={'staticPlot': True})
 
     st.markdown("---")
     st.subheader("Raw Video Review Feeds")
@@ -17179,16 +17179,6 @@ with tabs[4]:
 
     if _hs_df.empty and _portal_df.empty and _overall_df.empty:
         st.warning(f"No recruiting data found for {recruit_year}.")
-    else:
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.metric("HS Teams Ranked", len(_hs_df))
-        with c2:
-            st.metric("Portal Teams Ranked", len(_portal_df))
-        with c3:
-            st.metric("Overall Teams Ranked", len(_overall_df))
-        with c4:
-            st.metric("Year", recruit_year)
 
     st.markdown("---")
 
@@ -18120,9 +18110,14 @@ with tabs[7]:
     )
     st.markdown(awards_html, unsafe_allow_html=True)
 
-    # 5. USER BATTLES (Upset Detection)
+    # 5. USER BATTLES (Upset Detection) — user vs user ONLY
     if not y_data.empty:
-        user_games = y_data[(y_data['V_User_Final'].astype(str).str.upper() != 'CPU') & (y_data['H_User_Final'].astype(str).str.upper() != 'CPU') & (y_data['V_User_Final'] != y_data['H_User_Final'])].copy()
+        _known_users = set(str(u).strip().title() for u in USER_TEAMS.keys())
+        user_games = y_data[
+            (y_data['V_User_Final'].astype(str).str.strip().str.title().isin(_known_users)) &
+            (y_data['H_User_Final'].astype(str).str.strip().str.title().isin(_known_users)) &
+            (y_data['V_User_Final'] != y_data['H_User_Final'])
+        ].copy()
         if not user_games.empty:
             st.markdown(f"#### ⚔️ User Battles of {sel_year}")
             for _, _g in user_games.iterrows():
@@ -18557,8 +18552,8 @@ with tabs[8]:
                                 y=float(_r[_natty_col]),
                                 xref='x',
                                 yref='y',
-                                sizex=max(6.0, (_x_max - _x_min) * 0.05),
-                                sizey=max(1.6, (_y_max - _y_min) * 0.09),
+                                sizex=max(9.0, (_x_max - _x_min) * 0.09),
+                                sizey=max(2.8, (_y_max - _y_min) * 0.16),
                                 xanchor='center',
                                 yanchor='middle',
                                 layer='above'
@@ -18625,7 +18620,130 @@ with tabs[8]:
                     ]
                 )
 
-                st.plotly_chart(_speed_style_fig, use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(_speed_style_fig, use_container_width=True, config={'staticPlot': True})
+
+                # ── Per-team player speed scatter charts ──────────────────────
+                # X = SPD rating, Y = OVR, colored by player type
+                # Only show for user teams that have roster data
+                st.markdown("---")
+                st.markdown("### 🏃 Player Speed Profiles by Team")
+                st.caption("Each dot = one player. Color = speed archetype. X = raw speed rating, Y = overall rating.")
+
+                _TYPE_COLORS = {
+                    'Generational': '#fbbf24',   # gold
+                    'Cheat Code':   '#3b82f6',   # blue
+                    'Monster':      '#f97316',   # orange
+                    'Quick Hog':    '#22c55e',   # green
+                    '90+ Speed':    '#94a3b8',   # gray
+                }
+
+                def _classify_player(row, front7, ol):
+                    spd = float(row.get('SPD', 0) or 0)
+                    acc = float(row.get('ACC', 0) or 0)
+                    agi = float(row.get('AGI', 0) or 0)
+                    cod = float(row.get('COD', 0) or 0)
+                    strn = float(row.get('STR', 0) or 0)
+                    pos = str(row.get('PosNorm', '')).upper()
+                    if spd >= 96 or acc >= 96:
+                        return 'Generational'
+                    if spd >= 90 and acc >= 90 and agi >= 90 and cod >= 90:
+                        return 'Cheat Code'
+                    if pos in front7 and ((acc >= 90 and spd >= 84) or (spd >= 90 and acc >= 84)):
+                        return 'Monster'
+                    if pos in ol and agi >= 85 and strn >= 90:
+                        return 'Quick Hog'
+                    if spd >= 90:
+                        return '90+ Speed'
+                    return None   # not a speed player — skip
+
+                _user_team_vals = list(USER_TEAMS.values())
+                _front7_p = {'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL'}
+                _ol_p     = {'LT', 'LG', 'C', 'RG', 'RT'}
+
+                # Build cols: 2 per row
+                _chart_teams = [(u, t) for u, t in USER_TEAMS.items()
+                                if t in _sf_active['Team'].astype(str).unique()]
+                _chart_rows = [_chart_teams[i:i+2] for i in range(0, len(_chart_teams), 2)]
+
+                for _crow in _chart_rows:
+                    _ccols = st.columns(len(_crow))
+                    for _ci, (_cu, _ct) in enumerate(_crow):
+                        with _ccols[_ci]:
+                            _ptdf = _sf_active[_sf_active['Team'].astype(str) == _ct].copy()
+                            _ptdf['SPD'] = pd.to_numeric(_ptdf.get('SPD'), errors='coerce').fillna(0)
+                            _ptdf['OVR'] = pd.to_numeric(_ptdf.get('OVR'), errors='coerce').fillna(0)
+                            _ptdf['PosNorm'] = _ptdf.get('Pos', '').astype(str).str.upper().str.strip()
+                            _ptdf['ACC'] = pd.to_numeric(_ptdf.get('ACC'), errors='coerce').fillna(0)
+                            _ptdf['AGI'] = pd.to_numeric(_ptdf.get('AGI'), errors='coerce').fillna(0)
+                            _ptdf['COD'] = pd.to_numeric(_ptdf.get('COD'), errors='coerce').fillna(0)
+                            _ptdf['STR'] = pd.to_numeric(_ptdf.get('STR'), errors='coerce').fillna(0)
+
+                            # Classify and filter to speed players only
+                            _ptdf['SpeedType'] = _ptdf.apply(
+                                lambda r: _classify_player(r, _front7_p, _ol_p), axis=1
+                            )
+                            _speed_players = _ptdf[_ptdf['SpeedType'].notna()].copy()
+
+                            _tc = get_team_primary_color(_ct)
+                            _fig_p = go.Figure()
+
+                            for _stype, _scolor in _TYPE_COLORS.items():
+                                _sub = _speed_players[_speed_players['SpeedType'] == _stype]
+                                if _sub.empty:
+                                    continue
+                                _names = _sub.get('Name', _sub.get('Player', pd.Series(['?']*len(_sub)))).fillna('?')
+                                _pos_labels = _sub['PosNorm'].fillna('?')
+                                _fig_p.add_trace(go.Scatter(
+                                    x=_sub['SPD'],
+                                    y=_sub['OVR'],
+                                    mode='markers',
+                                    name=_stype,
+                                    marker=dict(
+                                        color=_scolor,
+                                        size=10,
+                                        line=dict(width=1, color='rgba(0,0,0,0.3)')
+                                    ),
+                                    hovertemplate=(
+                                        f"<b>%{{customdata[0]}}</b><br>"
+                                        f"Pos: %{{customdata[1]}}<br>"
+                                        f"SPD: %{{x}} &nbsp; OVR: %{{y}}<br>"
+                                        f"Type: {_stype}<extra></extra>"
+                                    ),
+                                    customdata=list(zip(_names, _pos_labels)),
+                                    showlegend=True,
+                                ))
+
+                            _fig_p.update_layout(
+                                height=320,
+                                title=dict(
+                                    text=f"<b>{_ct}</b> <span style='font-size:13px;color:#666;'>({_cu})</span>",
+                                    font=dict(size=15, color='#111'),
+                                    x=0.5, xanchor='center'
+                                ),
+                                paper_bgcolor='#f5f5f5',
+                                plot_bgcolor='#f5f5f5',
+                                margin=dict(l=30, r=10, t=50, b=40),
+                                legend=dict(
+                                    orientation='h', y=-0.18,
+                                    font=dict(size=10, color='#333'),
+                                    bgcolor='rgba(0,0,0,0)'
+                                ),
+                                xaxis=dict(
+                                    title='SPD Rating', range=[83, 100],
+                                    showgrid=True, gridcolor='#ddd',
+                                    zeroline=False,
+                                    tickfont=dict(size=11, color='#333'),
+                                    title_font=dict(size=12, color='#333')
+                                ),
+                                yaxis=dict(
+                                    title='OVR',
+                                    showgrid=True, gridcolor='#ddd',
+                                    zeroline=False,
+                                    tickfont=dict(size=11, color='#333'),
+                                    title_font=dict(size=12, color='#333')
+                                ),
+                            )
+                            st.plotly_chart(_fig_p, use_container_width=True, config={'staticPlot': True})
 
 
 with tabs[10]:
