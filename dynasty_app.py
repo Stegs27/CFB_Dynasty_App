@@ -12897,7 +12897,10 @@ with tabs[0]:
             if col not in power_board.columns:
                 power_board[col] = 0
 
-        power_board = power_board.sort_values(['Preseason PI', 'Preseason Natty Odds'], ascending=False).reset_index(drop=True)
+        power_board = power_board.sort_values(
+            ['Power Index', 'Preseason PI', 'Natty Odds'],
+            ascending=False
+        ).reset_index(drop=True)
 
         # --- NEW: Official Rank Lookup ---
         try:
