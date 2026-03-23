@@ -15253,9 +15253,9 @@ with tabs[0]:
                 except Exception:
                     pass  # game_summaries not found — silent
 
-                _tv_table_rows = []
+                _tv_cards_html = []
                 for _rank, _tg in enumerate(_tv_top10, 1):
-                    _r = _tg["row"]
+                    _r       = _tg["row"]
                     _vis_team  = str(_r.get("Visitor", "")).strip()
                     _home_team = str(_r.get("Home",    "")).strip()
                     _vis_score = int(_r["Vis Score"])
@@ -15268,103 +15268,95 @@ with tabs[0]:
                     _viewers   = _tg["viewers"]
                     _vis_user  = str(_r.get("Vis_User",  "")).strip()
                     _home_user = str(_r.get("Home_User", "")).strip()
-                    _margin    = abs(_vis_score - _home_score)
-                    _winner    = _vis_team if _vis_score > _home_score else _home_team
 
-                    # Logos
                     _vl_uri = image_file_to_data_uri(get_logo_source(_vis_team))
                     _hl_uri = image_file_to_data_uri(get_logo_source(_home_team))
-                    _vl_html = f"<img src='{_vl_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if _vl_uri else "🏈"
-                    _hl_html = f"<img src='{_hl_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;'/>" if _hl_uri else "🏈"
+                    _vl_html = f"<img src='{_vl_uri}' style='width:36px;height:36px;object-fit:contain;'/>" if _vl_uri else "🏈"
+                    _hl_html = f"<img src='{_hl_uri}' style='width:36px;height:36px;object-fit:contain;'/>" if _hl_uri else "🏈"
 
-                    # Team colors
                     _vc = get_team_primary_color(_vis_team)
                     _hc = get_team_primary_color(_home_team)
-
-                    # Rank labels
-                    _vr_label = f"<span style='font-size:0.6rem;color:#94a3b8;'>#{_vis_rank} </span>" if _vis_rank else ""
-                    _hr_label = f"<span style='font-size:0.6rem;color:#94a3b8;'>#{_home_rank} </span>" if _home_rank else ""
-
-                    # Score display — bold winner
+                    _vr_label = f"<span style='font-size:0.65rem;color:#94a3b8;'>#{_vis_rank} </span>" if _vis_rank else ""
+                    _hr_label = f"<span style='font-size:0.65rem;color:#94a3b8;'>#{_home_rank} </span>" if _home_rank else ""
                     _vis_bold  = "font-weight:900;color:#f1f5f9;" if _vis_score > _home_score else "color:#64748b;"
                     _home_bold = "font-weight:900;color:#f1f5f9;" if _home_score > _vis_score else "color:#64748b;"
-
-                    # User tags
-                    def _utag(user):
-                        if user in USER_TEAMS:
-                            _tc = get_team_primary_color(USER_TEAMS.get(user, ""))
-                            return f"<span style='background:{_tc}22;color:{_tc};border:1px solid {_tc}55;font-size:0.55rem;font-weight:700;padding:1px 4px;border-radius:3px;margin-left:3px;'>{html.escape(user.upper())}</span>"
-                        return ""
-
                     _badge_bg, _badge_fg = _badge_colors.get(_badge, ("#3b82f6", "#030f1f"))
-
-                    # Week label
                     _wk_labels = {16:"CFP R1",17:"CFP R1",18:"CFP QF",19:"CFP SF",20:"NCG",21:"NCG"}
                     _wk_disp = _wk_labels.get(_week, f"Wk {_week}") if _week else ""
-
-                    # Rank pick color
                     _rk_color = "#fbbf24" if _rank <= 3 else ("#94a3b8" if _rank <= 6 else "#475569")
                     _rk_medals = {1:"🥇",2:"🥈",3:"🥉"}
-                    _rk_disp = _rk_medals.get(_rank, str(_rank))
+                    _rk_disp = _rk_medals.get(_rank, f"#{_rank}")
+                    _resolved_peak = html.escape(_gs_peak_lookup.get((_vis_team.lower(), _home_team.lower(), _week), _peak))
 
-                    _tv_table_rows.append(f"""
-                    <tr style='background:linear-gradient(90deg,rgba(15,23,42,0.95),rgba(10,18,35,0.95));border-bottom:1px solid #0f172a;'>
-                      <td style='padding:10px 12px;text-align:center;font-family:"Bebas Neue",sans-serif;font-size:1.2rem;color:{_rk_color};white-space:nowrap;'>{_rk_disp}</td>
-                      <td style='padding:10px 8px;white-space:nowrap;'>
-                        <span style='background:{_badge_bg};color:{_badge_fg};font-size:0.6rem;font-weight:900;padding:2px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.08em;'>{_badge}</span>
-                        <div style='font-size:0.6rem;color:#475569;margin-top:2px;'>{_wk_disp}</div>
-                      </td>
-                      <td style='padding:10px 12px;'>
-                        <div style='display:flex;align-items:center;gap:10px;'>
-                          <div style='display:flex;align-items:center;gap:5px;'>
-                            {_vl_html}
-                            <div>
-                              <div style='font-size:0.78rem;font-weight:700;color:{_vc};white-space:nowrap;'>{_vr_label}{html.escape(_vis_team)}{_utag(_vis_user)}</div>
-                            </div>
-                          </div>
-                          <div style='color:#334155;font-weight:900;font-size:0.75rem;'>vs</div>
-                          <div style='display:flex;align-items:center;gap:5px;'>
-                            {_hl_html}
-                            <div>
-                              <div style='font-size:0.78rem;font-weight:700;color:{_hc};white-space:nowrap;'>{_hr_label}{html.escape(_home_team)}{_utag(_home_user)}</div>
-                            </div>
+                    def _utag_c(user):
+                        if user in USER_TEAMS:
+                            _tc = get_team_primary_color(USER_TEAMS.get(user, ""))
+                            return f"<span style='background:{_tc}22;color:{_tc};border:1px solid {_tc}55;font-size:0.6rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:3px;'>{html.escape(user.upper())}</span>"
+                        return ""
+
+                    _tv_cards_html.append(f"""
+                    <div style='background:linear-gradient(135deg,rgba(15,23,42,0.98),rgba(8,15,28,0.98));
+                                border:1px solid #1e293b;border-radius:12px;padding:12px 14px;
+                                margin-bottom:8px;'>
+
+                      <!-- Top row: rank medal + badge + week + viewers -->
+                      <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;'>
+                        <div style='display:flex;align-items:center;gap:8px;'>
+                          <span style='font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:{_rk_color};line-height:1;'>{_rk_disp}</span>
+                          <span style='background:{_badge_bg};color:{_badge_fg};font-size:0.62rem;font-weight:900;
+                                       padding:3px 8px;border-radius:5px;font-family:Barlow Condensed,sans-serif;
+                                       letter-spacing:0.08em;'>{_badge}</span>
+                          <span style='font-size:0.65rem;color:#475569;font-family:Barlow Condensed,sans-serif;'>{_wk_disp}</span>
+                        </div>
+                        <div style='text-align:right;'>
+                          <div style='font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:#fbbf24;line-height:1;'>{_viewers:.1f}M</div>
+                          <div style='font-size:0.55rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>viewers</div>
+                        </div>
+                      </div>
+
+                      <!-- Matchup row: vis team — score — home team -->
+                      <div style='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;'>
+                        <!-- Visitor -->
+                        <div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;'>
+                          {_vl_html}
+                          <div style='min-width:0;'>
+                            <div style='font-size:0.82rem;font-weight:800;color:{_vc};white-space:nowrap;
+                                        overflow:hidden;text-overflow:ellipsis;'>{_vr_label}{html.escape(_vis_team)}{_utag_c(_vis_user)}</div>
+                            <div style='font-size:0.6rem;color:#475569;'>Away</div>
                           </div>
                         </div>
-                      </td>
-                      <td style='padding:10px 12px;text-align:center;white-space:nowrap;'>
-                        <span style='{_vis_bold}font-family:"Bebas Neue",sans-serif;font-size:1.1rem;'>{_vis_score}</span>
-                        <span style='color:#334155;font-weight:900;margin:0 3px;'>–</span>
-                        <span style='{_home_bold}font-family:"Bebas Neue",sans-serif;font-size:1.1rem;'>{_home_score}</span>
-                      </td>
-                      <td style='padding:10px 12px;text-align:center;'>
-                        <div style='font-family:"Bebas Neue",sans-serif;font-size:1.35rem;color:#fbbf24;line-height:1;'>{_viewers:.1f}M</div>
-                        <div style='font-size:0.58rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>viewers</div>
-                      </td>
-                      <td style='padding:10px 12px;'>
-                        <div style='font-size:0.72rem;color:#94a3b8;font-style:italic;max-width:160px;'>{html.escape(_gs_peak_lookup.get((_vis_team.lower(), _home_team.lower(), _week), _peak))}</div>
-                      </td>
-                    </tr>""")
+                        <!-- Score -->
+                        <div style='text-align:center;flex-shrink:0;padding:0 6px;'>
+                          <div style='display:flex;align-items:center;gap:4px;'>
+                            <span style='{_vis_bold}font-family:"Bebas Neue",sans-serif;font-size:1.5rem;line-height:1;'>{_vis_score}</span>
+                            <span style='color:#334155;font-weight:900;font-size:1rem;'>–</span>
+                            <span style='{_home_bold}font-family:"Bebas Neue",sans-serif;font-size:1.5rem;line-height:1;'>{_home_score}</span>
+                          </div>
+                          <div style='font-size:0.55rem;color:#334155;text-transform:uppercase;letter-spacing:.06em;margin-top:1px;'>FINAL</div>
+                        </div>
+                        <!-- Home -->
+                        <div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;justify-content:flex-end;'>
+                          <div style='min-width:0;text-align:right;'>
+                            <div style='font-size:0.82rem;font-weight:800;color:{_hc};white-space:nowrap;
+                                        overflow:hidden;text-overflow:ellipsis;'>{_hr_label}{html.escape(_home_team)}{_utag_c(_home_user)}</div>
+                            <div style='font-size:0.6rem;color:#475569;'>Home</div>
+                          </div>
+                          {_hl_html}
+                        </div>
+                      </div>
+
+                      <!-- Peak moment -->
+                      <div style='border-top:1px solid #0f172a;padding-top:7px;
+                                  font-size:0.72rem;color:#64748b;font-style:italic;'>
+                        📡 {_resolved_peak}
+                      </div>
+                    </div>""")
 
                 _tv_html = f"""
                 <style>
-                .tv-wrap {{ overflow-x:auto; border:1px solid #1e293b; border-radius:10px; margin-bottom:8px; }}
-                .tv-table {{ width:100%; border-collapse:collapse; background:#080f1a; }}
+                .tv-cards-wrap {{ margin-bottom:8px; }}
                 </style>
-                <div class="tv-wrap">
-                  <table class="tv-table">
-                    <thead>
-                      <tr style='background:#0a1220;'>
-                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Rank</th>
-                        <th style='padding:8px 8px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;'>Type</th>
-                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;'>Matchup</th>
-                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Result</th>
-                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;text-align:center;'>Viewership</th>
-                        <th style='padding:8px 12px;color:#475569;font-family:Barlow Condensed,sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;'>Peak Moment</th>
-                      </tr>
-                    </thead>
-                    <tbody>{"" .join(_tv_table_rows)}</tbody>
-                  </table>
-                </div>"""
+                <div class="tv-cards-wrap">{"".join(_tv_cards_html)}</div>"""
                 st.markdown(_tv_html, unsafe_allow_html=True)
                 st.caption(f"📺 Viewership formula: matchup prestige + ranked status + margin + context (playoffs, rivalry, H2H). Seeded per game for consistency. {len(_tv_cy)} games rated this season.")
 
