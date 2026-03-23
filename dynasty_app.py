@@ -8,6 +8,7 @@ import io
 import re
 import textwrap
 import html
+import glob
 import time
 import base64
 import hashlib
@@ -16,6 +17,7 @@ from pathlib import Path
 import os
 import random
 import html
+import glob
 import pandas as pd
 import streamlit as st
 
@@ -19788,23 +19790,190 @@ def parse_stream_archive_row(row):
     }
 
 
+def _norm_stream_team_name(v):
+    if pd.isna(v):
+        return ""
+    s = str(v).strip().lower()
+    if not s or s in {"nan", "none", "<na>"}:
+        return ""
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _pick_cpu_col(df, candidates):
+    lowered = {str(c).strip().lower(): c for c in df.columns}
+    for cand in candidates:
+        if cand.lower() in lowered:
+            return lowered[cand.lower()]
+    return None
+
+
+def _find_cpu_scores_path():
+    candidate_paths = [
+        "CPUscores_MASTER.csv",
+        "CPUscores_MASTER (3).csv",
+        "CPUscores_MASTER (2).csv",
+        "CPUscores_MASTER (1).csv",
+    ]
+    for p in candidate_paths:
+        if os.path.exists(p):
+            return p
+    try:
+        matches = sorted(glob.glob("CPUscores_MASTER*.csv"))
+        if matches:
+            return matches[0]
+    except Exception:
+        pass
+    return None
+
+
+
+def _build_stream_schedule_map():
+    cpu_path = _find_cpu_scores_path()
+    if not cpu_path:
+        return {}
+    try:
+        cpu = pd.read_csv(cpu_path)
+    except Exception:
+        return {}
+    if cpu is None or cpu.empty:
+        return {}
+
+    season_col = _pick_cpu_col(cpu, ["Season", "YEAR", "Year"])
+    week_col = _pick_cpu_col(cpu, ["Week", "WK"])
+    home_col = _pick_cpu_col(cpu, ["Home", "Home Team", "HomeTeam", "home_team", "Team", "TEAM"])
+    away_col = _pick_cpu_col(cpu, ["Away", "Away Team", "AwayTeam", "away_team", "Opponent", "OPPONENT", "Opp", "Visitor"])
+    vis_score_col = _pick_cpu_col(cpu, ["Vis Score", "Visitor Score", "Away Score", "AwayScore"])
+    home_score_col = _pick_cpu_col(cpu, ["Home Score", "Score", "HomeScore"])
+    status_col = _pick_cpu_col(cpu, ["Status", "Game Status"])
+
+    if not home_col or not away_col:
+        return {}
+
+    work = cpu.copy()
+    work["_home_norm"] = work[home_col].apply(_norm_stream_team_name)
+    work["_away_norm"] = work[away_col].apply(_norm_stream_team_name)
+    if season_col:
+        work["_season_num"] = pd.to_numeric(work[season_col], errors="coerce")
+    else:
+        work["_season_num"] = pd.NA
+    if week_col:
+        work["_week_num"] = pd.to_numeric(work[week_col], errors="coerce")
+    else:
+        work["_week_num"] = pd.NA
+
+    work = work.sort_values(["_season_num", "_week_num"], ascending=[False, True], na_position="last").reset_index(drop=True)
+
+    schedule_map = {}
+    for i, row in work.iterrows():
+        season_val = row.get("_season_num")
+        week_val = row.get("_week_num")
+        home_team = str(row.get(home_col, "") or "").strip()
+        away_team = str(row.get(away_col, "") or "").strip()
+        home_score = pd.to_numeric(row.get(home_score_col), errors="coerce") if home_score_col else pd.NA
+        away_score = pd.to_numeric(row.get(vis_score_col), errors="coerce") if vis_score_col else pd.NA
+        status_val = str(row.get(status_col, "") or "").strip().upper() if status_col else ""
+        result = ""
+        score = ""
+        if pd.notna(home_score) and pd.notna(away_score):
+            if home_score > away_score:
+                winner = _norm_stream_team_name(home_team)
+            elif away_score > home_score:
+                winner = _norm_stream_team_name(away_team)
+            else:
+                winner = "tie"
+            score = f"{int(away_score)}-{int(home_score)}"
+        else:
+            winner = ""
+
+        for team_name, opp_name, is_home in [(home_team, away_team, True), (away_team, home_team, False)]:
+            team_norm = _norm_stream_team_name(team_name)
+            opp_norm = _norm_stream_team_name(opp_name)
+            if winner == "tie":
+                result = "T"
+            elif winner:
+                result = "W" if winner == team_norm else "L"
+            else:
+                result = ""
+            match_payload = {
+                "season": "" if pd.isna(season_val) else str(int(season_val)),
+                "week": "" if pd.isna(week_val) else str(int(week_val)),
+                "schedule_sort": i,
+                "result": result,
+                "score": score,
+                "status": status_val,
+                "team_is_home": is_home,
+            }
+            key = (team_norm, opp_norm)
+            if key[0] and key[1] and key not in schedule_map:
+                schedule_map[key] = match_payload
+    return schedule_map
+
+
 def load_stream_archive_data():
     archive_path = "stream_archive.csv"
-    default_rows = [{
-        "date": "",
-        "season": "",
-        "week": "",
-        "user_team": "Bowling Green",
-        "opponent": "Penn State",
-        "stream_title": "#4 Bowling Green vs #14 Penn State",
-        "platform": "Twitch",
-        "url": "https://www.twitch.tv/dboyer1321/v/2727978402?sr=a",
-        "result": "",
-        "score": "",
-        "notes": "Devin archive seed entry.",
-        "streamer": "dboyer1321",
-        "archive_type": "Full Archive"
-    }]
+    default_rows = [
+        {
+            "date": "",
+            "season": "",
+            "week": "",
+            "user_team": "Bowling Green",
+            "opponent": "Miami",
+            "stream_title": "#21 Miami @ #4 Bowling Green",
+            "platform": "Twitch",
+            "url": "https://www.twitch.tv/dboyer1321/v/2727256679?sr=a",
+            "result": "",
+            "score": "",
+            "notes": "Devin archive seed entry.",
+            "streamer": "dboyer1321",
+            "archive_type": "Full Archive"
+        },
+        {
+            "date": "",
+            "season": "",
+            "week": "",
+            "user_team": "Bowling Green",
+            "opponent": "Penn State",
+            "stream_title": "#4 Bowling Green vs #14 Penn State",
+            "platform": "Twitch",
+            "url": "https://www.twitch.tv/dboyer1321/v/2727978402?sr=a",
+            "result": "",
+            "score": "",
+            "notes": "Devin archive seed entry.",
+            "streamer": "dboyer1321",
+            "archive_type": "Full Archive"
+        },
+        {
+            "date": "",
+            "season": "",
+            "week": "",
+            "user_team": "Florida",
+            "opponent": "Washington",
+            "stream_title": "#20 Washington @ #18 Florida",
+            "platform": "Twitch",
+            "url": "https://www.twitch.tv/doug3ass/v/2727732001?sr=a",
+            "result": "",
+            "score": "",
+            "notes": "Doug archive seed entry.",
+            "streamer": "doug3ass",
+            "archive_type": "Full Archive"
+        },
+        {
+            "date": "",
+            "season": "",
+            "week": "",
+            "user_team": "Florida",
+            "opponent": "Texas",
+            "stream_title": "#9 Texas @ #14 Florida",
+            "platform": "Twitch",
+            "url": "https://www.twitch.tv/doug3ass/v/2729073199?sr=a",
+            "result": "",
+            "score": "",
+            "notes": "Doug archive seed entry.",
+            "streamer": "doug3ass",
+            "archive_type": "Full Archive"
+        }
+    ]
 
     desired_cols = [
         "date", "season", "week", "user_team", "opponent", "stream_title",
@@ -19830,23 +19999,44 @@ def load_stream_archive_data():
     if archive_df.empty:
         archive_df = pd.DataFrame(default_rows)
 
-    if archive_df["url"].astype(str).str.strip().eq("").all():
-        archive_df = pd.concat([pd.DataFrame(default_rows), archive_df], ignore_index=True)
-
-    try:
-        archive_df["_sort_date"] = pd.to_datetime(archive_df["date"], errors="coerce")
-        archive_df = archive_df.sort_values(["_sort_date", "season", "week", "stream_title"], ascending=[False, False, False, True], na_position="last")
-        archive_df = archive_df.drop(columns=["_sort_date"], errors="ignore")
-    except Exception:
-        pass
-
+    archive_df = pd.concat([archive_df, pd.DataFrame(default_rows)], ignore_index=True)
     archive_df = archive_df.drop_duplicates(subset=["url", "stream_title"], keep="first").reset_index(drop=True)
-    return archive_df
+
+    schedule_map = _build_stream_schedule_map()
+    archive_df["_season_num"] = pd.to_numeric(archive_df["season"], errors="coerce")
+    archive_df["_week_num"] = pd.to_numeric(archive_df["week"], errors="coerce")
+    archive_df["_schedule_sort"] = 999999
+
+    if schedule_map:
+        for idx, row in archive_df.iterrows():
+            key = (_norm_stream_team_name(row.get("user_team", "")), _norm_stream_team_name(row.get("opponent", "")))
+            match = schedule_map.get(key)
+            if match:
+                if pd.isna(archive_df.at[idx, "_season_num"]) and match.get("season"):
+                    archive_df.at[idx, "season"] = match.get("season", "")
+                    archive_df.at[idx, "_season_num"] = pd.to_numeric(match.get("season", ""), errors="coerce")
+                if pd.isna(archive_df.at[idx, "_week_num"]) and match.get("week"):
+                    archive_df.at[idx, "week"] = match.get("week", "")
+                    archive_df.at[idx, "_week_num"] = pd.to_numeric(match.get("week", ""), errors="coerce")
+                if not str(row.get("result", "")).strip() and match.get("result"):
+                    archive_df.at[idx, "result"] = match.get("result", "")
+                if not str(row.get("score", "")).strip() and match.get("score"):
+                    archive_df.at[idx, "score"] = match.get("score", "")
+                archive_df.at[idx, "_schedule_sort"] = match.get("schedule_sort", 999999)
+
+    archive_df["_sort_date"] = pd.to_datetime(archive_df["date"], errors="coerce")
+    archive_df = archive_df.sort_values(
+        ["_schedule_sort", "_season_num", "_week_num", "_sort_date", "stream_title"],
+        ascending=[True, False, True, False, True],
+        na_position="last"
+    )
+    archive_df = archive_df.drop(columns=["_sort_date", "_season_num", "_week_num", "_schedule_sort"], errors="ignore")
+    return archive_df.reset_index(drop=True)
 
 
 
 def render_stream_archive_tab():
-    st.caption("Archived dynasty broadcasts. This tab is CSV-driven through stream_archive.csv, so you can keep adding Twitch or YouTube VODs without hardcoding them.")
+    st.caption("Archived dynasty broadcasts. This subtab is CSV-driven through stream_archive.csv and will auto-order plus auto-fill result/score from CPUscores_MASTER.csv when schedule matches are found.")
 
     archive_df = load_stream_archive_data()
     if archive_df.empty:
@@ -24476,7 +24666,7 @@ with tabs[12]:
         else:
             # ── Sub-tabs: ALL / UPSETS / CLOSEST / BOX SCORES ────────────────────
             _ctab_all, _ctab_upsets, _ctab_close, _ctab_box, _ctab_archive = st.tabs(
-                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores", "📼 Stream Archive"])
+                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores", "📼 Dynasty Twitch Streams"])
 
             def _render_classic_card(row, rank_num):
                 """Render a single broadcast-style game card."""
