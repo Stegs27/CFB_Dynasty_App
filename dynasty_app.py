@@ -6484,6 +6484,24 @@ def render_roster_matchup_tab():
 
     teams = sorted(roster['Team'].unique().tolist())
 
+    # Default Team A and Team B to the 2 user teams with highest Natty Odds
+    _matchup_default_a, _matchup_default_b = 0, 1
+    try:
+        _natty_col_m = 'Natty Odds' if 'Natty Odds' in model_2041.columns else 'Preseason Natty Odds'
+        _top_natty = (
+            model_2041[['TEAM', _natty_col_m]]
+            .dropna()
+            .sort_values(_natty_col_m, ascending=False)
+        )
+        _user_team_vals = list(USER_TEAMS.values())
+        _top_user = _top_natty[_top_natty['TEAM'].isin(_user_team_vals)]['TEAM'].tolist()
+        if len(_top_user) >= 2:
+            _ta = _top_user[0]; _tb = _top_user[1]
+            if _ta in teams: _matchup_default_a = teams.index(_ta)
+            if _tb in teams: _matchup_default_b = teams.index(_tb)
+    except Exception:
+        pass
+
     POS_GROUPS = {
         "QB":            ["QB"],
         "Backfield":     ["HB", "FB"],
@@ -6497,9 +6515,9 @@ def render_roster_matchup_tab():
 
     col1, col2 = st.columns(2)
     with col1:
-        team_a = st.selectbox("🏈 Team A", teams, index=0, key="matchup_team_a")
+        team_a = st.selectbox("🏈 Team A", teams, index=_matchup_default_a, key="matchup_team_a")
     with col2:
-        team_b = st.selectbox("🏈 Team B", teams, index=1, key="matchup_team_b")
+        team_b = st.selectbox("🏈 Team B", teams, index=_matchup_default_b, key="matchup_team_b")
 
     if team_a == team_b:
         st.warning("Select two different teams to see a comparison.")
@@ -11041,9 +11059,15 @@ try:
                 _pri = _round_map.get(_rd, 1) * 100
                 # Ticker text: include ranks next to team names
                 _ticker_txt = f"{_rk(_w)}{_w} {ws} \u2013 {ls} {_rk(_l)}{_l}"
+                _ticker_html = (
+                    _team_color_span(_w, str(ws)) +
+                    f"<span style='color:#64748b;'> \u2013 </span>" +
+                    _team_color_span(_l, str(ls))
+                )
                 _all_headlines.append({
                     'badge': 'FINAL SCORE', 'priority': _pri,
                     'text': _ticker_txt,
+                    'text_html': _ticker_html,
                     'blurb': _blurb, 'logo_html': _lh,
                 })
 except Exception:
@@ -11055,11 +11079,11 @@ if not IS_BOWL_WEEK:
     try:
         if _rank_lookup and _cfp_week_label:
             _top12_teams = sorted(_rank_lookup.items(), key=lambda x: x[1])[:12]
-            _top5_teams_ticker = sorted(_rank_lookup.items(), key=lambda x: x[1])[:5]
+            _top4_bye_teams = sorted(_rank_lookup.items(), key=lambda x: x[1])[:4]
 
-            # Build logo strip for hero header — top 12 logos with rank numbers
+            # Build logo strip for hero header — top 4 BYE teams only, bigger logos
             _logo_strip_parts = []
-            for _t5name, _t5rank in _top12_teams:
+            for _t5name, _t5rank in _top4_bye_teams:
                 try:
                     _t5proper = next(
                         (orig for orig in TEAM_VISUALS if orig.upper() == _t5name.upper()),
@@ -11067,10 +11091,10 @@ if not IS_BOWL_WEEK:
                     )
                     _t5color  = get_team_primary_color(_t5proper)
                     _t5logo   = get_header_logo(_t5proper)
-                    _t5lhtml  = f"<img src='{_t5logo}' style='width:36px;height:36px;object-fit:contain;'/>" if _t5logo else ""
+                    _t5lhtml  = f"<img src='{_t5logo}' style='width:52px;height:52px;object-fit:contain;'/>" if _t5logo else ""
                     _logo_strip_parts.append(
-                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;'>"
-                        f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.68rem;color:{_t5color};'>"
+                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;'>"
+                        f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.78rem;color:{_t5color};'>"
                         f"#{_t5rank}</span>"
                         f"{_t5lhtml}"
                         f"</div>"
@@ -11084,8 +11108,8 @@ if not IS_BOWL_WEEK:
                 + "</div>"
             )
 
-            # Ticker text stays as TOP 5 — short and readable in the scroller
-            _top5_str = '  ·  '.join(f"#{r} {t.title()}" for t, r in _top5_teams_ticker)
+            # Ticker text: top 4 bye teams only
+            _top5_str = '  ·  '.join(f"#{r} {t.title()}" for t, r in _top4_bye_teams)
             _top5_teams = _top12_teams  # keep reference for blurb/no1 logic below
 
             # Find #1 for blurb
@@ -11111,7 +11135,7 @@ if not IS_BOWL_WEEK:
                     _rec_str = ''
 
                 _all_headlines.append({
-                    'badge': 'CFP TOP 12',
+                    'badge': 'CFP BYES',
                     'priority': 85,
                     'text': f"Week {_cfp_week_label} CFP Rankings: {_top5_str}",
                     'blurb': f"{_cfp_no1_proper}{_rec_str} is #1. The committee has spoken.",
@@ -11226,6 +11250,61 @@ if not _heisman_won_this_year and not any(
         pass
 
 # ── 4. THIS WEEK'S GAMES (most recent week in CPUscores_MASTER) ────────
+
+# Pre-build game_summaries lookup for stat blurbs in ticker
+_gs_ticker_lookup = {}  # (vis_lower, home_lower, week_int) → stats row
+try:
+    _gs_tk = pd.read_csv('game_summaries.csv')
+    _gs_tk.columns = [str(c).strip() for c in _gs_tk.columns]
+    _gs_tk = normalize_game_summaries(_gs_tk)
+    _gs_tk['YEAR'] = pd.to_numeric(_gs_tk.get('YEAR', _gs_tk.get('Year', 0)), errors='coerce')
+    _gs_tk['WEEK'] = pd.to_numeric(_gs_tk.get('WEEK', _gs_tk.get('Week', 0)), errors='coerce')
+    _gs_tk = _gs_tk[_gs_tk['YEAR'].fillna(-1).astype(int) == CURRENT_YEAR]
+    for _, _gsr in _gs_tk.iterrows():
+        _vk = str(_gsr.get('Visitor', '')).strip().lower()
+        _hk = str(_gsr.get('Home', '')).strip().lower()
+        _wk = int(_gsr.get('WEEK', 0) or 0)
+        if _vk and _hk:
+            _gs_ticker_lookup[(_vk, _hk, _wk)] = _gsr
+except Exception:
+    pass
+
+def _gs_stat_blurb(vis, home, week):
+    """Return a short stat blurb string from game_summaries for ticker, or ''."""
+    row = _gs_ticker_lookup.get((vis.lower(), home.lower(), int(week)))
+    if row is None:
+        return ''
+    try:
+        vpass = pd.to_numeric(row.get('PassYds_Visitor'), errors='coerce')
+        hpass = pd.to_numeric(row.get('PassYds_Home'), errors='coerce')
+        vrush = pd.to_numeric(row.get('RushYds_Visitor'), errors='coerce')
+        hrush = pd.to_numeric(row.get('RushYds_Home'), errors='coerce')
+        vto   = pd.to_numeric(row.get('Turnovers_Visitor'), errors='coerce')
+        hto   = pd.to_numeric(row.get('Turnovers_Home'), errors='coerce')
+        parts = []
+        if pd.notna(vpass) and pd.notna(hpass):
+            parts.append(f"{int(vpass)}/{int(hpass)} pass yds")
+        if pd.notna(vrush) and pd.notna(hrush):
+            parts.append(f"{int(vrush)}/{int(hrush)} rush yds")
+        if pd.notna(vto) and pd.notna(hto) and (vto + hto) > 0:
+            parts.append(f"{int(vto+hto)} TO")
+        return '  |  ' + '  ·  '.join(parts) if parts else ''
+    except Exception:
+        return ''
+
+def _team_color_span(team_name, score_str):
+    """Wrap team name + score in team primary color span for ticker HTML."""
+    c = get_team_primary_color(team_name)
+    # lighten very dark colors so they show on dark ticker bg
+    try:
+        r = int(c[1:3], 16); g = int(c[3:5], 16); b = int(c[5:7], 16)
+        lum = 0.299*r + 0.587*g + 0.114*b
+        if lum < 55:
+            c = f'#{min(255,r+90):02x}{min(255,g+90):02x}{min(255,b+90):02x}'
+    except Exception:
+        pass
+    return f"<span style='color:{c};font-weight:900;'>{html.escape(team_name)} {score_str}</span>"
+
 try:
     _wk_df = pd.read_csv('CPUscores_MASTER.csv')
     _wk_df['YEAR'] = pd.to_numeric(_wk_df['YEAR'], errors='coerce')
@@ -11283,10 +11362,18 @@ try:
                    f'<img src="{_wl}" style="width:50px;height:50px;object-fit:contain;">'
                    f'<span style="color:#94a3b8;font-weight:900;font-size:1.3rem;">VS</span>'
                    f'<img src="{_ll}" style="width:50px;height:50px;object-fit:contain;"></div>')
+            _stat_blurb_str = _gs_stat_blurb(_vis, _hm, _latest_wk)
             _all_headlines.append({
                 'badge': _bdg, 'priority': _pri,
                 'text': f"{_winner}{_w_rk} {_wscore} \u2013 {_lscore} {_loser}{_l_rk}",
-                'blurb': _blurb, 'logo_html': _lh,
+                'text_html': (
+                    _team_color_span(_winner, f"{_wscore}") +
+                    f"<span style='color:#64748b;'> \u2013 </span>" +
+                    _team_color_span(_loser, f"{_lscore}") +
+                    (f"<span style='color:#475569;font-size:0.85em;'>{html.escape(_stat_blurb_str)}</span>" if _stat_blurb_str else '')
+                ),
+                'blurb': _blurb + (_stat_blurb_str.replace('  |  ', ' — ') if _stat_blurb_str else ''),
+                'logo_html': _lh,
             })
 except Exception:
     pass
@@ -11806,10 +11893,11 @@ def _badge_color(badge):
 _ticker_items = ''
 for h in _all_headlines:
     _bg, _fg = _badge_color(h['badge'])
+    _ticker_text_content = h.get('text_html') or html.escape(h['text'])
     _ticker_items += (
         f"<div class='slide'>"
         f"<span class='badge' style='background:{_bg};color:{_fg};'>{h['badge']}</span>"
-        f"<span class='hl'>{html.escape(h['text'])}</span>"
+        f"<span class='hl'>{_ticker_text_content}</span>"
         f"</div>"
     )
 
@@ -13057,6 +13145,10 @@ with tabs[0]:
 
             official_badge, defending_badge, card_glow, bw_style = "", "", "", ""
             card_opacity = "1.0"
+            _is_ready_or_final = (
+                _u_status == 'Ready' or
+                (isinstance(_u_matchup, dict) and _u_matchup.get('score'))
+            )
 
             if is_defending_champ:
                 defending_badge = f"<span style='display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#fbbf24;color:#78350f;border:1px solid #78350f;'>🛡️ DEFENDING CHAMP</span>"
@@ -13176,7 +13268,7 @@ with tabs[0]:
                 if _u_status == 'Ready':
                     _status_chip = f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                 else:
-                    _status_chip = f"<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;{_chip_style}'>NOT SET</span>"
+                    _status_chip = f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
             else:
                 _ha_disp = f"<span style='{_ha_style}'>vs</span>" if _u_matchup.get('home') else f"<span style='{_ha_style}'>@</span>"
                 _opp_str = str(_u_matchup.get('opp', '?'))
@@ -13200,7 +13292,7 @@ with tabs[0]:
                         if _u_status == 'Ready':
                             _status_chip = f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                         else:
-                            _status_chip = f"<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;{_chip_style}'>NOT SET</span>"
+                            _status_chip = f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
 
             # ── Betting line from CFP ratings ─────────────────────────────
             _line_html = ""
@@ -13215,7 +13307,7 @@ with tabs[0]:
                     if _bl_str and _bl_str != "Pick'em":
                         _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.72rem;"
                                       f"color:#64748b;margin-left:4px;'>LINE: "
-                                      f"<strong style='color:#a78bfa;'>{html.escape(_bl_str)}</strong></span>")
+                                      f"<strong style='color:#4ade80;'>{html.escape(_bl_str)}</strong></span>")
                 elif _bl_result == "Pick'em" or (_bl_result and _bl_result[0] == "Pick'em"):
                     _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.72rem;"
                                   f"color:#64748b;margin-left:4px;'>LINE: <strong style='color:#94a3b8;'>Pick'em</strong></span>")
@@ -13266,9 +13358,12 @@ with tabs[0]:
             _nat_natty_color = _odds_tier_color(live_natty)
             _nat_cfp_color   = _odds_tier_color(live_cfp)
 
+            # Green outline when READY or game is FINAL
+            _ready_outline = "box-shadow:0 0 0 2px #4ade80; " if _is_ready_or_final and not bw_style else ""
+
             card_html = (
                 f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
-                f"border-left:5px solid {tc}; {card_glow} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
+                f"border-left:5px solid {tc}; {card_glow}{_ready_outline} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
                 f"{_rank_circle}"
                 f"{logo_html}"
                 f"<div style='flex:1; min-width:200px; {bw_style}'>"
@@ -13284,7 +13379,7 @@ with tabs[0]:
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP {_pct_to_pre_odds(cfp_pct)}</span><br>"
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 National</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> natty &nbsp; CFP <strong style='color:{_nat_cfp_color};'>{_nat_cfp_odds}</strong></span>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:{_nat_cfp_color};'>{_nat_cfp_odds}</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
                 f"</div></div>"
             )
@@ -16307,15 +16402,22 @@ with tabs[3]:
             _natty_pct = _nord['natty_pct'] if _nord else None
             _cfp_make  = _nord['cfp_pct']   if _nord else None
 
-            def _odds_cell(val, label=''):
+            def _odds_cell(val):
+                """Natty% → ratio odds: 3.1% → 31:1"""
                 if val is None:
                     return "<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>"
-                v = float(val)
-                if v >= 15:   c = '#4ade80'
-                elif v >= 8:  c = '#fbbf24'
-                elif v >= 3:  c = '#f97316'
-                else:         c = '#64748b'
-                return f"<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;font-weight:700;color:{c};white-space:nowrap;'>{v:.1f}%</td>"
+                try:
+                    v = float(val)
+                    if v <= 0: ratio_str = '∞'
+                    elif v >= 50: ratio_str = 'Even'
+                    else: ratio_str = f'{max(1,round((100/v)-1))}:1'
+                    if v >= 15:   c = '#4ade80'
+                    elif v >= 8:  c = '#fbbf24'
+                    elif v >= 3:  c = '#f97316'
+                    else:         c = '#64748b'
+                    return f"<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;font-weight:700;color:{c};white-space:nowrap;'>{ratio_str}</td>"
+                except Exception:
+                    return "<td style='padding:8px 8px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>"
 
             def _cfp_odds_cell(val):
                 if val is None:
@@ -16363,20 +16465,19 @@ with tabs[3]:
               </div>
             </td>
             """]
-            # Movement now in Rank's old slot (2nd col)
+            # Column order: Team | Move | CFP% | Natty | Record | OVR | OFF | DEF | Rec Rank | MOV | Streak | Avg PF | Avg PA
             cells.append(f"<td style='padding:10px 8px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;'>{_mv_disp}</td>")
+            cells.append(_cfp_odds_cell(_cfp_make))
+            cells.append(_odds_cell(_natty_pct))
             cells.append(f"<td style='padding:10px 10px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:#e5e7eb;'>{html.escape(str(row.get('Record', '')))}</td>")
             cells.append(_rating_cell(_tr.get('OVR'), 'OVR'))
             cells.append(_rating_cell(_tr.get('OFF'), 'OFF'))
             cells.append(_rating_cell(_tr.get('DEF'), 'DEF'))
             cells.append(f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;color:{_rec_color};font-weight:700;'>{_rec_disp}</td>")
-            # Conf stats
             cells.append(_stat_cell(_mov_val, fmt='+.1f' if (_mov_val or 0) >= 0 else '.1f'))
             cells.append(f"<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;'>{_stk_disp}</td>")
             cells.append(_stat_cell(_avg_pf, fmt='.1f') if _avg_pf is not None else "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>")
             cells.append(_stat_cell(_avg_pa, fmt='.1f') if _avg_pa is not None else "<td style='padding:8px 10px;border-bottom:1px solid #334155;text-align:center;color:#334155;'>—</td>")
-            cells.append(_cfp_odds_cell(_cfp_make))
-            cells.append(_odds_cell(_natty_pct))
 
             projected_field_rows.append(f"<tr style='border-left:6px solid {primary};background:linear-gradient(90deg,{primary}22,rgba(15,23,42,.95) 14%);'>{''.join(cells)}</tr>")
 
@@ -16388,6 +16489,8 @@ with tabs[3]:
               <tr class="isp-tr-header">
                 <th class="isp-th isp-th-left">Projected Field</th>
                 <th class="isp-th">Move</th>
+                <th class="isp-th">CFP%</th>
+                <th class="isp-th">Natty Odds</th>
                 <th class="isp-th">Record</th>
                 <th class="isp-th">OVR</th>
                 <th class="isp-th">OFF</th>
@@ -16397,8 +16500,6 @@ with tabs[3]:
                 <th class="isp-th">Streak</th>
                 <th class="isp-th">Avg PF</th>
                 <th class="isp-th">Avg PA</th>
-                <th class="isp-th">CFP%</th>
-                <th class="isp-th">Natty%</th>
               </tr>
             </thead>
             <tbody>{''.join(projected_field_rows)}</tbody>
@@ -16954,11 +17055,17 @@ with tabs[4]:
     if CURRENT_YEAR not in _rec_years_avail:
         _rec_years_avail = [CURRENT_YEAR] + _rec_years_avail
 
+    # Default to prior year until Week 9, then switch to current year
+    _rec_default_year = CURRENT_YEAR if CURRENT_WEEK_NUMBER >= 9 else (CURRENT_YEAR - 1)
+    if _rec_default_year not in _rec_years_avail:
+        _rec_default_year = _rec_years_avail[0]
+    _rec_default_idx = _rec_years_avail.index(_rec_default_year) if _rec_default_year in _rec_years_avail else 0
+
     _rec_year_col, _rec_spacer = st.columns([1, 3])
     with _rec_year_col:
         recruit_year = st.selectbox(
             "Season", _rec_years_avail,
-            index=0,
+            index=_rec_default_idx,
             key="recruit_year_select",
             label_visibility="collapsed"
         )
@@ -17863,7 +17970,10 @@ with tabs[11]:
 # --- SEASON RECAP ---
 with tabs[7]:
     st.header("📺 Season Recap")
-    sel_year = int(st.selectbox("Select Season", years, key="season_year"))
+    _recap_default = (CURRENT_YEAR - 1) if CURRENT_WEEK_NUMBER < 13 else CURRENT_YEAR
+    _recap_default = _recap_default if _recap_default in years else (years[-1] if years else CURRENT_YEAR)
+    _recap_default_idx = years.index(_recap_default) if _recap_default in years else max(0, len(years)-1)
+    sel_year = int(st.selectbox("Select Season", years, index=_recap_default_idx, key="season_year"))
     y_data = scores[scores[meta['yr']].astype(int) == sel_year].copy()
 
     # 1. DATA LOADING & STAT ENGINE
@@ -18346,6 +18456,16 @@ with tabs[8]:
                 _y_min = max(0, float(_scatter_df[_natty_col].min()) - 2)
                 _y_max = float(_scatter_df[_natty_col].max()) + 3
 
+                # Build Y-axis tick values/labels in odds format (3.1% → "31:1")
+                _y_tick_vals = [v for v in [0.5,1,2,3,5,8,12,18,25,35,50]
+                                if _y_min - 1 <= v <= _y_max + 1]
+                def _pct_to_odds_label(p):
+                    if p <= 0: return '—'
+                    if p >= 50: return 'Even'
+                    r = round((100.0 / p) - 1.0)
+                    return f'{int(r)}:1'
+                _y_tick_text = [_pct_to_odds_label(v) for v in _y_tick_vals]
+
                 _speed_style_fig = go.Figure()
 
                 _speed_style_fig.add_trace(
@@ -18357,18 +18477,21 @@ with tabs[8]:
                         hovertemplate=(
                             "<b>%{customdata[0]}</b><br>"
                             "MPH: %{x:.1f}<br>"
-                            "National Title Odds: %{y:.1f}%<br>"
+                            "Natty Odds: %{customdata[5]}<br>"
                             "Cheat Codes: %{customdata[1]}<br>"
                             "Monsters: %{customdata[2]}<br>"
                             "Quick Hogs: %{customdata[3]}<br>"
                             "Generational Freaks: %{customdata[4]}<extra></extra>"
                         ),
-                        customdata=_scatter_df[[
+                        customdata=_scatter_df.assign(
+                            _odds_label=_scatter_df[_natty_col].apply(_pct_to_odds_label)
+                        )[[
                             'TeamLabel',
                             'Quad 90 (90+ SPD, ACC, AGI & COD)',
                             'Monsters',
                             'Quick Hogs',
-                            'Generational (96+ speed or 96+ Acceleration)'
+                            'Generational (96+ speed or 96+ Acceleration)',
+                            '_odds_label'
                         ]].fillna(0).values
                     )
                 )
@@ -18427,8 +18550,10 @@ with tabs[8]:
                         title_font=dict(size=18, color='#111111')
                     ),
                     yaxis=dict(
-                        title='National Title Odds',
-                        ticksuffix='%',
+                        title='Natty Odds',
+                        tickvals=_y_tick_vals if _y_tick_vals else None,
+                        ticktext=_y_tick_text if _y_tick_text else None,
+                        ticksuffix='',
                         range=[_y_min, _y_max],
                         showgrid=False,
                         zeroline=False,
@@ -18615,13 +18740,30 @@ with tabs[10]:
                     coach_options.extend([u for u in legacy_scores[_c].dropna().astype(str).unique() if u and u.upper() != 'CPU' and u.lower() != 'nan'])
         coach_options = sorted(pd.unique(pd.Series(coach_options)).tolist())
 
+        # Default to most recent national champion user
+        _legacy_default_coach = coach_options[0] if coach_options else None
+        try:
+            _champs_legacy = pd.read_csv('champs.csv')
+            _champs_legacy['YEAR'] = pd.to_numeric(_champs_legacy.get('YEAR'), errors='coerce')
+            _champs_legacy = _champs_legacy.dropna(subset=['YEAR']).sort_values('YEAR', ascending=False)
+            _user_col_champ = next((c for c in _champs_legacy.columns if c.upper() in ('USER','COACH')), None)
+            if _user_col_champ:
+                for _, _cr in _champs_legacy.iterrows():
+                    _cu = str(_cr[_user_col_champ]).strip().title()
+                    if _cu in coach_options:
+                        _legacy_default_coach = _cu
+                        break
+        except Exception:
+            pass
+        _legacy_default_idx = coach_options.index(_legacy_default_coach) if _legacy_default_coach in coach_options else 0
+
         if not coach_options:
             st.warning("Coach Legacy needs TeamRatingsHistory.csv and CPUscores_MASTER.csv.")
             st.stop()
 
         left_sel, right_sel = st.columns([1.2, 1.0])
         with left_sel:
-            target = st.selectbox("Select Coach", coach_options, key="coach_legacy_user")
+            target = st.selectbox("Select Coach", coach_options, index=_legacy_default_idx, key="coach_legacy_user")
         with right_sel:
             view_mode = st.radio("View", ["Career View", "Single Season View"], horizontal=True, key="coach_legacy_view")
 
@@ -19974,7 +20116,7 @@ with tabs[13]:
             pass
 
         score = (
-            rings * 15 +
+            rings * 40 +                           # Natty = king. 1 ring = 40pts minimum floor
             heismans * 5 +
             cotys * 3 +
             conf_titles * 2 +
@@ -19983,8 +20125,12 @@ with tabs[13]:
             top5_classes * 1 +
             min(20, int(cw / 20)) +
             min(12, int(pw / 4)) +
-            min(8, heisman_finals // 2)  # bonus for Heisman finalist pipeline
+            min(8, heisman_finals // 2)
         )
+        # Hard rule: a coach with 0 natties can never outscore a coach with 1+
+        # Cap non-natty coaches at 38 pts (just under 1 ring = 40)
+        if rings == 0:
+            score = min(score, 38)
 
         win_pct = round((cw / max(1, cw + cl)), 3) if (cw + cl) > 0 else np.nan
         playoff_pct = round((pw / max(1, pw + pl)), 3) if (pw + pl) > 0 else np.nan
@@ -20019,7 +20165,7 @@ with tabs[13]:
         st.info("Win some hardware to enter the GOAT Council.")
     else:
         legacy_df = legacy_df.sort_values(
-            ['Legacy Score', 'Titles', 'Heismans', 'COTYs', 'Draft Picks'],
+            ['Titles', 'Legacy Score', 'Heismans', 'COTYs', 'Draft Picks'],
             ascending=[False, False, False, False, False]
         ).reset_index(drop=True)
 
@@ -20141,7 +20287,7 @@ with tabs[13]:
         _render_goat_snapshot_table(legacy_df)
 
         st.markdown("---")
-        st.caption("Legacy score weighting: National Title (15), Heisman Winner (5), COTY (3), Conf Title (2), plus pipeline bonuses for Heisman finalists, draft picks, and career wins. H Finals = Heisman finalist appearances. Avg Rec = average recruiting class rank.")
+        st.caption("Legacy score weighting: National Title (40 — dominant), Heisman Winner (5), COTY (3), Conf Title (2), plus pipeline bonuses for Heisman finalists, draft picks, and career wins. A coach with 0 titles cannot outscore a coach with 1+. H Finals = Heisman finalist appearances. Avg Rec = average recruiting class rank.")
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE
 # ──────────────────────────────────────────────────────────────────────
@@ -23535,38 +23681,71 @@ with tabs[5]:
                 _total     = int(_state_counts['Count'].sum())
                 _st_uniq   = len(_state_counts)
 
-                # Type breakdown counts
-                if 'Type' in _map_df.columns:
-                    _hs_juco_count = int((_map_df['Type'].astype(str).str.upper().isin(['HS','JUCO'])).sum())
-                    _tp_count      = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
-                else:
-                    _hs_juco_count = _total
-                    _tp_count      = 0
+                # Build per-state type breakdown for stacked bars
+                _state_type_counts = {}  # state → {HS: n, JUCO: n, TRANSFER: n}
+                if 'Type' in _map_df.columns and 'State' in _map_df.columns:
+                    for _, _mr in _map_df.iterrows():
+                        _mst = str(_mr.get('State', '')).strip().upper()
+                        _mty = str(_mr.get('Type', '')).strip().upper()
+                        if len(_mst) != 2: continue
+                        if _mst not in _state_type_counts:
+                            _state_type_counts[_mst] = {'HS': 0, 'JUCO': 0, 'TRANSFER': 0}
+                        if _mty == 'JUCO':
+                            _state_type_counts[_mst]['JUCO'] += 1
+                        elif _mty == 'TRANSFER':
+                            _state_type_counts[_mst]['TRANSFER'] += 1
+                        else:
+                            _state_type_counts[_mst]['HS'] += 1
 
-                # Parse team color for bar fill
-                try:
-                    _hx = sel_color.lstrip('#')
-                    _cr, _cg, _cb = int(_hx[0:2],16), int(_hx[2:4],16), int(_hx[4:6],16)
-                    _bar_color = f'rgba({_cr},{_cg},{_cb},0.85)'
-                    _bar_bg    = f'rgba({_cr},{_cg},{_cb},0.12)'
-                except Exception:
-                    _bar_color = 'rgba(96,165,250,0.85)'
-                    _bar_bg    = 'rgba(96,165,250,0.12)'
+                # Type totals for summary row
+                if 'Type' in _map_df.columns:
+                    _hs_count   = int((_map_df['Type'].astype(str).str.upper() == 'HS').sum())
+                    _juco_count = int((_map_df['Type'].astype(str).str.upper() == 'JUCO').sum())
+                    _tp_count   = int((_map_df['Type'].astype(str).str.upper() == 'TRANSFER').sum())
+                    _hs_juco_count = _hs_count + _juco_count
+                else:
+                    _hs_count = _total; _juco_count = 0; _tp_count = 0; _hs_juco_count = _total
 
                 # Summary stat row
                 st.markdown(
-                    f"<div style='display:flex;gap:24px;margin-bottom:14px;'>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#e2e8f0;'>{_total}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>Total Incoming</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:{sel_color};'>{_st_uniq}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>States</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#60a5fa;'>{_hs_juco_count}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>HS / JUCO</div></div>"                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#a78bfa;'>{_tp_count}</div>"                    f"<div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>Transfers</div></div>"                    f"</div>",
+                    f"<div style='display:flex;gap:24px;margin-bottom:10px;'>"
+                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#e2e8f0;'>{_total}</div><div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>Total</div></div>"
+                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:{sel_color};'>{_st_uniq}</div><div style='font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;'>States</div></div>"
+                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#60a5fa;'>{_hs_count}</div><div style='font-size:0.7rem;color:#60a5fa;text-transform:uppercase;letter-spacing:.08em;'>HS</div></div>"
+                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#fbbf24;'>{_juco_count}</div><div style='font-size:0.7rem;color:#fbbf24;text-transform:uppercase;letter-spacing:.08em;'>JUCO</div></div>"
+                    f"<div style='text-align:center;'><div style='font-size:1.6rem;font-weight:800;color:#a78bfa;'>{_tp_count}</div><div style='font-size:0.7rem;color:#a78bfa;text-transform:uppercase;letter-spacing:.08em;'>Transfers</div></div>"
+                    f"</div>"
+                    f"<div style='display:flex;gap:16px;margin-bottom:10px;font-size:0.72rem;color:#64748b;'>"
+                    f"<span><span style='display:inline-block;width:10px;height:10px;background:#60a5fa;border-radius:2px;margin-right:4px;'></span>HS</span>"
+                    f"<span><span style='display:inline-block;width:10px;height:10px;background:#fbbf24;border-radius:2px;margin-right:4px;'></span>JUCO</span>"
+                    f"<span><span style='display:inline-block;width:10px;height:10px;background:#a78bfa;border-radius:2px;margin-right:4px;'></span>Transfer</span>"
+                    f"</div>",
                     unsafe_allow_html=True
                 )
 
-                # Horizontal bar chart — all states with at least 1 recruit
+                # Stacked horizontal bar chart — HS=blue, JUCO=yellow, Transfer=purple
                 _bars_html = "<div style='display:flex;flex-direction:column;gap:5px;margin-bottom:12px;'>"
                 for _, _sr in _state_counts.iterrows():
                     _st   = html.escape(str(_sr['State']))
                     _cnt  = int(_sr['Count'])
-                    _pct  = _cnt / _max_count * 100
+                    _tot_pct = _cnt / _max_count * 100
+                    _tc = _state_type_counts.get(_st, {})
+                    _hs_n  = _tc.get('HS', _cnt if not _tc else 0)
+                    _ju_n  = _tc.get('JUCO', 0)
+                    _xf_n  = _tc.get('TRANSFER', 0)
+                    _hs_p  = _hs_n / _cnt * _tot_pct if _cnt else 0
+                    _ju_p  = _ju_n / _cnt * _tot_pct if _cnt else 0
+                    _xf_p  = _xf_n / _cnt * _tot_pct if _cnt else 0
                     _bars_html += (
-                        f"<div style='display:flex;align-items:center;gap:8px;'>"                        f"<div style='width:28px;text-align:right;font-size:0.75rem;font-weight:800;color:#94a3b8;flex-shrink:0;'>{_st}</div>"                        f"<div style='flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:18px;overflow:hidden;'>"                        f"<div style='width:{_pct:.1f}%;background:{_bar_color};height:100%;border-radius:3px;transition:width 0.3s;'></div></div>"                        f"<div style='width:18px;font-size:0.75rem;font-weight:800;color:{sel_color};flex-shrink:0;'>{_cnt}</div>"                        f"</div>"
+                        f"<div style='display:flex;align-items:center;gap:8px;'>"
+                        f"<div style='width:28px;text-align:right;font-size:0.75rem;font-weight:800;color:#94a3b8;flex-shrink:0;'>{_st}</div>"
+                        f"<div style='flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:18px;overflow:hidden;display:flex;'>"
+                        f"<div style='width:{_hs_p:.1f}%;background:rgba(96,165,250,0.85);height:100%;'></div>"
+                        f"<div style='width:{_ju_p:.1f}%;background:rgba(251,191,36,0.85);height:100%;'></div>"
+                        f"<div style='width:{_xf_p:.1f}%;background:rgba(167,139,250,0.85);height:100%;'></div>"
+                        f"</div>"
+                        f"<div style='width:18px;font-size:0.75rem;font-weight:800;color:{sel_color};flex-shrink:0;'>{_cnt}</div>"
+                        f"</div>"
                     )
                 _bars_html += "</div>"
                 st.markdown(_bars_html, unsafe_allow_html=True)
