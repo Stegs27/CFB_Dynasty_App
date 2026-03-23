@@ -19731,8 +19731,8 @@ with tabs[12]:
             st.info("No game data available yet.")
         else:
             # ── Sub-tabs: ALL / UPSETS / CLOSEST / BOX SCORES ────────────────────
-            _ctab_all, _ctab_upsets, _ctab_close, _ctab_box = st.tabs(
-                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores"])
+            _ctab_all, _ctab_upsets, _ctab_close, _ctab_box, _ctab_archive = st.tabs(
+                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores", "📼 Stream Archive"])
 
             def _render_classic_card(row, rank_num):
                 """Render a single broadcast-style game card."""
@@ -20076,6 +20076,214 @@ with tabs[12]:
                     st.info("📋 **game_summaries.csv** not found. Start capturing game summaries via the ISPN Data Importer to populate this tab.")
                 except Exception as _bx_err:
                     st.error(f"Box Scores error: {_bx_err}")
+
+            with _ctab_archive:
+                render_stream_archive_tab()
+
+
+
+def parse_stream_archive_row(row):
+    def _clean(v, fallback=""):
+        if pd.isna(v):
+            return fallback
+        s = str(v).strip()
+        return s if s and s.lower() not in {"nan", "none", "<na>"} else fallback
+
+    platform = _clean(row.get("platform", row.get("Platform", "Twitch")), "Twitch")
+    url = _clean(row.get("url", row.get("URL", "")), "")
+    stream_title = _clean(row.get("stream_title", row.get("StreamTitle", row.get("title", row.get("Title", "Untitled Stream")))), "Untitled Stream")
+    season = _clean(row.get("season", row.get("Season", "")), "")
+    week = _clean(row.get("week", row.get("Week", "")), "")
+    user_team = _clean(row.get("user_team", row.get("UserTeam", row.get("team", row.get("Team", "")))), "")
+    opponent = _clean(row.get("opponent", row.get("Opponent", "")), "")
+    result = _clean(row.get("result", row.get("Result", "")), "")
+    score = _clean(row.get("score", row.get("Score", "")), "")
+    notes = _clean(row.get("notes", row.get("Notes", "")), "")
+    streamer = _clean(row.get("streamer", row.get("Streamer", "")), "")
+    game_label = _clean(row.get("game_label", row.get("GameLabel", "")), "")
+    archive_type = _clean(row.get("archive_type", row.get("ArchiveType", "Full Archive")), "Full Archive")
+    date_val = _clean(row.get("date", row.get("Date", "")), "")
+
+    date_label = ""
+    if date_val:
+        try:
+            parsed = pd.to_datetime(date_val, errors="coerce")
+            if pd.notna(parsed):
+                date_label = parsed.strftime("%b %d, %Y")
+            else:
+                date_label = date_val
+        except Exception:
+            date_label = date_val
+
+    meta_bits = []
+    if season:
+        meta_bits.append(f"Season {season}")
+    if week:
+        meta_bits.append(f"Week {week}")
+    if user_team and opponent:
+        meta_bits.append(f"{user_team} vs {opponent}")
+    elif game_label:
+        meta_bits.append(game_label)
+    elif user_team:
+        meta_bits.append(user_team)
+    if result and score:
+        meta_bits.append(f"{result} ({score})")
+    elif result:
+        meta_bits.append(result)
+    if date_label:
+        meta_bits.append(date_label)
+
+    return {
+        "platform": platform,
+        "url": url,
+        "stream_title": stream_title,
+        "season": season,
+        "week": week,
+        "user_team": user_team,
+        "opponent": opponent,
+        "result": result,
+        "score": score,
+        "notes": notes,
+        "streamer": streamer,
+        "game_label": game_label,
+        "archive_type": archive_type,
+        "date_label": date_label,
+        "meta_line": " • ".join([m for m in meta_bits if m])
+    }
+
+
+def load_stream_archive_data():
+    archive_path = "stream_archive.csv"
+    default_rows = [{
+        "date": "",
+        "season": "",
+        "week": "",
+        "user_team": "Bowling Green",
+        "opponent": "Penn State",
+        "stream_title": "#4 Bowling Green vs #14 Penn State",
+        "platform": "Twitch",
+        "url": "https://www.twitch.tv/dboyer1321/v/2727978402?sr=a",
+        "result": "",
+        "score": "",
+        "notes": "Devin archive seed entry.",
+        "streamer": "dboyer1321",
+        "archive_type": "Full Archive"
+    }]
+
+    desired_cols = [
+        "date", "season", "week", "user_team", "opponent", "stream_title",
+        "platform", "url", "result", "score", "notes", "streamer",
+        "archive_type"
+    ]
+
+    if os.path.exists(archive_path):
+        try:
+            archive_df = pd.read_csv(archive_path)
+        except Exception:
+            archive_df = pd.DataFrame(default_rows)
+    else:
+        archive_df = pd.DataFrame(default_rows)
+        archive_df.to_csv(archive_path, index=False)
+
+    for col in desired_cols:
+        if col not in archive_df.columns:
+            archive_df[col] = ""
+
+    archive_df = archive_df[desired_cols].copy()
+
+    if archive_df.empty:
+        archive_df = pd.DataFrame(default_rows)
+
+    if archive_df["url"].astype(str).str.strip().eq("").all():
+        archive_df = pd.concat([pd.DataFrame(default_rows), archive_df], ignore_index=True)
+
+    try:
+        archive_df["_sort_date"] = pd.to_datetime(archive_df["date"], errors="coerce")
+        archive_df = archive_df.sort_values(["_sort_date", "season", "week", "stream_title"], ascending=[False, False, False, True], na_position="last")
+        archive_df = archive_df.drop(columns=["_sort_date"], errors="ignore")
+    except Exception:
+        pass
+
+    archive_df = archive_df.drop_duplicates(subset=["url", "stream_title"], keep="first").reset_index(drop=True)
+    return archive_df
+
+
+def render_stream_archive_tab():
+    st.caption("Archived dynasty broadcasts. This tab is CSV-driven through stream_archive.csv, so you can keep adding Twitch or YouTube VODs without hardcoding them.")
+
+    archive_df = load_stream_archive_data()
+    if archive_df.empty:
+        st.info("No archived streams found yet.")
+        return
+
+    filter_cols = st.columns([1, 1, 1])
+
+    season_opts = ["All"] + [str(x) for x in sorted({str(v).strip() for v in archive_df["season"].tolist() if str(v).strip() and str(v).strip().lower() != "nan"}, reverse=True)]
+    team_opts = ["All"] + sorted({str(v).strip() for v in archive_df["user_team"].tolist() if str(v).strip() and str(v).strip().lower() != "nan"})
+    platform_opts = ["All"] + sorted({str(v).strip() for v in archive_df["platform"].tolist() if str(v).strip() and str(v).strip().lower() != "nan"})
+
+    with filter_cols[0]:
+        season_sel = st.selectbox("Season", season_opts, key="stream_archive_season")
+    with filter_cols[1]:
+        team_sel = st.selectbox("Team", team_opts, key="stream_archive_team")
+    with filter_cols[2]:
+        platform_sel = st.selectbox("Platform", platform_opts, key="stream_archive_platform")
+
+    view_df = archive_df.copy()
+    if season_sel != "All":
+        view_df = view_df[view_df["season"].astype(str).str.strip() == str(season_sel)]
+    if team_sel != "All":
+        view_df = view_df[view_df["user_team"].astype(str).str.strip() == str(team_sel)]
+    if platform_sel != "All":
+        view_df = view_df[view_df["platform"].astype(str).str.strip() == str(platform_sel)]
+
+    if view_df.empty:
+        st.info("No archived streams match those filters yet.")
+        return
+
+    st.markdown(
+        f"""
+        <div style='display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:8px 0 16px 0;'>
+            <div class='isp-stat-box'><div class='isp-muted'>Archive Entries</div><div style='font-size:1.6rem; font-weight:800; color:#fff;'>{len(view_df)}</div></div>
+            <div class='isp-stat-box'><div class='isp-muted'>Platforms</div><div style='font-size:1.6rem; font-weight:800; color:#fff;'>{view_df["platform"].astype(str).str.strip().replace('', pd.NA).dropna().nunique()}</div></div>
+            <div class='isp-stat-box'><div class='isp-muted'>Teams Covered</div><div style='font-size:1.6rem; font-weight:800; color:#fff;'>{view_df["user_team"].astype(str).str.strip().replace('', pd.NA).dropna().nunique()}</div></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    for _, row in view_df.iterrows():
+        item = parse_stream_archive_row(row)
+        logo_html = get_school_logo_html(item["user_team"], width=48, margin="0") if item["user_team"] else ""
+        opponent_color = get_team_primary_color(item["opponent"]) if item["opponent"] else "#f8fafc"
+        team_color = get_team_primary_color(item["user_team"]) if item["user_team"] else "#f8fafc"
+        link_html = f"<a href='{html.escape(item['url'])}' target='_blank' style='display:inline-block; margin-top:10px; padding:8px 12px; border-radius:999px; background:#7c3aed; color:white; font-weight:800; text-decoration:none;'>Open Archive</a>" if item["url"] else ""
+        notes_html = f"<div style='font-size:0.8rem; color:#94a3b8; margin-top:8px;'>{html.escape(item['notes'])}</div>" if item["notes"] else ""
+        streamer_badge = f"<span style='padding:3px 9px; background:rgba(124,58,237,0.16); border:1px solid rgba(124,58,237,0.35); color:#ddd6fe; border-radius:999px; font-size:0.68rem; font-weight:800;'>@{html.escape(item['streamer'])}</span>" if item["streamer"] else ""
+        type_badge = f"<span style='padding:3px 9px; background:rgba(148,163,184,0.10); border:1px solid rgba(148,163,184,0.25); color:#cbd5e1; border-radius:999px; font-size:0.68rem; font-weight:800;'>{html.escape(item['archive_type'])}</span>" if item["archive_type"] else ""
+
+        st.markdown(
+            f"""
+            <div style='background:linear-gradient(135deg,#0f172a,#111827); border:1px solid #1e293b; border-radius:14px; padding:14px 16px; margin-bottom:10px;'>
+                <div style='display:flex; align-items:flex-start; gap:12px;'>
+                    <div style='min-width:52px; display:flex; justify-content:center;'>{logo_html}</div>
+                    <div style='flex:1;'>
+                        <div style='display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;'>
+                            <span style='padding:3px 9px; background:rgba(34,197,94,0.14); border:1px solid rgba(34,197,94,0.28); color:#bbf7d0; border-radius:999px; font-size:0.68rem; font-weight:800;'>{html.escape(item['platform'])}</span>
+                            {type_badge}
+                            {streamer_badge}
+                        </div>
+                        <div style='font-size:1.02rem; font-weight:900; color:#f8fafc; line-height:1.2;'>{html.escape(item['stream_title'])}</div>
+                        <div style='font-size:0.82rem; color:#94a3b8; margin-top:6px;'>{html.escape(item['meta_line'])}</div>
+                        <div style='font-size:0.88rem; color:#e2e8f0; margin-top:8px;'><span style='color:{team_color}; font-weight:900;'>{html.escape(item['user_team'])}</span>{' <span style="color:#64748b;">vs</span> ' if item['user_team'] and item['opponent'] else ''}<span style='color:{opponent_color}; font-weight:900;'>{html.escape(item['opponent'])}</span></div>
+                        {notes_html}
+                        {link_html}
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # --- GOAT RANKINGS (Tab 12) ---
 with tabs[13]:
