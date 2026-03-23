@@ -8,7 +8,6 @@ import io
 import re
 import textwrap
 import html
-import glob
 import time
 import base64
 import hashlib
@@ -17,7 +16,6 @@ from pathlib import Path
 import os
 import random
 import html
-import glob
 import pandas as pd
 import streamlit as st
 
@@ -19720,473 +19718,597 @@ with tabs[10]:
         _sched = _schedule_df(target, int(selected_year))
         _render_coach_schedule_snapshot_table(_sched)
 
-def parse_stream_archive_row(row):
-    def _clean(v, fallback=""):
-        if pd.isna(v):
-            return fallback
-        s = str(v).strip()
-        return s if s and s.lower() not in {"nan", "none", "<na>"} else fallback
-
-    platform = _clean(row.get("platform", row.get("Platform", "Twitch")), "Twitch")
-    url = _clean(row.get("url", row.get("URL", "")), "")
-    stream_title = _clean(row.get("stream_title", row.get("StreamTitle", row.get("title", row.get("Title", "Untitled Stream")))), "Untitled Stream")
-    season = _clean(row.get("season", row.get("Season", "")), "")
-    week = _clean(row.get("week", row.get("Week", "")), "")
-    user_team = _clean(row.get("user_team", row.get("UserTeam", row.get("team", row.get("Team", "")))), "")
-    opponent = _clean(row.get("opponent", row.get("Opponent", "")), "")
-    result = _clean(row.get("result", row.get("Result", "")), "")
-    score = _clean(row.get("score", row.get("Score", "")), "")
-    notes = _clean(row.get("notes", row.get("Notes", "")), "")
-    streamer = _clean(row.get("streamer", row.get("Streamer", "")), "")
-    game_label = _clean(row.get("game_label", row.get("GameLabel", "")), "")
-    archive_type = _clean(row.get("archive_type", row.get("ArchiveType", "Full Archive")), "Full Archive")
-    date_val = _clean(row.get("date", row.get("Date", "")), "")
-
-    date_label = ""
-    if date_val:
+# --- Dynasty YouTube Archive Helpers ---
+def _safe_read_csv_any(paths):
+    for _p in paths:
         try:
-            parsed = pd.to_datetime(date_val, errors="coerce")
-            if pd.notna(parsed):
-                date_label = parsed.strftime("%b %d, %Y")
-            else:
-                date_label = date_val
+            if os.path.exists(_p):
+                return pd.read_csv(_p)
         except Exception:
-            date_label = date_val
+            pass
+    return pd.DataFrame()
 
-    meta_bits = []
-    if season:
-        meta_bits.append(f"Season {season}")
-    if week:
-        meta_bits.append(f"Week {week}")
-    if user_team and opponent:
-        meta_bits.append(f"{user_team} vs {opponent}")
-    elif game_label:
-        meta_bits.append(game_label)
-    elif user_team:
-        meta_bits.append(user_team)
-    if result and score:
-        meta_bits.append(f"{result} ({score})")
-    elif result:
-        meta_bits.append(result)
-    if date_label:
-        meta_bits.append(date_label)
 
-    score_display = score
-    if score and user_team and opponent:
-        try:
-            parts = str(score).split("-")
-            if len(parts) == 2:
-                left = int(float(str(parts[0]).strip()))
-                right = int(float(str(parts[1]).strip()))
-                if result == "W":
-                    if left > right:
-                        user_pts, opp_pts = left, right
-                    elif right > left:
-                        user_pts, opp_pts = right, left
-                    else:
-                        user_pts, opp_pts = left, right
-                elif result == "L":
-                    if left < right:
-                        user_pts, opp_pts = left, right
-                    elif right < left:
-                        user_pts, opp_pts = right, left
-                    else:
-                        user_pts, opp_pts = left, right
+def _load_youtube_archive_df():
+    _archive_paths = ['stream_archive.csv', 'dynasty_youtube_archives.csv']
+    _df = _safe_read_csv_any(_archive_paths)
+    if _df.empty:
+        return _df
+
+    _df.columns = [str(c).strip() for c in _df.columns]
+    for _col in ['date','season','week','user_team','opponent','stream_title','platform','url','result','score','notes','streamer','archive_type']:
+        if _col not in _df.columns:
+            _df[_col] = ''
+
+    _df['platform'] = _df['platform'].astype(str).str.strip()
+    _df = _df[_df['platform'].str.lower().eq('youtube')].copy()
+    if _df.empty:
+        return _df
+
+    _df['season'] = pd.to_numeric(_df['season'], errors='coerce')
+    _df['week'] = pd.to_numeric(_df['week'], errors='coerce')
+    _df['user_team'] = _df['user_team'].astype(str).str.strip()
+    _df['opponent'] = _df['opponent'].astype(str).str.strip()
+    _df['stream_title'] = _df['stream_title'].astype(str).str.strip()
+    _df['url'] = _df['url'].astype(str).str.strip()
+    _df['streamer'] = _df['streamer'].astype(str).str.strip()
+    _df['archive_type'] = _df['archive_type'].astype(str).str.strip()
+    _df['team_key'] = _df['user_team'].str.lower() + '|' + _df['opponent'].str.lower()
+    return _df
+
+
+def _load_scores_master_for_archive():
+    _score_paths = ['CPUscores_MASTER.csv', 'CPUscores_MASTER (3).csv', 'CPUscores_MASTER (2).csv']
+    _scores = _safe_read_csv_any(_score_paths)
+    if _scores.empty:
+        return _scores
+
+    _scores.columns = [str(c).strip() for c in _scores.columns]
+    for _col in ['YEAR','Week','Visitor','Home','Vis Score','Home Score','Visitor Rank','Home Rank','Vis_User','Home_User','Status']:
+        if _col not in _scores.columns:
+            _scores[_col] = pd.NA
+
+    for _col in ['YEAR','Week','Vis Score','Home Score','Visitor Rank','Home Rank']:
+        _scores[_col] = pd.to_numeric(_scores[_col], errors='coerce')
+
+    if 'Status' in _scores.columns:
+        _scores = _scores[_scores['Status'].astype(str).str.upper().eq('FINAL')].copy()
+
+    _scores['Visitor'] = _scores['Visitor'].astype(str).str.strip()
+    _scores['Home'] = _scores['Home'].astype(str).str.strip()
+    _scores['Vis_User'] = _scores['Vis_User'].astype(str).str.strip().str.title()
+    _scores['Home_User'] = _scores['Home_User'].astype(str).str.strip().str.title()
+    return _scores
+
+
+def _tv_rating_for_archive(row):
+    try:
+        vs = float(row.get('Vis Score', 0) or 0)
+        hs = float(row.get('Home Score', 0) or 0)
+    except Exception:
+        vs, hs = 0.0, 0.0
+    vr = float(row.get('Visitor Rank')) if not pd.isna(row.get('Visitor Rank')) else 99.0
+    hr = float(row.get('Home Rank')) if not pd.isna(row.get('Home Rank')) else 99.0
+    margin = abs(vs - hs)
+    total_pts = vs + hs
+    vis_user = str(row.get('Vis_User', '')).strip()
+    home_user = str(row.get('Home_User', '')).strip()
+    is_user_game = (vis_user in USER_TEAMS) or (home_user in USER_TEAMS)
+    is_h2h = (vis_user in USER_TEAMS) and (home_user in USER_TEAMS)
+    week = float(row.get('Week', 0) or 0)
+    is_playoff = week >= 16
+    is_conf_title = str(row.get('Conf Title', '0')).strip() in ('1', 'Yes', 'yes')
+    is_natty = str(row.get('Natty Game', '0')).strip().upper() in ('1', 'YES')
+
+    top_rank = min(vr, hr)
+    both_ranked = vr <= 25 and hr <= 25
+    base = 2.0
+    if top_rank <= 5:
+        base += 6.5
+    elif top_rank <= 10:
+        base += 4.5
+    elif top_rank <= 15:
+        base += 2.8
+    elif top_rank <= 25:
+        base += 1.5
+    if both_ranked:
+        base += 2.5
+
+    if margin <= 3:
+        base += 3.5
+    elif margin <= 7:
+        base += 2.0
+    elif margin <= 14:
+        base += 0.8
+
+    if total_pts >= 100:
+        base += 1.5
+    elif total_pts >= 80:
+        base += 0.8
+
+    if is_natty:
+        base += 5.0
+    elif is_playoff:
+        base += 3.2
+    elif is_conf_title:
+        base += 2.0
+    if is_h2h:
+        base += 2.5
+    elif is_user_game:
+        base += 1.2
+
+    if week >= 12:
+        base += 1.0
+    elif week >= 8:
+        base += 0.4
+
+    winner_rank = vr if vs > hs else hr
+    loser_rank = hr if vs > hs else vr
+    is_upset = (loser_rank <= 10 and winner_rank > loser_rank + 5)
+    if is_upset:
+        base += 2.0
+    return round(base, 2)
+
+
+def _build_archive_context():
+    _archive_df = _load_youtube_archive_df()
+    _scores = _load_scores_master_for_archive()
+    _featured_key = ''
+    _featured_label = ''
+
+    if not _scores.empty:
+        _score_years = _scores['YEAR'].dropna().astype(int)
+        _target_year = int(_score_years.max()) if not _score_years.empty else CURRENT_YEAR
+        _cy = _scores[_scores['YEAR'] == _target_year].copy()
+        if not _cy.empty:
+            _cy['tv_rating'] = _cy.apply(_tv_rating_for_archive, axis=1)
+            _cy = _cy.sort_values(['tv_rating','Week'], ascending=[False, True]).reset_index(drop=True)
+            if not _cy.empty:
+                _top = _cy.iloc[0]
+                _featured_key = f"{str(_top.get('Home','')).strip().lower()}|{str(_top.get('Visitor','')).strip().lower()}"
+                _featured_label = f"{str(_top.get('Visitor','')).strip()} @ {str(_top.get('Home','')).strip()}"
+
+        if not _archive_df.empty:
+            _ctx = []
+            for _idx, _r in _archive_df.iterrows():
+                _team = str(_r.get('user_team','')).strip()
+                _opp = str(_r.get('opponent','')).strip()
+                _season = _r.get('season', pd.NA)
+                _week = _r.get('week', pd.NA)
+                _match = _scores[
+                    (_scores['Home'].astype(str).str.lower() == _team.lower()) &
+                    (_scores['Visitor'].astype(str).str.lower() == _opp.lower())
+                ].copy()
+                if pd.notna(_season):
+                    _match = _match[_match['YEAR'] == int(_season)]
+                if pd.notna(_week):
+                    _match = _match[_match['Week'] == int(_week)]
+                if _match.empty:
+                    _match = _scores[
+                        (_scores['Home'].astype(str).str.lower() == _team.lower()) &
+                        (_scores['Visitor'].astype(str).str.lower() == _opp.lower())
+                    ].copy()
+                if _match.empty:
+                    _match = _scores[
+                        (_scores['Home'].astype(str).str.lower() == _opp.lower()) &
+                        (_scores['Visitor'].astype(str).str.lower() == _team.lower())
+                    ].copy()
+                if not _match.empty:
+                    _m = _match.sort_values(['YEAR','Week'], ascending=[False, True]).iloc[0]
+                    _archive_df.at[_idx, 'season'] = int(_m.get('YEAR')) if not pd.isna(_m.get('YEAR')) else _archive_df.at[_idx, 'season']
+                    _archive_df.at[_idx, 'week'] = int(_m.get('Week')) if not pd.isna(_m.get('Week')) else _archive_df.at[_idx, 'week']
+                    _home = str(_m.get('Home','')).strip()
+                    _vis = str(_m.get('Visitor','')).strip()
+                    _hs = int(float(_m.get('Home Score', 0) or 0))
+                    _vs = int(float(_m.get('Vis Score', 0) or 0))
+                    _archive_df.at[_idx, 'score_line'] = f"{_home} {_hs}, {_vis} {_vs}"
+                    _archive_df.at[_idx, 'result'] = 'W' if _home.lower() == _team.lower() and _hs > _vs else ('L' if _home.lower() == _team.lower() else ('W' if _vs > _hs else 'L'))
+                    _archive_df.at[_idx, 'match_key'] = f"{_home.lower()}|{_vis.lower()}"
+                    _archive_df.at[_idx, 'rating_order'] = float(_tv_rating_for_archive(_m))
                 else:
-                    user_pts, opp_pts = right, left
-                score_display = f"{user_team} {user_pts}, {opponent} {opp_pts}"
-        except Exception:
-            score_display = score
+                    _archive_df.at[_idx, 'score_line'] = ''
+                    _archive_df.at[_idx, 'match_key'] = f"{_team.lower()}|{_opp.lower()}"
+                    _archive_df.at[_idx, 'rating_order'] = -1.0
 
-    embed_url = ""
-    raw_url = url.lower()
-    if "youtube.com/watch?v=" in raw_url:
-        try:
-            video_id = raw_url.split("watch?v=", 1)[1].split("&", 1)[0]
-            embed_url = f"https://www.youtube.com/embed/{video_id}"
-        except Exception:
-            embed_url = ""
-    elif "youtu.be/" in raw_url:
-        try:
-            video_id = raw_url.split("youtu.be/", 1)[1].split("?", 1)[0].split("&", 1)[0]
-            embed_url = f"https://www.youtube.com/embed/{video_id}"
-        except Exception:
-            embed_url = ""
+            _archive_df['season_sort'] = pd.to_numeric(_archive_df['season'], errors='coerce').fillna(0)
+            _archive_df['week_sort'] = pd.to_numeric(_archive_df['week'], errors='coerce').fillna(999)
+            _archive_df = _archive_df.sort_values(['rating_order','season_sort','week_sort','stream_title'], ascending=[False, False, True, True]).reset_index(drop=True)
 
-    return {
-        "platform": platform,
-        "url": url,
-        "stream_title": stream_title,
-        "season": season,
-        "week": week,
-        "user_team": user_team,
-        "opponent": opponent,
-        "result": result,
-        "score": score,
-        "score_display": score_display,
-        "notes": notes,
-        "streamer": streamer,
-        "game_label": game_label,
-        "archive_type": archive_type,
-        "date_label": date_label,
-        "meta_line": " • ".join([m for m in meta_bits if m]),
-        "embed_url": embed_url,
-    }
+    return _archive_df, _featured_key, _featured_label
 
 
-def _norm_stream_team_name(v):
-    if pd.isna(v):
-        return ""
-    s = str(v).strip().lower()
-    if not s or s in {"nan", "none", "<na>"}:
-        return ""
-    s = re.sub(r"[^a-z0-9]+", " ", s)
-    return re.sub(r"\s+", " ", s).strip()
-
-
-def _pick_cpu_col(df, candidates):
-    lowered = {str(c).strip().lower(): c for c in df.columns}
-    for cand in candidates:
-        if cand.lower() in lowered:
-            return lowered[cand.lower()]
-    return None
-
-
-def _find_cpu_scores_path():
-    candidate_paths = [
-        "CPUscores_MASTER.csv",
-        "CPUscores_MASTER (3).csv",
-        "CPUscores_MASTER (2).csv",
-        "CPUscores_MASTER (1).csv",
-    ]
-    for p in candidate_paths:
-        if os.path.exists(p):
-            return p
-    try:
-        matches = sorted(glob.glob("CPUscores_MASTER*.csv"))
-        if matches:
-            return matches[0]
-    except Exception:
-        pass
-    return None
-
-
-
-def _build_stream_schedule_map():
-    cpu_path = _find_cpu_scores_path()
-    if not cpu_path:
-        return {}
-    try:
-        cpu = pd.read_csv(cpu_path)
-    except Exception:
-        return {}
-    if cpu is None or cpu.empty:
-        return {}
-
-    season_col = _pick_cpu_col(cpu, ["Season", "YEAR", "Year"])
-    week_col = _pick_cpu_col(cpu, ["Week", "WK"])
-    home_col = _pick_cpu_col(cpu, ["Home", "Home Team", "HomeTeam", "home_team", "Team", "TEAM"])
-    away_col = _pick_cpu_col(cpu, ["Away", "Away Team", "AwayTeam", "away_team", "Opponent", "OPPONENT", "Opp", "Visitor"])
-    vis_score_col = _pick_cpu_col(cpu, ["Vis Score", "Visitor Score", "Away Score", "AwayScore"])
-    home_score_col = _pick_cpu_col(cpu, ["Home Score", "Score", "HomeScore"])
-    status_col = _pick_cpu_col(cpu, ["Status", "Game Status"])
-
-    if not home_col or not away_col:
-        return {}
-
-    work = cpu.copy()
-    work["_home_norm"] = work[home_col].apply(_norm_stream_team_name)
-    work["_away_norm"] = work[away_col].apply(_norm_stream_team_name)
-    if season_col:
-        work["_season_num"] = pd.to_numeric(work[season_col], errors="coerce")
-    else:
-        work["_season_num"] = pd.NA
-    if week_col:
-        work["_week_num"] = pd.to_numeric(work[week_col], errors="coerce")
-    else:
-        work["_week_num"] = pd.NA
-
-    work = work.sort_values(["_season_num", "_week_num"], ascending=[False, True], na_position="last").reset_index(drop=True)
-
-    schedule_map = {}
-    for i, row in work.iterrows():
-        season_val = row.get("_season_num")
-        week_val = row.get("_week_num")
-        home_team = str(row.get(home_col, "") or "").strip()
-        away_team = str(row.get(away_col, "") or "").strip()
-        home_score = pd.to_numeric(row.get(home_score_col), errors="coerce") if home_score_col else pd.NA
-        away_score = pd.to_numeric(row.get(vis_score_col), errors="coerce") if vis_score_col else pd.NA
-        status_val = str(row.get(status_col, "") or "").strip().upper() if status_col else ""
-        result = ""
-        score = ""
-        if pd.notna(home_score) and pd.notna(away_score):
-            if home_score > away_score:
-                winner = _norm_stream_team_name(home_team)
-            elif away_score > home_score:
-                winner = _norm_stream_team_name(away_team)
-            else:
-                winner = "tie"
-            score = f"{int(away_score)}-{int(home_score)}"
-        else:
-            winner = ""
-
-        for team_name, opp_name, is_home in [(home_team, away_team, True), (away_team, home_team, False)]:
-            team_norm = _norm_stream_team_name(team_name)
-            opp_norm = _norm_stream_team_name(opp_name)
-            if winner == "tie":
-                result = "T"
-            elif winner:
-                result = "W" if winner == team_norm else "L"
-            else:
-                result = ""
-            match_payload = {
-                "season": "" if pd.isna(season_val) else str(int(season_val)),
-                "week": "" if pd.isna(week_val) else str(int(week_val)),
-                "schedule_sort": i,
-                "result": result,
-                "score": score,
-                "status": status_val,
-                "team_is_home": is_home,
-            }
-            key = (team_norm, opp_norm)
-            if key[0] and key[1] and key not in schedule_map:
-                schedule_map[key] = match_payload
-    return schedule_map
-
-
-def load_stream_archive_data():
-    archive_path = "stream_archive.csv"
-    default_rows = [
-        {
-            "date": "",
-            "season": "",
-            "week": "",
-            "user_team": "Bowling Green",
-            "opponent": "Miami",
-            "stream_title": "#21 Miami @ #4 Bowling Green",
-            "platform": "Twitch",
-            "url": "https://www.twitch.tv/dboyer1321/v/2727256679?sr=a",
-            "result": "",
-            "score": "",
-            "notes": "Devin archive seed entry.",
-            "streamer": "dboyer1321",
-            "archive_type": "Full Archive"
-        },
-        {
-            "date": "",
-            "season": "",
-            "week": "",
-            "user_team": "Bowling Green",
-            "opponent": "Penn State",
-            "stream_title": "#4 Bowling Green vs #14 Penn State",
-            "platform": "Twitch",
-            "url": "https://www.twitch.tv/dboyer1321/v/2727978402?sr=a",
-            "result": "",
-            "score": "",
-            "notes": "Devin archive seed entry.",
-            "streamer": "dboyer1321",
-            "archive_type": "Full Archive"
-        },
-        {
-            "date": "",
-            "season": "",
-            "week": "",
-            "user_team": "Florida",
-            "opponent": "Washington",
-            "stream_title": "#20 Washington @ #18 Florida",
-            "platform": "Twitch",
-            "url": "https://www.twitch.tv/doug3ass/v/2727732001?sr=a",
-            "result": "",
-            "score": "",
-            "notes": "Doug archive seed entry.",
-            "streamer": "doug3ass",
-            "archive_type": "Full Archive"
-        },
-        {
-            "date": "",
-            "season": "",
-            "week": "",
-            "user_team": "Florida",
-            "opponent": "Texas",
-            "stream_title": "#9 Texas @ #14 Florida",
-            "platform": "Twitch",
-            "url": "https://www.twitch.tv/doug3ass/v/2729073199?sr=a",
-            "result": "",
-            "score": "",
-            "notes": "Doug archive seed entry.",
-            "streamer": "doug3ass",
-            "archive_type": "Full Archive"
-        }
-    ]
-
-    desired_cols = [
-        "date", "season", "week", "user_team", "opponent", "stream_title",
-        "platform", "url", "result", "score", "notes", "streamer",
-        "archive_type"
-    ]
-
-    if os.path.exists(archive_path):
-        try:
-            archive_df = pd.read_csv(archive_path)
-        except Exception:
-            archive_df = pd.DataFrame(default_rows)
-    else:
-        archive_df = pd.DataFrame(default_rows)
-        archive_df.to_csv(archive_path, index=False)
-
-    for col in desired_cols:
-        if col not in archive_df.columns:
-            archive_df[col] = ""
-
-    archive_df = archive_df[desired_cols].copy()
-
-    if archive_df.empty:
-        archive_df = pd.DataFrame(default_rows)
-
-    archive_df = pd.concat([archive_df, pd.DataFrame(default_rows)], ignore_index=True)
-    archive_df = archive_df.drop_duplicates(subset=["url", "stream_title"], keep="first").reset_index(drop=True)
-
-    schedule_map = _build_stream_schedule_map()
-    archive_df["_season_num"] = pd.to_numeric(archive_df["season"], errors="coerce")
-    archive_df["_week_num"] = pd.to_numeric(archive_df["week"], errors="coerce")
-    archive_df["_schedule_sort"] = 999999
-
-    if schedule_map:
-        for idx, row in archive_df.iterrows():
-            key = (_norm_stream_team_name(row.get("user_team", "")), _norm_stream_team_name(row.get("opponent", "")))
-            match = schedule_map.get(key)
-            if match:
-                if pd.isna(archive_df.at[idx, "_season_num"]) and match.get("season"):
-                    archive_df.at[idx, "season"] = match.get("season", "")
-                    archive_df.at[idx, "_season_num"] = pd.to_numeric(match.get("season", ""), errors="coerce")
-                if pd.isna(archive_df.at[idx, "_week_num"]) and match.get("week"):
-                    archive_df.at[idx, "week"] = match.get("week", "")
-                    archive_df.at[idx, "_week_num"] = pd.to_numeric(match.get("week", ""), errors="coerce")
-                if not str(row.get("result", "")).strip() and match.get("result"):
-                    archive_df.at[idx, "result"] = match.get("result", "")
-                if not str(row.get("score", "")).strip() and match.get("score"):
-                    archive_df.at[idx, "score"] = match.get("score", "")
-                archive_df.at[idx, "_schedule_sort"] = match.get("schedule_sort", 999999)
-
-    archive_df["_sort_date"] = pd.to_datetime(archive_df["date"], errors="coerce")
-    archive_df = archive_df.sort_values(
-        ["_schedule_sort", "_season_num", "_week_num", "_sort_date", "stream_title"],
-        ascending=[True, False, True, False, True],
-        na_position="last"
-    )
-    archive_df = archive_df.drop(columns=["_sort_date", "_season_num", "_week_num", "_schedule_sort"], errors="ignore")
-    return archive_df.reset_index(drop=True)
-
-
-
-def render_stream_archive_tab():
-    st.caption("Archived dynasty broadcasts. This subtab is CSV-driven through stream_archive.csv and will auto-order plus auto-fill result/score from CPUscores_MASTER.csv when schedule matches are found.")
-
-    archive_df = load_stream_archive_data()
-    if archive_df.empty:
-        st.info("No archived streams found yet.")
-        return
-
-    filter_cols = st.columns([1, 1, 1])
-
-    season_opts = ["All"] + [str(x) for x in sorted({str(v).strip() for v in archive_df["season"].tolist() if str(v).strip() and str(v).strip().lower() != "nan"}, reverse=True)]
-    team_opts = ["All"] + sorted({str(v).strip() for v in archive_df["user_team"].tolist() if str(v).strip() and str(v).strip().lower() != "nan"})
-    platform_opts = ["All"] + sorted({str(v).strip() for v in archive_df["platform"].tolist() if str(v).strip() and str(v).strip().lower() != "nan"})
-
-    with filter_cols[0]:
-        season_sel = st.selectbox("Season", season_opts, key="stream_archive_season")
-    with filter_cols[1]:
-        team_sel = st.selectbox("Team", team_opts, key="stream_archive_team")
-    with filter_cols[2]:
-        platform_sel = st.selectbox("Platform", platform_opts, key="stream_archive_platform")
-
-    view_df = archive_df.copy()
-    if season_sel != "All":
-        view_df = view_df[view_df["season"].astype(str).str.strip() == str(season_sel)]
-    if team_sel != "All":
-        view_df = view_df[view_df["user_team"].astype(str).str.strip() == str(team_sel)]
-    if platform_sel != "All":
-        view_df = view_df[view_df["platform"].astype(str).str.strip() == str(platform_sel)]
-
-    if view_df.empty:
-        st.info("No archived streams match those filters yet.")
-        return
-
+def _render_archive_matchup_header(team_a, team_b):
+    _a_uri = image_file_to_data_uri(get_logo_source(team_a)) if team_a else ''
+    _b_uri = image_file_to_data_uri(get_logo_source(team_b)) if team_b else ''
+    _a_img = f"<img src='{_a_uri}' style='width:58px;height:58px;object-fit:contain;'/>" if _a_uri else '🏈'
+    _b_img = f"<img src='{_b_uri}' style='width:58px;height:58px;object-fit:contain;'/>" if _b_uri else '🏈'
     st.markdown(
-        f"""
-        <div style='display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:8px 0 16px 0;'>
-            <div class='isp-stat-box'><div class='isp-muted'>Archive Entries</div><div style='font-size:1.6rem; font-weight:800; color:#fff;'>{len(view_df)}</div></div>
-            <div class='isp-stat-box'><div class='isp-muted'>Platforms</div><div style='font-size:1.6rem; font-weight:800; color:#fff;'>{view_df["platform"].astype(str).str.strip().replace('', pd.NA).dropna().nunique()}</div></div>
-            <div class='isp-stat-box'><div class='isp-muted'>Teams Covered</div><div style='font-size:1.6rem; font-weight:800; color:#fff;'>{view_df["user_team"].astype(str).str.strip().replace('', pd.NA).dropna().nunique()}</div></div>
-        </div>
-        """,
+        f"<div style='display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;'>"
+        f"<div style='display:flex;align-items:center;gap:10px;'>{_a_img}<span style='font-size:2rem;color:#475569;font-weight:900;'>vs</span>{_b_img}</div>"
+        f"<div><div style='font-size:1.35rem;font-weight:900;color:#f8fafc;'>{html.escape(team_a)} vs {html.escape(team_b)}</div></div>"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
-    for _, row in view_df.iterrows():
-        item = parse_stream_archive_row(row)
-        logo_html = get_school_logo_html(item["user_team"], width=48, margin="0") if item["user_team"] else ""
-        opp_logo_html = get_school_logo_html(item["opponent"], width=48, margin="0") if item["opponent"] else ""
-        opponent_color = get_team_primary_color(item["opponent"]) if item["opponent"] else "#f8fafc"
-        team_color = get_team_primary_color(item["user_team"]) if item["user_team"] else "#f8fafc"
-        streamer_badge = f"<span style='padding:3px 9px; background:rgba(124,58,237,0.16); border:1px solid rgba(124,58,237,0.35); color:#ddd6fe; border-radius:999px; font-size:0.68rem; font-weight:800;'>@{html.escape(item['streamer'])}</span>" if item["streamer"] else ""
-        type_badge = f"<span style='padding:3px 9px; background:rgba(148,163,184,0.10); border:1px solid rgba(148,163,184,0.25); color:#cbd5e1; border-radius:999px; font-size:0.68rem; font-weight:800;'>{html.escape(item['archive_type'])}</span>" if item["archive_type"] else ""
 
-        st.markdown(
-            f"""
-            <div style='background:linear-gradient(135deg,#0f172a,#111827); border:1px solid #1e293b; border-radius:14px; padding:14px 16px; margin-bottom:8px;'>
-                <div style='display:flex; align-items:flex-start; gap:12px;'>
-                    <div style='min-width:120px; display:flex; align-items:center; justify-content:center; gap:10px;'>
-                        <div style='display:flex; justify-content:center;'>{logo_html}</div>
-                        <div style='color:#64748b; font-weight:900; font-size:0.8rem;'>vs</div>
-                        <div style='display:flex; justify-content:center;'>{opp_logo_html}</div>
-                    </div>
-                    <div style='flex:1;'>
-                        <div style='display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;'>
-                            <span style='padding:3px 9px; background:rgba(34,197,94,0.14); border:1px solid rgba(34,197,94,0.28); color:#bbf7d0; border-radius:999px; font-size:0.68rem; font-weight:800;'>{html.escape(item['platform'])}</span>
-                            {type_badge}
-                            {streamer_badge}
-                        </div>
-                        <div style='font-size:1.02rem; font-weight:900; color:#f8fafc; line-height:1.2;'>{html.escape(item['stream_title'])}</div>
-                        <div style='font-size:0.82rem; color:#94a3b8; margin-top:6px;'>{html.escape(item['meta_line'])}</div>
-                        <div style='font-size:0.92rem; margin-top:10px; line-height:1.35;'>
-                            <span style='color:{team_color}; font-weight:900;'>{html.escape(item['user_team'])}</span>
-                            <span style='color:#64748b; font-weight:800;'> vs </span>
-                            <span style='color:{opponent_color}; font-weight:900;'>{html.escape(item['opponent'])}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+with tabs[12]:
+        st.header("🎬 ISPN Classics")
+        st.caption(
+            "The most iconic games in dynasty history — ranked by closeness, "
+            "stakes, and upset factor. Margin drives the score; natties, CFP games, "
+            "and big upsets push it higher."
         )
 
-        info_cols = st.columns([1.5, 1.1, 1.5, 1.0])
-        score_text = ""
-        if item["result"]:
-            score_text = item["result"]
-        if item["score_display"]:
-            score_text = f"{score_text} • {item['score_display']}" if score_text else item["score_display"]
-        if score_text:
-            info_cols[0].markdown(
-                f"<div style='font-size:0.84rem;font-weight:800;color:#e2e8f0;padding:0.3rem 0 0.15rem 0;'>{html.escape(score_text)}</div>",
-                unsafe_allow_html=True,
-            )
-        if item["date_label"]:
-            info_cols[1].markdown(
-                f"<div style='font-size:0.8rem;color:#94a3b8;padding:0.38rem 0 0.15rem 0;'>{html.escape(item['date_label'])}</div>",
-                unsafe_allow_html=True,
-            )
-        if item["notes"]:
-            info_cols[2].markdown(
-                f"<div style='font-size:0.8rem;color:#94a3b8;padding:0.38rem 0 0.15rem 0;'>{html.escape(item['notes'])}</div>",
-                unsafe_allow_html=True,
-            )
-        if item["url"]:
-            info_cols[3].link_button("Open Archive", item["url"], use_container_width=True)
+        _classics_df = build_ispn_classics(scores, ratings)
 
-        if item["embed_url"]:
-            st.video(item["url"])
+        if _classics_df.empty:
+            st.info("No game data available yet.")
+        else:
+            _ctab_all, _ctab_upsets, _ctab_close, _ctab_box, _ctab_yt = st.tabs(
+                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores", "▶️ Dynasty YouTube Archives"])
+
+            def _render_classic_card(row, rank_num):
+                """Render a single broadcast-style game card."""
+                _wc  = get_team_primary_color(str(row['Winner']))
+                _lc  = get_team_primary_color(str(row['Loser']))
+                _wlu = image_file_to_data_uri(get_logo_source(str(row['Winner'])))
+                _llu = image_file_to_data_uri(get_logo_source(str(row['Loser'])))
+                _w_img = (f"<img src='{_wlu}' style='width:40px;height:40px;object-fit:contain;'/>" if _wlu else "🏈")
+                _l_img = (f"<img src='{_llu}' style='width:40px;height:40px;object-fit:contain;'/>" if _llu else "🏈")
+
+                _gt = str(row['GameType'])
+                _gt_bg = ("#7c3aed" if 'Championship' in _gt else "#0369a1" if 'CFP' in _gt else "#166534" if 'Conf' in _gt else "#92400e" if 'Bowl' in _gt else "#1e293b")
+                _gt_color = ("#e9d5ff" if 'Championship' in _gt else "#bfdbfe" if 'CFP' in _gt else "#bbf7d0" if 'Conf' in _gt else "#fde68a" if 'Bowl' in _gt else "#94a3b8")
+
+                _upset_badge = ""
+                if row['IsUpset']:
+                    _diff = float(row['OVR_Diff'])
+                    _upset_badge = (f"<span style='padding:2px 8px;background:#7f1d1d;color:#fca5a5;font-size:0.62rem;font-weight:800;border-radius:999px;white-space:nowrap;'>&#9888; UPSET +{_diff:.1f} OVR</span>")
+
+                _margin = int(row['Margin'])
+                _close_label = ("2OT THRILLER" if _margin <= 1 else "OT WAR" if _margin <= 3 else "NAIL-BITER" if _margin <= 7 else "CLOSE CALL" if _margin <= 14 else "")
+                _close_badge = ""
+                if _close_label:
+                    _close_badge = (f"<span style='padding:2px 8px;background:#1c1917;color:#fbbf24;font-size:0.62rem;font-weight:800;border-radius:999px;white-space:nowrap;border:1px solid #78350f;'>&#128293; {_close_label}</span>")
+
+                _rank_str = f"#{rank_num}"
+                _score_str = f"{int(row['WinnerPts'])} &ndash; {int(row['LoserPts'])}"
+                _classic_score = float(row['ClassicScore'])
+
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;border-radius:14px;padding:14px 16px;margin-bottom:10px;'>"
+                    f"<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;'>"
+                    f"<span style='font-size:0.75rem;font-weight:900;color:#475569;min-width:26px;'>{_rank_str}</span>"
+                    f"<span style='padding:2px 8px;background:{_gt_bg};color:{_gt_color};font-size:0.62rem;font-weight:700;border-radius:999px;white-space:nowrap;'>{html.escape(_gt)}</span>"
+                    f"<span style='font-size:0.62rem;color:#475569;'>{int(row['Year'])}</span>"
+                    f"{_upset_badge}{_close_badge}"
+                    f"<span style='margin-left:auto;font-size:0.65rem;color:#374151;font-weight:700;'>&#9733; {_classic_score:.0f} pts</span>"
+                    f"</div>"
+                    f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;'>"
+                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:110px;'>{_w_img}<div><div style='font-weight:900;color:{_wc};font-size:0.9rem;line-height:1.1;'>{html.escape(str(row['Winner']))}</div><div style='font-size:0.65rem;color:#64748b;'>{html.escape(str(row['WinnerUser']))}</div></div></div>"
+                    f"<div style='text-align:center;min-width:70px;'><div style='font-size:1.4rem;font-weight:900;color:#f1f5f9;letter-spacing:-0.5px;'>{_score_str}</div><div style='font-size:0.6rem;color:#475569;'>&#177;{_margin}</div></div>"
+                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:110px;'><div style='text-align:right;'><div style='font-weight:700;color:{_lc};font-size:0.9rem;opacity:0.65;line-height:1.1;'>{html.escape(str(row['Loser']))}</div><div style='font-size:0.65rem;color:#64748b;'>{html.escape(str(row['LoserUser']))}</div></div>{_l_img}</div></div></div>",
+                    unsafe_allow_html=True
+                )
+
+            with _ctab_all:
+                st.caption("Ranked by Classic Score = closeness + stakes + upset factor.")
+                _top25 = _classics_df.head(25)
+                for _ci, (_idx, _crow) in enumerate(_top25.iterrows(), 1):
+                    _render_classic_card(_crow, _ci)
+
+            with _ctab_upsets:
+                st.caption("Games where the lower-rated team pulled off the W. Ranked by OVR gap.")
+                _upsets = _classics_df[_classics_df['IsUpset']].sort_values('OVR_Diff', ascending=False).head(20)
+                if _upsets.empty:
+                    st.info("No upset data detected with current ratings proxy.")
+                else:
+                    for _ci, (_idx, _crow) in enumerate(_upsets.iterrows(), 1):
+                        _render_classic_card(_crow, _ci)
+
+            with _ctab_close:
+                st.caption("The absolute gut-punchers — decided by a single score or less.")
+                _close = _classics_df.sort_values('Margin').head(20)
+                for _ci, (_idx, _crow) in enumerate(_close.iterrows(), 1):
+                    _render_classic_card(_crow, _ci)
+
+            with _ctab_box:
+                st.caption("Quarter-by-quarter box scores from captured game summaries. Import via the ISPN Data Importer.")
+
+                try:
+                    _gs_df = pd.read_csv('game_summaries.csv')
+                    _gs_df.columns = [str(c).strip() for c in _gs_df.columns]
+                    _gs_df = normalize_game_summaries(_gs_df)
+
+                    if _gs_df.empty:
+                        st.info("No game summaries yet. Use the ISPN Data Importer → Game Summary to capture box scores.")
+                    else:
+                        # Normalize column names (handle various schemas)
+                        def _gs_col(candidates):
+                            return next((c for c in candidates if c in _gs_df.columns), None)
+
+                        _gs_year_col = _gs_col(['YEAR', 'Year', 'year'])
+                        _gs_week_col = _gs_col(['Week', 'WEEK', 'week'])
+                        _gs_home_col = _gs_col(['HomeTeam', 'Home', 'HOME', 'Home Team'])
+                        _gs_vis_col  = _gs_col(['VisitorTeam', 'Visitor', 'VISITOR', 'Away', 'Away Team', 'AwayTeam'])
+                        # Coerce year/week
+                        if _gs_year_col:
+                            _gs_df[_gs_year_col] = pd.to_numeric(_gs_df[_gs_year_col], errors='coerce')
+                        if _gs_week_col:
+                            _gs_df[_gs_week_col] = pd.to_numeric(_gs_df[_gs_week_col], errors='coerce')
+
+                        # Filters
+                        _box_c1, _box_c2, _box_c3 = st.columns([1, 1, 1])
+                        with _box_c1:
+                            _box_years = sorted(
+                                _gs_df[_gs_year_col].dropna().astype(int).unique().tolist(),
+                                reverse=True
+                            ) if _gs_year_col else [CURRENT_YEAR]
+                            _box_yr_sel = st.selectbox("Season", _box_years, key="box_year_sel",
+                                                        index=0 if _box_years else 0)
+                        with _box_c2:
+                            _gs_yr_filt = _gs_df[_gs_df[_gs_year_col] == int(_box_yr_sel)].copy() if _gs_year_col else _gs_df.copy()
+                            _box_weeks = sorted(
+                                _gs_yr_filt[_gs_week_col].dropna().astype(int).unique().tolist(),
+                                reverse=True
+                            ) if _gs_week_col and not _gs_yr_filt.empty else []
+                            _box_wk_sel = st.selectbox("Week", ["All"] + [str(w) for w in _box_weeks],
+                                                        key="box_week_sel")
+                        with _box_c3:
+                            _box_team_options = ["All Teams"] + sorted(list(USER_TEAMS.values())) if 'USER_TEAMS' in globals() else ["All Teams"]
+                            _box_team_sel = st.selectbox("Team Filter", _box_team_options, key="box_team_sel")
+
+                        # Apply filters
+                        _gs_view = _gs_yr_filt.copy()
+                        if _box_wk_sel != "All" and _gs_week_col:
+                            _gs_view = _gs_view[_gs_view[_gs_week_col] == int(_box_wk_sel)]
+                        if _box_team_sel != "All Teams" and (_gs_home_col or _gs_vis_col):
+                            _home_match = _gs_view[_gs_home_col].astype(str).str.strip() == _box_team_sel if _gs_home_col else pd.Series([False]*len(_gs_view))
+                            _vis_match  = _gs_view[_gs_vis_col].astype(str).str.strip()  == _box_team_sel if _gs_vis_col  else pd.Series([False]*len(_gs_view))
+                            _gs_view = _gs_view[_home_match | _vis_match]
+
+                        if _gs_view.empty:
+                            st.info("No box scores match those filters.")
+                        else:
+                            # Sort by week desc
+                            if _gs_week_col:
+                                _gs_view = _gs_view.sort_values(_gs_week_col, ascending=False)
+
+                            # ── Build all box score cards as ONE html string + style block ──
+                            # (Streamlit sanitizes <table> inside per-call st.markdown;
+                            #  wrapping everything with a <style> block in a single call fixes it)
+                            def _bx_q(row, prefix, q):
+                                for c in [f'Q{q}_{prefix}', f'{prefix}_Q{q}', f'Q{q}{prefix}', f'{prefix}Q{q}']:
+                                    if c in row.index:
+                                        v = pd.to_numeric(row[c], errors='coerce')
+                                        if pd.notna(v): return int(v)
+                                return None
+
+                            def _bx_final(row, cols):
+                                for c in cols:
+                                    if c in row.index:
+                                        v = pd.to_numeric(row[c], errors='coerce')
+                                        if pd.notna(v): return int(v)
+                                return None
+
+                            def _bx_stat(row, cols):
+                                for c in cols:
+                                    if c in row.index:
+                                        v = pd.to_numeric(row[c], errors='coerce')
+                                        if pd.notna(v): return int(v)
+                                return None
+
+                            _all_cards_html = []
+                            for _, _gr in _gs_view.iterrows():
+                                _bx_home = str(_gr.get(_gs_home_col, 'Home')) if _gs_home_col else 'Home'
+                                _bx_vis  = str(_gr.get(_gs_vis_col,  'Visitor')) if _gs_vis_col else 'Visitor'
+                                _bx_wk   = int(_gr.get(_gs_week_col, 0)) if _gs_week_col and pd.notna(_gr.get(_gs_week_col)) else 0
+                                _bx_yr   = int(_gr.get(_gs_year_col, CURRENT_YEAR)) if _gs_year_col and pd.notna(_gr.get(_gs_year_col)) else CURRENT_YEAR
+
+                                _hq1 = _bx_q(_gr,'Home',1); _hq2 = _bx_q(_gr,'Home',2)
+                                _hq3 = _bx_q(_gr,'Home',3); _hq4 = _bx_q(_gr,'Home',4)
+                                _vq1 = _bx_q(_gr,'Visitor',1) or _bx_q(_gr,'Away',1)
+                                _vq2 = _bx_q(_gr,'Visitor',2) or _bx_q(_gr,'Away',2)
+                                _vq3 = _bx_q(_gr,'Visitor',3) or _bx_q(_gr,'Away',3)
+                                _vq4 = _bx_q(_gr,'Visitor',4) or _bx_q(_gr,'Away',4)
+                                _hot = _bx_q(_gr,'Home','OT') or _bx_q(_gr,'Home',5)
+                                _vot = _bx_q(_gr,'Visitor','OT') or _bx_q(_gr,'Away','OT') or _bx_q(_gr,'Visitor',5)
+
+                                _hf = _bx_final(_gr,['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome'])
+                                _vf = _bx_final(_gr,['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore'])
+                                if _hf is None and any(x is not None for x in [_hq1,_hq2,_hq3,_hq4]):
+                                    _hf = sum(x for x in [_hq1,_hq2,_hq3,_hq4,_hot] if x is not None)
+                                if _vf is None and any(x is not None for x in [_vq1,_vq2,_vq3,_vq4]):
+                                    _vf = sum(x for x in [_vq1,_vq2,_vq3,_vq4,_vot] if x is not None)
+
+                                _hw = bool(_hf is not None and _vf is not None and _hf > _vf)
+                                _vw = bool(_hf is not None and _vf is not None and _vf > _hf)
+
+                                _hc2 = get_team_primary_color(_bx_home)
+                                _vc2 = get_team_primary_color(_bx_vis)
+                                _hlu2 = image_file_to_data_uri(get_logo_source(_bx_home))
+                                _vlu2 = image_file_to_data_uri(get_logo_source(_bx_vis))
+                                _hi2 = "<img src='" + str(_hlu2) + "' class='bx-logo'/>" if _hlu2 else "🏈"
+                                _vi2 = "<img src='" + str(_vlu2) + "' class='bx-logo'/>" if _vlu2 else "🏈"
+
+                                _hpass = _bx_stat(_gr,['PassYds_Home','HomePassYds','H_PassYds'])
+                                _hrush = _bx_stat(_gr,['RushYds_Home','HomeRushYds','H_RushYds'])
+                                _hto   = _bx_stat(_gr,['Turnovers_Home','HomeTurnovers','H_TO'])
+                                _vpass = _bx_stat(_gr,['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_Away','AwayPassYds'])
+                                _vrush = _bx_stat(_gr,['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_Away','AwayRushYds'])
+                                _vto   = _bx_stat(_gr,['Turnovers_Visitor','VisitorTurnovers','V_TO','Turnovers_Away'])
+
+                                def _chips(p, r, t):
+                                    out = []
+                                    if p: out.append(f"<span class='bx-chip bx-chip-pass'>✈ {p} pass</span>")
+                                    if r: out.append(f"<span class='bx-chip bx-chip-rush'>&#127939; {r} rush</span>")
+                                    if t:
+                                        tc = 'bx-chip-to-hot' if t >= 3 else ('bx-chip-to-warn' if t >= 2 else 'bx-chip-to-ok')
+                                        out.append(f"<span class='bx-chip {tc}'>&#9889; {t} TO</span>")
+                                    return "<div class='bx-chips'>" + "".join(out) + "</div>" if out else ""
+
+                                def _qcell(val, final=False, won=False):
+                                    if val is None:
+                                        return "<td class='bx-q bx-q-empty'>—</td>"
+                                    cls = "bx-final " + ("bx-won" if won else "bx-lost") if final else "bx-q"
+                                    return f"<td class='{cls}'>{val}</td>"
+
+                                _has_ot = (_hot is not None or _vot is not None)
+                                _ot_th = "<th class='bx-th bx-th-center'>OT</th>" if _has_ot else ""
+
+                                _card = (
+                                    "<div class='bx-card'>"
+                                    f"<div class='bx-meta'>{html.escape(str(_bx_yr))} &middot; Wk {_bx_wk}</div>"
+                                    "<table class='bx-table'>"
+                                    "<thead><tr>"
+                                    "<th class='bx-th bx-th-left'>Team</th>"
+                                    "<th class='bx-th bx-th-center'>Q1</th>"
+                                    "<th class='bx-th bx-th-center'>Q2</th>"
+                                    "<th class='bx-th bx-th-center'>Q3</th>"
+                                    "<th class='bx-th bx-th-center'>Q4</th>"
+                                    + _ot_th +
+                                    "<th class='bx-th bx-th-final'>FINAL</th>"
+                                    "</tr></thead>"
+                                    "<tbody>"
+                                    "<tr class='bx-row'>"
+                                    "<td class='bx-team-cell'>"
+                                    "<div class='bx-team-inner'>"
+                                    + _vi2 +
+                                    "<div>"
+                                    f"<div class='{'bx-name-w' if _vw else 'bx-name-l'}'>{html.escape(_bx_vis)}</div>"
+                                    + _chips(_vpass, _vrush, _vto) +
+                                    "</div></div></td>"
+                                    + _qcell(_vq1) + _qcell(_vq2) + _qcell(_vq3) + _qcell(_vq4)
+                                    + (_qcell(_vot) if _has_ot else "")
+                                    + _qcell(_vf, final=True, won=_vw) +
+                                    "</tr>"
+                                    "<tr class='bx-row bx-row-b'>"
+                                    "<td class='bx-team-cell'>"
+                                    "<div class='bx-team-inner'>"
+                                    + _hi2 +
+                                    "<div>"
+                                    f"<div class='{'bx-name-w' if _hw else 'bx-name-l'}'>{html.escape(_bx_home)}</div>"
+                                    + _chips(_hpass, _hrush, _hto) +
+                                    "</div></div></td>"
+                                    + _qcell(_hq1) + _qcell(_hq2) + _qcell(_hq3) + _qcell(_hq4)
+                                    + (_qcell(_hot) if _has_ot else "")
+                                    + _qcell(_hf, final=True, won=_hw) +
+                                    "</tr>"
+                                    "</tbody></table></div>"
+                                )
+                                _all_cards_html.append(_card)
+
+                            _bx_full_html = """
+<style>
+.bx-card{background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+.bx-meta{font-size:0.65rem;color:#475569;font-weight:700;letter-spacing:.06em;margin-bottom:8px;}
+.bx-table{width:100%;border-collapse:collapse;}
+.bx-th{padding:4px 10px;color:#64748b;font-size:0.68rem;font-weight:600;}
+.bx-th-left{text-align:left;min-width:130px;}
+.bx-th-center{text-align:center;}
+.bx-th-final{text-align:center;border-left:1px solid #1e293b;}
+.bx-row{border-top:1px solid #1e293b;}
+.bx-row-b{border-top:1px solid #0f172a;}
+.bx-team-cell{padding:6px 10px;}
+.bx-team-inner{display:flex;align-items:center;gap:8px;}
+.bx-logo{width:34px;height:34px;object-fit:contain;}
+.bx-name-w{font-weight:900;color:#f1f5f9;font-size:0.85rem;}
+.bx-name-l{font-weight:600;color:#64748b;font-size:0.85rem;}
+.bx-q{padding:4px 10px;text-align:center;color:#94a3b8;font-size:0.8rem;font-weight:500;}
+.bx-q-empty{padding:4px 10px;text-align:center;color:#334155;font-size:0.75rem;}
+.bx-final{padding:4px 10px;text-align:center;font-size:1.05rem;font-weight:900;border-left:1px solid #1e293b;}
+.bx-won{color:#f1f5f9;}
+.bx-lost{color:#475569;}
+.bx-chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;}
+.bx-chip{border-radius:4px;padding:2px 6px;font-size:0.65rem;font-weight:700;}
+.bx-chip-pass{background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.3);color:#93c5fd;}
+.bx-chip-rush{background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#6ee7b7;}
+.bx-chip-to-hot{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;}
+.bx-chip-to-warn{background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);color:#fbbf24;}
+.bx-chip-to-ok{background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);color:#94a3b8;}
+</style>
+""" + "".join(_all_cards_html)
+                            st.markdown(_bx_full_html, unsafe_allow_html=True)
+
+                except FileNotFoundError:
+                    st.info("📋 **game_summaries.csv** not found. Start capturing game summaries via the ISPN Data Importer to populate this tab.")
+                except Exception as _bx_err:
+                    st.error(f"Box Scores error: {_bx_err}")
+
+            with _ctab_yt:
+                st.caption("YouTube-only archive hub. The featured player tries to mirror the current Highest Rated Game of the Season.")
+                _yt_df, _featured_key, _featured_label = _build_archive_context()
+
+                if _yt_df.empty:
+                    st.info("No YouTube archives found yet. Add rows to stream_archive.csv with platform set to YouTube.")
+                else:
+                    _featured_row = None
+                    if _featured_key:
+                        _matches = _yt_df[_yt_df['match_key'].astype(str) == _featured_key]
+                        if not _matches.empty:
+                            _featured_row = _matches.iloc[0]
+                    if _featured_row is None:
+                        _featured_row = _yt_df.iloc[0]
+
+                    _rest_df = _yt_df[_yt_df.index != _featured_row.name].copy()
+                    _ft_team = str(_featured_row.get('user_team','')).strip()
+                    _ft_opp = str(_featured_row.get('opponent','')).strip()
+                    _ft_title = str(_featured_row.get('stream_title','')).strip() or f"{_ft_opp} @ {_ft_team}"
+                    _ft_score = str(_featured_row.get('score_line','')).strip()
+                    _ft_week = _featured_row.get('week', pd.NA)
+                    _ft_season = _featured_row.get('season', pd.NA)
+                    _ft_streamer = str(_featured_row.get('streamer','')).strip()
+                    _ft_url = str(_featured_row.get('url','')).strip()
+
+                    st.markdown("### ▶️ Featured Player")
+                    if _featured_key and str(_featured_row.get('match_key','')) != _featured_key and _featured_label:
+                        st.warning(f"Highest Rated Games of the Season currently points to {_featured_label}, but there is no matching YouTube upload yet. Showing the next available archive instead.")
+                    elif _featured_label:
+                        st.caption(f"Featured to match Highest Rated Games of the Season: {_featured_label}")
+
+                    _render_archive_matchup_header(_ft_team, _ft_opp)
+                    _meta_bits = []
+                    if pd.notna(_ft_season):
+                        _meta_bits.append(f"Season {int(float(_ft_season))}")
+                    if pd.notna(_ft_week):
+                        _meta_bits.append(f"Week {int(float(_ft_week))}")
+                    if _ft_streamer:
+                        _meta_bits.append(f"@{_ft_streamer}")
+                    st.markdown(f"**{_ft_title}**")
+                    if _meta_bits:
+                        st.caption(" • ".join(_meta_bits))
+                    if _ft_score:
+                        st.markdown(f"**Final:** {_ft_score}")
+                    if _ft_url:
+                        st.video(_ft_url)
+
+                    st.markdown("---")
+                    st.markdown("### More Archives")
+                    if _rest_df.empty:
+                        st.info("Only one YouTube archive is loaded so far.")
+                    else:
+                        for _, _row in _rest_df.iterrows():
+                            _team = str(_row.get('user_team','')).strip()
+                            _opp = str(_row.get('opponent','')).strip()
+                            _title = str(_row.get('stream_title','')).strip() or f"{_opp} @ {_team}"
+                            _score = str(_row.get('score_line','')).strip()
+                            _url = str(_row.get('url','')).strip()
+                            _week = _row.get('week', pd.NA)
+                            _season = _row.get('season', pd.NA)
+                            _label_bits = []
+                            if pd.notna(_season):
+                                _label_bits.append(f"Season {int(float(_season))}")
+                            if pd.notna(_week):
+                                _label_bits.append(f"Week {int(float(_week))}")
+                            with st.expander(_title, expanded=False):
+                                _render_archive_matchup_header(_team, _opp)
+                                if _label_bits:
+                                    st.caption(" • ".join(_label_bits))
+                                if _score:
+                                    st.markdown(f"**Final:** {_score}")
+                                if _url:
+                                    st.video(_url)
+
 
 # --- GOAT RANKINGS (Tab 12) ---
 with tabs[13]:
@@ -24725,369 +24847,3 @@ with tabs[6]:
         st.info("📂 Push `cfb26_rosters_full.csv` to your repo to generate NIL valuations.")
     except Exception as _nil_err:
         st.error(f"NIL Board error: {_nil_err}")
-
-
-with tabs[12]:
-        st.header("🎬 ISPN Classics")
-        st.caption(
-            "The most iconic games in dynasty history — ranked by closeness, "
-            "stakes, and upset factor. Margin drives the score; natties, CFP games, "
-            "and big upsets push it higher."
-        )
-
-        _classics_df = build_ispn_classics(scores, ratings)
-
-        if _classics_df.empty:
-            st.info("No game data available yet.")
-        else:
-            # ── Sub-tabs: ALL / UPSETS / CLOSEST / BOX SCORES ────────────────────
-            _ctab_all, _ctab_upsets, _ctab_close, _ctab_box, _ctab_archive = st.tabs(
-                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores", "📼 Dynasty Twitch Streams"])
-
-            def _render_classic_card(row, rank_num):
-                """Render a single broadcast-style game card."""
-                _wc  = get_team_primary_color(str(row['Winner']))
-                _lc  = get_team_primary_color(str(row['Loser']))
-                _wlu = image_file_to_data_uri(get_logo_source(str(row['Winner'])))
-                _llu = image_file_to_data_uri(get_logo_source(str(row['Loser'])))
-                _w_img = (f"<img src='{_wlu}' style='width:40px;height:40px;"
-                          f"object-fit:contain;'/>" if _wlu else "🏈")
-                _l_img = (f"<img src='{_llu}' style='width:40px;height:40px;"
-                          f"object-fit:contain;'/>" if _llu else "🏈")
-
-                _gt = str(row['GameType'])
-                _gt_bg = ("#7c3aed" if 'Championship' in _gt else
-                          "#0369a1" if 'CFP' in _gt else
-                          "#166534" if 'Conf' in _gt else
-                          "#92400e" if 'Bowl' in _gt else "#1e293b")
-                _gt_color = ("#e9d5ff" if 'Championship' in _gt else
-                             "#bfdbfe" if 'CFP' in _gt else
-                             "#bbf7d0" if 'Conf' in _gt else
-                             "#fde68a" if 'Bowl' in _gt else "#94a3b8")
-
-                _upset_badge = ""
-                if row['IsUpset']:
-                    _diff = float(row['OVR_Diff'])
-                    _upset_badge = (
-                        f"<span style='padding:2px 8px;background:#7f1d1d;"
-                        f"color:#fca5a5;font-size:0.62rem;font-weight:800;"
-                        f"border-radius:999px;white-space:nowrap;'>"
-                        f"&#9888; UPSET +{_diff:.1f} OVR</span>"
-                    )
-
-                _margin = int(row['Margin'])
-                _close_label = ("2OT THRILLER" if _margin <= 1 else
-                                "OT WAR" if _margin <= 3 else
-                                "NAIL-BITER" if _margin <= 7 else
-                                "CLOSE CALL" if _margin <= 14 else "")
-                _close_badge = ""
-                if _close_label:
-                    _close_badge = (
-                        f"<span style='padding:2px 8px;background:#1c1917;"
-                        f"color:#fbbf24;font-size:0.62rem;font-weight:800;"
-                        f"border-radius:999px;white-space:nowrap;border:1px solid #78350f;'>"
-                        f"&#128293; {_close_label}</span>"
-                    )
-
-                _rank_str = f"#{rank_num}"
-                _score_str = f"{int(row['WinnerPts'])} &ndash; {int(row['LoserPts'])}"
-                _classic_score = float(row['ClassicScore'])
-
-                st.markdown(
-                    f"<div style='background:linear-gradient(135deg,#0f172a,#111827);"
-                    f"border:1px solid #1e293b;border-radius:14px;"
-                    f"padding:14px 16px;margin-bottom:10px;'>"
-                    f"<div style='display:flex;align-items:center;gap:8px;"
-                    f"flex-wrap:wrap;margin-bottom:10px;'>"
-                    f"<span style='font-size:0.75rem;font-weight:900;color:#475569;"
-                    f"min-width:26px;'>{_rank_str}</span>"
-                    f"<span style='padding:2px 8px;background:{_gt_bg};"
-                    f"color:{_gt_color};font-size:0.62rem;font-weight:700;"
-                    f"border-radius:999px;white-space:nowrap;'>{html.escape(_gt)}</span>"
-                    f"<span style='font-size:0.62rem;color:#475569;'>"
-                    f"{int(row['Year'])}</span>"
-                    f"{_upset_badge}{_close_badge}"
-                    f"<span style='margin-left:auto;font-size:0.65rem;color:#374151;"
-                    f"font-weight:700;'>&#9733; {_classic_score:.0f} pts</span>"
-                    f"</div>"
-                    f"<div style='display:flex;align-items:center;"
-                    f"gap:10px;flex-wrap:wrap;'>"
-                    f"<div style='display:flex;align-items:center;gap:8px;"
-                    f"flex:1;min-width:110px;'>"
-                    f"{_w_img}"
-                    f"<div>"
-                    f"<div style='font-weight:900;color:{_wc};font-size:0.9rem;"
-                    f"line-height:1.1;'>{html.escape(str(row['Winner']))}</div>"
-                    f"<div style='font-size:0.65rem;color:#64748b;'>"
-                    f"{html.escape(str(row['WinnerUser']))}</div>"
-                    f"</div></div>"
-                    f"<div style='text-align:center;min-width:70px;'>"
-                    f"<div style='font-size:1.4rem;font-weight:900;color:#f1f5f9;"
-                    f"letter-spacing:-0.5px;'>{_score_str}</div>"
-                    f"<div style='font-size:0.6rem;color:#475569;'>"
-                    f"&#177;{_margin}</div>"
-                    f"</div>"
-                    f"<div style='display:flex;align-items:center;gap:8px;"
-                    f"flex:1;justify-content:flex-end;min-width:110px;'>"
-                    f"<div style='text-align:right;'>"
-                    f"<div style='font-weight:700;color:{_lc};font-size:0.9rem;"
-                    f"opacity:0.65;line-height:1.1;'>"
-                    f"{html.escape(str(row['Loser']))}</div>"
-                    f"<div style='font-size:0.65rem;color:#64748b;'>"
-                    f"{html.escape(str(row['LoserUser']))}</div>"
-                    f"</div>"
-                    f"{_l_img}"
-                    f"</div></div></div>",
-                    unsafe_allow_html=True
-                )
-
-            with _ctab_all:
-                st.caption("Ranked by Classic Score = closeness + stakes + upset factor.")
-                _top25 = _classics_df.head(25)
-                for _ci, (_idx, _crow) in enumerate(_top25.iterrows(), 1):
-                    _render_classic_card(_crow, _ci)
-
-            with _ctab_upsets:
-                st.caption("Games where the lower-rated team pulled off the W. Ranked by OVR gap.")
-                _upsets = _classics_df[_classics_df['IsUpset']].sort_values(
-                    'OVR_Diff', ascending=False).head(20)
-                if _upsets.empty:
-                    st.info("No upset data detected with current ratings proxy.")
-                else:
-                    for _ci, (_idx, _crow) in enumerate(_upsets.iterrows(), 1):
-                        _render_classic_card(_crow, _ci)
-
-            with _ctab_close:
-                st.caption("The absolute gut-punchers — decided by a single score or less.")
-                _close = _classics_df.sort_values('Margin').head(20)
-                for _ci, (_idx, _crow) in enumerate(_close.iterrows(), 1):
-                    _render_classic_card(_crow, _ci)
-
-            with _ctab_box:
-                st.caption("Quarter-by-quarter box scores from captured game summaries. Import via the ISPN Data Importer.")
-
-                try:
-                    _gs_df = pd.read_csv('game_summaries.csv')
-                    _gs_df.columns = [str(c).strip() for c in _gs_df.columns]
-                    _gs_df = normalize_game_summaries(_gs_df)
-
-                    if _gs_df.empty:
-                        st.info("No game summaries yet. Use the ISPN Data Importer → Game Summary to capture box scores.")
-                    else:
-                        # Normalize column names (handle various schemas)
-                        def _gs_col(candidates):
-                            return next((c for c in candidates if c in _gs_df.columns), None)
-
-                        _gs_year_col = _gs_col(['YEAR', 'Year', 'year'])
-                        _gs_week_col = _gs_col(['Week', 'WEEK', 'week'])
-                        _gs_home_col = _gs_col(['HomeTeam', 'Home', 'HOME', 'Home Team'])
-                        _gs_vis_col  = _gs_col(['VisitorTeam', 'Visitor', 'VISITOR', 'Away', 'Away Team', 'AwayTeam'])
-
-                        # Coerce year/week
-                        if _gs_year_col:
-                            _gs_df[_gs_year_col] = pd.to_numeric(_gs_df[_gs_year_col], errors='coerce')
-                        if _gs_week_col:
-                            _gs_df[_gs_week_col] = pd.to_numeric(_gs_df[_gs_week_col], errors='coerce')
-
-                        # Filters
-                        _box_c1, _box_c2, _box_c3 = st.columns([1, 1, 1])
-                        with _box_c1:
-                            _box_years = sorted(
-                                _gs_df[_gs_year_col].dropna().astype(int).unique().tolist(),
-                                reverse=True
-                            ) if _gs_year_col else [CURRENT_YEAR]
-                            _box_yr_sel = st.selectbox("Season", _box_years, key="box_year_sel",
-                                                        index=0 if _box_years else 0)
-                        with _box_c2:
-                            _gs_yr_filt = _gs_df[_gs_df[_gs_year_col] == int(_box_yr_sel)].copy() if _gs_year_col else _gs_df.copy()
-                            _box_weeks = sorted(
-                                _gs_yr_filt[_gs_week_col].dropna().astype(int).unique().tolist(),
-                                reverse=True
-                            ) if _gs_week_col and not _gs_yr_filt.empty else []
-                            _box_wk_sel = st.selectbox("Week", ["All"] + [str(w) for w in _box_weeks],
-                                                        key="box_week_sel")
-                        with _box_c3:
-                            _box_team_options = ["All Teams"] + sorted(list(USER_TEAMS.values())) if 'USER_TEAMS' in globals() else ["All Teams"]
-                            _box_team_sel = st.selectbox("Team Filter", _box_team_options, key="box_team_sel")
-
-                        # Apply filters
-                        _gs_view = _gs_yr_filt.copy()
-                        if _box_wk_sel != "All" and _gs_week_col:
-                            _gs_view = _gs_view[_gs_view[_gs_week_col] == int(_box_wk_sel)]
-                        if _box_team_sel != "All Teams" and (_gs_home_col or _gs_vis_col):
-                            _home_match = _gs_view[_gs_home_col].astype(str).str.strip() == _box_team_sel if _gs_home_col else pd.Series([False]*len(_gs_view))
-                            _vis_match  = _gs_view[_gs_vis_col].astype(str).str.strip()  == _box_team_sel if _gs_vis_col  else pd.Series([False]*len(_gs_view))
-                            _gs_view = _gs_view[_home_match | _vis_match]
-
-                        if _gs_view.empty:
-                            st.info("No box scores match those filters.")
-                        else:
-                            # Sort by week desc
-                            if _gs_week_col:
-                                _gs_view = _gs_view.sort_values(_gs_week_col, ascending=False)
-
-                            # ── Build all box score cards as ONE html string + style block ──
-                            # (Streamlit sanitizes <table> inside per-call st.markdown;
-                            #  wrapping everything with a <style> block in a single call fixes it)
-                            def _bx_q(row, prefix, q):
-                                for c in [f'Q{q}_{prefix}', f'{prefix}_Q{q}', f'Q{q}{prefix}', f'{prefix}Q{q}']:
-                                    if c in row.index:
-                                        v = pd.to_numeric(row[c], errors='coerce')
-                                        if pd.notna(v): return int(v)
-                                return None
-
-                            def _bx_final(row, cols):
-                                for c in cols:
-                                    if c in row.index:
-                                        v = pd.to_numeric(row[c], errors='coerce')
-                                        if pd.notna(v): return int(v)
-                                return None
-
-                            def _bx_stat(row, cols):
-                                for c in cols:
-                                    if c in row.index:
-                                        v = pd.to_numeric(row[c], errors='coerce')
-                                        if pd.notna(v): return int(v)
-                                return None
-
-                            _all_cards_html = []
-                            for _, _gr in _gs_view.iterrows():
-                                _bx_home = str(_gr.get(_gs_home_col, 'Home')) if _gs_home_col else 'Home'
-                                _bx_vis  = str(_gr.get(_gs_vis_col,  'Visitor')) if _gs_vis_col else 'Visitor'
-                                _bx_wk   = int(_gr.get(_gs_week_col, 0)) if _gs_week_col and pd.notna(_gr.get(_gs_week_col)) else 0
-                                _bx_yr   = int(_gr.get(_gs_year_col, CURRENT_YEAR)) if _gs_year_col and pd.notna(_gr.get(_gs_year_col)) else CURRENT_YEAR
-
-                                _hq1 = _bx_q(_gr,'Home',1); _hq2 = _bx_q(_gr,'Home',2)
-                                _hq3 = _bx_q(_gr,'Home',3); _hq4 = _bx_q(_gr,'Home',4)
-                                _vq1 = _bx_q(_gr,'Visitor',1) or _bx_q(_gr,'Away',1)
-                                _vq2 = _bx_q(_gr,'Visitor',2) or _bx_q(_gr,'Away',2)
-                                _vq3 = _bx_q(_gr,'Visitor',3) or _bx_q(_gr,'Away',3)
-                                _vq4 = _bx_q(_gr,'Visitor',4) or _bx_q(_gr,'Away',4)
-                                _hot = _bx_q(_gr,'Home','OT') or _bx_q(_gr,'Home',5)
-                                _vot = _bx_q(_gr,'Visitor','OT') or _bx_q(_gr,'Away','OT') or _bx_q(_gr,'Visitor',5)
-
-                                _hf = _bx_final(_gr,['FinalScore_Home','Final_Home','HomeScore','H_Pts','FinalHome'])
-                                _vf = _bx_final(_gr,['FinalScore_Visitor','Final_Visitor','VisitorScore','V_Pts','FinalVisitor','AwayScore'])
-                                if _hf is None and any(x is not None for x in [_hq1,_hq2,_hq3,_hq4]):
-                                    _hf = sum(x for x in [_hq1,_hq2,_hq3,_hq4,_hot] if x is not None)
-                                if _vf is None and any(x is not None for x in [_vq1,_vq2,_vq3,_vq4]):
-                                    _vf = sum(x for x in [_vq1,_vq2,_vq3,_vq4,_vot] if x is not None)
-
-                                _hw = bool(_hf is not None and _vf is not None and _hf > _vf)
-                                _vw = bool(_hf is not None and _vf is not None and _vf > _hf)
-
-                                _hc2 = get_team_primary_color(_bx_home)
-                                _vc2 = get_team_primary_color(_bx_vis)
-                                _hlu2 = image_file_to_data_uri(get_logo_source(_bx_home))
-                                _vlu2 = image_file_to_data_uri(get_logo_source(_bx_vis))
-                                _hi2 = "<img src='" + str(_hlu2) + "' class='bx-logo'/>" if _hlu2 else "🏈"
-                                _vi2 = "<img src='" + str(_vlu2) + "' class='bx-logo'/>" if _vlu2 else "🏈"
-
-                                _hpass = _bx_stat(_gr,['PassYds_Home','HomePassYds','H_PassYds'])
-                                _hrush = _bx_stat(_gr,['RushYds_Home','HomeRushYds','H_RushYds'])
-                                _hto   = _bx_stat(_gr,['Turnovers_Home','HomeTurnovers','H_TO'])
-                                _vpass = _bx_stat(_gr,['PassYds_Visitor','VisitorPassYds','V_PassYds','PassYds_Away','AwayPassYds'])
-                                _vrush = _bx_stat(_gr,['RushYds_Visitor','VisitorRushYds','V_RushYds','RushYds_Away','AwayRushYds'])
-                                _vto   = _bx_stat(_gr,['Turnovers_Visitor','VisitorTurnovers','V_TO','Turnovers_Away'])
-
-                                def _chips(p, r, t):
-                                    out = []
-                                    if p: out.append(f"<span class='bx-chip bx-chip-pass'>✈ {p} pass</span>")
-                                    if r: out.append(f"<span class='bx-chip bx-chip-rush'>&#127939; {r} rush</span>")
-                                    if t:
-                                        tc = 'bx-chip-to-hot' if t >= 3 else ('bx-chip-to-warn' if t >= 2 else 'bx-chip-to-ok')
-                                        out.append(f"<span class='bx-chip {tc}'>&#9889; {t} TO</span>")
-                                    return "<div class='bx-chips'>" + "".join(out) + "</div>" if out else ""
-
-                                def _qcell(val, final=False, won=False):
-                                    if val is None:
-                                        return "<td class='bx-q bx-q-empty'>—</td>"
-                                    cls = "bx-final " + ("bx-won" if won else "bx-lost") if final else "bx-q"
-                                    return f"<td class='{cls}'>{val}</td>"
-
-                                _has_ot = (_hot is not None or _vot is not None)
-                                _ot_th = "<th class='bx-th bx-th-center'>OT</th>" if _has_ot else ""
-
-                                _card = (
-                                    "<div class='bx-card'>"
-                                    f"<div class='bx-meta'>{html.escape(str(_bx_yr))} &middot; Wk {_bx_wk}</div>"
-                                    "<table class='bx-table'>"
-                                    "<thead><tr>"
-                                    "<th class='bx-th bx-th-left'>Team</th>"
-                                    "<th class='bx-th bx-th-center'>Q1</th>"
-                                    "<th class='bx-th bx-th-center'>Q2</th>"
-                                    "<th class='bx-th bx-th-center'>Q3</th>"
-                                    "<th class='bx-th bx-th-center'>Q4</th>"
-                                    + _ot_th +
-                                    "<th class='bx-th bx-th-final'>FINAL</th>"
-                                    "</tr></thead>"
-                                    "<tbody>"
-                                    "<tr class='bx-row'>"
-                                    "<td class='bx-team-cell'>"
-                                    "<div class='bx-team-inner'>"
-                                    + _vi2 +
-                                    "<div>"
-                                    f"<div class='{'bx-name-w' if _vw else 'bx-name-l'}'>{html.escape(_bx_vis)}</div>"
-                                    + _chips(_vpass, _vrush, _vto) +
-                                    "</div></div></td>"
-                                    + _qcell(_vq1) + _qcell(_vq2) + _qcell(_vq3) + _qcell(_vq4)
-                                    + (_qcell(_vot) if _has_ot else "")
-                                    + _qcell(_vf, final=True, won=_vw) +
-                                    "</tr>"
-                                    "<tr class='bx-row bx-row-b'>"
-                                    "<td class='bx-team-cell'>"
-                                    "<div class='bx-team-inner'>"
-                                    + _hi2 +
-                                    "<div>"
-                                    f"<div class='{'bx-name-w' if _hw else 'bx-name-l'}'>{html.escape(_bx_home)}</div>"
-                                    + _chips(_hpass, _hrush, _hto) +
-                                    "</div></div></td>"
-                                    + _qcell(_hq1) + _qcell(_hq2) + _qcell(_hq3) + _qcell(_hq4)
-                                    + (_qcell(_hot) if _has_ot else "")
-                                    + _qcell(_hf, final=True, won=_hw) +
-                                    "</tr>"
-                                    "</tbody></table></div>"
-                                )
-                                _all_cards_html.append(_card)
-
-                            _bx_full_html = """
-<style>
-.bx-card{background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;border-radius:12px;padding:14px 16px;margin-bottom:10px;}
-.bx-meta{font-size:0.65rem;color:#475569;font-weight:700;letter-spacing:.06em;margin-bottom:8px;}
-.bx-table{width:100%;border-collapse:collapse;}
-.bx-th{padding:4px 10px;color:#64748b;font-size:0.68rem;font-weight:600;}
-.bx-th-left{text-align:left;min-width:130px;}
-.bx-th-center{text-align:center;}
-.bx-th-final{text-align:center;border-left:1px solid #1e293b;}
-.bx-row{border-top:1px solid #1e293b;}
-.bx-row-b{border-top:1px solid #0f172a;}
-.bx-team-cell{padding:6px 10px;}
-.bx-team-inner{display:flex;align-items:center;gap:8px;}
-.bx-logo{width:34px;height:34px;object-fit:contain;}
-.bx-name-w{font-weight:900;color:#f1f5f9;font-size:0.85rem;}
-.bx-name-l{font-weight:600;color:#64748b;font-size:0.85rem;}
-.bx-q{padding:4px 10px;text-align:center;color:#94a3b8;font-size:0.8rem;font-weight:500;}
-.bx-q-empty{padding:4px 10px;text-align:center;color:#334155;font-size:0.75rem;}
-.bx-final{padding:4px 10px;text-align:center;font-size:1.05rem;font-weight:900;border-left:1px solid #1e293b;}
-.bx-won{color:#f1f5f9;}
-.bx-lost{color:#475569;}
-.bx-chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;}
-.bx-chip{border-radius:4px;padding:2px 6px;font-size:0.65rem;font-weight:700;}
-.bx-chip-pass{background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.3);color:#93c5fd;}
-.bx-chip-rush{background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#6ee7b7;}
-.bx-chip-to-hot{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;}
-.bx-chip-to-warn{background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);color:#fbbf24;}
-.bx-chip-to-ok{background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.2);color:#94a3b8;}
-</style>
-""" + "".join(_all_cards_html)
-                            st.markdown(_bx_full_html, unsafe_allow_html=True)
-
-                except FileNotFoundError:
-                    st.info("📋 **game_summaries.csv** not found. Start capturing game summaries via the ISPN Data Importer to populate this tab.")
-                except Exception as _bx_err:
-                    st.error(f"Box Scores error: {_bx_err}")
-
-            with _ctab_archive:
-                render_stream_archive_tab()
-
-
