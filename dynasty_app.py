@@ -13117,158 +13117,58 @@ with tabs[0]:
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
 
-        # ── QUICK-GLANCE STATUS GRID — tappable on mobile ────────────────────
-        # Styled Streamlit buttons that look like colored squares.
-        # Tap/click a square to toggle that user's status Ready ↔ Not Set.
-        # Writes immediately to week_game_status.csv and reruns.
-
-        # Collect ordered list of (team, user, is_ready) for grid
-        _grid_users = []
+        # ── QUICK-GLANCE STATUS GRID ─────────────────────────────────────────
+        # 6 squares (2 rows × 3 cols), one per user team in power_board order.
+        # Green = READY or FINAL score recorded. Red = NOT SET / no status.
+        _grid_parts = []
         for _, _gr in power_board.iterrows():
-            _gt = str(_gr.get('TEAM', '')).strip()
-            _gu = str(_gr.get('USER', '')).strip()
+            _gt   = str(_gr.get('TEAM', '')).strip()
+            _gu   = str(_gr.get('USER', '')).strip()
             if not _gt or _gu.lower() in ('nan', ''):
                 continue
-            _gm   = _user_matchup.get(_gu)
-            _gs   = _game_status_map.get(_gu, 'Not Set')
+            _gm = _user_matchup.get(_gu)
+            _gs = _game_status_map.get(_gu, 'Not Set')
             _gman = _manual_score_map.get(_gu, {})
+
+            # Determine status
             _has_score = (
                 (isinstance(_gm, dict) and _gm.get('score')) or
                 (_gman.get('user_score', 0) > 0)
             )
             _is_ready = _gs == 'Ready' or _has_score
-            _gl_uri = image_file_to_data_uri(get_logo_source(_gt))
-            _grid_users.append((_gt, _gu, _is_ready, _has_score, _gl_uri))
 
-        if _grid_users:
-            # Inject CSS — style each button by its key to look like a colored square
-            _btn_css_parts = []
-            for _gt, _gu, _is_ready, _has_score, _ in _grid_users:
-                _bg  = '#16a34a' if _is_ready else '#dc2626'
-                _bdr = '#4ade80' if _is_ready else '#f87171'
-                _hover = '#15803d' if _is_ready else '#b91c1c'
-                _key = f"sq_{_gu}"
-                _btn_css_parts.append(f"""
-                div[data-testid="stButton"] > button[kind="secondary"][key="{_key}"],
-                div[data-testid="stButton"]:has(+ * [data-key="{_key}"]) button,
-                [data-testid="column"] button#btn_{_gu} {{
-                    background:{_bg} !important;
-                    border:2px solid {_bdr} !important;
-                    border-radius:10px !important;
-                    color:white !important;
-                    width:72px !important;
-                    height:72px !important;
-                    padding:4px !important;
-                    font-size:0.58rem !important;
-                    font-weight:800 !important;
-                    letter-spacing:.05em !important;
-                    box-shadow:0 2px 8px rgba(0,0,0,.4) !important;
-                    cursor:pointer !important;
-                    transition:opacity 0.15s !important;
-                }}""")
+            _sq_bg  = '#16a34a' if _is_ready else '#dc2626'   # green or red fill
+            _sq_bdr = '#4ade80' if _is_ready else '#f87171'   # lighter border
 
-            # One unified CSS block targeting all 6 button keys
-            _sq_css = "<style>\n"
-            for _gt, _gu, _is_ready, _, _ in _grid_users:
-                _bg  = '#16a34a' if _is_ready else '#dc2626'
-                _bdr = '#4ade80' if _is_ready else '#f87171'
-                _sq_css += f"""
-                [data-testid="stButton"] button[data-testid="baseButton-secondary"]:has(div.sq-{_gu}) {{
-                    background:{_bg} !important;
-                    border:2px solid {_bdr} !important;
-                    border-radius:10px !important;
-                    width:72px !important; height:72px !important;
-                    padding:2px !important;
-                    box-shadow:0 2px 8px rgba(0,0,0,.4) !important;
-                    cursor:pointer !important;
-                }}"""
-            _sq_css += "\n/* Shared square button styles */\n"
-            _sq_css += """
-                div.status-grid-wrap { display:flex; justify-content:center; margin-bottom:12px; }
-                div.status-grid-inner {
-                    display:grid; grid-template-columns:repeat(3,76px);
-                    gap:8px; padding:10px 12px;
-                    background:rgba(255,255,255,0.03);
-                    border:1px solid rgba(255,255,255,0.07);
-                    border-radius:12px;
-                }
-                div.status-grid-inner [data-testid="stButton"] > button {
-                    display:flex !important; flex-direction:column !important;
-                    align-items:center !important; justify-content:center !important;
-                    width:72px !important; height:72px !important;
-                    padding:4px 2px !important; line-height:1.2 !important;
-                    border-radius:10px !important; font-weight:800 !important;
-                    font-size:0.58rem !important; letter-spacing:.05em !important;
-                    text-transform:uppercase !important; color:white !important;
-                    box-shadow:0 2px 8px rgba(0,0,0,.4) !important;
-                    cursor:pointer !important; border:none !important;
-                    transition:opacity .15s, transform .1s !important;
-                }
-                div.status-grid-inner [data-testid="stButton"] > button:active {
-                    transform:scale(0.93) !important; opacity:0.8 !important;
-                }
-            """
-            # Per-button background colors
-            for _gi, (_gt, _gu, _is_ready, _, _gl_uri) in enumerate(_grid_users):
-                _bg  = '#16a34a' if _is_ready else '#dc2626'
-                _bdr = '#4ade80' if _is_ready else '#f87171'
-                _sq_css += f"""
-                div.status-grid-inner div[data-testid="column"]:nth-child({_gi+1}) button {{
-                    background:{_bg} !important; border:2px solid {_bdr} !important;
-                }}"""
-            _sq_css += "\n</style>"
-            st.markdown(_sq_css, unsafe_allow_html=True)
+            _gl_uri  = image_file_to_data_uri(get_logo_source(_gt))
+            _gl_img  = (f"<img src='{_gl_uri}' style='width:32px;height:32px;"
+                        f"object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));'/>") if _gl_uri else (
+                        f"<span style='font-size:1rem;'>🏈</span>")
 
-            # Render grid — outer wrapper div, then 2 rows of 3 columns
-            st.markdown("<div class='status-grid-wrap'><div class='status-grid-inner'>", unsafe_allow_html=True)
-            _col_sets = [_grid_users[i:i+3] for i in range(0, len(_grid_users), 3)]
-            for _col_set in _col_sets:
-                _cols = st.columns(3)
-                for _ci, (_gt, _gu, _is_ready, _has_score, _gl_uri) in enumerate(_col_set):
-                    with _cols[_ci]:
-                        _logo_html = (
-                            f"<img src='{_gl_uri}' "
-                            f"style='width:32px;height:32px;object-fit:contain;"
-                            f"filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));display:block;margin:0 auto 2px;'/>"
-                        ) if _gl_uri else "🏈<br>"
-                        _btn_label = f"{_logo_html}<span style='font-size:0.58rem;font-weight:800;letter-spacing:.05em;'>{_gu.upper()}</span>"
-                        _new_status = 'Not Set' if _is_ready else 'Ready'
-                        if _has_score:
-                            # Score locked — show as static square, no button
-                            _bg  = '#16a34a'
-                            _bdr = '#4ade80'
-                            st.markdown(
-                                f"<div style='display:flex;flex-direction:column;align-items:center;"
-                                f"justify-content:center;gap:3px;width:72px;height:72px;"
-                                f"background:{_bg};border-radius:10px;border:2px solid {_bdr};"
-                                f"box-shadow:0 2px 8px rgba(0,0,0,.4);opacity:0.85;"
-                                f"font-size:0.58rem;font-weight:800;color:white;letter-spacing:.05em;'>"
-                                f"{_logo_html}"
-                                f"<span>{_gu.upper()}</span>"
-                                f"<span style='font-size:0.48rem;opacity:0.7;'>🔒</span>"
-                                f"</div>",
-                                unsafe_allow_html=True
-                            )
-                        elif not _has_score and st.button(
-                            _btn_label,
-                            key=f"sq_{_gu}_{_gs_week}",
-                            use_container_width=False,
-                            help=f"{'✅ READY — tap to unset' if _is_ready else '❌ NOT SET — tap to mark Ready'}",
-                        ):
-                            try:
-                                _wgs = pd.read_csv('week_game_status.csv') if os.path.exists('week_game_status.csv') else pd.DataFrame(columns=['User','Year','Week','Status'])
-                                for _c in ['Year','Week']:
-                                    _wgs[_c] = pd.to_numeric(_wgs.get(_c), errors='coerce').fillna(0).astype(int)
-                                # Remove existing entry for this user/week
-                                _wgs = _wgs[~((_wgs['User']==_gu) & (_wgs['Year']==int(_gs_year)) & (_wgs['Week']==int(_gs_week)))].copy()
-                                # Add new entry
-                                _new_row = pd.DataFrame([{'User':_gu,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_new_status}])
-                                pd.concat([_wgs, _new_row], ignore_index=True).to_csv('week_game_status.csv', index=False)
-                                st.rerun()
-                            except Exception as _e:
-                                st.error(f"Save error: {_e}")
-            st.markdown("</div></div>", unsafe_allow_html=True)
-            st.caption("Tap a square to toggle Ready ↔ Not Set. Squares with a recorded score are locked 🔒.")
+            _grid_parts.append(
+                f"<div style='display:flex;flex-direction:column;align-items:center;"
+                f"justify-content:center;gap:3px;width:68px;height:68px;"
+                f"background:{_sq_bg};border-radius:10px;border:2px solid {_sq_bdr};"
+                f"box-shadow:0 2px 8px rgba(0,0,0,.35);'>"
+                f"{_gl_img}"
+                f"<span style='font-size:0.58rem;font-weight:800;color:rgba(255,255,255,0.85);"
+                f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-transform:uppercase;"
+                f"max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"
+                f"{html.escape(_gu)}</span>"
+                f"</div>"
+            )
+
+        if _grid_parts:
+            st.markdown(
+                f"<div style='display:flex;justify-content:center;margin-bottom:16px;'>"
+                f"<div style='display:grid;grid-template-columns:repeat(3,68px);gap:8px;"
+                f"padding:12px 14px;"
+                f"background:rgba(255,255,255,0.03);"
+                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;'>"
+                + "".join(_grid_parts) +
+                f"</div></div>",
+                unsafe_allow_html=True
+            )
 
         # 5. Render the Cards
         for idx, row in power_board.iterrows():
