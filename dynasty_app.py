@@ -15298,8 +15298,6 @@ with tabs[0]:
                     <div style='background:linear-gradient(135deg,rgba(15,23,42,0.98),rgba(8,15,28,0.98));
                                 border:1px solid #1e293b;border-radius:12px;padding:12px 14px;
                                 margin-bottom:8px;'>
-
-                      <!-- Top row: rank medal + badge + week + viewers -->
                       <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;'>
                         <div style='display:flex;align-items:center;gap:8px;'>
                           <span style='font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:{_rk_color};line-height:1;'>{_rk_disp}</span>
@@ -15313,42 +15311,32 @@ with tabs[0]:
                           <div style='font-size:0.55rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>viewers</div>
                         </div>
                       </div>
-
-                      <!-- Matchup row: vis team — score — home team -->
                       <div style='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;'>
-                        <!-- Visitor -->
                         <div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;'>
                           {_vl_html}
                           <div style='min-width:0;'>
-                            <div style='font-size:0.82rem;font-weight:800;color:{_vc};white-space:nowrap;
-                                        overflow:hidden;text-overflow:ellipsis;'>{_vr_label}{html.escape(_vis_team)}{_utag_c(_vis_user)}</div>
+                            <div style='font-size:0.82rem;font-weight:800;color:{_vc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{_vr_label}{html.escape(_vis_team)}{_utag_c(_vis_user)}</div>
                             <div style='font-size:0.6rem;color:#475569;'>Away</div>
                           </div>
                         </div>
-                        <!-- Score -->
                         <div style='text-align:center;flex-shrink:0;padding:0 6px;'>
                           <div style='display:flex;align-items:center;gap:4px;'>
                             <span style='{_vis_bold}font-family:"Bebas Neue",sans-serif;font-size:1.5rem;line-height:1;'>{_vis_score}</span>
-                            <span style='color:#334155;font-weight:900;font-size:1rem;'>–</span>
+                            <span style='color:#334155;font-weight:900;font-size:1rem;'>-</span>
                             <span style='{_home_bold}font-family:"Bebas Neue",sans-serif;font-size:1.5rem;line-height:1;'>{_home_score}</span>
                           </div>
                           <div style='font-size:0.55rem;color:#334155;text-transform:uppercase;letter-spacing:.06em;margin-top:1px;'>FINAL</div>
                         </div>
-                        <!-- Home -->
                         <div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;justify-content:flex-end;'>
                           <div style='min-width:0;text-align:right;'>
-                            <div style='font-size:0.82rem;font-weight:800;color:{_hc};white-space:nowrap;
-                                        overflow:hidden;text-overflow:ellipsis;'>{_hr_label}{html.escape(_home_team)}{_utag_c(_home_user)}</div>
+                            <div style='font-size:0.82rem;font-weight:800;color:{_hc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{_hr_label}{html.escape(_home_team)}{_utag_c(_home_user)}</div>
                             <div style='font-size:0.6rem;color:#475569;'>Home</div>
                           </div>
                           {_hl_html}
                         </div>
                       </div>
-
-                      <!-- Peak moment -->
-                      <div style='border-top:1px solid #0f172a;padding-top:7px;
-                                  font-size:0.72rem;color:#64748b;font-style:italic;'>
-                        📡 {_resolved_peak}
+                      <div style='border-top:1px solid #0f172a;padding-top:7px;font-size:0.72rem;color:#64748b;font-style:italic;'>
+                        {_resolved_peak}
                       </div>
                     </div>""")
 
