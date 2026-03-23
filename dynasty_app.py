@@ -13107,6 +13107,57 @@ with tabs[0]:
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
 
+        # ── QUICK-GLANCE STATUS GRID ─────────────────────────────────────────
+        # 6 squares (2 rows × 3 cols), one per user team in power_board order.
+        # Green = READY or FINAL score recorded. Red = NOT SET / no status.
+        _grid_parts = []
+        for _, _gr in power_board.iterrows():
+            _gt   = str(_gr.get('TEAM', '')).strip()
+            _gu   = str(_gr.get('USER', '')).strip()
+            if not _gt or _gu.lower() in ('nan', ''):
+                continue
+            _gm = _user_matchup.get(_gu)
+            _gs = _game_status_map.get(_gu, 'Not Set')
+            _gman = _manual_score_map.get(_gu, {})
+
+            # Determine status
+            _has_score = (
+                (isinstance(_gm, dict) and _gm.get('score')) or
+                (_gman.get('user_score', 0) > 0)
+            )
+            _is_ready = _gs == 'Ready' or _has_score
+
+            _sq_bg  = '#16a34a' if _is_ready else '#dc2626'   # green or red fill
+            _sq_bdr = '#4ade80' if _is_ready else '#f87171'   # lighter border
+
+            _gl_uri  = image_file_to_data_uri(get_logo_source(_gt))
+            _gl_img  = (f"<img src='{_gl_uri}' style='width:32px;height:32px;"
+                        f"object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));'/>") if _gl_uri else (
+                        f"<span style='font-size:1rem;'>🏈</span>")
+
+            _grid_parts.append(
+                f"<div style='display:flex;flex-direction:column;align-items:center;"
+                f"justify-content:center;gap:3px;width:68px;height:68px;"
+                f"background:{_sq_bg};border-radius:10px;border:2px solid {_sq_bdr};"
+                f"box-shadow:0 2px 8px rgba(0,0,0,.35);'>"
+                f"{_gl_img}"
+                f"<span style='font-size:0.58rem;font-weight:800;color:rgba(255,255,255,0.85);"
+                f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-transform:uppercase;"
+                f"max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"
+                f"{html.escape(_gu)}</span>"
+                f"</div>"
+            )
+
+        if _grid_parts:
+            st.markdown(
+                f"<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"
+                f"padding:12px 14px;background:rgba(255,255,255,0.03);"
+                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;'>"
+                + "".join(_grid_parts) +
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
         # 5. Render the Cards
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
