@@ -8680,6 +8680,61 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     return f"{favored} -{spread_str}", favored, diff
 
 
+def normalize_game_summaries(df):
+    """
+    Normalize game_summaries.csv column names from watcher format to app format.
+
+    The watcher writes: VISITOR, HOME, VIS_FINAL, HOME_FINAL, VIS_Q1..VIS_Q4,
+    HOME_Q1..HOME_Q4, VIS_OT, HOME_OT, VIS_PASS_YDS, HOME_PASS_YDS,
+    VIS_RUSH_YDS, HOME_RUSH_YDS, VIS_TURNOVERS, HOME_TURNOVERS, etc.
+
+    The app's candidate lookup lists expect the names in the right-hand column below.
+    Calling this once after read_csv makes all lookups work without touching them.
+    """
+    if df is None or df.empty:
+        return df
+    rename_map = {
+        # Team names
+        'VISITOR':          'Visitor',
+        'HOME':             'Home',
+        # Final scores
+        'VIS_FINAL':        'VisitorScore',
+        'HOME_FINAL':       'HomeScore',
+        # Quarter scores — visitor
+        'VIS_Q1':           'Q1_Visitor',
+        'VIS_Q2':           'Q2_Visitor',
+        'VIS_Q3':           'Q3_Visitor',
+        'VIS_Q4':           'Q4_Visitor',
+        'VIS_OT':           'Visitor_OT',
+        # Quarter scores — home
+        'HOME_Q1':          'Q1_Home',
+        'HOME_Q2':          'Q2_Home',
+        'HOME_Q3':          'Q3_Home',
+        'HOME_Q4':          'Q4_Home',
+        'HOME_OT':          'Home_OT',
+        # Passing yards
+        'VIS_PASS_YDS':     'PassYds_Visitor',
+        'HOME_PASS_YDS':    'PassYds_Home',
+        # Rushing yards
+        'VIS_RUSH_YDS':     'RushYds_Visitor',
+        'HOME_RUSH_YDS':    'RushYds_Home',
+        # Turnovers
+        'VIS_TURNOVERS':    'Turnovers_Visitor',
+        'HOME_TURNOVERS':   'Turnovers_Home',
+        # User columns
+        'VIS_USER':         'Vis_User',
+        'HOME_USER':        'Home_User',
+        # Ranks
+        'VIS_RANK':         'Visitor Rank',
+        'HOME_RANK':        'Home Rank',
+    }
+    # Only rename columns that actually exist — safe for any schema variant
+    actual_renames = {k: v for k, v in rename_map.items() if k in df.columns and v not in df.columns}
+    if actual_renames:
+        df = df.rename(columns=actual_renames)
+    return df
+
+
 def load_team_ratings(year=None):
     """
     Load team ratings from team_ratings.csv.
@@ -13030,7 +13085,7 @@ with tabs[0]:
 
             tc = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
-            logo_html = f"<img src='{logo_uri}' style='width:38px;height:38px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
+            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
 
             qb_tier = row.get('QB Tier', '—')
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
@@ -14397,6 +14452,7 @@ with tabs[0]:
             try:
                 _gs_hl = pd.read_csv('game_summaries.csv')
                 _gs_hl.columns = [str(c).strip() for c in _gs_hl.columns]
+                _gs_hl = normalize_game_summaries(_gs_hl)
 
                 def _gsh_col(candidates):
                     return next((c for c in candidates if c in _gs_hl.columns), None)
@@ -14878,6 +14934,7 @@ with tabs[0]:
                 try:
                     _gs_pm = pd.read_csv('game_summaries.csv')
                     _gs_pm.columns = [str(c).strip() for c in _gs_pm.columns]
+                    _gs_pm = normalize_game_summaries(_gs_pm)
                     _pm_yr_c = next((c for c in _gs_pm.columns if c.upper() in ['YEAR','YR']), None)
                     _pm_wk_c = next((c for c in _gs_pm.columns if c.upper() == 'WEEK'), None)
                     _pm_hm_c = next((c for c in _gs_pm.columns if c.upper() in ['HOMETEAM','HOME']), None)
@@ -15110,6 +15167,7 @@ with tabs[0]:
                 try:
                     _gs_raw = pd.read_csv('game_summaries.csv')
                     _gs_raw.columns = [str(c).strip() for c in _gs_raw.columns]
+                    _gs_raw = normalize_game_summaries(_gs_raw)
 
                     def _gs_find_col(candidates):
                         return next((c for c in candidates if c in _gs_raw.columns), None)
@@ -19451,6 +19509,7 @@ with tabs[12]:
                 try:
                     _gs_df = pd.read_csv('game_summaries.csv')
                     _gs_df.columns = [str(c).strip() for c in _gs_df.columns]
+                    _gs_df = normalize_game_summaries(_gs_df)
 
                     if _gs_df.empty:
                         st.info("No game summaries yet. Use the ISPN Data Importer → Game Summary to capture box scores.")
