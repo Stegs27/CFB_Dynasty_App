@@ -13145,10 +13145,6 @@ with tabs[0]:
 
             official_badge, defending_badge, card_glow, bw_style = "", "", "", ""
             card_opacity = "1.0"
-            _is_ready_or_final = (
-                _u_status == 'Ready' or
-                (isinstance(_u_matchup, dict) and _u_matchup.get('score'))
-            )
 
             if is_defending_champ:
                 defending_badge = f"<span style='display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#fbbf24;color:#78350f;border:1px solid #78350f;'>🛡️ DEFENDING CHAMP</span>"
@@ -13359,6 +13355,11 @@ with tabs[0]:
             _nat_cfp_color   = _odds_tier_color(live_cfp)
 
             # Green outline when READY or game is FINAL
+            _is_ready_or_final = (
+                _u_status == 'Ready' or
+                (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
+                bool(_manual_score_map.get(user, {}).get('user_score', 0))
+            )
             _ready_outline = "box-shadow:0 0 0 2px #4ade80; " if _is_ready_or_final and not bw_style else ""
 
             card_html = (
