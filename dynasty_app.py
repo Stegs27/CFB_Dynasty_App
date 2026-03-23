@@ -13150,9 +13150,11 @@ with tabs[0]:
 
         if _grid_parts:
             st.markdown(
-                f"<div style='display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"
-                f"padding:12px 14px;background:rgba(255,255,255,0.03);"
-                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;'>"
+                f"<div style='display:grid;grid-template-columns:repeat(3,68px);gap:8px;"
+                f"margin-bottom:16px;padding:12px 14px;"
+                f"background:rgba(255,255,255,0.03);"
+                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
+                f"width:fit-content;'>"
                 + "".join(_grid_parts) +
                 f"</div>",
                 unsafe_allow_html=True
