@@ -19717,6 +19717,134 @@ with tabs[10]:
         st.markdown("### Schedule & Results")
         _sched = _schedule_df(target, int(selected_year))
         _render_coach_schedule_snapshot_table(_sched)
+
+def parse_stream_archive_row(row):
+    def _clean(v, fallback=""):
+        if pd.isna(v):
+            return fallback
+        s = str(v).strip()
+        return s if s and s.lower() not in {"nan", "none", "<na>"} else fallback
+
+    platform = _clean(row.get("platform", row.get("Platform", "Twitch")), "Twitch")
+    url = _clean(row.get("url", row.get("URL", "")), "")
+    stream_title = _clean(row.get("stream_title", row.get("StreamTitle", row.get("title", row.get("Title", "Untitled Stream")))), "Untitled Stream")
+    season = _clean(row.get("season", row.get("Season", "")), "")
+    week = _clean(row.get("week", row.get("Week", "")), "")
+    user_team = _clean(row.get("user_team", row.get("UserTeam", row.get("team", row.get("Team", "")))), "")
+    opponent = _clean(row.get("opponent", row.get("Opponent", "")), "")
+    result = _clean(row.get("result", row.get("Result", "")), "")
+    score = _clean(row.get("score", row.get("Score", "")), "")
+    notes = _clean(row.get("notes", row.get("Notes", "")), "")
+    streamer = _clean(row.get("streamer", row.get("Streamer", "")), "")
+    game_label = _clean(row.get("game_label", row.get("GameLabel", "")), "")
+    archive_type = _clean(row.get("archive_type", row.get("ArchiveType", "Full Archive")), "Full Archive")
+    date_val = _clean(row.get("date", row.get("Date", "")), "")
+
+    date_label = ""
+    if date_val:
+        try:
+            parsed = pd.to_datetime(date_val, errors="coerce")
+            if pd.notna(parsed):
+                date_label = parsed.strftime("%b %d, %Y")
+            else:
+                date_label = date_val
+        except Exception:
+            date_label = date_val
+
+    meta_bits = []
+    if season:
+        meta_bits.append(f"Season {season}")
+    if week:
+        meta_bits.append(f"Week {week}")
+    if user_team and opponent:
+        meta_bits.append(f"{user_team} vs {opponent}")
+    elif game_label:
+        meta_bits.append(game_label)
+    elif user_team:
+        meta_bits.append(user_team)
+    if result and score:
+        meta_bits.append(f"{result} ({score})")
+    elif result:
+        meta_bits.append(result)
+    if date_label:
+        meta_bits.append(date_label)
+
+    return {
+        "platform": platform,
+        "url": url,
+        "stream_title": stream_title,
+        "season": season,
+        "week": week,
+        "user_team": user_team,
+        "opponent": opponent,
+        "result": result,
+        "score": score,
+        "notes": notes,
+        "streamer": streamer,
+        "game_label": game_label,
+        "archive_type": archive_type,
+        "date_label": date_label,
+        "meta_line": " • ".join([m for m in meta_bits if m])
+    }
+
+
+def load_stream_archive_data():
+    archive_path = "stream_archive.csv"
+    default_rows = [{
+        "date": "",
+        "season": "",
+        "week": "",
+        "user_team": "Bowling Green",
+        "opponent": "Penn State",
+        "stream_title": "#4 Bowling Green vs #14 Penn State",
+        "platform": "Twitch",
+        "url": "https://www.twitch.tv/dboyer1321/v/2727978402?sr=a",
+        "result": "",
+        "score": "",
+        "notes": "Devin archive seed entry.",
+        "streamer": "dboyer1321",
+        "archive_type": "Full Archive"
+    }]
+
+    desired_cols = [
+        "date", "season", "week", "user_team", "opponent", "stream_title",
+        "platform", "url", "result", "score", "notes", "streamer",
+        "archive_type"
+    ]
+
+    if os.path.exists(archive_path):
+        try:
+            archive_df = pd.read_csv(archive_path)
+        except Exception:
+            archive_df = pd.DataFrame(default_rows)
+    else:
+        archive_df = pd.DataFrame(default_rows)
+        archive_df.to_csv(archive_path, index=False)
+
+    for col in desired_cols:
+        if col not in archive_df.columns:
+            archive_df[col] = ""
+
+    archive_df = archive_df[desired_cols].copy()
+
+    if archive_df.empty:
+        archive_df = pd.DataFrame(default_rows)
+
+    if archive_df["url"].astype(str).str.strip().eq("").all():
+        archive_df = pd.concat([pd.DataFrame(default_rows), archive_df], ignore_index=True)
+
+    try:
+        archive_df["_sort_date"] = pd.to_datetime(archive_df["date"], errors="coerce")
+        archive_df = archive_df.sort_values(["_sort_date", "season", "week", "stream_title"], ascending=[False, False, False, True], na_position="last")
+        archive_df = archive_df.drop(columns=["_sort_date"], errors="ignore")
+    except Exception:
+        pass
+
+    archive_df = archive_df.drop_duplicates(subset=["url", "stream_title"], keep="first").reset_index(drop=True)
+    return archive_df
+
+
+
 def render_stream_archive_tab():
     st.caption("Archived dynasty broadcasts. This tab is CSV-driven through stream_archive.csv, so you can keep adding Twitch or YouTube VODs without hardcoding them.")
 
@@ -24695,132 +24823,5 @@ with tabs[12]:
 
             with _ctab_archive:
                 render_stream_archive_tab()
-
-
-
-def parse_stream_archive_row(row):
-    def _clean(v, fallback=""):
-        if pd.isna(v):
-            return fallback
-        s = str(v).strip()
-        return s if s and s.lower() not in {"nan", "none", "<na>"} else fallback
-
-    platform = _clean(row.get("platform", row.get("Platform", "Twitch")), "Twitch")
-    url = _clean(row.get("url", row.get("URL", "")), "")
-    stream_title = _clean(row.get("stream_title", row.get("StreamTitle", row.get("title", row.get("Title", "Untitled Stream")))), "Untitled Stream")
-    season = _clean(row.get("season", row.get("Season", "")), "")
-    week = _clean(row.get("week", row.get("Week", "")), "")
-    user_team = _clean(row.get("user_team", row.get("UserTeam", row.get("team", row.get("Team", "")))), "")
-    opponent = _clean(row.get("opponent", row.get("Opponent", "")), "")
-    result = _clean(row.get("result", row.get("Result", "")), "")
-    score = _clean(row.get("score", row.get("Score", "")), "")
-    notes = _clean(row.get("notes", row.get("Notes", "")), "")
-    streamer = _clean(row.get("streamer", row.get("Streamer", "")), "")
-    game_label = _clean(row.get("game_label", row.get("GameLabel", "")), "")
-    archive_type = _clean(row.get("archive_type", row.get("ArchiveType", "Full Archive")), "Full Archive")
-    date_val = _clean(row.get("date", row.get("Date", "")), "")
-
-    date_label = ""
-    if date_val:
-        try:
-            parsed = pd.to_datetime(date_val, errors="coerce")
-            if pd.notna(parsed):
-                date_label = parsed.strftime("%b %d, %Y")
-            else:
-                date_label = date_val
-        except Exception:
-            date_label = date_val
-
-    meta_bits = []
-    if season:
-        meta_bits.append(f"Season {season}")
-    if week:
-        meta_bits.append(f"Week {week}")
-    if user_team and opponent:
-        meta_bits.append(f"{user_team} vs {opponent}")
-    elif game_label:
-        meta_bits.append(game_label)
-    elif user_team:
-        meta_bits.append(user_team)
-    if result and score:
-        meta_bits.append(f"{result} ({score})")
-    elif result:
-        meta_bits.append(result)
-    if date_label:
-        meta_bits.append(date_label)
-
-    return {
-        "platform": platform,
-        "url": url,
-        "stream_title": stream_title,
-        "season": season,
-        "week": week,
-        "user_team": user_team,
-        "opponent": opponent,
-        "result": result,
-        "score": score,
-        "notes": notes,
-        "streamer": streamer,
-        "game_label": game_label,
-        "archive_type": archive_type,
-        "date_label": date_label,
-        "meta_line": " • ".join([m for m in meta_bits if m])
-    }
-
-
-def load_stream_archive_data():
-    archive_path = "stream_archive.csv"
-    default_rows = [{
-        "date": "",
-        "season": "",
-        "week": "",
-        "user_team": "Bowling Green",
-        "opponent": "Penn State",
-        "stream_title": "#4 Bowling Green vs #14 Penn State",
-        "platform": "Twitch",
-        "url": "https://www.twitch.tv/dboyer1321/v/2727978402?sr=a",
-        "result": "",
-        "score": "",
-        "notes": "Devin archive seed entry.",
-        "streamer": "dboyer1321",
-        "archive_type": "Full Archive"
-    }]
-
-    desired_cols = [
-        "date", "season", "week", "user_team", "opponent", "stream_title",
-        "platform", "url", "result", "score", "notes", "streamer",
-        "archive_type"
-    ]
-
-    if os.path.exists(archive_path):
-        try:
-            archive_df = pd.read_csv(archive_path)
-        except Exception:
-            archive_df = pd.DataFrame(default_rows)
-    else:
-        archive_df = pd.DataFrame(default_rows)
-        archive_df.to_csv(archive_path, index=False)
-
-    for col in desired_cols:
-        if col not in archive_df.columns:
-            archive_df[col] = ""
-
-    archive_df = archive_df[desired_cols].copy()
-
-    if archive_df.empty:
-        archive_df = pd.DataFrame(default_rows)
-
-    if archive_df["url"].astype(str).str.strip().eq("").all():
-        archive_df = pd.concat([pd.DataFrame(default_rows), archive_df], ignore_index=True)
-
-    try:
-        archive_df["_sort_date"] = pd.to_datetime(archive_df["date"], errors="coerce")
-        archive_df = archive_df.sort_values(["_sort_date", "season", "week", "stream_title"], ascending=[False, False, False, True], na_position="last")
-        archive_df = archive_df.drop(columns=["_sort_date"], errors="ignore")
-    except Exception:
-        pass
-
-    archive_df = archive_df.drop_duplicates(subset=["url", "stream_title"], keep="first").reset_index(drop=True)
-    return archive_df
 
 
