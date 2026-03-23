@@ -13147,25 +13147,31 @@ with tabs[0]:
 
             _grid_parts.append(
                 f"<div style='display:flex;flex-direction:column;align-items:center;"
-                f"justify-content:center;gap:3px;width:68px;height:68px;"
-                f"background:{_sq_bg};border-radius:10px;border:2px solid {_sq_bdr};"
-                f"box-shadow:0 2px 8px rgba(0,0,0,.35);'>"
+                f"justify-content:center;gap:4px;width:100%;aspect-ratio:1/1;"
+                f"background:{_sq_bg};border-radius:12px;border:2px solid {_sq_bdr};"
+                f"box-shadow:0 2px 8px rgba(0,0,0,.35);padding:4px;box-sizing:border-box;'>"
                 f"{_gl_img}"
-                f"<span style='font-size:0.58rem;font-weight:800;color:rgba(255,255,255,0.85);"
+                f"<span style='font-size:0.7rem;font-weight:800;color:rgba(255,255,255,0.9);"
                 f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-transform:uppercase;"
-                f"max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"
+                f"width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"
                 f"{html.escape(_gu)}</span>"
                 f"</div>"
             )
 
         if _grid_parts:
+            # Also update logo size to fill the larger squares
+            _grid_parts_resized = []
+            for _p in _grid_parts:
+                _grid_parts_resized.append(
+                    _p.replace('width:32px;height:32px;', 'width:44px;height:44px;')
+                )
             st.markdown(
-                f"<div style='display:flex;justify-content:center;margin-bottom:16px;'>"
-                f"<div style='display:grid;grid-template-columns:repeat(3,68px);gap:8px;"
-                f"padding:12px 14px;"
+                f"<div style='margin-bottom:16px;'>"
+                f"<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"
+                f"padding:10px;max-width:480px;margin:0 auto;"
                 f"background:rgba(255,255,255,0.03);"
                 f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;'>"
-                + "".join(_grid_parts) +
+                + "".join(_grid_parts_resized) +
                 f"</div></div>",
                 unsafe_allow_html=True
             )
