@@ -13150,13 +13150,13 @@ with tabs[0]:
 
         if _grid_parts:
             st.markdown(
+                f"<div style='display:flex;justify-content:center;margin-bottom:16px;'>"
                 f"<div style='display:grid;grid-template-columns:repeat(3,68px);gap:8px;"
-                f"margin-bottom:16px;padding:12px 14px;"
+                f"padding:12px 14px;"
                 f"background:rgba(255,255,255,0.03);"
-                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
-                f"width:fit-content;'>"
+                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;'>"
                 + "".join(_grid_parts) +
-                f"</div>",
+                f"</div></div>",
                 unsafe_allow_html=True
             )
 
