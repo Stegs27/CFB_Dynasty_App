@@ -13152,52 +13152,55 @@ with tabs[0]:
             # Helper: build opponent logo + rank chip
             def _opp_logo_html(opp_name):
                 _ol_uri = image_file_to_data_uri(get_logo_source(str(opp_name).strip()))
-                _ol_img = f"<img src='{_ol_uri}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _ol_uri else ""
+                _ol_img = f"<img src='{_ol_uri}' style='width:32px;height:32px;object-fit:contain;vertical-align:middle;'/>" if _ol_uri else ""
                 _ol_rank = official_rank_map.get(str(opp_name).strip())
                 _ol_rank_html = ""
                 if _ol_rank and str(_ol_rank) != 'nan':
                     try:
                         _r_int = int(float(_ol_rank))
                         _r_color = '#fbbf24' if _r_int <= 4 else '#60a5fa'
-                        _ol_rank_html = f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.7rem;color:{_r_color};vertical-align:middle;'>#{_r_int}</span>"
+                        _ol_rank_html = f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.85rem;color:{_r_color};vertical-align:middle;'>#{_r_int} </span>"
                     except Exception:
                         pass
                 return f"<span style='display:inline-flex;align-items:center;gap:3px;'>{_ol_rank_html}{_ol_img}</span>"
 
+            _chip_style   = "font-weight:700;padding:3px 10px;border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.92rem;letter-spacing:0.07em;"
+            _score_style  = "font-weight:900;font-size:1.05rem;font-family:Barlow Condensed,sans-serif;"
+            _ha_style     = "font-size:0.88rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#64748b;"
+
             if _u_matchup == 'BYE':
-                _game_line = "<span style='color:#475569;font-size:0.75rem;'>BYE WEEK</span>"
-                _status_chip = "<span style='background:#1e293b;color:#475569;border:1px solid #334155;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.78rem;letter-spacing:0.07em;'>BYE</span>"
+                _game_line   = f"<span style='color:#475569;font-size:0.9rem;'>BYE WEEK</span>"
+                _status_chip = f"<span style='background:#1e293b;color:#475569;border:1px solid #334155;{_chip_style}'>BYE</span>"
             elif _u_matchup == 'UNSCHEDULED' or _u_matchup is None:
-                _game_line = "<span style='color:#334155;font-size:0.75rem;'>Schedule pending</span>"
+                _game_line   = f"<span style='color:#334155;font-size:0.88rem;'>Schedule pending</span>"
                 if _u_status == 'Ready':
-                    _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+                    _status_chip = f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                 else:
-                    _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
+                    _status_chip = f"<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;{_chip_style}'>NOT SET</span>"
             else:
-                _ha_disp = "<span style='color:#475569;font-size:0.65rem;font-family:Barlow Condensed,sans-serif;'>vs</span>" if _u_matchup.get('home') else "<span style='color:#475569;font-size:0.65rem;font-family:Barlow Condensed,sans-serif;'>@</span>"
+                _ha_disp = f"<span style='{_ha_style}'>vs</span>" if _u_matchup.get('home') else f"<span style='{_ha_style}'>@</span>"
                 _opp_str = str(_u_matchup.get('opp', '?'))
                 _opp_chip = _opp_logo_html(_opp_str)
                 if _u_matchup.get('score'):
                     _res = _u_matchup['result']
                     _res_color = '#4ade80' if _res == 'W' else '#f87171'
-                    _game_line = f"{_ha_disp} {_opp_chip} <span style='color:{_res_color};font-weight:800;font-size:0.78rem;font-family:Barlow Condensed,sans-serif;'>{_res} {_u_matchup['score']}</span>"
-                    _status_chip = "<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>FINAL</span>"
+                    _game_line   = f"{_ha_disp} {_opp_chip} <span style='color:{_res_color};{_score_style}'>{_res} {_u_matchup['score']}</span>"
+                    _status_chip = f"<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;{_chip_style}'>FINAL</span>"
                 else:
-                    # Check manual scores as pre-CSV fallback
                     _man = _manual_score_map.get(user, {})
                     _man_us = _man.get('user_score', 0)
                     _man_os = _man.get('opp_score', 0)
                     if _man_us > 0 or _man_os > 0:
                         _man_res = 'W' if _man_us > _man_os else ('L' if _man_os > _man_us else 'TIE')
                         _man_rc  = '#4ade80' if _man_res == 'W' else ('#f87171' if _man_res == 'L' else '#94a3b8')
-                        _game_line = f"{_ha_disp} {_opp_chip} <span style='color:{_man_rc};font-weight:800;font-size:0.78rem;font-family:Barlow Condensed,sans-serif;'>{_man_res} {_man_us}–{_man_os}</span>"
-                        _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+                        _game_line   = f"{_ha_disp} {_opp_chip} <span style='color:{_man_rc};{_score_style}'>{_man_res} {_man_us}–{_man_os}</span>"
+                        _status_chip = f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                     else:
                         _game_line = f"{_ha_disp} {_opp_chip}"
                         if _u_status == 'Ready':
-                            _status_chip = "<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>✓ READY</span>"
+                            _status_chip = f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                         else:
-                            _status_chip = "<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:0.65rem;font-weight:700;padding:1px 7px;border-radius:4px;font-family:Barlow Condensed,sans-serif;letter-spacing:0.07em;'>NOT SET</span>"
+                            _status_chip = f"<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;{_chip_style}'>NOT SET</span>"
 
             # ── Betting line from CFP ratings ─────────────────────────────
             _line_html = ""
@@ -13210,22 +13213,58 @@ with tabs[0]:
                 if _bl_result and _bl_result != "Pick'em":
                     _bl_str, _bl_fav, _bl_diff = _bl_result if len(_bl_result) == 3 else (_bl_result[0], _bl_result[1], 0)
                     if _bl_str and _bl_str != "Pick'em":
-                        _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.65rem;"
+                        _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.72rem;"
                                       f"color:#64748b;margin-left:4px;'>LINE: "
                                       f"<strong style='color:#a78bfa;'>{html.escape(_bl_str)}</strong></span>")
                 elif _bl_result == "Pick'em" or (_bl_result and _bl_result[0] == "Pick'em"):
-                    _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.65rem;"
+                    _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.72rem;"
                                   f"color:#64748b;margin-left:4px;'>LINE: <strong style='color:#94a3b8;'>Pick'em</strong></span>")
 
             _game_strip = (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;"
                 f"border-top:1px solid rgba(255,255,255,0.09);flex-wrap:wrap;'>"
-                f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.85rem;color:#334155;"
+                f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.92rem;color:#475569;"
                 f"letter-spacing:0.08em;'>WK {_gs_week}</span>"
                 f"{_status_chip} {_game_line}"
                 f"{_line_html}"
                 f"</div>"
             )
+
+            # ── Convert national odds % to ratio format ────────────────────
+            def _pct_to_odds(pct):
+                """3.1% → '31:1', 18.5% → '4:1', 50%+ → 'Even' or '2:1' etc."""
+                try:
+                    p = float(pct)
+                    if p <= 0: return '∞'
+                    if p >= 50: return 'Even'
+                    ratio = round((100.0 / p) - 1.0)
+                    if ratio <= 1: return '1:1'
+                    return f'{int(ratio)}:1'
+                except Exception:
+                    return '—'
+
+            def _odds_tier_color(pct):
+                try:
+                    p = float(pct)
+                    if p >= 20: return '#4ade80'
+                    if p >= 10: return '#fbbf24'
+                    if p >= 4:  return '#f97316'
+                    return '#64748b'
+                except Exception:
+                    return '#64748b'
+
+            def _pct_to_pre_odds(pct):
+                """Preseason 6-team odds: keep as % since it's within-group."""
+                try:
+                    p = float(pct)
+                    return f"{p:.1f}%"
+                except Exception:
+                    return '—'
+
+            _nat_natty_odds = _pct_to_odds(live_natty)
+            _nat_cfp_odds   = _pct_to_odds(live_cfp)
+            _nat_natty_color = _odds_tier_color(live_natty)
+            _nat_cfp_color   = _odds_tier_color(live_cfp)
 
             card_html = (
                 f"<div style='display:flex; align-items:center; background:linear-gradient(90deg,{tc}18,#1f2937 60%); "
@@ -13240,12 +13279,12 @@ with tabs[0]:
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
                 f"{_pi_line}"
-                f"<span style='font-size:0.75rem; color:#94a3b8; font-weight:600;'>📋 Preseason</span> "
-                f"<span style='font-size:0.65rem; color:#475569; font-style:italic;'>(6-team roster model)</span><br>"
-                f"<span style='font-size:0.82rem; color:#d1d5db;'>🏆 Natty: <strong style='color:white;'>{round(float(natty),1)}%</strong> &nbsp; CFP: <strong style='color:white;'>{round(float(cfp_pct),1)}%</strong></span><br>"
-                f"<span style='font-size:0.75rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 National</span> "
-                f"<span style='font-size:0.65rem; color:#475569; font-style:italic;'>(136-team live field)</span><br>"
-                f"<span style='font-size:0.82rem; color:#d1d5db;'>🏆 Natty: <strong style='color:#22c55e;'>{round(float(live_natty),1)}%</strong> &nbsp; CFP: <strong style='color:#60a5fa;'>{round(float(live_cfp),1)}%</strong></span>"
+                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 Preseason</span> "
+                f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(6-team)</span><br>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP {_pct_to_pre_odds(cfp_pct)}</span><br>"
+                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 National</span> "
+                f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> natty &nbsp; CFP <strong style='color:{_nat_cfp_color};'>{_nat_cfp_odds}</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
                 f"</div></div>"
             )
