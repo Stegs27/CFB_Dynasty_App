@@ -19771,6 +19771,48 @@ def parse_stream_archive_row(row):
     if date_label:
         meta_bits.append(date_label)
 
+    score_display = score
+    if score and user_team and opponent:
+        try:
+            parts = str(score).split("-")
+            if len(parts) == 2:
+                left = int(float(str(parts[0]).strip()))
+                right = int(float(str(parts[1]).strip()))
+                if result == "W":
+                    if left > right:
+                        user_pts, opp_pts = left, right
+                    elif right > left:
+                        user_pts, opp_pts = right, left
+                    else:
+                        user_pts, opp_pts = left, right
+                elif result == "L":
+                    if left < right:
+                        user_pts, opp_pts = left, right
+                    elif right < left:
+                        user_pts, opp_pts = right, left
+                    else:
+                        user_pts, opp_pts = left, right
+                else:
+                    user_pts, opp_pts = right, left
+                score_display = f"{user_team} {user_pts}, {opponent} {opp_pts}"
+        except Exception:
+            score_display = score
+
+    embed_url = ""
+    raw_url = url.lower()
+    if "youtube.com/watch?v=" in raw_url:
+        try:
+            video_id = raw_url.split("watch?v=", 1)[1].split("&", 1)[0]
+            embed_url = f"https://www.youtube.com/embed/{video_id}"
+        except Exception:
+            embed_url = ""
+    elif "youtu.be/" in raw_url:
+        try:
+            video_id = raw_url.split("youtu.be/", 1)[1].split("?", 1)[0].split("&", 1)[0]
+            embed_url = f"https://www.youtube.com/embed/{video_id}"
+        except Exception:
+            embed_url = ""
+
     return {
         "platform": platform,
         "url": url,
@@ -19781,12 +19823,14 @@ def parse_stream_archive_row(row):
         "opponent": opponent,
         "result": result,
         "score": score,
+        "score_display": score_display,
         "notes": notes,
         "streamer": streamer,
         "game_label": game_label,
         "archive_type": archive_type,
         "date_label": date_label,
-        "meta_line": " • ".join([m for m in meta_bits if m])
+        "meta_line": " • ".join([m for m in meta_bits if m]),
+        "embed_url": embed_url,
     }
 
 
@@ -20082,18 +20126,29 @@ def render_stream_archive_tab():
     for _, row in view_df.iterrows():
         item = parse_stream_archive_row(row)
         logo_html = get_school_logo_html(item["user_team"], width=48, margin="0") if item["user_team"] else ""
+        opp_logo_html = get_school_logo_html(item["opponent"], width=48, margin="0") if item["opponent"] else ""
         opponent_color = get_team_primary_color(item["opponent"]) if item["opponent"] else "#f8fafc"
         team_color = get_team_primary_color(item["user_team"]) if item["user_team"] else "#f8fafc"
         link_html = f"<a href='{html.escape(item['url'])}' target='_blank' style='display:inline-block; margin-top:10px; padding:8px 12px; border-radius:999px; background:#7c3aed; color:white; font-weight:800; text-decoration:none;'>Open Archive</a>" if item["url"] else ""
         notes_html = f"<div style='font-size:0.8rem; color:#94a3b8; margin-top:8px;'>{html.escape(item['notes'])}</div>" if item["notes"] else ""
         streamer_badge = f"<span style='padding:3px 9px; background:rgba(124,58,237,0.16); border:1px solid rgba(124,58,237,0.35); color:#ddd6fe; border-radius:999px; font-size:0.68rem; font-weight:800;'>@{html.escape(item['streamer'])}</span>" if item["streamer"] else ""
         type_badge = f"<span style='padding:3px 9px; background:rgba(148,163,184,0.10); border:1px solid rgba(148,163,184,0.25); color:#cbd5e1; border-radius:999px; font-size:0.68rem; font-weight:800;'>{html.escape(item['archive_type'])}</span>" if item["archive_type"] else ""
+        score_chip = ""
+        if item["result"] or item["score_display"]:
+            score_text = html.escape(item["result"]) if item["result"] else ""
+            if item["score_display"]:
+                score_text = f"{score_text} • {html.escape(item['score_display'])}" if score_text else html.escape(item["score_display"])
+            score_chip = f"<div style='margin-top:8px; font-size:0.84rem; font-weight:800; color:#e2e8f0;'>{score_text}</div>"
 
         st.markdown(
             f"""
             <div style='background:linear-gradient(135deg,#0f172a,#111827); border:1px solid #1e293b; border-radius:14px; padding:14px 16px; margin-bottom:10px;'>
                 <div style='display:flex; align-items:flex-start; gap:12px;'>
-                    <div style='min-width:52px; display:flex; justify-content:center;'>{logo_html}</div>
+                    <div style='min-width:120px; display:flex; align-items:center; justify-content:center; gap:10px;'>
+                        <div style='display:flex; justify-content:center;'>{logo_html}</div>
+                        <div style='color:#64748b; font-weight:900; font-size:0.8rem;'>vs</div>
+                        <div style='display:flex; justify-content:center;'>{opp_logo_html}</div>
+                    </div>
                     <div style='flex:1;'>
                         <div style='display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;'>
                             <span style='padding:3px 9px; background:rgba(34,197,94,0.14); border:1px solid rgba(34,197,94,0.28); color:#bbf7d0; border-radius:999px; font-size:0.68rem; font-weight:800;'>{html.escape(item['platform'])}</span>
@@ -20103,6 +20158,7 @@ def render_stream_archive_tab():
                         <div style='font-size:1.02rem; font-weight:900; color:#f8fafc; line-height:1.2;'>{html.escape(item['stream_title'])}</div>
                         <div style='font-size:0.82rem; color:#94a3b8; margin-top:6px;'>{html.escape(item['meta_line'])}</div>
                         <div style='font-size:0.88rem; color:#e2e8f0; margin-top:8px;'><span style='color:{team_color}; font-weight:900;'>{html.escape(item['user_team'])}</span>{' <span style="color:#64748b;">vs</span> ' if item['user_team'] and item['opponent'] else ''}<span style='color:{opponent_color}; font-weight:900;'>{html.escape(item['opponent'])}</span></div>
+                        {score_chip}
                         {notes_html}
                         {link_html}
                     </div>
@@ -20111,6 +20167,8 @@ def render_stream_archive_tab():
             """,
             unsafe_allow_html=True,
         )
+        if item["embed_url"]:
+            st.video(item["url"])
 
 # --- GOAT RANKINGS (Tab 12) ---
 with tabs[13]:
