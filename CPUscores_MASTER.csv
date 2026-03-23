@@ -3,9 +3,11 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2025,,Rapid City,Hammond,51.0,29.0,No,Mike,Devin,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2025,,Panama City,Alabaster,36.0,31.0,No,Josh,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2025,,Gate City,Hammond,35.0,56.0,No,Nick,Devin,,,,,No,No,Yes,NO,FINAL,Merged from scores.csv (user-v-user history)
+2025,,Hammond,Rapid City,7.0,41.0,No,Devin,Mike,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2026,,Alabaster,Panama City,52.0,38.0,No,Noah,Josh,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2026,,Gate City,Death Valley,56.0,21.0,No,Nick,Doug,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2026,,Hammond,Rapid City,42.0,41.0,No,Devin,Mike,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2026,,Death Valley,Gate City,35.0,55.0,no,Doug,Nick,,,,,no,Yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2027,,Death Valley,Hammond,21.0,42.0,No,Doug,Devin,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2027,,Nebraska,Rapid City,13.0,31.0,No,Nick,Mike,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2027,,Panama City,Alabaster,35.0,56.0,No,Josh,Noah,,,,,no,yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -27,6 +29,7 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2030,,Nebraska,Panama City,42.0,28.0,No,Nick,Josh,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2030,,Rapid City,Alabaster,27.0,31.0,Yes,Mike,Noah,,,,,No,No,No,YES,FINAL,Merged from scores.csv (user-v-user history)
 2030,,Rapid City,Nebraska,45.0,28.0,Yes,Mike,Nick,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2030,,Alabaster,Death Valley,42.0,56.0,No,Noah,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2031,,Alabaster,Rapid City,66.0,84.0,Yes,Noah,Mike,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2031,,Hammond,Alabaster,65.0,56.0,No,Devin,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2031,,Hammond,Rapid City,52.0,73.0,No,Devin,Mike,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -34,6 +37,7 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2031,,Panama City,Nebraska,49.0,42.0,No,Josh,Nick,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2031,,Panama City,Death Valley,28.0,23.0,No,Josh,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2031,,Panama City,Rapid City,45.0,32.0,Yes,Josh,Mike,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Nebraska,Panama city,42.0,21.0,No,Nick,Josh,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Alabaster,Nebraska,38.0,35.0,yes,Noah,Nick,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Alabaster,Panama City,37.0,40.0,No,Noah,Josh,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Death Valley,Hammond,24.0,35.0,No,Doug,Devin,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -78,6 +82,9 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2037,,Nebraska,Death Valley,34.0,65.0,yes,Nick,Doug,,,,,no,no,no,YES,FINAL,Merged from scores.csv (user-v-user history)
 2037,,Wyoming,Alabaster,27.0,28.0,yes,Mike,Noah,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2037,,Wyoming,Bowling Green,52.0,28.0,no,Mike,Devin,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2037,,Georgia,Nebraska,14.0,9.0,no,Josh,Nick,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2037,,Alabaster,Georgia,24.0,27.0,yes,Noah,Josh,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2037,,Georgia,Nebraska,40.0,52.0,yes,Josh,Nick,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2038,,Nebraska,Alabaster,42.0,45.0,no,Nick,Noah,,,,,no,yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2038,,Bowling Green,Death Valley,43.0,36.0,no,Devin,Doug,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2038,,Death Valley,Georgia,35.0,65.0,no,Doug,Josh,,,,,no,yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -85,11 +92,13 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2038,,Nebraska,Wyoming,27.0,31.0,no,Nick,Mike,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2038,,Wyoming,Alabaster,42.0,41.0,yes,Mike,Noah,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2038,,Wyoming,Georgia,27.0,59.0,yes,Mike,Josh,,,,,no,no,no,YES,FINAL,Merged from scores.csv (user-v-user history)
+2038,,Alabaster,Nebraska,38.0,14.0,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2039,,Death Valley,Bowling Green,21.0,63.0,no,Doug,Devin,,,,,no,yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2039,,Death Valley,Georgia,28.0,55.0,yes,Doug,Josh,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2039,,Death Valley,Nebraska,35.0,21.0,yes,Doug,Nick,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2039,,Georgia,Wyoming,42.0,35.0,yes,Josh,Mike,,,,,no,no,no,YES,FINAL,Merged from scores.csv (user-v-user history)
 2039,,Texas Tech,Nebraska,35.0,38.0,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2039,,Bowling Green,Death Valley,35.0,14.0,no,Devin,Doug,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2040,,Bowling Green,Wyoming,24.0,59.0,yes,Devin,Mike,,,,,no,no,no,YES,FINAL,Merged from scores.csv (user-v-user history)
 2040,,Florida State,Bowling Green,28.0,49.0,no,Nick,Devin,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2040,,Texas Tech,Wyoming,44.0,69.0,no,Noah,Mike,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -175,6 +184,7 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2041,19.0,Clemson,Florida State,31.0,34.0,Yes,,Nick,5.0,1.0,,,0,0,0,0,FINAL,CFP bracket screenshot
 2041,19.0,USF,Texas Tech,28.0,42.0,Yes,Josh,Noah,11.0,2.0,,,0,0,0,0,FINAL,CFP bracket screenshot
 2041,20.0,Texas Tech,Florida State,35.0,28.0,Yes,Noah,Nick,2.0,1.0,,,0,0,0,Yes,FINAL,CFP bracket screenshot
+2041,,Texas Tech,San Jose State,70.0,43.0,no,Noah,Mike,,,,,no,yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2042,1.0,Miami,Bowling Green,28.0,56.0,,,Devin,21.0,4.0,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1.0,Washington,Florida,21.0,56.0,,,Doug,25.0,18.0,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1.0,North Carolina,Florida State,35.0,56.0,,,Nick,,1.0,,,1,0,0,0,FINAL,2042 custom schedule screenshots
