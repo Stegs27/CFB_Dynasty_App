@@ -13226,7 +13226,6 @@ with tabs[0]:
                 _cols = st.columns(3)
                 for _ci, (_gt, _gu, _is_ready, _has_score, _gl_uri) in enumerate(_col_set):
                     with _cols[_ci]:
-                        # Button label: logo image (as base64 in HTML) + username
                         _logo_html = (
                             f"<img src='{_gl_uri}' "
                             f"style='width:32px;height:32px;object-fit:contain;"
@@ -13234,13 +13233,27 @@ with tabs[0]:
                         ) if _gl_uri else "🏈<br>"
                         _btn_label = f"{_logo_html}<span style='font-size:0.58rem;font-weight:800;letter-spacing:.05em;'>{_gu.upper()}</span>"
                         _new_status = 'Not Set' if _is_ready else 'Ready'
-                        if st.button(
+                        if _has_score:
+                            # Score locked — show as static square, no button
+                            _bg  = '#16a34a'
+                            _bdr = '#4ade80'
+                            st.markdown(
+                                f"<div style='display:flex;flex-direction:column;align-items:center;"
+                                f"justify-content:center;gap:3px;width:72px;height:72px;"
+                                f"background:{_bg};border-radius:10px;border:2px solid {_bdr};"
+                                f"box-shadow:0 2px 8px rgba(0,0,0,.4);opacity:0.85;"
+                                f"font-size:0.58rem;font-weight:800;color:white;letter-spacing:.05em;'>"
+                                f"{_logo_html}"
+                                f"<span>{_gu.upper()}</span>"
+                                f"<span style='font-size:0.48rem;opacity:0.7;'>🔒</span>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+                        elif not _has_score and st.button(
                             _btn_label,
                             key=f"sq_{_gu}_{_gs_week}",
                             use_container_width=False,
-                            disabled=_has_score,  # can't un-ready if score exists
-                            help=f"{'✅ READY — tap to unset' if _is_ready else '❌ NOT SET — tap to mark Ready'}"
-                                 + (" (score locked)" if _has_score else ""),
+                            help=f"{'✅ READY — tap to unset' if _is_ready else '❌ NOT SET — tap to mark Ready'}",
                         ):
                             try:
                                 _wgs = pd.read_csv('week_game_status.csv') if os.path.exists('week_game_status.csv') else pd.DataFrame(columns=['User','Year','Week','Status'])
