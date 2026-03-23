@@ -6,7 +6,6 @@ import numpy as np
 import os
 import io
 import re
-import urllib.parse
 import textwrap
 import html
 import time
@@ -19719,331 +19718,361 @@ with tabs[10]:
         _sched = _schedule_df(target, int(selected_year))
         _render_coach_schedule_snapshot_table(_sched)
 
-# --- Dynasty YouTube Archive Helpers ---
-def _safe_read_csv_any(paths):
-    for _p in paths:
-        try:
-            if os.path.exists(_p):
-                return pd.read_csv(_p)
-        except Exception:
-            pass
+
+# ──────────────────────────────────────────────────────────────────────
+# DYNASTY YOUTUBE ARCHIVES — HELPERS
+# ──────────────────────────────────────────────────────────────────────
+def _norm_team_name(val):
+    return str(val).strip().lower()
+
+def _youtube_video_id(url):
+    try:
+        from urllib.parse import urlparse, parse_qs
+        if not url:
+            return None
+        s = str(url).strip()
+        if not s:
+            return None
+        parsed = urlparse(s)
+        host = (parsed.netloc or "").lower()
+        path = parsed.path or ""
+        if "youtu.be" in host:
+            vid = path.strip("/").split("/")[0]
+            return vid or None
+        if "youtube.com" in host:
+            if path.startswith("/watch"):
+                vid = parse_qs(parsed.query).get("v", [None])[0]
+                return vid
+            if path.startswith("/live/") or path.startswith("/shorts/") or path.startswith("/embed/"):
+                parts = [x for x in path.split("/") if x]
+                if len(parts) >= 2:
+                    return parts[1]
+        m = re.search(r'([A-Za-z0-9_-]{11})', s)
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
+def _youtube_watch_url(url):
+    vid = _youtube_video_id(url)
+    return f"https://www.youtube.com/watch?v={vid}" if vid else None
+
+def _youtube_embed_html(url, height=540):
+    vid = _youtube_video_id(url)
+    if not vid:
+        return None
+    return f"""
+    <div style="width:100%; margin:0 auto 8px auto;">
+      <iframe
+        width="100%"
+        height="{height}"
+        src="https://www.youtube.com/embed/{vid}"
+        title="YouTube video player"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        style="border-radius:18px; overflow:hidden;">
+      </iframe>
+    </div>
+    """
+
+def load_stream_archive_data():
+    cols = ["date","season","week","user_team","opponent","stream_title","platform","url","result","score","notes","streamer","archive_type"]
+    path = "stream_archive.csv"
+    if not os.path.exists(path):
+        seed = pd.DataFrame([
+            {"date":"", "season":2042, "week":2, "user_team":"San Jose State", "opponent":"Texas",
+             "stream_title":"San Jose State vs Texas", "platform":"YouTube",
+             "url":"https://www.youtube.com/live/glconpZrLJs?si=qQRvBAp_GerMuN3F",
+             "result":"", "score":"", "notes":"Highest rated game of the year test archive.", "streamer":"dboyer1321", "archive_type":"Featured Archive"},
+            {"date":"", "season":2042, "week":2, "user_team":"Florida State", "opponent":"Nebraska",
+             "stream_title":"Florida State vs Nebraska", "platform":"YouTube",
+             "url":"https://www.youtube.com/live/DOpTSVbnDzM?si=CBwLwudro48xTThr",
+             "result":"", "score":"", "notes":"Secondary archive card test entry.", "streamer":"doug3ass", "archive_type":"YouTube Card Test"},
+        ], columns=cols)
+        seed.to_csv(path, index=False)
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        return pd.DataFrame(columns=cols)
+    for c in cols:
+        if c not in df.columns:
+            df[c] = ""
+    df = df[cols].copy()
+    return df
+
+def _load_cpu_scores_for_archives():
+    for name in ["CPUscores_MASTER.csv", "CPUscores_MASTER (3).csv", "CPUscores_MASTER (2).csv", "CPUscores_MASTER (1).csv"]:
+        if os.path.exists(name):
+            try:
+                _df = pd.read_csv(name)
+                _df.columns = [str(c).strip() for c in _df.columns]
+                return _df
+            except Exception:
+                pass
     return pd.DataFrame()
 
+def _load_game_summaries_for_archives():
+    if os.path.exists("game_summaries.csv"):
+        try:
+            _df = pd.read_csv("game_summaries.csv")
+            _df.columns = [str(c).strip() for c in _df.columns]
+            return _df
+        except Exception:
+            return pd.DataFrame()
+    return pd.DataFrame()
 
-def _load_youtube_archive_df():
-    _archive_paths = ['stream_archive.csv', 'dynasty_youtube_archives.csv']
-    _df = _safe_read_csv_any(_archive_paths)
-    if _df.empty:
-        return _df
-
-    _df.columns = [str(c).strip() for c in _df.columns]
-    for _col in ['date','season','week','user_team','opponent','stream_title','platform','url','result','score','notes','streamer','archive_type']:
-        if _col not in _df.columns:
-            _df[_col] = ''
-
-    _df['platform'] = _df['platform'].astype(str).str.strip()
-    _df = _df[_df['platform'].str.lower().eq('youtube')].copy()
-    if _df.empty:
-        return _df
-
-    _df['season'] = pd.to_numeric(_df['season'], errors='coerce')
-    _df['week'] = pd.to_numeric(_df['week'], errors='coerce')
-    _df['user_team'] = _df['user_team'].astype(str).str.strip()
-    _df['opponent'] = _df['opponent'].astype(str).str.strip()
-    _df['stream_title'] = _df['stream_title'].astype(str).str.strip()
-    _df['url'] = _df['url'].astype(str).str.strip()
-    _df['streamer'] = _df['streamer'].astype(str).str.strip()
-    _df['archive_type'] = _df['archive_type'].astype(str).str.strip()
-    _df['team_key'] = _df['user_team'].str.lower() + '|' + _df['opponent'].str.lower()
-    return _df
-
-
-def _load_scores_master_for_archive():
-    _score_paths = ['CPUscores_MASTER.csv', 'CPUscores_MASTER (3).csv', 'CPUscores_MASTER (2).csv']
-    _scores = _safe_read_csv_any(_score_paths)
-    if _scores.empty:
-        return _scores
-
-    _scores.columns = [str(c).strip() for c in _scores.columns]
-    for _col in ['YEAR','Week','Visitor','Home','Vis Score','Home Score','Visitor Rank','Home Rank','Vis_User','Home_User','Status']:
-        if _col not in _scores.columns:
-            _scores[_col] = pd.NA
-
-    for _col in ['YEAR','Week','Vis Score','Home Score','Visitor Rank','Home Rank']:
-        _scores[_col] = pd.to_numeric(_scores[_col], errors='coerce')
-
-    if 'Status' in _scores.columns:
-        _scores = _scores[_scores['Status'].astype(str).str.upper().eq('FINAL')].copy()
-
-    _scores['Visitor'] = _scores['Visitor'].astype(str).str.strip()
-    _scores['Home'] = _scores['Home'].astype(str).str.strip()
-    _scores['Vis_User'] = _scores['Vis_User'].astype(str).str.strip().str.title()
-    _scores['Home_User'] = _scores['Home_User'].astype(str).str.strip().str.title()
-    return _scores
-
-
-def _tv_rating_for_archive(row):
-    try:
-        vs = float(row.get('Vis Score', 0) or 0)
-        hs = float(row.get('Home Score', 0) or 0)
-    except Exception:
-        vs, hs = 0.0, 0.0
-    vr = float(row.get('Visitor Rank')) if not pd.isna(row.get('Visitor Rank')) else 99.0
-    hr = float(row.get('Home Rank')) if not pd.isna(row.get('Home Rank')) else 99.0
-    margin = abs(vs - hs)
-    total_pts = vs + hs
-    vis_user = str(row.get('Vis_User', '')).strip()
-    home_user = str(row.get('Home_User', '')).strip()
-    is_user_game = (vis_user in USER_TEAMS) or (home_user in USER_TEAMS)
-    is_h2h = (vis_user in USER_TEAMS) and (home_user in USER_TEAMS)
-    week = float(row.get('Week', 0) or 0)
-    is_playoff = week >= 16
-    is_conf_title = str(row.get('Conf Title', '0')).strip() in ('1', 'Yes', 'yes')
-    is_natty = str(row.get('Natty Game', '0')).strip().upper() in ('1', 'YES')
-
-    top_rank = min(vr, hr)
-    both_ranked = vr <= 25 and hr <= 25
-    base = 2.0
-    if top_rank <= 5:
-        base += 6.5
-    elif top_rank <= 10:
-        base += 4.5
-    elif top_rank <= 15:
-        base += 2.8
-    elif top_rank <= 25:
-        base += 1.5
-    if both_ranked:
-        base += 2.5
-
-    if margin <= 3:
-        base += 3.5
-    elif margin <= 7:
-        base += 2.0
-    elif margin <= 14:
-        base += 0.8
-
-    if total_pts >= 100:
-        base += 1.5
-    elif total_pts >= 80:
-        base += 0.8
-
-    if is_natty:
-        base += 5.0
-    elif is_playoff:
-        base += 3.2
-    elif is_conf_title:
-        base += 2.0
-    if is_h2h:
-        base += 2.5
-    elif is_user_game:
-        base += 1.2
-
-    if week >= 12:
-        base += 1.0
-    elif week >= 8:
-        base += 0.4
-
-    winner_rank = vr if vs > hs else hr
-    loser_rank = hr if vs > hs else vr
-    is_upset = (loser_rank <= 10 and winner_rank > loser_rank + 5)
-    if is_upset:
-        base += 2.0
-    return round(base, 2)
-
-
-def _build_archive_context():
-    _archive_df = _load_youtube_archive_df()
-    _scores = _load_scores_master_for_archive()
-    _featured_key = ''
-    _featured_label = ''
-    _current_max_week = 0
-
-    if not _scores.empty:
-        _score_years = _scores['YEAR'].dropna().astype(int)
-        _target_year = int(_score_years.max()) if not _score_years.empty else CURRENT_YEAR
-        _cy = _scores[_scores['YEAR'] == _target_year].copy()
-        if not _cy.empty:
-            try:
-                _current_max_week = int(pd.to_numeric(_cy['Week'], errors='coerce').dropna().max())
-            except Exception:
-                _current_max_week = 0
-            _cy['tv_rating'] = _cy.apply(_tv_rating_for_archive, axis=1)
-            _cy = _cy.sort_values(['tv_rating','Week'], ascending=[False, True]).reset_index(drop=True)
-            if not _cy.empty:
-                _top = _cy.iloc[0]
-                _featured_key = f"{str(_top.get('Home','')).strip().lower()}|{str(_top.get('Visitor','')).strip().lower()}"
-                _featured_label = f"{str(_top.get('Visitor','')).strip()} @ {str(_top.get('Home','')).strip()}"
-
-        if not _archive_df.empty:
-            _ctx = []
-            for _idx, _r in _archive_df.iterrows():
-                _team = str(_r.get('user_team','')).strip()
-                _opp = str(_r.get('opponent','')).strip()
-                _season = _r.get('season', pd.NA)
-                _week = _r.get('week', pd.NA)
-                _match = _scores[
-                    (_scores['Home'].astype(str).str.lower() == _team.lower()) &
-                    (_scores['Visitor'].astype(str).str.lower() == _opp.lower())
-                ].copy()
-                if pd.notna(_season):
-                    _match = _match[_match['YEAR'] == int(_season)]
-                if pd.notna(_week):
-                    _match = _match[_match['Week'] == int(_week)]
-                if _match.empty:
-                    _match = _scores[
-                        (_scores['Home'].astype(str).str.lower() == _team.lower()) &
-                        (_scores['Visitor'].astype(str).str.lower() == _opp.lower())
-                    ].copy()
-                if _match.empty:
-                    _match = _scores[
-                        (_scores['Home'].astype(str).str.lower() == _opp.lower()) &
-                        (_scores['Visitor'].astype(str).str.lower() == _team.lower())
-                    ].copy()
-                if not _match.empty:
-                    _m = _match.sort_values(['YEAR','Week'], ascending=[False, True]).iloc[0]
-                    _archive_df.at[_idx, 'season'] = int(_m.get('YEAR')) if not pd.isna(_m.get('YEAR')) else _archive_df.at[_idx, 'season']
-                    _archive_df.at[_idx, 'week'] = int(_m.get('Week')) if not pd.isna(_m.get('Week')) else _archive_df.at[_idx, 'week']
-                    _home = str(_m.get('Home','')).strip()
-                    _vis = str(_m.get('Visitor','')).strip()
-                    _hs = int(float(_m.get('Home Score', 0) or 0))
-                    _vs = int(float(_m.get('Vis Score', 0) or 0))
-                    _archive_df.at[_idx, 'score_line'] = f"{_home} {_hs}, {_vis} {_vs}"
-                    _archive_df.at[_idx, 'result'] = 'W' if _home.lower() == _team.lower() and _hs > _vs else ('L' if _home.lower() == _team.lower() else ('W' if _vs > _hs else 'L'))
-                    _archive_df.at[_idx, 'match_key'] = f"{_home.lower()}|{_vis.lower()}"
-                    _archive_df.at[_idx, 'rating_order'] = float(_tv_rating_for_archive(_m))
-                    _archive_df.at[_idx, 'game_type'] = str(_m.get('Game Type', _m.get('GameType', '')) or '').strip()
-                else:
-                    _archive_df.at[_idx, 'score_line'] = ''
-                    _archive_df.at[_idx, 'match_key'] = f"{_team.lower()}|{_opp.lower()}"
-                    _archive_df.at[_idx, 'rating_order'] = -1.0
-                    _archive_df.at[_idx, 'game_type'] = str(_archive_df.at[_idx, 'archive_type'] if 'archive_type' in _archive_df.columns else '')
-
-            _archive_df['season_sort'] = pd.to_numeric(_archive_df['season'], errors='coerce').fillna(0)
-            _archive_df['week_sort'] = pd.to_numeric(_archive_df['week'], errors='coerce').fillna(999)
-            _archive_df = _archive_df.sort_values(['rating_order','season_sort','week_sort','stream_title'], ascending=[False, False, True, True]).reset_index(drop=True)
-
-    return _archive_df, _featured_key, _featured_label, _current_max_week
-
-
-def _archive_is_playoff_game(row):
-    _game_type = str(row.get('game_type', '') or '').lower()
-    _title = str(row.get('stream_title', '') or '').lower()
-    _archive_type = str(row.get('archive_type', '') or '').lower()
-    _notes = str(row.get('notes', '') or '').lower()
-    _text = ' '.join([_game_type, _title, _archive_type, _notes])
-    _playoff_terms = ['cfp', 'playoff', 'semifinal', 'semi-final', 'quarterfinal', 'quarter-final', 'national championship', 'title game']
-    return any(_term in _text for _term in _playoff_terms)
-
-
-def _choose_featured_archive_row(_yt_df, _featured_key='', _current_max_week=0):
-    if _yt_df is None or _yt_df.empty:
-        return None, False
-    _playoffs_started = False
-    try:
-        _playoffs_started = int(_current_max_week or 0) >= 16
-    except Exception:
-        _playoffs_started = False
-    _playoff_df = _yt_df[_yt_df.apply(_archive_is_playoff_game, axis=1)].copy()
-    if _playoffs_started and not _playoff_df.empty:
-        _playoff_df = _playoff_df.sort_values(['rating_order', 'season_sort', 'week_sort', 'stream_title'], ascending=[False, False, True, True])
-        return _playoff_df.iloc[0], True
-    if _featured_key:
-        _matches = _yt_df[_yt_df['match_key'].astype(str) == _featured_key]
-        if not _matches.empty:
-            return _matches.iloc[0], False
-    return _yt_df.iloc[0], False
-
-
-
-def _render_archive_matchup_header(team_a, team_b):
-    _a_uri = image_file_to_data_uri(get_logo_source(team_a)) if team_a else ''
-    _b_uri = image_file_to_data_uri(get_logo_source(team_b)) if team_b else ''
-    _a_img = f"<img src='{_a_uri}' style='width:72px;height:72px;object-fit:contain;'/>" if _a_uri else "<div style='font-size:3rem;'>🏈</div>"
-    _b_img = f"<img src='{_b_uri}' style='width:72px;height:72px;object-fit:contain;'/>" if _b_uri else "<div style='font-size:3rem;'>🏈</div>"
-    st.markdown(
-        f"<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;margin:6px auto 18px auto;text-align:center;width:100%;'>"
-        f"<div style='display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;width:100%;margin:0 auto;'>"
-        f"{_a_img}<span style='font-size:2.3rem;color:#475569;font-weight:900;line-height:1;'>vs</span>{_b_img}"
-        f"</div>"
-        f"<div style='font-size:1.5rem;font-weight:900;color:#f8fafc;line-height:1.15;'>{html.escape(team_a)} vs {html.escape(team_b)}</div>"
-        f"</div>",
-        unsafe_allow_html=True,
+def _find_matching_game_row(row, scores_df):
+    if scores_df is None or scores_df.empty:
+        return None
+    u = _norm_team_name(row.get("user_team", ""))
+    o = _norm_team_name(row.get("opponent", ""))
+    if not u or not o:
+        return None
+    df = scores_df.copy()
+    for col in ["Visitor","Home"]:
+        if col not in df.columns:
+            return None
+        df[col] = df[col].astype(str).str.strip()
+    mask = (
+        ((df["Visitor"].str.lower() == u) & (df["Home"].str.lower() == o)) |
+        ((df["Visitor"].str.lower() == o) & (df["Home"].str.lower() == u))
     )
+    season = pd.to_numeric(pd.Series([row.get("season")]), errors="coerce").iloc[0]
+    week = pd.to_numeric(pd.Series([row.get("week")]), errors="coerce").iloc[0]
+    if "YEAR" in df.columns and pd.notna(season):
+        mask &= (pd.to_numeric(df["YEAR"], errors="coerce") == int(season))
+    candidates = df.loc[mask].copy()
+    if candidates.empty:
+        return None
+    if "Week" in candidates.columns and pd.notna(week):
+        wk_match = candidates[pd.to_numeric(candidates["Week"], errors="coerce") == int(week)]
+        if not wk_match.empty:
+            candidates = wk_match
+    sort_cols=[]
+    for c in ["YEAR","Week"]:
+        if c in candidates.columns:
+            candidates[c] = pd.to_numeric(candidates[c], errors="coerce")
+            sort_cols.append(c)
+    if sort_cols:
+        candidates = candidates.sort_values(sort_cols, ascending=[False]*len(sort_cols))
+    return candidates.iloc[0]
 
+def _find_matching_summary_row(row, gs_df):
+    if gs_df is None or gs_df.empty:
+        return None
+    u = _norm_team_name(row.get("user_team", ""))
+    o = _norm_team_name(row.get("opponent", ""))
+    if not u or not o:
+        return None
+    df = gs_df.copy()
+    if "VISITOR" not in df.columns or "HOME" not in df.columns:
+        return None
+    mask = (
+        ((df["VISITOR"].astype(str).str.lower() == u) & (df["HOME"].astype(str).str.lower() == o)) |
+        ((df["VISITOR"].astype(str).str.lower() == o) & (df["HOME"].astype(str).str.lower() == u))
+    )
+    season = pd.to_numeric(pd.Series([row.get("season")]), errors="coerce").iloc[0]
+    week = pd.to_numeric(pd.Series([row.get("week")]), errors="coerce").iloc[0]
+    if "YEAR" in df.columns and pd.notna(season):
+        mask &= (pd.to_numeric(df["YEAR"], errors="coerce") == int(season))
+    candidates = df.loc[mask].copy()
+    if candidates.empty:
+        return None
+    if "WEEK" in candidates.columns and pd.notna(week):
+        wk_match = candidates[pd.to_numeric(candidates["WEEK"], errors="coerce") == int(week)]
+        if not wk_match.empty:
+            candidates = wk_match
+    return candidates.iloc[0]
 
-def _extract_youtube_video_id(url):
+def _archive_logo_img(team_name, width=70):
     try:
-        _u = str(url).strip()
-        if not _u:
-            return ''
-        _parsed = urllib.parse.urlparse(_u)
-        _host = (_parsed.netloc or '').lower()
-        _path = (_parsed.path or '').strip('/')
-        _qs = urllib.parse.parse_qs(_parsed.query or '')
-
-        def _clean_candidate(_candidate):
-            _candidate = str(_candidate or '').strip().split('&')[0].split('?')[0].strip('/')
-            return _candidate if re.fullmatch(r'[A-Za-z0-9_-]{11}', _candidate) else ''
-
-        if 'youtu.be' in _host:
-            _candidate = _path.split('/')[0]
-            _candidate = _clean_candidate(_candidate)
-            if _candidate:
-                return _candidate
-
-        if 'youtube.com' in _host or 'youtube-nocookie.com' in _host:
-            if _path == 'watch':
-                _candidate = (_qs.get('v') or [''])[0]
-                _candidate = _clean_candidate(_candidate)
-                if _candidate:
-                    return _candidate
-            for _prefix in ('live/', 'shorts/', 'embed/', 'v/'):
-                if _path.startswith(_prefix):
-                    _candidate = _path.split('/', 1)[1].split('/')[0]
-                    _candidate = _clean_candidate(_candidate)
-                    if _candidate:
-                        return _candidate
-
-        _match = re.search(r'(?:v=|/)([A-Za-z0-9_-]{11})(?:[?&#/]|$)', _u)
-        if _match:
-            return _match.group(1)
+        _src = image_file_to_data_uri(get_logo_source(str(team_name)))
+        if _src:
+            return f"<img src='{_src}' style='width:{width}px;height:{width}px;object-fit:contain;'/>"
     except Exception:
-        return ''
-    return ''
+        pass
+    return "🏈"
 
+def _format_archive_row(row, scores_df=None, gs_df=None):
+    out = dict(row)
+    m = _find_matching_game_row(row, scores_df)
+    if m is not None:
+        season_val = pd.to_numeric(pd.Series([m.get("YEAR")]), errors="coerce").iloc[0]
+        week_val = pd.to_numeric(pd.Series([m.get("Week")]), errors="coerce").iloc[0]
+        if pd.notna(season_val):
+            out["season"] = int(season_val)
+        if pd.notna(week_val):
+            out["week"] = int(week_val)
+        visitor = str(m.get("Visitor","")).strip()
+        home = str(m.get("Home","")).strip()
+        vis_score = pd.to_numeric(pd.Series([m.get("Vis Score")]), errors="coerce").iloc[0]
+        home_score = pd.to_numeric(pd.Series([m.get("Home Score")]), errors="coerce").iloc[0]
+        if _norm_team_name(out.get("user_team","")) == _norm_team_name(visitor):
+            user_score = vis_score
+            opp_score = home_score
+        else:
+            user_score = home_score
+            opp_score = vis_score
+        if pd.notna(user_score) and pd.notna(opp_score):
+            out["result"] = "W" if user_score > opp_score else ("L" if user_score < opp_score else "T")
+            out["score"] = f"{out.get('user_team','')} {int(user_score)}, {out.get('opponent','')} {int(opp_score)}"
+        out["is_playoff"] = str(m.get("CFP","")).strip().lower() in ("yes","y","1","true") or str(m.get("Natty Game","")).strip().lower() in ("yes","y","1","true") or str(m.get("Bowl","")).strip().lower() in ("yes","y","1","true")
+    else:
+        out["is_playoff"] = False
+    s = _find_matching_summary_row(out, gs_df)
+    if s is not None:
+        notes = str(s.get("NOTES","")).strip()
+        if notes and notes.lower() != "nan":
+            out["summary"] = notes
+        else:
+            out["summary"] = str(out.get("notes","")).strip()
+    else:
+        out["summary"] = str(out.get("notes","")).strip()
+    return out
 
-def _render_youtube_embed(url, height=640):
-    _video_id = _extract_youtube_video_id(url)
-    if not _video_id:
-        st.warning('This YouTube link could not be converted into a player.')
-        st.link_button('Open YouTube Archive', url, use_container_width=True)
+def render_dynasty_youtube_archives_tab():
+    archive_df = load_stream_archive_data()
+    archive_df = archive_df[archive_df["platform"].astype(str).str.lower().eq("youtube")].copy()
+    if archive_df.empty:
+        st.info("No YouTube archives found yet.")
         return
 
-    _watch_url = f"https://www.youtube.com/watch?v={_video_id}"
-    _embed_url = f"https://www.youtube.com/embed/{_video_id}?rel=0&modestbranding=1&playsinline=1"
+    scores_df = _load_cpu_scores_for_archives()
+    gs_df = _load_game_summaries_for_archives()
+    formatted_rows = [_format_archive_row(r, scores_df, gs_df) for _, r in archive_df.iterrows()]
+    adf = pd.DataFrame(formatted_rows)
 
-    # Prefer Streamlit's native player first. Converting every YouTube URL to a
-    # canonical watch URL is more reliable than passing through /live/ links.
-    try:
-        st.video(_watch_url)
-    except Exception:
-        _iframe_html = f"""
-        <div style='width:100%;max-width:100%;border-radius:16px;overflow:hidden;background:#000;'>
-          <iframe
-            width='100%'
-            height='{max(int(height)-10, 315)}'
-            src='{_embed_url}'
-            title='YouTube video player'
-            allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
-            referrerpolicy='strict-origin-when-cross-origin'
-            allowfullscreen
-            style='display:block;width:100%;border:0;aspect-ratio:16/9;'></iframe>
+    # current season / playoff state
+    current_season = int(pd.to_numeric(scores_df["YEAR"], errors="coerce").dropna().max()) if ("YEAR" in scores_df.columns and not scores_df.empty) else int(pd.to_numeric(adf["season"], errors="coerce").dropna().max())
+    season_scores = scores_df[pd.to_numeric(scores_df.get("YEAR"), errors="coerce") == current_season].copy() if not scores_df.empty and "YEAR" in scores_df.columns else pd.DataFrame()
+    playoffs_started = False
+    if not season_scores.empty:
+        playoffs_started = bool(
+            season_scores["CFP"].astype(str).str.lower().isin(["yes","y","1","true"]).any() or
+            season_scores["Natty Game"].astype(str).str.lower().isin(["yes","y","1","true"]).any()
+        )
+
+    adf["season_num"] = pd.to_numeric(adf["season"], errors="coerce").fillna(0).astype(int)
+    adf["week_num"] = pd.to_numeric(adf["week"], errors="coerce").fillna(999).astype(int)
+
+    featured = None
+    if playoffs_started:
+        playoff_candidates = adf[adf["is_playoff"] == True].copy()
+        if not playoff_candidates.empty:
+            featured = playoff_candidates.sort_values(["season_num","week_num"], ascending=[False, False]).iloc[0].to_dict()
+
+    if featured is None:
+        target = adf[(adf["user_team"].astype(str).str.lower() == "san jose state") & (adf["opponent"].astype(str).str.lower() == "texas")]
+        if not target.empty:
+            featured = target.iloc[0].to_dict()
+        else:
+            featured = adf.sort_values(["season_num","week_num"], ascending=[False, True]).iloc[0].to_dict()
+
+    rest = adf[adf["url"].astype(str) != str(featured.get("url",""))].copy()
+    rest = rest.sort_values(["season_num","week_num","stream_title"], ascending=[False, True, True])
+
+    st.markdown("""
+    <style>
+    .archive-feature-wrap{background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;border-radius:20px;padding:18px 18px 14px 18px;margin-bottom:16px;}
+    .archive-kicker{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+    .archive-pill{display:inline-flex;align-items:center;gap:8px;background:#2b0a0a;border:1px solid #7f1d1d;color:#fecaca;padding:5px 12px;border-radius:999px;font-size:.72rem;font-weight:800;letter-spacing:.04em;}
+    .archive-playdot{width:0;height:0;border-top:8px solid transparent;border-bottom:8px solid transparent;border-left:13px solid #ef4444;display:inline-block;}
+    .archive-title{text-align:center;font-size:1.55rem;font-weight:900;color:#f8fafc;line-height:1.1;margin-bottom:2px;}
+    .archive-sub{text-align:center;color:#94a3b8;font-size:.82rem;margin-bottom:12px;}
+    .archive-logo-row{display:flex;align-items:center;justify-content:center;gap:20px;margin:6px 0 12px 0;}
+    .archive-vs{font-size:1.0rem;font-weight:900;color:#64748b;letter-spacing:.14em;}
+    .archive-score{text-align:center;font-size:1.1rem;font-weight:900;color:#f8fafc;margin-top:4px;}
+    .archive-result{text-align:center;font-size:.82rem;color:#cbd5e1;margin-top:2px;margin-bottom:8px;}
+    .archive-summary{background:#0b1220;border:1px solid #1e293b;border-radius:14px;padding:10px 12px;color:#cbd5e1;font-size:.92rem;line-height:1.4;margin-top:10px;}
+    .archive-card{background:linear-gradient(135deg,#111827,#0f172a);border:1px solid #1f2937;border-radius:16px;padding:14px 16px;margin-bottom:12px;}
+    .archive-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+    .archive-card-title{font-size:1rem;font-weight:900;color:#f8fafc;}
+    .archive-card-meta{font-size:.72rem;color:#94a3b8;font-weight:700;}
+    .archive-card-logo-row{display:flex;align-items:center;justify-content:center;gap:16px;margin:4px 0 10px 0;}
+    .archive-link-note{text-align:center;color:#94a3b8;font-size:.78rem;margin-top:6px;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    featured_title = "Highest Rated Game of the Year"
+    featured_sub = "Featured archive follows Highest Rated Games of the Season until CFP videos take over."
+    f_logo_left = _archive_logo_img(featured.get("user_team",""))
+    f_logo_right = _archive_logo_img(featured.get("opponent",""))
+    f_score = str(featured.get("score","")).strip()
+    f_result = str(featured.get("result","")).strip().upper()
+    f_summary = str(featured.get("summary","")).strip()
+    f_season = featured.get("season","")
+    f_week = featured.get("week","")
+    st.markdown(
+        f"""
+        <div class="archive-feature-wrap">
+          <div class="archive-kicker">
+            <span class="archive-pill"><span class="archive-playdot"></span> {featured_title}</span>
+          </div>
+          <div class="archive-title">{html.escape(str(featured.get("stream_title","Featured Game")))}</div>
+          <div class="archive-sub">Season {html.escape(str(f_season))} • Week {html.escape(str(f_week))}</div>
+          <div class="archive-logo-row">
+            {f_logo_left}
+            <div class="archive-vs">VS</div>
+            {f_logo_right}
+          </div>
+          <div class="archive-score">{html.escape(f_score) if f_score else ''}</div>
+          <div class="archive-result">{html.escape(f_result)}{' • ' + html.escape(featured_sub) if featured_sub else ''}</div>
         </div>
-        """
-        components.html(_iframe_html, height=height, scrolling=False)
+        """,
+        unsafe_allow_html=True
+    )
+    embed_html = _youtube_embed_html(featured.get("url",""), height=560)
+    if embed_html:
+        components.html(embed_html, height=590)
+    else:
+        _watch = _youtube_watch_url(featured.get("url",""))
+        if _watch:
+            st.link_button("Open Featured Archive", _watch, use_container_width=True)
+        else:
+            st.warning("Featured video could not be converted into a YouTube player.")
 
-    st.link_button('Open in YouTube', _watch_url, use_container_width=True)
+    if f_summary:
+        st.markdown(f"<div class='archive-summary'><strong>Game Summary:</strong> {html.escape(f_summary)}</div>", unsafe_allow_html=True)
 
+    st.markdown("### More Archives")
+    if rest.empty:
+        st.caption("No additional YouTube archive cards yet.")
+        return
+
+    for _, r in rest.iterrows():
+        logo_left = _archive_logo_img(r.get("user_team",""), width=60)
+        logo_right = _archive_logo_img(r.get("opponent",""), width=60)
+        score = str(r.get("score","")).strip()
+        result = str(r.get("result","")).strip().upper()
+        summary = str(r.get("summary","")).strip()
+        st.markdown(
+            f"""
+            <div class="archive-card">
+              <div class="archive-card-head">
+                <div class="archive-card-title">{html.escape(str(r.get("stream_title","Archive")))}</div>
+                <div class="archive-card-meta">Season {html.escape(str(r.get("season","")))} • Week {html.escape(str(r.get("week","")))}</div>
+              </div>
+              <div class="archive-card-logo-row">
+                {logo_left}
+                <div class="archive-vs">VS</div>
+                {logo_right}
+              </div>
+              <div class="archive-score">{html.escape(score) if score else ''}</div>
+              <div class="archive-result">{html.escape(result)}</div>
+              {f"<div class='archive-summary'><strong>Game Summary:</strong> {html.escape(summary)}</div>" if summary else ""}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        _watch = _youtube_watch_url(r.get("url",""))
+        if _watch:
+            with st.expander(f"Watch {str(r.get('stream_title','Archive'))}", expanded=False):
+                _html = _youtube_embed_html(_watch, height=460)
+                if _html:
+                    components.html(_html, height=490)
+                else:
+                    st.link_button("Open Archive", _watch, use_container_width=True)
 
 with tabs[12]:
         st.header("🎬 ISPN Classics")
@@ -20058,8 +20087,9 @@ with tabs[12]:
         if _classics_df.empty:
             st.info("No game data available yet.")
         else:
-            _ctab_all, _ctab_upsets, _ctab_close, _ctab_box, _ctab_yt = st.tabs(
-                ["🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores", "▶️ Dynasty YouTube Archives"])
+            # ── Sub-tabs: ALL / UPSETS / CLOSEST / BOX SCORES ────────────────────
+            _ctab_archives, _ctab_all, _ctab_upsets, _ctab_close, _ctab_box = st.tabs(
+                ["▶️ Dynasty YouTube Archives", "🏆 Top Classics", "🚨 Biggest Upsets", "😰 Closest Games", "📋 Box Scores"])
 
             def _render_classic_card(row, rank_num):
                 """Render a single broadcast-style game card."""
@@ -20067,43 +20097,99 @@ with tabs[12]:
                 _lc  = get_team_primary_color(str(row['Loser']))
                 _wlu = image_file_to_data_uri(get_logo_source(str(row['Winner'])))
                 _llu = image_file_to_data_uri(get_logo_source(str(row['Loser'])))
-                _w_img = (f"<img src='{_wlu}' style='width:40px;height:40px;object-fit:contain;'/>" if _wlu else "🏈")
-                _l_img = (f"<img src='{_llu}' style='width:40px;height:40px;object-fit:contain;'/>" if _llu else "🏈")
+                _w_img = (f"<img src='{_wlu}' style='width:40px;height:40px;"
+                          f"object-fit:contain;'/>" if _wlu else "🏈")
+                _l_img = (f"<img src='{_llu}' style='width:40px;height:40px;"
+                          f"object-fit:contain;'/>" if _llu else "🏈")
 
                 _gt = str(row['GameType'])
-                _gt_bg = ("#7c3aed" if 'Championship' in _gt else "#0369a1" if 'CFP' in _gt else "#166534" if 'Conf' in _gt else "#92400e" if 'Bowl' in _gt else "#1e293b")
-                _gt_color = ("#e9d5ff" if 'Championship' in _gt else "#bfdbfe" if 'CFP' in _gt else "#bbf7d0" if 'Conf' in _gt else "#fde68a" if 'Bowl' in _gt else "#94a3b8")
+                _gt_bg = ("#7c3aed" if 'Championship' in _gt else
+                          "#0369a1" if 'CFP' in _gt else
+                          "#166534" if 'Conf' in _gt else
+                          "#92400e" if 'Bowl' in _gt else "#1e293b")
+                _gt_color = ("#e9d5ff" if 'Championship' in _gt else
+                             "#bfdbfe" if 'CFP' in _gt else
+                             "#bbf7d0" if 'Conf' in _gt else
+                             "#fde68a" if 'Bowl' in _gt else "#94a3b8")
 
                 _upset_badge = ""
                 if row['IsUpset']:
                     _diff = float(row['OVR_Diff'])
-                    _upset_badge = (f"<span style='padding:2px 8px;background:#7f1d1d;color:#fca5a5;font-size:0.62rem;font-weight:800;border-radius:999px;white-space:nowrap;'>&#9888; UPSET +{_diff:.1f} OVR</span>")
+                    _upset_badge = (
+                        f"<span style='padding:2px 8px;background:#7f1d1d;"
+                        f"color:#fca5a5;font-size:0.62rem;font-weight:800;"
+                        f"border-radius:999px;white-space:nowrap;'>"
+                        f"&#9888; UPSET +{_diff:.1f} OVR</span>"
+                    )
 
                 _margin = int(row['Margin'])
-                _close_label = ("2OT THRILLER" if _margin <= 1 else "OT WAR" if _margin <= 3 else "NAIL-BITER" if _margin <= 7 else "CLOSE CALL" if _margin <= 14 else "")
+                _close_label = ("2OT THRILLER" if _margin <= 1 else
+                                "OT WAR" if _margin <= 3 else
+                                "NAIL-BITER" if _margin <= 7 else
+                                "CLOSE CALL" if _margin <= 14 else "")
                 _close_badge = ""
                 if _close_label:
-                    _close_badge = (f"<span style='padding:2px 8px;background:#1c1917;color:#fbbf24;font-size:0.62rem;font-weight:800;border-radius:999px;white-space:nowrap;border:1px solid #78350f;'>&#128293; {_close_label}</span>")
+                    _close_badge = (
+                        f"<span style='padding:2px 8px;background:#1c1917;"
+                        f"color:#fbbf24;font-size:0.62rem;font-weight:800;"
+                        f"border-radius:999px;white-space:nowrap;border:1px solid #78350f;'>"
+                        f"&#128293; {_close_label}</span>"
+                    )
 
                 _rank_str = f"#{rank_num}"
                 _score_str = f"{int(row['WinnerPts'])} &ndash; {int(row['LoserPts'])}"
                 _classic_score = float(row['ClassicScore'])
 
                 st.markdown(
-                    f"<div style='background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;border-radius:14px;padding:14px 16px;margin-bottom:10px;'>"
-                    f"<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;'>"
-                    f"<span style='font-size:0.75rem;font-weight:900;color:#475569;min-width:26px;'>{_rank_str}</span>"
-                    f"<span style='padding:2px 8px;background:{_gt_bg};color:{_gt_color};font-size:0.62rem;font-weight:700;border-radius:999px;white-space:nowrap;'>{html.escape(_gt)}</span>"
-                    f"<span style='font-size:0.62rem;color:#475569;'>{int(row['Year'])}</span>"
+                    f"<div style='background:linear-gradient(135deg,#0f172a,#111827);"
+                    f"border:1px solid #1e293b;border-radius:14px;"
+                    f"padding:14px 16px;margin-bottom:10px;'>"
+                    f"<div style='display:flex;align-items:center;gap:8px;"
+                    f"flex-wrap:wrap;margin-bottom:10px;'>"
+                    f"<span style='font-size:0.75rem;font-weight:900;color:#475569;"
+                    f"min-width:26px;'>{_rank_str}</span>"
+                    f"<span style='padding:2px 8px;background:{_gt_bg};"
+                    f"color:{_gt_color};font-size:0.62rem;font-weight:700;"
+                    f"border-radius:999px;white-space:nowrap;'>{html.escape(_gt)}</span>"
+                    f"<span style='font-size:0.62rem;color:#475569;'>"
+                    f"{int(row['Year'])}</span>"
                     f"{_upset_badge}{_close_badge}"
-                    f"<span style='margin-left:auto;font-size:0.65rem;color:#374151;font-weight:700;'>&#9733; {_classic_score:.0f} pts</span>"
+                    f"<span style='margin-left:auto;font-size:0.65rem;color:#374151;"
+                    f"font-weight:700;'>&#9733; {_classic_score:.0f} pts</span>"
                     f"</div>"
-                    f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;'>"
-                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:110px;'>{_w_img}<div><div style='font-weight:900;color:{_wc};font-size:0.9rem;line-height:1.1;'>{html.escape(str(row['Winner']))}</div><div style='font-size:0.65rem;color:#64748b;'>{html.escape(str(row['WinnerUser']))}</div></div></div>"
-                    f"<div style='text-align:center;min-width:70px;'><div style='font-size:1.4rem;font-weight:900;color:#f1f5f9;letter-spacing:-0.5px;'>{_score_str}</div><div style='font-size:0.6rem;color:#475569;'>&#177;{_margin}</div></div>"
-                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;min-width:110px;'><div style='text-align:right;'><div style='font-weight:700;color:{_lc};font-size:0.9rem;opacity:0.65;line-height:1.1;'>{html.escape(str(row['Loser']))}</div><div style='font-size:0.65rem;color:#64748b;'>{html.escape(str(row['LoserUser']))}</div></div>{_l_img}</div></div></div>",
+                    f"<div style='display:flex;align-items:center;"
+                    f"gap:10px;flex-wrap:wrap;'>"
+                    f"<div style='display:flex;align-items:center;gap:8px;"
+                    f"flex:1;min-width:110px;'>"
+                    f"{_w_img}"
+                    f"<div>"
+                    f"<div style='font-weight:900;color:{_wc};font-size:0.9rem;"
+                    f"line-height:1.1;'>{html.escape(str(row['Winner']))}</div>"
+                    f"<div style='font-size:0.65rem;color:#64748b;'>"
+                    f"{html.escape(str(row['WinnerUser']))}</div>"
+                    f"</div></div>"
+                    f"<div style='text-align:center;min-width:70px;'>"
+                    f"<div style='font-size:1.4rem;font-weight:900;color:#f1f5f9;"
+                    f"letter-spacing:-0.5px;'>{_score_str}</div>"
+                    f"<div style='font-size:0.6rem;color:#475569;'>"
+                    f"&#177;{_margin}</div>"
+                    f"</div>"
+                    f"<div style='display:flex;align-items:center;gap:8px;"
+                    f"flex:1;justify-content:flex-end;min-width:110px;'>"
+                    f"<div style='text-align:right;'>"
+                    f"<div style='font-weight:700;color:{_lc};font-size:0.9rem;"
+                    f"opacity:0.65;line-height:1.1;'>"
+                    f"{html.escape(str(row['Loser']))}</div>"
+                    f"<div style='font-size:0.65rem;color:#64748b;'>"
+                    f"{html.escape(str(row['LoserUser']))}</div>"
+                    f"</div>"
+                    f"{_l_img}"
+                    f"</div></div></div>",
                     unsafe_allow_html=True
                 )
+
+            with _ctab_archives:
+                render_dynasty_youtube_archives_tab()
 
             with _ctab_all:
                 st.caption("Ranked by Classic Score = closeness + stakes + upset factor.")
@@ -20113,7 +20199,8 @@ with tabs[12]:
 
             with _ctab_upsets:
                 st.caption("Games where the lower-rated team pulled off the W. Ranked by OVR gap.")
-                _upsets = _classics_df[_classics_df['IsUpset']].sort_values('OVR_Diff', ascending=False).head(20)
+                _upsets = _classics_df[_classics_df['IsUpset']].sort_values(
+                    'OVR_Diff', ascending=False).head(20)
                 if _upsets.empty:
                     st.info("No upset data detected with current ratings proxy.")
                 else:
@@ -20145,6 +20232,7 @@ with tabs[12]:
                         _gs_week_col = _gs_col(['Week', 'WEEK', 'week'])
                         _gs_home_col = _gs_col(['HomeTeam', 'Home', 'HOME', 'Home Team'])
                         _gs_vis_col  = _gs_col(['VisitorTeam', 'Visitor', 'VISITOR', 'Away', 'Away Team', 'AwayTeam'])
+
                         # Coerce year/week
                         if _gs_year_col:
                             _gs_df[_gs_year_col] = pd.to_numeric(_gs_df[_gs_year_col], errors='coerce')
@@ -20348,81 +20436,6 @@ with tabs[12]:
                     st.info("📋 **game_summaries.csv** not found. Start capturing game summaries via the ISPN Data Importer to populate this tab.")
                 except Exception as _bx_err:
                     st.error(f"Box Scores error: {_bx_err}")
-
-            with _ctab_yt:
-                st.caption("YouTube-only archive hub. The featured player tries to mirror the current Highest Rated Game of the Season.")
-                _yt_df, _featured_key, _featured_label, _current_max_week = _build_archive_context()
-
-                if _yt_df.empty:
-                    st.info("No YouTube archives found yet. Add rows to stream_archive.csv with platform set to YouTube.")
-                else:
-                    _featured_row, _featured_is_playoff = _choose_featured_archive_row(_yt_df, _featured_key, _current_max_week)
-                    _rest_df = _yt_df[_yt_df.index != _featured_row.name].copy()
-                    _ft_team = str(_featured_row.get('user_team','')).strip()
-                    _ft_opp = str(_featured_row.get('opponent','')).strip()
-                    _ft_title = str(_featured_row.get('stream_title','')).strip() or f"{_ft_opp} @ {_ft_team}"
-                    _ft_score = str(_featured_row.get('score_line','')).strip()
-                    _ft_week = _featured_row.get('week', pd.NA)
-                    _ft_season = _featured_row.get('season', pd.NA)
-                    _ft_streamer = str(_featured_row.get('streamer','')).strip()
-                    _ft_url = str(_featured_row.get('url','')).strip()
-
-                    st.markdown("### ▶️ Featured Player")
-                    if _featured_is_playoff:
-                        st.caption("CFP / National Championship archives take over the featured player once those uploads exist.")
-                    elif _featured_key and str(_featured_row.get('match_key','')) != _featured_key and _featured_label:
-                        st.warning(f"Highest Rated Games of the Season currently points to {_featured_label}, but there is no matching YouTube upload yet. Showing the next available archive instead.")
-                    elif _featured_label:
-                        st.caption(f"Featured to match Highest Rated Games of the Season: {_featured_label}")
-
-                    _render_archive_matchup_header(_ft_team, _ft_opp)
-                    _meta_bits = []
-                    if pd.notna(_ft_season):
-                        _meta_bits.append(f"Season {int(float(_ft_season))}")
-                    if pd.notna(_ft_week):
-                        _meta_bits.append(f"Week {int(float(_ft_week))}")
-                    if _ft_streamer:
-                        _meta_bits.append(f"@{_ft_streamer}")
-                    st.markdown(f"**{_ft_title}**")
-                    if _meta_bits:
-                        st.caption(" • ".join(_meta_bits))
-                    if _ft_score:
-                        st.markdown(f"**Final:** {_ft_score}")
-                    if _ft_url:
-                        _render_youtube_embed(_ft_url)
-
-                    st.markdown("---")
-                    st.markdown("### More Archives")
-                    if _rest_df.empty:
-                        st.info("Only one YouTube archive is loaded so far.")
-                    else:
-                        for _, _row in _rest_df.iterrows():
-                            _team = str(_row.get('user_team','')).strip()
-                            _opp = str(_row.get('opponent','')).strip()
-                            _title = str(_row.get('stream_title','')).strip() or f"{_opp} @ {_team}"
-                            _score = str(_row.get('score_line','')).strip()
-                            _url = str(_row.get('url','')).strip()
-                            _week = _row.get('week', pd.NA)
-                            _season = _row.get('season', pd.NA)
-                            _streamer = str(_row.get('streamer','')).strip()
-                            _label_bits = []
-                            if pd.notna(_season):
-                                _label_bits.append(f"Season {int(float(_season))}")
-                            if pd.notna(_week):
-                                _label_bits.append(f"Week {int(float(_week))}")
-                            if _streamer:
-                                _label_bits.append(f"@{_streamer}")
-                            with st.container(border=True):
-                                _render_archive_matchup_header(_team, _opp)
-                                st.markdown(f"**{_title}**")
-                                if _label_bits:
-                                    st.caption(" • ".join(_label_bits))
-                                if _score:
-                                    st.markdown(f"**Final:** {_score}")
-                                if _url:
-                                    st.link_button("Open in YouTube", _url, use_container_width=True)
-                                st.markdown("")
-
 
 # --- GOAT RANKINGS (Tab 12) ---
 with tabs[13]:
