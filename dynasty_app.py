@@ -13209,11 +13209,11 @@ with tabs[0]:
                 }
             """
             # Per-button background colors
-            for _gt, _gu, _is_ready, _, _ in _grid_users:
+            for _gi, (_gt, _gu, _is_ready, _, _gl_uri) in enumerate(_grid_users):
                 _bg  = '#16a34a' if _is_ready else '#dc2626'
                 _bdr = '#4ade80' if _is_ready else '#f87171'
                 _sq_css += f"""
-                div.status-grid-inner div[data-testid="column"]:nth-child({_grid_users.index((_gt,_gu,_is_ready,_,_))+1}) button {{
+                div.status-grid-inner div[data-testid="column"]:nth-child({_gi+1}) button {{
                     background:{_bg} !important; border:2px solid {_bdr} !important;
                 }}"""
             _sq_css += "\n</style>"
