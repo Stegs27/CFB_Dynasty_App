@@ -19931,6 +19931,52 @@ def _render_archive_matchup_header(team_a, team_b):
     )
 
 
+def _extract_youtube_video_id(url):
+    try:
+        _u = str(url).strip()
+        if not _u:
+            return ''
+        _parsed = urllib.parse.urlparse(_u)
+        _host = (_parsed.netloc or '').lower()
+        _path = (_parsed.path or '').strip('/')
+        if 'youtu.be' in _host:
+            return _path.split('/')[0]
+        if 'youtube.com' in _host:
+            if _path == 'watch':
+                _qs = urllib.parse.parse_qs(_parsed.query or '')
+                return (_qs.get('v') or [''])[0]
+            if _path.startswith('live/'):
+                return _path.split('/', 1)[1].split('/')[0]
+            if _path.startswith('shorts/'):
+                return _path.split('/', 1)[1].split('/')[0]
+            if _path.startswith('embed/'):
+                return _path.split('/', 1)[1].split('/')[0]
+    except Exception:
+        return ''
+    return ''
+
+
+def _render_youtube_embed(url, height=640):
+    _video_id = _extract_youtube_video_id(url)
+    if not _video_id:
+        st.link_button('Open YouTube Archive', url, use_container_width=True)
+        st.caption('Could not convert this YouTube link into an embeddable player, so it is opening as a normal link instead.')
+        return
+    _embed_url = f"https://www.youtube.com/embed/{_video_id}?rel=0"
+    _iframe_html = f"""
+    <div style='position:relative;width:100%;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:16px;'>
+      <iframe
+        src='{_embed_url}'
+        title='YouTube video player'
+        allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+        referrerpolicy='strict-origin-when-cross-origin'
+        allowfullscreen
+        style='position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:16px;'></iframe>
+    </div>
+    """
+    components.html(_iframe_html, height=height)
+
+
 with tabs[12]:
         st.header("🎬 ISPN Classics")
         st.caption(
@@ -20280,7 +20326,7 @@ with tabs[12]:
                     if _ft_score:
                         st.markdown(f"**Final:** {_ft_score}")
                     if _ft_url:
-                        st.video(_ft_url)
+                        _render_youtube_embed(_ft_url)
 
                     st.markdown("---")
                     st.markdown("### More Archives")
@@ -20307,7 +20353,7 @@ with tabs[12]:
                                 if _score:
                                     st.markdown(f"**Final:** {_score}")
                                 if _url:
-                                    st.video(_url)
+                                    _render_youtube_embed(_url, height=520)
 
 
 # --- GOAT RANKINGS (Tab 12) ---
