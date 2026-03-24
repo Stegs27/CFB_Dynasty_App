@@ -12708,8 +12708,23 @@ with tabs[3]:
                     (_conf_st['CONFERENCE'] == sel_conf_name) &
                     (_conf_st['TEAM'] != sel_team_name)
                 ].copy()
-                _conf_peers['RANK'] = pd.to_numeric(_conf_peers['RANK'], errors='coerce')
-                conf_opp_ranks_s = _conf_peers['RANK'].dropna()
+                # Rank comes from cfp_rankings_history.csv — authoritative source
+                # conf_standings no longer carries a RANK column
+                try:
+                    _rh2 = pd.read_csv('cfp_rankings_history.csv')
+                    _rh2['YEAR'] = pd.to_numeric(_rh2['YEAR'], errors='coerce')
+                    _rh2['WEEK'] = pd.to_numeric(_rh2['WEEK'], errors='coerce')
+                    _rh2['RANK'] = pd.to_numeric(_rh2['RANK'], errors='coerce')
+                    _rh2_cy = _rh2[_rh2['YEAR'] == int(CURRENT_YEAR)]
+                    if not _rh2_cy.empty:
+                        _rh2_snap = _rh2_cy[_rh2_cy['WEEK'] == _rh2_cy['WEEK'].max()]
+                        _cfp_rank_lookup = dict(zip(_rh2_snap['TEAM'].str.strip(), _rh2_snap['RANK']))
+                    else:
+                        _cfp_rank_lookup = {}
+                except Exception:
+                    _cfp_rank_lookup = {}
+                _conf_peers['RANK'] = _conf_peers['TEAM'].map(_cfp_rank_lookup)
+                conf_opp_ranks_s = pd.to_numeric(_conf_peers['RANK'], errors='coerce').dropna()
                 avg_conf_rank = round(float(conf_opp_ranks_s.mean()), 1) if not conf_opp_ranks_s.empty else None
                 _from_standings = True
             except Exception:
