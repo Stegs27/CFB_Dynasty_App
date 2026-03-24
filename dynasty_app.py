@@ -15019,26 +15019,28 @@ with tabs[0]:
             _tv_scores_df["Home Score"] = pd.to_numeric(_tv_scores_df["Home Score"], errors="coerce")
             _tv_scores_df["Visitor Rank"] = pd.to_numeric(_tv_scores_df["Visitor Rank"], errors="coerce")
             _tv_scores_df["Home Rank"] = pd.to_numeric(_tv_scores_df["Home Rank"], errors="coerce")
-            # Freeze the ranks attached to the game itself.
-            # Prefer the stored ranks already on the score row.
-            # Only backfill missing ranks from historical CFP snapshots for that SAME season/week.
-            if _GLOBAL_WEEK_RANK_LOOKUP:
-                _tv_scores_df["Visitor Rank Snapshot"] = _tv_scores_df["Visitor Rank"]
-                _tv_scores_df["Home Rank Snapshot"] = _tv_scores_df["Home Rank"]
 
+            # Highest Rated Games must use CFP ranking snapshots from cfp_rankings_history.csv,
+            # not the potentially stale / postgame rank fields stored in CPUscores_MASTER.csv.
+            if _GLOBAL_WEEK_RANK_LOOKUP:
                 _tv_scores_df["Visitor Rank Snapshot"] = _tv_scores_df.apply(
-                    lambda r: r.get("Visitor Rank Snapshot")
-                    if not pd.isna(r.get("Visitor Rank Snapshot"))
-                    else get_rank_at_week(r.get("Visitor",""), r.get("Week",0), r.get("YEAR", CURRENT_YEAR)),
+                    lambda r: get_rank_at_week(
+                        r.get("Visitor", ""),
+                        r.get("Week", 0),
+                        r.get("YEAR", CURRENT_YEAR)
+                    ),
                     axis=1
                 )
                 _tv_scores_df["Home Rank Snapshot"] = _tv_scores_df.apply(
-                    lambda r: r.get("Home Rank Snapshot")
-                    if not pd.isna(r.get("Home Rank Snapshot"))
-                    else get_rank_at_week(r.get("Home",""), r.get("Week",0), r.get("YEAR", CURRENT_YEAR)),
+                    lambda r: get_rank_at_week(
+                        r.get("Home", ""),
+                        r.get("Week", 0),
+                        r.get("YEAR", CURRENT_YEAR)
+                    ),
                     axis=1
                 )
             else:
+                # Fallback only if rankings history is unavailable.
                 _tv_scores_df["Visitor Rank Snapshot"] = _tv_scores_df["Visitor Rank"]
                 _tv_scores_df["Home Rank Snapshot"] = _tv_scores_df["Home Rank"]
 
