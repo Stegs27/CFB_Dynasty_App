@@ -18674,128 +18674,86 @@ with tabs[9]:
 
                 st.plotly_chart(_speed_style_fig, use_container_width=True, config={'staticPlot': True})
 
-                # ── Per-team player speed scatter charts ──────────────────────
-                # X = SPD rating, Y = OVR, colored by player type
-                # Only show for user teams that have roster data
+                # ── What Kind of Speed Is It? ─────────────────────────────────
                 st.markdown("---")
-                st.markdown("### 🏃 Player Speed Profiles by Team")
-                st.caption("Each dot = one player. Color = speed archetype. X = raw speed rating, Y = overall rating.")
+                st.markdown("### ⚡ What Kind of Speed Is It?")
+                st.caption("How many of each speed archetype does each user team carry? Two charts: elite speed vs physical freaks.")
 
-                _TYPE_COLORS = {
-                    'Generational': '#fbbf24',   # gold
-                    'Cheat Code':   '#3b82f6',   # blue
-                    'Monster':      '#f97316',   # orange
-                    'Quick Hog':    '#22c55e',   # green
-                    '90+ Speed':    '#94a3b8',   # gray
-                }
+                # Build bar chart data from _sf_df — user teams only, sorted by speed score
+                def _get_logo_src_bar(_team):
+                    try:
+                        if 'get_logo_source' in globals() and 'image_file_to_data_uri' in globals():
+                            _p = get_logo_source(_team)
+                            if _p:
+                                return image_file_to_data_uri(_p)
+                    except Exception:
+                        pass
+                    return None
 
-                def _classify_player(row, front7, ol):
-                    spd = float(row.get('SPD', 0) or 0)
-                    acc = float(row.get('ACC', 0) or 0)
-                    agi = float(row.get('AGI', 0) or 0)
-                    cod = float(row.get('COD', 0) or 0)
-                    strn = float(row.get('STR', 0) or 0)
-                    pos = str(row.get('PosNorm', '')).upper()
-                    if spd >= 96 or acc >= 96:
-                        return 'Generational'
-                    if spd >= 90 and acc >= 90 and agi >= 90 and cod >= 90:
-                        return 'Cheat Code'
-                    if pos in front7 and ((acc >= 90 and spd >= 84) or (spd >= 90 and acc >= 84)):
-                        return 'Monster'
-                    if pos in ol and agi >= 85 and strn >= 90:
-                        return 'Quick Hog'
-                    if spd >= 90:
-                        return '90+ Speed'
-                    return None   # not a speed player — skip
+                _bar_df = _sf_df[_sf_df['TEAM'].isin(list(USER_TEAMS.values()))].copy()
+                _bar_df = _bar_df.sort_values('Team Speed Score', ascending=False).reset_index(drop=True)
+                _bar_names = _bar_df['TEAM'].tolist()
+                _bar_short = [t.replace('San Jose State','SJSU').replace('Florida State','FSU')
+                               .replace('Bowling Green','BGSU').replace('Texas Tech','TTU')
+                               .replace('Florida','UF').replace('USF','USF') for t in _bar_names]
+                _bar_logos = [_get_logo_src_bar(t) for t in _bar_names]
 
-                _user_team_vals = list(USER_TEAMS.values())
-                _front7_p = {'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL'}
-                _ol_p     = {'LT', 'LG', 'C', 'RG', 'RT'}
+                def _bv(col): return [int(_bar_df[_bar_df['TEAM']==t][col].values[0]) if t in _bar_df['TEAM'].values else 0 for t in _bar_names]
 
-                # Build cols: 2 per row
-                _chart_teams = [(u, t) for u, t in USER_TEAMS.items()
-                                if t in _sf_active['Team'].astype(str).unique()]
-                _chart_rows = [_chart_teams[i:i+2] for i in range(0, len(_chart_teams), 2)]
+                _cc_vals  = _bv('Cheat Codes')
+                _gen_vals = _bv('Generational (96+ speed or 96+ Acceleration)')
+                _mon_vals = _bv('Monsters')
+                _qh_vals  = _bv('Quick Hogs')
+                _s90_vals = _bv('Team Speed (90+ Speed Guys)')
 
-                for _crow in _chart_rows:
-                    _ccols = st.columns(len(_crow))
-                    for _ci, (_cu, _ct) in enumerate(_crow):
-                        with _ccols[_ci]:
-                            _ptdf = _sf_active[_sf_active['Team'].astype(str) == _ct].copy()
-                            _ptdf['SPD'] = pd.to_numeric(_ptdf.get('SPD'), errors='coerce').fillna(0)
-                            _ptdf['OVR'] = pd.to_numeric(_ptdf.get('OVR'), errors='coerce').fillna(0)
-                            _ptdf['PosNorm'] = _ptdf.get('Pos', '').astype(str).str.upper().str.strip()
-                            _ptdf['ACC'] = pd.to_numeric(_ptdf.get('ACC'), errors='coerce').fillna(0)
-                            _ptdf['AGI'] = pd.to_numeric(_ptdf.get('AGI'), errors='coerce').fillna(0)
-                            _ptdf['COD'] = pd.to_numeric(_ptdf.get('COD'), errors='coerce').fillna(0)
-                            _ptdf['STR'] = pd.to_numeric(_ptdf.get('STR'), errors='coerce').fillna(0)
+                _bar_layout_base = dict(
+                    barmode='group', height=400,
+                    paper_bgcolor='#0f172a', plot_bgcolor='#0f172a',
+                    margin=dict(l=20, r=20, t=70, b=110),
+                    legend=dict(orientation='h', y=-0.28, font=dict(size=12, color='#cbd5e1'), bgcolor='rgba(0,0,0,0)'),
+                    font=dict(color='#f8fafc', family='Arial, sans-serif'),
+                    xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=12, color='#94a3b8'), tickmode='array', tickvals=list(range(len(_bar_short))), ticktext=_bar_short),
+                    bargap=0.28, bargroupgap=0.06,
+                )
 
-                            # Classify and filter to speed players only
-                            _ptdf['SpeedType'] = _ptdf.apply(
-                                lambda r: _classify_player(r, _front7_p, _ol_p), axis=1
-                            )
-                            _speed_players = _ptdf[_ptdf['SpeedType'].notna()].copy()
+                # ── Chart 1: Cheat Codes (red) & Generational (orange) ────────
+                _fig_elite = go.Figure()
+                _fig_elite.add_trace(go.Bar(name='🎮 Cheat Codes', x=list(range(len(_bar_short))), y=_cc_vals,
+                    marker_color='#ef4444', text=_cc_vals, textposition='outside',
+                    textfont=dict(color='#fca5a5', size=14, family='Arial Black')))
+                _fig_elite.add_trace(go.Bar(name='🧬 Generational', x=list(range(len(_bar_short))), y=_gen_vals,
+                    marker_color='#f97316', text=_gen_vals, textposition='outside',
+                    textfont=dict(color='#fdba74', size=14, family='Arial Black')))
+                _max_e = max(max(_cc_vals, default=0), max(_gen_vals, default=0))
+                _fig_elite.update_layout(**{**_bar_layout_base,
+                    'title': dict(text='<b>🎮 CHEAT CODES & GENERATIONAL FREAKS</b>', font=dict(size=17, color='#f8fafc'), x=0.5, xanchor='center'),
+                    'yaxis': dict(showgrid=True, gridcolor='#1e293b', zeroline=False, tickfont=dict(size=11, color='#64748b'), range=[0, _max_e + max(2, int(_max_e*0.25))]),
+                })
+                for _i, (_t, _lsrc) in enumerate(zip(_bar_names, _bar_logos)):
+                    if _lsrc:
+                        _fig_elite.add_layout_image(dict(source=_lsrc, x=_i, y=-0.22, xref='x', yref='paper', sizex=0.55, sizey=0.20, xanchor='center', yanchor='top', layer='above'))
+                st.plotly_chart(_fig_elite, use_container_width=True, config={'staticPlot': True})
 
-                            _tc = get_team_primary_color(_ct)
-                            _fig_p = go.Figure()
-
-                            for _stype, _scolor in _TYPE_COLORS.items():
-                                _sub = _speed_players[_speed_players['SpeedType'] == _stype]
-                                if _sub.empty:
-                                    continue
-                                _names = _sub.get('Name', _sub.get('Player', pd.Series(['?']*len(_sub)))).fillna('?')
-                                _pos_labels = _sub['PosNorm'].fillna('?')
-                                _fig_p.add_trace(go.Scatter(
-                                    x=_sub['SPD'],
-                                    y=_sub['OVR'],
-                                    mode='markers',
-                                    name=_stype,
-                                    marker=dict(
-                                        color=_scolor,
-                                        size=10,
-                                        line=dict(width=1, color='rgba(0,0,0,0.3)')
-                                    ),
-                                    hovertemplate=(
-                                        f"<b>%{{customdata[0]}}</b><br>"
-                                        f"Pos: %{{customdata[1]}}<br>"
-                                        f"SPD: %{{x}} &nbsp; OVR: %{{y}}<br>"
-                                        f"Type: {_stype}<extra></extra>"
-                                    ),
-                                    customdata=list(zip(_names, _pos_labels)),
-                                    showlegend=True,
-                                ))
-
-                            _fig_p.update_layout(
-                                height=320,
-                                title=dict(
-                                    text=f"<b>{_ct}</b> <span style='font-size:13px;color:#666;'>({_cu})</span>",
-                                    font=dict(size=15, color='#111'),
-                                    x=0.5, xanchor='center'
-                                ),
-                                paper_bgcolor='#f5f5f5',
-                                plot_bgcolor='#f5f5f5',
-                                margin=dict(l=30, r=10, t=50, b=40),
-                                legend=dict(
-                                    orientation='h', y=-0.18,
-                                    font=dict(size=10, color='#333'),
-                                    bgcolor='rgba(0,0,0,0)'
-                                ),
-                                xaxis=dict(
-                                    title='SPD Rating', range=[83, 100],
-                                    showgrid=True, gridcolor='#ddd',
-                                    zeroline=False,
-                                    tickfont=dict(size=11, color='#333'),
-                                    title_font=dict(size=12, color='#333')
-                                ),
-                                yaxis=dict(
-                                    title='OVR',
-                                    showgrid=True, gridcolor='#ddd',
-                                    zeroline=False,
-                                    tickfont=dict(size=11, color='#333'),
-                                    title_font=dict(size=12, color='#333')
-                                ),
-                            )
-                            st.plotly_chart(_fig_p, use_container_width=True, config={'staticPlot': True})
+                # ── Chart 2: Monsters (blue), Quick Hogs (green), 90+ (gray) ──
+                _fig_phys = go.Figure()
+                _fig_phys.add_trace(go.Bar(name='👹 Monsters', x=list(range(len(_bar_short))), y=_mon_vals,
+                    marker_color='#3b82f6', text=_mon_vals, textposition='outside',
+                    textfont=dict(color='#93c5fd', size=14, family='Arial Black')))
+                _fig_phys.add_trace(go.Bar(name='🐗 Quick Hogs', x=list(range(len(_bar_short))), y=_qh_vals,
+                    marker_color='#22c55e', text=_qh_vals, textposition='outside',
+                    textfont=dict(color='#86efac', size=14, family='Arial Black')))
+                _fig_phys.add_trace(go.Bar(name='💨 90+ Speed', x=list(range(len(_bar_short))), y=_s90_vals,
+                    marker_color='#64748b', text=_s90_vals, textposition='outside',
+                    textfont=dict(color='#94a3b8', size=14, family='Arial Black')))
+                _max_p = max(max(_mon_vals, default=0), max(_qh_vals, default=0), max(_s90_vals, default=0))
+                _fig_phys.update_layout(**{**_bar_layout_base,
+                    'title': dict(text='<b>👹 MONSTERS, QUICK HOGS & 90+ SPEED</b>', font=dict(size=17, color='#f8fafc'), x=0.5, xanchor='center'),
+                    'yaxis': dict(showgrid=True, gridcolor='#1e293b', zeroline=False, tickfont=dict(size=11, color='#64748b'), range=[0, _max_p + max(2, int(_max_p*0.25))]),
+                })
+                for _i, (_t, _lsrc) in enumerate(zip(_bar_names, _bar_logos)):
+                    if _lsrc:
+                        _fig_phys.add_layout_image(dict(source=_lsrc, x=_i, y=-0.22, xref='x', yref='paper', sizex=0.55, sizey=0.20, xanchor='center', yanchor='top', layer='above'))
+                st.plotly_chart(_fig_phys, use_container_width=True, config={'staticPlot': True})
 
 
 with tabs[11]:
@@ -19829,7 +19787,7 @@ def _youtube_embed_html(url, height=540):
     """
 
 def load_stream_archive_data():
-    cols = ["date","season","week","user_team","opponent","stream_title","platform","url","result","score","notes","streamer","archive_type"]
+    cols = ["date","season","week","user_team","opponent","stream_title","platform","url","result","score","tv_rating","notes","streamer","archive_type"]
     path = "stream_archive.csv"
     if not os.path.exists(path):
         seed = pd.DataFrame([
@@ -19972,6 +19930,14 @@ def _format_archive_row(row, scores_df=None, gs_df=None):
         out["is_playoff"] = str(m.get("CFP","")).strip().lower() in ("yes","y","1","true") or str(m.get("Natty Game","")).strip().lower() in ("yes","y","1","true") or str(m.get("Bowl","")).strip().lower() in ("yes","y","1","true")
     else:
         out["is_playoff"] = False
+    # is_natty: Natty Game flag from scores OR archive_type keyword
+    _atype_lower = str(out.get("archive_type", "")).strip().lower()
+    _is_natty_flag = False
+    if m is not None:
+        _is_natty_flag = str(m.get("Natty Game","")).strip().lower() in ("yes","y","1","true")
+    if not _is_natty_flag:
+        _is_natty_flag = "natty" in _atype_lower or "national title" in _atype_lower or "championship" in _atype_lower
+    out["is_natty"] = _is_natty_flag
     s = _find_matching_summary_row(out, gs_df)
     if s is not None:
         notes = str(s.get("NOTES","")).strip()
@@ -19982,6 +19948,114 @@ def _format_archive_row(row, scores_df=None, gs_df=None):
     else:
         out["summary"] = str(out.get("notes","")).strip()
     return out
+
+
+def _get_rank_nums_for_row(row):
+    """Return (u_rank_float, o_rank_float) from cfp_rankings_history — NaN if unranked."""
+    try:
+        wk     = row.get("week_num") or row.get("week")
+        season = row.get("season_num") or row.get("season")
+        u_team = str(row.get("user_team","")).strip()
+        o_team = str(row.get("opponent","")).strip()
+        cur_s  = int(pd.to_numeric(pd.Series([CURRENT_YEAR]), errors="coerce").iloc[0])
+        row_s  = int(pd.to_numeric(pd.Series([season]), errors="coerce").fillna(0).iloc[0])
+        if row_s == cur_s:
+            u_rank = get_rank_at_week(u_team, wk) if 'get_rank_at_week' in globals() else float('nan')
+            o_rank = get_rank_at_week(o_team, wk) if 'get_rank_at_week' in globals() else float('nan')
+        else:
+            u_rank = o_rank = float("nan")
+            _rh = pd.read_csv("cfp_rankings_history.csv")
+            _rh["YEAR"] = pd.to_numeric(_rh["YEAR"], errors="coerce")
+            _rh["WEEK"] = pd.to_numeric(_rh["WEEK"], errors="coerce")
+            _rh["RANK"] = pd.to_numeric(_rh["RANK"], errors="coerce")
+            _rh["TEAM"] = _rh["TEAM"].astype(str).str.strip()
+            _w  = int(pd.to_numeric(pd.Series([wk]), errors="coerce").fillna(0).iloc[0])
+            _sy = _rh[_rh["YEAR"] == row_s].copy()
+            if not _sy.empty:
+                for _wk2 in sorted(_sy["WEEK"].dropna().unique().tolist(), reverse=True):
+                    if _wk2 <= _w:
+                        _snap = _sy[_sy["WEEK"] == _wk2]
+                        _u = _snap[_snap["TEAM"].str.lower() == u_team.lower()]
+                        _o = _snap[_snap["TEAM"].str.lower() == o_team.lower()]
+                        if not _u.empty: u_rank = float(_u.iloc[0]["RANK"])
+                        if not _o.empty: o_rank = float(_o.iloc[0]["RANK"])
+                        break
+        return u_rank, o_rank
+    except Exception:
+        return float("nan"), float("nan")
+
+
+def _generate_headline(row, u_rank, o_rank):
+    """Generate a punchy broadcast-style ALL-CAPS headline for a game card."""
+    import math
+    ut  = str(row.get("user_team","")).strip().upper()
+    opp = str(row.get("opponent","")).strip().upper()
+    res = str(row.get("result","")).strip().upper()
+    score = str(row.get("score","")).strip()
+    is_natty   = bool(row.get("is_natty", False))
+    is_playoff = bool(row.get("is_playoff", False))
+    is_user_battle = str(row.get("opponent","")).strip() in list(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else False
+
+    # Compact score "38-37"
+    cs = ""
+    try:
+        parts = score.split(",")
+        if len(parts) == 2:
+            s1 = parts[0].strip().rsplit(" ", 1)[-1]
+            s2 = parts[1].strip().split(" ", 2)[1] if len(parts[1].strip().split()) > 1 else ""
+            if s1.isdigit() and s2.isdigit():
+                cs = f"{s1}-{s2}"
+    except Exception:
+        pass
+    ss = f" {cs}" if cs else ""
+
+    u_rk = int(u_rank) if (not (isinstance(u_rank, float) and math.isnan(u_rank))) and 1 <= int(u_rank) <= 25 else None
+    o_rk = int(o_rank) if (not (isinstance(o_rank, float) and math.isnan(o_rank))) and 1 <= int(o_rank) <= 25 else None
+    u_pfx = f"#{u_rk} " if u_rk else ""
+    o_pfx = f"#{o_rk} " if o_rk else ""
+
+    # Score margin
+    margin = None
+    try:
+        if cs:
+            a, b = cs.split("-")
+            margin = abs(int(a) - int(b))
+    except Exception:
+        pass
+
+    if is_natty and res == "W":
+        return f"🏆 DYNASTY MADE — {ut} ARE NATIONAL CHAMPIONS{ss}"
+    if is_natty and res == "L":
+        return f"💔 HEARTBREAK — {ut} FALLS IN THE NATTY{ss}"
+    if is_natty:
+        return f"🏆 NATTY GAME — {ut} VS {opp}{ss}"
+    if is_user_battle and res == "W":
+        return f"🎮 USER BATTLE — {u_pfx}{ut} TOPS {o_pfx}{opp}{ss}"
+    if is_user_battle and res == "L":
+        return f"🎮 USER BATTLE — {o_pfx}{opp} HANDLES {u_pfx}{ut}{ss}"
+    if is_user_battle:
+        return f"🎮 USER BATTLE — {u_pfx}{ut} VS {o_pfx}{opp}{ss}"
+    if is_playoff and res == "W":
+        return f"CFP — {u_pfx}{ut} ADVANCES, TAKES DOWN {o_pfx}{opp}{ss}"
+    if is_playoff and res == "L":
+        return f"CFP — {u_pfx}{ut} ELIMINATED BY {o_pfx}{opp}{ss}"
+    if o_rk and not u_rk and res == "W":
+        return f"⚡ UPSET ALERT — {ut} STUNS {o_pfx}{opp}{ss}"
+    if o_rk and u_rk and res == "W":
+        return f"{u_pfx}{ut} TAKES DOWN {o_pfx}{opp}{ss}"
+    if res == "W" and margin is not None and margin <= 3:
+        return f"🔥 LAST-SECOND DRAMA — {u_pfx}{ut} EDGES {o_pfx}{opp}{ss}"
+    if res == "W" and margin is not None and margin <= 7:
+        return f"{u_pfx}{ut} SURVIVES THRILLER VS {o_pfx}{opp}{ss}"
+    if res == "W" and margin is not None and margin >= 24:
+        return f"{u_pfx}{ut} DOMINATES {o_pfx}{opp}{ss}"
+    if res == "W":
+        return f"{u_pfx}{ut} DEFEATS {o_pfx}{opp}{ss}"
+    if res == "L" and o_rk:
+        return f"{o_pfx}{opp} TOO MUCH FOR {u_pfx}{ut}{ss}"
+    if res == "L":
+        return f"{o_pfx}{opp} HANDS {u_pfx}{ut} THE L{ss}"
+    return f"{u_pfx}{ut} VS {o_pfx}{opp}{ss}"
 
 
 def render_dynasty_youtube_tab():
@@ -20148,9 +20222,12 @@ def render_dynasty_youtube_tab():
 
     total_vids    = len(adf) if not adf.empty else 0
     seasons_cov   = adf["season"].dropna().nunique() if (not adf.empty and "season" in adf.columns) else 0
-    wins          = int((adf["result"].astype(str).str.upper() == "W").sum()) if (not adf.empty and "result" in adf.columns) else 0
-    losses        = int((adf["result"].astype(str).str.upper() == "L").sum()) if (not adf.empty and "result" in adf.columns) else 0
     playoff_count = int(adf["is_playoff"].sum()) if (not adf.empty and "is_playoff" in adf.columns) else 0
+    natty_count   = int(adf["is_natty"].sum()) if (not adf.empty and "is_natty" in adf.columns) else 0
+    user_battle_count = 0
+    if not adf.empty and "opponent" in adf.columns and "USER_TEAMS" in dir():
+        _ut_schools = set(USER_TEAMS.values())
+        user_battle_count = int(adf["opponent"].astype(str).str.strip().isin(_ut_schools).sum())
 
     st.markdown(f"""
     <div class="yt-masthead">
@@ -20163,9 +20240,9 @@ def render_dynasty_youtube_tab():
       <div class="yt-stat-strip">
         <div class="yt-stat-chip"><div class="yt-stat-chip-val">{total_vids}</div><div class="yt-stat-chip-lbl">Videos</div></div>
         <div class="yt-stat-chip"><div class="yt-stat-chip-val">{seasons_cov}</div><div class="yt-stat-chip-lbl">Seasons</div></div>
-        <div class="yt-stat-chip"><div class="yt-stat-chip-val" style="color:#4ade80;">{wins}</div><div class="yt-stat-chip-lbl">Wins Archived</div></div>
-        <div class="yt-stat-chip"><div class="yt-stat-chip-val" style="color:#f87171;">{losses}</div><div class="yt-stat-chip-lbl">Losses Archived</div></div>
-        <div class="yt-stat-chip"><div class="yt-stat-chip-val" style="color:#fbbf24;">{playoff_count}</div><div class="yt-stat-chip-lbl">Bowl/CFP</div></div>
+        <div class="yt-stat-chip"><div class="yt-stat-chip-val" style="color:#fbbf24;">{playoff_count}</div><div class="yt-stat-chip-lbl">Bowl / CFP</div></div>
+        <div class="yt-stat-chip"><div class="yt-stat-chip-val" style="color:#c084fc;">{natty_count}</div><div class="yt-stat-chip-lbl">Natty 🏆</div></div>
+        <div class="yt-stat-chip"><div class="yt-stat-chip-val" style="color:#38bdf8;">{user_battle_count}</div><div class="yt-stat-chip-lbl">User Battles</div></div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -20227,10 +20304,14 @@ def render_dynasty_youtube_tab():
            style="background:linear-gradient(160deg,rgba({f_rgb_l},0.18) 0%,rgba(10,13,26,0) 100%);">
         <div class="yt-hero-meta-row">
           {_archive_type_badge(f_atype, f_is_playoff)}
-          {_result_badge(f_result)}
           {_streamer_badge(f_streamer)}
         </div>
-        <div class="yt-hero-title">{_html.escape(f_title)}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:2.1rem;font-weight:900;line-height:1;margin-bottom:4px;">
+          <span style="color:{f_cl};text-transform:uppercase;">{_html.escape(f_team_l)}</span>
+          <span style="color:#334155;font-size:1.4rem;margin:0 8px;">VS</span>
+          <span style="color:{f_cr};text-transform:uppercase;">{_html.escape(f_team_r)}</span>
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;font-weight:700;color:#94a3b8;letter-spacing:.04em;margin-bottom:2px;">{_html.escape(_generate_headline(featured, *_get_rank_nums_for_row(featured)))}</div>
         <div class="yt-hero-matchup">
           <div class="yt-hero-team-block">
             {f_logo_l}
@@ -20249,6 +20330,7 @@ def render_dynasty_youtube_tab():
         </div>
         <div class="yt-hero-footer">
           <span class="yt-season-week">Season {_html.escape(str(f_season))} • Week {_html.escape(str(f_week))}</span>
+          {f'<span style="background:#1e293b;color:#fbbf24;border:1px solid #854d0e;padding:3px 10px;border-radius:4px;font-size:.68rem;font-weight:900;letter-spacing:.06em;">📺 ' + _html.escape(str(featured.get("tv_rating","")).strip()) + ' M VIEWERS</span>' if str(featured.get("tv_rating","")).strip() not in ("","nan") else ""}
         </div>
       </div>
     </div>
@@ -20272,37 +20354,14 @@ def render_dynasty_youtube_tab():
     if rest.empty:
         return
 
-    all_seasons    = sorted(rest["season_num"].unique(), reverse=True)
-    season_options = ["All Seasons"] + [f"Season {s}" for s in all_seasons]
-    all_teams = sorted(set(
-        list(rest["user_team"].dropna().astype(str).str.strip()) +
-        list(rest["opponent"].dropna().astype(str).str.strip())
-    ))
-    team_options = ["All Teams"] + [t for t in all_teams if t.lower() not in ("nan","")]
-
-    st.markdown("<div class='yt-section-header'>📼  More Archives</div>", unsafe_allow_html=True)
-    fc1, fc2 = st.columns([1,1])
-    with fc1:
-        sel_season = st.selectbox("Season", season_options, key="yt_season_filter", label_visibility="collapsed")
-    with fc2:
-        sel_team   = st.selectbox("Team",   team_options,   key="yt_team_filter",   label_visibility="collapsed")
-
-    filtered = rest.copy()
-    if sel_season != "All Seasons":
-        filtered = filtered[filtered["season_num"] == int(sel_season.split()[-1])]
-    if sel_team != "All Teams":
-        filtered = filtered[
-            (filtered["user_team"].astype(str).str.strip() == sel_team) |
-            (filtered["opponent"].astype(str).str.strip() == sel_team)
-        ]
-
-    if filtered.empty:
-        st.caption("No archives match that filter.")
-        return
-
-    col_a, col_b = st.columns(2, gap="medium")
-    for idx, (_, row) in enumerate(filtered.iterrows()):
-        col = col_a if idx % 2 == 0 else col_b
+    # ── Helper: render a 2-col grid of game cards ────────────────────────────
+    def _render_card_grid(df_section):
+        if df_section.empty:
+            st.caption("No games in this section yet.")
+            return
+        col_a, col_b = st.columns(2, gap="medium")
+        for idx, (_, row) in enumerate(df_section.iterrows()):
+            col = col_a if idx % 2 == 0 else col_b
         r_team_l  = str(row.get("user_team","")).strip()
         r_team_r  = str(row.get("opponent","")).strip()
         r_cl      = _team_color(r_team_l)
@@ -20321,29 +20380,37 @@ def render_dynasty_youtube_tab():
         r_rank_l, r_rank_r = _get_ranks_for_row(row)
 
         with col:
+            _r_rank_u, _r_rank_o = _get_rank_nums_for_row(row)
+            _r_headline = _generate_headline(row, _r_rank_u, _r_rank_o)
+            _r_tv = str(row.get("tv_rating","")).strip()
+            _r_tv_badge = (f"<span style=\'background:#1e293b;color:#fbbf24;border:1px solid #854d0e;"
+                           f"padding:2px 7px;border-radius:3px;font-size:.62rem;font-weight:900;"
+                           f"letter-spacing:.05em;\'>📺 {_html.escape(_r_tv)}M</span>") if _r_tv not in ("","nan") else ""
             st.markdown(f"""
             <div class="yt-card">
               <div class="yt-card-top-bar" style="background:linear-gradient(90deg,{r_cl},{r_cr});"></div>
               <div class="yt-card-body">
                 <div class="yt-card-meta-row">
                   {_archive_type_badge(r_atype, r_is_p)}
-                  {_result_badge(r_result)}
+                  {_r_tv_badge}
                 </div>
-                <div class="yt-card-title">{_html.escape(r_title)}</div>
+                <div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.05rem;font-weight:900;line-height:1.1;margin-bottom:4px;">
+                  <span style="color:{r_cl};text-transform:uppercase;">{_html.escape(r_team_l)}</span>
+                  <span style="color:#334155;font-size:.85rem;margin:0 5px;">VS</span>
+                  <span style="color:{r_cr};text-transform:uppercase;">{_html.escape(r_team_r)}</span>
+                </div>
+                <div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.85rem;font-weight:700;color:#94a3b8;letter-spacing:.03em;margin-bottom:8px;line-height:1.2;">{_html.escape(_r_headline)}</div>
                 <div class="yt-card-matchup">
                   <div class="yt-card-team">
                     {r_logo_l}
-                    <div class="yt-card-team-name">{_html.escape(r_team_l)}</div>
                     <div class="yt-card-rank-row">{r_rank_l}</div>
                   </div>
                   <div class="yt-card-vs">VS</div>
                   <div class="yt-card-team">
                     {r_logo_r}
-                    <div class="yt-card-team-name">{_html.escape(r_team_r)}</div>
                     <div class="yt-card-rank-row">{r_rank_r}</div>
                   </div>
                 </div>
-                {f'<div class="yt-card-score">{_html.escape(r_score)}</div>' if r_score else ''}
                 {f'<div class="yt-card-summary">{_html.escape(r_summary)}</div>' if r_summary and r_summary.lower() != "nan" else ''}
                 <div class="yt-card-footer">
                   <span class="yt-card-season">S{_html.escape(str(r_season))} · WK {_html.escape(str(r_week))}</span>
@@ -20363,7 +20430,95 @@ def render_dynasty_youtube_tab():
                         st.link_button("Open on YouTube", _watch, use_container_width=True)
             st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
 
-def render_dynasty_youtube_archives_tab():
+    # ── Categorize all non-featured rows ─────────────────────────────────────
+    _ut_schools = set(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else set()
+
+    _natty_games   = rest[rest.get("is_natty", pd.Series([False]*len(rest), index=rest.index)).fillna(False).astype(bool)].copy() if "is_natty" in rest.columns else pd.DataFrame()
+    _user_battles  = rest[rest["opponent"].astype(str).str.strip().isin(_ut_schools)].copy()
+    _upsets        = pd.DataFrame()
+    _tv_top        = pd.DataFrame()
+
+    # Upsets: user team won and opponent was ranked (check via cfp_rankings_history)
+    _upset_rows = []
+    for _, _rw in rest.iterrows():
+        if str(_rw.get("result","")).upper() == "W":
+            _u_rk, _o_rk = _get_rank_nums_for_row(_rw)
+            import math
+            _o_ranked = (not isinstance(_o_rk, float) or not math.isnan(_o_rk)) and 1 <= int(_o_rk) <= 25
+            _u_ranked = (not isinstance(_u_rk, float) or not math.isnan(_u_rk)) and 1 <= int(_u_rk) <= 25
+            if _o_ranked and not _u_ranked:
+                _upset_rows.append(_rw)
+    if _upset_rows:
+        _upsets = pd.DataFrame(_upset_rows)
+
+    # TV Top: games with a tv_rating value, sorted highest first
+    if "tv_rating" in rest.columns:
+        _tv_df = rest[rest["tv_rating"].astype(str).str.strip().notna()].copy()
+        _tv_df = _tv_df[~_tv_df["tv_rating"].astype(str).str.strip().isin(["","nan"])]
+        _tv_df["_tv_num"] = pd.to_numeric(_tv_df["tv_rating"], errors="coerce")
+        _tv_df = _tv_df.dropna(subset=["_tv_num"]).sort_values("_tv_num", ascending=False)
+        if not _tv_df.empty:
+            _tv_top = _tv_df.drop(columns=["_tv_num"])
+
+    # General: everything not in a special section
+    _special_urls = set()
+    for _df_s in [_natty_games, _user_battles, _upsets, _tv_top]:
+        if not _df_s.empty and "url" in _df_s.columns:
+            _special_urls.update(_df_s["url"].astype(str).tolist())
+    _general = rest[~rest["url"].astype(str).isin(_special_urls)].copy()
+
+    # ── Section: National Titles 🏆 ───────────────────────────────────────────
+    if not _natty_games.empty:
+        st.markdown("<div class='yt-section-header'>🏆 NATIONAL TITLE GAMES</div>", unsafe_allow_html=True)
+        _render_card_grid(_natty_games)
+
+    # ── Section: Highest TV Ratings 📺 ────────────────────────────────────────
+    if not _tv_top.empty:
+        st.markdown("<div class='yt-section-header'>📺 HIGHEST TV RATINGS</div>", unsafe_allow_html=True)
+        _render_card_grid(_tv_top)
+
+    # ── Section: Upset City ⚡ ──────────────────────────────────────────────
+    if not _upsets.empty:
+        st.markdown("<div class='yt-section-header'>⚡ UPSET CITY</div>", unsafe_allow_html=True)
+        _render_card_grid(_upsets)
+
+    # ── Section: User Battles 🎮 ──────────────────────────────────────────────
+    if not _user_battles.empty:
+        st.markdown("<div class='yt-section-header'>🎮 USER BATTLES</div>", unsafe_allow_html=True)
+        _render_card_grid(_user_battles)
+
+    # ── Section: Full Archive 📼 ──────────────────────────────────────────────
+    all_archive = rest.copy()
+    all_seasons    = sorted(all_archive["season_num"].unique(), reverse=True)
+    season_options = ["All Seasons"] + [f"Season {s}" for s in all_seasons]
+    all_teams_list = sorted(set(
+        list(all_archive["user_team"].dropna().astype(str).str.strip()) +
+        list(all_archive["opponent"].dropna().astype(str).str.strip())
+    ))
+    team_options = ["All Teams"] + [t for t in all_teams_list if t.lower() not in ("nan","")]
+
+    st.markdown("<div class='yt-section-header'>📼 FULL ARCHIVE</div>", unsafe_allow_html=True)
+    fc1, fc2 = st.columns([1,1])
+    with fc1:
+        sel_season = st.selectbox("Season", season_options, key="yt_season_filter", label_visibility="collapsed")
+    with fc2:
+        sel_team   = st.selectbox("Team",   team_options,   key="yt_team_filter",   label_visibility="collapsed")
+
+    filtered = all_archive.copy()
+    if sel_season != "All Seasons":
+        filtered = filtered[filtered["season_num"] == int(sel_season.split()[-1])]
+    if sel_team != "All Teams":
+        filtered = filtered[
+            (filtered["user_team"].astype(str).str.strip() == sel_team) |
+            (filtered["opponent"].astype(str).str.strip() == sel_team)
+        ]
+    if filtered.empty:
+        st.caption("No archives match that filter.")
+        return
+
+    col_a, col_b = st.columns(2, gap="medium")
+    for idx, (_, row) in enumerate(filtered.iterrows()):
+        col = col_a if idx % 2 == 0 else col_b
     archive_df = load_stream_archive_data()
     archive_df = archive_df[archive_df["platform"].astype(str).str.lower().eq("youtube")].copy()
     if archive_df.empty:
