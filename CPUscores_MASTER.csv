@@ -1,13 +1,13 @@
 YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,Home Rank,Visitor Record,Home Record,Reg Season,Conf Title,Bowl,Natty Game,Status,Source
 2025,,Death Valley,Gate City,31,49,No,Doug,Nick,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2025,,Rapid City,Hammond,51,29,No,Mike,Devin,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2025,,Panama City,Alabaster,36,31,No,Josh,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2025,,Gate City,Hammond,35,56,No,Nick,Devin,,,,,No,No,Yes,NO,FINAL,Merged from scores.csv (user-v-user history)
 2025,,Hammond,Rapid City,7,41,No,Devin,Mike,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2025,,Panama City,Alabaster,36,31,No,Josh,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2025,,Rapid City,Hammond,51,29,No,Mike,Devin,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2026,,Alabaster,Panama City,52,38,No,Noah,Josh,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2026,,Death Valley,Gate City,35,55,no,Doug,Nick,,,,,no,Yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2026,,Gate City,Death Valley,56,21,No,Nick,Doug,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2026,,Hammond,Rapid City,42,41,No,Devin,Mike,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2026,,Death Valley,Gate City,35,55,no,Doug,Nick,,,,,no,Yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2027,,Death Valley,Hammond,21,42,No,Doug,Devin,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2027,,Nebraska,Rapid City,13,31,No,Nick,Mike,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2027,,Panama City,Alabaster,35,56,No,Josh,Noah,,,,,no,yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -20,31 +20,27 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2029,,Hammond,Nebraska,35,15,No,Devin,Nick,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2029,,Panama City,Alabaster,38,41,Yes,Josh,Noah,,,,,no,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2029,,Panama City,Hammond,52,42,Yes,Josh,Devin,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2029,,Panama city,Alabaster,34,55,No,Josh,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2029,,Rapid City,Alabaster,56,20,Yes,Mike,Noah,,,,,no,no,no,YES,FINAL,Merged from scores.csv (user-v-user history)
 2029,,Rapid City,Death Valley,48,0,No,Mike,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2029,,Rapid City,Hammond,55,27,No,Mike,Devin,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2029,,Rapid City,Hammond,21,28,No,Mike,Devin,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2029,,Panama city,Alabaster,34,55,No,Josh,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2030,,Death Valley,Alabaster,35,48,Yes,Doug,Noah,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2030,,Alabaster,Death Valley,42,56,No,Noah,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2030,,Alabaster,Panama City,63,42,No,Noah,Josh,,,,,Yes,No,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2030,,Alabaster,Panama city,48,41,No,Noah,Josh,,,,,no,Yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2030,,Death Valley,Alabaster,35,48,Yes,Doug,Noah,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2030,,Hammond,Alabaster,70,73,Yes,Devin,Noah,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2030,,Hammond,Rapid City,44,36,No,Devin,Mike,,,,,no,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2030,,Hammond,Rapid City,35,38,No,Devin,Mike,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2030,,Nebraska,Panama City,42,28,No,Nick,Josh,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2030,,Rapid City,Alabaster,27,31,Yes,Mike,Noah,,,,,No,No,No,YES,FINAL,Merged from scores.csv (user-v-user history)
 2030,,Rapid City,Nebraska,45,28,Yes,Mike,Nick,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2030,,Alabaster,Death Valley,42,56,No,Noah,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2030,,Hammond,Rapid City,35,38,No,Devin,Mike,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2030,,Alabaster,Panama city,48,41,No,Noah,Josh,,,,,no,Yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Alabaster,Rapid City,66,84,Yes,Noah,Mike,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Hammond,Alabaster,65,56,No,Devin,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Hammond,Rapid City,52,73,No,Devin,Mike,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Nebraska,Death Valley,49,28,No,Nick,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Panama City,Nebraska,49,42,No,Josh,Nick,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Panama City,Death Valley,28,23,No,Josh,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Panama City,Rapid City,45,32,Yes,Josh,Mike,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Nebraska,Panama city,42,21,No,Nick,Josh,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2031,,Hammond,Rapid City,28,49,No,Devin,Mike,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2031,,Alabaster,Rapid City,42,48,No,Noah,Mike,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Hammond,Alabaster,65,56,No,Devin,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Hammond,Rapid City,28,49,No,Devin,Mike,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Nebraska,Death Valley,49,28,No,Nick,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Nebraska,Panama city,42,21,No,Nick,Josh,,,,,No,Yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Panama City,Death Valley,28,23,No,Josh,Doug,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Panama City,Nebraska,49,42,No,Josh,Nick,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2031,,Panama City,Rapid City,45,32,Yes,Josh,Mike,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2031,,Panama city,Nebraska,42,7,Yes,Josh,Nick,,,,,No,No,No,YES,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Alabaster,Nebraska,38,35,yes,Noah,Nick,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Alabaster,Panama City,37,40,No,Noah,Josh,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -54,17 +50,15 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2032,,Rapid City,Alabaster,31,34,No,Mike,Noah,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Rapid City,Hammond,59,19,yes,Mike,Devin,,,,,No,no,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Rapid City,Panama City,54,24,No,Mike,Josh,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2032,,Rapid City,Panama city,37,36,No,Mike,Josh,,,,,No,yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2032,,Rapid City,Panama city,42,30,yes,Mike,Josh,,,,,No,no,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2033,,Alabaster,Nebraska,28,35,yes,Noah,Nick,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2033,,Alabaster,Rapid City,14,42,no,Noah,Mike,,,,,Yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2033,,Hammond,Nebraska,44,42,Yes,Devin,Nick,,,,,No,No,No,YES,FINAL,Merged from scores.csv (user-v-user history)
+2033,,Hammond,Nebraska,35,42,no,Devin,Nick,,,,,Yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2033,,Hammond,Rapid City,65,41,Yes,Devin,Mike,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2033,,Nebraska,Death Valley,62,10,no,Nick,Doug,,,,,Yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2033,,Panama City,Alabaster,42,52,no,Josh,Noah,,,,,Yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2033,,Panama City,Death Valley,42,23,no,Josh,Doug,,,,,no,no,yes,NO,FINAL,Merged from scores.csv (user-v-user history)
 2033,,Panama City,Rapid City,35,46,no,Josh,Mike,,,,,Yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2033,,Hammond,Nebraska,35,42,no,Devin,Nick,,,,,Yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2034,,Alabaster,Georgia,42,14,no,Noah,Josh,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2034,,Alabaster,Rapid City,34,56,Yes,Noah,Mike,,,,,no,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2034,,Death Valley,Nebraska,28,42,No,Doug,Nick,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
@@ -73,202 +67,190 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2034,,Hammond,Alabaster,63,32,no,Devin,Noah,,,,,yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2034,,Hammond,Georgia,28,35,no,Devin,Josh,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2034,,Hammond,Nebraska,35,36,Yes,Devin,Nick,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2034,,Nebraska,Rapid City,35,42,Yes,Nick,Mike,,,,,no,No,No,YES,FINAL,Merged from scores.csv (user-v-user history)
 2034,,Nebraska,Rapid City,28,31,no,Nick,Mike,,,,,Yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2035,,Alabaster,Nebraska,31,21,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2035,,Georgia,Alabaster,35,42,yes,Josh,Noah,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2035,,Georgia,Alabaster,35,38,no,Josh,Noah,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2035,,Georgia,Nebraska,38,35,no,Josh,Nick,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2035,,Hammond,Death Valley,42,28,no,Devin,Doug,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2035,,Hammond,Nebraska,42,28,Yes,Devin,Nick,,,,,No,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2035,,Rapid City,Alabaster,35,7,yes,Mike,Noah,,,,,no,no,no,YES,FINAL,Merged from scores.csv (user-v-user history)
 2035,,Rapid City,Death Valley,56,28,no,Mike,Doug,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2035,,Rapid City,Hammond,59,21,yes,Mike,Devin,,,,,no,no,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2035,,Georgia,Alabaster,35,38,no,Josh,Noah,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2035,,Rapid City,Hammond,45,21,no,Mike,Devin,,,,,yes,no,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2035,,Rapid City,Hammond,30,31,no,Mike,Devin,,,,,no,yes,No,NO,FINAL,Merged from scores.csv (user-v-user history)
 2036,,Alabaster,Nebraska,49,43,yes,Noah,Nick,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2036,,Georgia,Alabaster,56,52,no,Josh,Noah,,,,,no,yes,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2036,,Hammond,Nebraska,49,70,no,Devin,Nick,,,,,yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
-2036,,Maryland,Death Valley,31,28,yes,Mike,Doug,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2036,,Maryland,Georgia,21,35,yes,Mike,Josh,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2036,,Georgia,Alabaster,31,40,no,Josh,Noah,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
-2036,,Maryland,Death Valley,26,21,no,Mike,Doug,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
 2036,,Georgia,Alabaster,22,30,yes,Josh,Noah,,,,,no,no,no,YES,FINAL,Merged from scores.csv (user-v-user history)
-2037,,Georgia,Alabaster,60,45,no,Josh,Noah,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2036,,Hammond,Nebraska,49,70,no,Devin,Nick,,,,,yes,No,No,NO,FINAL,Merged from scores.csv (user-v-user history)
+2036,,Maryland,Death Valley,26,21,no,Mike,Doug,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2036,,Maryland,Georgia,21,35,yes,Mike,Josh,,,,,no,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2037,,Alabaster,Georgia,24,27,yes,Noah,Josh,,,,,no,no,no,NO,FINAL,Bowling Green schedule screenshot
 2037,,Alabaster,Nebraska,39,46,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,Bowling Green schedule screenshot
-2037,,Nebraska,Georgia,36,33,no,Nick,Josh,,,,,no,yes,no,NO,FINAL,Florida schedule screenshot
+2037,,Georgia,Alabaster,60,45,no,Josh,Noah,,,,,yes,no,no,NO,FINAL,Merged from scores.csv (user-v-user history)
+2037,,Georgia,Nebraska,40,52,yes,Josh,Nick,,,,,no,no,no,NO,FINAL,Florida schedule screenshot
 2037,,Nebraska,Death Valley,34,65,yes,Nick,Doug,,,,,no,no,no,YES,FINAL,Florida State schedule screenshot
+2037,,Nebraska,Georgia,36,33,no,Nick,Josh,,,,,no,yes,no,NO,FINAL,Florida schedule screenshot
 2037,,Wyoming,Alabaster,27,28,yes,Mike,Noah,,,,,no,no,no,NO,FINAL,SJSU schedule screenshot
 2037,,Wyoming,Bowling Green,52,28,no,Mike,Devin,,,,,yes,no,no,NO,FINAL,Texas Tech schedule screenshot
-2037,,Georgia,Nebraska,14,9,no,Josh,Nick,,,,,yes,no,no,NO,FINAL,USF schedule screenshot
-2037,,Alabaster,Georgia,24,27,yes,Noah,Josh,,,,,no,no,no,NO,FINAL,Bowling Green schedule screenshot
-2037,,Georgia,Nebraska,40,52,yes,Josh,Nick,,,,,no,no,no,NO,FINAL,Florida schedule screenshot
-2038,,Nebraska,Alabaster,42,45,no,Nick,Noah,,,,,no,yes,no,NO,FINAL,Florida State schedule screenshot
+2038,,Alabaster,Nebraska,38,14,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,Florida schedule screenshot
 2038,,Bowling Green,Death Valley,43,36,no,Devin,Doug,,,,,yes,no,no,NO,FINAL,USF schedule screenshot
-2038,,Death Valley,Georgia,35,65,no,Doug,Josh,,,,,no,yes,no,NO,FINAL,Texas Tech schedule screenshot
+2038,,Death Valley,Georgia,20,38,no,Doug,Josh,,,,,yes,no,no,NO,FINAL,Texas Tech schedule screenshot
 2038,,Death Valley,Nebraska,28,34,yes,Doug,Nick,,,,,no,no,no,NO,FINAL,SJSU schedule screenshot
+2038,,Nebraska,Alabaster,34,35,yes,Nick,Noah,,,,,no,no,no,NO,FINAL,SJSU schedule screenshot
 2038,,Nebraska,Wyoming,27,31,no,Nick,Mike,,,,,yes,no,no,NO,FINAL,USF schedule screenshot
 2038,,Wyoming,Alabaster,42,41,yes,Mike,Noah,,,,,no,no,no,NO,FINAL,Bowling Green schedule screenshot
 2038,,Wyoming,Georgia,27,59,yes,Mike,Josh,,,,,no,no,no,YES,FINAL,Florida State schedule screenshot
-2038,,Alabaster,Nebraska,38,14,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,Florida schedule screenshot
-2038,,Nebraska,Alabaster,34,35,yes,Nick,Noah,,,,,no,no,no,NO,FINAL,SJSU schedule screenshot
-2038,,Death Valley,Georgia,20,38,no,Doug,Josh,,,,,yes,no,no,NO,FINAL,Texas Tech schedule screenshot
+2039,,Bowling Green,Death Valley,35,14,no,Devin,Doug,,,,,yes,no,no,NO,FINAL,Texas Tech schedule screenshot
 2039,,Death Valley,Bowling Green,21,63,no,Doug,Devin,,,,,no,yes,no,NO,FINAL,Florida schedule screenshot
 2039,,Death Valley,Georgia,28,55,yes,Doug,Josh,,,,,no,no,no,NO,FINAL,Bowling Green schedule screenshot
 2039,,Death Valley,Nebraska,35,21,yes,Doug,Nick,,,,,no,no,no,NO,FINAL,Florida State schedule screenshot
-2039,,Georgia,Wyoming,42,35,yes,Josh,Mike,,,,,no,no,no,YES,FINAL,SJSU schedule screenshot
-2039,,Texas Tech,Nebraska,35,38,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,USF schedule screenshot
-2039,,Bowling Green,Death Valley,35,14,no,Devin,Doug,,,,,yes,no,no,NO,FINAL,Texas Tech schedule screenshot
-2039,,Georgia,Wyoming,35,56,no,Josh,Mike,,,,,yes,no,no,NO,FINAL,USF schedule screenshot
 2039,,Georgia,Wyoming,39,41,no,Josh,Mike,,,,,no,yes,no,NO,FINAL,SJSU schedule screenshot
+2039,,Texas Tech,Nebraska,35,38,no,Noah,Nick,,,,,yes,no,no,NO,FINAL,USF schedule screenshot
 2040,,Bowling Green,Wyoming,24,59,yes,Devin,Mike,,,,,no,no,no,YES,FINAL,Florida State schedule screenshot
 2040,,Florida State,Bowling Green,28,49,no,Nick,Devin,,,,,yes,no,no,NO,FINAL,Bowling Green schedule screenshot
 2040,,Texas Tech,Wyoming,44,69,no,Noah,Mike,,,,,yes,no,no,NO,FINAL,Florida State schedule screenshot
 2040,,USF,Bowling Green,35,38,yes,Josh,Devin,,,,,no,no,no,NO,FINAL,SJSU schedule screenshot
 2040,,UTSA,USF,21,34,no,Doug,Josh,,,,,yes,no,no,NO,FINAL,Texas Tech schedule screenshot
-2041,1,SMU,Bowling Green,61,63,,,Devin,,,,,1,0,0,0,FINAL,USF schedule screenshot
-2041,1,Death Valley,Florida,13,41,,,Doug,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,1,Georgia Tech,Florida State,10,63,,,Nick,13,,,,1,0,0,0,FINAL,Florida schedule screenshot
 2041,1,Appalachian State,San Jose State,39,51,,,Mike,25,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
 2041,1,Arizona State,Texas Tech,28,42,,,Noah,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
 2041,1,Baylor,USF,20,52,,,Josh,,,,,1,0,0,0,FINAL,Florida schedule screenshot
-2041,2,Bowling Green,Alabaster,49,35,,Devin,,,10,,,1,0,0,0,FINAL,USF schedule screenshot
-2041,2,West Virginia,Florida,30,49,,,Doug,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,2,Maryland,Florida State,16,42,,,Nick,,,,,1,0,0,0,FINAL,Florida schedule screenshot
-2041,2,USF,NC State,35,17,,Josh,,,18,,,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,2,Texas Tech,Pittsburgh,52,20,,Noah,,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,2,California,San Jose State,17,63,,,Mike,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,3,USF,Alabama,35,25,,Josh,,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,3,West Virginia,Bowling Green,21,28,,,Devin,,,,,1,0,0,0,FINAL,USF schedule screenshot
-2041,3,North Carolina,Florida State,55,57,,,Nick,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,3,Florida,Penn State,42,37,,Doug,,,16,,,1,0,0,0,FINAL,USF schedule screenshot
-2041,3,Ole Miss,San Jose State,49,35,,,Mike,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,3,LSU,Texas Tech,21,55,,,Noah,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,4,Florida,Auburn,35,21,,Doug,,,,,,1,0,0,0,FINAL,Florida schedule screenshot
-2041,4,Notre Dame,Bowling Green,31,42,,,Devin,23,,,,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,4,Clemson,Florida State,33,36,,,Nick,17,,,,1,0,0,0,FINAL,Florida schedule screenshot
-2041,4,Iowa,San Jose State,34,41,,,Mike,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,4,Nebraska,USF,21,55,,,Josh,11,,,,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,4,Texas Tech,Washington,59,49,,Noah,,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,5,USF,Ohio State,52,38,,Josh,,,22,,,1,0,0,0,FINAL,Florida schedule screenshot
-2041,5,Maryland,San Jose State,34,48,,,Mike,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
-2041,5,Florida State,Texas,42,34,,Nick,,,6,,,1,0,0,0,FINAL,SJSU schedule screenshot
-2041,6,Bowling Green,Florida,56,52,,Devin,Doug,,21,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,6,Ole Miss,Florida State,23,35,,,Nick,,,,,1,0,0,0,FINAL,USF schedule screenshot
-2041,6,San Jose State,Illinois,55,21,,Mike,,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,6,Wisconsin,Texas Tech,41,44,,,Noah,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,6,Oregon,USF,20,38,,,Josh,19,,,,1,0,0,0,FINAL,USF schedule screenshot
-2041,7,Wyoming,Bowling Green,17,35,,,Devin,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,7,Florida,Tennessee,48,31,,Doug,,,,,,1,0,0,0,FINAL,Florida schedule screenshot
-2041,7,Iowa,Texas Tech,7,59,,,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
-2041,8,Florida State,Bowling Green,21,52,,Nick,Devin,4,,,,1,0,0,0,FINAL,FSU schedule screenshot
-2041,8,Florida,LSU,35,28,,Doug,,,,,,1,0,0,0,FINAL,TTU schedule screenshot
-2041,8,USF,Minnesota,84,17,,Josh,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,8,San Jose State,Texas Tech,62,27,,Mike,Noah,2,7,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,9,Alabama,Florida,20,45,,,Doug,,,,,1,0,0,0,FINAL,Florida schedule screenshot / user correction
-2041,9,Auburn,Florida State,22,50,,,Nick,,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,9,San Jose State,Indiana,55,21,,Mike,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,9,Bowling Green,Missouri,44,13,,Devin,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,9,Illinois,Texas Tech,23,41,,,Noah,,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,9,Purdue,USF,14,41,,,Josh,,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,10,Georgia,Bowling Green,21,49,,,Devin,8,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,10,USF,Michigan State,63,20,,Josh,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,10,Texas Tech,Penn State,63,17,,Noah,,,16,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,10,Michigan,San Jose State,31,48,,,Mike,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,1,Death Valley,Florida,13,41,,,Doug,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,1,Georgia Tech,Florida State,10,63,,,Nick,13,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,1,SMU,Bowling Green,61,63,,,Devin,,,,,1,0,0,0,FINAL,USF schedule screenshot
 2041,10,Florida,South Carolina,41,16,,Doug,,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,10,Florida State,Tennessee,52,14,,Nick,,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2041,11,Texas,Florida,63,42,,,Doug,6,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2041,11,Nebraska,San Jose State,17,31,,,Mike,11,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,10,Georgia,Bowling Green,21,49,,,Devin,8,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,10,Michigan,San Jose State,31,48,,,Mike,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,10,Texas Tech,Penn State,63,17,,Noah,,,16,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,10,USF,Michigan State,63,20,,Josh,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
 2041,11,Florida State,Texas A&M,28,7,,Nick,,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,11,Maryland,Texas Tech,17,70,,,Noah,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2041,12,Oklahoma State,Florida,31,43,,,Doug,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2041,12,LSU,Florida State,24,42,,,Nick,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2041,12,San Jose State,Ohio State,24,31,,Mike,,,22,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,11,Nebraska,San Jose State,17,31,,,Mike,11,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,11,Texas,Florida,63,42,,,Doug,6,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,12,Bowling Green,South Carolina,49,7,,Devin,,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,12,LSU,Florida State,24,42,,,Nick,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,12,Oklahoma State,Florida,31,43,,,Doug,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,12,Penn State,USF,28,49,,,Josh,16,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2041,13,Texas Tech,Indiana,63,38,,Noah,,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,12,San Jose State,Ohio State,24,31,,Mike,,,22,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,13,Bowling Green,LSU,35,25,,Devin,,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,13,San Jose State,USF,38,35,,Mike,Josh,2,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2041,14,Oklahoma,Bowling Green,35,56,,,Devin,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,13,Texas Tech,Indiana,63,38,,Noah,,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,14,Florida State,Florida,56,21,,Nick,Doug,4,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2041,14,Oklahoma,Bowling Green,35,56,,,Devin,,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2041,14,Texas Tech,USF,43,42,,Noah,Josh,7,3,,,1,0,0,0,FINAL,PS5 watcher import
-2041,16,Florida State,Bowling Green,35,28,,Nick,Devin,3,1,,,0,1,0,0,FINAL,PS5 watcher import
+2041,16,Florida State,Bowling Green,35,28,,Nick,Devin,3,1,,,1,1,0,0,FINAL,PS5 watcher import
+2041,17,Florida,North Texas,52,27,,Doug,,24,,,,0,0,1,0,FINAL,PS5 watcher import
 2041,17,Georgia Tech,Alabaster,28,49,Yes,,,10,7,,,0,0,0,0,FINAL,PS5 watcher import
 2041,17,San Diego State,Clemson,43,49,Yes,,,12,5,,,0,0,0,0,FINAL,PS5 watcher import
-2041,17,Florida,North Texas,52,27,,Doug,,24,,,,0,0,1,0,FINAL,PS5 watcher import
 2041,17,Texas,San Jose State,40,27,Yes,,Mike,9,8,,,0,0,0,0,FINAL,2042 custom schedule screenshots
 2041,17,USF,Texas A&M,63,34,Yes,Josh,,11,6,,,0,0,0,0,FINAL,2042 custom schedule screenshots
+2041,18,Alabaster,Texas Tech,38,56,Yes,,Noah,7,2,,,0,0,0,0,FINAL,2042 custom schedule screenshots
 2041,18,Clemson,Bowling Green,89,77,Yes,,Devin,5,4,,,0,0,0,0,FINAL,2042 custom schedule screenshots
 2041,18,Texas,Florida State,27,42,Yes,,Nick,9,1,,,0,0,0,0,FINAL,2042 custom schedule screenshots
 2041,18,USF,Rapid City,42,31,Yes,Josh,,11,3,,,0,0,0,0,FINAL,2042 custom schedule screenshots
-2041,18,Alabaster,Texas Tech,38,56,Yes,,Noah,7,2,,,0,0,0,0,FINAL,2042 custom schedule screenshots
 2041,19,Clemson,Florida State,31,34,Yes,,Nick,5,1,,,0,0,0,0,FINAL,2042 custom schedule screenshots
 2041,19,USF,Texas Tech,28,42,Yes,Josh,Noah,11,2,,,0,0,0,0,FINAL,2042 custom schedule screenshots
+2041,2,Bowling Green,Alabaster,49,35,,Devin,,,10,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,2,California,San Jose State,17,63,,,Mike,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,2,Maryland,Florida State,16,42,,,Nick,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,2,Texas Tech,Pittsburgh,52,20,,Noah,,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,2,USF,NC State,35,17,,Josh,,,18,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,2,West Virginia,Florida,30,49,,,Doug,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
 2041,20,Texas Tech,Florida State,35,28,Yes,Noah,Nick,2,1,,,0,0,0,Yes,FINAL,2042 custom schedule screenshots
+2041,3,Florida,Penn State,42,37,,Doug,,,16,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,3,LSU,Texas Tech,21,55,,,Noah,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,3,North Carolina,Florida State,55,57,,,Nick,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,3,Ole Miss,San Jose State,49,35,,,Mike,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,3,USF,Alabama,35,25,,Josh,,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,3,West Virginia,Bowling Green,21,28,,,Devin,,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,4,Clemson,Florida State,33,36,,,Nick,17,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,4,Florida,Auburn,35,21,,Doug,,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,4,Iowa,San Jose State,34,41,,,Mike,,,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,4,Nebraska,USF,21,55,,,Josh,11,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,4,Notre Dame,Bowling Green,31,42,,,Devin,23,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,4,Texas Tech,Washington,59,49,,Noah,,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,5,Florida State,Texas,42,34,,Nick,,,6,,,1,0,0,0,FINAL,SJSU schedule screenshot
+2041,5,Maryland,San Jose State,34,48,,,Mike,,,,,1,0,0,0,FINAL,Florida State schedule screenshot
+2041,5,USF,Ohio State,52,38,,Josh,,,22,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,6,Bowling Green,Florida,56,52,,Devin,Doug,,21,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,6,Ole Miss,Florida State,23,35,,,Nick,,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,6,Oregon,USF,20,38,,,Josh,19,,,,1,0,0,0,FINAL,USF schedule screenshot
+2041,6,San Jose State,Illinois,55,21,,Mike,,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,6,Wisconsin,Texas Tech,41,44,,,Noah,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,7,Florida,Tennessee,48,31,,Doug,,,,,,1,0,0,0,FINAL,Florida schedule screenshot
+2041,7,Iowa,Texas Tech,7,59,,,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
+2041,7,Wyoming,Bowling Green,17,35,,,Devin,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
+2041,8,Florida,LSU,35,28,,Doug,,,,,,1,0,0,0,FINAL,TTU schedule screenshot
+2041,8,Florida State,Bowling Green,21,52,,Nick,Devin,4,,,,1,0,0,0,FINAL,FSU schedule screenshot
+2041,8,San Jose State,Texas Tech,62,27,,Mike,Noah,2,7,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,8,USF,Minnesota,84,17,,Josh,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,9,Alabama,Florida,20,45,,,Doug,,,,,1,0,0,0,FINAL,Florida schedule screenshot / user correction
+2041,9,Auburn,Florida State,22,50,,,Nick,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,9,Bowling Green,Missouri,44,13,,Devin,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,9,Illinois,Texas Tech,23,41,,,Noah,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,9,Purdue,USF,14,41,,,Josh,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,9,San Jose State,Indiana,55,21,,Mike,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
 2041,,Texas Tech,San Jose State,70,43,no,Noah,Mike,,,,,no,yes,no,NO,FINAL,2042 custom schedule screenshots
 2042,1,Miami,Bowling Green,28,56,,,Devin,21,4,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,Washington,Florida,21,56,,,Doug,25,18,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1,North Carolina,Florida State,35,56,,,Nick,,1,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,1,Stanford,San Jose State,61,71,,,Mike,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1,Texas Tech,Georgia Tech,48,10,,Noah,,6,4,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,1,USF,Hammond,77,24,,Josh,,24,14,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,1,Stanford,San Jose State,61,71,,,Mike,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,Nc State,Florida,26,43,,,Doug,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,Florida State,Nebraska,21,43,,Nick,,2,19,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,Bowling Green,Penn State,49,21,,Devin,,4,14,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,San Jose State,Texas,38,37,,Mike,,11,1,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,TCU,Texas Tech,13,36,,,Noah,,5,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,2,Arkansas,USF,16,56,,,Josh,,7,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,3,Auburn,San Jose State,19,34,,,Mike,16,3,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,3,Texas Tech,Tennessee,52,10,,Noah,,4,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,3,Bowling Green,Toledo,77,10,,Devin,,2,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,3,Oklahoma,USF,0,49,,,Josh,23,6,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,4,Florida State,South Carolina,56,19,No,Nick,,15,,,,0,0,0,0,FINAL,2042 custom schedule screenshots
-2042,4,Texas,Florida,35,38,No,,Doug,9,14,,,0,0,0,0,FINAL,2042 custom schedule screenshots
-2042,4,Oregon,Texas Tech,21,45,No,,Noah,10,4,,,0,0,0,0,FINAL,2042 custom schedule screenshots
-2042,4,Kentucky,Bowling Green,10,69,No,,Devin,,2,,,0,0,0,0,FINAL,2042 custom schedule screenshots
-2042,4,USF,San Jose State,23,28,No,Josh,Mike,6,3,,,1,0,0,0,FINAL,2042 custom schedule screenshots
-2042,5,Florida,Bowling Green,,,,Doug,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,5,Auburn,Florida State,,,,,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,5,Usc,Texas Tech,,,,,Noah,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,5,San Jose State,Washington,,,,Mike,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Missouri,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Oklahoma State,Florida,,,,,Doug,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Georgia,Florida State,,,,,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Texas Tech,Purdue,,,,Noah,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,San Jose State,USC,,,,Mike,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,6,Indiana,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Florida State,Miami,,,,Nick,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Usf,Nebraska,,,,Josh,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Florida,Ole Miss,,,,Doug,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Indiana,San Jose State,,,,,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,7,Bowling Green,South Carolina,,,,Devin,,,,,,1,0,0,0,SCHEDULED,
-2042,7,Penn State,Texas Tech,,,,,Noah,,,,,1,0,0,0,SCHEDULED,
-2042,8,Notre Dame,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,
-2042,8,Florida State,Oklahoma,,,,Nick,,,,,,1,0,0,0,SCHEDULED,
-2042,8,Texas Tech,San Jose State,,,,Noah,Mike,,,,,1,0,0,0,SCHEDULED,
-2042,8,Florida,Tennessee,,,,Doug,,,,,,1,0,0,0,SCHEDULED,
-2042,8,Michigan,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
-2042,9,Oklahoma,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,
-2042,9,Alabama,Florida,,,,,Doug,,,,,1,0,0,0,SCHEDULED,
-2042,9,Usf,Michigan State,,,,Josh,,,,,,1,0,0,0,SCHEDULED,
-2042,9,San Jose State,Nebraska,,,,Mike,,,,,,1,0,0,0,SCHEDULED,
-2042,9,Texas Tech,Ohio State,,,,Noah,,,,,,1,0,0,0,SCHEDULED,
-2042,10,Ole Miss,Florida State,,,,,Nick,,,,,1,0,0,0,SCHEDULED,
+2042,1,Washington,Florida,21,56,,,Doug,25,18,,,1,0,0,0,FINAL,2042 custom schedule screenshots
 2042,10,Bowling Green,Georgia,,,,Devin,,,,,,1,0,0,0,SCHEDULED,
 2042,10,Florida,Iowa,,,,Doug,,,,,,1,0,0,0,SCHEDULED,
 2042,10,Michigan,San Jose State,,,,,Mike,,,,,1,0,0,0,SCHEDULED,
-2042,10,Usf,Texas Tech,,,,Josh,Noah,,,,,1,0,0,0,SCHEDULED,
+2042,10,Ole Miss,Florida State,,,,,Nick,,,,,1,0,0,0,SCHEDULED,
+2042,10,USF,Texas Tech,,,,Josh,Noah,,,,,1,0,0,0,SCHEDULED,
 2042,11,Bowling Green,Auburn,,,,Devin,,,,,,1,0,0,0,SCHEDULED,
 2042,11,Florida,Lsu,,,,Doug,,,,,,1,0,0,0,SCHEDULED,
 2042,11,Florida State,Oregon,,,,Nick,,,,,,1,0,0,0,SCHEDULED,
 2042,11,Iowa,Texas Tech,,,,,Noah,,,,,1,0,0,0,SCHEDULED,
-2042,11,Minnesota,Usf,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
+2042,11,Minnesota,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
 2042,11,San Jose State,Wisconsin,,,,Mike,,,,,,1,0,0,0,SCHEDULED,
-2042,12,Wyoming,Florida,,,,,Doug,,,,,1,0,0,0,SCHEDULED,
 2042,12,Florida State,Kentucky,,,,Nick,,,,,,1,0,0,0,SCHEDULED,
 2042,12,Texas Tech,Wisconsin,,,,Noah,,,,,,1,0,0,0,SCHEDULED,
+2042,12,Wyoming,Florida,,,,,Doug,,,,,1,0,0,0,SCHEDULED,
 2042,13,Bowling Green,Florida State,,,,Devin,Nick,,,,,1,0,0,0,SCHEDULED,
-2042,13,Usf,Maryland,,,,Josh,,,,,,1,0,0,0,SCHEDULED,
+2042,13,USF,Maryland,,,,Josh,,,,,,1,0,0,0,SCHEDULED,
 2042,14,Florida,Florida State,,,,Doug,Nick,,,,,1,0,0,0,SCHEDULED,
+2042,14,Penn State,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
 2042,14,San Jose State,Michigan State,,,,Mike,,,,,,1,0,0,0,SCHEDULED,
-2042,14,Penn State,Usf,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
+2042,2,Arkansas,USF,16,56,,,Josh,,7,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,Bowling Green,Penn State,49,21,,Devin,,4,14,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,Florida State,Nebraska,21,43,,Nick,,2,19,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,Nc State,Florida,26,43,,,Doug,,15,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,San Jose State,Texas,38,37,,Mike,,11,1,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,2,TCU,Texas Tech,13,36,,,Noah,,5,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,3,Auburn,San Jose State,19,34,,,Mike,16,3,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,3,Bowling Green,Toledo,77,10,,Devin,,2,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,3,Oklahoma,USF,0,49,,,Josh,23,6,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,3,Texas Tech,Tennessee,52,10,,Noah,,4,,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,4,Florida State,South Carolina,56,19,No,Nick,,15,,,,0,0,0,0,FINAL,2042 custom schedule screenshots
+2042,4,Kentucky,Bowling Green,10,69,No,,Devin,,2,,,0,0,0,0,FINAL,2042 custom schedule screenshots
+2042,4,Oregon,Texas Tech,21,45,No,,Noah,10,4,,,0,0,0,0,FINAL,2042 custom schedule screenshots
+2042,4,Texas,Florida,35,38,No,,Doug,9,14,,,0,0,0,0,FINAL,2042 custom schedule screenshots
+2042,4,USF,San Jose State,23,28,No,Josh,Mike,6,3,,,1,0,0,0,FINAL,2042 custom schedule screenshots
+2042,5,Auburn,Florida State,47,35,No,,Nick,17,12,,,1,0,0,0,FINAL,PS5 watcher import
+2042,5,Florida,Bowling Green,,,,Doug,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,5,San Jose State,Washington,36,57,No,Mike,,1,,,,1,0,0,0,FINAL,PS5 watcher import
+2042,5,Usc,Texas Tech,,,,,Noah,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Georgia,Florida State,,,,,Nick,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Indiana,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Missouri,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Oklahoma State,Florida,,,,,Doug,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,San Jose State,USC,,,,Mike,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,6,Texas Tech,Purdue,,,,Noah,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Bowling Green,South Carolina,,,,Devin,,,,,,1,0,0,0,SCHEDULED,
+2042,7,Florida,Ole Miss,,,,Doug,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Florida State,Miami,,,,Nick,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Indiana,San Jose State,,,,,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,7,Penn State,Texas Tech,,,,,Noah,,,,,1,0,0,0,SCHEDULED,
+2042,7,USF,Nebraska,,,,Josh,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
+2042,8,Florida,Tennessee,,,,Doug,,,,,,1,0,0,0,SCHEDULED,
+2042,8,Florida State,Oklahoma,,,,Nick,,,,,,1,0,0,0,SCHEDULED,
+2042,8,Michigan,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
+2042,8,Notre Dame,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,
+2042,8,Texas Tech,San Jose State,,,,Noah,Mike,,,,,1,0,0,0,SCHEDULED,
+2042,9,Alabama,Florida,,,,,Doug,,,,,1,0,0,0,SCHEDULED,
+2042,9,Oklahoma,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,
+2042,9,San Jose State,Nebraska,,,,Mike,,,,,,1,0,0,0,SCHEDULED,
+2042,9,Texas Tech,Ohio State,,,,Noah,,,,,,1,0,0,0,SCHEDULED,
+2042,9,USF,Michigan State,,,,Josh,,,,,,1,0,0,0,SCHEDULED,

@@ -9543,12 +9543,14 @@ def get_rank_at_week(team_name, game_week, game_year=None):
         _y = int(CURRENT_YEAR)
 
     _weeks = _GLOBAL_RANK_WEEKS_BY_YEAR.get(int(_y), [])
-    for _wk in sorted(_weeks, reverse=True):
-        if int(_wk) <= _w:
-            _r = _GLOBAL_WEEK_RANK_LOOKUP.get((int(_y), _t, int(_wk)))
-            if _r is not None:
-                return float(_r)
-    return float('nan')
+    # Find the single most recent snapshot at or before game week.
+    # Do NOT walk back further — if a team isn't in that snapshot they dropped out.
+    _candidates = [wk for wk in _weeks if int(wk) <= _w]
+    if not _candidates:
+        return float('nan')
+    _best_wk = max(_candidates)
+    _r = _GLOBAL_WEEK_RANK_LOOKUP.get((int(_y), _t, int(_best_wk)))
+    return float(_r) if _r is not None else float('nan')
 
 
 def get_current_rank(team_name, game_year=None):
