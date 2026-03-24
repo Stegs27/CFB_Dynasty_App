@@ -18724,6 +18724,17 @@ with tabs[9]:
                     return None
 
                 _bar_df = _sf_df[_sf_df['TEAM'].isin(list(USER_TEAMS.values()))].copy()
+                # Ensure Cheat Codes column exists — alias of Quad 90
+                if 'Cheat Codes' not in _bar_df.columns:
+                    if 'Quad 90 (90+ SPD, ACC, AGI & COD)' in _bar_df.columns:
+                        _bar_df['Cheat Codes'] = _bar_df['Quad 90 (90+ SPD, ACC, AGI & COD)']
+                    else:
+                        _bar_df['Cheat Codes'] = 0
+                # Ensure all bar columns exist with safe defaults
+                for _bc in ['Cheat Codes','Generational (96+ speed or 96+ Acceleration)',
+                            'Monsters','Quick Hogs','Team Speed (90+ Speed Guys)']:
+                    if _bc not in _bar_df.columns:
+                        _bar_df[_bc] = 0
                 _bar_df = _bar_df.sort_values('Team Speed Score', ascending=False).reset_index(drop=True)
                 _bar_names = _bar_df['TEAM'].tolist()
                 _bar_short = [t.replace('San Jose State','SJSU').replace('Florida State','FSU')
@@ -18731,7 +18742,7 @@ with tabs[9]:
                                .replace('Florida','UF').replace('USF','USF') for t in _bar_names]
                 _bar_logos = [_get_logo_src_bar(t) for t in _bar_names]
 
-                def _bv(col): return [int(_bar_df[_bar_df['TEAM']==t][col].values[0]) if t in _bar_df['TEAM'].values else 0 for t in _bar_names]
+                def _bv(col): return [int(_bar_df[_bar_df['TEAM']==t][col].fillna(0).values[0]) if t in _bar_df['TEAM'].values else 0 for t in _bar_names]
 
                 _cc_vals  = _bv('Cheat Codes')
                 _gen_vals = _bv('Generational (96+ speed or 96+ Acceleration)')
