@@ -8678,8 +8678,8 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     Returns (line_str, favored_team, spread_value) or None if ratings missing.
     home_field: True adds ~2.5pt HFA to home team.
     """
-    hr = ratings_map.get(str(home_team).strip())
-    ar = ratings_map.get(str(away_team).strip())
+    hr = ratings_map.get(str(home_team).strip().lower())
+    ar = ratings_map.get(str(away_team).strip().lower())
     if not hr or not ar:
         return None
     try:
@@ -8777,7 +8777,8 @@ def load_team_ratings(year=None):
             yr_data = tr[tr['YEAR'] == tr['YEAR'].max()]
         result = {}
         for _, row in yr_data.iterrows():
-            result[str(row['TEAM']).strip()] = {
+            # Lowercase key so lookup is case-insensitive (Usc == USC == usc)
+            result[str(row['TEAM']).strip().lower()] = {
                 'OVR': row.get('OVR', row.get('OVERALL')),
                 'OFF': row.get('OFF', row.get('OFFENSE')),
                 'DEF': row.get('DEF', row.get('DEFENSE')),
@@ -8867,8 +8868,8 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     perf_map    : dict team → {PF, PA, DIFF, MOV, HOME_W, HOME_L, AWAY_W, AWAY_L}
     home_field  : True adds base 2.5pt HFA (reduced if away team is strong on road)
     """
-    hr = ratings_map.get(str(home_team).strip())
-    ar = ratings_map.get(str(away_team).strip())
+    hr = ratings_map.get(str(home_team).strip().lower())
+    ar = ratings_map.get(str(away_team).strip().lower())
     if not hr or not ar:
         return None
     try:
@@ -11390,6 +11391,48 @@ try:
                    f'<span style="color:#94a3b8;font-weight:900;font-size:1.3rem;">VS</span>'
                    f'<img src="{_ll}" style="width:50px;height:50px;object-fit:contain;"></div>')
             _stat_blurb_str = _gs_stat_blurb(_vis, _hm, _latest_wk)
+            # Build colored stat blurb — winner stats in winner color, loser in loser color
+            _stat_html = ''
+            if _stat_blurb_str:
+                _wc = get_team_primary_color(_winner)
+                _lc = get_team_primary_color(_loser)
+                # Lighten dark colors for ticker bg
+                def _lighten(h):
+                    try:
+                        r=int(h[1:3],16);g=int(h[3:5],16);b=int(h[5:7],16)
+                        if 0.299*r+0.587*g+0.114*b < 55:
+                            return f'#{min(255,r+90):02x}{min(255,g+90):02x}{min(255,b+90):02x}'
+                    except: pass
+                    return h
+                _wc = _lighten(_wc); _lc = _lighten(_lc)
+                # Parse "  |  v_stat/h_stat label  ·  ..." into colored segments
+                _blurb_inner = _stat_blurb_str.replace('  |  ', '').strip()
+                _stat_parts = [p.strip() for p in _blurb_inner.split('  ·  ') if p.strip()]
+                _colored_parts = []
+                for _sp in _stat_parts:
+                    # "306/323 pass yds" — first number is visitor, second is home
+                    import re as _re2
+                    _m = _re2.match(r'^(\d+)/(\d+)\s+(.+)$', _sp)
+                    if _m:
+                        _v_val, _h_val, _lbl = _m.group(1), _m.group(2), _m.group(3)
+                        # winner is vis or home — color accordingly
+                        if _vis == _winner:
+                            _wval, _lval = _v_val, _h_val
+                        else:
+                            _wval, _lval = _h_val, _v_val
+                        _colored_parts.append(
+                            f"<span style='color:{_wc};font-weight:800;'>{_wval}</span>"
+                            f"<span style='color:#475569;'>/</span>"
+                            f"<span style='color:{_lc};font-weight:800;'>{_lval}</span>"
+                            f"<span style='color:#64748b;font-size:0.8em;'> {html.escape(_lbl)}</span>"
+                        )
+                    else:
+                        # e.g. "3 TO" — neutral
+                        _colored_parts.append(f"<span style='color:#94a3b8;font-size:0.8em;'>{html.escape(_sp)}</span>")
+                _stat_html = (
+                    f"<span style='color:#475569;'> | </span>" +
+                    f"<span style='color:#334155;'> · </span>".join(_colored_parts)
+                ) if _colored_parts else ''
             _all_headlines.append({
                 'badge': _bdg, 'priority': _pri,
                 'text': f"{_winner}{_w_rk} {_wscore} \u2013 {_lscore} {_loser}{_l_rk}",
@@ -11397,7 +11440,7 @@ try:
                     _team_color_span(_winner, f"{_wscore}") +
                     f"<span style='color:#64748b;'> \u2013 </span>" +
                     _team_color_span(_loser, f"{_lscore}") +
-                    (f"<span style='color:#475569;font-size:0.85em;'>{html.escape(_stat_blurb_str)}</span>" if _stat_blurb_str else '')
+                    _stat_html
                 ),
                 'blurb': _blurb + (_stat_blurb_str.replace('  |  ', ' — ') if _stat_blurb_str else ''),
                 'logo_html': _lh,
@@ -11639,9 +11682,14 @@ try:
 
             _headline_text = random.choice(_headline_options)
 
+            # Priority decays 8 pts per week since injury was recorded so stale
+            # injuries don't permanently dominate newer game results.
+            _inj_recorded_wk = int(pd.to_numeric(_inj.get('Week', CURRENT_WEEK_NUMBER), errors='coerce') or CURRENT_WEEK_NUMBER)
+            _inj_age = max(0, CURRENT_WEEK_NUMBER - _inj_recorded_wk)
+            _inj_priority = max(55, 90 - (_inj_age * 8))
             _all_headlines.append({
                 'badge': _sev,
-                'priority': 90,
+                'priority': _inj_priority,
                 'text': _headline_text,
                 'blurb': _blurb,
                 'logo_html': _ilh,
@@ -12055,7 +12103,8 @@ st.markdown(f"""
     font-weight: 700;
     color: #f8fafc;
     font-size: 15px;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
   }}
 </style>
 
