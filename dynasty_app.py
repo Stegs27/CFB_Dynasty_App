@@ -7673,15 +7673,17 @@ def build_national_odds(year=None):
     try:
         _inj = pd.read_csv('injury_bulletin.csv')
         _inj['Year']     = pd.to_numeric(_inj.get('Year'), errors='coerce')
+        _inj['Week']     = pd.to_numeric(_inj.get('Week'), errors='coerce').fillna(0)
         _inj['WeeksOut'] = pd.to_numeric(_inj.get('WeeksOut'), errors='coerce').fillna(0)
         _inj['OVR']      = pd.to_numeric(_inj.get('OVR'), errors='coerce').fillna(75)
+        _inj['_rem']     = (_inj['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj['Week'])).clip(lower=0)
         _inj = _inj[(_inj['Year'].fillna(-1).astype(int) == int(year)) &
-                    (_inj['WeeksOut'] > 0)].copy()
+                    (_inj['_rem'] > 0)].copy()
         for _, _ir in _inj.iterrows():
             _tm  = str(_ir.get('Team', '')).strip()
             _pos = str(_ir.get('Pos', _ir.get('Position', ''))).strip().upper()
             _ovr = float(_ir.get('OVR', 75))
-            _wks = float(_ir.get('WeeksOut', 0))
+            _wks = float(_ir.get('_rem', 0))
             if not _tm or _wks <= 0: continue
             _omult = max(0.1, min(1.0, (_ovr - 75) / 20.0))
             if _pos in ('QB',):
@@ -8012,18 +8014,20 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         try:
             _inj_live_model = pd.read_csv('injury_bulletin.csv')
             _inj_live_model['Year']     = pd.to_numeric(_inj_live_model.get('Year'), errors='coerce')
+            _inj_live_model['Week']     = pd.to_numeric(_inj_live_model.get('Week'), errors='coerce').fillna(0)
             _inj_live_model['WeeksOut'] = pd.to_numeric(_inj_live_model.get('WeeksOut'), errors='coerce').fillna(0)
             _inj_live_model['OVR']      = pd.to_numeric(_inj_live_model.get('OVR'), errors='coerce').fillna(75)
+            _inj_live_model['_rem']     = (_inj_live_model['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj_live_model['Week'])).clip(lower=0)
             _inj_live_model = _inj_live_model[
                 (_inj_live_model['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
-                (_inj_live_model['WeeksOut'] > 0) &
+                (_inj_live_model['_rem'] > 0) &
                 (_inj_live_model['Team'].astype(str).str.strip() == str(row.get('TEAM','')).strip())
             ].copy()
             inj_penalty = 0.0
             for _, _ir in _inj_live_model.iterrows():
                 _pos = str(_ir.get('Pos', _ir.get('Position', ''))).strip().upper()
                 _ovr = float(_ir.get('OVR', 75) or 75)
-                _wks = float(_ir.get('WeeksOut', 0) or 0)
+                _wks = float(_ir.get('_rem', 0) or 0)
                 if _wks <= 0: continue
                 _omult = max(0.1, min(1.0, (_ovr - 75) / 20.0))
                 if _pos in ('QB',):
@@ -11527,17 +11531,21 @@ try:
             _inj_df['IsStarter'] = ''
         _inj_df['IsStarter'] = _inj_df['IsStarter'].astype(str).str.strip().str.lower()
 
+        _inj_df['Week'] = pd.to_numeric(_inj_df.get('Week'), errors='coerce').fillna(0)
+        _inj_df['_remaining'] = (_inj_df['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj_df['Week'])).clip(lower=0)
+
         _inj_df = _inj_df[
             (_inj_df['Year'].fillna(-1).astype(int) == CURRENT_YEAR) &
-            (_inj_df['WeeksOut'].fillna(0).astype(int) > 4)
+            (_inj_df['_remaining'].fillna(0).astype(int) > 0)
         ].copy()
 
-        _inj_df = _inj_df.sort_values(['WeeksOut', 'OVR'], ascending=[False, False])
+        _inj_df = _inj_df.sort_values(['_remaining', 'OVR'], ascending=[False, False])
 
         for _, _inj in _inj_df.iterrows():
             _it = str(_inj.get('Team', '')).strip()
             _iu = str(_inj.get('User', '')).strip()
-            _iw = int(pd.to_numeric(_inj.get('WeeksOut'), errors='coerce') or 0)
+            _iw = int(pd.to_numeric(_inj.get('_remaining'), errors='coerce') or 0)
+            _iw_orig = int(pd.to_numeric(_inj.get('WeeksOut'), errors='coerce') or _iw)
             _ip = str(_inj.get('Pos', '')).strip()
             _iname = str(_inj.get('Player', '')).strip()
             _ii = str(_inj.get('Injury', '')).strip()
@@ -11546,7 +11554,7 @@ try:
             _il = get_header_logo(_it)
             _ilh = f'<div class="isp-tc"><img src="{_il}" class="isp-logo-60"></div>'
 
-            _sev = "SEASON-ENDING" if _iw >= 20 else "LONG-TERM INJ"
+            _sev = "SEASON-ENDING" if _iw_orig >= 20 else ("LONG-TERM INJ" if _iw > 4 else "WEEK-TO-WEEK")
 
             _role_map = {
                 "QB": "starting QB",
@@ -11914,7 +11922,12 @@ def _badge_color(badge):
 _ticker_items = ''
 for h in _all_headlines:
     _bg, _fg = _badge_color(h['badge'])
-    _ticker_text_content = h.get('text_html') or html.escape(h['text'])
+    # text_html = manually built colored HTML (scores section)
+    # text      = plain text — run through _colorize_headline so team names get team colors
+    if h.get('text_html'):
+        _ticker_text_content = h['text_html']
+    else:
+        _ticker_text_content = _colorize_headline(h['text'])
     _ticker_items += (
         f"<div class='slide'>"
         f"<span class='badge' style='background:{_bg};color:{_fg};'>{h['badge']}</span>"
@@ -12756,14 +12769,29 @@ with tabs[3]:
                     (_conf_st['CONFERENCE'] == sel_conf_name) &
                     (_conf_st['TEAM'] != sel_team_name)
                 ].copy()
+                # RANK comes from cfp_rankings_history — conf_standings no longer carries it
+                try:
+                    _rh_cp = pd.read_csv('cfp_rankings_history.csv')
+                    _rh_cp['YEAR'] = pd.to_numeric(_rh_cp['YEAR'], errors='coerce')
+                    _rh_cp['WEEK'] = pd.to_numeric(_rh_cp['WEEK'], errors='coerce')
+                    _rh_cp['RANK'] = pd.to_numeric(_rh_cp['RANK'], errors='coerce')
+                    _rh_cp_cy = _rh_cp[_rh_cp['YEAR'] == int(CURRENT_YEAR)]
+                    if not _rh_cp_cy.empty:
+                        _rh_cp_snap = _rh_cp_cy[_rh_cp_cy['WEEK'] == _rh_cp_cy['WEEK'].max()]
+                        _cfp_rank_cp = dict(zip(_rh_cp_snap['TEAM'].str.strip(), _rh_cp_snap['RANK']))
+                    else:
+                        _cfp_rank_cp = {}
+                except Exception:
+                    _cfp_rank_cp = {}
+                _conf_peers_all['RANK'] = _conf_peers_all['TEAM'].map(_cfp_rank_cp)
                 _conf_peers_all['RANK'] = pd.to_numeric(_conf_peers_all['RANK'], errors='coerce')
                 _conf_peers_all = _conf_peers_all.sort_values(['CONF_W','W'], ascending=False)
                 if not _conf_peers_all.empty:
                     st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:10px 0 5px;letter-spacing:.06em;font-weight:700;'>CONFERENCE STANDINGS (full)</div>", unsafe_allow_html=True)
                     cst_html = "<div style='display:flex;flex-direction:column;gap:3px;'>"
                     for _, cr in _conf_peers_all.iterrows():
-                        cr_rk   = int(cr['RANK']) if pd.notna(cr['RANK']) else None
-                        cr_user = str(cr['USER']).strip() if str(cr['USER']).strip() not in ('','nan') else None
+                        cr_rk   = int(cr['RANK']) if pd.notna(cr.get('RANK')) else None
+                        cr_user = str(cr['USER']).strip() if str(cr.get('USER','')).strip() not in ('','nan') else None
                         rk_str  = f"#{cr_rk}" if cr_rk else "—"
                         rk_col  = "#fbbf24" if cr_rk else "#374151"
                         user_badge = (
@@ -14369,9 +14397,11 @@ with tabs[0]:
             try:
                 _inj_live = pd.read_csv('injury_bulletin.csv')
                 _inj_live['Year'] = pd.to_numeric(_inj_live.get('Year'), errors='coerce')
+                _inj_live['Week'] = pd.to_numeric(_inj_live.get('Week'), errors='coerce').fillna(0)
                 _inj_live['WeeksOut'] = pd.to_numeric(_inj_live.get('WeeksOut'), errors='coerce')
                 _inj_live['OVR'] = pd.to_numeric(_inj_live.get('OVR'), errors='coerce')
-                _inj_live = _inj_live[(_inj_live['Year'].fillna(-1).astype(int) == CURRENT_YEAR) & (_inj_live['WeeksOut'].fillna(0) >= 4)].sort_values(['WeeksOut','OVR'], ascending=[False,False])
+                _inj_live['_rem'] = (_inj_live['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj_live['Week'])).clip(lower=0)
+                _inj_live = _inj_live[(_inj_live['Year'].fillna(-1).astype(int) == CURRENT_YEAR) & (_inj_live['_rem'].fillna(0) >= 4)].sort_values(['_rem','OVR'], ascending=[False,False])
                 if not _inj_live.empty:
                     _ir = _inj_live.iloc[0]
                     _team = str(_ir.get('Team','')).strip()
@@ -14379,7 +14409,7 @@ with tabs[0]:
                     if not _user or _user.lower() in ('nan',''):
                         _user = next((u for u,t in USER_TEAMS.items() if t == _team), _team)
                     _player = str(_ir.get('Player','')).strip()
-                    _weeks = _hh_safe_int(_ir.get('WeeksOut', 0), 0)
+                    _weeks = _hh_safe_int(_ir.get('_rem', 0), 0)
                     _ovr = _hh_safe_int(_ir.get('OVR', 0), 0)
                     _ukey = f"injury_blow:{CURRENT_YEAR}:{_team}:{_player}:{_weeks}"
                     _score = 70 + min(20, _weeks * 1.5) + min(12, max(0, _ovr - 80))
@@ -15858,9 +15888,12 @@ with tabs[0]:
         try:
             _inj_csv = pd.read_csv('injury_bulletin.csv')
             _inj_csv['Year'] = pd.to_numeric(_inj_csv.get('Year', CURRENT_YEAR), errors='coerce').fillna(CURRENT_YEAR).astype(int)
+            _inj_csv['Week'] = pd.to_numeric(_inj_csv.get('Week', 0), errors='coerce').fillna(0).astype(int)
             _inj_csv['WeeksOut'] = pd.to_numeric(_inj_csv.get('WeeksOut', 0), errors='coerce').fillna(0).astype(int)
             _inj_csv['OVR'] = pd.to_numeric(_inj_csv.get('OVR', 0), errors='coerce').fillna(0).astype(int)
-            _inj_csv = _inj_csv[_inj_csv['Year'] == CURRENT_YEAR].copy()
+            # Compute remaining weeks — this is what gets displayed
+            _inj_csv['_rem'] = (_inj_csv['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj_csv['Week'])).clip(lower=0).astype(int)
+            _inj_csv = _inj_csv[(_inj_csv['Year'] == CURRENT_YEAR) & (_inj_csv['_rem'] > 0)].copy()
 
             # Group by team
             _team_injuries = {}
@@ -15886,7 +15919,7 @@ with tabs[0]:
                     'pos':       str(_ir.get('Pos', '—')),
                     'ovr':       int(_ir.get('OVR', 0) or 0),
                     'injury':    str(_ir.get('Injury', '—')),
-                    'weeks':     int(_ir.get('WeeksOut', 0) or 0),
+                    'weeks':     int(_ir.get('_rem', _ir.get('WeeksOut', 0)) or 0),
                     'status':    str(_ir.get('Status', 'Out')),
                     'is_starter': _starter_flag,
                 })
@@ -19947,7 +19980,116 @@ def _format_archive_row(row, scores_df=None, gs_df=None):
             out["summary"] = str(out.get("notes","")).strip()
     else:
         out["summary"] = str(out.get("notes","")).strip()
+
+    # Compute tv_rating from formula if not manually set in CSV
+    _tv_manual = str(out.get("tv_rating", "")).strip()
+    if _tv_manual in ("", "nan"):
+        _computed_tv = _compute_archive_tv_rating(out, scores_df)
+        out["tv_rating_computed"] = _computed_tv   # float or None
+    else:
+        try:
+            out["tv_rating_computed"] = float(_tv_manual)
+        except Exception:
+            out["tv_rating_computed"] = None
+
     return out
+
+
+def _compute_archive_tv_rating(row, scores_df=None):
+    """
+    Compute TV viewership for an archive row using the same formula as
+    Highest Rated Games of the Season in Dynasty News.
+    Matches on user_team + opponent + season + week against CPUscores_MASTER.
+    Returns float (millions) or None if no match.
+    """
+    if scores_df is None or scores_df.empty:
+        try:
+            scores_df = pd.read_csv('CPUscores_MASTER.csv')
+        except Exception:
+            return None
+    try:
+        u = str(row.get('user_team', '')).strip()
+        o = str(row.get('opponent', '')).strip()
+        season = int(pd.to_numeric(pd.Series([row.get('season')]), errors='coerce').fillna(0).iloc[0])
+        week   = int(pd.to_numeric(pd.Series([row.get('week')]),   errors='coerce').fillna(0).iloc[0])
+        df = scores_df.copy()
+        for c in ['YEAR','Week','Vis Score','Home Score','Visitor Rank','Home Rank']:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors='coerce')
+        mask = (
+            (df['YEAR'].fillna(-1).astype(int) == season) &
+            (df['Week'].fillna(-1).astype(int) == week) &
+            (
+                ((df['Visitor'].astype(str).str.strip().str.lower() == u.lower()) &
+                 (df['Home'].astype(str).str.strip().str.lower() == o.lower())) |
+                ((df['Visitor'].astype(str).str.strip().str.lower() == o.lower()) &
+                 (df['Home'].astype(str).str.strip().str.lower() == u.lower()))
+            )
+        )
+        matches = df[mask]
+        if matches.empty:
+            return None
+        _trow = matches.iloc[0]
+
+        # Rank snapshots
+        if _GLOBAL_WEEK_RANK_LOOKUP:
+            vr_snap = get_rank_at_week(str(_trow.get('Visitor','')), week, season) 
+            hr_snap = get_rank_at_week(str(_trow.get('Home','')), week, season)
+        else:
+            vr_snap = _trow.get('Visitor Rank', 99)
+            hr_snap = _trow.get('Home Rank', 99)
+        _trow_aug = _trow.copy()
+        _trow_aug['Visitor Rank Snapshot'] = vr_snap
+        _trow_aug['Home Rank Snapshot']    = hr_snap
+        _trow_aug['Vis_User']  = _trow_aug.get('Vis_User', '')
+        _trow_aug['Home_User'] = _trow_aug.get('Home_User', '')
+
+        vs = float(_trow_aug.get('Vis Score', 0) or 0)
+        hs = float(_trow_aug.get('Home Score', 0) or 0)
+        vr = float(vr_snap) if not (isinstance(vr_snap, float) and vr_snap != vr_snap) else 99
+        hr = float(hr_snap) if not (isinstance(hr_snap, float) and hr_snap != hr_snap) else 99
+        margin = abs(vs - hs)
+        total_pts = vs + hs
+        is_user_game = True  # stream_archive entries are always user games
+        vis_user = str(_trow_aug.get('Vis_User', '')).strip()
+        home_user = str(_trow_aug.get('Home_User', '')).strip()
+        is_h2h = (vis_user in USER_TEAMS) and (home_user in USER_TEAMS)
+        is_playoff = week >= 16
+        is_conf_title = str(_trow_aug.get('Conf Title', '0')).strip() in ('1','Yes','yes')
+        is_natty = str(_trow_aug.get('Natty Game', '0')).strip().upper() in ('1','YES')
+
+        top_rank = min(vr, hr)
+        both_ranked = vr <= 25 and hr <= 25
+        base = 2.0
+        if top_rank <= 5:    base += 6.5
+        elif top_rank <= 10: base += 4.5
+        elif top_rank <= 15: base += 2.8
+        elif top_rank <= 25: base += 1.5
+        if both_ranked:      base += 2.5
+        if margin <= 3:      base += 3.5
+        elif margin <= 7:    base += 2.0
+        elif margin <= 14:   base += 0.8
+        if total_pts >= 100: base += 1.5
+        elif total_pts >= 80: base += 0.8
+        if is_natty:         base += 5.0
+        elif is_playoff:     base += 3.2
+        elif is_conf_title:  base += 2.0
+        if is_h2h:           base += 2.5
+        elif is_user_game:   base += 1.2
+        if week >= 12:       base += 1.0
+        elif week >= 8:      base += 0.4
+        winner_rank = vr if vs > hs else hr
+        loser_rank  = hr if vs > hs else vr
+        if loser_rank <= 10 and winner_rank > loser_rank + 5:
+            base += 2.0
+
+        import hashlib
+        seed_str = f"{season}{week}{_trow.get('Visitor','')}{_trow.get('Home','')}"
+        _hash = int(hashlib.md5(seed_str.encode()).hexdigest()[:6], 16)
+        noise = (_hash % 100) / 100.0 * 0.8 - 0.4
+        return round(max(0.5, base + noise), 2)
+    except Exception:
+        return None
 
 
 def _get_rank_nums_for_row(row):
@@ -20330,7 +20472,7 @@ def render_dynasty_youtube_tab():
         </div>
         <div class="yt-hero-footer">
           <span class="yt-season-week">Season {_html.escape(str(f_season))} • Week {_html.escape(str(f_week))}</span>
-          {f'<span style="background:#1e293b;color:#fbbf24;border:1px solid #854d0e;padding:3px 10px;border-radius:4px;font-size:.68rem;font-weight:900;letter-spacing:.06em;">📺 ' + _html.escape(str(featured.get("tv_rating","")).strip()) + ' M VIEWERS</span>' if str(featured.get("tv_rating","")).strip() not in ("","nan") else ""}
+          {f'<span style="background:#1e293b;color:#fbbf24;border:1px solid #854d0e;padding:3px 10px;border-radius:4px;font-size:.68rem;font-weight:900;letter-spacing:.06em;">📺 {featured.get("tv_rating_computed",""):.1f}M VIEWERS</span>' if featured.get("tv_rating_computed") else ""}
         </div>
       </div>
     </div>
@@ -20382,10 +20524,10 @@ def render_dynasty_youtube_tab():
         with col:
             _r_rank_u, _r_rank_o = _get_rank_nums_for_row(row)
             _r_headline = _generate_headline(row, _r_rank_u, _r_rank_o)
-            _r_tv = str(row.get("tv_rating","")).strip()
+            _r_tv_val = row.get("tv_rating_computed")
             _r_tv_badge = (f"<span style=\'background:#1e293b;color:#fbbf24;border:1px solid #854d0e;"
                            f"padding:2px 7px;border-radius:3px;font-size:.62rem;font-weight:900;"
-                           f"letter-spacing:.05em;\'>📺 {_html.escape(_r_tv)}M</span>") if _r_tv not in ("","nan") else ""
+                           f"letter-spacing:.05em;\'>📺 {_r_tv_val:.1f}M</span>") if _r_tv_val else ""
             st.markdown(f"""
             <div class="yt-card">
               <div class="yt-card-top-bar" style="background:linear-gradient(90deg,{r_cl},{r_cr});"></div>
@@ -20451,14 +20593,12 @@ def render_dynasty_youtube_tab():
     if _upset_rows:
         _upsets = pd.DataFrame(_upset_rows)
 
-    # TV Top: games with a tv_rating value, sorted highest first
-    if "tv_rating" in rest.columns:
-        _tv_df = rest[rest["tv_rating"].astype(str).str.strip().notna()].copy()
-        _tv_df = _tv_df[~_tv_df["tv_rating"].astype(str).str.strip().isin(["","nan"])]
-        _tv_df["_tv_num"] = pd.to_numeric(_tv_df["tv_rating"], errors="coerce")
-        _tv_df = _tv_df.dropna(subset=["_tv_num"]).sort_values("_tv_num", ascending=False)
+    # TV Top: sort all games by computed TV rating, show top 5
+    if "tv_rating_computed" in rest.columns:
+        _tv_df = rest[rest["tv_rating_computed"].notna()].copy()
+        _tv_df = _tv_df.sort_values("tv_rating_computed", ascending=False)
         if not _tv_df.empty:
-            _tv_top = _tv_df.drop(columns=["_tv_num"])
+            _tv_top = _tv_df.head(5)
 
     # General: everything not in a special section
     _special_urls = set()
