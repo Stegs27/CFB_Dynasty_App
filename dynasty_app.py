@@ -9492,9 +9492,9 @@ def _normalize_team_match_key(team):
 # Use get_rank_at_week(team, week) anywhere in the app for accurate
 # at-game-time ranks instead of reading stale CPUscores_MASTER columns.
 # ════════════════════════════════════════════════════════════════════════
-_GLOBAL_WEEK_RANK_LOOKUP = {}    # (team_lower, week_int) → rank_int
-_GLOBAL_RANK_WEEKS       = []    # sorted list of weeks with snapshots
-_GLOBAL_LATEST_RANK_MAP  = {}    # team_lower → rank (most recent week)
+_GLOBAL_WEEK_RANK_LOOKUP = {}    # (year_int, team_lower, week_int) → rank_int
+_GLOBAL_RANK_WEEKS_BY_YEAR = {} # year_int → sorted list of weeks with snapshots
+_GLOBAL_LATEST_RANK_MAP  = {}   # (year_int, team_lower) → latest rank
 
 try:
     _grh = pd.read_csv('cfp_rankings_history.csv')
@@ -9502,40 +9502,58 @@ try:
     _grh['WEEK'] = pd.to_numeric(_grh['WEEK'], errors='coerce')
     _grh['RANK'] = pd.to_numeric(_grh['RANK'], errors='coerce')
     _grh['TEAM'] = _grh['TEAM'].astype(str).str.strip()
-    _grh_cy = _grh[_grh['YEAR'] == CURRENT_YEAR].copy()
-    if not _grh_cy.empty:
-        _GLOBAL_RANK_WEEKS = sorted(_grh_cy['WEEK'].dropna().unique().tolist())
-        for _, _gr in _grh_cy.iterrows():
-            if int(_gr['RANK']) > 0:  # skip 0 — means unranked, not rank 0
-                _GLOBAL_WEEK_RANK_LOOKUP[(str(_gr['TEAM']).lower(), int(_gr['WEEK']))] = int(_gr['RANK'])
-        # Latest week = current standings
-        _lw = int(_grh_cy['WEEK'].max())
-        for _, _gr in _grh_cy[_grh_cy['WEEK'] == _lw].iterrows():
-            _GLOBAL_LATEST_RANK_MAP[str(_gr['TEAM']).lower()] = int(_gr['RANK'])
+
+    _grh = _grh.dropna(subset=['YEAR', 'WEEK', 'RANK']).copy()
+    if not _grh.empty:
+        _grh['YEAR'] = _grh['YEAR'].astype(int)
+        _grh['WEEK'] = _grh['WEEK'].astype(int)
+        _grh['RANK'] = _grh['RANK'].astype(int)
+
+        for _yr in sorted(_grh['YEAR'].unique().tolist()):
+            _yr_df = _grh[_grh['YEAR'] == _yr].copy()
+            _GLOBAL_RANK_WEEKS_BY_YEAR[int(_yr)] = sorted(_yr_df['WEEK'].dropna().unique().tolist())
+
+            for _, _gr in _yr_df.iterrows():
+                if int(_gr['RANK']) > 0:  # skip 0 — means unranked, not rank 0
+                    _GLOBAL_WEEK_RANK_LOOKUP[(int(_yr), str(_gr['TEAM']).lower(), int(_gr['WEEK']))] = int(_gr['RANK'])
+
+            _lw = int(_yr_df['WEEK'].max())
+            for _, _gr in _yr_df[_yr_df['WEEK'] == _lw].iterrows():
+                _GLOBAL_LATEST_RANK_MAP[(int(_yr), str(_gr['TEAM']).lower())] = int(_gr['RANK'])
 except Exception:
     pass
 
 
-def get_rank_at_week(team_name, game_week):
-    """Return CFP rank for a team at the time of game_week.
-    Walks back to the nearest earlier snapshot week.
+def get_rank_at_week(team_name, game_week, game_year=None):
+    """Return CFP rank for a team at the time of game_week/game_year.
+    Walks back to the nearest earlier snapshot week within that season.
     Returns float('nan') if team was unranked that week."""
     _t = str(team_name).strip().lower()
     try:
         _w = int(game_week) if not pd.isna(game_week) else 0
     except Exception:
         _w = 0
-    for _wk in sorted(_GLOBAL_RANK_WEEKS, reverse=True):
-        if _wk <= _w:
-            _r = _GLOBAL_WEEK_RANK_LOOKUP.get((_t, int(_wk)))
+    try:
+        _y = int(game_year) if game_year is not None and not pd.isna(game_year) else int(CURRENT_YEAR)
+    except Exception:
+        _y = int(CURRENT_YEAR)
+
+    _weeks = _GLOBAL_RANK_WEEKS_BY_YEAR.get(int(_y), [])
+    for _wk in sorted(_weeks, reverse=True):
+        if int(_wk) <= _w:
+            _r = _GLOBAL_WEEK_RANK_LOOKUP.get((int(_y), _t, int(_wk)))
             if _r is not None:
                 return float(_r)
     return float('nan')
 
 
-def get_current_rank(team_name):
-    """Return the most recent CFP rank for a team, or nan if unranked."""
-    return float(_GLOBAL_LATEST_RANK_MAP.get(str(team_name).strip().lower(), float('nan')))
+def get_current_rank(team_name, game_year=None):
+    """Return the most recent CFP rank for a team in the given year, or nan if unranked."""
+    try:
+        _y = int(game_year) if game_year is not None and not pd.isna(game_year) else int(CURRENT_YEAR)
+    except Exception:
+        _y = int(CURRENT_YEAR)
+    return float(_GLOBAL_LATEST_RANK_MAP.get((int(_y), str(team_name).strip().lower()), float('nan')))
 
 
 
@@ -12129,9 +12147,9 @@ with tabs[2]:
         # Overwrite Visitor Rank / Home Rank with accurate at-game-time ranks
         if not _cpu_sos.empty and _GLOBAL_WEEK_RANK_LOOKUP:
             _cpu_sos['Visitor Rank'] = _cpu_sos.apply(
-                lambda r: get_rank_at_week(r['Visitor'], r['Week']), axis=1)
+                lambda r: get_rank_at_week(r['Visitor'], r['Week'], r.get('YEAR', CURRENT_YEAR)), axis=1)
             _cpu_sos['Home Rank'] = _cpu_sos.apply(
-                lambda r: get_rank_at_week(r['Home'], r['Week']), axis=1)
+                lambda r: get_rank_at_week(r['Home'], r['Week'], r.get('YEAR', CURRENT_YEAR)), axis=1)
 
         # 5. BUILD SPEED MAP
         _speed_map = {}
@@ -14470,9 +14488,9 @@ with tabs[0]:
                 # Overwrite with accurate at-game-time ranks from cfp_rankings_history
                 if _GLOBAL_WEEK_RANK_LOOKUP:
                     _scores['Visitor Rank'] = _scores.apply(
-                        lambda r: get_rank_at_week(r.get('Visitor',''), r.get('Week', 0)), axis=1)
+                        lambda r: get_rank_at_week(r.get('Visitor',''), r.get('Week', 0), r.get('YEAR', CURRENT_YEAR)), axis=1)
                     _scores['Home Rank'] = _scores.apply(
-                        lambda r: get_rank_at_week(r.get('Home',''), r.get('Week', 0)), axis=1)
+                        lambda r: get_rank_at_week(r.get('Home',''), r.get('Week', 0), r.get('YEAR', CURRENT_YEAR)), axis=1)
                 _scores['Vis_User'] = _scores.get('Vis_User', '').astype(str).str.strip().str.title()
                 _scores['Home_User'] = _scores.get('Home_User', '').astype(str).str.strip().str.title()
                 _scores_cy = _scores[_scores['YEAR'] == CURRENT_YEAR].copy()
@@ -15001,12 +15019,28 @@ with tabs[0]:
             _tv_scores_df["Home Score"] = pd.to_numeric(_tv_scores_df["Home Score"], errors="coerce")
             _tv_scores_df["Visitor Rank"] = pd.to_numeric(_tv_scores_df["Visitor Rank"], errors="coerce")
             _tv_scores_df["Home Rank"] = pd.to_numeric(_tv_scores_df["Home Rank"], errors="coerce")
-            # Overwrite with accurate at-game-time ranks from cfp_rankings_history
+            # Freeze the ranks attached to the game itself.
+            # Prefer the stored ranks already on the score row.
+            # Only backfill missing ranks from historical CFP snapshots for that SAME season/week.
             if _GLOBAL_WEEK_RANK_LOOKUP:
-                _tv_scores_df["Visitor Rank"] = _tv_scores_df.apply(
-                    lambda r: get_rank_at_week(r.get("Visitor",""), r.get("Week",0)), axis=1)
-                _tv_scores_df["Home Rank"] = _tv_scores_df.apply(
-                    lambda r: get_rank_at_week(r.get("Home",""), r.get("Week",0)), axis=1)
+                _tv_scores_df["Visitor Rank Snapshot"] = _tv_scores_df["Visitor Rank"]
+                _tv_scores_df["Home Rank Snapshot"] = _tv_scores_df["Home Rank"]
+
+                _tv_scores_df["Visitor Rank Snapshot"] = _tv_scores_df.apply(
+                    lambda r: r.get("Visitor Rank Snapshot")
+                    if not pd.isna(r.get("Visitor Rank Snapshot"))
+                    else get_rank_at_week(r.get("Visitor",""), r.get("Week",0), r.get("YEAR", CURRENT_YEAR)),
+                    axis=1
+                )
+                _tv_scores_df["Home Rank Snapshot"] = _tv_scores_df.apply(
+                    lambda r: r.get("Home Rank Snapshot")
+                    if not pd.isna(r.get("Home Rank Snapshot"))
+                    else get_rank_at_week(r.get("Home",""), r.get("Week",0), r.get("YEAR", CURRENT_YEAR)),
+                    axis=1
+                )
+            else:
+                _tv_scores_df["Visitor Rank Snapshot"] = _tv_scores_df["Visitor Rank"]
+                _tv_scores_df["Home Rank Snapshot"] = _tv_scores_df["Home Rank"]
 
             _tv_cy = _tv_scores_df[
                 (_tv_scores_df["YEAR"] == CURRENT_YEAR) &
@@ -15020,8 +15054,8 @@ with tabs[0]:
                 """Returns (viewership_millions, badge, peak_moment) tuple."""
                 vs = float(row["Vis Score"])
                 hs = float(row["Home Score"])
-                vr = float(row["Visitor Rank"]) if not pd.isna(row["Visitor Rank"]) else 99
-                hr = float(row["Home Rank"]) if not pd.isna(row["Home Rank"]) else 99
+                vr = float(row["Visitor Rank Snapshot"]) if not pd.isna(row.get("Visitor Rank Snapshot")) else 99
+                hr = float(row["Home Rank Snapshot"]) if not pd.isna(row.get("Home Rank Snapshot")) else 99
                 margin = abs(vs - hs)
                 total_pts = vs + hs
                 vis_user = str(row.get("Vis_User", "")).strip()
