@@ -3357,7 +3357,252 @@ def simulate_nfl_week(week_num, season_year=None, team_strength_df=None):
     # Recompute cumulative standings from all completed weeks this season
     _update_nfl_standings_from_weekly(season_year, team_strength_df)
 
+    # ── Weekly Story Events ───────────────────────────────────────────────────
+    _generate_weekly_story_events(games_df, season_year, week_num)
+
     return games_df, f"NFL Week {week_num}: {len(game_rows)} games simmed. {len(results_display)} results written."
+
+
+def _generate_weekly_story_events(games_df, season_year, week_num):
+    """
+    Fires 1-3 story events per week based on:
+    - Dynasty alumni (Source=dynasty_rookie/dynasty_player) standout moments
+    - User alumni head-to-head matchups
+    - Upsets / dominant wins
+    - Fun fan-favorite team callouts (Browns, Bills, Lions, Cowboys)
+    Appends to nfl_story_events.csv.
+    """
+    if games_df is None or games_df.empty:
+        return
+
+    try:
+        # Load dynasty rosters to find alumni
+        rosters = pd.DataFrame()
+        if os.path.exists("nfl_current_rosters.csv"):
+            rosters = pd.read_csv("nfl_current_rosters.csv")
+            rosters = rosters[
+                pd.to_numeric(rosters.get("Season", pd.Series(dtype=float)),
+                              errors="coerce").fillna(0).astype(int) == int(season_year)
+            ].copy()
+            dynasty_rosters = rosters[
+                rosters["Source"].astype(str).str.startswith("dynasty")
+            ].copy() if not rosters.empty else pd.DataFrame()
+        else:
+            dynasty_rosters = pd.DataFrame()
+
+        # Team → list of dynasty players
+        dynasty_by_team = {}
+        if not dynasty_rosters.empty:
+            for team, grp in dynasty_rosters.groupby("Team"):
+                dynasty_by_team[str(team)] = grp.to_dict("records")
+
+        # User → college team mapping (for alumni matchup detection)
+        USER_TEAMS = {
+            "Mike": "San Jose State", "Devin": "Bowling Green",
+            "Josh": "USF", "Noah": "Texas Tech",
+            "Doug": "Florida", "Nick": "Florida State",
+        }
+        COLLEGE_TO_USER = {v: k for k, v in USER_TEAMS.items()}
+
+        # Fan-favorite franchises with flavored copy
+        FAN_FAVES = {
+            "Browns": [
+                ("Classic Cleveland", "The Browns did Browns things this week. Somehow still must-watch TV."),
+                ("Believeland?", "Cleveland showed flashes of something. Don't get your hopes up, Browns fans."),
+                ("Factory of Sadness Update", "Another week, another Browns result that defies easy explanation. That's football, baby."),
+                ("Lake Erie Energy", "The Browns brought the noise in Cleveland. Dog Pound was LOUD."),
+                ("Dawg Pound Chronicles", "Cleveland's got the dawgs out this week. Whether it mattered is a different question."),
+            ],
+            "Bills": [
+                ("Mafia Report", "Bills Mafia is either through a table or on top of the world right now. No in between."),
+                ("One Buffalo", "The Bills showed up for Western New York this week. 716 is on fire."),
+                ("Josh Allen Said So", "Whatever happened this week in Buffalo, you can bet Josh Allen had something to say about it."),
+                ("Super Bowl or Bust", "Another week in the books for Buffalo. The Super Bowl window is still open. Allegedly."),
+                ("Orchard Park Chaos", "The elements, the crowd, the vibes — Buffalo delivered must-see football again."),
+            ],
+            "Lions": [
+                ("Detroit vs. Everybody", "The Lions are out here proving something to someone. Motor City doesn't sleep."),
+                ("Dan Campbell Energy", "Whatever happened, you know the Lions played with their whole chest this week."),
+                ("Pride of Detroit", "Ford Field was electric. The Lions gave their city something to talk about."),
+                ("Honolulu Blue Rising", "Detroit football is a different animal right now. The Lions are not to be slept on."),
+                ("Bite First, Ask Questions Later", "The Lions don't flinch. Win or lose, Detroit comes to play every single week."),
+            ],
+            "Cowboys": [
+                ("America's Team Update", "The Cowboys are dominating the headlines again. Whether they deserve it is irrelevant."),
+                ("Jerry's World Report", "AT&T Stadium had the vibes this week. The Cowboys are must-see TV whether you like it or not."),
+                ("How 'Bout Them Cowboys", "Dallas doing Dallas things. The nation either loves it or hates it. No middle ground."),
+                ("Star Power", "The Cowboys flashed that Star this week. Expect full national media coverage regardless of outcome."),
+                ("Big D Chronicles", "Dallas is back in the conversation. Or never left it. Hard to tell with the Cowboys."),
+            ],
+        }
+
+        new_events = []
+
+        # ── Priority 1: User alumni head-to-head ─────────────────────────────
+        for _, game in games_df.iterrows():
+            home = str(game["HomeTeam"]); away = str(game["AwayTeam"])
+            home_dynasty = dynasty_by_team.get(home, [])
+            away_dynasty = dynasty_by_team.get(away, [])
+
+            home_users = {COLLEGE_TO_USER[p["CollegeTeam"]] for p in home_dynasty
+                         if p.get("CollegeTeam") in COLLEGE_TO_USER}
+            away_users = {COLLEGE_TO_USER[p["CollegeTeam"]] for p in away_dynasty
+                         if p.get("CollegeTeam") in COLLEGE_TO_USER}
+
+            shared_users = home_users & away_users
+            if not shared_users:
+                # Cross-user matchup (different users' alumni on different teams)
+                cross = [(hu, au) for hu in home_users for au in away_users if hu != au]
+                if cross:
+                    hu, au = cross[0]
+                    winner = game["WinTeam"]; loser = game["LoseTeam"]
+                    win_score = max(game["HomeScore"], game["AwayScore"])
+                    lose_score = min(game["HomeScore"], game["AwayScore"])
+                    win_user = hu if winner == home else au
+                    lose_user = au if winner == home else hu
+                    # Find a specific player to spotlight
+                    spotlight_team_players = dynasty_by_team.get(winner, [])
+                    spotlight = spotlight_team_players[0] if spotlight_team_players else None
+                    player_name = spotlight["Name"] if spotlight else "a dynasty alum"
+                    player_id   = spotlight.get("PlayerID", "") if spotlight else ""
+                    new_events.append({
+                        "Season": season_year, "Week": week_num,
+                        "PlayerID": player_id, "Player": player_name,
+                        "NFLTeam": winner,
+                        "EventType": "AlumniMatchup",
+                        "Headline": f"{win_user}'s Alumni Beat {lose_user}'s Alumni — {win_score}-{lose_score}",
+                        "Description": (
+                            f"Dynasty bragging rights on the line in Week {week_num}: "
+                            f"{winner} ({win_user}'s alumni) handled {loser} ({lose_user}'s alumni) "
+                            f"{win_score}-{lose_score}. {player_name} was in the building."
+                        ),
+                        "ImpactScore": 8,
+                    })
+                    break  # One alumni matchup event per week max
+
+        # ── Priority 2: Dynasty player spotlight (highest OVR on winning team) ─
+        if len(new_events) < 2 and not dynasty_rosters.empty:
+            best_event = None
+            best_ovr   = 0
+            for _, game in games_df.iterrows():
+                winner = game["WinTeam"]
+                margin = int(game["Margin"])
+                players = dynasty_by_team.get(winner, [])
+                if not players:
+                    continue
+                top = max(players, key=lambda p: safe_num(p.get("OVR", 60), 60))
+                ovr = safe_num(top.get("OVR", 60), 60)
+                if ovr > best_ovr:
+                    best_ovr = ovr
+                    win_s  = max(game["HomeScore"], game["AwayScore"])
+                    lose_s = min(game["HomeScore"], game["AwayScore"])
+                    pos    = str(top.get("Pos", top.get("PosBucket", ""))).strip()
+                    school = str(top.get("CollegeTeam", "")).strip()
+                    coach  = COLLEGE_TO_USER.get(school, "")
+                    coach_str = f" ({coach}'s {school} alum)" if coach else (f" ({school} alum)" if school else "")
+                    tone = "dominated" if margin > 14 else "won" if margin > 7 else "edged out a win"
+                    best_event = {
+                        "Season": season_year, "Week": week_num,
+                        "PlayerID": top.get("PlayerID", ""),
+                        "Player": top.get("Name", "Unknown"),
+                        "NFLTeam": winner,
+                        "EventType": "DynastySpotlight",
+                        "Headline": f"{top.get('Name','?')} ({winner}) Shines in Week {week_num}",
+                        "Description": (
+                            f"{top.get('Name','?')}{coach_str}, {pos}, was part of {winner}'s "
+                            f"Week {week_num} effort as they {tone} {game['LoseTeam']} "
+                            f"{win_s}-{lose_s}. The {int(ovr)} OVR {pos} is making their mark "
+                            f"in the pro game."
+                        ),
+                        "ImpactScore": min(10, 5 + int((ovr - 70) / 5)),
+                    }
+            if best_event:
+                new_events.append(best_event)
+
+        # ── Priority 3: Upset alert ───────────────────────────────────────────
+        if len(new_events) < 2 and not team_strength_df.empty if 'team_strength_df' in dir() else True:
+            try:
+                power_map_local = {}
+                if os.path.exists("nfl_standings_history.csv"):
+                    _sh = pd.read_csv("nfl_standings_history.csv")
+                    _sh = _sh[pd.to_numeric(_sh.get("Season",""), errors="coerce").fillna(0).astype(int) == int(season_year)]
+                    if not _sh.empty and "TeamPower" in _sh.columns:
+                        power_map_local = dict(zip(_sh["Team"], pd.to_numeric(_sh["TeamPower"], errors="coerce").fillna(75)))
+
+                for _, game in games_df.iterrows():
+                    winner = game["WinTeam"]; loser = game["LoseTeam"]
+                    w_pow  = power_map_local.get(winner, 75)
+                    l_pow  = power_map_local.get(loser, 75)
+                    if l_pow - w_pow >= 6:  # underdog won by at least 6 power points
+                        win_s = max(game["HomeScore"], game["AwayScore"])
+                        lose_s= min(game["HomeScore"], game["AwayScore"])
+                        new_events.append({
+                            "Season": season_year, "Week": week_num,
+                            "PlayerID": "", "Player": "",
+                            "NFLTeam": winner,
+                            "EventType": "Upset",
+                            "Headline": f"UPSET ALERT — {winner} Knocks Off {loser} in Week {week_num}",
+                            "Description": (
+                                f"Nobody saw this coming. {winner} walked into Week {week_num} as "
+                                f"the underdog and walked out with a {win_s}-{lose_s} win over "
+                                f"{loser}. The league just got a little more interesting."
+                            ),
+                            "ImpactScore": 7,
+                        })
+                        break
+            except Exception:
+                pass
+
+        # ── Priority 4: Fan-favorite franchise callout (1 per week, random) ──
+        fave_teams_in_week = [
+            team for team in FAN_FAVES
+            if any(str(g["HomeTeam"]) == team or str(g["AwayTeam"]) == team
+                   for _, g in games_df.iterrows())
+        ]
+        if fave_teams_in_week:
+            chosen_team = random.choice(fave_teams_in_week)
+            copy_pool   = FAN_FAVES[chosen_team]
+            # Find the game result for this team
+            team_game = games_df[
+                (games_df["HomeTeam"] == chosen_team) | (games_df["AwayTeam"] == chosen_team)
+            ].iloc[0] if not games_df[
+                (games_df["HomeTeam"] == chosen_team) | (games_df["AwayTeam"] == chosen_team)
+            ].empty else None
+
+            if team_game is not None:
+                won  = team_game["WinTeam"] == chosen_team
+                opp  = team_game["AwayTeam"] if team_game["HomeTeam"] == chosen_team else team_game["HomeTeam"]
+                w_s  = max(team_game["HomeScore"], team_game["AwayScore"])
+                l_s  = min(team_game["HomeScore"], team_game["AwayScore"])
+                result_str = f"{'W' if won else 'L'} {w_s}-{l_s} vs {opp}"
+                headline, base_desc = random.choice(copy_pool)
+                new_events.append({
+                    "Season": season_year, "Week": week_num,
+                    "PlayerID": "", "Player": "",
+                    "NFLTeam": chosen_team,
+                    "EventType": "FanFaveSpotlight",
+                    "Headline": f"{headline} — Week {week_num} ({result_str})",
+                    "Description": base_desc,
+                    "ImpactScore": 4,
+                })
+
+        # ── Write new events ──────────────────────────────────────────────────
+        if new_events:
+            new_df = pd.DataFrame(new_events, columns=NFL_STORY_EVENTS_COLS)
+            existing_story = pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+            if os.path.exists("nfl_story_events.csv"):
+                try:
+                    existing_story = pd.read_csv("nfl_story_events.csv")
+                except Exception:
+                    pass
+            combined = pd.concat([existing_story, new_df], ignore_index=True)
+            combined = combined.drop_duplicates(
+                subset=["Season", "Week", "NFLTeam", "EventType"], keep="last"
+            )
+            combined.to_csv("nfl_story_events.csv", index=False)
+
+    except Exception:
+        pass  # Never crash week advance over story events
 
 
 def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
@@ -24951,10 +25196,10 @@ with tabs[2]:
             <div style='background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:14px 16px;font-size:0.82rem;color:#94a3b8;line-height:1.9;margin-bottom:12px;'>
 
             <div style='color:#22c55e;font-weight:700;margin-bottom:4px;'>⚡ After each Advance Week (CFB + NFL together):</div>
-            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>dynasty_state.csv</code></div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>dynasty_state.csv</code></div>
 
             <div style='color:#60a5fa;font-weight:700;margin-bottom:4px;'>🏈 After each NFL-only catch-up advance:</div>
-            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code><br>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code><br>
             <span style='color:#64748b;font-size:0.75rem;'>dynasty_state.csv is NOT touched by NFL-only advances — skip it</span></div>
 
             <div style='color:#f59e0b;font-weight:700;margin-bottom:4px;'>🔄 After Rebuild NFL Rosters:</div>
@@ -25001,19 +25246,19 @@ with tabs[2]:
                 ("nfl_weekly_scores.csv",        "Weekly Scores",     "⬇️ Push after EVERY advance"),
                 ("nfl_standings_history.csv",    "Standings",         "⬇️ Push after EVERY advance"),
                 ("nfl_universe_settings.csv",    "NFL Settings",      "⬇️ Push after EVERY advance"),
+                ("nfl_story_events.csv",         "Story Events",      "⬇️ Push after EVERY advance — weekly events accumulate here"),
                 ("nfl_current_rosters.csv",      "Current Rosters",   "⬇️ Push after roster rebuild, draft, or offseason"),
                 ("nfl_draft_history.csv",        "Draft History",     "⬇️ Push after NFL Draft"),
                 ("nfl_player_history.csv",       "Player History",    "⬇️ Push after full season sim + playoffs"),
                 ("nfl_playoff_history.csv",      "Playoff Bracket",   "⬇️ Push after Sim Playoffs"),
                 ("nfl_super_bowl_history.csv",   "Super Bowl",        "⬇️ Push after Sim Playoffs"),
                 ("nfl_awards_history.csv",       "Awards",            "⬇️ Push after Sim Playoffs"),
-                ("nfl_story_events.csv",         "Story Events",      "⬇️ Push after Sim Playoffs"),
                 ("cfb_user_draft_results.csv",   "CFB Draft Input",   "⬆️ Upload before NFL Draft sim"),
             ]
             _dl_keys = [
                 "dl_weekly_scores", "dl_standings", "dl_settings_indiv",
-                "dl_curr_rosters", "dl_draft_hist", "dl_player_hist",
-                "dl_playoff", "dl_sb_hist", "dl_awards", "dl_story", "dl_draft_input",
+                "dl_story_weekly", "dl_curr_rosters", "dl_draft_hist", "dl_player_hist",
+                "dl_playoff", "dl_sb_hist", "dl_awards", "dl_draft_input",
             ]
             for (_fname, _label, _note), _key in zip(_dl_files, _dl_keys):
                 if os.path.exists(_fname):
