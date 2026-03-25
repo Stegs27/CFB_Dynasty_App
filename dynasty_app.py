@@ -7706,27 +7706,9 @@ def load_data(current_year=CURRENT_YEAR):
     try:
         # LOAD ALL CORE FILES
         scores = pd.read_csv('CPUscores_MASTER.csv')
-        # Also merge scores.csv (HTML importer output) if it exists — avoids H2H gaps
-        if os.path.exists('scores.csv'):
-            try:
-                _scores_extra = pd.read_csv('scores.csv')
-                _scores_extra.columns = [str(c).strip() for c in _scores_extra.columns]
-                scores = pd.concat([scores, _scores_extra], ignore_index=True)
-                # Dedup on year+week+visitor+home keeping rows with scores
-                for _dc in ['YEAR','Week','Vis Score','Home Score']:
-                    if _dc in scores.columns:
-                        scores[_dc] = pd.to_numeric(scores[_dc], errors='coerce')
-                # Dedup: same YEAR+Week+Visitor+Home, keep FINAL over SCHEDULED.
-                # CPUscores_MASTER now has synthetic weeks for all historical games
-                # so NaN-week collisions no longer occur.
-                scores = (scores
-                    .assign(_s_ord=scores['Status'].map({'FINAL':0,'SCHEDULED':1}).fillna(2))
-                    .sort_values(['YEAR','Week','Visitor','Home','_s_ord'])
-                    .drop(columns=['_s_ord'])
-                    .drop_duplicates(subset=['YEAR','Week','Visitor','Home'], keep='first')
-                    .reset_index(drop=True))
-            except Exception:
-                pass
+        # CPUscores_MASTER.csv is the single source of truth for all historical games.
+        # scores.csv (HTML importer) games were merged into CPUscores_MASTER and it is
+        # no longer read separately — prevents double-counting when both files exist.
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
         draft = pd.read_csv('UserDraftPicks.csv')
@@ -13571,8 +13553,10 @@ with tabs[0]:
                 _dn_cfp['WEEK'] = pd.to_numeric(_dn_cfp['WEEK'], errors='coerce')
                 _dn_latest_yr  = int(_dn_cfp['YEAR'].max())
                 _dn_latest_wk  = int(_dn_cfp.loc[_dn_cfp['YEAR'] == _dn_latest_yr, 'WEEK'].max())
-                # Use CFP rankings week as the authoritative current week
-                _dn_week = _dn_latest_wk
+                # Use CFP rankings week, but never go BELOW dynasty_state current week.
+                # CFP rankings lag by 1 when games have been played but rankings
+                # haven't been imported yet — use whichever is higher.
+                _dn_week = max(_dn_latest_wk, CURRENT_WEEK_NUMBER)
                 _dn_year = _dn_latest_yr
         except Exception:
             pass
