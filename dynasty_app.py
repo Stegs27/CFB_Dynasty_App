@@ -3520,6 +3520,12 @@ def advance_dynasty_and_nfl_week():
     except Exception as e:
         nfl_summary = f"NFL sim error: {e}"
 
+    # ── Auto-sync coach_records.csv + UserDraftPicks.csv from CPUscores_MASTER ──
+    try:
+        sync_derived_stats()
+    except Exception:
+        pass  # Never block week advance on a sync failure
+
     return cfb_week_new, nfl_week_new, nfl_summary, games_df
 
 
@@ -24727,19 +24733,37 @@ with tabs[2]:
               </table>
             </div>""", unsafe_allow_html=True)
 
+            # Always pull the TRUE base roster (NFLroster26_MASTER) not nfl_current_rosters
+            _base_nfl_roster = universe.get("nfl_roster", pd.DataFrame())
+
+            # Warn upfront if the base roster file is missing — rebuild will produce 0 rows without it
+            if _base_nfl_roster is None or (hasattr(_base_nfl_roster, "empty") and _base_nfl_roster.empty):
+                st.warning("⚠️ **NFLroster26_MASTER.csv** is missing or empty in the repo. Rebuild will produce 0 rows until you push that file. Upload it to GitHub first.")
+
             if st.button("🔄 Rebuild Current NFL Rosters", use_container_width=True, key="rebuild_current_nfl_rosters_now",
                          help="Run this if rosters look stale after a new draft or offseason. Then download nfl_current_rosters.csv and push."):
                 try:
                     season_to_rebuild = get_current_nfl_season()
                     rebuilt = build_nfl_current_roster_for_season(
                         season_year=season_to_rebuild,
-                        nfl_roster_df=nfl_roster,
+                        nfl_roster_df=_base_nfl_roster,
                         nfl_draft_hist_df=nfl_draft_hist,
                         nfl_player_hist_df=nfl_player_hist,
                         existing_current_rosters_df=universe["nfl_current_rosters"] if "nfl_current_rosters" in universe else None
                     )
-                    st.success(f"Rebuilt nfl_current_rosters.csv for season {season_to_rebuild}. Rows: {len(rebuilt)}. Download and push to repo.")
-                    st.rerun()
+                    if rebuilt.empty:
+                        st.error("❌ Rebuild produced 0 rows. NFLroster26_MASTER.csv is likely missing or empty in the repo — push it to GitHub and reload the app.")
+                    else:
+                        st.success(f"✅ Rebuilt nfl_current_rosters.csv for season {season_to_rebuild} — {len(rebuilt):,} players. Download below and push to repo.")
+                        _rebuilt_csv = rebuilt.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            label="⬇️ Download nfl_current_rosters.csv — push to repo",
+                            data=_rebuilt_csv,
+                            file_name="nfl_current_rosters.csv",
+                            mime="text/csv",
+                            use_container_width=True,
+                            key="download_rebuilt_nfl_rosters_inline"
+                        )
                 except Exception as e:
                     import traceback
                     st.error(f"Roster rebuild error: {type(e).__name__}: {e}")
