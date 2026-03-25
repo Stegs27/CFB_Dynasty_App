@@ -8960,26 +8960,43 @@ def normalize_game_summaries(df):
 def load_team_ratings(year=None):
     """
     Load team ratings from team_ratings.csv.
-    Returns dict: team_name → {'OVR': x, 'OFF': x, 'DEF': x}
-    Falls back to most recent year if requested year not found.
+    Returns dict: team_name.lower() → {'OVR': x, 'OFF': x, 'DEF': x}
+    For the current year: merges all years so CPU teams always resolve.
+    User-team year-specific data takes priority over older entries.
     """
     try:
         tr = pd.read_csv('team_ratings.csv')
         tr['YEAR'] = pd.to_numeric(tr['YEAR'], errors='coerce')
+        result = {}
         if year is not None:
+            # First pass: all historical data (oldest first) gives CPU teams
+            all_sorted = tr.sort_values('YEAR', ascending=True)
+            for _, row in all_sorted.iterrows():
+                k = str(row['TEAM']).strip().lower()
+                result[k] = {
+                    'OVR': row.get('OVR', row.get('OVERALL')),
+                    'OFF': row.get('OFF', row.get('OFFENSE')),
+                    'DEF': row.get('DEF', row.get('DEFENSE')),
+                }
+            # Second pass: exact year overwrites so user teams are current
             yr_data = tr[tr['YEAR'] == int(year)]
             if yr_data.empty:
                 yr_data = tr[tr['YEAR'] == tr['YEAR'].max()]
+            for _, row in yr_data.iterrows():
+                k = str(row['TEAM']).strip().lower()
+                result[k] = {
+                    'OVR': row.get('OVR', row.get('OVERALL')),
+                    'OFF': row.get('OFF', row.get('OFFENSE')),
+                    'DEF': row.get('DEF', row.get('DEFENSE')),
+                }
         else:
             yr_data = tr[tr['YEAR'] == tr['YEAR'].max()]
-        result = {}
-        for _, row in yr_data.iterrows():
-            # Lowercase key so lookup is case-insensitive (Usc == USC == usc)
-            result[str(row['TEAM']).strip().lower()] = {
-                'OVR': row.get('OVR', row.get('OVERALL')),
-                'OFF': row.get('OFF', row.get('OFFENSE')),
-                'DEF': row.get('DEF', row.get('DEFENSE')),
-            }
+            for _, row in yr_data.iterrows():
+                result[str(row['TEAM']).strip().lower()] = {
+                    'OVR': row.get('OVR', row.get('OVERALL')),
+                    'OFF': row.get('OFF', row.get('OFFENSE')),
+                    'DEF': row.get('DEF', row.get('DEFENSE')),
+                }
         return result
     except Exception:
         return {}
@@ -12970,8 +12987,7 @@ with tabs[3]:
                 conf_w = int(_tr['CONF_W'])
                 conf_l = int(_tr['CONF_L'])
                 _conf_peers = _conf_st[
-                    (_conf_st['CONFERENCE'] == sel_conf_name) &
-                    (_conf_st['TEAM'] != sel_team_name)
+                    (_conf_st['CONFERENCE'] == sel_conf_name)
                 ].copy()
                 # Rank comes from cfp_rankings_history.csv — authoritative source
                 # conf_standings no longer carries a RANK column
@@ -13018,8 +13034,7 @@ with tabs[3]:
             # Full conf standings (all teams, not just user-vs-user)
             if _from_standings and not _conf_st.empty:
                 _conf_peers_all = _conf_st[
-                    (_conf_st['CONFERENCE'] == sel_conf_name) &
-                    (_conf_st['TEAM'] != sel_team_name)
+                    (_conf_st['CONFERENCE'] == sel_conf_name)
                 ].copy()
                 # RANK comes from cfp_rankings_history — conf_standings no longer carries it
                 try:
@@ -13050,11 +13065,14 @@ with tabs[3]:
                             f"<span style='font-size:0.62rem;padding:1px 4px;background:#1e3a5f;"
                             f"color:#60a5fa;border-radius:3px;margin-left:5px;'>{html.escape(cr_user)}</span>"
                         ) if cr_user else ""
+                        _is_sel = str(cr['TEAM']).strip() == sel_team_name
+                        _row_bg = f'background:linear-gradient(90deg,{get_team_primary_color(sel_team_name)}22,#0a1628)' if _is_sel else 'background:#0a1628'
+                        _row_border = f'border-left:3px solid {get_team_primary_color(sel_team_name)};' if _is_sel else 'border-left:3px solid transparent;'
                         cst_html += (
                             f"<div style='display:flex;align-items:center;gap:8px;padding:5px 10px;"
-                            f"background:#0a1628;border-radius:5px;font-size:0.78rem;'>"
+                            f"{_row_bg};{_row_border}border-radius:5px;font-size:0.78rem;'>"
                             f"<span style='color:{rk_col};font-weight:800;min-width:28px;'>{rk_str}</span>"
-                            f"<span style='color:#d1d5db;flex:1;'>{html.escape(str(cr['TEAM']))}{user_badge}</span>"
+                            f"<span style='color:{'#f8fafc' if _is_sel else '#d1d5db'};font-weight:{'800' if _is_sel else '400'};flex:1;'>{html.escape(str(cr['TEAM']))}{user_badge}</span>"
                             f"<span style='color:#94a3b8;min-width:36px;text-align:right;'>{int(cr['W'])}-{int(cr['L'])}</span>"
                             f"<span style='color:#475569;font-size:0.7rem;min-width:52px;text-align:right;'>({int(cr['CONF_W'])}-{int(cr['CONF_L'])} conf)</span>"
                             f"</div>"
@@ -13703,12 +13721,15 @@ with tabs[0]:
                 if _bl_result and _bl_result != "Pick'em":
                     _bl_str, _bl_fav, _bl_diff = _bl_result if len(_bl_result) == 3 else (_bl_result[0], _bl_result[1], 0)
                     if _bl_str and _bl_str != "Pick'em":
-                        _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.72rem;"
-                                      f"color:#64748b;margin-left:4px;'>LINE: "
-                                      f"<strong style='color:#4ade80;'>{html.escape(_bl_str)}</strong></span>")
+                        # Red if user is underdog, green if favored
+                        _user_favored = str(_bl_fav).strip().lower() == str(team).strip().lower()
+                        _line_color = '#4ade80' if _user_favored else '#f87171'
+                        _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.88rem;"
+                                      f"font-weight:900;color:#94a3b8;margin-left:4px;letter-spacing:.03em;'>LINE: "
+                                      f"<strong style='color:{_line_color};font-size:0.95rem;'>{html.escape(_bl_str)}</strong></span>")
                 elif _bl_result == "Pick'em" or (_bl_result and _bl_result[0] == "Pick'em"):
-                    _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.72rem;"
-                                  f"color:#64748b;margin-left:4px;'>LINE: <strong style='color:#94a3b8;'>Pick'em</strong></span>")
+                    _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.88rem;"
+                                  f"font-weight:900;color:#94a3b8;margin-left:4px;'>LINE: <strong style='color:#fbbf24;font-size:0.95rem;'>Pick'em</strong></span>")
 
             _game_strip = (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;"
@@ -15350,6 +15371,127 @@ with tabs[0]:
             _headline_history_save(_history_rows)
 
 # ════════════════════════════════════════════════════════════════════
+        # SECTION 5 — INJURY REPORT  (last updated: Bowl Week 1, 2041)
+        # To update: drop new screenshots in the ISPN chat
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("🚑 Injury Report")
+        st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
+
+        INJURY_DATA = []
+        try:
+            _inj_csv = pd.read_csv('injury_bulletin.csv')
+            _inj_csv['Year'] = pd.to_numeric(_inj_csv.get('Year', CURRENT_YEAR), errors='coerce').fillna(CURRENT_YEAR).astype(int)
+            _inj_csv['Week'] = pd.to_numeric(_inj_csv.get('Week', 0), errors='coerce').fillna(0).astype(int)
+            _inj_csv['WeeksOut'] = pd.to_numeric(_inj_csv.get('WeeksOut', 0), errors='coerce').fillna(0).astype(int)
+            _inj_csv['OVR'] = pd.to_numeric(_inj_csv.get('OVR', 0), errors='coerce').fillna(0).astype(int)
+            # Compute remaining weeks — this is what gets displayed
+            _inj_csv['_rem'] = (_inj_csv['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj_csv['Week'])).clip(lower=0).astype(int)
+            _inj_csv = _inj_csv[(_inj_csv['Year'] == CURRENT_YEAR) & (_inj_csv['_rem'] > 0)].copy()
+
+            # Group by team
+            _team_injuries = {}
+            for _, _ir in _inj_csv.iterrows():
+                _t = str(_ir.get('Team', '')).strip()
+                _u = str(_ir.get('User', '')).strip()
+                # Skip blank rows or literal 'nan' values from malformed CSV
+                if not _t or _t.lower() == 'nan':
+                    continue
+                if not _u or _u.lower() == 'nan':
+                    _u = ''
+                if _t not in _team_injuries:
+                    # Real CFP rank via global lookup — nan means unranked
+                    _rk_raw = get_current_rank(_t)
+                    _rk_disp = int(_rk_raw) if not (isinstance(_rk_raw, float) and _rk_raw != _rk_raw) else None
+                    _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': _rk_disp, 'injuries': []}
+                _is_raw = str(_ir.get('IsStarter', '')).strip().lower()
+                _starter_flag = _is_raw in ('yes', 'true', '1') or (
+                    _is_raw == '' and int(_ir.get('OVR', 0) or 0) >= 80
+                )
+                _team_injuries[_t]['injuries'].append({
+                    'name':      str(_ir.get('Player', '—')),
+                    'pos':       str(_ir.get('Pos', '—')),
+                    'ovr':       int(_ir.get('OVR', 0) or 0),
+                    'injury':    str(_ir.get('Injury', '—')),
+                    'weeks':     int(_ir.get('_rem', _ir.get('WeeksOut', 0)) or 0),
+                    'status':    str(_ir.get('Status', 'Out')),
+                    'is_starter': _starter_flag,
+                })
+            INJURY_DATA = list(_team_injuries.values())
+        except Exception:
+            INJURY_DATA = []
+
+        def injury_severity(weeks):
+            if weeks >= 20: return ("🔴", "#ef4444", "Season-Ending")
+            if weeks >= 8:  return ("🟠", "#f97316", "Long-Term")
+            if weeks >= 3:  return ("🟡", "#eab308", "Mid-Term")
+            return ("🟢", "#22c55e", "Short-Term")
+
+        # Sort by total injured weeks descending so hardest-hit teams lead
+        INJURY_DATA.sort(key=lambda t: sum(p['weeks'] for p in t['injuries']), reverse=True)
+
+        inj_html = "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>"
+        for team_data in INJURY_DATA:
+            team   = team_data['team']
+            user   = team_data['user']
+            seed   = team_data['seed']
+            primary = get_team_primary_color(team)
+            logo_uri = image_file_to_data_uri(get_logo_source(team))
+            logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri else ""
+
+            rows_html = ""
+            for p in team_data['injuries']:
+                dot, color, label = injury_severity(p['weeks'])
+                _starter_badge = (
+                    "<span style='display:inline-block;padding:0px 5px;border-radius:3px;"
+                    "background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);"
+                    "font-size:0.58rem;font-weight:700;font-family:Barlow Condensed,sans-serif;"
+                    "letter-spacing:0.06em;margin-left:5px;vertical-align:middle;'>STARTER</span>"
+                    if p.get('is_starter') else
+                    "<span style='display:inline-block;padding:0px 5px;border-radius:3px;"
+                    "background:rgba(100,116,139,0.1);color:#475569;border:1px solid rgba(100,116,139,0.2);"
+                    "font-size:0.58rem;font-family:Barlow Condensed,sans-serif;"
+                    "letter-spacing:0.06em;margin-left:5px;vertical-align:middle;'>BACKUP</span>"
+                )
+                rows_html += (
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;"
+                    f"padding:6px 8px;border-bottom:1px solid #1f2937;'>"
+                    f"<div>"
+                    f"<span style='font-weight:700;color:#f3f4f6;font-size:0.85rem;'>{html.escape(p['name'])}</span>"
+                    f"{_starter_badge}"
+                    f"<span style='color:#9ca3af;font-size:0.75rem;margin-left:6px;'>{p['pos']} · {p['ovr']} OVR</span><br>"
+                    f"<span style='color:#d1d5db;font-size:0.78rem;'>{html.escape(p['injury'])}</span>"
+                    f"</div>"
+                    f"<div style='text-align:right;white-space:nowrap;'>"
+                    f"<div style='color:{color};font-size:0.72rem;font-weight:700;'>{dot} {label}</div>"
+                    f"<div style='color:#6b7280;font-size:0.7rem;'>{p['weeks']} wks</div>"
+                    f"</div>"
+                    f"</div>"
+                )
+
+            inj_html += (
+                f"<div style='background:#111827;border:1px solid #374151;border-radius:12px;overflow:hidden;'>"
+                f"<div style='background:{primary}22;border-bottom:2px solid {primary};padding:8px 12px;"
+                f"display:flex;align-items:center;'>"
+                f"{logo_html}"
+                f"<div>"
+                f"<div style='font-weight:800;color:#f3f4f6;font-size:0.9rem;'>{'#'+str(seed)+' ' if seed else 'NR · '}{html.escape(team)}</div>"
+                f"<div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(user)} · {len(team_data['injuries'])} player{'s' if len(team_data['injuries'])>1 else ''} out</div>"
+                f"</div>"
+                f"</div>"
+                f"{rows_html}"
+                f"</div>"
+            )
+        inj_html += "</div>"
+        st.markdown(inj_html, unsafe_allow_html=True)
+
+        # Teams with no reported injuries
+        all_users = set(USER_TEAMS.keys())
+        reported  = {t['user'] for t in INJURY_DATA}
+        healthy   = all_users - reported
+        if healthy:
+            h_names = ", ".join(f"**{u}**" for u in sorted(healthy))
+            st.caption(f"✅ No injuries reported: {h_names}")
         # SECTION 2B — HIGHEST TV RATINGS
         # Formula-driven fake viewership for marquee/exciting games.
         # ════════════════════════════════════════════════════════════════════
@@ -16182,127 +16324,6 @@ with tabs[0]:
                 st.caption("No COTY data loaded.")
 
         # ════════════════════════════════════════════════════════════════════
-        # SECTION 5 — INJURY REPORT  (last updated: Bowl Week 1, 2041)
-        # To update: drop new screenshots in the ISPN chat
-        # ════════════════════════════════════════════════════════════════════
-        st.markdown("---")
-        st.subheader("🚑 Injury Report")
-        st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
-
-        INJURY_DATA = []
-        try:
-            _inj_csv = pd.read_csv('injury_bulletin.csv')
-            _inj_csv['Year'] = pd.to_numeric(_inj_csv.get('Year', CURRENT_YEAR), errors='coerce').fillna(CURRENT_YEAR).astype(int)
-            _inj_csv['Week'] = pd.to_numeric(_inj_csv.get('Week', 0), errors='coerce').fillna(0).astype(int)
-            _inj_csv['WeeksOut'] = pd.to_numeric(_inj_csv.get('WeeksOut', 0), errors='coerce').fillna(0).astype(int)
-            _inj_csv['OVR'] = pd.to_numeric(_inj_csv.get('OVR', 0), errors='coerce').fillna(0).astype(int)
-            # Compute remaining weeks — this is what gets displayed
-            _inj_csv['_rem'] = (_inj_csv['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj_csv['Week'])).clip(lower=0).astype(int)
-            _inj_csv = _inj_csv[(_inj_csv['Year'] == CURRENT_YEAR) & (_inj_csv['_rem'] > 0)].copy()
-
-            # Group by team
-            _team_injuries = {}
-            for _, _ir in _inj_csv.iterrows():
-                _t = str(_ir.get('Team', '')).strip()
-                _u = str(_ir.get('User', '')).strip()
-                # Skip blank rows or literal 'nan' values from malformed CSV
-                if not _t or _t.lower() == 'nan':
-                    continue
-                if not _u or _u.lower() == 'nan':
-                    _u = ''
-                if _t not in _team_injuries:
-                    # Real CFP rank via global lookup — nan means unranked
-                    _rk_raw = get_current_rank(_t)
-                    _rk_disp = int(_rk_raw) if not (isinstance(_rk_raw, float) and _rk_raw != _rk_raw) else None
-                    _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': _rk_disp, 'injuries': []}
-                _is_raw = str(_ir.get('IsStarter', '')).strip().lower()
-                _starter_flag = _is_raw in ('yes', 'true', '1') or (
-                    _is_raw == '' and int(_ir.get('OVR', 0) or 0) >= 80
-                )
-                _team_injuries[_t]['injuries'].append({
-                    'name':      str(_ir.get('Player', '—')),
-                    'pos':       str(_ir.get('Pos', '—')),
-                    'ovr':       int(_ir.get('OVR', 0) or 0),
-                    'injury':    str(_ir.get('Injury', '—')),
-                    'weeks':     int(_ir.get('_rem', _ir.get('WeeksOut', 0)) or 0),
-                    'status':    str(_ir.get('Status', 'Out')),
-                    'is_starter': _starter_flag,
-                })
-            INJURY_DATA = list(_team_injuries.values())
-        except Exception:
-            INJURY_DATA = []
-
-        def injury_severity(weeks):
-            if weeks >= 20: return ("🔴", "#ef4444", "Season-Ending")
-            if weeks >= 8:  return ("🟠", "#f97316", "Long-Term")
-            if weeks >= 3:  return ("🟡", "#eab308", "Mid-Term")
-            return ("🟢", "#22c55e", "Short-Term")
-
-        # Sort by total injured weeks descending so hardest-hit teams lead
-        INJURY_DATA.sort(key=lambda t: sum(p['weeks'] for p in t['injuries']), reverse=True)
-
-        inj_html = "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>"
-        for team_data in INJURY_DATA:
-            team   = team_data['team']
-            user   = team_data['user']
-            seed   = team_data['seed']
-            primary = get_team_primary_color(team)
-            logo_uri = image_file_to_data_uri(get_logo_source(team))
-            logo_html = f"<img src='{logo_uri}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri else ""
-
-            rows_html = ""
-            for p in team_data['injuries']:
-                dot, color, label = injury_severity(p['weeks'])
-                _starter_badge = (
-                    "<span style='display:inline-block;padding:0px 5px;border-radius:3px;"
-                    "background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);"
-                    "font-size:0.58rem;font-weight:700;font-family:Barlow Condensed,sans-serif;"
-                    "letter-spacing:0.06em;margin-left:5px;vertical-align:middle;'>STARTER</span>"
-                    if p.get('is_starter') else
-                    "<span style='display:inline-block;padding:0px 5px;border-radius:3px;"
-                    "background:rgba(100,116,139,0.1);color:#475569;border:1px solid rgba(100,116,139,0.2);"
-                    "font-size:0.58rem;font-family:Barlow Condensed,sans-serif;"
-                    "letter-spacing:0.06em;margin-left:5px;vertical-align:middle;'>BACKUP</span>"
-                )
-                rows_html += (
-                    f"<div style='display:flex;justify-content:space-between;align-items:center;"
-                    f"padding:6px 8px;border-bottom:1px solid #1f2937;'>"
-                    f"<div>"
-                    f"<span style='font-weight:700;color:#f3f4f6;font-size:0.85rem;'>{html.escape(p['name'])}</span>"
-                    f"{_starter_badge}"
-                    f"<span style='color:#9ca3af;font-size:0.75rem;margin-left:6px;'>{p['pos']} · {p['ovr']} OVR</span><br>"
-                    f"<span style='color:#d1d5db;font-size:0.78rem;'>{html.escape(p['injury'])}</span>"
-                    f"</div>"
-                    f"<div style='text-align:right;white-space:nowrap;'>"
-                    f"<div style='color:{color};font-size:0.72rem;font-weight:700;'>{dot} {label}</div>"
-                    f"<div style='color:#6b7280;font-size:0.7rem;'>{p['weeks']} wks</div>"
-                    f"</div>"
-                    f"</div>"
-                )
-
-            inj_html += (
-                f"<div style='background:#111827;border:1px solid #374151;border-radius:12px;overflow:hidden;'>"
-                f"<div style='background:{primary}22;border-bottom:2px solid {primary};padding:8px 12px;"
-                f"display:flex;align-items:center;'>"
-                f"{logo_html}"
-                f"<div>"
-                f"<div style='font-weight:800;color:#f3f4f6;font-size:0.9rem;'>{'#'+str(seed)+' ' if seed else 'NR · '}{html.escape(team)}</div>"
-                f"<div style='color:#9ca3af;font-size:0.72rem;'>{html.escape(user)} · {len(team_data['injuries'])} player{'s' if len(team_data['injuries'])>1 else ''} out</div>"
-                f"</div>"
-                f"</div>"
-                f"{rows_html}"
-                f"</div>"
-            )
-        inj_html += "</div>"
-        st.markdown(inj_html, unsafe_allow_html=True)
-
-        # Teams with no reported injuries
-        all_users = set(USER_TEAMS.keys())
-        reported  = {t['user'] for t in INJURY_DATA}
-        healthy   = all_users - reported
-        if healthy:
-            h_names = ", ".join(f"**{u}**" for u in sorted(healthy))
-            st.caption(f"✅ No injuries reported: {h_names}")
 
         # ── NFL MOCK DRAFT — 1ST ROUND ────────────────────────────────────────────
         st.markdown("---")
@@ -18520,7 +18541,8 @@ with tabs[8]:
             st.markdown(f"#### ⚔️ User Battles of {sel_year}")
             for _, _g in user_games.iterrows():
                 vt, ht = str(_g['Visitor_Final']).strip(), str(_g['Home_Final']).strip()
-                v_ovr, h_ovr = _ratings.get(vt, 0), _ratings.get(ht, 0)
+                v_ovr = _ratings.get(vt.lower(), _ratings.get(vt, 0))
+                h_ovr = _ratings.get(ht.lower(), _ratings.get(ht, 0))
                 is_upset = (int(_g['V_Pts']) > int(_g['H_Pts']) and v_ovr < h_ovr - 2) or (int(_g['H_Pts']) > int(_g['V_Pts']) and h_ovr < v_ovr - 2)
                 badge = f"<span style='background:#ef4444;color:white;font-size:0.6rem;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:900;'>🔥 UPSET (+{abs(v_ovr-h_ovr)})</span>" if is_upset else ""
                 st.markdown(f"<div style='display:flex;align-items:center;gap:8px;padding:8px 10px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;margin-bottom:5px;'>"
