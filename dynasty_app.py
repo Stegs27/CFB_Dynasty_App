@@ -7716,12 +7716,17 @@ def load_data(current_year=CURRENT_YEAR):
                 for _dc in ['YEAR','Week','Vis Score','Home Score']:
                     if _dc in scores.columns:
                         scores[_dc] = pd.to_numeric(scores[_dc], errors='coerce')
-                scores = (scores
-                    .assign(_s_ord=scores['Status'].map({'FINAL':0,'SCHEDULED':1}).fillna(2))
+                # Only dedup on rows where Week is not NaN — NaN-week rows are
+                # historical games where same teams can play multiple times per year
+                # (reg season + conf title + CFP), and we can't distinguish them by week.
+                scores['_s_ord'] = scores['Status'].map({'FINAL':0,'SCHEDULED':1}).fillna(2)
+                scores_with_week = scores[pd.to_numeric(scores['Week'], errors='coerce').notna()].copy()
+                scores_no_week   = scores[pd.to_numeric(scores['Week'], errors='coerce').isna()].copy()
+                scores_with_week = (scores_with_week
                     .sort_values(['YEAR','Week','Visitor','Home','_s_ord'])
-                    .drop(columns=['_s_ord'])
-                    .drop_duplicates(subset=['YEAR','Week','Visitor','Home'], keep='first')
-                    .reset_index(drop=True))
+                    .drop_duplicates(subset=['YEAR','Week','Visitor','Home'], keep='first'))
+                scores = pd.concat([scores_with_week, scores_no_week], ignore_index=True)
+                scores = scores.drop(columns=['_s_ord']).reset_index(drop=True)
             except Exception:
                 pass
         rec = pd.read_csv('recruiting.csv')
@@ -9296,17 +9301,16 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     Returns (line_str, favored_team, spread_value) or None if ratings missing.
     home_field: True adds ~2.5pt HFA to home team.
     """
-    hr = ratings_map.get(str(home_team).strip().lower())
-    ar = ratings_map.get(str(away_team).strip().lower())
-    if not hr or not ar:
-        return None
+    _DEFAULT_R = {'OVR': 82, 'OFF': 82, 'DEF': 82}
+    hr = ratings_map.get(str(home_team).strip().lower()) or _DEFAULT_R
+    ar = ratings_map.get(str(away_team).strip().lower()) or _DEFAULT_R
     try:
-        h_ovr = float(hr.get('OVR', hr.get('OVERALL', 0)) or 0)
-        h_off = float(hr.get('OFF', hr.get('OFFENSE', 0)) or 0)
-        h_def = float(hr.get('DEF', hr.get('DEFENSE', 0)) or 0)
-        a_ovr = float(ar.get('OVR', ar.get('OVERALL', 0)) or 0)
-        a_off = float(ar.get('OFF', ar.get('OFFENSE', 0)) or 0)
-        a_def = float(ar.get('DEF', ar.get('DEFENSE', 0)) or 0)
+        h_ovr = float(hr.get('OVR', hr.get('OVERALL', 82)) or 82)
+        h_off = float(hr.get('OFF', hr.get('OFFENSE', 82)) or 82)
+        h_def = float(hr.get('DEF', hr.get('DEFENSE', 82)) or 82)
+        a_ovr = float(ar.get('OVR', ar.get('OVERALL', 82)) or 82)
+        a_off = float(ar.get('OFF', ar.get('OFFENSE', 82)) or 82)
+        a_def = float(ar.get('DEF', ar.get('DEFENSE', 82)) or 82)
     except Exception:
         return None
     if h_ovr == 0 and a_ovr == 0:
@@ -9505,20 +9509,17 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     perf_map    : dict team → {PF, PA, DIFF, MOV, HOME_W, HOME_L, AWAY_W, AWAY_L}
     home_field  : True adds base 2.5pt HFA (reduced if away team is strong on road)
     """
-    hr = ratings_map.get(str(home_team).strip().lower())
-    ar = ratings_map.get(str(away_team).strip().lower())
-    if not hr or not ar:
-        return None
+    _DEFAULT_R2 = {'OVR': 82, 'OFF': 82, 'DEF': 82}
+    hr = ratings_map.get(str(home_team).strip().lower()) or _DEFAULT_R2
+    ar = ratings_map.get(str(away_team).strip().lower()) or _DEFAULT_R2
     try:
-        h_off = float(hr.get('OFF', hr.get('OFFENSE', 0)) or 0)
-        h_def = float(hr.get('DEF', hr.get('DEFENSE', 0)) or 0)
-        a_off = float(ar.get('OFF', ar.get('OFFENSE', 0)) or 0)
-        a_def = float(ar.get('DEF', ar.get('DEFENSE', 0)) or 0)
-        h_ovr = float(hr.get('OVR', hr.get('OVERALL', 0)) or 0)
-        a_ovr = float(ar.get('OVR', ar.get('OVERALL', 0)) or 0)
+        h_off = float(hr.get('OFF', hr.get('OFFENSE', 82)) or 82)
+        h_def = float(hr.get('DEF', hr.get('DEFENSE', 82)) or 82)
+        a_off = float(ar.get('OFF', ar.get('OFFENSE', 82)) or 82)
+        a_def = float(ar.get('DEF', ar.get('DEFENSE', 82)) or 82)
+        h_ovr = float(hr.get('OVR', hr.get('OVERALL', 82)) or 82)
+        a_ovr = float(ar.get('OVR', ar.get('OVERALL', 82)) or 82)
     except Exception:
-        return None
-    if h_ovr == 0 and a_ovr == 0:
         return None
 
     # Base score estimate from ratings
@@ -24576,6 +24577,76 @@ with tabs[2]:
                 f"CFB: Week {CURRENT_WEEK_NUMBER} · NFL: Week {_nfl_current_week} of {_nfl_reg_season_weeks} "
                 f"({'Reg Season' if _nfl_current_week <= _nfl_reg_season_weeks else 'Postseason'})"
             )
+
+            # ── NFL-ONLY advance (catch-up button) ────────────────────────────
+            st.markdown(
+                "<div style='font-size:0.72rem;color:#475569;font-weight:700;letter-spacing:.08em;"
+                "text-transform:uppercase;margin:6px 0 4px;'>NFL Only — Catch Up Without Moving CFB Week</div>",
+                unsafe_allow_html=True
+            )
+            _nfl_only_col_l, _nfl_only_col_c, _nfl_only_col_r = st.columns([1, 2, 1])
+            with _nfl_only_col_c:
+                _next_nfl_only = _nfl_current_week + 1
+                if _next_nfl_only <= 18:
+                    _nfl_only_label = f"🏈 Advance NFL Only → Week {_next_nfl_only}"
+                elif _next_nfl_only == 19:
+                    _nfl_only_label = "🏆 Sim NFL Playoffs (NFL Only)"
+                else:
+                    _nfl_only_label = f"NFL Season Complete (Week {_nfl_current_week})"
+                    
+                _nfl_only_disabled = _nfl_current_week >= 19
+                if st.button(_nfl_only_label, use_container_width=True, key="advance_nfl_only_btn",
+                             disabled=_nfl_only_disabled):
+                    try:
+                        with st.spinner(f"Simming NFL Week {_next_nfl_only}..."):
+                            _nfl_season_only = get_current_nfl_season()
+                            if _next_nfl_only <= 18:
+                                _universe_only = load_nfl_universe_data()
+                                _rosters_only  = _universe_only.get("nfl_current_rosters", pd.DataFrame())
+                                _sr_only = _rosters_only[
+                                    pd.to_numeric(_rosters_only.get("Season", pd.Series(dtype=float)),
+                                                  errors="coerce").fillna(0).astype(int) == int(_nfl_season_only)
+                                ].copy() if not _rosters_only.empty else pd.DataFrame()
+                                if _sr_only.empty and not _rosters_only.empty:
+                                    _sr_only = _rosters_only.copy()
+                                if _sr_only.empty:
+                                    st.warning("Build NFL rosters first before advancing NFL weeks.")
+                                else:
+                                    _ts_only = build_nfl_team_strengths(_sr_only)
+                                    _games_only, _msg_only = simulate_nfl_week(
+                                        week_num=_next_nfl_only,
+                                        season_year=_nfl_season_only,
+                                        team_strength_df=_ts_only
+                                    )
+                                    save_nfl_week(_next_nfl_only)
+                                    st.success(f"✅ NFL Week {_next_nfl_only} simmed. {_msg_only}")
+                                    if not _games_only.empty:
+                                        with st.expander(f"📋 NFL Week {_next_nfl_only} Results ({len(_games_only)} games)", expanded=False):
+                                            for _, _gonly in _games_only.iterrows():
+                                                _wt  = str(_gonly.get("WinTeam",""))
+                                                _lt  = str(_gonly.get("AwayTeam","") if _wt == str(_gonly.get("HomeTeam","")) else _gonly.get("HomeTeam",""))
+                                                _hs  = int(_gonly.get("HomeScore",0))
+                                                _as  = int(_gonly.get("AwayScore",0))
+                                                _iw  = _wt == str(_gonly.get("HomeTeam",""))
+                                                _ws  = _hs if _iw else _as
+                                                _ls  = _as if _iw else _hs
+                                                st.markdown(
+                                                    f"<div style='font-size:0.8rem;padding:2px 0;color:#d1d5db;'>"
+                                                    f"<strong style='color:#4ade80;'>{_wt}</strong> def. {_lt} "
+                                                    f"<strong>{_ws}–{_ls}</strong></div>",
+                                                    unsafe_allow_html=True
+                                                )
+                                    st.rerun()
+                            elif _next_nfl_only == 19:
+                                _sim_r, _sim_m = simulate_nfl_playoffs_phase(season_year=_nfl_season_only)
+                                save_nfl_week(19)
+                                st.success(f"🏆 NFL Playoffs complete! {_sim_m}")
+                                st.rerun()
+                    except Exception as _nfl_e:
+                        import traceback as _nfl_tb
+                        st.error(f"NFL advance error: {_nfl_e}")
+                        st.code(_nfl_tb.format_exc())
+
             st.markdown("---")
 
             # ── Two-phase sim buttons (legacy / full-season override) ──────────
