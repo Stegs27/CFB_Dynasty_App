@@ -3736,6 +3736,9 @@ def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
     if os.path.exists("nfl_standings_history.csv"):
         existing_standings = pd.read_csv("nfl_standings_history.csv")
         existing_standings["Season"] = pd.to_numeric(existing_standings["Season"], errors="coerce")
+        # Backfill Division if the file predates the column
+        if "Division" not in existing_standings.columns:
+            existing_standings["Division"] = existing_standings["Team"].apply(get_nfl_division)
         existing_standings = existing_standings[
             existing_standings["Season"].fillna(-1).astype(int) != season_year
         ].copy()
