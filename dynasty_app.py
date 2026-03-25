@@ -3066,6 +3066,8 @@ def get_nfl_division(team_name):
         if token in name:
             return div
     return ""
+
+def build_nfl_team_strengths(nfl_roster_df):
     if nfl_roster_df is None or nfl_roster_df.empty:
         return pd.DataFrame(columns=[
             "Team", "Conference", "OffenseScore", "DefenseScore",
