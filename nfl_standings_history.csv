@@ -1,0 +1,33 @@
+Season,Team,Conference,Wins,Losses,WinPct,Seed,TeamPower,OffenseScore,DefenseScore,QBScore,DepthScore,StarPower
+2042,Baltimore Ravens,AFC,1,0,1.0,1,75,75,75,75,75,0
+2042,Cincinnati Bengals,AFC,1,0,1.0,2,75,75,75,75,75,0
+2042,Cleveland Browns,AFC,1,0,1.0,3,75,75,75,75,75,0
+2042,Jacksonville Jaguars,AFC,1,0,1.0,4,75,75,75,75,75,0
+2042,Kansas City Chiefs,AFC,1,0,1.0,5,75,75,75,75,75,0
+2042,Miami Dolphins,AFC,1,0,1.0,6,75,75,75,75,75,0
+2042,New York Jets,AFC,1,0,1.0,7,75,75,75,75,75,0
+2042,Tennessee Titans,AFC,1,0,1.0,8,75,75,75,75,75,0
+2042,Buffalo Bills,AFC,0,1,0.0,9,75,75,75,75,75,0
+2042,Denver Broncos,AFC,0,1,0.0,10,75,75,75,75,75,0
+2042,Houston Texans,AFC,0,1,0.0,11,75,75,75,75,75,0
+2042,Indianapolis Colts,AFC,0,1,0.0,12,75,75,75,75,75,0
+2042,Las Vegas Raiders,AFC,0,1,0.0,13,75,75,75,75,75,0
+2042,Los Angeles Chargers,AFC,0,1,0.0,14,75,75,75,75,75,0
+2042,New England Patriots,AFC,0,1,0.0,15,75,75,75,75,75,0
+2042,Pittsburgh Steelers,AFC,0,1,0.0,16,75,75,75,75,75,0
+2042,Chicago Bears,NFC,1,0,1.0,1,75,75,75,75,75,0
+2042,Dallas Cowboys,NFC,1,0,1.0,2,75,75,75,75,75,0
+2042,Detroit Lions,NFC,1,0,1.0,3,75,75,75,75,75,0
+2042,Minnesota Vikings,NFC,1,0,1.0,4,75,75,75,75,75,0
+2042,New York Giants,NFC,1,0,1.0,5,75,75,75,75,75,0
+2042,Philadelphia Eagles,NFC,1,0,1.0,6,75,75,75,75,75,0
+2042,Tampa Bay Buccaneers,NFC,1,0,1.0,7,75,75,75,75,75,0
+2042,Washington Commanders,NFC,1,0,1.0,8,75,75,75,75,75,0
+2042,Arizona Cardinals,NFC,0,1,0.0,9,75,75,75,75,75,0
+2042,Atlanta Falcons,NFC,0,1,0.0,10,75,75,75,75,75,0
+2042,Carolina Panthers,NFC,0,1,0.0,11,75,75,75,75,75,0
+2042,Green Bay Packers,NFC,0,1,0.0,12,75,75,75,75,75,0
+2042,Los Angeles Rams,NFC,0,1,0.0,13,75,75,75,75,75,0
+2042,New Orleans Saints,NFC,0,1,0.0,14,75,75,75,75,75,0
+2042,San Francisco 49ers,NFC,0,1,0.0,15,75,75,75,75,75,0
+2042,Seattle Seahawks,NFC,0,1,0.0,16,75,75,75,75,75,0
