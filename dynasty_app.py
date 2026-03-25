@@ -23267,10 +23267,11 @@ with tabs[2]:
                                         _ovr_col    = "#4ade80" if _pp_ovr >= 88 else ("#fbbf24" if _pp_ovr >= 80 else "#94a3b8")
                                         _nfl_color  = get_nfl_team_color(_pp_nfl)
                                         # Draft info
-                                        _dr_row     = _draft_lookup.get(_pp_pid, {})
-                                        _dr_year    = int(safe_num(_dr_row.get("DraftYear",0),0)) if _dr_row else 0
-                                        _dr_rnd     = int(safe_num(_dr_row.get("DraftRoundCanon", _dr_row.get("IsCanonRound",0)),0)) if _dr_row else 0
-                                        _dr_pick    = int(safe_num(_dr_row.get("GeneratedOverallPick",0),0)) if _dr_row else 0
+                                        _dr_row     = _draft_lookup.get(_pp_pid, None)
+                                        _has_dr     = _dr_row is not None and not (hasattr(_dr_row, "empty") and _dr_row.empty if hasattr(_dr_row,"empty") else False)
+                                        _dr_year    = int(safe_num(_dr_row.get("DraftYear",0),0)) if _has_dr else 0
+                                        _dr_rnd     = int(safe_num(_dr_row.get("DraftRoundCanon", _dr_row.get("IsCanonRound",0)),0)) if _has_dr else 0
+                                        _dr_pick    = int(safe_num(_dr_row.get("GeneratedOverallPick",0),0)) if _has_dr else 0
                                         _draft_str  = f"Rd {_dr_rnd} · #{_dr_pick} · {_dr_year}" if _dr_rnd and _dr_pick and _dr_year else ("Rookie" if _is_rookie else "")
                                         # Logos — use get_school_logo_src (data URI) not path
                                         _nfl_logo   = get_nfl_logo_src(_pp_nfl)
