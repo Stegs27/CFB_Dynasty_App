@@ -7716,17 +7716,15 @@ def load_data(current_year=CURRENT_YEAR):
                 for _dc in ['YEAR','Week','Vis Score','Home Score']:
                     if _dc in scores.columns:
                         scores[_dc] = pd.to_numeric(scores[_dc], errors='coerce')
-                # Only dedup on rows where Week is not NaN — NaN-week rows are
-                # historical games where same teams can play multiple times per year
-                # (reg season + conf title + CFP), and we can't distinguish them by week.
-                scores['_s_ord'] = scores['Status'].map({'FINAL':0,'SCHEDULED':1}).fillna(2)
-                scores_with_week = scores[pd.to_numeric(scores['Week'], errors='coerce').notna()].copy()
-                scores_no_week   = scores[pd.to_numeric(scores['Week'], errors='coerce').isna()].copy()
-                scores_with_week = (scores_with_week
+                # Dedup: same YEAR+Week+Visitor+Home, keep FINAL over SCHEDULED.
+                # CPUscores_MASTER now has synthetic weeks for all historical games
+                # so NaN-week collisions no longer occur.
+                scores = (scores
+                    .assign(_s_ord=scores['Status'].map({'FINAL':0,'SCHEDULED':1}).fillna(2))
                     .sort_values(['YEAR','Week','Visitor','Home','_s_ord'])
-                    .drop_duplicates(subset=['YEAR','Week','Visitor','Home'], keep='first'))
-                scores = pd.concat([scores_with_week, scores_no_week], ignore_index=True)
-                scores = scores.drop(columns=['_s_ord']).reset_index(drop=True)
+                    .drop(columns=['_s_ord'])
+                    .drop_duplicates(subset=['YEAR','Week','Visitor','Home'], keep='first')
+                    .reset_index(drop=True))
             except Exception:
                 pass
         rec = pd.read_csv('recruiting.csv')
