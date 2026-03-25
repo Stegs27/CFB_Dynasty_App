@@ -13092,6 +13092,51 @@ try:
 except Exception:
     pass
 
+# ── NFL STORY EVENTS in ticker ────────────────────────────────────────
+try:
+    if os.path.exists("nfl_story_events.csv"):
+        _nfl_stories = pd.read_csv("nfl_story_events.csv")
+        _nfl_stories["Season"] = pd.to_numeric(_nfl_stories["Season"], errors="coerce").fillna(0)
+        _nfl_stories["Week"]   = pd.to_numeric(_nfl_stories["Week"],   errors="coerce").fillna(0)
+        # Most recent week's events only
+        _max_nfl_week = _nfl_stories["Week"].max()
+        _nfl_stories = _nfl_stories[_nfl_stories["Week"] == _max_nfl_week].copy()
+        _nfl_stories = _nfl_stories.sort_values("ImpactScore", ascending=False).head(6)
+
+        _NFL_BADGE_COLORS = {
+            "AlumniMatchup": ("NFL ALUMNI", "#f59e0b", "#451a03"),
+            "DynastySpotlight": ("NFL SPOTLIGHT", "#3b82f6", "white"),
+            "Upset": ("NFL UPSET", "#dc2626", "white"),
+            "FanFaveSpotlight": ("NFL", "#334155", "#94a3b8"),
+            "Retirement": ("NFL RETIREMENT", "#6b7280", "white"),
+            "Award": ("NFL AWARD", "#f59e0b", "#451a03"),
+        }
+
+        for _, _ns in _nfl_stories.iterrows():
+            _ns_headline = str(_ns.get("Headline", "")).strip()
+            _ns_team     = str(_ns.get("NFLTeam", "")).strip()
+            _ns_type     = str(_ns.get("EventType", "")).strip()
+            _ns_week     = int(safe_num(_ns.get("Week", 0), 0))
+            if not _ns_headline:
+                continue
+            _ns_badge, _ns_bg, _ns_fg = _NFL_BADGE_COLORS.get(_ns_type, ("NFL", "#3b82f6", "white"))
+            # Add NFL week to badge
+            if _ns_week:
+                _ns_badge = f"{_ns_badge} WK {_ns_week}"
+            # Get NFL logo for the team
+            _ns_logo_src = get_nfl_logo_src(_ns_team)
+            _ns_logo_html = f"<img src='{_ns_logo_src}' style='height:20px;width:20px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _ns_logo_src else ""
+            _all_headlines.append({
+                "badge": _ns_badge,
+                "priority": 3 + int(safe_num(_ns.get("ImpactScore", 0), 0)) * 0.1,
+                "text": _ns_headline,
+                "text_html": f"{_ns_logo_html}<span style='color:#e2e8f0;'>{html.escape(_ns_headline)}</span>",
+                "blurb": str(_ns.get("Description", _ns_headline)),
+                "logo_html": _ns_logo_html,
+            })
+except Exception:
+    pass
+
 # ── FALLBACK ──────────────────────────────────────────────────────────
 if not _all_headlines:
     _all_headlines.append({
@@ -13166,6 +13211,16 @@ def _badge_color(badge):
         return ('#f59e0b', '#451a03')
     if 'DEFEND' in badge:
         return ('#1d4ed8', 'white')
+    if 'NFL ALUMNI' in badge or 'NFL ALUMNI' in badge:
+        return ('#f59e0b', '#451a03')
+    if 'NFL UPSET' in badge:
+        return ('#dc2626', 'white')
+    if 'NFL SPOTLIGHT' in badge:
+        return ('#3b82f6', 'white')
+    if 'NFL AWARD' in badge:
+        return ('#f59e0b', '#451a03')
+    if badge.startswith('NFL'):
+        return ('#1e40af', 'white')
     return ('#3b82f6', 'white')
 
 _ticker_items = ''
@@ -17477,6 +17532,64 @@ with tabs[0]:
                 # Top 32 by DraftValueScore
                 _r1 = _mock_all.sort_values('DraftValueScore', ascending=False).head(32).reset_index(drop=True)
 
+                # ── Apply team needs to pick selection ────────────────────────
+                # Build team needs from nfl_current_rosters if available
+                _team_needs_map = {}  # team → list of needed PosBuckets in priority order
+                try:
+                    if os.path.exists("nfl_current_rosters.csv"):
+                        _nr = pd.read_csv("nfl_current_rosters.csv")
+                        _nr["Season"] = pd.to_numeric(_nr["Season"], errors="coerce")
+                        _latest_szn = _nr["Season"].dropna().astype(int).max()
+                        _nr = _nr[_nr["Season"].fillna(-1).astype(int) == int(_latest_szn)].copy()
+                        if not _nr.empty:
+                            _needs_df = build_nfl_team_needs(_nr)
+                            for _nt in _needs_df["NFLTeam"].dropna().astype(str).unique():
+                                _t_needs = _needs_df[_needs_df["NFLTeam"] == _nt].sort_values("NeedScore", ascending=False)
+                                _team_needs_map[_nt] = _t_needs["PosBucket"].tolist()
+                except Exception:
+                    pass
+
+                # Needs-aware draft simulation: each team picks BPA adjusted for positional need
+                _available = _mock_all.sort_values('DraftValueScore', ascending=False).copy().reset_index(drop=True)
+                _picked_indices = set()
+                _r1_picks = []
+
+                for _pick_num, _nfl_team in enumerate(_NFL_DRAFT_ORDER[:32], 1):
+                    if len(_r1_picks) >= 32:
+                        break
+
+                    # Normalize team name to match nfl_current_rosters (short name lookup)
+                    _team_short = _nfl_team.strip().split()[-1]
+                    _needs = (
+                        _team_needs_map.get(_nfl_team) or
+                        _team_needs_map.get(_team_short) or
+                        []
+                    )
+
+                    _remaining = _available[~_available.index.isin(_picked_indices)].copy()
+                    if _remaining.empty:
+                        break
+
+                    if _needs:
+                        # Top need bucket — give need bonus to matching position players
+                        _top_need = _needs[0] if _needs else None
+                        _remaining = _remaining.copy()
+                        _need_bonus = 4.0  # OVR-point equivalent bonus for matching team need
+                        _remaining["_adj_score"] = _remaining.apply(
+                            lambda r: float(r.get("DraftValueScore", 0)) + (
+                                _need_bonus if str(r.get("PosBucket","")).strip() == _top_need else 0
+                            ),
+                            axis=1
+                        )
+                        _pick_row = _remaining.sort_values("_adj_score", ascending=False).iloc[0]
+                    else:
+                        _pick_row = _remaining.sort_values("DraftValueScore", ascending=False).iloc[0]
+
+                    _r1_picks.append(_pick_row)
+                    _picked_indices.add(_pick_row.name)
+
+                _r1 = pd.DataFrame(_r1_picks).reset_index(drop=True)
+
                 # Position color map
                 _pos_colors = {
                     'QB':'#f97316','RB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa',
@@ -17497,7 +17610,7 @@ with tabs[0]:
                     _pawr    = int(_p.get('AWR', 0))
                     _pval    = float(_p.get('DraftValueScore', 0))
                     _psrc    = str(_p.get('Source', 'CPU'))
-                    _nfl_team = _NFL_DRAFT_ORDER[_pick - 1] if _pick <= 32 else ''
+                    _nfl_team = _NFL_DRAFT_ORDER[_pick - 1] if _pick <= len(_NFL_DRAFT_ORDER) else ''
 
                     # Logos
                     _slogo_uri = image_file_to_data_uri(get_logo_source(_pschool))
@@ -24624,9 +24737,12 @@ with tabs[2]:
                 st.info("No story events yet.")
 
             else:
-                story_df = nfl_story.copy().sort_values(
-                    ["Season", "ImpactScore"],
-                    ascending=[False, False]
+                story_df = nfl_story.copy()
+                story_df["Season"] = pd.to_numeric(story_df["Season"], errors="coerce").fillna(0)
+                story_df["Week"]   = pd.to_numeric(story_df["Week"],   errors="coerce").fillna(0)
+                story_df = story_df.sort_values(
+                    ["Season", "Week", "ImpactScore"],
+                    ascending=[False, False, False]
                 ).head(20)
 
                 draft_lookup = {}
