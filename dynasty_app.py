@@ -20915,8 +20915,9 @@ def render_dynasty_youtube_tab():
 
     # ── Section: National Titles 🏆 ───────────────────────────────────────────
     if not _natty_games.empty:
-        st.markdown("<div class='yt-section-header'>🏆 NATIONAL TITLE GAMES</div>", unsafe_allow_html=True)
-        _render_card_grid(_natty_games)
+        st.markdown("<div class='yt-section-header'>🏆 NATIONAL CHAMPIONSHIPS</div>", unsafe_allow_html=True)
+        with st.expander(f"Show {len(_natty_games)} national title game{'s' if len(_natty_games)!=1 else ''}", expanded=False):
+            _render_card_grid(_natty_games)
 
     # ── Section: Highest TV Ratings 📺 ────────────────────────────────────────
     if not _tv_top.empty:
@@ -20926,13 +20927,15 @@ def render_dynasty_youtube_tab():
 
     # ── Section: Upset City ⚡ ──────────────────────────────────────────────
     if not _upsets.empty:
-        st.markdown("<div class='yt-section-header'>⚡ UPSET CITY</div>", unsafe_allow_html=True)
-        _render_card_grid(_upsets)
+        st.markdown("<div class='yt-section-header'>⚡ UPSETS</div>", unsafe_allow_html=True)
+        with st.expander(f"Show {len(_upsets)} upset{'s' if len(_upsets)!=1 else ''}", expanded=False):
+            _render_card_grid(_upsets)
 
     # ── Section: User Battles 🎮 ──────────────────────────────────────────────
     if not _user_battles.empty:
         st.markdown("<div class='yt-section-header'>🎮 USER BATTLES</div>", unsafe_allow_html=True)
-        _render_card_grid(_user_battles)
+        with st.expander(f"Show {len(_user_battles)} user battle{'s' if len(_user_battles)!=1 else ''}", expanded=False):
+            _render_card_grid(_user_battles)
 
     # ── Section: Full Archive 📼 ──────────────────────────────────────────────
     all_archive = rest.copy()
@@ -20963,150 +20966,8 @@ def render_dynasty_youtube_tab():
         st.caption("No archives match that filter.")
         return
 
-    col_a, col_b = st.columns(2, gap="medium")
-    for idx, (_, row) in enumerate(filtered.iterrows()):
-        col = col_a if idx % 2 == 0 else col_b
-    archive_df = load_stream_archive_data()
-    archive_df = archive_df[archive_df["platform"].astype(str).str.lower().eq("youtube")].copy()
-    if archive_df.empty:
-        st.info("No YouTube archives found yet.")
-        return
 
-    scores_df = _load_cpu_scores_for_archives()
-    gs_df = _load_game_summaries_for_archives()
-    formatted_rows = [_format_archive_row(r, scores_df, gs_df) for _, r in archive_df.iterrows()]
-    adf = pd.DataFrame(formatted_rows)
-
-    # current season / playoff state
-    current_season = int(pd.to_numeric(scores_df["YEAR"], errors="coerce").dropna().max()) if ("YEAR" in scores_df.columns and not scores_df.empty) else int(pd.to_numeric(adf["season"], errors="coerce").dropna().max())
-    season_scores = scores_df[pd.to_numeric(scores_df.get("YEAR"), errors="coerce") == current_season].copy() if not scores_df.empty and "YEAR" in scores_df.columns else pd.DataFrame()
-    playoffs_started = False
-    if not season_scores.empty:
-        playoffs_started = bool(
-            season_scores["CFP"].astype(str).str.lower().isin(["yes","y","1","true"]).any() or
-            season_scores["Natty Game"].astype(str).str.lower().isin(["yes","y","1","true"]).any()
-        )
-
-    adf["season_num"] = pd.to_numeric(adf["season"], errors="coerce").fillna(0).astype(int)
-    adf["week_num"] = pd.to_numeric(adf["week"], errors="coerce").fillna(999).astype(int)
-
-    featured = None
-    if playoffs_started:
-        playoff_candidates = adf[adf["is_playoff"] == True].copy()
-        if not playoff_candidates.empty:
-            featured = playoff_candidates.sort_values(["season_num","week_num"], ascending=[False, False]).iloc[0].to_dict()
-
-    if featured is None:
-        target = adf[(adf["user_team"].astype(str).str.lower() == "san jose state") & (adf["opponent"].astype(str).str.lower() == "texas")]
-        if not target.empty:
-            featured = target.iloc[0].to_dict()
-        else:
-            featured = adf.sort_values(["season_num","week_num"], ascending=[False, True]).iloc[0].to_dict()
-
-    rest = adf[adf["url"].astype(str) != str(featured.get("url",""))].copy()
-    rest = rest.sort_values(["season_num","week_num","stream_title"], ascending=[False, True, True])
-
-    st.markdown("""
-    <style>
-    .archive-feature-wrap{background:linear-gradient(135deg,#0f172a,#111827);border:1px solid #1e293b;border-radius:20px;padding:18px 18px 14px 18px;margin-bottom:16px;}
-    .archive-kicker{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
-    .archive-pill{display:inline-flex;align-items:center;gap:8px;background:#2b0a0a;border:1px solid #7f1d1d;color:#fecaca;padding:5px 12px;border-radius:999px;font-size:.72rem;font-weight:800;letter-spacing:.04em;}
-    .archive-playdot{width:0;height:0;border-top:8px solid transparent;border-bottom:8px solid transparent;border-left:13px solid #ef4444;display:inline-block;}
-    .archive-title{text-align:center;font-size:1.55rem;font-weight:900;color:#f8fafc;line-height:1.1;margin-bottom:2px;}
-    .archive-sub{text-align:center;color:#94a3b8;font-size:.82rem;margin-bottom:12px;}
-    .archive-logo-row{display:flex;align-items:center;justify-content:center;gap:20px;margin:6px 0 12px 0;}
-    .archive-vs{font-size:1.0rem;font-weight:900;color:#64748b;letter-spacing:.14em;}
-    .archive-score{text-align:center;font-size:1.1rem;font-weight:900;color:#f8fafc;margin-top:4px;}
-    .archive-result{text-align:center;font-size:.82rem;color:#cbd5e1;margin-top:2px;margin-bottom:8px;}
-    .archive-summary{background:#0b1220;border:1px solid #1e293b;border-radius:14px;padding:10px 12px;color:#cbd5e1;font-size:.92rem;line-height:1.4;margin-top:10px;}
-    .archive-card{background:linear-gradient(135deg,#111827,#0f172a);border:1px solid #1f2937;border-radius:16px;padding:14px 16px;margin-bottom:12px;}
-    .archive-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
-    .archive-card-title{font-size:1rem;font-weight:900;color:#f8fafc;}
-    .archive-card-meta{font-size:.72rem;color:#94a3b8;font-weight:700;}
-    .archive-card-logo-row{display:flex;align-items:center;justify-content:center;gap:16px;margin:4px 0 10px 0;}
-    .archive-link-note{text-align:center;color:#94a3b8;font-size:.78rem;margin-top:6px;}
-    </style>
-    """, unsafe_allow_html=True)
-
-    featured_title = "Highest Rated Game of the Year"
-    featured_sub = "Featured archive follows Highest Rated Games of the Season until CFP videos take over."
-    f_logo_left = _archive_logo_img(featured.get("user_team",""))
-    f_logo_right = _archive_logo_img(featured.get("opponent",""))
-    f_score = str(featured.get("score","")).strip()
-    f_result = str(featured.get("result","")).strip().upper()
-    f_summary = str(featured.get("summary","")).strip()
-    f_season = featured.get("season","")
-    f_week = featured.get("week","")
-    st.markdown(
-        f"""
-        <div class="archive-feature-wrap">
-          <div class="archive-kicker">
-            <span class="archive-pill"><span class="archive-playdot"></span> {featured_title}</span>
-          </div>
-          <div class="archive-title">{html.escape(str(featured.get("stream_title","Featured Game")))}</div>
-          <div class="archive-sub">Season {html.escape(str(f_season))} • Week {html.escape(str(f_week))}</div>
-          <div class="archive-logo-row">
-            {f_logo_left}
-            <div class="archive-vs">VS</div>
-            {f_logo_right}
-          </div>
-          <div class="archive-score">{html.escape(f_score) if f_score else ''}</div>
-          <div class="archive-result">{html.escape(f_result)}{' • ' + html.escape(featured_sub) if featured_sub else ''}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    embed_html = _youtube_embed_html(featured.get("url",""), height=560)
-    if embed_html:
-        components.html(embed_html, height=590)
-    else:
-        _watch = _youtube_watch_url(featured.get("url",""))
-        if _watch:
-            st.link_button("Open Featured Archive", _watch, use_container_width=True)
-        else:
-            st.warning("Featured video could not be converted into a YouTube player.")
-
-    if f_summary:
-        st.markdown(f"<div class='archive-summary'><strong>Game Summary:</strong> {html.escape(f_summary)}</div>", unsafe_allow_html=True)
-
-    st.markdown("### More Archives")
-    if rest.empty:
-        st.caption("No additional YouTube archive cards yet.")
-        return
-
-    for _, r in rest.iterrows():
-        logo_left = _archive_logo_img(r.get("user_team",""), width=60)
-        logo_right = _archive_logo_img(r.get("opponent",""), width=60)
-        score = str(r.get("score","")).strip()
-        result = str(r.get("result","")).strip().upper()
-        summary = str(r.get("summary","")).strip()
-        st.markdown(
-            f"""
-            <div class="archive-card">
-              <div class="archive-card-head">
-                <div class="archive-card-title">{html.escape(str(r.get("stream_title","Archive")))}</div>
-                <div class="archive-card-meta">Season {html.escape(str(r.get("season","")))} • Week {html.escape(str(r.get("week","")))}</div>
-              </div>
-              <div class="archive-card-logo-row">
-                {logo_left}
-                <div class="archive-vs">VS</div>
-                {logo_right}
-              </div>
-              <div class="archive-score">{html.escape(score) if score else ''}</div>
-              <div class="archive-result">{html.escape(result)}</div>
-              {f"<div class='archive-summary'><strong>Game Summary:</strong> {html.escape(summary)}</div>" if summary else ""}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        _watch = _youtube_watch_url(r.get("url",""))
-        if _watch:
-            with st.expander(f"Watch {str(r.get('stream_title','Archive'))}", expanded=False):
-                _html = _youtube_embed_html(_watch, height=460)
-                if _html:
-                    components.html(_html, height=490)
-                else:
-                    st.link_button("Open Archive", _watch, use_container_width=True)
+    _render_card_grid(filtered)
 
 with tabs[13]:
         st.header("🎬 ISPN Classics")
