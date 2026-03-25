@@ -641,7 +641,7 @@ NFL_PLAYOFF_HISTORY_COLS = [
 ]
 
 NFL_STANDINGS_HISTORY_COLS = [
-    "Season", "Team", "Conference", "Wins", "Losses", "WinPct",
+    "Season", "Team", "Conference", "Division", "Wins", "Losses", "WinPct",
     "Seed", "TeamPower", "OffenseScore", "DefenseScore", "QBScore", "DepthScore", "StarPower"
 ]
 
@@ -3036,7 +3036,36 @@ def get_nfl_conference(team_name):
 
     return ""
 
-def build_nfl_team_strengths(nfl_roster_df):
+# Division map — short team name → full division string
+_NFL_DIVISION_MAP = {
+    # AFC East
+    "bills": "AFC East", "dolphins": "AFC East", "patriots": "AFC East", "jets": "AFC East",
+    # AFC North
+    "ravens": "AFC North", "bengals": "AFC North", "browns": "AFC North", "steelers": "AFC North",
+    # AFC South
+    "texans": "AFC South", "colts": "AFC South", "jaguars": "AFC South", "titans": "AFC South",
+    # AFC West
+    "broncos": "AFC West", "chiefs": "AFC West", "raiders": "AFC West", "chargers": "AFC West",
+    # NFC East
+    "cowboys": "NFC East", "giants": "NFC East", "eagles": "NFC East", "commanders": "NFC East",
+    # NFC North
+    "bears": "NFC North", "lions": "NFC North", "packers": "NFC North", "vikings": "NFC North",
+    # NFC South
+    "falcons": "NFC South", "panthers": "NFC South", "saints": "NFC South",
+    "buccaneers": "NFC South", "bucs": "NFC South",
+    # NFC West
+    "cardinals": "NFC West", "rams": "NFC West", "49ers": "NFC West", "seahawks": "NFC West",
+}
+
+def get_nfl_division(team_name):
+    """Return the division string (e.g. 'AFC East') for a given team name."""
+    name = str(team_name).strip().lower()
+    if name in _NFL_DIVISION_MAP:
+        return _NFL_DIVISION_MAP[name]
+    for token, div in _NFL_DIVISION_MAP.items():
+        if token in name:
+            return div
+    return ""
     if nfl_roster_df is None or nfl_roster_df.empty:
         return pd.DataFrame(columns=[
             "Team", "Conference", "OffenseScore", "DefenseScore",
@@ -3651,6 +3680,7 @@ def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
             "Season":       season_year,
             "Team":         team,
             "Conference":   get_nfl_conference(team) or "",
+            "Division":     get_nfl_division(team) or "",
             "Wins":         w,
             "Losses":       l,
             "WinPct":       round(w / max(1, w+l), 3),
@@ -3665,16 +3695,35 @@ def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
 
     out = pd.DataFrame(rows)
 
-    # Assign conference seeds by W, then TeamPower
+    # Assign seeds: top division winner per conf gets seeds 1-4, then wildcards 5-7
     seeded = []
     for conf in ["AFC", "NFC"]:
         cdf = out[out["Conference"] == conf].copy()
         if cdf.empty:
-            seeded.append(out[out["Conference"] != conf].copy())
+            seeded.append(cdf)
             continue
-        cdf = cdf.sort_values(["Wins","TeamPower"], ascending=[False,False]).reset_index(drop=True)
-        cdf["Seed"] = range(1, len(cdf)+1)
-        seeded.append(cdf)
+
+        # Find division winners (best record in each division)
+        div_winners = []
+        for div in cdf["Division"].unique():
+            div_teams = cdf[cdf["Division"] == div].sort_values(
+                ["Wins", "TeamPower"], ascending=[False, False]
+            )
+            if not div_teams.empty:
+                div_winners.append(div_teams.iloc[0]["Team"])
+
+        # Sort division winners by record, then wildcards by record
+        winner_df  = cdf[cdf["Team"].isin(div_winners)].sort_values(
+            ["Wins", "TeamPower"], ascending=[False, False]
+        )
+        wildcard_df = cdf[~cdf["Team"].isin(div_winners)].sort_values(
+            ["Wins", "TeamPower"], ascending=[False, False]
+        )
+
+        combined = pd.concat([winner_df, wildcard_df], ignore_index=True)
+        combined["Seed"] = range(1, len(combined) + 1)
+        seeded.append(combined)
+
     out = pd.concat(seeded, ignore_index=True) if seeded else out
 
     # Merge into existing standings file, replacing current season
@@ -23522,33 +23571,55 @@ with tabs[2]:
                         st.markdown("---")
 
                     if not season_standings.empty:
-                        st.markdown("#### Final Standings")
+                        st.markdown("#### 📊 Standings by Division")
 
-                        standings_show = season_standings.copy().sort_values(
-                            ["Seed", "Wins", "TeamPower"],
-                            ascending=[True, False, False]
-                        )
+                        # Division display order
+                        DIVISION_ORDER = [
+                            "AFC East", "AFC North", "AFC South", "AFC West",
+                            "NFC East", "NFC North", "NFC South", "NFC West",
+                        ]
 
-                        standings_show.insert(1, "Logo", standings_show["Team"].map(get_nfl_logo_src))
+                        # Ensure Division column exists (backfill from team name if missing)
+                        if "Division" not in season_standings.columns:
+                            season_standings["Division"] = season_standings["Team"].apply(get_nfl_division)
 
-                        standings_show = standings_show[[
-                            "Seed", "Logo", "Team", "Wins", "Losses", "WinPct",
-                            "TeamPower", "QBScore", "OffenseScore", "DefenseScore", "StarPower"
-                        ]]
+                        afc_col, nfc_col = st.columns(2)
+                        col_map = {"AFC": afc_col, "NFC": nfc_col}
 
-                        st.dataframe(
-                            standings_show,
-                            hide_index=True,
-                            use_container_width=True,
-                            column_config={
-                                "Logo": st.column_config.ImageColumn(""),
-                                "WinPct": st.column_config.NumberColumn(format="%.3f"),
-                                "TeamPower": st.column_config.NumberColumn(format="%.1f"),
-                                "QBScore": st.column_config.NumberColumn(format="%.1f"),
-                                "OffenseScore": st.column_config.NumberColumn(format="%.1f"),
-                                "DefenseScore": st.column_config.NumberColumn(format="%.1f"),
-                            }
-                        )
+                        for div in DIVISION_ORDER:
+                            conf = div.split()[0]
+                            div_df = season_standings[
+                                season_standings["Division"].astype(str) == div
+                            ].sort_values(["Wins", "TeamPower"], ascending=[False, False]).copy()
+
+                            if div_df.empty:
+                                continue
+
+                            with col_map[conf]:
+                                st.markdown(
+                                    f"<div style='font-size:0.72rem;font-weight:800;color:#475569;"
+                                    f"text-transform:uppercase;letter-spacing:0.08em;"
+                                    f"margin-top:12px;margin-bottom:4px;'>{div}</div>",
+                                    unsafe_allow_html=True
+                                )
+                                div_show = div_df.copy()
+                                div_show.insert(0, "Logo", div_show["Team"].map(get_nfl_logo_src))
+                                div_show["Record"] = div_show["Wins"].astype(int).astype(str) + "-" + div_show["Losses"].astype(int).astype(str)
+                                div_show["Seed"] = div_show["Seed"].apply(
+                                    lambda s: f"#{int(s)}" if pd.notna(s) else ""
+                                )
+                                st.dataframe(
+                                    div_show[["Logo", "Team", "Record", "Seed", "TeamPower"]],
+                                    hide_index=True,
+                                    use_container_width=True,
+                                    column_config={
+                                        "Logo": st.column_config.ImageColumn("", width="small"),
+                                        "Team": st.column_config.TextColumn("Team"),
+                                        "Record": st.column_config.TextColumn("W-L"),
+                                        "Seed": st.column_config.TextColumn("Seed"),
+                                        "TeamPower": st.column_config.NumberColumn("PWR", format="%.1f"),
+                                    }
+                                )
 
                     season_playoff = pd.DataFrame()
                     if nfl_playoff_hist is not None and not nfl_playoff_hist.empty:
