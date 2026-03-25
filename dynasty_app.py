@@ -3520,6 +3520,12 @@ def advance_dynasty_and_nfl_week():
     except Exception as e:
         nfl_summary = f"NFL sim error: {e}"
 
+    # ── Auto-sync coach_records.csv + UserDraftPicks.csv from CPUscores_MASTER ──
+    try:
+        sync_derived_stats()
+    except Exception:
+        pass  # Never block week advance on a sync failure
+
     return cfb_week_new, nfl_week_new, nfl_summary, games_df
 
 
@@ -9299,9 +9305,14 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     a_score = (a_off * 0.55 + (100 - h_def) * 0.45) * 0.32 + 7
     hfa = 2.5 if home_field else 0
     diff = (h_score + hfa) - a_score
+    # Guard against NaN propagation from perf_map
+    if not (isinstance(diff, float) and diff != diff):
+        pass  # diff is valid
+    else:
+        diff = 0.0  # NaN → treat as Pick'em
     spread = round(abs(diff) * 10) / 10
     if spread < 1.0:
-        return "Pick'em", None, 0.0
+        return "Pick'em"  # string, not tuple — avoids conditional logic bug
     favored = home_team if diff > 0 else away_team
     spread_str = f"{spread:.1f}" if spread % 1 != 0 else f"{int(spread)}"
     return f"{favored} -{spread_str}", favored, diff
@@ -9524,10 +9535,21 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
         a_pf = ap.get('PF')
         h_pa = hp.get('PA')
         if h_pf is not None and a_pa is not None:
-            # Blend actual scoring pace with rating estimate (60/40 ratings/actual)
-            h_score = h_score * 0.6 + (h_pf / max(hp.get('W',0) + hp.get('L',0), 1)) * 0.4
+            try:
+                _h_gp = max(hp.get('W',0) + hp.get('L',0), 1)
+                _h_ppg = float(h_pf) / _h_gp
+                if not (isinstance(_h_ppg, float) and (_h_ppg != _h_ppg)):  # NaN check
+                    h_score = h_score * 0.6 + _h_ppg * 0.4
+            except Exception:
+                pass
         if a_pf is not None and h_pa is not None:
-            a_score = a_score * 0.6 + (a_pf / max(ap.get('W',0) + ap.get('L',0), 1)) * 0.4
+            try:
+                _a_gp = max(ap.get('W',0) + ap.get('L',0), 1)
+                _a_ppg = float(a_pf) / _a_gp
+                if not (isinstance(_a_ppg, float) and (_a_ppg != _a_ppg)):  # NaN check
+                    a_score = a_score * 0.6 + _a_ppg * 0.4
+            except Exception:
+                pass
 
         # Home/away splits: adjust HFA based on away team's road record
         if home_field:
@@ -9563,7 +9585,7 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     diff = (h_score + hfa) - a_score
     spread = round(abs(diff) * 10) / 10
     if spread < 1.0:
-        return "Pick'em", None, 0.0
+        return "Pick'em"  # string, not tuple — avoids conditional logic bug
     favored = home_team if diff > 0 else away_team
     spread_str = f"{spread:.1f}" if spread % 1 != 0 else f"{int(spread)}"
     return f"{favored} -{spread_str}", favored, diff
