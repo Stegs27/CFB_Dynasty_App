@@ -3427,6 +3427,16 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
             for team, grp in dynasty_rosters.groupby("Team"):
                 dynasty_by_team[str(team)] = grp.to_dict("records")
 
+        # Normalize full NFL team names (from schedule) to short names (from roster)
+        # e.g. "Kansas City Chiefs" → "Chiefs", "Cleveland Browns" → "Browns"
+        def _short(full_name):
+            return str(full_name).strip().split()[-1]  # last word: "Chiefs", "Browns" etc.
+
+        # Build a lookup from full schedule name → short roster name for dynasty_by_team
+        def _dynasty_for_team(full_name):
+            short = _short(full_name)
+            return dynasty_by_team.get(full_name, dynasty_by_team.get(short, []))
+
         # User → college team mapping (for alumni matchup detection)
         USER_TEAMS = {
             "Mike": "San Jose State", "Devin": "Bowling Green",
@@ -3472,8 +3482,8 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
         # ── Priority 1: User alumni head-to-head ─────────────────────────────
         for _, game in games_df.iterrows():
             home = str(game["HomeTeam"]); away = str(game["AwayTeam"])
-            home_dynasty = dynasty_by_team.get(home, [])
-            away_dynasty = dynasty_by_team.get(away, [])
+            home_dynasty = _dynasty_for_team(home)
+            away_dynasty = _dynasty_for_team(away)
 
             home_users = {COLLEGE_TO_USER[p["CollegeTeam"]] for p in home_dynasty
                          if p.get("CollegeTeam") in COLLEGE_TO_USER}
@@ -3482,7 +3492,6 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
 
             shared_users = home_users & away_users
             if not shared_users:
-                # Cross-user matchup (different users' alumni on different teams)
                 cross = [(hu, au) for hu in home_users for au in away_users if hu != au]
                 if cross:
                     hu, au = cross[0]
@@ -3491,8 +3500,7 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
                     lose_score = min(game["HomeScore"], game["AwayScore"])
                     win_user = hu if winner == home else au
                     lose_user = au if winner == home else hu
-                    # Find a specific player to spotlight
-                    spotlight_team_players = dynasty_by_team.get(winner, [])
+                    spotlight_team_players = _dynasty_for_team(winner)
                     spotlight = spotlight_team_players[0] if spotlight_team_players else None
                     player_name = spotlight["Name"] if spotlight else "a dynasty alum"
                     player_id   = spotlight.get("PlayerID", "") if spotlight else ""
@@ -3509,7 +3517,7 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
                         ),
                         "ImpactScore": 8,
                     })
-                    break  # One alumni matchup event per week max
+                    break
 
         # ── Priority 2: Dynasty player spotlight (highest OVR on winning team) ─
         if len(new_events) < 2 and not dynasty_rosters.empty:
@@ -3518,7 +3526,7 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
             for _, game in games_df.iterrows():
                 winner = game["WinTeam"]
                 margin = int(game["Margin"])
-                players = dynasty_by_team.get(winner, [])
+                players = _dynasty_for_team(winner)
                 if not players:
                     continue
                 top = max(players, key=lambda p: safe_num(p.get("OVR", 60), 60))
@@ -3585,32 +3593,37 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
                 pass
 
         # ── Priority 4: Fan-favorite franchise callout (1 per week, random) ──
-        fave_teams_in_week = [
-            team for team in FAN_FAVES
-            if any(str(g["HomeTeam"]) == team or str(g["AwayTeam"]) == team
-                   for _, g in games_df.iterrows())
-        ]
+        # Schedule uses full names ("Cleveland Browns"), FAN_FAVES keyed on short ("Browns")
+        fave_teams_in_week = []
+        fave_full_name_map = {}  # short → full name as it appears in games_df
+        for _, g in games_df.iterrows():
+            for full in [str(g["HomeTeam"]), str(g["AwayTeam"])]:
+                short = _short(full)
+                if short in FAN_FAVES:
+                    fave_teams_in_week.append(short)
+                    fave_full_name_map[short] = full
+
+        fave_teams_in_week = list(set(fave_teams_in_week))
         if fave_teams_in_week:
-            chosen_team = random.choice(fave_teams_in_week)
-            copy_pool   = FAN_FAVES[chosen_team]
-            # Find the game result for this team
+            chosen_short = random.choice(fave_teams_in_week)
+            chosen_full  = fave_full_name_map.get(chosen_short, chosen_short)
+            copy_pool    = FAN_FAVES[chosen_short]
             team_game = games_df[
-                (games_df["HomeTeam"] == chosen_team) | (games_df["AwayTeam"] == chosen_team)
-            ].iloc[0] if not games_df[
-                (games_df["HomeTeam"] == chosen_team) | (games_df["AwayTeam"] == chosen_team)
-            ].empty else None
+                (games_df["HomeTeam"] == chosen_full) | (games_df["AwayTeam"] == chosen_full)
+            ]
+            team_game = team_game.iloc[0] if not team_game.empty else None
 
             if team_game is not None:
-                won  = team_game["WinTeam"] == chosen_team
-                opp  = team_game["AwayTeam"] if team_game["HomeTeam"] == chosen_team else team_game["HomeTeam"]
+                won  = team_game["WinTeam"] == chosen_full
+                opp  = team_game["AwayTeam"] if team_game["HomeTeam"] == chosen_full else team_game["HomeTeam"]
                 w_s  = max(team_game["HomeScore"], team_game["AwayScore"])
                 l_s  = min(team_game["HomeScore"], team_game["AwayScore"])
-                result_str = f"{'W' if won else 'L'} {w_s}-{l_s} vs {opp}"
+                result_str = f"{'W' if won else 'L'} {w_s}-{l_s} vs {_short(opp)}"
                 headline, base_desc = random.choice(copy_pool)
                 new_events.append({
                     "Season": season_year, "Week": week_num,
                     "PlayerID": "", "Player": "",
-                    "NFLTeam": chosen_team,
+                    "NFLTeam": chosen_full,
                     "EventType": "FanFaveSpotlight",
                     "Headline": f"{headline} — Week {week_num} ({result_str})",
                     "Description": base_desc,
@@ -23058,70 +23071,69 @@ with tabs[2]:
                 # ── Dynasty Player Spotlight ──────────────────────────────────
                 st.markdown("---")
                 st.markdown("#### ⭐ Dynasty Picks On The Field This Week")
-                _tw_player_hist = universe.get("nfl_player_hist", pd.DataFrame()) if universe else pd.DataFrame()
-                if _tw_player_hist.empty or _draft_df.empty:
-                    st.caption("Player data not yet available — sim a regular season first.")
+
+                _tw_current_rosters = universe.get("nfl_current_rosters", pd.DataFrame()) if universe else pd.DataFrame()
+                _tw_dynasty = pd.DataFrame()
+                if not _tw_current_rosters.empty:
+                    _cr = _tw_current_rosters.copy()
+                    _cr["Season"] = pd.to_numeric(_cr["Season"], errors="coerce")
+                    _cr = _cr[_cr["Season"].fillna(-1).astype(int) == int(_tw_season)].copy()
+                    _tw_dynasty = _cr[_cr["Source"].astype(str).str.startswith("dynasty")].copy()
+
+                if _tw_dynasty.empty:
+                    st.caption("No dynasty players on NFL rosters yet — rebuild rosters after the draft to populate this.")
                 else:
-                    _ph_s = _tw_player_hist.copy()
-                    _ph_s["Season"] = pd.to_numeric(_ph_s["Season"], errors="coerce")
-                    _ph_season = _ph_s[_ph_s["Season"].fillna(-1).astype(int) == int(_tw_season)].copy()
-                    # Merge with draft history to get college user
-                    _picks_active = _draft_df[
-                        ~_draft_df.get("ProOutcome", pd.Series([""] * len(_draft_df))).isin(["Retired", "Out of League"])
-                    ].copy() if "ProOutcome" in _draft_df.columns else _draft_df.copy()
+                    if not _draft_df.empty and "PlayerID" in _tw_dynasty.columns and "PlayerID" in _draft_df.columns:
+                        _dl = _draft_df[["PlayerID","CollegeUser","CollegeTeam"]].drop_duplicates("PlayerID")
+                        _tw_dynasty = _tw_dynasty.merge(_dl, on="PlayerID", how="left", suffixes=("","_d"))
+                        _tw_dynasty["CollegeUser"] = _tw_dynasty["CollegeUser"].fillna(_tw_dynasty.get("CollegeUser_d",""))
+                        _tw_dynasty["CollegeTeam"] = _tw_dynasty["CollegeTeam"].fillna(_tw_dynasty.get("CollegeTeam_d",""))
+                        _tw_dynasty = _tw_dynasty.drop(columns=["CollegeUser_d","CollegeTeam_d"], errors="ignore")
 
-                    if not _ph_season.empty and not _picks_active.empty:
-                        _spotlight = _ph_season.merge(
-                            _picks_active[["PlayerID","CollegeUser","GeneratedNFLTeam"]].drop_duplicates("PlayerID"),
-                            on="PlayerID", how="inner"
-                        ) if "PlayerID" in _ph_season.columns and "PlayerID" in _picks_active.columns else pd.DataFrame()
-
-                        if not _spotlight.empty:
-                            # Group by user
-                            for _u_coach in sorted(USER_TEAMS.keys()):
-                                _u_picks = _spotlight[
-                                    _spotlight["CollegeUser"].astype(str).str.strip().str.title() == _u_coach.title()
-                                ].copy()
-                                if _u_picks.empty:
-                                    continue
-                                _u_team = USER_TEAMS.get(_u_coach, _u_coach)
+                    _USER_TEAMS_LOCAL = {
+                        "Mike": "San Jose State", "Devin": "Bowling Green",
+                        "Josh": "USF", "Noah": "Texas Tech",
+                        "Doug": "Florida", "Nick": "Florida State",
+                    }
+                    _user_list = list(_USER_TEAMS_LOCAL.keys())
+                    for _row_start in range(0, len(_user_list), 3):
+                        _row_users = _user_list[_row_start:_row_start + 3]
+                        _ucols = st.columns(len(_row_users))
+                        for _uc, _u_coach in zip(_ucols, _row_users):
+                            with _uc:
+                                _u_picks = _tw_dynasty[
+                                    _tw_dynasty["CollegeUser"].astype(str).str.strip().str.title() == _u_coach.title()
+                                ].sort_values("OVR", ascending=False).copy()
+                                _u_team  = _USER_TEAMS_LOCAL[_u_coach]
                                 _u_color = get_team_primary_color(_u_team)
                                 st.markdown(
                                     f"<div style='font-family:Barlow Condensed,sans-serif;font-size:0.85rem;"
                                     f"font-weight:900;color:{_u_color};text-transform:uppercase;"
-                                    f"letter-spacing:.06em;margin:8px 0 4px;'>"
-                                    f"{_u_coach} ({_u_team})</div>",
+                                    f"letter-spacing:.06em;margin-bottom:6px;'>{_u_coach} · {_u_team}</div>",
                                     unsafe_allow_html=True
                                 )
-                                for _, _pp in _u_picks.sort_values("OverallEnd", ascending=False).head(4).iterrows():
-                                    _pp_name  = str(_pp.get("Player", _pp.get("PlayerID", "Unknown")))
-                                    _pp_team  = str(_pp.get("GeneratedNFLTeam", _pp.get("NFLTeam", "—")))
-                                    _pp_pos   = str(_pp.get("Pos", "—"))
-                                    _pp_ovr   = int(_pp.get("OverallEnd", _pp.get("OverallStart", 0)) or 0)
-                                    _pp_role  = str(_pp.get("Role", "—"))
-                                    _pp_stat  = str(_pp.get("StatLine", ""))
-                                    _pp_bowl  = "🌟 " if str(_pp.get("ProBowl","")).lower() in ("yes","1","true") else ""
-                                    _ovr_col  = "#4ade80" if _pp_ovr >= 90 else ("#fbbf24" if _pp_ovr >= 82 else "#94a3b8")
-                                    st.markdown(
-                                        f"<div style='display:flex;align-items:center;gap:10px;padding:6px 10px;"
-                                        f"background:#0a1628;border-radius:6px;border-left:3px solid {_u_color};"
-                                        f"margin-bottom:4px;'>"
-                                        f"<div style='flex:1;'>"
-                                        f"<div style='font-size:0.82rem;font-weight:800;color:#f1f5f9;'>"
-                                        f"{_pp_bowl}{html.escape(_pp_name)}</div>"
-                                        f"<div style='font-size:0.68rem;color:#64748b;'>"
-                                        f"{html.escape(_pp_pos)} · {html.escape(_pp_team)} · {html.escape(_pp_role)}</div>"
-                                        f"{'<div style="font-size:0.68rem;color:#94a3b8;margin-top:1px;">' + html.escape(_pp_stat) + '</div>' if _pp_stat and _pp_stat.lower() not in ('','nan') else ''}"
-                                        f"</div>"
-                                        f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;"
-                                        f"color:{_ovr_col};'>{_pp_ovr}</div>"
-                                        f"</div>",
-                                        unsafe_allow_html=True
-                                    )
-                        else:
-                            st.caption("No dynasty picks with season data yet.")
-                    else:
-                        st.caption("Sim a regular season to see player performance data.")
+                                if _u_picks.empty:
+                                    st.caption("No picks yet.")
+                                else:
+                                    for _, _pp in _u_picks.head(5).iterrows():
+                                        _pp_name = str(_pp.get("Name",""))
+                                        _pp_pos  = str(_pp.get("Pos", _pp.get("PosBucket","")))
+                                        _pp_nfl  = str(_pp.get("Team",""))
+                                        _pp_ovr  = int(safe_num(_pp.get("OVR",0),0))
+                                        _pp_src  = str(_pp.get("Source",""))
+                                        _badge   = "<span style=\'color:#fbbf24;font-size:0.65rem;\'>R</span> " if _pp_src == "dynasty_rookie" else ""
+                                        _ovr_col = "#4ade80" if _pp_ovr >= 88 else ("#fbbf24" if _pp_ovr >= 80 else "#94a3b8")
+                                        st.markdown(
+                                            f"<div style=\'display:flex;justify-content:space-between;"
+                                            f"align-items:center;padding:4px 8px;background:#0a1628;"
+                                            f"border-radius:5px;border-left:3px solid {_u_color};"
+                                            f"margin-bottom:3px;font-size:0.78rem;\'>"
+                                            f"<div><div style=\'color:#f1f5f9;font-weight:700;\'>{_badge}{html.escape(_pp_name)}</div>"
+                                            f"<div style=\'color:#64748b;font-size:0.68rem;\'>{_pp_pos} · {html.escape(_pp_nfl)}</div></div>"
+                                            f"<div style=\'font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:{_ovr_col};\'>{_pp_ovr}</div>"
+                                            f"</div>",
+                                            unsafe_allow_html=True
+                                        )
 
     # ── Draft Central ──────────────────────────────────────────────────
         with nfl_tabs[1]:
