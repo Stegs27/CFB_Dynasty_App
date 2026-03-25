@@ -23247,6 +23247,14 @@ with tabs[2]:
                                 if _u_picks.empty:
                                     st.caption("No picks yet.")
                                 else:
+                                    # Build draft info lookup for round/pick/year
+                                    _draft_lookup = {}
+                                    if not _draft_df.empty and "PlayerID" in _draft_df.columns:
+                                        for _, _dr in _draft_df.iterrows():
+                                            _pid = str(_dr.get("PlayerID","")).strip()
+                                            if _pid:
+                                                _draft_lookup[_pid] = _dr
+
                                     for _, _pp in _u_picks.head(5).iterrows():
                                         _pp_name    = str(_pp.get("Name",""))
                                         _pp_pos     = str(_pp.get("Pos", _pp.get("PosBucket","")))
@@ -23254,26 +23262,36 @@ with tabs[2]:
                                         _pp_college = str(_pp.get("CollegeTeam",""))
                                         _pp_ovr     = int(safe_num(_pp.get("OVR",0),0))
                                         _pp_src     = str(_pp.get("Source",""))
+                                        _pp_pid     = str(_pp.get("PlayerID","")).strip()
                                         _is_rookie  = _pp_src == "dynasty_rookie"
                                         _ovr_col    = "#4ade80" if _pp_ovr >= 88 else ("#fbbf24" if _pp_ovr >= 80 else "#94a3b8")
                                         _nfl_color  = get_nfl_team_color(_pp_nfl)
-                                        # Logos
+                                        # Draft info
+                                        _dr_row     = _draft_lookup.get(_pp_pid, {})
+                                        _dr_year    = int(safe_num(_dr_row.get("DraftYear",0),0)) if _dr_row else 0
+                                        _dr_rnd     = int(safe_num(_dr_row.get("DraftRoundCanon", _dr_row.get("IsCanonRound",0)),0)) if _dr_row else 0
+                                        _dr_pick    = int(safe_num(_dr_row.get("GeneratedOverallPick",0),0)) if _dr_row else 0
+                                        _draft_str  = f"Rd {_dr_rnd} · #{_dr_pick} · {_dr_year}" if _dr_rnd and _dr_pick and _dr_year else ("Rookie" if _is_rookie else "")
+                                        # Logos — use get_school_logo_src (data URI) not path
                                         _nfl_logo   = get_nfl_logo_src(_pp_nfl)
-                                        _cfb_logo   = get_school_logo_path(_pp_college)
-                                        _nfl_img    = f"<img src='{_nfl_logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _nfl_logo else ""
-                                        _cfb_img    = f"<img src='{_cfb_logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _cfb_logo else ""
+                                        _cfb_logo   = get_school_logo_src(_pp_college)
+                                        _nfl_img    = f"<img src='{_nfl_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _nfl_logo else "<span style='width:22px;display:inline-block;'></span>"
+                                        _cfb_img    = f"<img src='{_cfb_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _cfb_logo else "<span style='width:22px;display:inline-block;'></span>"
                                         _rookie_tag = "<span style='background:#7c3aed;color:#fff;font-size:0.55rem;font-weight:900;padding:1px 4px;border-radius:3px;margin-right:3px;vertical-align:middle;'>R</span>" if _is_rookie else ""
                                         st.markdown(
-                                            f"<div style='display:flex;align-items:center;gap:6px;padding:5px 8px;"
-                                            f"background:#0a1628;border-radius:5px;"
+                                            f"<div style='display:flex;align-items:center;gap:6px;padding:6px 8px;"
+                                            f"background:#0a1628;border-radius:6px;"
                                             f"border-left:3px solid {_nfl_color};"
                                             f"margin-bottom:3px;'>"
-                                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;'>"
+                                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;width:26px;'>"
                                             f"{_cfb_img}{_nfl_img}"
                                             f"</div>"
                                             f"<div style='flex:1;min-width:0;'>"
-                                            f"<div style='color:#f1f5f9;font-weight:700;font-size:0.78rem;'>{_rookie_tag}{html.escape(_pp_name)}</div>"
-                                            f"<div style='color:#64748b;font-size:0.65rem;'>{_pp_pos} · <span style='color:{_nfl_color};'>{html.escape(_pp_nfl)}</span></div>"
+                                            f"<div style='color:#f1f5f9;font-weight:700;font-size:0.78rem;line-height:1.2;'>{_rookie_tag}{html.escape(_pp_name)}</div>"
+                                            f"<div style='color:#64748b;font-size:0.65rem;line-height:1.3;'>"
+                                            f"{_pp_pos} · <span style='color:{_nfl_color};'>{html.escape(_pp_nfl)}</span>"
+                                            f"{'<br><span style=\"color:#475569;\">' + _draft_str + '</span>' if _draft_str else ''}"
+                                            f"</div>"
                                             f"</div>"
                                             f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:{_ovr_col};flex-shrink:0;'>{_pp_ovr}</div>"
                                             f"</div>",
@@ -23735,13 +23753,11 @@ with tabs[2]:
                     if not season_standings.empty:
                         st.markdown("#### 📊 Standings by Division")
 
-                        # Division display order
                         DIVISION_ORDER = [
                             "AFC East", "AFC North", "AFC South", "AFC West",
                             "NFC East", "NFC North", "NFC South", "NFC West",
                         ]
 
-                        # Ensure Division column exists (backfill from team name if missing)
                         if "Division" not in season_standings.columns:
                             season_standings["Division"] = season_standings["Team"].apply(get_nfl_division)
 
@@ -23758,30 +23774,44 @@ with tabs[2]:
                                 continue
 
                             with col_map[conf]:
+                                _div_conf_color = "#ef4444" if conf == "AFC" else "#60a5fa"
                                 st.markdown(
-                                    f"<div style='font-size:0.72rem;font-weight:800;color:#475569;"
-                                    f"text-transform:uppercase;letter-spacing:0.08em;"
-                                    f"margin-top:12px;margin-bottom:4px;'>{div}</div>",
+                                    f"<div style='font-size:0.65rem;font-weight:900;color:{_div_conf_color};"
+                                    f"text-transform:uppercase;letter-spacing:0.12em;"
+                                    f"margin-top:14px;margin-bottom:5px;'>{div}</div>",
                                     unsafe_allow_html=True
                                 )
-                                div_show = div_df.copy()
-                                div_show.insert(0, "Logo", div_show["Team"].map(get_nfl_logo_src))
-                                div_show["Record"] = div_show["Wins"].astype(int).astype(str) + "-" + div_show["Losses"].astype(int).astype(str)
-                                div_show["Seed"] = div_show["Seed"].apply(
-                                    lambda s: f"#{int(s)}" if pd.notna(s) else ""
-                                )
-                                st.dataframe(
-                                    div_show[["Logo", "Team", "Record", "Seed", "TeamPower"]],
-                                    hide_index=True,
-                                    use_container_width=True,
-                                    column_config={
-                                        "Logo": st.column_config.ImageColumn("", width="small"),
-                                        "Team": st.column_config.TextColumn("Team"),
-                                        "Record": st.column_config.TextColumn("W-L"),
-                                        "Seed": st.column_config.TextColumn("Seed"),
-                                        "TeamPower": st.column_config.NumberColumn("PWR", format="%.1f"),
-                                    }
-                                )
+                                _div_html = "<div style='display:flex;flex-direction:column;gap:3px;margin-bottom:4px;'>"
+                                _div_leader = True
+                                for _, _drow in div_df.iterrows():
+                                    _dt   = str(_drow.get("Team",""))
+                                    _dw   = int(safe_num(_drow.get("Wins",0),0))
+                                    _dl   = int(safe_num(_drow.get("Losses",0),0))
+                                    _dpwr = safe_num(_drow.get("TeamPower",75),75)
+                                    _dseed= _drow.get("Seed", None)
+                                    _dseed_str = f"#{int(_dseed)}" if pd.notna(_dseed) and str(_dseed) not in ("","nan") else ""
+                                    _dt_color = get_nfl_team_color(_dt)
+                                    _dlogo    = get_nfl_logo_src(_dt)
+                                    _dlogo_html = f"<img src='{_dlogo}' style='width:24px;height:24px;object-fit:contain;flex-shrink:0;'/>" if _dlogo else "<span style='width:24px;height:24px;display:inline-block;'></span>"
+                                    _bg       = f"background:linear-gradient(90deg,{_dt_color}22 0%,#0a1628 40%);" if _div_leader else "background:#070d1a;"
+                                    _border   = f"border-left:3px solid {_dt_color};" if _div_leader else "border-left:3px solid #1e293b;"
+                                    _name_col = "#f1f5f9" if _div_leader else "#94a3b8"
+                                    _pwr_col  = "#fbbf24" if _dpwr >= 82 else ("#94a3b8" if _dpwr >= 76 else "#475569")
+                                    _wl_col   = "#4ade80" if _dw > _dl else ("#f87171" if _dl > _dw else "#94a3b8")
+                                    _div_html += (
+                                        f"<div style='display:flex;align-items:center;gap:7px;padding:6px 10px;"
+                                        f"{_bg}{_border}border-radius:5px;'>"
+                                        f"{_dlogo_html}"
+                                        f"<span style='color:{_name_col};font-weight:{'800' if _div_leader else '500'};"
+                                        f"font-size:0.78rem;flex:1;font-family:Barlow Condensed,sans-serif;'>{html.escape(_dt)}</span>"
+                                        f"<span style='color:{_wl_col};font-weight:900;font-size:0.78rem;min-width:32px;text-align:right;'>{_dw}-{_dl}</span>"
+                                        f"<span style='color:{_pwr_col};font-size:0.7rem;min-width:34px;text-align:right;'>{_dpwr:.0f} PWR</span>"
+                                        f"{'<span style=\"background:' + _dt_color + '33;color:' + _dt_color + ';font-size:0.6rem;font-weight:900;padding:1px 5px;border-radius:3px;margin-left:4px;\">' + _dseed_str + '</span>' if _dseed_str else ''}"
+                                        f"</div>"
+                                    )
+                                    _div_leader = False
+                                _div_html += "</div>"
+                                st.markdown(_div_html, unsafe_allow_html=True)
 
                     season_playoff = pd.DataFrame()
                     if nfl_playoff_hist is not None and not nfl_playoff_hist.empty:
@@ -24399,31 +24429,82 @@ with tabs[2]:
 
                 alum = alum.sort_values(["GeneratedOverallPick", "PeakOVR"], ascending=[True, False])
 
-                display_cols = [
-                    "Player", "CollegeTeam", "CollegeUser", "Pos", "PosBucket", "DraftYear", "DraftRoundCanon",
-                    "GeneratedOverallPick", "GeneratedNFLTeam", "CareerTier", "RookieRole", "PeakOVR", "StoryTag"
-                ]
-
-                alum_show = alum[display_cols].copy().rename(columns={
-                    "CollegeTeam": "School",
-                    "CollegeUser": "User",
-                    "DraftRoundCanon": "Rnd",
-                    "GeneratedOverallPick": "Pick",
-                    "GeneratedNFLTeam": "NFL Team"
-                })
-
-                alum_show.insert(1, "School Logo", alum_show["School"].map(get_school_logo_src))
-                alum_show.insert(10, "NFL Logo", alum_show["NFL Team"].map(get_nfl_logo_src))
-
-                st.dataframe(
-                    alum_show,
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "School Logo": st.column_config.ImageColumn(""),
-                        "NFL Logo": st.column_config.ImageColumn(""),
+                if alum.empty:
+                    st.caption("No alumni match the selected filters.")
+                else:
+                    _USER_COLORS = {
+                        "Mike": get_team_primary_color("San Jose State"),
+                        "Devin": get_team_primary_color("Bowling Green"),
+                        "Josh": get_team_primary_color("USF"),
+                        "Noah": get_team_primary_color("Texas Tech"),
+                        "Doug": get_team_primary_color("Florida"),
+                        "Nick": get_team_primary_color("Florida State"),
                     }
-                )
+                    _TIER_COLORS = {
+                        "Elite": "#4ade80", "Starter": "#fbbf24",
+                        "Backup": "#94a3b8", "Practice Squad": "#475569",
+                    }
+
+                    for _, _ar in alum.iterrows():
+                        _a_name    = str(_ar.get("Player",""))
+                        _a_school  = str(_ar.get("CollegeTeam",""))
+                        _a_user    = str(_ar.get("CollegeUser","")).strip().title()
+                        _a_pos     = str(_ar.get("Pos",""))
+                        _a_bucket  = str(_ar.get("PosBucket",""))
+                        _a_year    = int(safe_num(_ar.get("DraftYear",0),0))
+                        _a_rnd     = int(safe_num(_ar.get("DraftRoundCanon",0),0))
+                        _a_pick    = int(safe_num(_ar.get("GeneratedOverallPick",0),0))
+                        _a_nfl     = str(_ar.get("GeneratedNFLTeam",""))
+                        _a_tier    = str(_ar.get("CareerTier",""))
+                        _a_role    = str(_ar.get("RookieRole",""))
+                        _a_peak    = int(safe_num(_ar.get("PeakOVR",0),0))
+                        _a_story   = str(_ar.get("StoryTag",""))
+                        _a_outcome = str(_ar.get("ProOutcome",""))
+                        _is_retired = _a_outcome in ("Retired","Out of League")
+
+                        _u_color    = _USER_COLORS.get(_a_user, "#64748b")
+                        _nfl_color  = get_nfl_team_color(_a_nfl)
+                        _tier_color = _TIER_COLORS.get(_a_tier, "#64748b")
+                        _peak_col   = "#4ade80" if _a_peak >= 90 else ("#fbbf24" if _a_peak >= 82 else "#94a3b8")
+                        _rnd_badge  = f"Rd {_a_rnd} · #{_a_pick}" if _a_rnd and _a_pick else ""
+
+                        _school_logo = get_school_logo_src(_a_school)
+                        _nfl_logo    = get_nfl_logo_src(_a_nfl)
+                        _school_img  = f"<img src='{_school_logo}' style='width:28px;height:28px;object-fit:contain;'/>" if _school_logo else f"<div style='width:28px;height:28px;background:#1e293b;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:#475569;'>CFB</div>"
+                        _nfl_img     = f"<img src='{_nfl_logo}' style='width:28px;height:28px;object-fit:contain;'/>" if _nfl_logo else f"<div style='width:28px;height:28px;background:#1e293b;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:#475569;'>NFL</div>"
+
+                        _opacity = "opacity:0.45;" if _is_retired else ""
+                        _retired_badge = "<span style='background:#475569;color:#94a3b8;font-size:0.55rem;font-weight:900;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle;'>RETIRED</span>" if _is_retired else ""
+
+                        st.markdown(
+                            f"<div style='display:flex;align-items:center;gap:10px;padding:8px 12px;"
+                            f"background:linear-gradient(90deg,{_u_color}18 0%,#0a1420 35%);"
+                            f"border-left:3px solid {_u_color};border-radius:6px;margin-bottom:5px;{_opacity}'>"
+                            # logos
+                            f"<div style='display:flex;flex-direction:column;gap:2px;align-items:center;flex-shrink:0;'>"
+                            f"{_school_img}{_nfl_img}</div>"
+                            # name / meta
+                            f"<div style='flex:1;min-width:0;'>"
+                            f"<div style='color:#f1f5f9;font-weight:800;font-size:0.82rem;'>{html.escape(_a_name)}{_retired_badge}</div>"
+                            f"<div style='color:#64748b;font-size:0.67rem;margin-top:1px;'>"
+                            f"<span style='color:{_u_color};font-weight:700;'>{_a_user}</span> · {_a_school} · "
+                            f"<span style='color:{_nfl_color};'>{_a_nfl}</span>"
+                            f"</div>"
+                            f"<div style='color:#475569;font-size:0.64rem;margin-top:1px;'>"
+                            f"{_a_pos}/{_a_bucket} · {_a_year} · {_rnd_badge}"
+                            f"{'  · ' + _a_role if _a_role and _a_role not in ('nan','') else ''}"
+                            f"</div>"
+                            f"{'<div style=\"color:#64748b;font-size:0.63rem;font-style:italic;margin-top:2px;\">' + html.escape(_a_story) + '</div>' if _a_story and _a_story not in ('nan','') else ''}"
+                            f"</div>"
+                            # tier + peak OVR
+                            f"<div style='display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;'>"
+                            f"{'<span style=\"background:' + _tier_color + '22;color:' + _tier_color + ';font-size:0.6rem;font-weight:900;padding:2px 6px;border-radius:4px;text-transform:uppercase;\">' + _a_tier + '</span>' if _a_tier and _a_tier not in ('nan','') else ''}"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:{_peak_col};line-height:1;'>{_a_peak if _a_peak else '—'}</span>"
+                            f"<span style='color:#334155;font-size:0.6rem;'>PEAK</span>"
+                            f"</div>"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
 
         # ── Super Bowl History ────────────────────────────────────────────
         with nfl_tabs[7]:
