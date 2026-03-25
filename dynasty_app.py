@@ -23142,7 +23142,6 @@ with tabs[2]:
                                 )
 
                 with _tw_col2:
-                with _tw_col2:
                     st.markdown("#### 📊 Live Standings")
                     _tw_standings = pd.DataFrame()
                     if os.path.exists("nfl_standings_history.csv"):
