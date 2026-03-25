@@ -25266,22 +25266,25 @@ with tabs[2]:
             st.markdown("""
             <div style='background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:14px 16px;font-size:0.82rem;color:#94a3b8;line-height:1.9;margin-bottom:12px;'>
 
-            <div style='color:#22c55e;font-weight:700;margin-bottom:4px;'>⚡ After each Advance Week (CFB + NFL together):</div>
+            <div style='color:#94a3b8;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;'>📅 SEASON ORDER — follow this sequence every year</div>
+
+            <div style='color:#22c55e;font-weight:700;margin-bottom:4px;'>1. ⚡ After each Advance Week (CFB + NFL together):</div>
             <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>dynasty_state.csv</code></div>
 
-            <div style='color:#60a5fa;font-weight:700;margin-bottom:4px;'>🏈 After each NFL-only catch-up advance:</div>
+            <div style='color:#60a5fa;font-weight:700;margin-bottom:4px;'>1b. 🏈 NFL-only catch-up advance (catching up to CFB week):</div>
             <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code><br>
             <span style='color:#64748b;font-size:0.75rem;'>dynasty_state.csv is NOT touched by NFL-only advances — skip it</span></div>
 
-            <div style='color:#f59e0b;font-weight:700;margin-bottom:4px;'>🔄 After Rebuild NFL Rosters:</div>
+            <div style='color:#a78bfa;font-weight:700;margin-bottom:4px;'>2. 🏆 After Sim Playoffs + Super Bowl:</div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_playoff_history.csv</code> &nbsp;·&nbsp; <code>nfl_super_bowl_history.csv</code> &nbsp;·&nbsp; <code>nfl_awards_history.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_player_history.csv</code><br>
+            <span style='color:#64748b;font-size:0.75rem;'>Retirements, aging, and UDFA fills run automatically here — do NOT rebuild rosters yet</span></div>
+
+            <div style='color:#34d399;font-weight:700;margin-bottom:4px;'>3. 🎓 After NFL Draft (next season's rookies):</div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_draft_history.csv</code> &nbsp;·&nbsp; <code>nfl_player_history.csv</code></div>
+
+            <div style='color:#f59e0b;font-weight:700;margin-bottom:4px;'>4. 🔄 After Rebuild NFL Rosters (AFTER draft, not before):</div>
             <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_current_rosters.csv</code><br>
-            <span style='color:#64748b;font-size:0.75rem;'>Only needed after draft, offseason roster changes, or first-time setup</span></div>
-
-            <div style='color:#a78bfa;font-weight:700;margin-bottom:4px;'>🏆 After Sim Playoffs:</div>
-            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_playoff_history.csv</code> &nbsp;·&nbsp; <code>nfl_super_bowl_history.csv</code> &nbsp;·&nbsp; <code>nfl_awards_history.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_current_rosters.csv</code></div>
-
-            <div style='color:#34d399;font-weight:700;margin-bottom:4px;'>🎓 After NFL Draft:</div>
-            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_draft_history.csv</code> &nbsp;·&nbsp; <code>nfl_player_history.csv</code> &nbsp;·&nbsp; <code>nfl_current_rosters.csv</code></div>
+            <span style='color:#64748b;font-size:0.75rem;'>Rebuild overlays draft class onto base roster — must have draft history first or rookies won't appear</span></div>
 
             <div style='color:#94a3b8;font-weight:700;margin-bottom:4px;'>📦 ZIP option:</div>
             <div style='margin-left:12px;'>Downloads everything at once — safe to push all files to repo any time</div>
