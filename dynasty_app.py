@@ -13748,10 +13748,10 @@ with tabs[0]:
                 f"{_pi_line}"
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 Preseason</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(6-team)</span><br>"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP {_pct_to_pre_odds(cfp_pct)}</span><br>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP <span style='color:#60a5fa;font-weight:700;'>{float(cfp_pct):.0f}%</span></span><br>"
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 National</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:{_nat_cfp_color};'>{_nat_cfp_odds}</strong></span>"
+                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:#60a5fa;font-weight:700;'>{live_cfp:.0f}%</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
                 f"</div></div>"
             )
@@ -16709,7 +16709,7 @@ with tabs[4]:
 
         # ── National odds across full 136-team field ──────────────────────────
         try:
-            _national_odds = build_national_odds(year=CURRENT_YEAR)
+            _national_odds = build_sigmoid_natty_odds(year=CURRENT_YEAR)
         except Exception:
             _national_odds = {}
         # Fuzzy lookup for national odds (same name-mismatch tolerance)
@@ -18375,9 +18375,15 @@ with tabs[8]:
 
     # 1. DATA LOADING & STAT ENGINE
     try:
-        ovr_col = next((c for c in model_2041.columns if 'OVR' in str(c).upper() or 'OVERALL' in str(c).upper()), None)
-        team_col = next((c for c in model_2041.columns if 'TEAM' in str(c).upper()), 'TEAM')
-        _ratings = dict(zip(model_2041[team_col].str.strip(), pd.to_numeric(model_2041[ovr_col], errors='coerce').fillna(0))) if ovr_col else {}
+        # Load ratings for the SELECTED season year, not current model year
+        _yr_ratings_map = load_team_ratings(year=sel_year)
+        _ratings = {str(k).strip(): int(float(v.get('OVR', v.get('OVERALL', 0)) or 0))
+                    for k, v in _yr_ratings_map.items()} if _yr_ratings_map else {}
+        # Fallback: if no historical ratings for that year, try model_2041
+        if not _ratings:
+            ovr_col = next((c for c in model_2041.columns if 'OVR' in str(c).upper() or 'OVERALL' in str(c).upper()), None)
+            team_col = next((c for c in model_2041.columns if 'TEAM' in str(c).upper()), 'TEAM')
+            _ratings = dict(zip(model_2041[team_col].str.strip(), pd.to_numeric(model_2041[ovr_col], errors='coerce').fillna(0))) if ovr_col else {}
         
         heisman_all = pd.read_csv('Heisman_Finalists.csv')
         heisman_all = heisman_all[heisman_all['YEAR'].astype(int) == sel_year].copy()
@@ -19006,6 +19012,23 @@ with tabs[9]:
                             'Monsters','Quick Hogs','Team Speed (90+ Speed Guys)']:
                     if _bc not in _bar_df.columns:
                         _bar_df[_bc] = 0
+
+                # Build two separate sorted orders:
+                # Chart 1: Cheat Codes + Generational total (desc)
+                _bar_df['_elite_total'] = (
+                    _bar_df['Cheat Codes'] +
+                    _bar_df['Generational (96+ speed or 96+ Acceleration)']
+                )
+                _bar_elite = _bar_df.sort_values('_elite_total', ascending=False).reset_index(drop=True)
+                # Chart 2: Monsters + Quick Hogs + 90+ Speed total (desc)
+                _bar_df['_phys_total'] = (
+                    _bar_df['Monsters'] +
+                    _bar_df['Quick Hogs'] +
+                    _bar_df['Team Speed (90+ Speed Guys)']
+                )
+                _bar_phys = _bar_df.sort_values('_phys_total', ascending=False).reset_index(drop=True)
+
+                # Keep default sort for non-chart use
                 _bar_df = _bar_df.sort_values('Team Speed Score', ascending=False).reset_index(drop=True)
                 _bar_names = _bar_df['TEAM'].tolist()
                 _bar_short = [t.replace('San Jose State','SJSU').replace('Florida State','FSU')
@@ -19013,13 +19036,28 @@ with tabs[9]:
                                .replace('Florida','UF').replace('USF','USF') for t in _bar_names]
                 _bar_logos = [_get_logo_src_bar(t) for t in _bar_names]
 
-                def _bv(col): return [int(_bar_df[_bar_df['TEAM']==t][col].fillna(0).values[0]) if t in _bar_df['TEAM'].values else 0 for t in _bar_names]
+                def _bv_from(df, col):
+                    return [int(df[df['TEAM']==t][col].fillna(0).values[0]) if t in df['TEAM'].values else 0
+                            for t in df['TEAM'].tolist()]
 
-                _cc_vals  = _bv('Cheat Codes')
-                _gen_vals = _bv('Generational (96+ speed or 96+ Acceleration)')
-                _mon_vals = _bv('Monsters')
-                _qh_vals  = _bv('Quick Hogs')
-                _s90_vals = _bv('Team Speed (90+ Speed Guys)')
+                # Chart 1 data — sorted by elite total
+                _elite_names = _bar_elite['TEAM'].tolist()
+                _elite_short = [t.replace('San Jose State','SJSU').replace('Florida State','FSU')
+                                  .replace('Bowling Green','BGSU').replace('Texas Tech','TTU')
+                                  .replace('Florida','UF').replace('USF','USF') for t in _elite_names]
+                _elite_logos = [_get_logo_src_bar(t) for t in _elite_names]
+                _cc_vals  = _bv_from(_bar_elite, 'Cheat Codes')
+                _gen_vals = _bv_from(_bar_elite, 'Generational (96+ speed or 96+ Acceleration)')
+
+                # Chart 2 data — sorted by physical total
+                _phys_names = _bar_phys['TEAM'].tolist()
+                _phys_short = [t.replace('San Jose State','SJSU').replace('Florida State','FSU')
+                                 .replace('Bowling Green','BGSU').replace('Texas Tech','TTU')
+                                 .replace('Florida','UF').replace('USF','USF') for t in _phys_names]
+                _phys_logos = [_get_logo_src_bar(t) for t in _phys_names]
+                _mon_vals = _bv_from(_bar_phys, 'Monsters')
+                _qh_vals  = _bv_from(_bar_phys, 'Quick Hogs')
+                _s90_vals = _bv_from(_bar_phys, 'Team Speed (90+ Speed Guys)')
 
                 _bar_layout_base = dict(
                     barmode='group', height=400,
@@ -19033,39 +19071,45 @@ with tabs[9]:
 
                 # ── Chart 1: Cheat Codes (red) & Generational (orange) ────────
                 _fig_elite = go.Figure()
-                _fig_elite.add_trace(go.Bar(name='🎮 Cheat Codes', x=list(range(len(_bar_short))), y=_cc_vals,
+                _fig_elite.add_trace(go.Bar(name='🎮 Cheat Codes', x=list(range(len(_elite_short))), y=_cc_vals,
                     marker_color='#ef4444', text=_cc_vals, textposition='outside',
                     textfont=dict(color='#fca5a5', size=14, family='Arial Black')))
-                _fig_elite.add_trace(go.Bar(name='🧬 Generational', x=list(range(len(_bar_short))), y=_gen_vals,
+                _fig_elite.add_trace(go.Bar(name='🧬 Generational', x=list(range(len(_elite_short))), y=_gen_vals,
                     marker_color='#f97316', text=_gen_vals, textposition='outside',
                     textfont=dict(color='#fdba74', size=14, family='Arial Black')))
                 _max_e = max(max(_cc_vals, default=0), max(_gen_vals, default=0))
-                _fig_elite.update_layout(**{**_bar_layout_base,
+                _elite_layout = {**_bar_layout_base,
+                    'xaxis': dict(showgrid=False, zeroline=False, tickfont=dict(size=12, color='#94a3b8'),
+                                  tickmode='array', tickvals=list(range(len(_elite_short))), ticktext=_elite_short),
                     'title': dict(text='<b>🎮 CHEAT CODES & GENERATIONAL FREAKS</b>', font=dict(size=17, color='#f8fafc'), x=0.5, xanchor='center'),
                     'yaxis': dict(showgrid=True, gridcolor='#1e293b', zeroline=False, tickfont=dict(size=11, color='#64748b'), range=[0, _max_e + max(2, int(_max_e*0.25))]),
-                })
-                for _i, (_t, _lsrc) in enumerate(zip(_bar_names, _bar_logos)):
+                }
+                _fig_elite.update_layout(**_elite_layout)
+                for _i, (_t, _lsrc) in enumerate(zip(_elite_names, _elite_logos)):
                     if _lsrc:
                         _fig_elite.add_layout_image(dict(source=_lsrc, x=_i, y=-0.22, xref='x', yref='paper', sizex=0.55, sizey=0.20, xanchor='center', yanchor='top', layer='above'))
                 st.plotly_chart(_fig_elite, use_container_width=True, config={'staticPlot': True})
 
                 # ── Chart 2: Monsters (blue), Quick Hogs (green), 90+ (gray) ──
                 _fig_phys = go.Figure()
-                _fig_phys.add_trace(go.Bar(name='👹 Monsters', x=list(range(len(_bar_short))), y=_mon_vals,
+                _fig_phys.add_trace(go.Bar(name='👹 Monsters', x=list(range(len(_phys_short))), y=_mon_vals,
                     marker_color='#3b82f6', text=_mon_vals, textposition='outside',
                     textfont=dict(color='#93c5fd', size=14, family='Arial Black')))
-                _fig_phys.add_trace(go.Bar(name='🐗 Quick Hogs', x=list(range(len(_bar_short))), y=_qh_vals,
+                _fig_phys.add_trace(go.Bar(name='🐗 Quick Hogs', x=list(range(len(_phys_short))), y=_qh_vals,
                     marker_color='#22c55e', text=_qh_vals, textposition='outside',
                     textfont=dict(color='#86efac', size=14, family='Arial Black')))
-                _fig_phys.add_trace(go.Bar(name='💨 90+ Speed', x=list(range(len(_bar_short))), y=_s90_vals,
+                _fig_phys.add_trace(go.Bar(name='💨 90+ Speed', x=list(range(len(_phys_short))), y=_s90_vals,
                     marker_color='#64748b', text=_s90_vals, textposition='outside',
                     textfont=dict(color='#94a3b8', size=14, family='Arial Black')))
                 _max_p = max(max(_mon_vals, default=0), max(_qh_vals, default=0), max(_s90_vals, default=0))
-                _fig_phys.update_layout(**{**_bar_layout_base,
+                _phys_layout = {**_bar_layout_base,
+                    'xaxis': dict(showgrid=False, zeroline=False, tickfont=dict(size=12, color='#94a3b8'),
+                                  tickmode='array', tickvals=list(range(len(_phys_short))), ticktext=_phys_short),
                     'title': dict(text='<b>👹 MONSTERS, QUICK HOGS & 90+ SPEED</b>', font=dict(size=17, color='#f8fafc'), x=0.5, xanchor='center'),
                     'yaxis': dict(showgrid=True, gridcolor='#1e293b', zeroline=False, tickfont=dict(size=11, color='#64748b'), range=[0, _max_p + max(2, int(_max_p*0.25))]),
-                })
-                for _i, (_t, _lsrc) in enumerate(zip(_bar_names, _bar_logos)):
+                }
+                _fig_phys.update_layout(**_phys_layout)
+                for _i, (_t, _lsrc) in enumerate(zip(_phys_names, _phys_logos)):
                     if _lsrc:
                         _fig_phys.add_layout_image(dict(source=_lsrc, x=_i, y=-0.22, xref='x', yref='paper', sizex=0.55, sizey=0.20, xanchor='center', yanchor='top', layer='above'))
                 st.plotly_chart(_fig_phys, use_container_width=True, config={'staticPlot': True})
