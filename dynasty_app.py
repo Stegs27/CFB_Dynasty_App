@@ -4602,42 +4602,66 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
         draft["DraftYear"] = pd.to_numeric(draft["DraftYear"], errors="coerce")
         draft = draft[draft["DraftYear"].fillna(9999).astype(int) <= season_year].copy()
 
-    if not draft.empty and not hist.empty:
-        draft_lookup = {
-            str(r.get("PlayerID", "")): r
-            for _, r in draft.iterrows()
-        }
+    dynasty_rows = []
 
-        dynasty_rows = []
+    # ── Pass 1: players with full history (veterans from prior simmed seasons) ──
+    if not draft.empty and not hist.empty:
+        draft_lookup = {str(r.get("PlayerID", "")): r for _, r in draft.iterrows()}
         for _, pr in hist.iterrows():
             player_id = str(pr.get("PlayerID", "")).strip()
-            if not player_id:
+            if not player_id or player_id.startswith("BASE::"):
                 continue
-
-            # Never treat inherited/base NFL players as dynasty additions
-            if player_id.startswith("BASE::"):
-                continue
-
             status = str(pr.get("Status", "Active")).strip()
             if status in {"Retired", "Out of League"}:
                 continue
-
             dr = draft_lookup.get(player_id, {})
             dynasty_rows.append({
-                "Season": season_year,
-                "Team": pr.get("NFLTeam", dr.get("GeneratedNFLTeam", "")),
-                "PlayerID": player_id,
-                "Name": pr.get("Player", dr.get("Player", "")),
-                "Pos": pr.get("Pos", dr.get("Pos", "")),
-                "PosBucket": pr.get("PosBucket", dr.get("PosBucket", clean_bucket(pr.get("Pos", dr.get("Pos", ""))))),
-                "OVR": int(round(safe_num(pr.get("OverallEnd", dr.get("OVR", 72)), 72))),
-                "Age": int(round(safe_num(pr.get("Age", 24), 24))),
-                "Status": status if status else "Active",
-                "Source": "dynasty_player",
+                "Season":     season_year,
+                "Team":       pr.get("NFLTeam", dr.get("GeneratedNFLTeam", "")),
+                "PlayerID":   player_id,
+                "Name":       pr.get("Player", dr.get("Player", "")),
+                "Pos":        pr.get("Pos", dr.get("Pos", "")),
+                "PosBucket":  pr.get("PosBucket", dr.get("PosBucket", clean_bucket(pr.get("Pos", dr.get("Pos", ""))))),
+                "OVR":        int(round(safe_num(pr.get("OverallEnd", dr.get("OVR", 72)), 72))),
+                "Age":        int(round(safe_num(pr.get("Age", 24), 24))),
+                "Status":     status if status else "Active",
+                "Source":     "dynasty_player",
                 "CollegeTeam": dr.get("CollegeTeam", ""),
                 "CollegeUser": dr.get("CollegeUser", "")
             })
 
+    # ── Pass 2: rookies — drafted but no player history yet (pre-season rebuild) ──
+    if not draft.empty:
+        hist_ids_known = {
+            str(r.get("PlayerID", "")).strip()
+            for _, r in hist.iterrows()
+        } if not hist.empty else set()
+
+        for _, dr in draft.iterrows():
+            player_id = str(dr.get("PlayerID", "")).strip()
+            if not player_id or player_id.startswith("BASE::"):
+                continue
+            if player_id in hist_ids_known:
+                continue  # Already handled in Pass 1
+            draft_year = int(pd.to_numeric(dr.get("DraftYear", 0), errors="coerce") or 0)
+            if draft_year > season_year:
+                continue  # Future draft class — skip
+            dynasty_rows.append({
+                "Season":     season_year,
+                "Team":       dr.get("GeneratedNFLTeam", ""),
+                "PlayerID":   player_id,
+                "Name":       dr.get("Player", ""),
+                "Pos":        dr.get("Pos", ""),
+                "PosBucket":  dr.get("PosBucket", clean_bucket(dr.get("Pos", ""))),
+                "OVR":        int(round(safe_num(dr.get("OVR", 72), 72))),
+                "Age":        22,  # Rookies default age
+                "Status":     "Active",
+                "Source":     "dynasty_rookie",
+                "CollegeTeam": dr.get("CollegeTeam", ""),
+                "CollegeUser": dr.get("CollegeUser", "")
+            })
+
+    if dynasty_rows:
         dynasty_df = pd.DataFrame(dynasty_rows, columns=NFL_CURRENT_ROSTER_COLS)
 
         if not dynasty_df.empty:
@@ -4656,6 +4680,95 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
             current_df = current_df.drop(columns="__key", errors="ignore")
 
             current_df = pd.concat([current_df, dynasty_df], ignore_index=True)
+
+    # ── 53-Man Roster Cut with Position Floor ─────────────────────────────────
+    # Step 1 — guarantee minimum depth at every position bucket (realistic NFL floors)
+    # Step 2 — fill remaining slots with best available OVR across all positions
+    # Step 3 — dynasty rookies/young players are protected from cuts for 4 seasons
+    NFL_ROSTER_LIMIT          = 53
+    ROOKIE_PROTECTION_SEASONS = 4  # rookie year + 3 more
+
+    # Minimum players kept at each position bucket regardless of OVR
+    # Starter(s) + mandatory backup depth — totals 37 guaranteed slots, 16 flex
+    POS_FLOOR = {
+        "QB":   2,   # starter + backup
+        "RB":   3,   # starter + 2 backs (heavy rotation)
+        "WR":   4,   # 3 starters + 1 depth
+        "TE":   2,   # starter + backup
+        "OL":   8,   # 5 starters + 3 swing linemen
+        "EDGE": 3,   # 2 starters + rotational
+        "IDL":  4,   # 3-4 rotation
+        "LB":   4,   # 2 starters + depth
+        "CB":   4,   # 2 starters + nickel + depth
+        "S":    3,   # FS + SS + backup
+    }
+
+    if not current_df.empty and "Team" in current_df.columns:
+        current_df["OVR"]      = pd.to_numeric(current_df["OVR"], errors="coerce").fillna(60)
+        current_df["PosBucket"] = current_df["PosBucket"].astype(str).str.strip()
+
+        # Build draft-year lookup for protection check
+        _draft_year_lookup = {}
+        if not draft.empty and "PlayerID" in draft.columns and "DraftYear" in draft.columns:
+            for _, _dr in draft.iterrows():
+                _pid = str(_dr.get("PlayerID", "")).strip()
+                if _pid:
+                    _draft_year_lookup[_pid] = int(
+                        pd.to_numeric(_dr.get("DraftYear", 0), errors="coerce") or 0
+                    )
+
+        def _is_protected(row):
+            source = str(row.get("Source", "")).strip()
+            if source == "dynasty_rookie":
+                return True
+            if source in ("dynasty_player", "dynasty_rookie"):
+                pid = str(row.get("PlayerID", "")).strip()
+                dy  = _draft_year_lookup.get(pid, 0)
+                if dy and (season_year - dy) < ROOKIE_PROTECTION_SEASONS:
+                    return True
+            return False
+
+        current_df["_protected"] = current_df.apply(_is_protected, axis=1)
+
+        trimmed_teams = []
+        for team, grp in current_df.groupby("Team", sort=False):
+            if len(grp) <= NFL_ROSTER_LIMIT:
+                # Already under limit — still verify position floors, top up if needed
+                trimmed_teams.append(grp)
+                continue
+
+            protected  = grp[grp["_protected"]].copy()
+            cuttable   = grp[~grp["_protected"]].copy().sort_values("OVR", ascending=False)
+
+            kept_indices = set(protected.index)
+
+            # ── Step 1: guarantee position floors from cuttable pool ──────────
+            for bucket, floor in POS_FLOOR.items():
+                already_have = len([
+                    i for i in kept_indices
+                    if grp.loc[i, "PosBucket"] == bucket
+                ])
+                need_more = floor - already_have
+                if need_more <= 0:
+                    continue
+                candidates = cuttable[
+                    (cuttable["PosBucket"] == bucket) &
+                    (~cuttable.index.isin(kept_indices))
+                ].head(need_more)
+                kept_indices.update(candidates.index)
+
+            # ── Step 2: fill remaining flex slots by OVR ─────────────────────
+            slots_used      = len(kept_indices)
+            flex_slots      = NFL_ROSTER_LIMIT - slots_used
+            remaining_pool  = cuttable[~cuttable.index.isin(kept_indices)]
+            flex_picks      = remaining_pool.sort_values("OVR", ascending=False).head(max(0, flex_slots))
+            kept_indices.update(flex_picks.index)
+
+            kept = grp.loc[sorted(kept_indices)].copy()
+            trimmed_teams.append(kept)
+
+        current_df = pd.concat(trimmed_teams, ignore_index=True) if trimmed_teams else current_df
+        current_df = current_df.drop(columns=["_protected"], errors="ignore")
 
     for col in NFL_CURRENT_ROSTER_COLS:
         if col not in current_df.columns:
