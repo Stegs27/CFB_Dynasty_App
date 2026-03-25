@@ -13914,10 +13914,12 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) leads the title race at <strong>{natty:.1f}%</strong>. The model says this is the roster everyone else has to solve.",
                     "The championship chase runs through <strong>{team}</strong>. <strong>{user}</strong> is sitting on a <strong>{natty:.1f}%</strong> natty shot with the deepest résumé in the field.",
-                    "The numbers keep pointing the same direction. <strong>{team}</strong> at <strong>{natty:.1f}%</strong> — <strong>{user}</strong> has built the cleanest profile in this dynasty.",
-                    "<strong>{natty:.1f}%</strong>. That's what the model gives <strong>{team}</strong> to cut nets. <strong>{user}</strong> is not quietly confident — the data is loud.",
-                    "If the bracket holds chalk, <strong>{user}</strong>'s <strong>{team}</strong> is the last team standing. <strong>{natty:.1f}%</strong> title odds and climbing.",
-                    "Nobody in this field has more runway than <strong>{team}</strong>. <strong>{user}</strong> at <strong>{natty:.1f}%</strong> — the committee is going to have to deal with this roster all season.",
+                    "<strong>{natty:.1f}%</strong>. That's what the model gives <strong>{team}</strong>. <strong>{user}</strong> is not quietly confident — the data is loud.",
+                    "If the bracket holds chalk, <strong>{user}</strong>'s <strong>{team}</strong> is the last team standing. <strong>{natty:.1f}%</strong> title odds. It is not a prediction, it is arithmetic.",
+                    "The committee has not said it yet but the model has. <strong>{team}</strong> is the best team in this league and <strong>{user}</strong> has the <strong>{natty:.1f}%</strong> odds to prove it.",
+                    "Someone is going to have to physically remove <strong>{team}</strong> from the top of the model. <strong>{natty:.1f}%</strong> natty odds — <strong>{user}</strong> is not going anywhere.",
+                    "While everyone argues about who deserves the top seed, the model has been saying the same thing all season: <strong>{team}</strong>. <strong>{user}</strong> at <strong>{natty:.1f}%</strong>.",
+                    "This dynasty has had title favorites before. None of them looked this clean on paper. <strong>{team}</strong> at <strong>{natty:.1f}%</strong> — <strong>{user}</strong> knows something the rest of us are still figuring out.",
                 ]
             },
             'power_alpha': {
@@ -13926,10 +13928,12 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) is the neutral-field monster right now. Their <strong>{pi:.1f}</strong> Power Index is tops in the dynasty.",
                     "Forget the noise — <strong>{team}</strong> is the scariest team on paper. <strong>{user}</strong> owns the best Power Index at <strong>{pi:.1f}</strong>.",
-                    "The model does not have a bias. It just watches film. <strong>{team}</strong> at <strong>{pi:.1f}</strong> Power Index is the honest number — and <strong>{user}</strong> built it.",
+                    "The model does not have a bias. It just watches film. <strong>{team}</strong> at <strong>{pi:.1f}</strong> Power Index is the honest number.",
                     "On a neutral field against anyone in this league, <strong>{team}</strong> is the pick. <strong>{user}</strong>'s <strong>{pi:.1f}</strong> Power Index says so.",
-                    "<strong>{pi:.1f}</strong>. That is <strong>{team}</strong>'s Power Index right now. <strong>{user}</strong> has assembled something the computers genuinely respect.",
-                    "Strip away the rankings noise and the model says one thing: <strong>{team}</strong> is the best team in this dynasty. <strong>{pi:.1f}</strong> Power Index. <strong>{user}</strong>'s fingerprints are all over it.",
+                    "<strong>{pi:.1f}</strong>. That is <strong>{team}</strong>'s Power Index right now. The computers genuinely respect what <strong>{user}</strong> has assembled.",
+                    "Strip away the rankings noise and the model says one thing: <strong>{team}</strong> is the best team in this dynasty at <strong>{pi:.1f}</strong>.",
+                    "Nobody asked the analysts but they answered anyway: <strong>{team}</strong> is number one on a neutral field. <strong>{pi:.1f}</strong> Power Index. <strong>{user}</strong> is not surprised.",
+                    "There is a difference between being ranked highly and being genuinely elite. <strong>{team}</strong> is the latter. <strong>{pi:.1f}</strong> Power Index — <strong>{user}</strong> has the receipts.",
                 ]
             },
             'rank_jump': {
@@ -13939,9 +13943,11 @@ with tabs[0]:
                     "<strong>{user}</strong> ({team}) climbed <strong>{delta}</strong> spots to No. <strong>{rank}</strong>. The résumé is starting to catch up to the talent.",
                     "The latest poll gave <strong>{team}</strong> a real bump. <strong>{user}</strong> is up <strong>{delta}</strong> slots and pushing into the inner circle.",
                     "Up <strong>{delta}</strong> spots to <strong>#{rank}</strong>. The committee is noticing <strong>{team}</strong> and <strong>{user}</strong> is not surprised.",
-                    "<strong>{team}</strong> moved <strong>{delta}</strong> spots in the latest rankings. <strong>{user}</strong> is now sitting at <strong>#{rank}</strong> and this climb does not feel finished.",
+                    "<strong>{team}</strong> moved <strong>{delta}</strong> spots in the latest rankings. At <strong>#{rank}</strong>, this climb does not feel finished.",
                     "The résumé just got louder. <strong>{user}</strong> ({team}) jumped <strong>{delta}</strong> positions to <strong>#{rank}</strong> — the voters are catching on.",
-                    "Poll momentum is a real thing and <strong>{team}</strong> has it right now. Up <strong>{delta}</strong> to <strong>#{rank}</strong> for <strong>{user}</strong>.",
+                    "Momentum is a real thing and <strong>{team}</strong> has it. Up <strong>{delta}</strong> to <strong>#{rank}</strong> — <strong>{user}</strong> is building a case the committee cannot ignore for much longer.",
+                    "Nobody moves <strong>{delta}</strong> spots without doing something right. <strong>{team}</strong> is at <strong>#{rank}</strong> and the climb has a long way left to go.",
+                    "<strong>{delta}</strong> spots. That is not noise — that is a program announcing itself. <strong>{user}</strong>'s <strong>{team}</strong> now sits at <strong>#{rank}</strong> and the résumé is getting hard to overlook.",
                 ]
             },
             'committee_darling': {
@@ -13950,10 +13956,12 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) sits at <strong>CFP #{rank}</strong> with a {record} record. The committee is all-in on this profile.",
                     "The committee loves what <strong>{team}</strong> is selling. <strong>{user}</strong> is parked at <strong>#{rank}</strong> with a {record} mark.",
-                    "At <strong>#{rank}</strong> with a {record} record, <strong>{team}</strong> is exactly where the committee wants them. <strong>{user}</strong> has given the voters nothing to argue about.",
+                    "At <strong>#{rank}</strong> with a {record} record, <strong>{team}</strong> is exactly where the committee wants them. <strong>{user}</strong> has given voters nothing to argue about.",
                     "<strong>{user}</strong> ({team}) is the committee's problem right now — in the best way. <strong>#{rank}</strong>, {record}, and nobody is making a real case against them.",
-                    "The profile at <strong>#{rank}</strong> with {record} is clean. <strong>{team}</strong> is not gaming the system — <strong>{user}</strong> just built a team the algorithm keeps rewarding.",
                     "CFP <strong>#{rank}</strong> for <strong>{team}</strong>. The {record} record is doing exactly what <strong>{user}</strong> needed it to do.",
+                    "Every week the profile gets cleaner. <strong>{team}</strong> at <strong>#{rank}</strong>, {record} — <strong>{user}</strong> is not just in the conversation, they are becoming the conversation.",
+                    "The voters had a choice between chaos and chalk. They chose <strong>{team}</strong> at <strong>#{rank}</strong>. <strong>{user}</strong>'s {record} record made it easy.",
+                    "<strong>#{rank}</strong>, {record}, and a model that backs every bit of it. <strong>{user}</strong>'s <strong>{team}</strong> is not running from the expectations — they are earning them.",
                 ]
             },
             'upset_loss': {
@@ -13961,11 +13969,15 @@ with tabs[0]:
                 'title': 'Upset Loss',
                 'bodies': [
                     "<strong>{user}</strong>'s <strong>{team}</strong> just got knocked off by <strong>{opponent}</strong>. The résumé took a hit it cannot ignore.",
-                    "Stunner. <strong>{team}</strong> loses to <strong>{opponent}</strong> — a result that was not supposed to happen. <strong>{user}</strong> has questions to answer.",
-                    "<strong>{opponent}</strong> just handed <strong>{team}</strong> a loss it will have to explain for weeks. <strong>{user}</strong>'s CFP case got more complicated in a hurry.",
-                    "Nobody saw this one coming. <strong>{team}</strong> goes down to <strong>{opponent}</strong>. <strong>{user}</strong> is going to be answering questions about this for a while.",
-                    "The committee noticed. <strong>{team}</strong> drops a game to <strong>{opponent}</strong> that the model said should not have happened. <strong>{user}</strong>'s path just narrowed.",
-                    "You cannot play your way out of a loss on film. <strong>{opponent}</strong> beat <strong>{team}</strong> and <strong>{user}</strong> now has work to do.",
+                    "Stunner. <strong>{team}</strong> loses to <strong>{opponent}</strong>. <strong>{user}</strong> has questions to answer and the schedule does not get easier.",
+                    "<strong>{opponent}</strong> just handed <strong>{team}</strong> a loss it will have to explain for weeks. <strong>{user}</strong>'s CFP case got complicated in a hurry.",
+                    "Nobody saw this one coming. <strong>{team}</strong> goes down to <strong>{opponent}</strong>. <strong>{user}</strong> is going to be answering questions about this for a long time.",
+                    "The committee noticed. <strong>{team}</strong> drops a game that the model said should not have happened. <strong>{user}</strong>'s path just narrowed.",
+                    "You cannot play your way out of a loss on film. <strong>{opponent}</strong> beat <strong>{team}</strong> and now <strong>{user}</strong> needs a run.",
+                    "There are losses that sting and losses that define a season. This one to <strong>{opponent}</strong> might be the latter. <strong>{user}</strong>'s <strong>{team}</strong> needs answers — fast.",
+                    "This dynasty does not hand out do-overs. <strong>{team}</strong> lost to <strong>{opponent}</strong> and <strong>{user}</strong> has to sit with it. The path to a title just got longer.",
+                    "The film does not lie and the film on <strong>{team}</strong>'s loss to <strong>{opponent}</strong> is going to be uncomfortable to watch. <strong>{user}</strong> has work to do this week.",
+                    "<strong>{opponent}</strong>. That is the name that goes in the résumé now next to the L column. <strong>{user}</strong>'s <strong>{team}</strong> survived everything else — this one they did not.",
                 ]
             },
             'upset_win': {
@@ -13974,10 +13986,12 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong> ({team}) just knocked off <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. That's the kind of result that bends a season.",
                     "Statement made: <strong>{team}</strong> dropped <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. <strong>{user}</strong> just changed the bracket math.",
-                    "<strong>#{opp_rank} {opponent}</strong> came in and got sent home. <strong>{team}</strong> wins {win_score}-{lose_score} and <strong>{user}</strong> just forced every committee member to update their notes.",
-                    "That is going to echo. <strong>{user}</strong>'s <strong>{team}</strong> beat <strong>#{opp_rank} {opponent}</strong> by {win_score}-{lose_score}. The résumé officially has a signature win.",
-                    "Nobody saw <strong>{team}</strong> dropping <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score}. <strong>{user}</strong> did. This is what program-building looks like.",
+                    "<strong>#{opp_rank} {opponent}</strong> came in and got sent home. <strong>{team}</strong> wins {win_score}-{lose_score} — <strong>{user}</strong> just forced every committee member to update their notes.",
+                    "That is going to echo. <strong>{user}</strong>'s <strong>{team}</strong> beat <strong>#{opp_rank} {opponent}</strong>, {win_score}-{lose_score}. The résumé officially has a signature win.",
                     "<strong>{user}</strong> has been building toward a result like this. <strong>{team}</strong> over <strong>#{opp_rank} {opponent}</strong>, {win_score}-{lose_score}. The rest of the field just got a warning.",
+                    "Circle that date. <strong>{team}</strong> knocked off <strong>#{opp_rank} {opponent}</strong> {win_score}-{lose_score} and nobody in this dynasty is sleeping on <strong>{user}</strong> anymore.",
+                    "The hardest thing to fake in college football is a big win. <strong>{team}</strong> did not fake anything — <strong>#{opp_rank} {opponent}</strong> is on the résumé now, {win_score}-{lose_score}.",
+                    "When people ask what kind of program <strong>{user}</strong> is building, point them to <strong>{team}</strong> {win_score}-{lose_score} over <strong>#{opp_rank} {opponent}</strong>. That is the answer.",
                 ]
             },
             'playoff_result': {
@@ -13986,22 +14000,26 @@ with tabs[0]:
                 'bodies': [
                     "The bracket moved. <strong>{winner_user}</strong> ({winner_team}) sent {loser_user} ({loser_team}) home <strong>{win_score}-{lose_score}</strong> in {round_name}.",
                     "Survive and advance: <strong>{winner_team}</strong> beat {loser_team} <strong>{win_score}-{lose_score}</strong> in {round_name}. <strong>{winner_user}</strong> keeps breathing.",
-                    "{round_name} is settled. <strong>{winner_team}</strong> over {loser_team}, <strong>{win_score}-{lose_score}</strong>. <strong>{winner_user}</strong> is still alive and <strong>{loser_user}</strong> is going home.",
-                    "One more round in the books. <strong>{winner_user}</strong>'s <strong>{winner_team}</strong> handled {loser_team} {win_score}-{lose_score} in {round_name} and the run continues.",
-                    "<strong>{winner_team}</strong> {win_score}, {loser_team} {lose_score}. <strong>{winner_user}</strong> advances out of {round_name}. <strong>{loser_user}</strong> is done.",
-                    "This dynasty does not hand out participation banners. <strong>{winner_team}</strong> closed out {loser_team} in {round_name}, <strong>{win_score}-{lose_score}</strong>. <strong>{winner_user}</strong> is one step closer.",
+                    "{round_name} is settled. <strong>{winner_team}</strong> over {loser_team}, <strong>{win_score}-{lose_score}</strong>. <strong>{winner_user}</strong> is still alive.",
+                    "One more round in the books. <strong>{winner_user}</strong>'s <strong>{winner_team}</strong> handled {loser_team} {win_score}-{lose_score} in {round_name}.",
+                    "This dynasty does not hand out participation banners. <strong>{winner_team}</strong> closed out {loser_team} in {round_name}, <strong>{win_score}-{lose_score}</strong>.",
+                    "<strong>{loser_user}</strong>'s run ends here. <strong>{winner_team}</strong> beats {loser_team} {win_score}-{lose_score} in {round_name} and <strong>{winner_user}</strong> is not done yet.",
+                    "One team is still dancing. <strong>{winner_team}</strong> over {loser_team} {win_score}-{lose_score} in {round_name}. <strong>{winner_user}</strong> now has a title within reach.",
+                    "The {round_name} script got written. <strong>{winner_team}</strong> {win_score}, {loser_team} {lose_score}. <strong>{winner_user}</strong> looked like a team that wanted it more.",
                 ]
             },
             'collapse_watch': {
                 'emoji': '💀',
                 'title': 'Collapse Watch',
                 'bodies': [
-                    "<strong>{user}</strong> ({team}) owns the dynasty's highest collapse flag at <strong>{risk}%</strong>. The upside is real, but so is the trap door.",
-                    "Volatility alert: <strong>{team}</strong> carries a <strong>{risk}%</strong> collapse risk. <strong>{user}</strong> is walking a tightrope right now.",
-                    "The model is flashing yellow on <strong>{team}</strong>. A <strong>{risk}%</strong> collapse risk is not a prediction — it is a warning. <strong>{user}</strong> needs answers soon.",
-                    "<strong>{risk}%</strong> collapse probability on <strong>{team}</strong>. That is not a number <strong>{user}</strong> can ignore. The schedule does not get easier from here.",
-                    "Something is off with <strong>{team}</strong> and the model sees it. <strong>{risk}%</strong> collapse flag — <strong>{user}</strong> needs a result before this narrative takes hold.",
-                    "The gap between what <strong>{team}</strong> looks like on paper and what the model projects is real. <strong>{risk}%</strong> collapse risk. <strong>{user}</strong> has some explaining to do.",
+                    "<strong>{user}</strong> ({team}) owns the dynasty's highest collapse flag at <strong>{risk}%</strong>. The upside is real but so is the trap door.",
+                    "Volatility alert: <strong>{team}</strong> carries a <strong>{risk}%</strong> collapse risk. <strong>{user}</strong> is walking a tightrope with no net.",
+                    "The model is flashing yellow on <strong>{team}</strong>. A <strong>{risk}%</strong> collapse risk is not a prediction — it is a warning.",
+                    "<strong>{risk}%</strong> collapse probability on <strong>{team}</strong>. <strong>{user}</strong> cannot ignore this number. The schedule does not get easier.",
+                    "The gap between what <strong>{team}</strong> looks like on paper and what the model projects is real. <strong>{risk}%</strong> collapse flag. <strong>{user}</strong> has some explaining to do.",
+                    "Every dynasty has a team that looked great on paper until it did not. Right now, that warning light is on for <strong>{team}</strong>. <strong>{risk}%</strong>. <strong>{user}</strong> needs a result.",
+                    "The model does not hate <strong>{team}</strong>. It is just honest about the <strong>{risk}%</strong> collapse risk. <strong>{user}</strong> has the talent to quiet this — but the clock is ticking.",
+                    "A <strong>{risk}%</strong> collapse flag does not mean <strong>{team}</strong> is going to fall apart. It means the conditions are right for it. <strong>{user}</strong> needs to change the conditions.",
                 ]
             },
             'injury_blow': {
@@ -14009,11 +14027,13 @@ with tabs[0]:
                 'title': 'Injury Blow',
                 'bodies': [
                     "Brutal hit for <strong>{user}</strong> ({team}): <strong>{player}</strong> ({pos}, {ovr} OVR) is out <strong>{weeks}</strong> weeks with a {injury}.",
-                    "Depth chart damage in {team}. <strong>{player}</strong> is shelved for <strong>{weeks}</strong> weeks, and <strong>{user}</strong> just lost a major piece.",
-                    "<strong>{player}</strong> is done for <strong>{weeks}</strong> weeks. The {ovr} OVR {pos} was a core piece for <strong>{team}</strong> and now <strong>{user}</strong> has to figure out a next man up answer.",
-                    "The injury report is not <strong>{user}</strong>'s friend right now. <strong>{player}</strong> ({pos}) goes down for <strong>{weeks}</strong> weeks and <strong>{team}</strong>'s depth just got tested.",
-                    "Season-altering news out of <strong>{team}</strong>. <strong>{player}</strong> is out <strong>{weeks}</strong> weeks — that is a {ovr} OVR {pos} off the field for <strong>{user}</strong> at the worst time.",
-                    "The {injury} cost <strong>{team}</strong> a real one. <strong>{player}</strong>, {ovr} OVR {pos}, is shelved for <strong>{weeks}</strong> weeks. <strong>{user}</strong> needs the depth chart to step up immediately.",
+                    "Depth chart damage in <strong>{team}</strong>. <strong>{player}</strong> is shelved for <strong>{weeks}</strong> weeks and <strong>{user}</strong> just lost a major piece.",
+                    "<strong>{player}</strong> is done for <strong>{weeks}</strong> weeks. The {ovr} OVR {pos} was a core piece for <strong>{team}</strong> and now <strong>{user}</strong> has to find a next man up answer.",
+                    "Season-altering news out of <strong>{team}</strong>. <strong>{player}</strong> is out <strong>{weeks}</strong> weeks — that is a {ovr} OVR {pos} off the field at the worst time.",
+                    "The {injury} cost <strong>{team}</strong> a real one. <strong>{player}</strong>, {ovr} OVR {pos}, shelved for <strong>{weeks}</strong> weeks. <strong>{user}</strong>'s depth chart just got tested.",
+                    "<strong>{weeks}</strong> weeks without <strong>{player}</strong>. The {injury} could not have come at a worse time for <strong>{user}</strong>'s <strong>{team}</strong>. Now we find out who else on that roster can step up.",
+                    "When a {ovr} OVR {pos} goes down for <strong>{weeks}</strong> weeks, programs find out what they are made of. <strong>{user}</strong>'s <strong>{team}</strong> is about to find out.",
+                    "The injury report does not care about résumés or rankings. <strong>{player}</strong> is out and <strong>{user}</strong>'s <strong>{team}</strong> has to figure out <strong>{weeks}</strong> weeks without one of their best.",
                 ]
             },
             'elite_qb': {
@@ -14025,7 +14045,9 @@ with tabs[0]:
                     "Championship DNA starts under center. The best QB situations in the dynasty right now: {names}. Everyone else is playing catch-up.",
                     "Want to know who has a real shot this season? Start with the QB room. {names} are operating at a level this dynasty does not see every year.",
                     "{names} — that is the elite quarterback conversation in this dynasty right now. Every one of those programs is dangerous because of it.",
-                    "High-end quarterback play is the great equalizer and {names} all have it. Whatever else happens this season, those programs have the most important position locked.",
+                    "The position that wins championships is being played at a championship level by {names}. The rest of the field has a gap to close.",
+                    "In this dynasty, elite quarterback play is the great separator. Right now {names} are playing at that level. Everyone else is one bad Saturday from the conversation changing.",
+                    "You cannot fake elite quarterback play. {names} are not faking it — those are the real ones right now and the model agrees.",
                 ]
             },
             'qb_disaster': {
@@ -14034,10 +14056,11 @@ with tabs[0]:
                 'bodies': [
                     "The danger list at quarterback is {names}. A roster can hide bad QB play for a while — not forever.",
                     "Somebody's offense is one bad Saturday from combusting. The roughest QB situations right now: {names}.",
-                    "You can scheme around a lot of things in this dynasty. A bad quarterback is not one of them. Right now the concern list reads: {names}.",
+                    "You can scheme around a lot of things in this dynasty. A bad quarterback is not one of them. The concern list reads: {names}.",
                     "The QB situation is going to be the story for {names} before this season is over. The rest of the roster can only carry so much.",
-                    "Not every program has solved the most important position on the field. {names} are the names the model is flagging at quarterback right now.",
-                    "Wins cover up QB problems until they do not. {names} are the situations worth watching — the margin for error is thin at those positions.",
+                    "Wins cover up QB problems until they do not. {names} are the situations worth watching — the margin for error is thin.",
+                    "This dynasty has seen programs carried by their defense for a stretch. It ends eventually. {names} need a solution at quarterback before the schedule demands one.",
+                    "The model does not have a nice way to say this. {names} have a quarterback problem and the résumé is going to show it before the season is over.",
                 ]
             },
             'recruiting_king': {
@@ -14045,11 +14068,13 @@ with tabs[0]:
                 'title': 'Recruiting King',
                 'bodies': [
                     "<strong>{user}</strong> ({team}) owns the No. 1 recruiting haul right now at <strong>{points}</strong> points. Future power is being stockpiled in real time.",
-                    "Roster building never stops. <strong>{team}</strong> sits on the top class in the country, and <strong>{user}</strong> is already loading the next wave.",
+                    "Roster building never stops. <strong>{team}</strong> sits on the top class in the country and <strong>{user}</strong> is already loading the next wave.",
                     "The pipeline is wide open at <strong>{team}</strong>. <strong>{points}</strong> recruiting points — <strong>{user}</strong> is not just building for now, they are building for three years from now.",
-                    "<strong>{user}</strong> is winning the recruiting war and it is not particularly close. <strong>{team}</strong> at <strong>{points}</strong> points leads the dynasty. The talent gap is going to widen.",
-                    "Championship programs are built on the trail before they are built on the field. <strong>{team}</strong> leads all recruiters at <strong>{points}</strong> points. <strong>{user}</strong> is doing the work.",
-                    "While everyone else is focused on this week's game, <strong>{user}</strong> is winning the next two seasons on the trail. <strong>{team}</strong> at <strong>{points}</strong> recruiting points — the future belongs to them.",
+                    "<strong>{user}</strong> is winning the recruiting war and it is not close. <strong>{team}</strong> at <strong>{points}</strong> points leads the dynasty. The talent gap is going to widen.",
+                    "While everyone else is focused on this week's game, <strong>{user}</strong> is winning the next two seasons on the trail. <strong>{team}</strong> at <strong>{points}</strong> recruiting points.",
+                    "This is how programs sustain runs. <strong>{team}</strong> at <strong>{points}</strong> recruiting points is not an accident — <strong>{user}</strong> is working the trail harder than everyone else.",
+                    "Recruiting rankings are never the full story. But when <strong>{team}</strong> leads the dynasty at <strong>{points}</strong> points, that is a real signal. <strong>{user}</strong> is building something.",
+                    "The best recruits in the country are looking at <strong>{team}</strong> differently right now. <strong>{user}</strong>'s <strong>{points}</strong>-point haul is the kind of class that rewrites rosters.",
                 ]
             },
             'speed_merchants': {
@@ -14060,8 +14085,9 @@ with tabs[0]:
                     "The fastest room in the dynasty belongs to <strong>{team}</strong>. <strong>{user}</strong> has <strong>{s90}</strong> true burners{extras}.",
                     "<strong>{s90}</strong> players clocked at 90+ speed on <strong>{team}</strong>'s roster{extras}. <strong>{user}</strong> has turned the depth chart into a track meet entry list.",
                     "Every coordinator in this dynasty game-plans for speed. None of them have an answer for <strong>{team}</strong>. <strong>{s90}</strong> burners{extras} — <strong>{user}</strong> built a problem.",
-                    "The athleticism on <strong>{team}</strong>'s roster is not normal. <strong>{s90}</strong> players at 90+ speed{extras}. <strong>{user}</strong> is recruiting a different kind of weapon.",
                     "On paper, <strong>{team}</strong> is the fastest program in this dynasty right now. <strong>{s90}</strong> players with elite speed{extras}. <strong>{user}</strong> made sure of it.",
+                    "Speed kills and <strong>{team}</strong> brought the murder weapon. <strong>{s90}</strong> players at 90+ speed{extras} — good luck containing that. <strong>{user}</strong> is not sorry.",
+                    "The dynasty has always rewarded talent. Right now the talent looks like <strong>{s90}</strong> speed players on <strong>{team}</strong>'s roster{extras}. <strong>{user}</strong> is not building a team. They are building a problem.",
                 ]
             },
             'win_streak': {
@@ -14073,55 +14099,34 @@ with tabs[0]:
                     "<strong>{streak}</strong> in a row for <strong>{team}</strong>. This is not a hot stretch anymore — this is a statement. <strong>{user}</strong> has their program locked in.",
                     "The wins keep coming for <strong>{user}</strong>. <strong>{team}</strong> at <strong>{streak}</strong> straight and the margin on the field suggests this is not slowing down.",
                     "Do not sleep on what <strong>{team}</strong> is doing right now. <strong>{streak}</strong> consecutive wins for <strong>{user}</strong> — the résumé is building itself.",
-                    "<strong>{user}</strong> has <strong>{team}</strong> rolling. <strong>{streak}</strong> straight wins and the model is upgrading this program with every result.",
+                    "<strong>{streak}</strong> in a row. Every time this dynasty thinks it has <strong>{team}</strong> figured out, <strong>{user}</strong> adds another win to the streak.",
+                    "The difference between a good team and a dangerous team is a win streak at the right moment. <strong>{team}</strong> has <strong>{streak}</strong> and <strong>{user}</strong> knows exactly what that means.",
+                    "A <strong>{streak}</strong>-game win streak is not luck. It is a locked-in program. <strong>{user}</strong>'s <strong>{team}</strong> is the hottest team in this dynasty right now — and they know it.",
                 ]
             },
             'record_watch': {
                 'emoji': '📊',
                 'title': 'Record Watch',
                 'bodies': [
-                    "At the top, <strong>{best_user}</strong> ({best_team}) is cruising at <strong>{best_record}</strong>. At the other end, {worst_user} ({worst_team}) is stuck at {worst_record}.",
-                    "The gap in this league is showing. <strong>{best_team}</strong> is thriving at <strong>{best_record}</strong>, while {worst_team} is scraping at {worst_record}.",
-                    "<strong>{best_team}</strong> at <strong>{best_record}</strong> and {worst_team} at {worst_record}. The separation between the programs in this dynasty is not subtle right now.",
-                    "The standings tell the story. <strong>{best_user}</strong>'s <strong>{best_team}</strong> is playing its best football at <strong>{best_record}</strong>. {worst_user}'s {worst_team} at {worst_record} needs a different answer.",
-                    "Two different seasons happening at once. <strong>{best_team}</strong> is {best_record} and rolling. {worst_team} is {worst_record} and looking for answers. This dynasty has real separation right now.",
-                    "<strong>{best_record}</strong> for <strong>{best_user}</strong>. {worst_record} for {worst_user}. The difference between winning a dynasty and rebuilding one is showing up in the record column.",
-                ]
-            },
-            'user_h2h': {
-                'emoji': '⚔️',
-                'title': 'User vs User — On Deck',
-                'bodies': [
-                    "Circle it: <strong>{vis_user}</strong> ({visitor}) vs <strong>{home_user}</strong> ({home}) is coming in Week <strong>{week}</strong>. Somebody's season is about to take a direct hit.",
-                    "The next must-watch game is set. <strong>{visitor}</strong> and <strong>{home}</strong> are about to collide in Week <strong>{week}</strong>.",
-                    "Week <strong>{week}</strong> is going to matter. <strong>{vis_user}</strong> bringing <strong>{visitor}</strong> into <strong>{home_user}</strong>'s house. One of these programs is walking out with a different season.",
-                    "This one has implications. <strong>{visitor}</strong> vs <strong>{home}</strong> in Week <strong>{week}</strong> — <strong>{vis_user}</strong> and <strong>{home_user}</strong> both need this result.",
-                    "The schedule set up a good one. <strong>{vis_user}</strong> ({visitor}) at <strong>{home_user}</strong> ({home}) in Week <strong>{week}</strong>. Dynasty bragging rights on the line.",
-                    "Mark Week <strong>{week}</strong> on the calendar. <strong>{visitor}</strong> versus <strong>{home}</strong> is the matchup this dynasty has been waiting for — <strong>{vis_user}</strong> against <strong>{home_user}</strong> with real stakes.",
-                ]
-            },
-            'dynasty_history': {
-                'emoji': '📜',
-                'title': 'Dynasty History',
-                'bodies': [
-                    "Did you know? <strong>{team}</strong> won the first tracked national title back in <strong>{year}</strong>. This world has crowned <strong>{total_titles}</strong> champions since then.",
-                    "Throwback time: the first banner in this dynasty went up in <strong>{year}</strong>. Since then we've seen <strong>{total_titles}</strong> title seasons across <strong>{unique_champs}</strong> programs.",
-                    "The dynasty started in <strong>{year}</strong> with <strong>{team}</strong> cutting the nets. <strong>{total_titles}</strong> titles have been claimed since — across <strong>{unique_champs}</strong> different programs.",
-                    "This world was built on a foundation. <strong>{team}</strong> won the first title in <strong>{year}</strong> and since then <strong>{total_titles}</strong> championships have been handed out to <strong>{unique_champs}</strong> different programs.",
-                    "<strong>{total_titles}</strong> national championships. <strong>{unique_champs}</strong> programs. It started with <strong>{team}</strong> in <strong>{year}</strong> and this dynasty has not stopped producing stories since.",
-                    "Every dynasty has a beginning. <strong>{team}</strong> wrote the first chapter in <strong>{year}</strong>. <strong>{total_titles}</strong> titles later, across <strong>{unique_champs}</strong> programs, the story is still being written.",
+                    "<strong>{user}</strong> ({team}) is tracking at the pace of one of the better seasons in this dynasty. The numbers are worth noting.",
+                    "The record this season is doing more than just sitting there. <strong>{team}</strong> is building something <strong>{user}</strong> can point to come selection time.",
+                    "Context matters in résumé building. Right now <strong>{team}</strong>'s record is doing the work. <strong>{user}</strong> is on track for a season that holds up to scrutiny.",
+                    "There are records that age well and records that do not. Right now <strong>{user}</strong>'s <strong>{team}</strong> is building one that should look good when it matters.",
+                    "The pace <strong>{team}</strong> is on right now is a real number. <strong>{user}</strong> is building a record that will be hard to argue with.",
+                    "Not every strong season ends in a title but every title run starts with a record worth defending. <strong>{user}</strong>'s <strong>{team}</strong> is building one of those.",
                 ]
             },
             'dynasty_gap': {
                 'emoji': '📉',
                 'title': 'Model vs Poll Gap',
                 'bodies': [
-                    "<strong>{user}</strong> ({team}) has the biggest gap between model strength and ranking right now. The computers think this team is better than the poll does.",
+                    "<strong>{user}</strong> ({team}) has the biggest gap between model strength and ranking. The computers think this team is better than the poll does.",
                     "Nobody has a wider perception gap than <strong>{team}</strong>. <strong>{user}</strong> looks under-seeded compared to the model.",
-                    "The voters and the model are not agreeing on <strong>{team}</strong> right now. <strong>{user}</strong> is ranked lower than the algorithm says they should be — and gaps like this have a way of closing violently.",
-                    "Something does not add up with <strong>{team}</strong>'s ranking. The model says they are better than the poll shows. <strong>{user}</strong> is either undervalued or about to be exposed — the next few weeks decide which.",
-                    "This is the most mis-seeded team in the dynasty right now. <strong>{team}</strong> has the production profile of a program ranked much higher. <strong>{user}</strong> is flying under the radar — intentionally or not.",
+                    "The voters and the model are not agreeing on <strong>{team}</strong> right now. Gaps like this have a way of closing violently.",
                     "The committee is underselling <strong>{team}</strong> and the model has receipts. <strong>{user}</strong> has built something the poll has not fully accounted for yet.",
+                    "This is the most mis-seeded team in the dynasty right now. <strong>{team}</strong> has the production profile of a program ranked much higher. <strong>{user}</strong> is flying under the radar.",
+                    "The model is not confused — the poll is. <strong>{team}</strong> deserves a higher number and <strong>{user}</strong> is one statement win away from forcing the committee to admit it.",
+                    "Every week the gap between what <strong>{team}</strong> shows on film and where the voters have them gets harder to explain. <strong>{user}</strong> is about to make them explain it.",
                 ]
             },
             'halftime_comeback': {
@@ -14129,11 +14134,12 @@ with tabs[0]:
                 'title': 'Halftime Comeback',
                 'bodies': [
                     "<strong>{user}</strong>'s <strong>{team}</strong> trailed <strong>{opp}</strong> {deficit}-{half_score} at the half and won {final_w}-{final_l}. That is a different kind of team.",
-                    "Down <strong>{deficit}-{half_score}</strong> at halftime against <strong>{opp}</strong>. Final score: <strong>{team} {final_w}, {opp} {final_l}</strong>. <strong>{user}</strong> does not panic — this program finds a way.",
-                    "The halftime locker room had to be electric. <strong>{team}</strong> was behind {deficit}-{half_score} and came back to beat <strong>{opp}</strong> {final_w}-{final_l}. <strong>{user}</strong> just delivered a statement.",
-                    "<strong>{opp}</strong> led {deficit}-{half_score} at the break and it was not enough. <strong>{user}</strong>'s <strong>{team}</strong> stormed back to win {final_w}-{final_l}. The second half belonged to one team.",
-                    "Halftime score: <strong>{opp} {deficit}, {team} {half_score}</strong>. Final: <strong>{team} {final_w}, {opp} {final_l}</strong>. That is the entire story. <strong>{user}</strong> refused to stay down.",
-                    "You cannot count out <strong>{team}</strong>. Down {deficit}-{half_score} at the half to <strong>{opp}</strong>, <strong>{user}</strong> watched this roster flip the game and win {final_w}-{final_l}.",
+                    "Down <strong>{deficit}-{half_score}</strong> at halftime against <strong>{opp}</strong>. Final: <strong>{team} {final_w}, {opp} {final_l}</strong>. <strong>{user}</strong> does not panic.",
+                    "The halftime locker room had to be electric. <strong>{team}</strong> was behind and came back to beat <strong>{opp}</strong> {final_w}-{final_l}. <strong>{user}</strong> just delivered a statement.",
+                    "You cannot count out <strong>{team}</strong>. Down {deficit}-{half_score} at the half, <strong>{user}</strong> watched this roster flip the game and win {final_w}-{final_l}.",
+                    "Half 1: <strong>{opp} {deficit}, {team} {half_score}</strong>. Half 2: <strong>{team} wins {final_w}-{final_l}</strong>. <strong>{user}</strong> made adjustments. <strong>{opp}</strong> did not have answers.",
+                    "Down <strong>{deficit}-{half_score}</strong> and the dynasty already had the obituary half-written. <strong>{team}</strong> did not read it. <strong>{user}</strong> walks out with {final_w}-{final_l}.",
+                    "The greatest halftime speech in this dynasty happened inside <strong>{team}</strong>'s locker room today. Down {deficit}-{half_score}, final score {final_w}-{final_l}. <strong>{user}</strong> does not know how to quit.",
                 ]
             },
             'blowout_win': {
@@ -14141,11 +14147,13 @@ with tabs[0]:
                 'title': 'Dominant Win',
                 'bodies': [
                     "<strong>{user}</strong>'s <strong>{team}</strong> just put <strong>{opp}</strong> away <strong>{final_w}-{final_l}</strong>. That was not a football game — that was a statement.",
-                    "The final score was <strong>{final_w}-{final_l}</strong> and it felt like more. <strong>{team}</strong> walked through <strong>{opp}</strong> and <strong>{user}</strong> did not have to sweat a single quarter.",
-                    "<strong>{final_w}-{final_l}</strong>. <strong>{team}</strong> over <strong>{opp}</strong>. <strong>{user}</strong> just released a tape the committee is going to have to study for a week.",
-                    "That was a clinic. <strong>{user}</strong>'s <strong>{team}</strong> dropped <strong>{opp}</strong> by {margin} points and never looked threatened. The résumé just got a lot louder.",
-                    "If the goal is to send a message, <strong>{team}</strong> sent one. <strong>{final_w}-{final_l}</strong> over <strong>{opp}</strong>. <strong>{user}</strong> is playing at a different level right now.",
+                    "The final score was <strong>{final_w}-{final_l}</strong> and it felt like more. <strong>{team}</strong> walked through <strong>{opp}</strong> and <strong>{user}</strong> did not sweat a single quarter.",
+                    "<strong>{final_w}-{final_l}</strong>. <strong>{team}</strong> over <strong>{opp}</strong>. <strong>{user}</strong> just released a tape the committee is going to study for a week.",
+                    "That was a clinic. <strong>{user}</strong>'s <strong>{team}</strong> dropped <strong>{opp}</strong> by {margin} points and never looked threatened. The résumé just got louder.",
+                    "If the goal is to send a message, <strong>{team}</strong> sent one. <strong>{final_w}-{final_l}</strong> over <strong>{opp}</strong>. <strong>{user}</strong> is playing at a different level.",
                     "<strong>{opp}</strong> had no answer. <strong>{team}</strong> wins {final_w}-{final_l} in a performance that was never in doubt. <strong>{user}</strong>'s program is hitting its ceiling at the right time.",
+                    "The final score was <strong>{final_w}-{final_l}</strong>. The real number was the margin — {margin} points. <strong>{user}</strong> did not just beat <strong>{opp}</strong>, they made a statement for the committee.",
+                    "You want to know what a fully locked-in <strong>{team}</strong> looks like? Tape does not lie. <strong>{user}</strong> put up {final_w}-{final_l} against <strong>{opp}</strong> and it was not close.",
                 ]
             },
             'offensive_explosion': {
@@ -14154,22 +14162,38 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{user}</strong>'s <strong>{team}</strong> put up <strong>{total_pts} points</strong> against <strong>{opp}</strong>. The offense is clicking at a level this dynasty does not often see.",
                     "<strong>{total_pts} points</strong>. <strong>{team}</strong> torched <strong>{opp}</strong> and <strong>{user}</strong> has an offense that is impossible to game-plan against right now.",
-                    "The scoring line reads <strong>{team} {total_pts}, {opp} {opp_pts}</strong>. When <strong>{user}</strong>'s offense gets going like this, nobody in this field has an answer.",
+                    "The scoring line reads <strong>{team} {total_pts}, {opp} {opp_pts}</strong>. When <strong>{user}</strong>'s offense gets going like this, nobody has an answer.",
                     "Consider this a warning. <strong>{team}</strong> just went for <strong>{total_pts} points</strong> and <strong>{user}</strong>'s offense has not shown a ceiling yet.",
                     "<strong>{total_pts} points</strong> from <strong>{team}</strong>. <strong>{user}</strong> built an offense that can score on anyone — <strong>{opp}</strong> just learned that the hard way.",
-                    "The efficiency numbers on <strong>{team}</strong> right now are absurd. <strong>{total_pts} points</strong> against <strong>{opp}</strong> — <strong>{user}</strong> has this machine running.",
+                    "There is no shutting this offense down. <strong>{total_pts} points</strong> from <strong>{team}</strong> — every coordinator in this dynasty should watch this film before their bye week.",
+                    "When a dynasty offense goes for <strong>{total_pts} points</strong>, people remember it. <strong>{user}</strong>'s <strong>{team}</strong> just put their name in those conversations.",
+                    "<strong>{opp_pts}</strong> for <strong>{opp}</strong>. <strong>{total_pts}</strong> for <strong>{team}</strong>. The math is not close and neither was the game. <strong>{user}</strong> has something special running.",
                 ]
             },
             'turnover_disaster': {
                 'emoji': '💀',
                 'title': 'Turnover Disaster',
                 'bodies': [
-                    "<strong>{user}</strong>'s <strong>{team}</strong> coughed it up <strong>{turnovers} times</strong> against <strong>{opp}</strong> and paid the price. Turnover margin is the sport's most unforgiving stat.",
+                    "<strong>{user}</strong>'s <strong>{team}</strong> coughed it up <strong>{turnovers} times</strong> against <strong>{opp}</strong>. Turnover margin is the sport's most unforgiving stat.",
                     "<strong>{turnovers} turnovers</strong>. That is the <strong>{team}</strong> box score against <strong>{opp}</strong>. <strong>{user}</strong> cannot win a title giving the ball away like that.",
-                    "The stat that kills drives: <strong>{team}</strong> committed <strong>{turnovers} turnovers</strong> against <strong>{opp}</strong>. <strong>{user}</strong> has to fix this before the schedule gets harder.",
-                    "You cannot sustain drives and you cannot sustain a season with <strong>{turnovers} turnovers</strong>. <strong>{team}</strong> found that out against <strong>{opp}</strong>. <strong>{user}</strong> has a problem to solve.",
-                    "The margin in college football is always thinner than it looks. <strong>{team}</strong> put the ball on the ground <strong>{turnovers} times</strong> against <strong>{opp}</strong> — <strong>{user}</strong> is lucky this did not cost more.",
-                    "<strong>{turnovers} giveaways</strong> against <strong>{opp}</strong>. <strong>{user}</strong>'s <strong>{team}</strong> is too talented to lose games to itself — but that is exactly what almost happened here.",
+                    "You cannot sustain a season with <strong>{turnovers} turnovers</strong>. <strong>{team}</strong> found that out against <strong>{opp}</strong>. <strong>{user}</strong> has a problem to solve.",
+                    "<strong>{turnovers} giveaways</strong> against <strong>{opp}</strong>. <strong>{user}</strong>'s <strong>{team}</strong> is too talented to lose games to itself — but that is exactly what almost happened.",
+                    "The model does not grade on a curve for self-inflicted damage. <strong>{turnovers} turnovers</strong> from <strong>{team}</strong> against <strong>{opp}</strong> — <strong>{user}</strong> has some film to watch.",
+                    "<strong>{team}</strong> is a dangerous program with a dangerous habit. <strong>{turnovers} turnovers</strong> against <strong>{opp}</strong> is the kind of number that shows up in CFP committee presentations.",
+                    "Defense causes turnovers. Careless teams hand them out. <strong>{team}</strong> handed out <strong>{turnovers}</strong> against <strong>{opp}</strong> and <strong>{user}</strong> barely survived the generosity.",
+                ]
+            },
+            'user_h2h': {
+                'emoji': '⚔️',
+                'title': 'Rivalry Showdown',
+                'bodies': [
+                    "<strong>{user1}</strong> ({team1}) vs <strong>{user2}</strong> ({team2}). These games always feel different. The dynasty's best rivalries write their best chapters right now.",
+                    "When <strong>{team1}</strong> and <strong>{team2}</strong> line up, the dynasty stops and watches. <strong>{user1}</strong> and <strong>{user2}</strong> have history — and they both know it.",
+                    "The schedule brought us <strong>{user1}</strong> ({team1}) against <strong>{user2}</strong> ({team2}). Whatever happens, the story will still be getting told weeks from now.",
+                    "Mark this one down. <strong>{team1}</strong> vs <strong>{team2}</strong> — <strong>{user1}</strong> vs <strong>{user2}</strong>. This is exactly what this dynasty was built for.",
+                    "Forget the rankings. When <strong>{user1}</strong>'s <strong>{team1}</strong> meets <strong>{user2}</strong>'s <strong>{team2}</strong>, the only number that matters is the final score.",
+                    "Two coaches who know each other's tendencies. Two programs with everything to prove. <strong>{team1}</strong> vs <strong>{team2}</strong> — the kind of game this dynasty puts on a pedestal.",
+                    "In a dynasty full of memorable moments, <strong>{user1}</strong> vs <strong>{user2}</strong> moments tend to be the ones that get referenced for the rest of the season.",
                 ]
             },
         }
@@ -15919,6 +15943,31 @@ with tabs[0]:
                 # SECTION 4 — AWARD WATCH
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
+        # ── All-time Heisman Finalist Appearances ──────────────────────────────
+        if heisman_fin is not None and not heisman_fin.empty:
+            runner_df = heisman_fin[
+                (heisman_fin['USER'].isin(USER_TEAMS.keys())) &
+                (heisman_fin['WINNER'] == 'No')
+            ].copy()
+            if not runner_df.empty:
+                st.markdown(
+                    "<div style='margin:10px 0 16px 0;padding:10px 14px;"
+                    "background:linear-gradient(90deg,#1f2937,#111827);border-left:4px solid #f59e0b;"
+                    "border-radius:0 10px 10px 0;'>"
+                    "<span style='color:#f59e0b;font-size:0.8rem;font-weight:900;letter-spacing:.06em;"
+                    "text-transform:uppercase;'>🥈 All-Time Finalist Appearances (No Win)</span></div>",
+                    unsafe_allow_html=True
+                )
+                for _, rf in runner_df.sort_values(['YEAR','FINISH']).iterrows():
+                    st.markdown(
+                        f"<div style='font-size:0.82rem;color:#d1d5db;padding:3px 0 3px 14px;border-left:2px solid #374151;margin-bottom:3px;'>"
+                        f"<span style='color:#9ca3af;font-weight:700;'>{int(rf['YEAR'])}</span>"
+                        f"&nbsp;&nbsp;<strong style='color:#fbbf24;'>{rf['USER']}</strong>"
+                        f" — {rf['NAME']} <span style='color:#6b7280;'>({rf['POS']}, {rf['TEAM']})</span>"
+                        f"&nbsp;<span style='color:#475569;font-size:.75rem;'>#{int(rf['FINISH'])} overall</span></div>",
+                        unsafe_allow_html=True
+                    )
+
         st.subheader("🏆 Award Watch")
 
         aw_col1, aw_col2 = st.columns(2)
@@ -15958,28 +16007,8 @@ with tabs[0]:
                                 unsafe_allow_html=True
                             )
 
-            # Finalist callout — users who finished top-5 but didn't win
-            if heisman_fin is not None and not heisman_fin.empty:
-                runner_df = heisman_fin[
-                    (heisman_fin['USER'].isin(USER_TEAMS.keys())) &
-                    (heisman_fin['WINNER'] == 'No')
-                ].copy()
-                if not runner_df.empty:
-                    st.markdown("<div style='margin-top:8px;padding:6px 10px;background:#1f2937;border-left:3px solid #f59e0b;border-radius:6px;'>", unsafe_allow_html=True)
-                    st.markdown("<span style='color:#f59e0b;font-size:0.78rem;font-weight:700;'>🥈 FINALIST APPEARANCES (no win)</span>", unsafe_allow_html=True)
-                    for _, rf in runner_df.sort_values(['USER','YEAR']).iterrows():
-                        st.markdown(
-                            f"<div style='font-size:0.78rem;color:#d1d5db;padding:2px 0;'>"
-                            f"<span style='color:#9ca3af;'>{int(rf['YEAR'])}</span>"
-                            f" &nbsp;<strong>{rf['USER']}</strong> — {rf['NAME']} ({rf['POS']}, {rf['TEAM']}) "
-                            f"<span style='color:#6b7280;'>#{int(rf['FINISH'])} overall</span></div>",
-                            unsafe_allow_html=True
-                        )
-                    st.markdown("</div>", unsafe_allow_html=True)
             if heisman is None or heisman.empty:
                 st.caption("No Heisman data loaded.")
-
-            st.caption(f"Live {CURRENT_YEAR} Heisman board moved to the former Toughest Matchups slot above.")
 
         with aw_col2:
             st.markdown("#### 🎓 Coach of the Year History")
