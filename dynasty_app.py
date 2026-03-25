@@ -5169,13 +5169,43 @@ st.markdown("""
         font-family: 'Barlow', sans-serif !important;
     }
 
-    /* Headers — Barlow Condensed bold */
-    h1, h2, h3, h4, h5, h6,
+    /* Headers — broadcast masthead style across all tabs */
+    h1, h2, h3,
     [data-testid="stHeading"],
     .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         font-family: 'Barlow Condensed', sans-serif !important;
+        font-weight: 900 !important;
+        letter-spacing: 0.01em;
+        text-transform: uppercase;
+        color: #f8fafc !important;
+        line-height: 1.05 !important;
+    }
+    h1, [data-testid="stHeading"] h1 { font-size: 2.4rem !important; }
+    h2, [data-testid="stHeading"] h2 { font-size: 1.8rem !important; }
+    h3, [data-testid="stHeading"] h3 { font-size: 1.35rem !important; }
+    h4, h5, h6 {
+        font-family: 'Barlow Condensed', sans-serif !important;
         font-weight: 700 !important;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    /* Eyebrow-style caption under section headers */
+    .stMarkdown h2 + p, .stMarkdown h3 + p {
+        font-size: 0.78rem !important;
+        color: #64748b !important;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-weight: 600 !important;
+    }
+    /* Red accent line above h2 and h3 — broadcast feel */
+    .stMarkdown h2::before {
+        content: '';
+        display: block;
+        height: 2px;
+        width: 32px;
+        background: #ef4444;
+        margin-bottom: 6px;
+        border-radius: 2px;
     }
 
     /* Tab labels */
@@ -13268,41 +13298,60 @@ with tabs[0]:
             )
             _is_ready = _gs == 'Ready' or _has_score
 
-            _sq_bg  = '#16a34a' if _is_ready else '#dc2626'   # green or red fill
-            _sq_bdr = '#4ade80' if _is_ready else '#f87171'   # lighter border
+            # Team color from TEAM_VISUALS
+            _tc_raw = get_team_primary_color(_gt)
+            try:
+                _tc_r = int(_tc_raw[1:3],16); _tc_g = int(_tc_raw[3:5],16); _tc_b = int(_tc_raw[5:7],16)
+                _lum = 0.299*_tc_r + 0.587*_tc_g + 0.114*_tc_b
+                if _lum < 55:
+                    _tc_raw = f'#{min(255,_tc_r+80):02x}{min(255,_tc_g+80):02x}{min(255,_tc_b+80):02x}'
+            except Exception:
+                pass
+
+            if _is_ready:
+                # Bright team color, glowing border, full saturation
+                _sq_bg  = f'linear-gradient(135deg,{_tc_raw}28 0%,#0f172a 100%)'
+                _sq_bdr = _tc_raw
+                _glow   = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col = _tc_raw
+                _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
+                _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
+            else:
+                # Muted gray — not set yet
+                _sq_bg  = 'linear-gradient(135deg,#1e293b 0%,#0f172a 100%)'
+                _sq_bdr = '#334155'
+                _glow   = 'box-shadow:0 2px 6px rgba(0,0,0,.4);'
+                _lbl_col = '#475569'
+                _logo_filter = 'grayscale(80%) opacity(0.45)'
+                _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:#334155;display:inline-block;margin-bottom:2px;'></span>"
 
             _gl_uri  = image_file_to_data_uri(get_logo_source(_gt))
-            _gl_img  = (f"<img src='{_gl_uri}' style='width:32px;height:32px;"
-                        f"object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));'/>") if _gl_uri else (
+            _gl_img  = (f"<img src='{_gl_uri}' style='width:44px;height:44px;"
+                        f"object-fit:contain;filter:{_logo_filter};transition:filter .3s;'/>") if _gl_uri else (
                         f"<span style='font-size:1rem;'>🏈</span>")
 
             _grid_parts.append(
                 f"<div style='display:flex;flex-direction:column;align-items:center;"
-                f"justify-content:center;gap:4px;width:100%;aspect-ratio:1/1;"
-                f"background:{_sq_bg};border-radius:12px;border:2px solid {_sq_bdr};"
-                f"box-shadow:0 2px 8px rgba(0,0,0,.35);padding:4px;box-sizing:border-box;'>"
+                f"justify-content:center;gap:3px;width:100%;aspect-ratio:1/1;"
+                f"background:{_sq_bg};border-radius:14px;border:2px solid {_sq_bdr};"
+                f"{_glow}padding:6px;box-sizing:border-box;transition:all .3s;'>"
+                f"{_status_dot}"
                 f"{_gl_img}"
-                f"<span style='font-size:0.7rem;font-weight:800;color:rgba(255,255,255,0.9);"
-                f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-transform:uppercase;"
+                f"<span style='font-size:0.68rem;font-weight:800;color:{_lbl_col};"
+                f"font-family:Barlow Condensed,sans-serif;letter-spacing:.06em;text-transform:uppercase;"
                 f"width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>"
                 f"{html.escape(_gu)}</span>"
                 f"</div>"
             )
 
         if _grid_parts:
-            # Also update logo size to fill the larger squares
-            _grid_parts_resized = []
-            for _p in _grid_parts:
-                _grid_parts_resized.append(
-                    _p.replace('width:32px;height:32px;', 'width:44px;height:44px;')
-                )
             st.markdown(
                 f"<div style='margin-bottom:16px;'>"
-                f"<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"
-                f"padding:10px;max-width:480px;margin:0 auto;"
-                f"background:rgba(255,255,255,0.03);"
-                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;'>"
-                + "".join(_grid_parts_resized) +
+                f"<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"
+                f"padding:12px;max-width:500px;margin:0 auto;"
+                f"background:rgba(255,255,255,0.02);"
+                f"border:1px solid rgba(255,255,255,0.06);border-radius:16px;'>"
+                + "".join(_grid_parts) +
                 f"</div></div>",
                 unsafe_allow_html=True
             )
@@ -14643,7 +14692,10 @@ with tabs[0]:
 
                     _best_upset = None
                     _best_upset_score = -1
-                    for _, _g in _completed.iterrows():
+                    # HARD CUTOFF: only surface game headlines from the last 2 completed weeks
+                    _cutoff_week = max(1, _latest_played_week - 1)
+                    _recent_completed = _completed[_completed['Week'] >= _cutoff_week]
+                    for _, _g in _recent_completed.iterrows():
                         _vs = _hh_safe_int(_g['Vis Score'], 0); _hs = _hh_safe_int(_g['Home Score'], 0)
                         _winner_team = str(_g['Visitor']) if _vs > _hs else str(_g['Home'])
                         _loser_team = str(_g['Home']) if _vs > _hs else str(_g['Visitor'])
@@ -20449,9 +20501,9 @@ def render_dynasty_youtube_tab():
     playoff_count = int(adf["is_playoff"].sum()) if (not adf.empty and "is_playoff" in adf.columns) else 0
     natty_count   = int(adf["is_natty"].sum()) if (not adf.empty and "is_natty" in adf.columns) else 0
     user_battle_count = 0
-    if not adf.empty and "opponent" in adf.columns and "USER_TEAMS" in dir():
-        _ut_schools = set(USER_TEAMS.values())
-        user_battle_count = int(adf["opponent"].astype(str).str.strip().isin(_ut_schools).sum())
+    if not adf.empty and "opponent" in adf.columns:
+        _ut_schools_count = set(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else set()
+        user_battle_count = int(adf["opponent"].astype(str).str.strip().isin(_ut_schools_count).sum())
 
     st.markdown(f"""
     <div class="yt-masthead">
@@ -20477,6 +20529,16 @@ def render_dynasty_youtube_tab():
 
     adf["season_num"] = pd.to_numeric(adf["season"], errors="coerce").fillna(0).astype(int)
     adf["week_num"]   = pd.to_numeric(adf["week"],   errors="coerce").fillna(999).astype(int)
+
+    # Compute TV season rank: within each season, rank by tv_rating_computed desc
+    if "tv_rating_computed" in adf.columns:
+        adf["_tv_rank_in_season"] = (
+            adf.groupby("season_num")["tv_rating_computed"]
+            .rank(method="min", ascending=False)
+            .astype("Int64")
+        )
+    else:
+        adf["_tv_rank_in_season"] = None
 
     current_season_num = adf["season_num"].max()
     season_scores = scores_df[
@@ -20561,7 +20623,7 @@ def render_dynasty_youtube_tab():
         </div>
         <div class="yt-hero-footer">
           <span class="yt-season-week">Season {_html.escape(str(f_season))} • Week {_html.escape(str(f_week))}</span>
-          {f'<span style="background:#1e293b;color:#fbbf24;border:1px solid #854d0e;padding:3px 10px;border-radius:4px;font-size:.68rem;font-weight:900;letter-spacing:.06em;">📺 {featured.get("tv_rating_computed",""):.1f}M VIEWERS</span>' if featured.get("tv_rating_computed") else ""}
+          {(lambda _tv,_rk: f'<span style="background:#1e293b;color:#fbbf24;border:1px solid #854d0e;padding:3px 10px;border-radius:4px;font-size:.68rem;font-weight:900;letter-spacing:.06em;">📺 {_tv:.1f}M VIEWERS — #{int(_rk)} WATCHED IN {f_season} SEASON</span>' if _rk and not (isinstance(_rk,float) and _rk!=_rk) else (f'<span style="background:#1e293b;color:#fbbf24;border:1px solid #854d0e;padding:3px 10px;border-radius:4px;font-size:.68rem;font-weight:900;letter-spacing:.06em;">📺 {_tv:.1f}M VIEWERS</span>' if _tv else ""))(featured.get("tv_rating_computed"), featured.get("_tv_rank_in_season"))}
         </div>
       </div>
     </div>
@@ -20717,27 +20779,21 @@ def render_dynasty_youtube_tab():
 
     _epic = _build_epic_writeup(featured, scores_df, gs_df)
     if _epic:
-        import re as _re_epic
-        def _md_to_html(txt):
-            # Bold: **text** → <strong>text</strong>
-            txt = _re_epic.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', txt)
-            # Italic quotes: *"text"* → <em>"text"</em>
-            txt = _re_epic.sub(r'\*(".*?"?)\*', r'<em>\1</em>', txt)
-            # Paragraphs: double newline → <br><br>
-            txt = txt.replace('\n\n', '<br><br>')
-            return _html.escape(txt).replace('&lt;strong&gt;','<strong>').replace('&lt;/strong&gt;','</strong>').replace('&lt;em&gt;','<em>').replace('&lt;/em&gt;','</em>').replace('&lt;br&gt;','<br>')
-        _epic_html = _md_to_html(_epic)
-        st.markdown(f"""
-        <div style="background:rgba(0,0,0,0.35);border:1px solid #1e293b;border-left:3px solid {f_cl};
-                    border-radius:0 12px 12px 0;padding:18px 20px;margin:8px 0 20px 0;
-                    font-family:'Inter',sans-serif;font-size:0.88rem;color:#cbd5e1;line-height:1.7;">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:900;
-                      letter-spacing:.12em;color:{f_cl};text-transform:uppercase;margin-bottom:10px;">
-            📖 GAME STORY
-          </div>
-          {_epic_html}
-        </div>
-        """, unsafe_allow_html=True)
+        with st.expander("📖 Read the Game Story", expanded=False):
+            import re as _re_epic
+            def _md_to_html(txt):
+                txt = _re_epic.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', txt)
+                txt = _re_epic.sub(r'\*(".*?"?)\*', r'<em>\1</em>', txt)
+                txt = txt.replace('\n\n', '<br><br>')
+                return _html.escape(txt).replace('&lt;strong&gt;','<strong>').replace('&lt;/strong&gt;','</strong>').replace('&lt;em&gt;','<em>').replace('&lt;/em&gt;','</em>').replace('&lt;br&gt;','<br>')
+            _epic_html = _md_to_html(_epic)
+            st.markdown(f"""
+            <div style="background:rgba(0,0,0,0.35);border:1px solid #1e293b;border-left:3px solid {f_cl};
+                        border-radius:0 12px 12px 0;padding:18px 20px;margin:8px 0 4px 0;
+                        font-family:'Inter',sans-serif;font-size:0.88rem;color:#cbd5e1;line-height:1.7;">
+              {_epic_html}
+            </div>
+            """, unsafe_allow_html=True)
 
     if rest.empty:
         return
@@ -20771,9 +20827,11 @@ def render_dynasty_youtube_tab():
             _r_rank_u, _r_rank_o = _get_rank_nums_for_row(row)
             _r_headline = _generate_headline(row, _r_rank_u, _r_rank_o)
             _r_tv_val = row.get("tv_rating_computed")
+            _r_tv_rk  = row.get("_tv_rank_in_season")
+            _r_tv_rk_str = f" · #{int(_r_tv_rk)}" if _r_tv_rk and not (isinstance(_r_tv_rk, float) and _r_tv_rk != _r_tv_rk) else ""
             _r_tv_badge = (f"<span style=\'background:#1e293b;color:#fbbf24;border:1px solid #854d0e;"
                            f"padding:2px 7px;border-radius:3px;font-size:.62rem;font-weight:900;"
-                           f"letter-spacing:.05em;\'>📺 {_r_tv_val:.1f}M</span>") if _r_tv_val else ""
+                           f"letter-spacing:.05em;\'>📺 {_r_tv_val:.1f}M{_r_tv_rk_str}</span>") if _r_tv_val else ""
             st.markdown(f"""
             <div class="yt-card">
               <div class="yt-card-top-bar" style="background:linear-gradient(90deg,{r_cl},{r_cr});"></div>
