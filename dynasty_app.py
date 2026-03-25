@@ -7657,6 +7657,7 @@ def render_recruiting_snapshot_table(df):
 CONF_STRENGTH = {
     'Big 12':       12.0,  # A+ — co-king of the dynasty
     'B1G':          12.0,  # A+ — co-king of the dynasty
+    'Big Ten':       12.0,  # alias for B1G (PS5 UI label)
     'SEC':          10.0,  # A  — still a murderers row, just a tick behind
     'ACC':           8.0,  # A- — real teeth, not a pushover
     'Independents':  6.5,  # B+ — FBS Independents, no conf games to hide in
@@ -7671,6 +7672,37 @@ CONF_STRENGTH = {
 
 def conf_bonus(conference):
     return CONF_STRENGTH.get(str(conference).strip(), 0.0)
+
+
+CONF_NAME_ALIASES = {
+    'big ten':   'B1G',
+    'b1g':       'B1G',
+    'big 12':    'Big 12',
+    'big twelve':'Big 12',
+    'southeastern conference': 'SEC',
+    'acc':       'ACC',
+    'atlantic coast conference': 'ACC',
+    'pac-12':    'Pac-12',
+    'pac 12':    'Pac-12',
+    'mountain west conference': 'MWC',
+    'mountain west': 'MWC',
+    'american athletic conference': 'American',
+    'american':  'American',
+    'mac':       'MAC',
+    'mid-american conference': 'MAC',
+    'sun belt':  'Sun Belt',
+    'sunbelt':   'Sun Belt',
+    'conference usa': 'CUSA',
+    'cusa':      'CUSA',
+    'independents': 'Independents',
+    'independent': 'Independents',
+    'fbs independents': 'Independents',
+}
+
+def normalize_conf_name(name):
+    """Canonicalize conference names so the app always uses its internal labels."""
+    s = str(name).strip()
+    return CONF_NAME_ALIASES.get(s.lower(), s)
 
 def build_sigmoid_natty_odds(year=None):
     """
@@ -8965,6 +8997,8 @@ def load_team_performance(year=None):
     try:
         cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
         cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
+        if 'CONFERENCE' in cs.columns:
+            cs['CONFERENCE'] = cs['CONFERENCE'].astype(str).apply(normalize_conf_name)
 
         # Filter to correct year if YEAR column present
         if 'YEAR' in cs.columns:
@@ -12393,7 +12427,7 @@ with tabs[3]:
                 'qb_tier': str(_sr.get('QB Tier', 'Average Joe')).strip(),
                 'qb_ovr': float(_sr.get('QB OVR', 80) or 80),
                 'team': _team_name,
-                'conf': _sr.get('CONFERENCE', 'Other'),
+                'conf': normalize_conf_name(_sr.get('CONFERENCE', 'Other')),
                 'rs_data_confirmed': _ts > 0,
             }
 
@@ -12923,6 +12957,8 @@ with tabs[3]:
                 _conf_st = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
                 _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
                 _conf_st['USER'] = _conf_st['USER'].fillna('')
+                if 'CONFERENCE' in _conf_st.columns:
+                    _conf_st['CONFERENCE'] = _conf_st['CONFERENCE'].astype(str).apply(normalize_conf_name)
                 # Filter to current year only — file may contain multiple seasons
                 if 'YEAR' in _conf_st.columns:
                     _conf_st['YEAR'] = pd.to_numeric(_conf_st['YEAR'], errors='coerce')
@@ -16578,6 +16614,8 @@ with tabs[4]:
         # 1. Load the standings to map teams to their conferences
         try:
             conf_df = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
+            if 'CONFERENCE' in conf_df.columns:
+                conf_df['CONFERENCE'] = conf_df['CONFERENCE'].astype(str).apply(normalize_conf_name)
             conf_map = dict(zip(conf_df['TEAM'], conf_df['CONFERENCE']))
         except Exception:
             conf_map = {}
