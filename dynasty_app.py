@@ -24952,11 +24952,16 @@ with tabs[2]:
             _nfl_sim_year = get_current_nfl_season()
             _reg_season_done = False
             _playoffs_done   = False
+            _weeks_complete  = 0
             try:
-                if os.path.exists("nfl_standings_history.csv"):
-                    _sh = pd.read_csv("nfl_standings_history.csv")
-                    _sh["Season"] = pd.to_numeric(_sh.get("Season"), errors="coerce")
-                    _reg_season_done = int(_nfl_sim_year) in _sh["Season"].dropna().astype(int).tolist()
+                # Regular season is done only when 18 weeks of games exist for this season
+                if os.path.exists("nfl_weekly_scores.csv"):
+                    _ws = pd.read_csv("nfl_weekly_scores.csv")
+                    _ws["Season"] = pd.to_numeric(_ws.get("Season"), errors="coerce")
+                    _ws["Week"]   = pd.to_numeric(_ws.get("Week"),   errors="coerce")
+                    _szn_ws = _ws[_ws["Season"].fillna(-1).astype(int) == int(_nfl_sim_year)]
+                    _weeks_complete = _szn_ws["Week"].dropna().astype(int).nunique()
+                    _reg_season_done = _weeks_complete >= 18
                 if os.path.exists("nfl_super_bowl_history.csv"):
                     _sbh = pd.read_csv("nfl_super_bowl_history.csv")
                     _sbh["Season"] = pd.to_numeric(_sbh.get("Season"), errors="coerce")
@@ -24966,10 +24971,14 @@ with tabs[2]:
 
             # ── Phase status banner ────────────────────────────────────────────
             if not _reg_season_done and not _playoffs_done:
-                _phase_msg = f"**{_nfl_sim_year} season not yet simmed.** Start with the regular season."
-                _phase_color = "#fbbf24"
+                if _weeks_complete > 0:
+                    _phase_msg = f"**{_nfl_sim_year} season in progress** — {_weeks_complete}/18 weeks complete. Keep advancing."
+                    _phase_color = "#60a5fa"
+                else:
+                    _phase_msg = f"**{_nfl_sim_year} season not yet started.** Build rosters, then start advancing weeks."
+                    _phase_color = "#fbbf24"
             elif _reg_season_done and not _playoffs_done:
-                _phase_msg = f"**{_nfl_sim_year} regular season complete.** Download files, push to repo, then sim the playoffs."
+                _phase_msg = f"**{_nfl_sim_year} regular season complete** (18 weeks). Download files, push to repo, then sim the playoffs."
                 _phase_color = "#4ade80"
             else:
                 _phase_msg = f"**{_nfl_sim_year} fully complete** (standings + playoffs). Settings advanced to {_nfl_sim_year + 1}."
