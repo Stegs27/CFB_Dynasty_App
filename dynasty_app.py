@@ -23114,27 +23114,21 @@ with tabs[2]:
 
     st.caption("Track where dynasty alumni land, how their NFL careers evolve, and who owns the fictional pro landscape.")
 
+    # Auto-load — no click barrier
     if "nfl_universe_loaded" not in st.session_state:
-        st.session_state["nfl_universe_loaded"] = False
+        st.session_state["nfl_universe_loaded"] = True
 
     universe = None
     nfl_roster = pd.DataFrame()
     cfb_draft = pd.DataFrame()
 
-    if not st.session_state["nfl_universe_loaded"]:
-        st.markdown("<div style='text-align:center; padding: 40px 0 20px 0;'>", unsafe_allow_html=True)
-        if st.button("🏈 Load NFL Universe", use_container_width=False, key="nfl_universe_load_btn"):
-            st.session_state["nfl_universe_loaded"] = True
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        try:
-            universe = load_nfl_universe_data()
-            nfl_roster = universe.get("nfl_current_rosters", pd.DataFrame())
-            cfb_draft  = universe.get("cfb_draft", pd.DataFrame())
-        except Exception as _univ_err:
-            st.error(f"Error loading NFL Universe data: {_univ_err}")
-            universe = None
+    try:
+        universe = load_nfl_universe_data()
+        nfl_roster = universe.get("nfl_current_rosters", pd.DataFrame())
+        cfb_draft  = universe.get("cfb_draft", pd.DataFrame())
+    except Exception as _univ_err:
+        st.error(f"Error loading NFL Universe data: {_univ_err}")
+        universe = None
     if universe is not None:
         nfl_draft_hist = universe["nfl_draft_hist"]
         nfl_current_rosters = universe["nfl_current_rosters"]
@@ -23182,6 +23176,18 @@ with tabs[2]:
             "📰 Storylines",
             "🏟️ NFL Teams",
         ])
+
+        # ── Big NFL logo banner ───────────────────────────────────────────────
+        _nfl_banner_logo = get_nfl_logo_src("") or ""
+        if os.path.exists("_NFL_logo.png"):
+            _nfl_banner_uri = file_to_data_uri("_NFL_logo.png")
+            if _nfl_banner_uri:
+                st.markdown(
+                    f"<div style='text-align:center;padding:18px 0 8px;'>"
+                    f"<img src='{_nfl_banner_uri}' style='height:90px;object-fit:contain;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.5));'/>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
 
     # ── THIS WEEK — Live NFL weekly view ──────────────────────────────────────
         with nfl_tabs[0]:
@@ -23777,54 +23783,78 @@ with tabs[2]:
                     _role = clean_display(_r.get("RookieRole", "—"), "—")
                     _tier = clean_display(_r.get("CareerTier", "—"), "—")
                     _story = clean_display(_r.get("StoryTag", "—"), "—")
-                    _user_badge = (
-                        f"<span style='display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(34,197,94,0.16);border:1px solid rgba(34,197,94,0.30);color:#86efac;font-weight:800;font-size:0.72rem;'>"
-                        f"{html.escape(_user)}"
-                        f"</span>" if _user != "—" else "<span style='color:#94a3b8;'>—</span>"
-                    )
-                    _draft_rows_html.append(
-                        f"<tr style='background:rgba(15,23,42,0.88);'>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#f8fafc;font-weight:800;white-space:nowrap;'>{html.escape(str(_pick))}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(str(_rnd))}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;color:#f8fafc;font-weight:800;white-space:nowrap;'>{html.escape(_player)}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;'>{_draft_team_cell(_school, 'school')}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;white-space:nowrap;'>{_user_badge}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(_pos)}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#94a3b8;white-space:nowrap;'>{html.escape(_bucket)}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(str(_covr))}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(str(_novr))}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;white-space:nowrap;'>{_draft_team_cell(_nfl, 'nfl')}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(_role)}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;text-align:center;color:#e5e7eb;white-space:nowrap;'>{html.escape(_tier)}</td>"
-                        f"<td style='padding:10px 12px;border-bottom:1px solid #334155;color:#cbd5e1;white-space:nowrap;'>{html.escape(_story)}</td>"
-                        f"</tr>"
-                    )
+                    _pos_colors = {
+                        'QB':'#f97316','RB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa',
+                        'EDGE':'#ef4444','IDL':'#94a3b8','OL':'#64748b',
+                        'LB':'#fbbf24','CB':'#06b6d4','S':'#8b5cf6',
+                        'K':'#475569','P':'#475569',
+                    }
+                    _tier_badge_map = {
+                        'superstar': ('#fbbf24','#451a03'),
+                        'star':      ('#4ade80','#052e16'),
+                        'starter':   ('#60a5fa','#0c1a2e'),
+                        'backup':    ('#94a3b8','#1e293b'),
+                    }
 
-                _draft_table_html = f"""
-                <div style='overflow-x:auto;border:1px solid #334155;border-radius:14px;background:linear-gradient(180deg,rgba(2,6,23,.98),rgba(15,23,42,.94));box-shadow:0 10px 24px rgba(0,0,0,.30);'>
-                  <table style='width:100%;border-collapse:collapse;font-size:0.86rem;min-width:1400px;'>
-                    <thead>
-                      <tr style='background:linear-gradient(180deg,rgba(30,41,59,.98),rgba(15,23,42,.98));'>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Pick</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Rnd</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>Player</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>College Team</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>User</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Pos</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Bucket</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>College OVR</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>NFL Rookie OVR</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>NFL Team</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Rookie Role</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:center;'>Career Tier</th>
-                        <th style='padding:10px 12px;color:#f8fafc;font-weight:800;text-align:left;'>Story Tag</th>
-                      </tr>
-                    </thead>
-                    <tbody>{''.join(_draft_rows_html)}</tbody>
-                  </table>
-                </div>
-                """
-                st.markdown(_draft_table_html, unsafe_allow_html=True)
+                    _cards_html = "<div style='display:flex;flex-direction:column;gap:8px;margin-top:8px;'>"
+                    for _, _r in show_df.iterrows():
+                        _pick  = clean_display(_r.get("Pick","—"),"—")
+                        _rnd   = clean_display(_r.get("Rnd","—"),"—")
+                        _player= clean_display(_r.get("Player","—"),"—")
+                        _school= clean_display(_r.get("School","—"),"—")
+                        _user  = clean_display(_r.get("User","—"),"—") or "—"
+                        _pos   = clean_display(_r.get("Pos","—"),"—")
+                        _bucket= clean_display(_r.get("PosBucket","—"),"—")
+                        _covr  = clean_display(_r.get("College OVR","—"),"—")
+                        _novr  = clean_display(_r.get("NFL Rookie OVR","—"),"—")
+                        _nfl   = clean_display(_r.get("NFL Team","—"),"—")
+                        _role  = clean_display(_r.get("RookieRole","—"),"—")
+                        _tier  = clean_display(_r.get("CareerTier","—"),"—")
+                        _story = clean_display(_r.get("StoryTag",""),"")
+
+                        _pc      = _pos_colors.get(_bucket, '#64748b')
+                        _tb, _tf = _tier_badge_map.get(_tier.lower(), ('#94a3b8','#1e293b'))
+                        _u_color = get_team_primary_color(_school) if _school != "—" else "#64748b"
+                        _nfl_color = get_nfl_team_color(_nfl)
+                        _slogo   = get_school_logo_src(_school)
+                        _nlogo   = get_nfl_logo_src(_nfl)
+                        _simg    = f"<img src='{_slogo}' style='width:28px;height:28px;object-fit:contain;'/>" if _slogo else "<span style='width:28px;height:28px;background:#1e293b;border-radius:4px;display:inline-block;'></span>"
+                        _nimg    = f"<img src='{_nlogo}' style='width:28px;height:28px;object-fit:contain;'/>" if _nlogo else "<span style='width:28px;height:28px;background:#1e293b;border-radius:4px;display:inline-block;'></span>"
+
+                        _pick_col = '#fbbf24' if int(safe_num(_pick,99)) <= 10 else ('#94a3b8' if int(safe_num(_pick,99)) <= 32 else '#475569')
+
+                        _cards_html += (
+                            f"<div style='display:flex;align-items:center;gap:10px;padding:10px 12px;"
+                            f"background:#0a1628;border-radius:8px;border-left:3px solid {_nfl_color};'>"
+                            # Pick number
+                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:{_pick_col};"
+                            f"min-width:36px;text-align:center;flex-shrink:0;line-height:1;'>#{_pick}</div>"
+                            # Logos
+                            f"<div style='display:flex;flex-direction:column;gap:2px;align-items:center;flex-shrink:0;'>"
+                            f"{_simg}{_nimg}</div>"
+                            # Main info
+                            f"<div style='flex:1;min-width:0;'>"
+                            f"<div style='font-weight:800;color:#f1f5f9;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                            f"{html.escape(_player)}</div>"
+                            f"<div style='font-size:0.68rem;color:#64748b;margin-top:1px;'>"
+                            f"<span style='color:{_u_color};font-weight:700;'>{html.escape(_user)}</span>"
+                            f" · {html.escape(_school)} → <span style='color:{_nfl_color};'>{html.escape(_nfl)}</span></div>"
+                            f"<div style='display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;'>"
+                            f"<span style='background:{_pc}22;color:{_pc};font-size:0.6rem;font-weight:900;padding:1px 5px;border-radius:3px;'>{html.escape(_pos)}</span>"
+                            f"<span style='background:{_tb}33;color:{_tb};font-size:0.6rem;font-weight:900;padding:1px 5px;border-radius:3px;'>{html.escape(_tier)}</span>"
+                            f"<span style='color:#475569;font-size:0.6rem;padding:1px 4px;'>Rd {_rnd}</span>"
+                            f"<span style='color:#475569;font-size:0.6rem;padding:1px 4px;'>{_covr}→{_novr} OVR</span>"
+                            f"</div>"
+                            f"{'<div style=\"font-size:0.63rem;color:#475569;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;\">' + html.escape(_story) + '</div>' if _story and _story not in ('—','nan','') else ''}"
+                            f"</div>"
+                            # Role badge right side
+                            f"<div style='flex-shrink:0;text-align:right;font-size:0.62rem;color:#64748b;max-width:72px;line-height:1.3;'>"
+                            f"{html.escape(_role)}</div>"
+                            f"</div>"
+                        )
+                    _cards_html += "</div>"
+                    st.markdown(_cards_html, unsafe_allow_html=True)
+
                 st.markdown("#### User Summary")
                 user_sum = (
                     yr_df.groupby("CollegeUser", dropna=False)
@@ -24817,16 +24847,17 @@ with tabs[2]:
 
                 for _, r in story_df.iterrows():
                     player_id = str(r.get("PlayerID", ""))
+                    player_name = str(r.get("Player", "")).strip()
                     school = draft_lookup.get(player_id, {}).get("CollegeTeam", "")
                     college_user = clean_display(draft_lookup.get(player_id, {}).get("CollegeUser", ""), "")
                     nfl_team = str(r.get("NFLTeam", ""))
 
-                    school_logo_src = get_school_logo_src(school)
-                    nfl_logo_src = get_nfl_logo_src(nfl_team)
-
-                    event_type = str(r.get("EventType", "")).strip()
-                    headline = str(r.get("Headline", "")).strip()
+                    # If headline/description mention "dynasty alum" or "a dynasty alum", replace with actual name
+                    headline    = str(r.get("Headline", "")).strip()
                     description = str(r.get("Description", "")).strip()
+                    if player_name and player_name not in ("", "nan"):
+                        headline    = headline.replace("a dynasty alum", player_name).replace("dynasty alum", player_name)
+                        description = description.replace("a dynasty alum", player_name).replace("dynasty alum", player_name)
 
                     border_color = "#22c55e" if event_type == "Award" else "#4f46e5" if event_type == "SeasonOutcome" else "#eab308" if event_type == "SuperBowl" else "#334155"
                     bg_color = "rgba(34,197,94,0.08)" if event_type == "Award" else "rgba(79,70,229,0.08)" if event_type == "SeasonOutcome" else "rgba(234,179,8,0.08)" if event_type == "SuperBowl" else "rgba(148,163,184,0.08)"
