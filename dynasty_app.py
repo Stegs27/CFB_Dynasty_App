@@ -24943,23 +24943,40 @@ with tabs[2]:
                 except Exception as e:
                     st.error(f"Patch error: {type(e).__name__}: {e}")
 
+
             # ── Download workflow ──────────────────────────────────────────────
             st.markdown("---")
             st.markdown("#### 📥 Download & Push Workflow")
             st.markdown("""
-            <div style='background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:12px 16px;font-size:0.82rem;color:#94a3b8;line-height:1.7;margin-bottom:12px;'>
-            <strong style='color:#22c55e;'>After each Advance Week:</strong> Download and push → <code>nfl_weekly_scores.csv</code>, <code>nfl_standings_history.csv</code>, <code>dynasty_state.csv</code><br>
-            <strong style='color:#fbbf24;'>After Sim Regular Season:</strong> Download and push → <code>nfl_standings_history.csv</code>, <code>nfl_player_history.csv</code>, <code>nfl_current_rosters.csv</code><br>
-            <strong style='color:#4ade80;'>After Sim Playoffs:</strong> Download and push → <code>nfl_playoff_history.csv</code>, <code>nfl_super_bowl_history.csv</code>, <code>nfl_awards_history.csv</code>, <code>nfl_story_events.csv</code>, <code>nfl_universe_settings.csv</code>, <code>nfl_current_rosters.csv</code><br>
-            <strong style='color:#60a5fa;'>After NFL Draft:</strong> Download and push → <code>nfl_draft_history.csv</code>, <code>nfl_player_history.csv</code>, <code>nfl_current_rosters.csv</code><br>
-            <strong style='color:#a78bfa;'>ZIP option:</strong> Downloads everything at once — push all files to repo.
+            <div style='background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:14px 16px;font-size:0.82rem;color:#94a3b8;line-height:1.9;margin-bottom:12px;'>
+
+            <div style='color:#22c55e;font-weight:700;margin-bottom:4px;'>⚡ After each Advance Week (CFB + NFL together):</div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>dynasty_state.csv</code></div>
+
+            <div style='color:#60a5fa;font-weight:700;margin-bottom:4px;'>🏈 After each NFL-only catch-up advance:</div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code><br>
+            <span style='color:#64748b;font-size:0.75rem;'>dynasty_state.csv is NOT touched by NFL-only advances — skip it</span></div>
+
+            <div style='color:#f59e0b;font-weight:700;margin-bottom:4px;'>🔄 After Rebuild NFL Rosters:</div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_current_rosters.csv</code><br>
+            <span style='color:#64748b;font-size:0.75rem;'>Only needed after draft, offseason roster changes, or first-time setup</span></div>
+
+            <div style='color:#a78bfa;font-weight:700;margin-bottom:4px;'>🏆 After Sim Playoffs:</div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_playoff_history.csv</code> &nbsp;·&nbsp; <code>nfl_super_bowl_history.csv</code> &nbsp;·&nbsp; <code>nfl_awards_history.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_current_rosters.csv</code></div>
+
+            <div style='color:#34d399;font-weight:700;margin-bottom:4px;'>🎓 After NFL Draft:</div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_draft_history.csv</code> &nbsp;·&nbsp; <code>nfl_player_history.csv</code> &nbsp;·&nbsp; <code>nfl_current_rosters.csv</code></div>
+
+            <div style='color:#94a3b8;font-weight:700;margin-bottom:4px;'>📦 ZIP option:</div>
+            <div style='margin-left:12px;'>Downloads everything at once — safe to push all files to repo any time</div>
+
             </div>
             """, unsafe_allow_html=True)
 
             if os.path.exists("nfl_universe_settings.csv"):
                 with open("nfl_universe_settings.csv", "rb") as f:
                     st.download_button(
-                        label="⬇️ Settings — push after Sim Playoffs or season year change",
+                        label="⬇️ Settings — push after every advance or season year change",
                         data=f.read(), file_name="nfl_universe_settings.csv", mime="text/csv",
                         use_container_width=True, key="download_nfl_universe_settings"
                     )
@@ -24978,21 +24995,26 @@ with tabs[2]:
 
             st.markdown("---")
             st.markdown("#### 📂 Individual File Downloads")
-            st.caption("Download these after the relevant sim phase, then push to GitHub repo.")
+            st.caption("Download and push after the relevant action. Files not yet generated show as unavailable.")
 
             _dl_files = [
-                ("cfb_user_draft_results.csv",   "Draft Input",       "⬆️ Upload before NFL Draft sim"),
-                ("nfl_draft_history.csv",         "Draft History",     "⬇️ Push after NFL Draft"),
-                ("nfl_player_history.csv",        "Player History",    "⬇️ Push after Reg Season + Playoffs"),
-                ("nfl_super_bowl_history.csv",    "Super Bowl",        "⬇️ Push after Sim Playoffs"),
-                ("nfl_story_events.csv",          "Story Events",      "⬇️ Push after Sim Playoffs"),
-                ("nfl_current_rosters.csv",       "Current Rosters",   "⬇️ Push after Reg Season + Playoffs"),
-                ("nfl_standings_history.csv",     "Standings",         "⬇️ Push after Sim Regular Season"),
-                ("nfl_playoff_history.csv",       "Playoff Bracket",   "⬇️ Push after Sim Playoffs"),
-                ("nfl_awards_history.csv",        "Awards",            "⬇️ Push after Sim Playoffs"),
+                ("nfl_weekly_scores.csv",        "Weekly Scores",     "⬇️ Push after EVERY advance"),
+                ("nfl_standings_history.csv",    "Standings",         "⬇️ Push after EVERY advance"),
+                ("nfl_universe_settings.csv",    "NFL Settings",      "⬇️ Push after EVERY advance"),
+                ("nfl_current_rosters.csv",      "Current Rosters",   "⬇️ Push after roster rebuild, draft, or offseason"),
+                ("nfl_draft_history.csv",        "Draft History",     "⬇️ Push after NFL Draft"),
+                ("nfl_player_history.csv",       "Player History",    "⬇️ Push after full season sim + playoffs"),
+                ("nfl_playoff_history.csv",      "Playoff Bracket",   "⬇️ Push after Sim Playoffs"),
+                ("nfl_super_bowl_history.csv",   "Super Bowl",        "⬇️ Push after Sim Playoffs"),
+                ("nfl_awards_history.csv",       "Awards",            "⬇️ Push after Sim Playoffs"),
+                ("nfl_story_events.csv",         "Story Events",      "⬇️ Push after Sim Playoffs"),
+                ("cfb_user_draft_results.csv",   "CFB Draft Input",   "⬆️ Upload before NFL Draft sim"),
             ]
-            _dl_keys = ["dl_draft_input","dl_draft_hist","dl_player_hist","dl_sb_hist",
-                        "dl_story","dl_curr_rosters","dl_standings","dl_playoff","dl_awards"]
+            _dl_keys = [
+                "dl_weekly_scores", "dl_standings", "dl_settings_indiv",
+                "dl_curr_rosters", "dl_draft_hist", "dl_player_hist",
+                "dl_playoff", "dl_sb_hist", "dl_awards", "dl_story", "dl_draft_input",
+            ]
             for (_fname, _label, _note), _key in zip(_dl_files, _dl_keys):
                 if os.path.exists(_fname):
                     with open(_fname, "rb") as _f:
