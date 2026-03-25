@@ -3450,15 +3450,282 @@ def simulate_nfl_week(week_num, season_year=None, team_strength_df=None):
 
 def _generate_weekly_story_events(games_df, season_year, week_num):
     """
-    Fires 1-3 story events per week based on:
-    - Dynasty alumni (Source=dynasty_rookie/dynasty_player) standout moments
-    - User alumni head-to-head matchups
-    - Upsets / dominant wins
-    - Fun fan-favorite team callouts (Browns, Bills, Lions, Cowboys)
+    Fires 2-4 story events per week using real game scores, player names,
+    and dynasty context. Events are specific — no more generic templates.
     Appends to nfl_story_events.csv.
     """
     if games_df is None or games_df.empty:
         return
+
+    try:
+        # Load dynasty rosters to find alumni
+        rosters = pd.DataFrame()
+        if os.path.exists("nfl_current_rosters.csv"):
+            rosters = pd.read_csv("nfl_current_rosters.csv")
+            rosters = rosters[
+                pd.to_numeric(rosters.get("Season", pd.Series(dtype=float)),
+                              errors="coerce").fillna(0).astype(int) == int(season_year)
+            ].copy()
+            dynasty_rosters = rosters[
+                rosters["Source"].astype(str).str.startswith("dynasty")
+            ].copy() if not rosters.empty else pd.DataFrame()
+        else:
+            dynasty_rosters = pd.DataFrame()
+
+        def _short(full_name):
+            return str(full_name).strip().split()[-1]
+
+        dynasty_by_team = {}
+        if not dynasty_rosters.empty:
+            for team, grp in dynasty_rosters.groupby("Team"):
+                dynasty_by_team[str(team)] = grp.to_dict("records")
+
+        def _dynasty_for_team(full_name):
+            short = _short(full_name)
+            return dynasty_by_team.get(full_name, dynasty_by_team.get(short, []))
+
+        USER_TEAMS = {
+            "Mike": "San Jose State", "Devin": "Bowling Green",
+            "Josh": "USF", "Noah": "Texas Tech",
+            "Doug": "Florida", "Nick": "Florida State",
+        }
+        COLLEGE_TO_USER = {v: k for k, v in USER_TEAMS.items()}
+
+        # Score and margin context helpers
+        def _margin_word(margin):
+            if margin <= 3:   return "edged"
+            if margin <= 7:   return "beat"
+            if margin <= 14:  return "handled"
+            if margin <= 21:  return "rolled over"
+            return "absolutely torched"
+
+        def _score_context(win_s, lose_s):
+            margin = win_s - lose_s
+            if margin <= 3:   return "a nail-biter"
+            if margin <= 7:   return "a close one"
+            if margin <= 14:  return "a solid win"
+            if margin <= 21:  return "a convincing performance"
+            return "a statement win"
+
+        # Fan-favorite franchises with flavored copy (score-aware)
+        FAN_FAVES = {
+            "Browns": [
+                ("Classic Cleveland", "The Browns did Browns things again. {result} The Dog Pound never blinks."),
+                ("Believeland?", "Cleveland dropped a {result} this week. Dog Pound is cautiously optimistic. Emphasis on cautiously."),
+                ("Factory of Sadness Update", "Another chapter written in Cleveland. The Browns go {result}. The saga continues."),
+                ("Lake Erie Energy", "The Browns delivered {result} this week. Cleveland was loud about it."),
+                ("Dawg Pound Chronicles", "The dawgs were out in Cleveland. {result}. Whether that's good or bad — well, it's Cleveland."),
+            ],
+            "Bills": [
+                ("Mafia Report", "Bills Mafia is {feeling} right now after going {result}. Tables were definitely involved."),
+                ("One Buffalo", "The Bills go {result} for Western New York this week. 716 has opinions."),
+                ("Josh Allen Said So", "{result} in Buffalo. Whatever happened, Josh Allen was at the center of it."),
+                ("Super Bowl or Bust", "The Bills go {result}. The Super Bowl window remains open. Allegedly."),
+                ("Orchard Park Chaos", "Orchard Park delivered {result}. NFL must-see TV every single week."),
+            ],
+            "Lions": [
+                ("Detroit vs. Everybody", "The Lions go {result}. Motor City doesn't sleep on this team anymore."),
+                ("Dan Campbell Energy", "{result} for Detroit. You KNOW they played with their whole chest."),
+                ("Pride of Detroit", "Ford Field had the vibes. The Lions delivered {result} for their city."),
+                ("Honolulu Blue Rising", "Detroit goes {result}. The Lions are not to be slept on. Full stop."),
+                ("Bite First", "The Lions came to bite first and ask questions later. {result}."),
+            ],
+            "Cowboys": [
+                ("America's Team Update", "The Cowboys go {result}. All eyes on Dallas regardless of outcome."),
+                ("Jerry's World Report", "AT&T Stadium, {result}. The Cowboys are must-see TV whether you like it or not."),
+                ("How 'Bout Them Cowboys", "Dallas does {result}. The nation either loves it or hates it. No middle ground."),
+                ("Star Power", "The Cowboys flash the Star for a {result}. Expect full national media coverage."),
+                ("Big D Chronicles", "Dallas delivers {result}. The Cowboys are always in the conversation. Always."),
+            ],
+        }
+
+        new_events = []
+
+        # ── Priority 1: User alumni head-to-head ─────────────────────────────
+        for _, game in games_df.iterrows():
+            home = str(game["HomeTeam"]); away = str(game["AwayTeam"])
+            home_dynasty = _dynasty_for_team(home)
+            away_dynasty = _dynasty_for_team(away)
+            home_users = {COLLEGE_TO_USER[p["CollegeTeam"]] for p in home_dynasty if p.get("CollegeTeam") in COLLEGE_TO_USER}
+            away_users = {COLLEGE_TO_USER[p["CollegeTeam"]] for p in away_dynasty if p.get("CollegeTeam") in COLLEGE_TO_USER}
+            cross = [(hu, au) for hu in home_users for au in away_users if hu != au]
+            if cross:
+                hu, au = cross[0]
+                winner = game["WinTeam"]; loser = game["LoseTeam"]
+                win_s  = max(game["HomeScore"], game["AwayScore"])
+                lose_s = min(game["HomeScore"], game["AwayScore"])
+                win_user = hu if winner == home else au
+                lose_user = au if winner == home else hu
+                margin = int(game["Margin"])
+                # Find best player on winning team
+                win_players = _dynasty_for_team(winner)
+                spotlight = max(win_players, key=lambda p: safe_num(p.get("OVR",60),60)) if win_players else None
+                player_str = f"{spotlight['Name']} ({spotlight.get('Pos',spotlight.get('PosBucket',''))})" if spotlight else "their dynasty crew"
+                college_str = f"out of {spotlight.get('CollegeTeam','')}" if spotlight and spotlight.get('CollegeTeam') else ""
+                new_events.append({
+                    "Season": season_year, "Week": week_num,
+                    "PlayerID": spotlight.get("PlayerID","") if spotlight else "",
+                    "Player": spotlight["Name"] if spotlight else "",
+                    "NFLTeam": winner,
+                    "EventType": "AlumniMatchup",
+                    "Headline": f"{win_user}'s {winner} beats {lose_user}'s {loser} {win_s}-{lose_s} in Week {week_num}",
+                    "Description": (
+                        f"Dynasty bragging rights on the line in Week {week_num}. "
+                        f"{winner} ({win_user}'s alumni) {_margin_word(margin)} {loser} ({lose_user}'s alumni) "
+                        f"{win_s}-{lose_s} — {_score_context(win_s, lose_s)}. "
+                        f"{player_str}{' ' + college_str} stood out for the winners."
+                    ),
+                    "ImpactScore": 8,
+                })
+                break
+
+        # ── Priority 2: Dynasty player spotlight ─────────────────────────────
+        if len(new_events) < 2 and not dynasty_rosters.empty:
+            best_event = None
+            best_ovr   = 0
+            for _, game in games_df.iterrows():
+                winner = game["WinTeam"]
+                players = _dynasty_for_team(winner)
+                if not players:
+                    continue
+                top = max(players, key=lambda p: safe_num(p.get("OVR",60),60))
+                ovr = safe_num(top.get("OVR",60),60)
+                if ovr > best_ovr:
+                    best_ovr = ovr
+                    win_s    = max(game["HomeScore"], game["AwayScore"])
+                    lose_s   = min(game["HomeScore"], game["AwayScore"])
+                    margin   = int(game["Margin"])
+                    pos      = str(top.get("Pos", top.get("PosBucket",""))).strip()
+                    school   = str(top.get("CollegeTeam","")).strip()
+                    coach    = COLLEGE_TO_USER.get(school,"")
+                    coach_str = f" ({coach}'s {school} alum)" if coach else (f" ({school} alum)" if school else "")
+                    ovr_tier  = "elite" if ovr >= 90 else ("high-end starter" if ovr >= 83 else "solid contributor")
+
+                    # Position-specific action lines
+                    _pos_lines = {
+                        "QB":   f"led the offense with authority",
+                        "RB":   f"punished the defense all afternoon",
+                        "WR":   f"created mismatches the defense couldn't solve",
+                        "TE":   f"was a nightmare matchup in the middle of the field",
+                        "EDGE": f"wrecked the game from the edge",
+                        "IDL":  f"dominated the trenches",
+                        "CB":   f"locked down the opposition's top threat",
+                        "S":    f"was all over the field",
+                        "LB":   f"ran the show from the second level",
+                        "OL":   f"anchored a dominant offensive performance",
+                    }
+                    pos_line = _pos_lines.get(top.get("PosBucket", pos), "made their presence felt")
+
+                    best_event = {
+                        "Season": season_year, "Week": week_num,
+                        "PlayerID": top.get("PlayerID",""),
+                        "Player": top.get("Name","Unknown"),
+                        "NFLTeam": winner,
+                        "EventType": "DynastySpotlight",
+                        "Headline": f"{top.get('Name','?')} ({pos}) shines as {winner} {_margin_word(margin)} {game['LoseTeam']} {win_s}-{lose_s}",
+                        "Description": (
+                            f"{top.get('Name','?')}{coach_str} is a {ovr_tier} {pos} at {int(ovr)} OVR, "
+                            f"and in Week {week_num} they {pos_line} as {winner} "
+                            f"{_margin_word(margin)} {game['LoseTeam']} {win_s}-{lose_s} "
+                            f"— {_score_context(win_s, lose_s)}."
+                        ),
+                        "ImpactScore": min(10, 5 + int((ovr - 70) / 5)),
+                    }
+            if best_event:
+                new_events.append(best_event)
+
+        # ── Priority 3: Upset alert ───────────────────────────────────────────
+        if len(new_events) < 3:
+            try:
+                power_map_local = {}
+                if os.path.exists("nfl_standings_history.csv"):
+                    _sh = pd.read_csv("nfl_standings_history.csv")
+                    _sh = _sh[pd.to_numeric(_sh.get("Season",""), errors="coerce").fillna(0).astype(int) == int(season_year)]
+                    if not _sh.empty and "TeamPower" in _sh.columns:
+                        power_map_local = dict(zip(_sh["Team"], pd.to_numeric(_sh["TeamPower"], errors="coerce").fillna(75)))
+                for _, game in games_df.iterrows():
+                    winner = game["WinTeam"]; loser = game["LoseTeam"]
+                    win_s  = max(game["HomeScore"], game["AwayScore"])
+                    lose_s = min(game["HomeScore"], game["AwayScore"])
+                    margin = int(game["Margin"])
+                    # Try short names for power_map lookup
+                    w_pow = power_map_local.get(winner, power_map_local.get(_short(winner), 75))
+                    l_pow = power_map_local.get(loser,  power_map_local.get(_short(loser),  75))
+                    if l_pow - w_pow >= 6:
+                        new_events.append({
+                            "Season": season_year, "Week": week_num,
+                            "PlayerID": "", "Player": "",
+                            "NFLTeam": winner,
+                            "EventType": "Upset",
+                            "Headline": f"UPSET ALERT — {winner} stuns {loser} {win_s}-{lose_s} in Week {week_num}",
+                            "Description": (
+                                f"Nobody had {winner} winning this one. They walked into Week {week_num} "
+                                f"as the clear underdog and walked out with a {win_s}-{lose_s} decision over "
+                                f"{loser} — {_score_context(win_s, lose_s)} that no power rating saw coming. "
+                                f"The league just got a lot more interesting."
+                            ),
+                            "ImpactScore": 7,
+                        })
+                        break
+            except Exception:
+                pass
+
+        # ── Priority 4: Fan-favorite franchise callout ────────────────────────
+        fave_teams_in_week = []
+        fave_full_name_map = {}
+        for _, g in games_df.iterrows():
+            for full in [str(g["HomeTeam"]), str(g["AwayTeam"])]:
+                short = _short(full)
+                if short in FAN_FAVES:
+                    fave_teams_in_week.append(short)
+                    fave_full_name_map[short] = full
+        fave_teams_in_week = list(set(fave_teams_in_week))
+
+        if fave_teams_in_week:
+            chosen_short = random.choice(fave_teams_in_week)
+            chosen_full  = fave_full_name_map.get(chosen_short, chosen_short)
+            copy_pool    = FAN_FAVES[chosen_short]
+            tg = games_df[(games_df["HomeTeam"] == chosen_full) | (games_df["AwayTeam"] == chosen_full)]
+            if not tg.empty:
+                team_game = tg.iloc[0]
+                won  = team_game["WinTeam"] == chosen_full
+                opp  = team_game["AwayTeam"] if team_game["HomeTeam"] == chosen_full else team_game["HomeTeam"]
+                w_s  = max(team_game["HomeScore"], team_game["AwayScore"])
+                l_s  = min(team_game["HomeScore"], team_game["AwayScore"])
+                win_s2, lose_s2 = (w_s, l_s) if won else (l_s, w_s)
+                result_str = f"{'W' if won else 'L'} {win_s2}-{lose_s2} vs {_short(opp)}"
+                feeling    = "fired up" if won else "not thrilled"
+                headline_tmpl, desc_tmpl = random.choice(copy_pool)
+                # Fill in dynamic result/feeling tokens
+                desc_filled = desc_tmpl.format(
+                    result=result_str, feeling=feeling,
+                    team=chosen_short, opp=_short(opp)
+                )
+                new_events.append({
+                    "Season": season_year, "Week": week_num,
+                    "PlayerID": "", "Player": "",
+                    "NFLTeam": chosen_full,
+                    "EventType": "FanFaveSpotlight",
+                    "Headline": f"{headline_tmpl} — Week {week_num} ({result_str})",
+                    "Description": desc_filled,
+                    "ImpactScore": 4,
+                })
+
+        # ── Write new events ──────────────────────────────────────────────────
+        if new_events:
+            new_df = pd.DataFrame(new_events, columns=NFL_STORY_EVENTS_COLS)
+            existing_story = pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+            if os.path.exists("nfl_story_events.csv"):
+                try:
+                    existing_story = pd.read_csv("nfl_story_events.csv")
+                except Exception:
+                    pass
+            combined = pd.concat([existing_story, new_df], ignore_index=True)
+            combined = combined.drop_duplicates(subset=["Season","Week","NFLTeam","EventType"], keep="last")
+            combined.to_csv("nfl_story_events.csv", index=False)
+
+    except Exception:
+        pass  # Never crash week advance over story events
 
     try:
         # Load dynasty rosters to find alumni
@@ -3877,6 +4144,214 @@ def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
     pd.concat([existing_standings, out], ignore_index=True).to_csv("nfl_standings_history.csv", index=False)
 
 
+NFL_TRADE_HISTORY_COLS = [
+    "Season", "Week", "TradeType",
+    "Team1", "Team2",
+    "Team1Gives", "Team2Gives",
+    "Headline", "Description",
+]
+
+def _trade_value(player_row):
+    """Simple trade value: OVR + position premium + youth bonus."""
+    ovr  = safe_num(player_row.get("OVR", 70), 70)
+    age  = safe_num(player_row.get("Age", 27), 27)
+    pos  = str(player_row.get("PosBucket", "OL")).strip()
+    prem = {"QB":15,"EDGE":10,"WR":9,"CB":9,"OL":6,"IDL":6,"S":5,"RB":4,"LB":4,"TE":3}.get(pos, 4)
+    youth_bonus = max(0, (30 - age) * 0.8)
+    return round(ovr + prem + youth_bonus, 1)
+
+def _pick_value(round_num):
+    """Draft pick trade value by round."""
+    return {1: 28, 2: 18, 3: 12, 4: 7, 5: 4, 6: 2, 7: 1}.get(int(round_num), 1)
+
+def simulate_nfl_trades(season_year, week_num, rosters_df, season_target=4):
+    """
+    Simulate 3-5 trades across the season. Fires probabilistically each week
+    so total season trades land near season_target.
+    Returns list of trade dicts, also appends to nfl_trade_history.csv.
+    """
+    import math as _math
+
+    trades = []
+
+    if rosters_df is None or rosters_df.empty:
+        return trades
+
+    # Weeks 3-14 are trade window; each week has a base probability
+    weeks_remaining = max(1, 18 - week_num)
+    trades_so_far = 0
+    if os.path.exists("nfl_trade_history.csv"):
+        try:
+            _th = pd.read_csv("nfl_trade_history.csv")
+            _th["Season"] = pd.to_numeric(_th["Season"], errors="coerce")
+            trades_so_far = len(_th[_th["Season"].fillna(-1).astype(int) == int(season_year)])
+        except Exception:
+            pass
+
+    # Skip if we've already hit the season target or outside trade window
+    if trades_so_far >= season_target or week_num < 3 or week_num > 14:
+        return trades
+
+    trades_needed = max(0, season_target - trades_so_far)
+    fire_prob = min(0.55, trades_needed / max(1, weeks_remaining))
+    if random.random() > fire_prob:
+        return trades
+
+    # Fire 1 trade this week
+    teams = rosters_df["Team"].dropna().astype(str).unique().tolist()
+    if len(teams) < 4:
+        return trades
+
+    # Build team needs
+    team_needs_df = pd.DataFrame()
+    try:
+        team_needs_df = build_nfl_team_needs(rosters_df)
+    except Exception:
+        pass
+
+    # Pick two random teams that aren't division rivals
+    rng_teams = random.sample(teams, min(10, len(teams)))
+    team1, team2 = rng_teams[0], rng_teams[1]
+
+    # Trade type: 40% player+pick, 35% player-for-player, 25% picks-only
+    roll = random.random()
+    trade_type = "PlayerPick" if roll < 0.40 else ("PlayerPlayer" if roll < 0.75 else "PickOnly")
+
+    def _best_tradeable_player(team, exclude_names=None):
+        """Pick a trade-worthy player — not top starter, not bottom scrub."""
+        tdf = rosters_df[rosters_df["Team"].astype(str) == team].copy()
+        if tdf.empty:
+            return None
+        tdf["OVR"] = pd.to_numeric(tdf["OVR"], errors="coerce").fillna(60)
+        tdf = tdf.sort_values("OVR", ascending=False)
+        # Skip top 2 players (untouchable) and bottom 10 (no value)
+        tradeable = tdf.iloc[2:-10] if len(tdf) > 15 else tdf.iloc[1:]
+        if exclude_names:
+            tradeable = tradeable[~tradeable["Name"].isin(exclude_names)]
+        if tradeable.empty:
+            return None
+        # Weight toward mid-tier OVR 75-84 range
+        mid = tradeable[(tradeable["OVR"] >= 73) & (tradeable["OVR"] <= 86)]
+        pool = mid if not mid.empty else tradeable
+        return pool.sample(1).iloc[0]
+
+    t1_gives_str = ""
+    t2_gives_str = ""
+    headline = ""
+    description = ""
+
+    try:
+        if trade_type == "PickOnly":
+            # Swap picks across rounds
+            r1 = random.choice([1, 2, 3])
+            r2 = r1 + random.randint(0, 1)
+            t1_gives_str = f"{season_year + 1} Round {r1} pick"
+            t2_gives_str = f"{season_year + 1} Round {r2} pick"
+            headline = f"TRADE: {team1} and {team2} swap {season_year + 1} draft picks"
+            description = (
+                f"In a quiet pre-deadline move, {team1} and {team2} exchanged "
+                f"future draft capital. {team1} sends their {season_year + 1} "
+                f"Round {r1} pick to {team2} in exchange for a Round {r2} selection. "
+                f"Both teams are positioning for the future."
+            )
+
+        elif trade_type == "PlayerPlayer":
+            p1 = _best_tradeable_player(team1)
+            p2 = _best_tradeable_player(team2)
+            if p1 is None or p2 is None:
+                return trades
+            pname1 = str(p1.get("Name","?"))
+            pname2 = str(p2.get("Name","?"))
+            ppos1  = str(p1.get("Pos", p1.get("PosBucket","?")))
+            ppos2  = str(p2.get("Pos", p2.get("PosBucket","?")))
+            povr1  = int(safe_num(p1.get("OVR",70),70))
+            povr2  = int(safe_num(p2.get("OVR",70),70))
+            t1_gives_str = f"{pname1} ({ppos1}, {povr1} OVR)"
+            t2_gives_str = f"{pname2} ({ppos2}, {povr2} OVR)"
+            headline = f"TRADE: {team1} acquires {pname2} from {team2}"
+            description = (
+                f"{team1} and {team2} pulled off a straight swap. "
+                f"{pname1} ({ppos1}, {povr1} OVR) heads to {team2} while "
+                f"{pname2} ({ppos2}, {povr2} OVR) crosses the other direction. "
+                f"Both teams address depth needs heading into the second half of the season."
+            )
+            # Mark trade in rosters
+            try:
+                rosters_df.loc[rosters_df["Name"] == pname1, "Team"] = team2
+                rosters_df.loc[rosters_df["Name"] == pname2, "Team"] = team1
+                rosters_df.to_csv("nfl_current_rosters.csv", index=False)
+            except Exception:
+                pass
+
+        else:  # PlayerPick
+            p1 = _best_tradeable_player(team1)
+            if p1 is None:
+                return trades
+            pname = str(p1.get("Name","?"))
+            ppos  = str(p1.get("Pos", p1.get("PosBucket","?")))
+            povr  = int(safe_num(p1.get("OVR",70),70))
+            rnd   = 2 if povr >= 82 else 3
+            t1_gives_str = f"{pname} ({ppos}, {povr} OVR)"
+            t2_gives_str = f"{season_year + 1} Round {rnd} pick"
+            headline = f"TRADE: {team2} acquires {pname} from {team1} for Round {rnd} pick"
+            description = (
+                f"{team2} made a move at the deadline, sending a {season_year + 1} "
+                f"Round {rnd} pick to {team1} in exchange for {pname} ({ppos}, {povr} OVR). "
+                f"{team1} adds future draft capital while {team2} gets an immediate upgrade "
+                f"at {ppos}. The pick is a rental but the timeline makes sense."
+            )
+            try:
+                rosters_df.loc[rosters_df["Name"] == pname, "Team"] = team2
+                rosters_df.to_csv("nfl_current_rosters.csv", index=False)
+            except Exception:
+                pass
+
+        trade_row = {
+            "Season": season_year,
+            "Week": week_num,
+            "TradeType": trade_type,
+            "Team1": team1,
+            "Team2": team2,
+            "Team1Gives": t1_gives_str,
+            "Team2Gives": t2_gives_str,
+            "Headline": headline,
+            "Description": description,
+        }
+        trades.append(trade_row)
+
+        # Append to CSV
+        new_df = pd.DataFrame([trade_row], columns=NFL_TRADE_HISTORY_COLS)
+        if os.path.exists("nfl_trade_history.csv"):
+            existing = pd.read_csv("nfl_trade_history.csv")
+            pd.concat([existing, new_df], ignore_index=True).to_csv("nfl_trade_history.csv", index=False)
+        else:
+            new_df.to_csv("nfl_trade_history.csv", index=False)
+
+        # Fire a story event for the trade
+        _trade_story = {
+            "Season": season_year, "Week": week_num,
+            "PlayerID": "", "Player": "",
+            "NFLTeam": team2,
+            "EventType": "Trade",
+            "Headline": headline,
+            "Description": description,
+            "ImpactScore": 7 if trade_type == "PlayerPlayer" else (6 if trade_type == "PlayerPick" else 4),
+        }
+        existing_story = pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+        if os.path.exists("nfl_story_events.csv"):
+            try:
+                existing_story = pd.read_csv("nfl_story_events.csv")
+            except Exception:
+                pass
+        pd.concat([existing_story, pd.DataFrame([_trade_story], columns=NFL_STORY_EVENTS_COLS)],
+                  ignore_index=True).to_csv("nfl_story_events.csv", index=False)
+
+    except Exception:
+        pass
+
+    return trades
+
+
 def advance_dynasty_and_nfl_week():
     """
     Combined CFB + NFL week advance.
@@ -3938,6 +4413,18 @@ def advance_dynasty_and_nfl_week():
                 team_strength_df=build_nfl_team_strengths(season_rosters)
             )
             save_nfl_week(nfl_week_new)
+            # ── Try to fire a trade this week ─────────────────────────────
+            try:
+                trades_fired = simulate_nfl_trades(
+                    season_year=nfl_season,
+                    week_num=nfl_week_new,
+                    rosters_df=season_rosters,
+                    season_target=4
+                )
+                if trades_fired:
+                    nfl_summary += f" | 🔄 TRADE: {trades_fired[0]['Headline']}"
+            except Exception:
+                pass
         elif nfl_week_new == 19:
             # Trigger playoffs
             sim_result, sim_msg = simulate_nfl_playoffs_phase(season_year=nfl_season)
@@ -12563,25 +13050,49 @@ try:
             _wscore = _vs  if _vs > _hs2 else _hs2
             _lscore = _hs2 if _vs > _hs2 else _vs
             _diff   = abs(_vs - _hs2)
+            _w_user = _vis_u if _vs > _hs2 else _hm_u
+            _l_user = _hm_u  if _vs > _hs2 else _vis_u
+            _w_rank = _rank_lookup.get(_winner.lower())
+            _l_rank = _rank_lookup.get(_loser.lower())
+            _w_rank_str = f"#{_w_rank} " if _w_rank else ""
+            _l_rank_str = f"#{_l_rank} " if _l_rank else ""
             # Ranks in ticker text
             _w_rk = _rk_inline(_winner)
             _l_rk = _rk_inline(_loser)
+            # Rich blurb with context
+            _is_h2h = _is_user_team(_vis_u) and _is_user_team(_hm_u)
             if _diff <= 3:
-                _bdg = 'THRILLER'
-                _pri = 75
-                _blurb = f"A {_diff}-point nailbiter in Week {_latest_wk}. {_winner} escapes with the W."
+                _bdg = 'H2H THRILLER' if _is_h2h else 'THRILLER'
+                _pri = 80 if _is_h2h else 75
+                _blurb_templates = [
+                    f"{_w_rank_str}{_winner} survives {_wscore}-{_lscore} against {_l_rank_str}{_loser}. Coach {_w_user} needed every one of those points.",
+                    f"A {_diff}-point nailbiter in Week {_latest_wk}. {_w_rank_str}{_winner} escapes with the W over {_l_rank_str}{_loser}. {_wscore}-{_lscore}, and it wasn't pretty.",
+                    f"Gut-check game for {_w_rank_str}{_winner}. They got it done against {_l_rank_str}{_loser} {_wscore}-{_lscore}. Coach {_w_user} will take it.",
+                ]
+                _blurb = random.choice(_blurb_templates)
             elif _diff >= 21:
-                _bdg = 'BLOWOUT'
-                _pri = 65
-                _blurb = f"{_winner} sends a message in Week {_latest_wk}. Not even close."
+                _bdg = 'H2H BLOWOUT' if _is_h2h else 'BLOWOUT'
+                _pri = 75 if _is_h2h else 65
+                _blurb_templates = [
+                    f"{_w_rank_str}{_winner} drops {_wscore} points on {_l_rank_str}{_loser}. Coach {_w_user} sends a message to the league. Not even close.",
+                    f"Statement win for {_w_rank_str}{_winner}. {_wscore}-{_lscore} over {_l_rank_str}{_loser}. If {_loser}'s coach {_l_user} has a plan, they better find it fast.",
+                    f"{_diff} points. {_w_rank_str}{_winner} makes it look easy against {_l_rank_str}{_loser}. {_wscore}-{_lscore} and it wasn't even that close.",
+                ]
+                _blurb = random.choice(_blurb_templates)
             else:
-                _bdg = f'WK {_latest_wk} RESULT'
-                _pri = 60
-                _blurb = f"{_winner} takes care of business in Week {_latest_wk}."
-            # Show user vs user games at higher priority
-            if _is_user_team(_vis_u) and _is_user_team(_hm_u):
-                _pri += 10
-                _bdg = 'H2H RESULT' if _diff > 3 else 'H2H THRILLER'
+                _bdg = 'H2H RESULT' if _is_h2h else f'WK {_latest_wk} RESULT'
+                _pri = 70 if _is_h2h else 60
+                _blurb_templates = [
+                    f"{_w_rank_str}{_winner} beats {_l_rank_str}{_loser} {_wscore}-{_lscore}. Coach {_w_user} moves to [W]-[L] on the season.",
+                    f"Business as usual for {_w_rank_str}{_winner} in Week {_latest_wk}. {_wscore}-{_lscore} over {_l_rank_str}{_loser}. The margin of victory tells the story.",
+                    f"Week {_latest_wk}: {_winner} {_wscore}, {_loser} {_lscore}. Coach {_w_user} keeps rolling.",
+                ]
+                if _is_h2h:
+                    _blurb_templates = [
+                        f"Coach {_w_user}'s {_winner} handles Coach {_l_user}'s {_loser} {_wscore}-{_lscore}. Dynasty bragging rights update: advantage {_w_user}.",
+                        f"H2H rivalry update — {_winner} over {_loser} {_wscore}-{_lscore}. {_w_user} pockets the W against {_l_user} in Week {_latest_wk}.",
+                    ]
+                _blurb = random.choice(_blurb_templates)
             _wl = get_header_logo(_winner)
             _ll = get_header_logo(_loser)
             _lh = (f'<div style="display:flex;justify-content:center;align-items:center;'
@@ -13104,12 +13615,13 @@ try:
         _nfl_stories = _nfl_stories.sort_values("ImpactScore", ascending=False).head(6)
 
         _NFL_BADGE_COLORS = {
-            "AlumniMatchup": ("NFL ALUMNI", "#f59e0b", "#451a03"),
+            "AlumniMatchup":    ("NFL ALUMNI",    "#f59e0b", "#451a03"),
             "DynastySpotlight": ("NFL SPOTLIGHT", "#3b82f6", "white"),
-            "Upset": ("NFL UPSET", "#dc2626", "white"),
-            "FanFaveSpotlight": ("NFL", "#334155", "#94a3b8"),
-            "Retirement": ("NFL RETIREMENT", "#6b7280", "white"),
-            "Award": ("NFL AWARD", "#f59e0b", "#451a03"),
+            "Upset":            ("NFL UPSET",     "#dc2626", "white"),
+            "FanFaveSpotlight": ("NFL",            "#334155", "#94a3b8"),
+            "Retirement":       ("NFL RETIREMENT","#6b7280",  "white"),
+            "Award":            ("NFL AWARD",     "#f59e0b", "#451a03"),
+            "Trade":            ("NFL TRADE",     "#7c3aed", "white"),
         }
 
         for _, _ns in _nfl_stories.iterrows():
@@ -13221,6 +13733,8 @@ def _badge_color(badge):
         return ('#f59e0b', '#451a03')
     if badge.startswith('NFL'):
         return ('#1e40af', 'white')
+    if 'TRADE' in badge.upper():
+        return ('#7c3aed', 'white')
     return ('#3b82f6', 'white')
 
 _ticker_items = ''
@@ -24785,6 +25299,56 @@ with tabs[2]:
         with nfl_tabs[8]:
             st.subheader("📰 Storylines")
 
+            # ── Trade History ─────────────────────────────────────────────────
+            if os.path.exists("nfl_trade_history.csv"):
+                try:
+                    _th_df = pd.read_csv("nfl_trade_history.csv")
+                    if not _th_df.empty:
+                        _th_df["Season"] = pd.to_numeric(_th_df["Season"], errors="coerce")
+                        _th_df["Week"]   = pd.to_numeric(_th_df["Week"],   errors="coerce")
+                        _th_current = _th_df[
+                            _th_df["Season"].fillna(-1).astype(int) == int(get_current_nfl_season())
+                        ].sort_values("Week", ascending=False).copy()
+
+                        if not _th_current.empty:
+                            st.markdown("#### 🔄 Trade Deadline Activity")
+                            for _, _tr in _th_current.iterrows():
+                                _tr_t1    = str(_tr.get("Team1",""))
+                                _tr_t2    = str(_tr.get("Team2",""))
+                                _tr_gives = str(_tr.get("Team1Gives",""))
+                                _tr_gets  = str(_tr.get("Team2Gives",""))
+                                _tr_hl    = str(_tr.get("Headline",""))
+                                _tr_desc  = str(_tr.get("Description",""))
+                                _tr_wk    = int(safe_num(_tr.get("Week",0),0))
+                                _tr_type  = str(_tr.get("TradeType",""))
+                                _t1_logo  = get_nfl_logo_src(_tr_t1)
+                                _t2_logo  = get_nfl_logo_src(_tr_t2)
+                                _t1_color = get_nfl_team_color(_tr_t1)
+                                _t2_color = get_nfl_team_color(_tr_t2)
+                                _t1_img   = f"<img src='{_t1_logo}' style='width:32px;height:32px;object-fit:contain;'/>" if _t1_logo else ""
+                                _t2_img   = f"<img src='{_t2_logo}' style='width:32px;height:32px;object-fit:contain;'/>" if _t2_logo else ""
+                                st.markdown(
+                                    f"<div style='padding:10px 14px;background:#0a0f1e;"
+                                    f"border-left:4px solid #7c3aed;border-radius:6px;margin-bottom:8px;'>"
+                                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:6px;'>"
+                                    f"<span style='background:#7c3aed22;color:#a78bfa;font-size:0.6rem;font-weight:900;"
+                                    f"padding:2px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:.08em;'>TRADE · WK {_tr_wk}</span>"
+                                    f"</div>"
+                                    f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>"
+                                    f"<div style='flex:1;'>{_t1_img} <span style='color:{_t1_color};font-weight:800;font-size:0.82rem;'>{html.escape(_tr_t1)}</span><br>"
+                                    f"<span style='color:#64748b;font-size:0.7rem;'>Gives: {html.escape(_tr_gives)}</span></div>"
+                                    f"<span style='color:#475569;font-size:1.2rem;font-weight:900;'>⇄</span>"
+                                    f"<div style='flex:1;text-align:right;'>{_t2_img} <span style='color:{_t2_color};font-weight:800;font-size:0.82rem;'>{html.escape(_tr_t2)}</span><br>"
+                                    f"<span style='color:#64748b;font-size:0.7rem;'>Gives: {html.escape(_tr_gets)}</span></div>"
+                                    f"</div>"
+                                    f"<div style='color:#94a3b8;font-size:0.75rem;font-style:italic;'>{html.escape(_tr_desc)}</div>"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+                            st.markdown("---")
+                except Exception:
+                    pass
+
             if nfl_story.empty and not nfl_draft_hist.empty:
                 fallback = nfl_draft_hist.copy().sort_values(
                     ["DraftYear", "GeneratedOverallPick"],
@@ -25761,10 +26325,10 @@ with tabs[2]:
             <div style='color:#94a3b8;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;'>📅 SEASON ORDER — follow this sequence every year</div>
 
             <div style='color:#22c55e;font-weight:700;margin-bottom:4px;'>1. ⚡ After each Advance Week (CFB + NFL together):</div>
-            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>dynasty_state.csv</code></div>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>nfl_trade_history.csv</code> &nbsp;·&nbsp; <code>dynasty_state.csv</code></div>
 
             <div style='color:#60a5fa;font-weight:700;margin-bottom:4px;'>1b. 🏈 NFL-only catch-up advance (catching up to CFB week):</div>
-            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code><br>
+            <div style='margin-left:12px;margin-bottom:10px;'>Push → <code>nfl_weekly_scores.csv</code> &nbsp;·&nbsp; <code>nfl_standings_history.csv</code> &nbsp;·&nbsp; <code>nfl_universe_settings.csv</code> &nbsp;·&nbsp; <code>nfl_story_events.csv</code> &nbsp;·&nbsp; <code>nfl_trade_history.csv</code><br>
             <span style='color:#64748b;font-size:0.75rem;'>dynasty_state.csv is NOT touched by NFL-only advances — skip it</span></div>
 
             <div style='color:#a78bfa;font-weight:700;margin-bottom:4px;'>2. 🏆 After Sim Playoffs + Super Bowl:</div>
@@ -25813,6 +26377,7 @@ with tabs[2]:
                 ("nfl_standings_history.csv",    "Standings",         "⬇️ Push after EVERY advance"),
                 ("nfl_universe_settings.csv",    "NFL Settings",      "⬇️ Push after EVERY advance"),
                 ("nfl_story_events.csv",         "Story Events",      "⬇️ Push after EVERY advance — weekly events accumulate here"),
+                ("nfl_trade_history.csv",        "Trade History",     "⬇️ Push after EVERY advance — trades fire mid-season"),
                 ("nfl_current_rosters.csv",      "Current Rosters",   "⬇️ Push after roster rebuild, draft, or offseason"),
                 ("nfl_draft_history.csv",        "Draft History",     "⬇️ Push after NFL Draft"),
                 ("nfl_player_history.csv",       "Player History",    "⬇️ Push after full season sim + playoffs"),
