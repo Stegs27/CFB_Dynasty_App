@@ -17313,10 +17313,10 @@ with tabs[0]:
         # ── NFL MOCK DRAFT — 1ST ROUND ────────────────────────────────────────────
         st.markdown("---")
         st.subheader(f"🏈 {CURRENT_YEAR + 1} NFL Mock Draft — 1st Round")
-        st.caption("Top 32 prospects: CPU pool + eligible user roster players (SR/SR(RS), or JR/SO(RS) with 92+ OVR). Assigned to 2025 NFL draft order until simulation results are available.")
+        st.caption("Top 32 prospects: CPU pool + eligible user roster players (SR/SR(RS), or JR/SO(RS) with 92+ OVR). Draft order auto-updates from NFL Universe standings — worst record picks first.")
 
-        # 2025 NFL Draft order — used until simulation results exist
-        _NFL_DRAFT_ORDER = [
+        # ── Draft order: live from NFL standings (worst→best), fallback to 2025 real order ──
+        _NFL_DRAFT_ORDER_FALLBACK = [
             "Tennessee Titans", "Cleveland Browns", "New York Giants", "New England Patriots",
             "Jacksonville Jaguars", "Las Vegas Raiders", "New York Jets", "Carolina Panthers",
             "New Orleans Saints", "Chicago Bears", "San Francisco 49ers", "Dallas Cowboys",
@@ -17326,6 +17326,36 @@ with tabs[0]:
             "Houston Texans", "Los Angeles Rams", "Baltimore Ravens", "Detroit Lions",
             "Washington Commanders", "Buffalo Bills", "Kansas City Chiefs", "Philadelphia Eagles",
         ]
+
+        _NFL_DRAFT_ORDER = _NFL_DRAFT_ORDER_FALLBACK.copy()
+        _draft_order_source = f"2025 real-life order (placeholder)"
+
+        try:
+            if os.path.exists("nfl_standings_history.csv"):
+                _nfl_st = pd.read_csv("nfl_standings_history.csv")
+                _nfl_st["Season"] = pd.to_numeric(_nfl_st["Season"], errors="coerce")
+                # Use most recent completed season
+                _latest_nfl_szn = _nfl_st["Season"].dropna().astype(int).max()
+                _nfl_st_latest  = _nfl_st[_nfl_st["Season"].fillna(-1).astype(int) == int(_latest_nfl_szn)].copy()
+
+                if not _nfl_st_latest.empty and "Wins" in _nfl_st_latest.columns:
+                    _nfl_st_latest["Wins"]    = pd.to_numeric(_nfl_st_latest["Wins"],    errors="coerce").fillna(0)
+                    _nfl_st_latest["Losses"]  = pd.to_numeric(_nfl_st_latest["Losses"],  errors="coerce").fillna(0)
+                    _nfl_st_latest["WinPct"]  = pd.to_numeric(_nfl_st_latest["WinPct"],  errors="coerce").fillna(0)
+                    _nfl_st_latest["TeamPower"] = pd.to_numeric(_nfl_st_latest.get("TeamPower", pd.Series()), errors="coerce").fillna(75)
+                    # Sort: worst record first (fewest wins → lowest WinPct → lowest TeamPower)
+                    _nfl_st_sorted = _nfl_st_latest.sort_values(
+                        ["Wins", "WinPct", "TeamPower"],
+                        ascending=[True, True, True]
+                    ).reset_index(drop=True)
+
+                    _live_order = _nfl_st_sorted["Team"].astype(str).tolist()
+                    if len(_live_order) >= 28:  # need at least most teams
+                        _NFL_DRAFT_ORDER = _live_order
+                        _weeks_played = _nfl_st_latest["Wins"].sum() + _nfl_st_latest["Losses"].sum()
+                        _draft_order_source = f"{int(_latest_nfl_szn)} NFL standings — worst to best ({int(_nfl_st_latest['Wins'].sum() + _nfl_st_latest['Losses'].sum()) // 32} weeks played)"
+        except Exception:
+            pass  # silently fall back to static order
 
         # Position bucket map (mirrors prep_cpu_draft_pool.py)
         _MOCK_POS_BUCKET = {
@@ -17551,7 +17581,7 @@ with tabs[0]:
                 _user_in_r1 = int((_r1['Source'] == 'USER').sum()) if 'Source' in _r1.columns else 0
                 _top_cpu_score  = float(_mock_all[_mock_all['Source']=='CPU']['DraftValueScore'].max())  if not _mock_cpu.empty  else 0
                 _top_user_score = float(_mock_all[_mock_all['Source']=='USER']['DraftValueScore'].max()) if not _mock_roster.empty else 0
-                st.caption(f"{_total_prospects} total prospects ({_user_count} from user rosters). NFL teams use 2025 real-life draft order as placeholder. User program players highlighted in team color.")
+                st.caption(f"{_total_prospects} total prospects ({_user_count} from user rosters). Draft order: {_draft_order_source}. User program players highlighted in team color.")
                 st.caption(f"🔍 CPU: {_mock_cpu_status}  |  Rosters: {_mock_roster_status}")
                 st.caption(f"🔍 Round 1 breakdown: {_cpu_in_r1} CPU picks / {_user_in_r1} user picks — Top CPU score: {_top_cpu_score:.1f} | Top user score: {_top_user_score:.1f}")
 
