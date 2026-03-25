@@ -161,10 +161,10 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2041,7.0,Florida,Tennessee,48.0,31.0,,Doug,,,,,,1,0,0,0,FINAL,Florida schedule screenshot
 2041,7.0,Iowa,Texas Tech,7.0,59.0,,,Noah,,,,,1,0,0,0,FINAL,Texas Tech schedule screenshot
 2041,7.0,Wyoming,Bowling Green,17.0,35.0,,,Devin,,,,,1,0,0,0,FINAL,Bowling Green schedule screenshot
-2041,1.0,Florida,LSU,35.0,28.0,,Doug,,,,,,1,0,0,0,FINAL,TTU schedule screenshot
-2041,1.0,Florida State,Bowling Green,21.0,52.0,,Nick,Devin,4.0,,,,1,0,0,0,FINAL,FSU schedule screenshot
-2041,1.0,San Jose State,Texas Tech,62.0,27.0,,Mike,Noah,2.0,7.0,,,1,0,0,0,FINAL,CFP bracket screenshot
-2041,1.0,USF,Minnesota,84.0,17.0,,Josh,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,8.0,Florida,LSU,35.0,28.0,,Doug,,,,,,1,0,0,0,FINAL,TTU schedule screenshot
+2041,8.0,Florida State,Bowling Green,21.0,52.0,,Nick,Devin,4.0,,,,1,0,0,0,FINAL,FSU schedule screenshot
+2041,8.0,San Jose State,Texas Tech,62.0,27.0,,Mike,Noah,2.0,7.0,,,1,0,0,0,FINAL,CFP bracket screenshot
+2041,8.0,USF,Minnesota,84.0,17.0,,Josh,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
 2041,9.0,Alabama,Florida,20.0,45.0,,,Doug,,,,,1,0,0,0,FINAL,Florida schedule screenshot / user correction
 2041,9.0,Auburn,Florida State,22.0,50.0,,,Nick,,,,,1,0,0,0,FINAL,CFP bracket screenshot
 2041,9.0,Bowling Green,Missouri,44.0,13.0,,Devin,,,,,,1,0,0,0,FINAL,CFP bracket screenshot
@@ -243,11 +243,11 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,CFP,Vis_User,Home_User,Visitor Rank,
 2042,7.0,Indiana,San Jose State,,,,,Mike,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
 2042,7.0,Penn State,Texas Tech,,,,,Noah,,,,,1,0,0,0,SCHEDULED,
 2042,7.0,USF,Nebraska,,,,Josh,,,,,,1,0,0,0,SCHEDULED,2042 custom schedule screenshots
-2042,1.0,Florida,Tennessee,,,,Doug,,,,,,1,0,0,0,SCHEDULED,
-2042,1.0,Florida State,Oklahoma,,,,Nick,,,,,,1,0,0,0,SCHEDULED,
-2042,1.0,Michigan,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
-2042,1.0,Notre Dame,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,
-2042,1.0,Texas Tech,San Jose State,,,,Noah,Mike,,,,,1,0,0,0,SCHEDULED,
+2042,8.0,Florida,Tennessee,,,,Doug,,,,,,1,0,0,0,SCHEDULED,
+2042,8.0,Florida State,Oklahoma,,,,Nick,,,,,,1,0,0,0,SCHEDULED,
+2042,8.0,Michigan,USF,,,,,Josh,,,,,1,0,0,0,SCHEDULED,
+2042,8.0,Notre Dame,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,
+2042,8.0,Texas Tech,San Jose State,,,,Noah,Mike,,,,,1,0,0,0,SCHEDULED,
 2042,9.0,Alabama,Florida,,,,,Doug,,,,,1,0,0,0,SCHEDULED,
 2042,9.0,Oklahoma,Bowling Green,,,,,Devin,,,,,1,0,0,0,SCHEDULED,
 2042,9.0,San Jose State,Nebraska,,,,Mike,,,,,,1,0,0,0,SCHEDULED,
