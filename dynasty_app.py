@@ -3520,12 +3520,6 @@ def advance_dynasty_and_nfl_week():
     except Exception as e:
         nfl_summary = f"NFL sim error: {e}"
 
-    # ── Auto-sync coach_records.csv + UserDraftPicks.csv from CPUscores_MASTER ──
-    try:
-        sync_derived_stats()
-    except Exception:
-        pass  # Never block week advance on a sync failure
-
     return cfb_week_new, nfl_week_new, nfl_summary, games_df
 
 
