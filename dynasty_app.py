@@ -3067,6 +3067,60 @@ def get_nfl_division(team_name):
             return div
     return ""
 
+# NFL team primary colors keyed on short name and full name
+_NFL_TEAM_COLORS = {
+    # AFC East
+    "bills": "#00338d",           "buffalo bills": "#00338d",
+    "dolphins": "#008e97",        "miami dolphins": "#008e97",
+    "patriots": "#002244",        "new england patriots": "#002244",
+    "jets": "#125740",            "new york jets": "#125740",
+    # AFC North
+    "ravens": "#241773",          "baltimore ravens": "#241773",
+    "bengals": "#fb4f14",         "cincinnati bengals": "#fb4f14",
+    "browns": "#ff3c00",          "cleveland browns": "#ff3c00",
+    "steelers": "#ffb612",        "pittsburgh steelers": "#ffb612",
+    # AFC South
+    "texans": "#03202f",          "houston texans": "#03202f",
+    "colts": "#002c5f",           "indianapolis colts": "#002c5f",
+    "jaguars": "#006778",         "jacksonville jaguars": "#006778",
+    "titans": "#4b92db",          "tennessee titans": "#4b92db",
+    # AFC West
+    "broncos": "#fb4f14",         "denver broncos": "#fb4f14",
+    "chiefs": "#e31837",          "kansas city chiefs": "#e31837",
+    "raiders": "#a5acaf",         "las vegas raiders": "#a5acaf",
+    "chargers": "#0080c6",        "los angeles chargers": "#0080c6",
+    # NFC East
+    "cowboys": "#003594",         "dallas cowboys": "#003594",
+    "giants": "#0b2265",          "new york giants": "#0b2265",
+    "eagles": "#004c54",          "philadelphia eagles": "#004c54",
+    "commanders": "#5a1414",      "washington commanders": "#5a1414",
+    # NFC North
+    "bears": "#0b162a",           "chicago bears": "#0b162a",
+    "lions": "#0076b6",           "detroit lions": "#0076b6",
+    "packers": "#203731",         "green bay packers": "#203731",
+    "vikings": "#4f2683",         "minnesota vikings": "#4f2683",
+    # NFC South
+    "falcons": "#a71930",         "atlanta falcons": "#a71930",
+    "panthers": "#0085ca",        "carolina panthers": "#0085ca",
+    "saints": "#d3bc8d",          "new orleans saints": "#d3bc8d",
+    "buccaneers": "#d50a0a",      "tampa bay buccaneers": "#d50a0a",
+    "bucs": "#d50a0a",
+    # NFC West
+    "cardinals": "#97233f",       "arizona cardinals": "#97233f",
+    "rams": "#003594",            "los angeles rams": "#003594",
+    "49ers": "#aa0000",           "san francisco 49ers": "#aa0000",
+    "seahawks": "#002244",        "seattle seahawks": "#002244",
+}
+
+def get_nfl_team_color(team_name, fallback="#334155"):
+    """Return the primary brand color for an NFL team."""
+    key = str(team_name).strip().lower()
+    if key in _NFL_TEAM_COLORS:
+        return _NFL_TEAM_COLORS[key]
+    # Try last word (short name)
+    short = key.split()[-1] if key else key
+    return _NFL_TEAM_COLORS.get(short, fallback)
+
 def build_nfl_team_strengths(nfl_roster_df):
     if nfl_roster_df is None or nfl_roster_df.empty:
         return pd.DataFrame(columns=[
@@ -22966,14 +23020,13 @@ with tabs[2]:
                     if _tw_scores.empty:
                         st.caption("No results yet for this week — sim with Advance Week button.")
                     else:
-                        # Group by conference for display
                         _afc_games = _tw_scores[
                             (_tw_scores["HomeConf"].astype(str).str.upper() == "AFC") |
                             (_tw_scores["AwayConf"].astype(str).str.upper() == "AFC")
                         ]
                         _nfc_games = _tw_scores[
                             (_tw_scores["HomeConf"].astype(str).str.upper() == "NFC") |
-                            (_tw_scores["AwayConf"].astype(str).str.upper() == "NFC")
+                            (_tw_scores["AwayConf"].astype(str).str.upper() == "AFC")
                         ]
                         for _conf_label, _conf_games in [("AFC", _afc_games), ("NFC", _nfc_games)]:
                             if _conf_games.empty:
@@ -22985,35 +23038,48 @@ with tabs[2]:
                                 unsafe_allow_html=True
                             )
                             for _, _gm in _conf_games.iterrows():
-                                _ht  = str(_gm.get("HomeTeam", ""))
-                                _at  = str(_gm.get("AwayTeam", ""))
-                                _hs  = int(_gm.get("HomeScore", 0))
-                                _as  = int(_gm.get("AwayScore", 0))
-                                _win = str(_gm.get("WinTeam", ""))
-                                _ht_bold  = "font-weight:900;color:#f8fafc;" if _win == _ht else "color:#64748b;"
-                                _at_bold  = "font-weight:900;color:#f8fafc;" if _win == _at else "color:#64748b;"
-                                _hs_col   = "#4ade80" if _win == _ht else "#64748b"
-                                _as_col   = "#4ade80" if _win == _at else "#64748b"
-                                # Check if any dynasty pick plays for either team
+                                _ht   = str(_gm.get("HomeTeam", ""))
+                                _at   = str(_gm.get("AwayTeam", ""))
+                                _hs   = int(_gm.get("HomeScore", 0))
+                                _as   = int(_gm.get("AwayScore", 0))
+                                _win  = str(_gm.get("WinTeam", ""))
+                                _ht_won = _win == _ht
+                                _at_won = _win == _at
+                                # Logos
+                                _ht_logo = get_nfl_logo_src(_ht)
+                                _at_logo = get_nfl_logo_src(_at)
+                                _ht_logo_html = f"<img src='{_ht_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:5px;opacity:{'1' if _ht_won else '0.35'};'/>" if _ht_logo else ""
+                                _at_logo_html = f"<img src='{_at_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:5px;opacity:{'1' if _at_won else '0.35'};'/>" if _at_logo else ""
+                                # Colors
+                                _ht_color = get_nfl_team_color(_ht)
+                                _at_color = get_nfl_team_color(_at)
+                                _ht_name_style = f"font-weight:900;color:#f8fafc;" if _ht_won else "color:#64748b;"
+                                _at_name_style = f"font-weight:900;color:#f8fafc;" if _at_won else "color:#64748b;"
+                                _hs_col = _ht_color if _ht_won else "#475569"
+                                _as_col = _at_color if _at_won else "#475569"
+                                # Dynasty pick indicator
                                 _h_has_pick = False; _a_has_pick = False
                                 if not _draft_df.empty and "GeneratedNFLTeam" in _draft_df.columns:
                                     _h_has_pick = (_draft_df["GeneratedNFLTeam"].astype(str) == _ht).any()
                                     _a_has_pick = (_draft_df["GeneratedNFLTeam"].astype(str) == _at).any()
-                                _h_dot = "<span style='color:#fbbf24;font-size:.7rem;margin-left:3px;' title='Dynasty pick plays here'>★</span>" if _h_has_pick else ""
-                                _a_dot = "<span style='color:#fbbf24;font-size:.7rem;margin-left:3px;' title='Dynasty pick plays here'>★</span>" if _a_has_pick else ""
+                                _h_dot = "<span style='color:#fbbf24;font-size:.65rem;margin-left:3px;'>★</span>" if _h_has_pick else ""
+                                _a_dot = "<span style='color:#fbbf24;font-size:.65rem;margin-left:3px;'>★</span>" if _a_has_pick else ""
+                                # Winner left-border accent
+                                _border = f"border-left:3px solid {_ht_color if _ht_won else _at_color};"
                                 st.markdown(
                                     f"<div style='display:flex;align-items:center;justify-content:space-between;"
                                     f"padding:5px 10px;background:#0a1628;border-radius:5px;margin-bottom:3px;"
-                                    f"font-size:0.8rem;font-family:Barlow Condensed,sans-serif;'>"
-                                    f"<span style='{_at_bold};min-width:160px;'>{html.escape(_at)}{_a_dot}</span>"
-                                    f"<span style='color:{_as_col};font-weight:900;min-width:28px;text-align:center;'>{_as}</span>"
-                                    f"<span style='color:#334155;margin:0 4px;'>–</span>"
-                                    f"<span style='color:{_hs_col};font-weight:900;min-width:28px;text-align:center;'>{_hs}</span>"
-                                    f"<span style='{_ht_bold};min-width:160px;text-align:right;'>{html.escape(_ht)}{_h_dot}</span>"
+                                    f"font-size:0.8rem;font-family:Barlow Condensed,sans-serif;{_border}'>"
+                                    f"<span style='{_at_name_style};display:flex;align-items:center;min-width:150px;'>{_at_logo_html}{html.escape(_at)}{_a_dot}</span>"
+                                    f"<span style='color:{_as_col};font-weight:900;min-width:26px;text-align:center;'>{_as}</span>"
+                                    f"<span style='color:#1e293b;margin:0 3px;'>–</span>"
+                                    f"<span style='color:{_hs_col};font-weight:900;min-width:26px;text-align:center;'>{_hs}</span>"
+                                    f"<span style='{_ht_name_style};display:flex;align-items:center;justify-content:flex-end;min-width:150px;'>{html.escape(_ht)}{_h_dot}{_ht_logo_html}</span>"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
 
+                with _tw_col2:
                 with _tw_col2:
                     st.markdown("#### 📊 Live Standings")
                     _tw_standings = pd.DataFrame()
@@ -23036,38 +23102,43 @@ with tabs[2]:
                             _sdf["Wins"]   = pd.to_numeric(_sdf["Wins"],   errors="coerce").fillna(0).astype(int)
                             _sdf["Losses"] = pd.to_numeric(_sdf["Losses"], errors="coerce").fillna(0).astype(int)
                             _sdf = _sdf.sort_values("Wins", ascending=False).reset_index(drop=True)
+                            _conf_color = "#ef4444" if _sconf == "AFC" else "#60a5fa"
                             st.markdown(
                                 f"<div style='font-family:Barlow Condensed,sans-serif;font-size:0.7rem;"
-                                f"font-weight:900;letter-spacing:.12em;color:#60a5fa;text-transform:uppercase;"
-                                f"margin:10px 0 4px;'>{_sconf}</div>",
+                                f"font-weight:900;letter-spacing:.12em;color:{_conf_color};"
+                                f"text-transform:uppercase;margin:10px 0 4px;'>{_sconf}</div>",
                                 unsafe_allow_html=True
                             )
                             _st_html = "<div style='display:flex;flex-direction:column;gap:2px;'>"
                             for _si, (_idx, _sr) in enumerate(_sdf.iterrows()):
-                                _s_team = str(_sr.get("Team",""))
-                                _s_w    = int(_sr.get("Wins", 0))
-                                _s_l    = int(_sr.get("Losses", 0))
-                                _seed   = _si + 1
-                                _bg     = "#1e293b" if _seed <= 7 else "#0a1628"
-                                _seed_color = "#fbbf24" if _seed == 1 else ("#94a3b8" if _seed <= 7 else "#334155")
-                                # Dynasty pick indicator
+                                _s_team  = str(_sr.get("Team",""))
+                                _s_w     = int(_sr.get("Wins", 0))
+                                _s_l     = int(_sr.get("Losses", 0))
+                                _seed    = _si + 1
+                                _playoff = _seed <= 7
+                                _t_color = get_nfl_team_color(_s_team)
+                                _logo    = get_nfl_logo_src(_s_team)
+                                _logo_html = f"<img src='{_logo}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;flex-shrink:0;'/>" if _logo else "<span style='width:18px;display:inline-block;'></span>"
+                                _seed_color = "#fbbf24" if _seed == 1 else ("#94a3b8" if _playoff else "#334155")
+                                _bg      = f"background:#0f1e35;border-left:3px solid {_t_color};" if _playoff else "background:#070e1a;border-left:3px solid #1e293b;"
                                 _has_pick = False
                                 if not _draft_df.empty and "GeneratedNFLTeam" in _draft_df.columns:
                                     _has_pick = (_draft_df["GeneratedNFLTeam"].astype(str) == _s_team).any()
-                                _pick_dot = "★ " if _has_pick else ""
+                                _pick_star = "<span style='color:#fbbf24;font-size:0.6rem;margin-left:2px;'>★</span>" if _has_pick else ""
+                                _name_color = "#f1f5f9" if _playoff else "#475569"
                                 _st_html += (
-                                    f"<div style='display:flex;align-items:center;gap:6px;padding:4px 8px;"
-                                    f"background:{_bg};border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.78rem;'>"
-                                    f"<span style='color:{_seed_color};font-weight:900;min-width:18px;'>{_seed}</span>"
-                                    f"<span style='color:#{'fbbf24' if _has_pick else 'd1d5db'};flex:1;'>"
-                                    f"{_pick_dot}{html.escape(_s_team)}</span>"
-                                    f"<span style='color:#94a3b8;font-weight:900;min-width:32px;text-align:right;'>"
+                                    f"<div style='display:flex;align-items:center;gap:5px;padding:4px 7px;"
+                                    f"{_bg}border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.75rem;'>"
+                                    f"<span style='color:{_seed_color};font-weight:900;min-width:14px;font-size:0.7rem;'>{_seed}</span>"
+                                    f"{_logo_html}"
+                                    f"<span style='color:{_name_color};flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                                    f"{html.escape(_s_team)}{_pick_star}</span>"
+                                    f"<span style='color:#94a3b8;font-weight:900;min-width:30px;text-align:right;font-size:0.72rem;'>"
                                     f"{_s_w}-{_s_l}</span>"
                                     f"</div>"
                                 )
                             _st_html += "</div>"
                             st.markdown(_st_html, unsafe_allow_html=True)
-
                 # ── Dynasty Player Spotlight ──────────────────────────────────
                 st.markdown("---")
                 st.markdown("#### ⭐ Dynasty Picks On The Field This Week")
@@ -23116,21 +23187,34 @@ with tabs[2]:
                                     st.caption("No picks yet.")
                                 else:
                                     for _, _pp in _u_picks.head(5).iterrows():
-                                        _pp_name = str(_pp.get("Name",""))
-                                        _pp_pos  = str(_pp.get("Pos", _pp.get("PosBucket","")))
-                                        _pp_nfl  = str(_pp.get("Team",""))
-                                        _pp_ovr  = int(safe_num(_pp.get("OVR",0),0))
-                                        _pp_src  = str(_pp.get("Source",""))
-                                        _badge   = "<span style=\'color:#fbbf24;font-size:0.65rem;\'>R</span> " if _pp_src == "dynasty_rookie" else ""
-                                        _ovr_col = "#4ade80" if _pp_ovr >= 88 else ("#fbbf24" if _pp_ovr >= 80 else "#94a3b8")
+                                        _pp_name    = str(_pp.get("Name",""))
+                                        _pp_pos     = str(_pp.get("Pos", _pp.get("PosBucket","")))
+                                        _pp_nfl     = str(_pp.get("Team",""))
+                                        _pp_college = str(_pp.get("CollegeTeam",""))
+                                        _pp_ovr     = int(safe_num(_pp.get("OVR",0),0))
+                                        _pp_src     = str(_pp.get("Source",""))
+                                        _is_rookie  = _pp_src == "dynasty_rookie"
+                                        _ovr_col    = "#4ade80" if _pp_ovr >= 88 else ("#fbbf24" if _pp_ovr >= 80 else "#94a3b8")
+                                        _nfl_color  = get_nfl_team_color(_pp_nfl)
+                                        # Logos
+                                        _nfl_logo   = get_nfl_logo_src(_pp_nfl)
+                                        _cfb_logo   = get_school_logo_path(_pp_college)
+                                        _nfl_img    = f"<img src='{_nfl_logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _nfl_logo else ""
+                                        _cfb_img    = f"<img src='{_cfb_logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _cfb_logo else ""
+                                        _rookie_tag = "<span style='background:#7c3aed;color:#fff;font-size:0.55rem;font-weight:900;padding:1px 4px;border-radius:3px;margin-right:3px;vertical-align:middle;'>R</span>" if _is_rookie else ""
                                         st.markdown(
-                                            f"<div style=\'display:flex;justify-content:space-between;"
-                                            f"align-items:center;padding:4px 8px;background:#0a1628;"
-                                            f"border-radius:5px;border-left:3px solid {_u_color};"
-                                            f"margin-bottom:3px;font-size:0.78rem;\'>"
-                                            f"<div><div style=\'color:#f1f5f9;font-weight:700;\'>{_badge}{html.escape(_pp_name)}</div>"
-                                            f"<div style=\'color:#64748b;font-size:0.68rem;\'>{_pp_pos} · {html.escape(_pp_nfl)}</div></div>"
-                                            f"<div style=\'font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:{_ovr_col};\'>{_pp_ovr}</div>"
+                                            f"<div style='display:flex;align-items:center;gap:6px;padding:5px 8px;"
+                                            f"background:#0a1628;border-radius:5px;"
+                                            f"border-left:3px solid {_nfl_color};"
+                                            f"margin-bottom:3px;'>"
+                                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;'>"
+                                            f"{_cfb_img}{_nfl_img}"
+                                            f"</div>"
+                                            f"<div style='flex:1;min-width:0;'>"
+                                            f"<div style='color:#f1f5f9;font-weight:700;font-size:0.78rem;'>{_rookie_tag}{html.escape(_pp_name)}</div>"
+                                            f"<div style='color:#64748b;font-size:0.65rem;'>{_pp_pos} · <span style='color:{_nfl_color};'>{html.escape(_pp_nfl)}</span></div>"
+                                            f"</div>"
+                                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:{_ovr_col};flex-shrink:0;'>{_pp_ovr}</div>"
                                             f"</div>",
                                             unsafe_allow_html=True
                                         )
