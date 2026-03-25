@@ -25,6 +25,7 @@ import streamlit as st
 def initialize_nfl_universe_settings():
     default_df = pd.DataFrame([{
         "CurrentNFLSeason": 2042,
+        "CurrentNFLWeek": 0,
         "LastCompletedDraftYear": 2041,
         "LastCompletedSuperBowlSeason": 2041,
         "UniverseVersion": 1
@@ -585,7 +586,16 @@ POS_PREMIUM = {
 }
 
 NFL_UNIVERSE_SETTINGS_COLS = [
-    "CurrentNFLSeason", "LastCompletedDraftYear", "LastCompletedSuperBowlSeason", "UniverseVersion"
+    "CurrentNFLSeason", "CurrentNFLWeek", "LastCompletedDraftYear", "LastCompletedSuperBowlSeason", "UniverseVersion"
+]
+
+NFL_WEEKLY_SCORES_COLS = [
+    "Season", "Week", "HomeTeam", "AwayTeam", "HomeScore", "AwayScore",
+    "WinTeam", "LoseTeam", "Margin", "HomeConf", "AwayConf"
+]
+
+NFL_SCHEDULE_COLS = [
+    "Season", "Week", "HomeTeam", "AwayTeam", "HomeConf", "AwayConf"
 ]
 
 CFB_USER_DRAFT_RESULTS_COLS = [
@@ -1357,6 +1367,8 @@ def load_nfl_universe_data():
     ensure_csv_exists("nfl_awards_history.csv", NFL_AWARDS_HISTORY_COLS)
     ensure_csv_exists("nfl_playoff_history.csv", NFL_PLAYOFF_HISTORY_COLS)
     ensure_csv_exists("nfl_current_rosters.csv", NFL_CURRENT_ROSTER_COLS)
+    ensure_csv_exists("nfl_weekly_scores.csv", NFL_WEEKLY_SCORES_COLS)
+    ensure_csv_exists("nfl_schedule.csv", NFL_SCHEDULE_COLS)
     ensure_csv_exists("nfl_universe_settings.csv", NFL_UNIVERSE_SETTINGS_COLS, [{
         "CurrentNFLSeason": 2042,
         "LastCompletedDraftYear": 2041,
@@ -3100,6 +3112,415 @@ def build_nfl_team_strengths(nfl_roster_df):
         })
 
     return pd.DataFrame(rows)
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WEEKLY NFL SIMULATION ENGINE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_current_nfl_week():
+    """Read CurrentNFLWeek from nfl_universe_settings.csv. Returns 0 if not started."""
+    try:
+        s = pd.read_csv("nfl_universe_settings.csv")
+        if s.empty or "CurrentNFLWeek" not in s.columns:
+            return 0
+        val = pd.to_numeric(s["CurrentNFLWeek"], errors="coerce").dropna()
+        return int(val.iloc[0]) if not val.empty else 0
+    except Exception:
+        return 0
+
+
+def save_nfl_week(week):
+    """Persist CurrentNFLWeek to nfl_universe_settings.csv."""
+    try:
+        if os.path.exists("nfl_universe_settings.csv"):
+            s = pd.read_csv("nfl_universe_settings.csv")
+        else:
+            initialize_nfl_universe_settings()
+            s = pd.read_csv("nfl_universe_settings.csv")
+        if "CurrentNFLWeek" not in s.columns:
+            s["CurrentNFLWeek"] = 0
+        s.at[0, "CurrentNFLWeek"] = int(week)
+        for col in NFL_UNIVERSE_SETTINGS_COLS:
+            if col not in s.columns:
+                s[col] = pd.NA
+        s[NFL_UNIVERSE_SETTINGS_COLS].to_csv("nfl_universe_settings.csv", index=False)
+    except Exception as e:
+        pass
+
+
+def generate_nfl_season_schedule(season_year):
+    """
+    Generate a full 18-week NFL schedule (32 teams, 17 games each, 1 bye each).
+    Uses season_year as random seed so it's reproducible.
+    Returns DataFrame with NFL_SCHEDULE_COLS.
+    Weeks 1-18 = regular season. Week 19+ = playoffs (handled separately).
+    """
+    rng = random.Random(int(season_year) * 31337)
+
+    AFC_TEAMS = [
+        "Buffalo Bills", "Miami Dolphins", "New England Patriots", "New York Jets",
+        "Baltimore Ravens", "Cincinnati Bengals", "Cleveland Browns", "Pittsburgh Steelers",
+        "Houston Texans", "Indianapolis Colts", "Jacksonville Jaguars", "Tennessee Titans",
+        "Denver Broncos", "Kansas City Chiefs", "Las Vegas Raiders", "Los Angeles Chargers",
+    ]
+    NFC_TEAMS = [
+        "Dallas Cowboys", "New York Giants", "Philadelphia Eagles", "Washington Commanders",
+        "Chicago Bears", "Detroit Lions", "Green Bay Packers", "Minnesota Vikings",
+        "Atlanta Falcons", "Carolina Panthers", "New Orleans Saints", "Tampa Bay Buccaneers",
+        "Arizona Cardinals", "Los Angeles Rams", "San Francisco 49ers", "Seattle Seahawks",
+    ]
+    all_teams = AFC_TEAMS + NFC_TEAMS
+    conf_map  = {t: "AFC" for t in AFC_TEAMS}
+    conf_map.update({t: "NFC" for t in NFC_TEAMS})
+
+    # Assign each team a bye week (weeks 5-14, spread evenly)
+    bye_weeks = list(range(5, 15)) * 4  # 40 slots for 32 teams, pick first 32
+    rng.shuffle(bye_weeks)
+    bye_map = {team: bye_weeks[i] for i, team in enumerate(all_teams)}
+
+    # Build 17-game matchup list per team using round-robin within conference
+    # plus 1 cross-conference game per team per week (simplified)
+    games = []  # list of (week, home, away)
+
+    # Track how many games each team has played
+    game_count = {t: 0 for t in all_teams}
+
+    for week in range(1, 19):  # weeks 1-18
+        available = [t for t in all_teams
+                     if bye_map[t] != week and game_count[t] < 17]
+        rng.shuffle(available)
+        matched = set()
+        week_games = []
+        for team in available:
+            if team in matched or game_count[team] >= 17:
+                continue
+            # Find opponent: prefer same conf, not yet matched this week
+            candidates = [t for t in available
+                          if t not in matched
+                          and t != team
+                          and game_count[t] < 17]
+            if not candidates:
+                break
+            # Prefer same conference for realism
+            same_conf = [c for c in candidates if conf_map[c] == conf_map[team]]
+            opp_pool = same_conf if same_conf else candidates
+            opp = rng.choice(opp_pool)
+            # Randomize home/away
+            home, away = (team, opp) if rng.random() > 0.5 else (opp, team)
+            week_games.append((week, home, away))
+            matched.add(team)
+            matched.add(opp)
+            game_count[team] += 1
+            game_count[opp] += 1
+
+        games.extend(week_games)
+
+    rows = []
+    for week, home, away in games:
+        rows.append({
+            "Season":    season_year,
+            "Week":      week,
+            "HomeTeam":  home,
+            "AwayTeam":  away,
+            "HomeConf":  conf_map.get(home, ""),
+            "AwayConf":  conf_map.get(away, ""),
+        })
+
+    df = pd.DataFrame(rows, columns=NFL_SCHEDULE_COLS)
+    return df
+
+
+def get_or_create_nfl_schedule(season_year):
+    """Load schedule from nfl_schedule.csv or generate + save it."""
+    path = "nfl_schedule.csv"
+    if os.path.exists(path):
+        sched = pd.read_csv(path)
+        sched["Season"] = pd.to_numeric(sched["Season"], errors="coerce")
+        season_sched = sched[sched["Season"] == int(season_year)].copy()
+        if not season_sched.empty:
+            return season_sched
+    # Generate fresh
+    sched = generate_nfl_season_schedule(season_year)
+    # Append to existing file
+    if os.path.exists(path):
+        existing = pd.read_csv(path)
+        combined = pd.concat([existing, sched], ignore_index=True)
+        combined["Season"] = pd.to_numeric(combined["Season"], errors="coerce")
+        combined = combined.drop_duplicates(subset=["Season","Week","HomeTeam","AwayTeam"])
+        combined.to_csv(path, index=False)
+    else:
+        sched.to_csv(path, index=False)
+    return sched
+
+
+def simulate_nfl_week(week_num, season_year=None, team_strength_df=None):
+    """
+    Sim a single NFL week. Returns (games_df, summary_str).
+    Writes results to nfl_weekly_scores.csv and updates nfl_standings_history.csv.
+    """
+    if season_year is None:
+        season_year = get_current_nfl_season()
+    season_year = int(season_year)
+    week_num    = int(week_num)
+
+    # Build team strengths if not supplied
+    if team_strength_df is None or team_strength_df.empty:
+        universe = load_nfl_universe_data()
+        current_rosters = universe.get("nfl_current_rosters", pd.DataFrame())
+        if current_rosters.empty:
+            return pd.DataFrame(), "No NFL roster data — build rosters first."
+        season_rosters = current_rosters[
+            pd.to_numeric(current_rosters.get("Season", pd.Series(dtype=float)),
+                          errors="coerce").fillna(0).astype(int) == season_year
+        ].copy()
+        if season_rosters.empty:
+            season_rosters = current_rosters.copy()
+        team_strength_df = build_nfl_team_strengths(season_rosters)
+
+    power_map = dict(zip(team_strength_df["Team"], team_strength_df["TeamPower"]))
+
+    # Get this week's matchups
+    schedule = get_or_create_nfl_schedule(season_year)
+    week_games = schedule[schedule["Week"] == week_num].copy()
+    if week_games.empty:
+        return pd.DataFrame(), f"No games scheduled for NFL Week {week_num}."
+
+    # Load existing weekly scores to avoid re-simming
+    existing_scores = pd.DataFrame(columns=NFL_WEEKLY_SCORES_COLS)
+    if os.path.exists("nfl_weekly_scores.csv"):
+        existing_scores = pd.read_csv("nfl_weekly_scores.csv")
+        existing_scores["Season"] = pd.to_numeric(existing_scores["Season"], errors="coerce")
+        existing_scores["Week"]   = pd.to_numeric(existing_scores["Week"], errors="coerce")
+        # Remove any prior sim of this same week/season (allow re-sim)
+        existing_scores = existing_scores[
+            ~((existing_scores["Season"] == season_year) &
+              (existing_scores["Week"] == week_num))
+        ].copy()
+
+    # Sim each game
+    game_rows = []
+    results_display = []
+    for _, g in week_games.iterrows():
+        home = str(g["HomeTeam"])
+        away = str(g["AwayTeam"])
+        home_power = safe_num(power_map.get(home, 75), 75)
+        away_power = safe_num(power_map.get(away, 75), 75)
+
+        # Win probability with home field advantage
+        diff = home_power - away_power + 2.5
+        win_prob = 1 / (1 + math.exp(-(diff / 5.5)))
+        win_prob = max(0.12, min(0.88, win_prob + random.uniform(-0.04, 0.04)))
+
+        # Score generation
+        home_base = 17 + home_power * 0.18 + random.gauss(0, 6)
+        away_base = 17 + away_power * 0.18 + random.gauss(0, 6)
+        # Push towards winner
+        if random.random() < win_prob:  # home wins
+            home_score = max(3, int(round(home_base + random.uniform(2, 8))))
+            away_score = max(0, int(round(away_base - random.uniform(1, 6))))
+            if away_score >= home_score:
+                home_score = away_score + random.randint(1, 7)
+            winner, loser = home, away
+        else:  # away wins
+            away_score = max(3, int(round(away_base + random.uniform(2, 8))))
+            home_score = max(0, int(round(home_base - random.uniform(1, 6))))
+            if home_score >= away_score:
+                away_score = home_score + random.randint(1, 7)
+            winner, loser = away, home
+
+        margin = abs(home_score - away_score)
+        game_rows.append({
+            "Season":   season_year,
+            "Week":     week_num,
+            "HomeTeam": home,
+            "AwayTeam": away,
+            "HomeScore": home_score,
+            "AwayScore": away_score,
+            "WinTeam":  winner,
+            "LoseTeam": loser,
+            "Margin":   margin,
+            "HomeConf": str(g.get("HomeConf", "")),
+            "AwayConf": str(g.get("AwayConf", "")),
+        })
+        results_display.append(
+            f"{winner} def. {loser} {max(home_score,away_score)}-{min(home_score,away_score)}"
+        )
+
+    games_df = pd.DataFrame(game_rows, columns=NFL_WEEKLY_SCORES_COLS)
+
+    # Write to nfl_weekly_scores.csv
+    combined_scores = pd.concat([existing_scores, games_df], ignore_index=True)
+    combined_scores.to_csv("nfl_weekly_scores.csv", index=False)
+
+    # Recompute cumulative standings from all completed weeks this season
+    _update_nfl_standings_from_weekly(season_year, team_strength_df)
+
+    return games_df, f"NFL Week {week_num}: {len(game_rows)} games simmed. {len(results_display)} results written."
+
+
+def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
+    """Recompute season standings from nfl_weekly_scores.csv and save."""
+    season_year = int(season_year)
+    if not os.path.exists("nfl_weekly_scores.csv"):
+        return
+
+    scores = pd.read_csv("nfl_weekly_scores.csv")
+    scores["Season"] = pd.to_numeric(scores["Season"], errors="coerce")
+    season_scores = scores[scores["Season"] == season_year].copy()
+
+    if season_scores.empty:
+        return
+
+    # Tally W/L per team
+    from collections import defaultdict
+    record = defaultdict(lambda: {"W": 0, "L": 0})
+    all_teams = set()
+    for _, row in season_scores.iterrows():
+        home, away = str(row["HomeTeam"]), str(row["AwayTeam"])
+        all_teams.add(home); all_teams.add(away)
+        if str(row.get("WinTeam","")) == home:
+            record[home]["W"] += 1
+            record[away]["L"] += 1
+        else:
+            record[away]["W"] += 1
+            record[home]["L"] += 1
+
+    # Build standings rows
+    if team_strength_df is None or team_strength_df.empty:
+        power_map = {}
+    else:
+        power_map = dict(zip(team_strength_df["Team"], team_strength_df["TeamPower"]))
+        off_map   = dict(zip(team_strength_df["Team"], team_strength_df.get("OffenseScore", pd.Series())))
+        def_map   = dict(zip(team_strength_df["Team"], team_strength_df.get("DefenseScore", pd.Series())))
+        qb_map    = dict(zip(team_strength_df["Team"], team_strength_df.get("QBScore", pd.Series())))
+        dep_map   = dict(zip(team_strength_df["Team"], team_strength_df.get("DepthScore", pd.Series())))
+        star_map  = dict(zip(team_strength_df["Team"], team_strength_df.get("StarPower", pd.Series())))
+
+    rows = []
+    for team in sorted(all_teams):
+        w = record[team]["W"]
+        l = record[team]["L"]
+        rows.append({
+            "Season":       season_year,
+            "Team":         team,
+            "Conference":   get_nfl_conference(team) or "",
+            "Wins":         w,
+            "Losses":       l,
+            "WinPct":       round(w / max(1, w+l), 3),
+            "TeamPower":    safe_num(power_map.get(team), 75),
+            "OffenseScore": safe_num(off_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
+            "DefenseScore": safe_num(def_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
+            "QBScore":      safe_num(qb_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
+            "DepthScore":   safe_num(dep_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
+            "StarPower":    safe_num(star_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 0),
+            "Seed":         pd.NA,
+        })
+
+    out = pd.DataFrame(rows)
+
+    # Assign conference seeds by W, then TeamPower
+    seeded = []
+    for conf in ["AFC", "NFC"]:
+        cdf = out[out["Conference"] == conf].copy()
+        if cdf.empty:
+            seeded.append(out[out["Conference"] != conf].copy())
+            continue
+        cdf = cdf.sort_values(["Wins","TeamPower"], ascending=[False,False]).reset_index(drop=True)
+        cdf["Seed"] = range(1, len(cdf)+1)
+        seeded.append(cdf)
+    out = pd.concat(seeded, ignore_index=True) if seeded else out
+
+    # Merge into existing standings file, replacing current season
+    for col in NFL_STANDINGS_HISTORY_COLS:
+        if col not in out.columns:
+            out[col] = pd.NA
+    out = out[NFL_STANDINGS_HISTORY_COLS].copy()
+
+    existing_standings = pd.DataFrame(columns=NFL_STANDINGS_HISTORY_COLS)
+    if os.path.exists("nfl_standings_history.csv"):
+        existing_standings = pd.read_csv("nfl_standings_history.csv")
+        existing_standings["Season"] = pd.to_numeric(existing_standings["Season"], errors="coerce")
+        existing_standings = existing_standings[
+            existing_standings["Season"].fillna(-1).astype(int) != season_year
+        ].copy()
+
+    pd.concat([existing_standings, out], ignore_index=True).to_csv("nfl_standings_history.csv", index=False)
+
+
+def advance_dynasty_and_nfl_week():
+    """
+    Combined CFB + NFL week advance.
+    - Reads dynasty_state.csv → increments CurrentWeek
+    - Maps CFB week to NFL week (1:1 alignment, NFL starts week 1 same as CFB)
+    - If NFL week <= 18: sims NFL week games
+    - If NFL week > 18 and reg season done: triggers playoffs
+    - Writes dynasty_state.csv + nfl_universe_settings.csv
+    Returns (cfb_week_new, nfl_week_new, nfl_summary, games_df)
+    """
+    import traceback as _tb
+
+    # ── CFB advance ──────────────────────────────────────────────────────────
+    try:
+        ds = pd.read_csv("dynasty_state.csv") if os.path.exists("dynasty_state.csv") else pd.DataFrame()
+        if ds.empty:
+            ds = pd.DataFrame([{
+                "CurrentWeek": CURRENT_WEEK_NUMBER,
+                "CurrentYear": CURRENT_YEAR,
+                "IsBowlWeek": IS_BOWL_WEEK,
+                "BowlRound": BOWL_ROUND,
+            }])
+        cfb_week_old = int(pd.to_numeric(ds.at[0, "CurrentWeek"], errors="coerce") or CURRENT_WEEK_NUMBER)
+        cfb_week_new = cfb_week_old + 1
+        ds.at[0, "CurrentWeek"] = cfb_week_new
+        ds.to_csv("dynasty_state.csv", index=False)
+    except Exception as e:
+        cfb_week_new = CURRENT_WEEK_NUMBER + 1
+
+    # ── NFL advance ──────────────────────────────────────────────────────────
+    nfl_week_old = get_current_nfl_week()
+    nfl_season   = get_current_nfl_season()
+
+    # NFL week mirrors CFB week directly (1:1)
+    # NFL doesn't start until CFB week 1, so NFL week = CFB week
+    nfl_week_new = cfb_week_new
+
+    games_df   = pd.DataFrame()
+    nfl_summary = ""
+
+    try:
+        # Build team strengths once
+        universe      = load_nfl_universe_data()
+        current_rosters = universe.get("nfl_current_rosters", pd.DataFrame())
+        season_rosters = current_rosters[
+            pd.to_numeric(current_rosters.get("Season", pd.Series(dtype=float)),
+                          errors="coerce").fillna(0).astype(int) == int(nfl_season)
+        ].copy() if not current_rosters.empty else pd.DataFrame()
+        if season_rosters.empty and not current_rosters.empty:
+            season_rosters = current_rosters.copy()
+
+        if season_rosters.empty:
+            nfl_summary = "⚠️ NFL rosters not built yet — build rosters first, then use Advance Week."
+        elif nfl_week_new <= 18:
+            # Regular season week
+            games_df, nfl_summary = simulate_nfl_week(
+                week_num=nfl_week_new,
+                season_year=nfl_season,
+                team_strength_df=build_nfl_team_strengths(season_rosters)
+            )
+            save_nfl_week(nfl_week_new)
+        elif nfl_week_new == 19:
+            # Trigger playoffs
+            sim_result, sim_msg = simulate_nfl_playoffs_phase(season_year=nfl_season)
+            nfl_summary = f"🏆 NFL Playoffs simmed! {sim_msg}"
+            save_nfl_week(nfl_week_new)
+        else:
+            nfl_summary = f"NFL Season {nfl_season} complete. Use Sim Playoffs or advance to offseason."
+    except Exception as e:
+        nfl_summary = f"NFL sim error: {e}"
+
+    return cfb_week_new, nfl_week_new, nfl_summary, games_df
 
 
 def simulate_nfl_regular_season(team_strength_df, season_year, games_per_team=17):
@@ -22043,6 +22464,7 @@ with tabs[2]:
 
 
         nfl_tabs = st.tabs([
+            "🗓️ This Week",
             "📦 Draft Central",
             "🏁 Season Recap",
             "🏅 Awards",
@@ -22054,8 +22476,220 @@ with tabs[2]:
             "🏟️ NFL Teams",
         ])
 
-    # ── Draft Central ──────────────────────────────────────────────────
+    # ── THIS WEEK — Live NFL weekly view ──────────────────────────────────────
         with nfl_tabs[0]:
+            _tw_season = get_current_nfl_season()
+            _tw_week   = get_current_nfl_week()
+            _tw_cfb_week = CURRENT_WEEK_NUMBER
+
+            # Header
+            st.markdown(
+                f"<div style='font-family:Barlow Condensed,sans-serif;font-size:2rem;font-weight:900;"
+                f"text-transform:uppercase;letter-spacing:-.01em;color:#f8fafc;margin-bottom:4px;'>"
+                f"NFL Week <span style='color:#ef4444;'>{_tw_week}</span>"
+                f"<span style='font-size:1rem;color:#475569;font-weight:600;margin-left:14px;'>"
+                f"· CFB Week {_tw_cfb_week} · Season {_tw_season}</span></div>",
+                unsafe_allow_html=True
+            )
+
+            if _tw_week == 0:
+                st.info("NFL season hasn't started yet. Use **Advance Week** in the Commissioner tab to kick things off.")
+            else:
+                # ── This week's game results ──────────────────────────────────
+                _tw_scores = pd.DataFrame()
+                if os.path.exists("nfl_weekly_scores.csv"):
+                    _tw_all = pd.read_csv("nfl_weekly_scores.csv")
+                    _tw_all["Season"] = pd.to_numeric(_tw_all["Season"], errors="coerce")
+                    _tw_all["Week"]   = pd.to_numeric(_tw_all["Week"],   errors="coerce")
+                    _tw_scores = _tw_all[
+                        (_tw_all["Season"] == _tw_season) &
+                        (_tw_all["Week"]   == _tw_week)
+                    ].copy()
+
+                # Dynasty player spotlight — which user's picks played this week
+                _draft_df = universe.get("nfl_draft_hist", pd.DataFrame()) if universe else pd.DataFrame()
+                _user_team_set = set(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else set()
+
+                st.markdown("---")
+                _tw_col1, _tw_col2 = st.columns([1.2, 1])
+
+                with _tw_col1:
+                    st.markdown("#### 🏈 Week Results")
+                    if _tw_scores.empty:
+                        st.caption("No results yet for this week — sim with Advance Week button.")
+                    else:
+                        # Group by conference for display
+                        _afc_games = _tw_scores[
+                            (_tw_scores["HomeConf"].astype(str).str.upper() == "AFC") |
+                            (_tw_scores["AwayConf"].astype(str).str.upper() == "AFC")
+                        ]
+                        _nfc_games = _tw_scores[
+                            (_tw_scores["HomeConf"].astype(str).str.upper() == "NFC") |
+                            (_tw_scores["AwayConf"].astype(str).str.upper() == "NFC")
+                        ]
+                        for _conf_label, _conf_games in [("AFC", _afc_games), ("NFC", _nfc_games)]:
+                            if _conf_games.empty:
+                                continue
+                            st.markdown(
+                                f"<div style='font-family:Barlow Condensed,sans-serif;font-size:0.7rem;"
+                                f"font-weight:900;letter-spacing:.12em;color:#ef4444;text-transform:uppercase;"
+                                f"margin:10px 0 4px;'>{_conf_label}</div>",
+                                unsafe_allow_html=True
+                            )
+                            for _, _gm in _conf_games.iterrows():
+                                _ht  = str(_gm.get("HomeTeam", ""))
+                                _at  = str(_gm.get("AwayTeam", ""))
+                                _hs  = int(_gm.get("HomeScore", 0))
+                                _as  = int(_gm.get("AwayScore", 0))
+                                _win = str(_gm.get("WinTeam", ""))
+                                _ht_bold  = "font-weight:900;color:#f8fafc;" if _win == _ht else "color:#64748b;"
+                                _at_bold  = "font-weight:900;color:#f8fafc;" if _win == _at else "color:#64748b;"
+                                _hs_col   = "#4ade80" if _win == _ht else "#64748b"
+                                _as_col   = "#4ade80" if _win == _at else "#64748b"
+                                # Check if any dynasty pick plays for either team
+                                _h_has_pick = False; _a_has_pick = False
+                                if not _draft_df.empty and "GeneratedNFLTeam" in _draft_df.columns:
+                                    _h_has_pick = (_draft_df["GeneratedNFLTeam"].astype(str) == _ht).any()
+                                    _a_has_pick = (_draft_df["GeneratedNFLTeam"].astype(str) == _at).any()
+                                _h_dot = "<span style='color:#fbbf24;font-size:.7rem;margin-left:3px;' title='Dynasty pick plays here'>★</span>" if _h_has_pick else ""
+                                _a_dot = "<span style='color:#fbbf24;font-size:.7rem;margin-left:3px;' title='Dynasty pick plays here'>★</span>" if _a_has_pick else ""
+                                st.markdown(
+                                    f"<div style='display:flex;align-items:center;justify-content:space-between;"
+                                    f"padding:5px 10px;background:#0a1628;border-radius:5px;margin-bottom:3px;"
+                                    f"font-size:0.8rem;font-family:Barlow Condensed,sans-serif;'>"
+                                    f"<span style='{_at_bold};min-width:160px;'>{html.escape(_at)}{_a_dot}</span>"
+                                    f"<span style='color:{_as_col};font-weight:900;min-width:28px;text-align:center;'>{_as}</span>"
+                                    f"<span style='color:#334155;margin:0 4px;'>–</span>"
+                                    f"<span style='color:{_hs_col};font-weight:900;min-width:28px;text-align:center;'>{_hs}</span>"
+                                    f"<span style='{_ht_bold};min-width:160px;text-align:right;'>{html.escape(_ht)}{_h_dot}</span>"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+
+                with _tw_col2:
+                    st.markdown("#### 📊 Live Standings")
+                    _tw_standings = pd.DataFrame()
+                    if os.path.exists("nfl_standings_history.csv"):
+                        _tw_st_all = pd.read_csv("nfl_standings_history.csv")
+                        _tw_st_all["Season"] = pd.to_numeric(_tw_st_all["Season"], errors="coerce")
+                        _tw_standings = _tw_st_all[
+                            _tw_st_all["Season"].fillna(-1).astype(int) == int(_tw_season)
+                        ].copy()
+
+                    if _tw_standings.empty:
+                        st.caption("No standings yet.")
+                    else:
+                        for _sconf in ["AFC", "NFC"]:
+                            _sdf = _tw_standings[
+                                _tw_standings["Conference"].astype(str).str.upper() == _sconf
+                            ].copy()
+                            if _sdf.empty:
+                                continue
+                            _sdf["Wins"]   = pd.to_numeric(_sdf["Wins"],   errors="coerce").fillna(0).astype(int)
+                            _sdf["Losses"] = pd.to_numeric(_sdf["Losses"], errors="coerce").fillna(0).astype(int)
+                            _sdf = _sdf.sort_values("Wins", ascending=False).reset_index(drop=True)
+                            st.markdown(
+                                f"<div style='font-family:Barlow Condensed,sans-serif;font-size:0.7rem;"
+                                f"font-weight:900;letter-spacing:.12em;color:#60a5fa;text-transform:uppercase;"
+                                f"margin:10px 0 4px;'>{_sconf}</div>",
+                                unsafe_allow_html=True
+                            )
+                            _st_html = "<div style='display:flex;flex-direction:column;gap:2px;'>"
+                            for _si, (_idx, _sr) in enumerate(_sdf.iterrows()):
+                                _s_team = str(_sr.get("Team",""))
+                                _s_w    = int(_sr.get("Wins", 0))
+                                _s_l    = int(_sr.get("Losses", 0))
+                                _seed   = _si + 1
+                                _bg     = "#1e293b" if _seed <= 7 else "#0a1628"
+                                _seed_color = "#fbbf24" if _seed == 1 else ("#94a3b8" if _seed <= 7 else "#334155")
+                                # Dynasty pick indicator
+                                _has_pick = False
+                                if not _draft_df.empty and "GeneratedNFLTeam" in _draft_df.columns:
+                                    _has_pick = (_draft_df["GeneratedNFLTeam"].astype(str) == _s_team).any()
+                                _pick_dot = "★ " if _has_pick else ""
+                                _st_html += (
+                                    f"<div style='display:flex;align-items:center;gap:6px;padding:4px 8px;"
+                                    f"background:{_bg};border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.78rem;'>"
+                                    f"<span style='color:{_seed_color};font-weight:900;min-width:18px;'>{_seed}</span>"
+                                    f"<span style='color:#{'fbbf24' if _has_pick else 'd1d5db'};flex:1;'>"
+                                    f"{_pick_dot}{html.escape(_s_team)}</span>"
+                                    f"<span style='color:#94a3b8;font-weight:900;min-width:32px;text-align:right;'>"
+                                    f"{_s_w}-{_s_l}</span>"
+                                    f"</div>"
+                                )
+                            _st_html += "</div>"
+                            st.markdown(_st_html, unsafe_allow_html=True)
+
+                # ── Dynasty Player Spotlight ──────────────────────────────────
+                st.markdown("---")
+                st.markdown("#### ⭐ Dynasty Picks On The Field This Week")
+                _tw_player_hist = universe.get("nfl_player_hist", pd.DataFrame()) if universe else pd.DataFrame()
+                if _tw_player_hist.empty or _draft_df.empty:
+                    st.caption("Player data not yet available — sim a regular season first.")
+                else:
+                    _ph_s = _tw_player_hist.copy()
+                    _ph_s["Season"] = pd.to_numeric(_ph_s["Season"], errors="coerce")
+                    _ph_season = _ph_s[_ph_s["Season"].fillna(-1).astype(int) == int(_tw_season)].copy()
+                    # Merge with draft history to get college user
+                    _picks_active = _draft_df[
+                        ~_draft_df.get("ProOutcome", pd.Series([""] * len(_draft_df))).isin(["Retired", "Out of League"])
+                    ].copy() if "ProOutcome" in _draft_df.columns else _draft_df.copy()
+
+                    if not _ph_season.empty and not _picks_active.empty:
+                        _spotlight = _ph_season.merge(
+                            _picks_active[["PlayerID","CollegeUser","GeneratedNFLTeam"]].drop_duplicates("PlayerID"),
+                            on="PlayerID", how="inner"
+                        ) if "PlayerID" in _ph_season.columns and "PlayerID" in _picks_active.columns else pd.DataFrame()
+
+                        if not _spotlight.empty:
+                            # Group by user
+                            for _u_coach in sorted(USER_TEAMS.keys()):
+                                _u_picks = _spotlight[
+                                    _spotlight["CollegeUser"].astype(str).str.strip().str.title() == _u_coach.title()
+                                ].copy()
+                                if _u_picks.empty:
+                                    continue
+                                _u_team = USER_TEAMS.get(_u_coach, _u_coach)
+                                _u_color = get_team_primary_color(_u_team)
+                                st.markdown(
+                                    f"<div style='font-family:Barlow Condensed,sans-serif;font-size:0.85rem;"
+                                    f"font-weight:900;color:{_u_color};text-transform:uppercase;"
+                                    f"letter-spacing:.06em;margin:8px 0 4px;'>"
+                                    f"{_u_coach} ({_u_team})</div>",
+                                    unsafe_allow_html=True
+                                )
+                                for _, _pp in _u_picks.sort_values("OverallEnd", ascending=False).head(4).iterrows():
+                                    _pp_name  = str(_pp.get("Player", _pp.get("PlayerID", "Unknown")))
+                                    _pp_team  = str(_pp.get("GeneratedNFLTeam", _pp.get("NFLTeam", "—")))
+                                    _pp_pos   = str(_pp.get("Pos", "—"))
+                                    _pp_ovr   = int(_pp.get("OverallEnd", _pp.get("OverallStart", 0)) or 0)
+                                    _pp_role  = str(_pp.get("Role", "—"))
+                                    _pp_stat  = str(_pp.get("StatLine", ""))
+                                    _pp_bowl  = "🌟 " if str(_pp.get("ProBowl","")).lower() in ("yes","1","true") else ""
+                                    _ovr_col  = "#4ade80" if _pp_ovr >= 90 else ("#fbbf24" if _pp_ovr >= 82 else "#94a3b8")
+                                    st.markdown(
+                                        f"<div style='display:flex;align-items:center;gap:10px;padding:6px 10px;"
+                                        f"background:#0a1628;border-radius:6px;border-left:3px solid {_u_color};"
+                                        f"margin-bottom:4px;'>"
+                                        f"<div style='flex:1;'>"
+                                        f"<div style='font-size:0.82rem;font-weight:800;color:#f1f5f9;'>"
+                                        f"{_pp_bowl}{html.escape(_pp_name)}</div>"
+                                        f"<div style='font-size:0.68rem;color:#64748b;'>"
+                                        f"{html.escape(_pp_pos)} · {html.escape(_pp_team)} · {html.escape(_pp_role)}</div>"
+                                        f"{'<div style="font-size:0.68rem;color:#94a3b8;margin-top:1px;">' + html.escape(_pp_stat) + '</div>' if _pp_stat and _pp_stat.lower() not in ('','nan') else ''}"
+                                        f"</div>"
+                                        f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;"
+                                        f"color:{_ovr_col};'>{_pp_ovr}</div>"
+                                        f"</div>",
+                                        unsafe_allow_html=True
+                                    )
+                        else:
+                            st.caption("No dynasty picks with season data yet.")
+                    else:
+                        st.caption("Sim a regular season to see player performance data.")
+
+    # ── Draft Central ──────────────────────────────────────────────────
+        with nfl_tabs[1]:
             st.subheader("📦 Draft Central")
 
             replay_l, replay_c, replay_r = st.columns([1, 1.45, 1])
@@ -22390,7 +23024,7 @@ with tabs[2]:
                 st.dataframe(user_sum, hide_index=True, use_container_width=True)
             
     # ── Season Recap ────────────────────────────────────────────────
-        with nfl_tabs[1]:
+        with nfl_tabs[2]:
             st.subheader("🏁 NFL Season Recap")
 
             if nfl_standings_hist.empty and nfl_super_bowl.empty:
@@ -22624,7 +23258,7 @@ with tabs[2]:
                     
                     
     # ── Awards ───────────────────────────────────────────────────────
-        with nfl_tabs[2]:
+        with nfl_tabs[3]:
             st.subheader("🏅 NFL Awards")
 
             if nfl_awards_hist.empty:
@@ -22785,7 +23419,7 @@ with tabs[2]:
                         )
 
     # ── Offseason Recap ───────────────────────────────────────────────
-        with nfl_tabs[3]:
+        with nfl_tabs[4]:
             st.subheader("🧾 NFL Offseason Recap")
 
             offseason_season = get_current_nfl_season()
@@ -22940,7 +23574,7 @@ with tabs[2]:
 
                         st.dataframe(rookie_show.head(50), hide_index=True, use_container_width=True)          
                         # ── NFL Player Database ───────────────────────────────────────────
-        with nfl_tabs[4]:
+        with nfl_tabs[5]:
             st.subheader("📚 NFL Player Database")
 
             if nfl_player_hist is None or nfl_player_hist.empty:
@@ -23122,7 +23756,7 @@ with tabs[2]:
                         )                        
                                                                                                                   
         # ── Alumni Tracker ────────────────────────────────────────────────
-        with nfl_tabs[5]:
+        with nfl_tabs[6]:
             st.subheader("👤 Alumni Tracker")
 
             if nfl_draft_hist.empty:
@@ -23178,7 +23812,7 @@ with tabs[2]:
                 )
 
         # ── Super Bowl History ────────────────────────────────────────────
-        with nfl_tabs[6]:
+        with nfl_tabs[7]:
             st.subheader("🏆 Super Bowl History")
 
             if nfl_super_bowl.empty:
@@ -23217,7 +23851,7 @@ with tabs[2]:
                 )
 
     # ── Storylines ────────────────────────────────────────────────────
-        with nfl_tabs[7]:
+        with nfl_tabs[8]:
             st.subheader("📰 Storylines")
 
             if nfl_story.empty and not nfl_draft_hist.empty:
@@ -23319,7 +23953,7 @@ with tabs[2]:
                     )
 
         # ── NFL Teams ─────────────────────────────────────────────────────
-        with nfl_tabs[8]:
+        with nfl_tabs[9]:
             st.subheader("🏟️ NFL Teams")
             _nfl_master = universe.get("nfl_roster", pd.DataFrame()) if universe else pd.DataFrame()
             if _nfl_master.empty:
@@ -23891,7 +24525,61 @@ with tabs[2]:
 
             st.markdown(f"<div style='background:rgba(255,255,255,0.04);border-left:4px solid {_phase_color};border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:0.88rem;color:{_phase_color};'>{_phase_msg}</div>", unsafe_allow_html=True)
 
-            # ── Two-phase sim buttons ──────────────────────────────────────────
+            # ── Weekly NFL state ──────────────────────────────────────────────
+            _nfl_current_week = get_current_nfl_week()
+            _nfl_reg_season_weeks = 18
+
+            # ── COMBINED ADVANCE BUTTON ───────────────────────────────────────
+            st.markdown("---")
+            _adv_col_l, _adv_col_c, _adv_col_r = st.columns([1, 2, 1])
+            with _adv_col_c:
+                _next_cfb = CURRENT_WEEK_NUMBER + 1
+                _next_nfl = _nfl_current_week + 1
+                _adv_label = f"⚡ Advance to CFB Week {_next_cfb}  ·  NFL Week {_next_nfl}"
+                _adv_help  = ("Advances the CFB dynasty week forward by 1 and sims the "
+                              "corresponding NFL week. For weeks 1-18 this sims NFL regular season. "
+                              "Week 19 triggers NFL playoffs automatically.")
+                if st.button(_adv_label, use_container_width=True, key="advance_combined_btn",
+                             type="primary", help=_adv_help):
+                    try:
+                        with st.spinner(f"Advancing to CFB Week {_next_cfb} · NFL Week {_next_nfl}..."):
+                            _adv_cfb, _adv_nfl, _adv_nfl_msg, _adv_games = advance_dynasty_and_nfl_week()
+                        st.success(f"✅ CFB → Week {_adv_cfb} · NFL → Week {_adv_nfl}")
+                        if _adv_nfl_msg:
+                            st.info(_adv_nfl_msg)
+                        if not _adv_games.empty:
+                            with st.expander(f"📋 NFL Week {_adv_nfl} Results ({len(_adv_games)} games)", expanded=False):
+                                for _, _gr in _adv_games.iterrows():
+                                    _wt = str(_gr.get("WinTeam",""))
+                                    _hs = int(_gr.get("HomeScore",0))
+                                    _as = int(_gr.get("AwayScore",0))
+                                    _ht = str(_gr.get("HomeTeam",""))
+                                    _at = str(_gr.get("AwayTeam",""))
+                                    _is_home_win = _wt == _ht
+                                    _w_s = _hs if _is_home_win else _as
+                                    _l_s = _as if _is_home_win else _hs
+                                    _lt  = _at if _is_home_win else _ht
+                                    st.markdown(
+                                        f"<div style='font-size:0.82rem;padding:3px 0;color:#d1d5db;'>"
+                                        f"<strong style='color:#4ade80;'>{_wt}</strong> def. {_lt} "
+                                        f"<strong>{_w_s}–{_l_s}</strong></div>",
+                                        unsafe_allow_html=True
+                                    )
+                        st.rerun()
+                    except Exception as _adv_e:
+                        import traceback as _adv_tb
+                        st.error(f"Advance error: {_adv_e}")
+                        st.code(_adv_tb.format_exc())
+
+            # Current week status
+            st.caption(
+                f"CFB: Week {CURRENT_WEEK_NUMBER} · NFL: Week {_nfl_current_week} of {_nfl_reg_season_weeks} "
+                f"({'Reg Season' if _nfl_current_week <= _nfl_reg_season_weeks else 'Postseason'})"
+            )
+            st.markdown("---")
+
+            # ── Two-phase sim buttons (legacy / full-season override) ──────────
+            st.markdown("<div style='font-size:0.75rem;color:#475569;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;'>Full-Season Override (skips weekly)</div>", unsafe_allow_html=True)
             sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
 
             with sim_c:
@@ -23942,6 +24630,8 @@ with tabs[2]:
                 ("nfl_super_bowl_history.csv",   "Super Bowl",       "Generated after Sim Playoffs"),
                 ("nfl_awards_history.csv",        "Awards",           "Generated after Sim Playoffs"),
                 ("nfl_story_events.csv",         "Story Events",     "Generated after Sim Playoffs"),
+                ("nfl_weekly_scores.csv",        "Weekly Scores",    "Updated each Advance Week"),
+                ("nfl_schedule.csv",             "Season Schedule",  "Auto-generated on first Advance"),
                 ("nfl_draft_history.csv",        "Draft History",    "Generated after NFL Draft"),
                 ("nfl_universe_settings.csv",    "Universe Settings","Advanced after Sim Playoffs"),
                 ("cfb_user_draft_results.csv",   "CFB Draft Input",  "Your upload — needed before draft sim"),
@@ -23999,6 +24689,7 @@ with tabs[2]:
             st.markdown("#### 📥 Download & Push Workflow")
             st.markdown("""
             <div style='background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:12px 16px;font-size:0.82rem;color:#94a3b8;line-height:1.7;margin-bottom:12px;'>
+            <strong style='color:#22c55e;'>After each Advance Week:</strong> Download and push → <code>nfl_weekly_scores.csv</code>, <code>nfl_standings_history.csv</code>, <code>dynasty_state.csv</code><br>
             <strong style='color:#fbbf24;'>After Sim Regular Season:</strong> Download and push → <code>nfl_standings_history.csv</code>, <code>nfl_player_history.csv</code>, <code>nfl_current_rosters.csv</code><br>
             <strong style='color:#4ade80;'>After Sim Playoffs:</strong> Download and push → <code>nfl_playoff_history.csv</code>, <code>nfl_super_bowl_history.csv</code>, <code>nfl_awards_history.csv</code>, <code>nfl_story_events.csv</code>, <code>nfl_universe_settings.csv</code>, <code>nfl_current_rosters.csv</code><br>
             <strong style='color:#60a5fa;'>After NFL Draft:</strong> Download and push → <code>nfl_draft_history.csv</code>, <code>nfl_player_history.csv</code>, <code>nfl_current_rosters.csv</code><br>
