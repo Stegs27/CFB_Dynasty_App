@@ -20806,75 +20806,77 @@ def render_dynasty_youtube_tab():
         col_a, col_b = st.columns(2, gap="medium")
         for idx, (_, row) in enumerate(df_section.iterrows()):
             col = col_a if idx % 2 == 0 else col_b
-        r_team_l  = str(row.get("user_team","")).strip()
-        r_team_r  = str(row.get("opponent","")).strip()
-        r_cl      = _team_color(r_team_l)
-        r_cr      = _team_color(r_team_r)
-        r_logo_l  = _logo_img(r_team_l, 52)
-        r_logo_r  = _logo_img(r_team_r, 52)
-        r_score   = str(row.get("score","")).strip()
-        r_result  = str(row.get("result","")).strip().upper()
-        r_summary = str(row.get("summary","")).strip()
-        r_title   = str(row.get("stream_title","Archive"))
-        r_season  = row.get("season_num", row.get("season",""))
-        r_week    = row.get("week_num",   row.get("week",""))
-        r_is_p    = bool(row.get("is_playoff", False))
-        r_atype   = str(row.get("archive_type",""))
-        r_stream  = str(row.get("streamer","")).strip()
-        r_rank_l, r_rank_r = _get_ranks_for_row(row)
+            r_team_l  = str(row.get("user_team","")).strip()
+            r_team_r  = str(row.get("opponent","")).strip()
+            r_cl      = _team_color(r_team_l)
+            r_cr      = _team_color(r_team_r)
+            r_logo_l  = _logo_img(r_team_l, 52)
+            r_logo_r  = _logo_img(r_team_r, 52)
+            r_score   = str(row.get("score","")).strip()
+            r_result  = str(row.get("result","")).strip().upper()
+            r_summary = str(row.get("summary","")).strip()
+            r_title   = str(row.get("stream_title","Archive"))
+            r_season  = row.get("season_num", row.get("season",""))
+            r_week    = row.get("week_num",   row.get("week",""))
+            r_is_p    = bool(row.get("is_playoff", False))
+            r_atype   = str(row.get("archive_type",""))
+            r_stream  = str(row.get("streamer","")).strip()
+            r_rank_l, r_rank_r = _get_ranks_for_row(row)
 
-        with col:
-            _r_rank_u, _r_rank_o = _get_rank_nums_for_row(row)
-            _r_headline = _generate_headline(row, _r_rank_u, _r_rank_o)
-            _r_tv_val = row.get("tv_rating_computed")
-            _r_tv_rk  = row.get("_tv_rank_in_season")
-            _r_tv_rk_str = f" · #{int(_r_tv_rk)}" if _r_tv_rk and not (isinstance(_r_tv_rk, float) and _r_tv_rk != _r_tv_rk) else ""
-            _r_tv_badge = (f"<span style=\'background:#1e293b;color:#fbbf24;border:1px solid #854d0e;"
-                           f"padding:2px 7px;border-radius:3px;font-size:.62rem;font-weight:900;"
-                           f"letter-spacing:.05em;\'>📺 {_r_tv_val:.1f}M{_r_tv_rk_str}</span>") if _r_tv_val else ""
-            st.markdown(f"""
-            <div class="yt-card">
-              <div class="yt-card-top-bar" style="background:linear-gradient(90deg,{r_cl},{r_cr});"></div>
-              <div class="yt-card-body">
-                <div class="yt-card-meta-row">
-                  {_archive_type_badge(r_atype, r_is_p)}
-                  {_r_tv_badge}
-                </div>
-                <div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.05rem;font-weight:900;line-height:1.1;margin-bottom:4px;">
-                  <span style="color:{r_cl};text-transform:uppercase;">{_html.escape(r_team_l)}</span>
-                  <span style="color:#334155;font-size:.85rem;margin:0 5px;">VS</span>
-                  <span style="color:{r_cr};text-transform:uppercase;">{_html.escape(r_team_r)}</span>
-                </div>
-                <div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.85rem;font-weight:700;color:#94a3b8;letter-spacing:.03em;margin-bottom:8px;line-height:1.2;">{_html.escape(_r_headline)}</div>
-                <div class="yt-card-matchup">
-                  <div class="yt-card-team">
-                    {r_logo_l}
-                    <div class="yt-card-rank-row">{r_rank_l}</div>
-                  </div>
-                  <div class="yt-card-vs">VS</div>
-                  <div class="yt-card-team">
-                    {r_logo_r}
-                    <div class="yt-card-rank-row">{r_rank_r}</div>
-                  </div>
-                </div>
-                {f'<div class="yt-card-summary">{_html.escape(r_summary)}</div>' if r_summary and r_summary.lower() != "nan" else ''}
-                <div class="yt-card-footer">
-                  <span class="yt-card-season">S{_html.escape(str(r_season))} · WK {_html.escape(str(r_week))}</span>
-                  {_streamer_badge(r_stream)}
-                </div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            _watch = _youtube_watch_url(row.get("url",""))
-            if _watch:
-                with st.expander(f"▶  Watch: {r_title}", expanded=False):
-                    _ehtml = _youtube_embed_html(_watch, height=380)
-                    if _ehtml:
-                        components.html(_ehtml, height=410)
-                    else:
-                        st.link_button("Open on YouTube", _watch, use_container_width=True)
-            st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
+            with col:
+                _r_rank_u, _r_rank_o = _get_rank_nums_for_row(row)
+                _r_headline = _generate_headline(row, _r_rank_u, _r_rank_o)
+                _r_tv_val = row.get("tv_rating_computed")
+                _r_tv_rk  = row.get("_tv_rank_in_season")
+                _rk_ok = _r_tv_rk and not (isinstance(_r_tv_rk, float) and _r_tv_rk != _r_tv_rk)
+                _r_tv_rk_str = f" · #{int(_r_tv_rk)}" if _rk_ok else ""
+                _r_tv_badge = (
+                    f"<span style='background:#1e293b;color:#fbbf24;border:1px solid #854d0e;"
+                    f"padding:2px 7px;border-radius:3px;font-size:.62rem;font-weight:900;"
+                    f"letter-spacing:.05em;'>&#128250; {_r_tv_val:.1f}M{_r_tv_rk_str}</span>"
+                ) if _r_tv_val else ""
+                def _glow(c):
+                    try:
+                        rr=int(c[1:3],16);gg=int(c[3:5],16);bb=int(c[5:7],16)
+                        if 0.299*rr+0.587*gg+0.114*bb < 55:
+                            c = f"#{min(255,rr+80):02x}{min(255,gg+80):02x}{min(255,bb+80):02x}"
+                    except Exception:
+                        pass
+                    return c
+                _gcl = _glow(r_cl); _gcr = _glow(r_cr)
+                _card_html = (
+                    "<div class='yt-card'>"
+                    f"<div class='yt-card-top-bar' style='background:linear-gradient(90deg,{r_cl},{r_cr});'>"
+                    "</div><div class='yt-card-body'>"
+                    "<div class='yt-card-meta-row'>"
+                    f"{_archive_type_badge(r_atype, r_is_p)} {_r_tv_badge}"
+                    "</div>"
+                    "<div style='font-family:Barlow Condensed,sans-serif;font-size:1.1rem;font-weight:900;line-height:1.1;margin-bottom:4px;'>"
+                    f"<span style='color:{_gcl};text-transform:uppercase;text-shadow:0 0 12px {_gcl}66,0 0 24px {_gcl}33;'>{_html.escape(r_team_l)}</span>"
+                    "<span style='color:#334155;font-size:.85rem;margin:0 5px;'>VS</span>"
+                    f"<span style='color:{_gcr};text-transform:uppercase;text-shadow:0 0 12px {_gcr}66,0 0 24px {_gcr}33;'>{_html.escape(r_team_r)}</span>"
+                    "</div>"
+                    f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;color:#94a3b8;letter-spacing:.03em;margin-bottom:8px;line-height:1.2;'>{_html.escape(_r_headline)}</div>"
+                    "<div class='yt-card-matchup'>"
+                    f"<div class='yt-card-team'>{r_logo_l}<div class='yt-card-rank-row'>{r_rank_l}</div></div>"
+                    "<div class='yt-card-vs'>VS</div>"
+                    f"<div class='yt-card-team'>{r_logo_r}<div class='yt-card-rank-row'>{r_rank_r}</div></div>"
+                    "</div>"
+                    + (f"<div class='yt-card-summary'>{_html.escape(r_summary)}</div>" if r_summary and r_summary.lower() != "nan" else "")
+                    + "<div class='yt-card-footer'>"
+                    f"<span class='yt-card-season'>S{_html.escape(str(r_season))} · WK {_html.escape(str(r_week))}</span>"
+                    f"{_streamer_badge(r_stream)}</div></div></div>"
+                )
+                st.markdown(_card_html, unsafe_allow_html=True)
+                _watch = _youtube_watch_url(row.get("url",""))
+                if _watch:
+                    with st.expander(f"▶  Watch: {r_title}", expanded=False):
+                        _ehtml = _youtube_embed_html(_watch, height=380)
+                        if _ehtml:
+                            components.html(_ehtml, height=410)
+                        else:
+                            st.link_button("Open on YouTube", _watch, use_container_width=True)
+                st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
 
     # ── Categorize all non-featured rows ─────────────────────────────────────
     _ut_schools = set(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else set()
@@ -20919,7 +20921,8 @@ def render_dynasty_youtube_tab():
     # ── Section: Highest TV Ratings 📺 ────────────────────────────────────────
     if not _tv_top.empty:
         st.markdown("<div class='yt-section-header'>📺 HIGHEST TV RATINGS</div>", unsafe_allow_html=True)
-        _render_card_grid(_tv_top)
+        with st.expander(f"Show {len(_tv_top)} highest-rated game{'s' if len(_tv_top)!=1 else ''}", expanded=False):
+            _render_card_grid(_tv_top)
 
     # ── Section: Upset City ⚡ ──────────────────────────────────────────────
     if not _upsets.empty:
