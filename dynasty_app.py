@@ -4685,7 +4685,7 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
     # Step 1 — guarantee minimum depth at every position bucket (realistic NFL floors)
     # Step 2 — fill remaining slots with best available OVR across all positions
     # Step 3 — dynasty rookies/young players are protected from cuts for 4 seasons
-    NFL_ROSTER_LIMIT          = 53
+    NFL_ROSTER_LIMIT          = 68   # 53-man active + ~15 practice squad equivalent
     ROOKIE_PROTECTION_SEASONS = 4  # rookie year + 3 more
 
     # Minimum players kept at each position bucket regardless of OVR
@@ -4730,15 +4730,12 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
 
         current_df["_protected"] = current_df.apply(_is_protected, axis=1)
 
-        trimmed_teams = []
-        for team, grp in current_df.groupby("Team", sort=False):
-            if len(grp) <= NFL_ROSTER_LIMIT:
-                # Already under limit — still verify position floors, top up if needed
-                trimmed_teams.append(grp)
-                continue
+        trimmed_teams   = []
+        sparse_warnings = []  # teams that can't hit position floors due to thin source data
 
-            protected  = grp[grp["_protected"]].copy()
-            cuttable   = grp[~grp["_protected"]].copy().sort_values("OVR", ascending=False)
+        for team, grp in current_df.groupby("Team", sort=False):
+            protected = grp[grp["_protected"]].copy()
+            cuttable  = grp[~grp["_protected"]].copy().sort_values("OVR", ascending=False)
 
             kept_indices = set(protected.index)
 
@@ -4756,19 +4753,40 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
                     (~cuttable.index.isin(kept_indices))
                 ].head(need_more)
                 kept_indices.update(candidates.index)
+                filled = len(candidates)
+                if filled < need_more:
+                    sparse_warnings.append(
+                        f"{team}: needs {floor} {bucket}, only has {already_have + filled}"
+                    )
 
-            # ── Step 2: fill remaining flex slots by OVR ─────────────────────
-            slots_used      = len(kept_indices)
-            flex_slots      = NFL_ROSTER_LIMIT - slots_used
-            remaining_pool  = cuttable[~cuttable.index.isin(kept_indices)]
-            flex_picks      = remaining_pool.sort_values("OVR", ascending=False).head(max(0, flex_slots))
-            kept_indices.update(flex_picks.index)
+            # ── Step 2: fill remaining flex slots by OVR (only if over limit) ─
+            if len(kept_indices) > NFL_ROSTER_LIMIT:
+                # Too many protected + floor players — keep all, can't cut protected
+                pass
+            else:
+                flex_slots     = NFL_ROSTER_LIMIT - len(kept_indices)
+                remaining_pool = cuttable[~cuttable.index.isin(kept_indices)]
+                if flex_slots > 0:
+                    flex_picks = remaining_pool.sort_values("OVR", ascending=False).head(flex_slots)
+                    kept_indices.update(flex_picks.index)
 
             kept = grp.loc[sorted(kept_indices)].copy()
             trimmed_teams.append(kept)
 
         current_df = pd.concat(trimmed_teams, ignore_index=True) if trimmed_teams else current_df
         current_df = current_df.drop(columns=["_protected"], errors="ignore")
+
+        # Surface sparse warnings inside the Streamlit rebuild button
+        if sparse_warnings:
+            try:
+                import streamlit as _st
+                _st.warning(
+                    "⚠️ These teams are below position floors — their NFLroster26_MASTER.csv "
+                    "rows are too sparse. Add more players for these teams in the master file:\n\n" +
+                    "\n".join(f"• {w}" for w in sparse_warnings)
+                )
+            except Exception:
+                pass
 
     for col in NFL_CURRENT_ROSTER_COLS:
         if col not in current_df.columns:
