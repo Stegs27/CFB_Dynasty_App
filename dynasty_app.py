@@ -3731,15 +3731,77 @@ def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
             record[home]["L"] += 1
 
     # Build standings rows
-    if team_strength_df is None or team_strength_df.empty:
-        power_map = {}
-    else:
-        power_map = dict(zip(team_strength_df["Team"], team_strength_df["TeamPower"]))
-        off_map   = dict(zip(team_strength_df["Team"], team_strength_df.get("OffenseScore", pd.Series())))
-        def_map   = dict(zip(team_strength_df["Team"], team_strength_df.get("DefenseScore", pd.Series())))
-        qb_map    = dict(zip(team_strength_df["Team"], team_strength_df.get("QBScore", pd.Series())))
-        dep_map   = dict(zip(team_strength_df["Team"], team_strength_df.get("DepthScore", pd.Series())))
-        star_map  = dict(zip(team_strength_df["Team"], team_strength_df.get("StarPower", pd.Series())))
+    # team_strength_df may use short names (from nfl_current_rosters) while
+    # all_teams uses full names (from nfl_weekly_scores schedule).
+    # Solution: always rebuild strength from current rosters keyed by full schedule names.
+    power_map = {}
+    off_map   = {}
+    def_map   = {}
+    qb_map    = {}
+    dep_map   = {}
+    star_map  = {}
+
+    if team_strength_df is not None and not team_strength_df.empty:
+        # Build a short→full name lookup from the schedule teams
+        short_to_full = {}
+        for full in all_teams:
+            short = str(full).strip().split()[-1].lower()
+            short_to_full[short] = full
+
+        for _, sr in team_strength_df.iterrows():
+            raw = str(sr.get("Team", "")).strip()
+            # Try exact match first, then short-name lookup
+            if raw in all_teams:
+                key = raw
+            else:
+                key = short_to_full.get(raw.lower().split()[-1], raw)
+
+            power_map[key] = safe_num(sr.get("TeamPower"),   75)
+            off_map[key]   = safe_num(sr.get("OffenseScore"), 75)
+            def_map[key]   = safe_num(sr.get("DefenseScore"), 75)
+            qb_map[key]    = safe_num(sr.get("QBScore"),      75)
+            dep_map[key]   = safe_num(sr.get("DepthScore"),   75)
+            star_map[key]  = safe_num(sr.get("StarPower"),     0)
+
+    # If power_map is still empty or missing teams, rebuild from current rosters
+    missing = [t for t in all_teams if t not in power_map]
+    if missing and os.path.exists("nfl_current_rosters.csv"):
+        try:
+            _cr = pd.read_csv("nfl_current_rosters.csv")
+            _cr["Season"] = pd.to_numeric(_cr["Season"], errors="coerce")
+            _cr = _cr[_cr["Season"].fillna(-1).astype(int) == season_year].copy()
+            if _cr.empty:
+                _cr = pd.read_csv("nfl_current_rosters.csv")
+
+            # Build a short→full name bridge
+            short_to_full_m = {}
+            for full in missing:
+                short_to_full_m[str(full).strip().split()[-1].lower()] = full
+
+            # Remap roster team names to full schedule names
+            def _remap(roster_team):
+                short = str(roster_team).strip().split()[-1].lower()
+                return short_to_full_m.get(short, roster_team)
+
+            _cr["_full_team"] = _cr["Team"].apply(_remap)
+            _cr_strength = build_nfl_team_strengths(_cr.rename(columns={"_full_team": "Team"}).drop(columns=["Team"] if "Team" in _cr.columns else []))
+
+            # Actually rebuild with remapped team column
+            _cr2 = _cr.copy()
+            _cr2["Team"] = _cr2["_full_team"]
+            _cr_strength = build_nfl_team_strengths(_cr2.drop(columns=["_full_team"], errors="ignore"))
+
+            for _, sr in _cr_strength.iterrows():
+                key = str(sr.get("Team", "")).strip()
+                if key in all_teams:
+                    power_map[key] = safe_num(sr.get("TeamPower"),   75)
+                    off_map[key]   = safe_num(sr.get("OffenseScore"), 75)
+                    def_map[key]   = safe_num(sr.get("DefenseScore"), 75)
+                    qb_map[key]    = safe_num(sr.get("QBScore"),      75)
+                    dep_map[key]   = safe_num(sr.get("DepthScore"),   75)
+                    star_map[key]  = safe_num(sr.get("StarPower"),     0)
+        except Exception:
+            pass
 
     rows = []
     for team in sorted(all_teams):
@@ -3754,11 +3816,11 @@ def _update_nfl_standings_from_weekly(season_year, team_strength_df=None):
             "Losses":       l,
             "WinPct":       round(w / max(1, w+l), 3),
             "TeamPower":    safe_num(power_map.get(team), 75),
-            "OffenseScore": safe_num(off_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
-            "DefenseScore": safe_num(def_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
-            "QBScore":      safe_num(qb_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
-            "DepthScore":   safe_num(dep_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 75),
-            "StarPower":    safe_num(star_map.get(team) if team_strength_df is not None and not team_strength_df.empty else None, 0),
+            "OffenseScore": safe_num(off_map.get(team),   75),
+            "DefenseScore": safe_num(def_map.get(team),   75),
+            "QBScore":      safe_num(qb_map.get(team),    75),
+            "DepthScore":   safe_num(dep_map.get(team),   75),
+            "StarPower":    safe_num(star_map.get(team),   0),
             "Seed":         pd.NA,
         })
 
