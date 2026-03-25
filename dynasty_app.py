@@ -7672,6 +7672,125 @@ CONF_STRENGTH = {
 def conf_bonus(conference):
     return CONF_STRENGTH.get(str(conference).strip(), 0.0)
 
+def build_sigmoid_natty_odds(year=None):
+    """
+    Compute National Title odds using the same sigmoid formula as the
+    Roster Attrition Season Outlook tab — gives intuitive per-team odds
+    rather than a softmax diluted by 130 CPU programs.
+
+    Formula: 100 / (1 + exp(-0.13 * (power_rating - 105)))
+    Power rating built from: CFP rank + OVR + win% + MOV + injuries.
+    Collision group adjustment applied for user teams in the same division.
+
+    Returns dict: team_name → {'natty_pct': float, 'cfp_pct': float, 'raw': float}
+    """
+    if year is None:
+        year = CURRENT_YEAR
+
+    perf_map    = load_team_performance(year=year)
+    ratings_map = load_team_ratings(year=year)
+
+    cfp_rank_map = {}
+    try:
+        _rh = pd.read_csv('cfp_rankings_history.csv')
+        _rh['YEAR'] = pd.to_numeric(_rh['YEAR'], errors='coerce')
+        _rh['WEEK'] = pd.to_numeric(_rh['WEEK'], errors='coerce')
+        _rh['RANK'] = pd.to_numeric(_rh['RANK'], errors='coerce')
+        _cy = _rh[_rh['YEAR'] == int(year)]
+        if not _cy.empty:
+            _lw = _cy['WEEK'].max()
+            for _, _r in _cy[_cy['WEEK'] == _lw].iterrows():
+                _rk = int(_r['RANK']) if pd.notna(_r['RANK']) else 99
+                if _rk > 0:
+                    cfp_rank_map[str(_r['TEAM']).strip().lower()] = _rk
+    except Exception:
+        pass
+
+    inj_penalty_map = {}
+    try:
+        _inj = pd.read_csv('injury_bulletin.csv')
+        _inj['Year']     = pd.to_numeric(_inj.get('Year'),     errors='coerce')
+        _inj['Week']     = pd.to_numeric(_inj.get('Week'),     errors='coerce').fillna(0)
+        _inj['WeeksOut'] = pd.to_numeric(_inj.get('WeeksOut'), errors='coerce').fillna(0)
+        _inj['OVR']      = pd.to_numeric(_inj.get('OVR'),      errors='coerce').fillna(75)
+        _inj['_rem']     = (_inj['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj['Week'])).clip(lower=0)
+        _inj = _inj[(_inj['Year'].fillna(-1).astype(int) == int(year)) & (_inj['_rem'] > 0)].copy()
+        for _, _ir in _inj.iterrows():
+            _tm  = str(_ir.get('Team', '')).strip().lower()
+            _pos = str(_ir.get('Pos', '')).strip().upper()
+            _ovr = float(_ir.get('OVR', 75))
+            _wks = float(_ir.get('_rem', 0))
+            if not _tm or _wks <= 0: continue
+            _omult = max(0.1, min(1.0, (_ovr - 75) / 20.0))
+            _base = (32.0 if _wks >= 8 else 16.0) if _pos == 'QB' else (8.0 if _wks >= 3 else 2.0)
+            inj_penalty_map[_tm] = inj_penalty_map.get(_tm, 0.0) + _base * _omult
+    except Exception:
+        pass
+
+    # Collision groups — same as Roster Attrition tab
+    USER_TEAM_COLLISION_GROUPS = [
+        {"Florida State", "Florida", "Bowling Green"},
+        {"Texas Tech", "San Jose State", "USF"}
+    ]
+
+    result = {}
+    for team, perf in perf_map.items():
+        try:
+            w   = int(perf.get('W', 0) or 0)
+            l   = int(perf.get('L', 0) or 0)
+            gp  = w + l
+            if gp == 0: continue
+            win_pct = w / gp
+            mov     = float(perf.get('MOV', 0.0) or 0.0)
+
+            # OVR from ratings — default 82 if not available
+            _r = ratings_map.get(team.lower(), ratings_map.get(team.strip().lower(), {}))
+            ovr = float(_r.get('OVR', _r.get('OVERALL', 82)) or 82) if _r else 82.0
+            off = float(_r.get('OFF', _r.get('OFFENSE', 82)) or 82) if _r else 82.0
+            dfs = float(_r.get('DEF', _r.get('DEFENSE', 82)) or 82) if _r else 82.0
+
+            rank = cfp_rank_map.get(team.lower())
+
+            # Power rating — mirrors Roster Attrition inputs
+            # OVR anchors it, rank + record + MOV sharpen it
+            power = (
+                ovr                                          # anchor: 65-99
+                + ((off - 82) * 0.15)                       # offense bonus
+                + ((dfs - 82) * 0.15)                       # defense bonus
+                + win_pct * 12.0                            # undefeated adds ~12
+                - l * 3.0                                   # each loss costs 3
+                + min(mov, 25.0) * 0.25                     # MOV capped at 25
+                + (0 if rank is None else
+                   (28 - rank) * 0.5 if rank <= 10 else     # top 10: big rank bonus
+                   (20 - rank) * 0.3 if rank <= 25 else 0)  # top 25: smaller
+                - inj_penalty_map.get(team.lower(), 0.0) * 0.12
+            )
+
+            # Same sigmoid as Roster Attrition
+            title_prob = 100.0 / (1.0 + np.exp(-0.13 * (power - 105.0)))
+            cfp_prob   = 100.0 / (1.0 + np.exp(-0.24 * (power - 91.0)))
+
+            # Collision group penalty for user teams sharing a conference
+            col_size = 1
+            for grp in USER_TEAM_COLLISION_GROUPS:
+                if team in grp:
+                    col_size = len(grp)
+                    break
+            if col_size >= 2:
+                title_prob *= (0.35 ** (col_size - 1))
+                cfp_prob   *= (0.70 ** (col_size - 1))
+
+            result[team] = {
+                'natty_pct': round(min(title_prob, 65.0), 2),
+                'cfp_pct':   round(min(cfp_prob,  95.0), 2),
+                'raw':       round(power, 2),
+            }
+        except Exception:
+            continue
+
+    return result
+
+
 def build_national_odds(year=None):
     """
     National championship + CFP Make % odds across the full 136-team field.
@@ -10956,7 +11075,7 @@ if data:
     # Preseason Natty Odds / Preseason CFP % stay as the 6-team rich model output.
     # Only Natty Odds and CFP Odds (the "live" columns) get the national numbers.
     try:
-        _nat_odds_model = build_national_odds(year=CURRENT_YEAR)
+        _nat_odds_model = build_sigmoid_natty_odds(year=CURRENT_YEAR)
         if _nat_odds_model:
             _nat_rows = []
             for _, _mr in model_2041.iterrows():
