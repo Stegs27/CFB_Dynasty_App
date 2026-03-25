@@ -24903,10 +24903,45 @@ with tabs[2]:
             if st.button("🧱 Create NFL Settings File", use_container_width=True, key="create_nfl_settings_file_btn",
                          help="Only needed once — creates nfl_universe_settings.csv if it doesn't exist yet. Push to repo after."):
                 try:
-                    initialize_nfl_universe_settings()
-                    st.success("nfl_universe_settings.csv created. Download and push to repo.")
+                    result_df = initialize_nfl_universe_settings()
+                    st.success("nfl_universe_settings.csv created. Download below and push to repo.")
+                    st.download_button(
+                        label="⬇️ Download nfl_universe_settings.csv — push to repo",
+                        data=result_df.to_csv(index=False).encode("utf-8"),
+                        file_name="nfl_universe_settings.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_nfl_settings_inline"
+                    )
                 except Exception as e:
                     st.error(f"Settings file create error: {type(e).__name__}: {e}")
+
+            if st.button("🔧 Patch Settings — Add Missing CurrentNFLWeek", use_container_width=True,
+                         key="patch_nfl_settings_week_btn",
+                         help="Run this if your existing nfl_universe_settings.csv is missing the CurrentNFLWeek column."):
+                try:
+                    if os.path.exists("nfl_universe_settings.csv"):
+                        _s = pd.read_csv("nfl_universe_settings.csv")
+                    else:
+                        _s = pd.DataFrame([{"CurrentNFLSeason": 2042}])
+                    for col in NFL_UNIVERSE_SETTINGS_COLS:
+                        if col not in _s.columns:
+                            _s[col] = pd.NA
+                    if pd.isna(_s.loc[0, "CurrentNFLWeek"]) or str(_s.loc[0, "CurrentNFLWeek"]).strip() in ("", "nan"):
+                        _s.loc[0, "CurrentNFLWeek"] = 0
+                    _s = _s[NFL_UNIVERSE_SETTINGS_COLS].copy()
+                    _s.to_csv("nfl_universe_settings.csv", index=False)
+                    st.success(f"✅ Patched — CurrentNFLWeek = {int(_s.loc[0, 'CurrentNFLWeek'])}. Download below and push to repo.")
+                    st.download_button(
+                        label="⬇️ Download nfl_universe_settings.csv (patched) — push to repo",
+                        data=_s.to_csv(index=False).encode("utf-8"),
+                        file_name="nfl_universe_settings.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="download_nfl_settings_patched"
+                    )
+                except Exception as e:
+                    st.error(f"Patch error: {type(e).__name__}: {e}")
 
             # ── Download workflow ──────────────────────────────────────────────
             st.markdown("---")
