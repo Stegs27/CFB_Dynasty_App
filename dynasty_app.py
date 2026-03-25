@@ -7674,19 +7674,15 @@ def conf_bonus(conference):
 
 def build_sigmoid_natty_odds(year=None):
     """
-    Intuitive per-team Championship & CFP odds using sigmoid formula.
+    Per-team Championship & CFP odds.
 
-    Designed so that:
-      - #1 undefeated top-rated team → CFP ~99%, Natty 35-45%
-      - #3 with 1 loss → CFP ~99%, Natty 20-30%
-      - #8 with 2 losses → CFP ~90%, Natty 8-14%
-      - #12 with 3 losses (e.g. 1-2) → CFP ~50%, Natty 2-4%
-      - Unranked teams → CFP < 20%, Natty < 1%
+    CFP%:  Rank-group lookup with record penalty. Gives intuitive spread:
+           top-4 undefeated ~99%, top-12 with losses 60-85%, bad records <30%.
+    Natty: Exponential decay by rank × loss multiplier × OVR fine-tune.
+           C * exp(-0.15 * rank) * (0.60 ** losses) * ovr_mult
+           #1 undefeated ~16%, #3 ~12%, #8 1-loss ~3%, 1-2 teams ~1%.
 
-    NO collision groups: each team is evaluated independently.
-    The zero-sum constraint on natty is handled by the sigmoid threshold
-    naturally capping values rather than artificially deflating user teams.
-
+    No collision groups — each team evaluated independently.
     Returns dict: team_name → {'natty_pct': float, 'cfp_pct': float, 'raw': float}
     """
     if year is None:
@@ -7727,12 +7723,7 @@ def build_sigmoid_natty_odds(year=None):
             _wks = float(_ir.get('_rem', 0))
             if not _tm or _wks <= 0: continue
             _omult = max(0.1, min(1.0, (_ovr - 75) / 20.0))
-            if _pos == 'QB':
-                _base = 32.0 if _wks >= 8 else 16.0
-            elif _pos in ('WR', 'HB', 'TE'):
-                _base = 8.0 if _wks >= 3 else 2.5
-            else:
-                _base = 5.0 if _wks >= 3 else 1.5
+            _base = (32.0 if _wks >= 8 else 16.0) if _pos == 'QB' else (6.0 if _wks >= 3 else 1.5)
             inj_penalty_map[_tm] = inj_penalty_map.get(_tm, 0.0) + _base * _omult
     except Exception:
         pass
@@ -7745,64 +7736,53 @@ def build_sigmoid_natty_odds(year=None):
             gp  = w + l
             if gp == 0:
                 continue
-            win_pct = w / gp
-            mov     = float(perf.get('MOV', 0.0) or 0.0)
 
-            # OVR/OFF/DEF — fuzzy lookup to handle case and naming differences
             _rl = team.strip().lower()
             _r  = (ratings_map.get(_rl)
                    or ratings_map.get(team.strip())
-                   or next((v for k,v in ratings_map.items() if k.lower()==_rl), None)
+                   or next((v for k, v in ratings_map.items() if k.lower() == _rl), None)
                    or {})
-            ovr = float(_r.get('OVR', _r.get('OVERALL', 82)) or 82)
-            off = float(_r.get('OFF', _r.get('OFFENSE', 82)) or 82)
-            dfs = float(_r.get('DEF', _r.get('DEFENSE', 82)) or 82)
+            ovr = float(_r.get('OVR', _r.get('OVERALL', 82)) or 82) if _r else 82.0
 
-            # CFP rank — only from the most recent weekly snapshot
             rank = cfp_rank_map.get(team.strip().lower())
 
-            # ── POWER RATING ──────────────────────────────────────────────────
-            # Three components, each calibrated so the sum gives intuitive odds.
+            # ── CFP% ─────────────────────────────────────────────────────────
+            # Rank-group baseline
+            if rank is None:
+                base_cfp = max(0.0, (w / max(gp, 1)) * 12.0)  # unranked: up to 12%
+            elif rank <= 4:   base_cfp = 97.0
+            elif rank <= 8:   base_cfp = 91.0
+            elif rank <= 12:  base_cfp = 82.0
+            elif rank <= 16:  base_cfp = 62.0
+            elif rank <= 20:  base_cfp = 40.0
+            else:             base_cfp = 22.0
 
-            # 1. Rank contribution — being ranked is the biggest single signal.
-            #    Linear from 25 pts (#1) down to 1 pt (#25), 0 for unranked.
-            rank_pts = max(0.0, (26 - rank) * 1.0) if rank else 0.0
+            # Record penalty/bonus
+            if l == 0:   rec_cfp = +5.0
+            elif l == 1: rec_cfp = -8.0
+            elif l == 2: rec_cfp = -20.0
+            else:        rec_cfp = -32.0 - (l - 3) * 8.0
 
-            # 2. Record quality — centered at 60% win rate, extra penalty per loss
-            #    beyond the first (first loss is expected at top-level play).
-            #    win_pct=1.0: +6, 0.9: +4.5, 0.8: +3, 0.6: 0, 0.33: -10
-            record_pts = (win_pct - 0.60) * 15.0 - max(0, l - 1) * 6.0
+            # OVR fine-tune (small)
+            ovr_cfp = (ovr - 82.0) * 0.25 if _r else 0.0
 
-            # 3. Roster quality — OVR anchors, OFF/DEF fine-tune, MOV confirms.
-            #    Scale is compressed so quality supplements rank/record rather
-            #    than overriding it (avoids unranked teams scoring too high).
-            ovr_pts = (ovr - 82.0) * 0.50          # OVR 95 → +6.5, OVR 75 → -3.5
-            off_pts = (off - 82.0) * 0.12
-            def_pts = (dfs - 82.0) * 0.12
-            mov_pts = min(mov, 20.0) * 0.35          # capped, +7 max
+            cfp_pct = max(0.0, min(99.0, base_cfp + rec_cfp + ovr_cfp))
 
-            # Injury deduction — scaled so a QB injury at 20 wks costs ~5 power
-            inj_pts = inj_penalty_map.get(team.strip().lower(), 0.0) * 0.15
-
-            power = 85.0 + rank_pts + record_pts + ovr_pts + off_pts + def_pts + mov_pts - inj_pts
-
-            # ── SIGMOIDAL CONVERSION ──────────────────────────────────────────
-            # CFP%: threshold 93 — teams around that power have ~50% CFP odds.
-            #   Good ranked teams (power 110+) → 97-99%
-            #   Borderline #12 (power 85-93) → 30-50%
-            #   Unranked weak teams (power <80) → <10%
-            cfp_prob = 100.0 / (1.0 + np.exp(-0.28 * (power - 93.0)))
-
-            # Natty%: threshold 130 — only genuinely elite teams exceed 30%.
-            #   #1 undefeated elite team (power 135) → ~40%
-            #   #3 1-loss good team (power 120) → ~26%
-            #   #12 borderline team (power 93) → ~2-4%
-            natty_prob = 100.0 / (1.0 + np.exp(-0.10 * (power - 130.0)))
+            # ── Natty% ───────────────────────────────────────────────────────
+            # Exponential decay by rank, loss multiplier
+            _rank_n = rank if (rank and rank <= 25) else 30
+            natty_raw = 18.0 * np.exp(-0.15 * _rank_n) * (0.60 ** l)
+            # OVR fine-tune
+            if _r:
+                natty_raw *= (1.0 + (ovr - 82.0) * 0.008)
+            # Injury deduction
+            natty_raw -= inj_penalty_map.get(team.strip().lower(), 0.0) * 0.20
+            natty_pct = max(0.0, min(65.0, natty_raw))
 
             result[team] = {
-                'natty_pct': round(min(natty_prob, 70.0), 2),
-                'cfp_pct':   round(min(cfp_prob,  99.5), 2),
-                'raw':       round(power, 2),
+                'natty_pct': round(natty_pct, 2),
+                'cfp_pct':   round(cfp_pct,  2),
+                'raw':       round(base_cfp + rec_cfp, 2),
             }
         except Exception:
             continue
