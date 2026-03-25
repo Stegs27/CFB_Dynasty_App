@@ -23231,7 +23231,7 @@ with tabs[2]:
                         ]
                         _nfc_games = _tw_scores[
                             (_tw_scores["HomeConf"].astype(str).str.upper() == "NFC") |
-                            (_tw_scores["AwayConf"].astype(str).str.upper() == "AFC")
+                            (_tw_scores["AwayConf"].astype(str).str.upper() == "NFC")
                         ]
                         for _conf_label, _conf_games in [("AFC", _afc_games), ("NFC", _nfc_games)]:
                             if _conf_games.empty:
@@ -23293,56 +23293,118 @@ with tabs[2]:
                         _tw_standings = _tw_st_all[
                             _tw_st_all["Season"].fillna(-1).astype(int) == int(_tw_season)
                         ].copy()
+                        if "Division" not in _tw_standings.columns:
+                            _tw_standings["Division"] = _tw_standings["Team"].apply(get_nfl_division)
 
                     if _tw_standings.empty:
                         st.caption("No standings yet.")
                     else:
-                        for _sconf in ["AFC", "NFC"]:
-                            _sdf = _tw_standings[
-                                _tw_standings["Conference"].astype(str).str.upper() == _sconf
-                            ].copy()
-                            if _sdf.empty:
+                        _tw_standings["Wins"]      = pd.to_numeric(_tw_standings["Wins"],      errors="coerce").fillna(0).astype(int)
+                        _tw_standings["Losses"]    = pd.to_numeric(_tw_standings["Losses"],    errors="coerce").fillna(0).astype(int)
+                        _tw_standings["WinPct"]    = pd.to_numeric(_tw_standings["WinPct"],    errors="coerce").fillna(0)
+                        _tw_standings["TeamPower"] = pd.to_numeric(_tw_standings.get("TeamPower", pd.Series(dtype=float)), errors="coerce").fillna(75)
+
+                        def _tw_row(tm, w, l, seed, is_leader=False, has_pick=False):
+                            _tc  = get_nfl_team_color(tm)
+                            _lg  = get_nfl_logo_src(tm)
+                            _lh  = f"<img src=\'{_lg}\' style=\'width:18px;height:18px;object-fit:contain;flex-shrink:0;\'/>" if _lg else "<span style=\'width:18px;display:inline-block;\'></span>"
+                            _sc  = "#fbbf24" if seed == 1 else ("#94a3b8" if seed <= 7 else "#334155")
+                            _bg  = f"background:#0f1e35;border-left:3px solid {_tc};" if seed <= 7 else "background:#070e1a;border-left:3px solid #1e293b;"
+                            _nc  = "#f1f5f9" if seed <= 7 else "#475569"
+                            _fw  = "800" if is_leader else "500"
+                            _str = "<span style=\'color:#fbbf24;font-size:0.55rem;margin-left:2px;\'>★</span>" if has_pick else ""
+                            _wlc = "#4ade80" if w > l else ("#f87171" if l > w else "#94a3b8")
+                            return (
+                                f"<div style=\'display:flex;align-items:center;gap:5px;padding:4px 7px;"
+                                f"{_bg}border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.75rem;margin-bottom:2px;\'>"
+                                f"<span style=\'color:{_sc};font-weight:900;min-width:14px;font-size:0.68rem;\'>{seed}</span>"
+                                f"{_lh}"
+                                f"<span style=\'color:{_nc};font-weight:{_fw};flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;\'>{html.escape(tm)}{_str}</span>"
+                                f"<span style=\'color:{_wlc};font-weight:900;min-width:28px;text-align:right;font-size:0.72rem;\'>{w}-{l}</span>"
+                                f"</div>"
+                            )
+
+                        _div_order = {
+                            "AFC": ["AFC East","AFC North","AFC South","AFC West"],
+                            "NFC": ["NFC East","NFC North","NFC South","NFC West"],
+                        }
+
+                        for _conf in ["AFC", "NFC"]:
+                            _cc  = "#ef4444" if _conf == "AFC" else "#60a5fa"
+                            _cdf = _tw_standings[_tw_standings["Conference"].astype(str).str.upper() == _conf].copy()
+                            if _cdf.empty:
                                 continue
-                            _sdf["Wins"]   = pd.to_numeric(_sdf["Wins"],   errors="coerce").fillna(0).astype(int)
-                            _sdf["Losses"] = pd.to_numeric(_sdf["Losses"], errors="coerce").fillna(0).astype(int)
-                            _sdf = _sdf.sort_values("Wins", ascending=False).reset_index(drop=True)
-                            _conf_color = "#ef4444" if _sconf == "AFC" else "#60a5fa"
+
+                            _div_winners = []
+                            for _div in _div_order[_conf]:
+                                _ddf2 = _cdf[_cdf["Division"].astype(str) == _div].sort_values(["Wins","TeamPower"], ascending=[False,False])
+                                if not _ddf2.empty:
+                                    _div_winners.append(_ddf2.iloc[0]["Team"])
+                            _winner_df2   = _cdf[_cdf["Team"].isin(_div_winners)].sort_values(["Wins","WinPct","TeamPower"], ascending=[False,False,False])
+                            _wildcard_df2 = _cdf[~_cdf["Team"].isin(_div_winners)].sort_values(["Wins","WinPct","TeamPower"], ascending=[False,False,False])
+                            _seeded_conf  = pd.concat([_winner_df2, _wildcard_df2], ignore_index=True)
+                            _seeded_conf["_seed"] = range(1, len(_seeded_conf)+1)
+
                             st.markdown(
-                                f"<div style='font-family:Barlow Condensed,sans-serif;font-size:0.7rem;"
-                                f"font-weight:900;letter-spacing:.12em;color:{_conf_color};"
-                                f"text-transform:uppercase;margin:10px 0 4px;'>{_sconf}</div>",
+                                f"<div style=\'font-size:0.65rem;font-weight:900;color:{_cc};text-transform:uppercase;"
+                                f"letter-spacing:0.12em;margin-top:14px;margin-bottom:6px;\'>{_conf} — BY DIVISION</div>",
                                 unsafe_allow_html=True
                             )
-                            _st_html = "<div style='display:flex;flex-direction:column;gap:2px;'>"
-                            for _si, (_idx, _sr) in enumerate(_sdf.iterrows()):
-                                _s_team  = str(_sr.get("Team",""))
-                                _s_w     = int(_sr.get("Wins", 0))
-                                _s_l     = int(_sr.get("Losses", 0))
-                                _seed    = _si + 1
-                                _playoff = _seed <= 7
-                                _t_color = get_nfl_team_color(_s_team)
-                                _logo    = get_nfl_logo_src(_s_team)
-                                _logo_html = f"<img src='{_logo}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;flex-shrink:0;'/>" if _logo else "<span style='width:18px;display:inline-block;'></span>"
-                                _seed_color = "#fbbf24" if _seed == 1 else ("#94a3b8" if _playoff else "#334155")
-                                _bg      = f"background:#0f1e35;border-left:3px solid {_t_color};" if _playoff else "background:#070e1a;border-left:3px solid #1e293b;"
-                                _has_pick = False
-                                if not _draft_df.empty and "GeneratedNFLTeam" in _draft_df.columns:
-                                    _has_pick = (_draft_df["GeneratedNFLTeam"].astype(str) == _s_team).any()
-                                _pick_star = "<span style='color:#fbbf24;font-size:0.6rem;margin-left:2px;'>★</span>" if _has_pick else ""
-                                _name_color = "#f1f5f9" if _playoff else "#475569"
-                                _st_html += (
-                                    f"<div style='display:flex;align-items:center;gap:5px;padding:4px 7px;"
-                                    f"{_bg}border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.75rem;'>"
-                                    f"<span style='color:{_seed_color};font-weight:900;min-width:14px;font-size:0.7rem;'>{_seed}</span>"
-                                    f"{_logo_html}"
-                                    f"<span style='color:{_name_color};flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
-                                    f"{html.escape(_s_team)}{_pick_star}</span>"
-                                    f"<span style='color:#94a3b8;font-weight:900;min-width:30px;text-align:right;font-size:0.72rem;'>"
-                                    f"{_s_w}-{_s_l}</span>"
-                                    f"</div>"
+
+                            for _div in _div_order[_conf]:
+                                _ddf = _cdf[_cdf["Division"].astype(str) == _div].copy()
+                                if _ddf.empty:
+                                    continue
+                                _ddf = _ddf.sort_values(["Wins","WinPct","TeamPower"], ascending=[False,False,False]).reset_index(drop=True)
+                                _div_short = _div.split()[-1]
+                                st.markdown(
+                                    f"<div style=\'font-size:0.6rem;font-weight:700;color:#475569;text-transform:uppercase;"
+                                    f"letter-spacing:0.1em;margin:6px 0 2px;\'>{_div_short}</div>",
+                                    unsafe_allow_html=True
                                 )
-                            _st_html += "</div>"
-                            st.markdown(_st_html, unsafe_allow_html=True)
+                                _rows_html = ""
+                                for _ri, (_, _dr) in enumerate(_ddf.iterrows()):
+                                    _dt = str(_dr["Team"])
+                                    _dw = int(_dr.get("Wins", 0))
+                                    _dl = int(_dr.get("Losses", 0))
+                                    _seed_rows = _seeded_conf[_seeded_conf["Team"] == _dt]["_seed"]
+                                    _ds = int(_seed_rows.iloc[0]) if not _seed_rows.empty else 99
+                                    _hp = not _draft_df.empty and "GeneratedNFLTeam" in _draft_df.columns and (_draft_df["GeneratedNFLTeam"].astype(str) == _dt).any()
+                                    _rows_html += _tw_row(_dt, _dw, _dl, _ds, _ri == 0, _hp)
+                                st.markdown(_rows_html, unsafe_allow_html=True)
+
+                            _bubble = _seeded_conf[_seeded_conf["_seed"].between(5, 10)].copy()
+                            if not _bubble.empty:
+                                st.markdown(
+                                    f"<div style=\'font-size:0.6rem;font-weight:700;color:{_cc};text-transform:uppercase;"
+                                    f"letter-spacing:0.1em;margin:10px 0 2px;border-top:1px solid #1e293b;padding-top:8px;\'>"
+                                    f"🃏 WILD CARD CHASE</div>",
+                                    unsafe_allow_html=True
+                                )
+                                _wc_html = ""
+                                for _, _wr in _bubble.iterrows():
+                                    _wt  = str(_wr["Team"])
+                                    _ww  = int(_wr.get("Wins", 0))
+                                    _wl  = int(_wr.get("Losses", 0))
+                                    _ws  = int(_wr["_seed"])
+                                    _in  = _ws <= 7
+                                    _tc2 = get_nfl_team_color(_wt)
+                                    _lg2 = get_nfl_logo_src(_wt)
+                                    _lh2 = f"<img src=\'{_lg2}\' style=\'width:18px;height:18px;object-fit:contain;flex-shrink:0;\'/>" if _lg2 else "<span style=\'width:18px;display:inline-block;\'></span>"
+                                    _wlc2 = "#4ade80" if _ww > _wl else ("#f87171" if _wl > _ww else "#94a3b8")
+                                    _bg2 = f"background:#0f1e35;border-left:3px solid {_tc2};" if _in else "background:#070e1a;border-left:2px dashed #1e293b;"
+                                    _itag = f"<span style=\'font-size:0.55rem;font-weight:900;padding:1px 4px;border-radius:2px;margin-left:3px;background:{'#14532d' if _in else '#450a0a'};color:{'#4ade80' if _in else '#f87171'};\'>{('IN' if _in else 'OUT')}</span>"
+                                    _wc_html += (
+                                        f"<div style=\'display:flex;align-items:center;gap:5px;padding:4px 7px;"
+                                        f"{_bg2}border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:0.75rem;margin-bottom:2px;\'>"
+                                        f"<span style=\'color:#475569;font-weight:900;min-width:14px;font-size:0.68rem;\'>{_ws}</span>"
+                                        f"{_lh2}"
+                                        f"<span style=\'color:{'#f1f5f9' if _in else '#475569'};flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;\'>{html.escape(_wt)}</span>"
+                                        f"<span style=\'color:{_wlc2};font-weight:900;min-width:28px;text-align:right;font-size:0.72rem;\'>{_ww}-{_wl}</span>"
+                                        f"{_itag}"
+                                        f"</div>"
+                                    )
+                                st.markdown(_wc_html, unsafe_allow_html=True)
                 # ── Dynasty Player Spotlight ──────────────────────────────────
                 st.markdown("---")
                 st.markdown("#### ⭐ Dynasty Picks On The Field This Week")
