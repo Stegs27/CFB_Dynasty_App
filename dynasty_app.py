@@ -10593,7 +10593,27 @@ def compute_ms_plus(year=None, week_cap=None):
     if yr_ratings.empty:
         return pd.DataFrame()
 
-    all_teams = yr_ratings['TEAM'].dropna().unique().tolist()
+    ratings_teams = yr_ratings['TEAM'].dropna().unique().tolist()
+
+    # If TeamRatingsHistory only has user teams (sparse, < 20 entries),
+    # supplement from schedule_{YEAR}.csv so MS+ covers the full field.
+    _sched_teams = set()
+    try:
+        _sm = load_scores_master(target_year)
+        if not _sm.empty:
+            for _col in ('Visitor', 'Home', 'VISITOR', 'HOME'):
+                if _col in _sm.columns:
+                    _sched_teams.update(
+                        _sm[_col].dropna().astype(str).str.strip().tolist()
+                    )
+    except Exception:
+        pass
+
+    if len(ratings_teams) < 20 and _sched_teams:
+        # Sparse — build from full schedule, ratings_teams values take priority in loop
+        all_teams = sorted(set(ratings_teams) | _sched_teams)
+    else:
+        all_teams = ratings_teams
 
     # Veteran presence mean (league-wide 86+ JR/SR OVR) for relative comparison
     _VET_YEARS = {'JR','JR (RS)','SR','SR (RS)','JR(RS)','SR(RS)'}
@@ -11355,6 +11375,73 @@ def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_fiel
     favored = home_team if diff > 0 else away_team
     spread_str = f"{spread:.1f}" if spread % 1 != 0 else f"{int(spread)}"
     return f"{favored} -{spread_str}", favored, diff
+
+
+def estimate_game_line_blended(home_team, away_team, ratings_map, perf_map=None,
+                                fpi_table=None, ms_table=None, home_field=True):
+    """
+    Blended spread model: OVR/ratings (40%) + FPI differential (40%) + MS+ (20%).
+    fpi_table : DataFrame from build_full_ratings_table() — must have 'Team' and 'FPI' cols.
+    ms_table  : DataFrame from compute_ms_plus()          — must have 'Team' and 'MSPlus' cols.
+    Falls back gracefully to pure-ratings model if FPI/MS+ unavailable.
+    Returns same format as estimate_game_line_from_ratings: (line_str, favored, diff) or "Pick'em".
+    """
+    # ── Base OVR/ratings spread (reuse existing logic) ─────────────────
+    base = estimate_game_line_from_ratings(
+        home_team, away_team, ratings_map, home_field=home_field, perf_map=perf_map
+    )
+    if base is None:
+        return None
+    if base == "Pick'em":
+        base_diff = 0.0
+    else:
+        try:
+            _, _, base_diff = base
+        except (TypeError, ValueError):
+            base_diff = 0.0
+
+    hfa_pts = 2.5 if home_field else 0.0
+
+    # ── FPI component (points of spread per FPI unit, empirically ~0.55) ──
+    fpi_diff = 0.0
+    if fpi_table is not None and not fpi_table.empty and 'FPI' in fpi_table.columns:
+        try:
+            _ft = fpi_table.set_index('Team') if 'Team' in fpi_table.columns else fpi_table
+            h_fpi = float(_ft.loc[home_team, 'FPI']) if home_team in _ft.index else 0.0
+            a_fpi = float(_ft.loc[away_team, 'FPI']) if away_team in _ft.index else 0.0
+            fpi_diff = (h_fpi - a_fpi) * 0.55 + hfa_pts
+        except Exception:
+            fpi_diff = 0.0
+
+    # ── MS+ component (points of spread per MS+ unit, empirically ~0.18) ──
+    ms_diff = 0.0
+    if ms_table is not None and not ms_table.empty and 'MSPlus' in ms_table.columns:
+        try:
+            _mt = ms_table.set_index('Team') if 'Team' in ms_table.columns else ms_table
+            h_ms = float(_mt.loc[home_team, 'MSPlus']) if home_team in _mt.index else 50.0
+            a_ms = float(_mt.loc[away_team, 'MSPlus']) if away_team in _mt.index else 50.0
+            ms_diff = (h_ms - a_ms) * 0.18 + hfa_pts * 0.4
+        except Exception:
+            ms_diff = 0.0
+
+    # ── Blend weights: 40% ratings, 40% FPI, 20% MS+ ─────────────────
+    has_fpi = fpi_diff != 0.0
+    has_ms  = ms_diff  != 0.0
+    if has_fpi and has_ms:
+        blended_diff = base_diff * 0.40 + fpi_diff * 0.40 + ms_diff * 0.20
+    elif has_fpi:
+        blended_diff = base_diff * 0.50 + fpi_diff * 0.50
+    elif has_ms:
+        blended_diff = base_diff * 0.65 + ms_diff * 0.35
+    else:
+        blended_diff = base_diff  # pure ratings fallback
+
+    spread = round(abs(blended_diff) * 10) / 10
+    if spread < 1.0:
+        return "Pick'em"
+    favored = home_team if blended_diff > 0 else away_team
+    spread_str = f"{spread:.1f}" if spread % 1 != 0 else f"{int(spread)}"
+    return f"{favored} -{spread_str}", favored, blended_diff
 
 
 def get_team_record_display(team, model_df, rankings_df):
@@ -14807,6 +14894,9 @@ with _spd_tabs[1]:
             _sc = _scol_map.get(_sb,"FPI")
             if _sc in _d.columns:
                 _d = _d.sort_values(_sc, ascending=False).reset_index(drop=True)
+            # Drop existing Rank before re-inserting so sort order is always correct
+            if "Rank" in _d.columns:
+                _d = _d.drop(columns=["Rank"])
             _d.insert(0,"Rank",range(1,len(_d)+1))
 
             def _rows_html(subset):
@@ -16002,6 +16092,15 @@ with tabs[0]:
                 # ── Team ratings for betting lines ────────────────────────────────
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
+        # ── FPI + MS+ tables for blended spread model ─────────────────────
+        try:
+            _cfp_fpi_table = build_full_ratings_table(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+        except Exception:
+            _cfp_fpi_table = None
+        try:
+            _cfp_ms_table = compute_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+        except Exception:
+            _cfp_ms_table = None
 
         # ── QUICK-GLANCE STATUS GRID ─────────────────────────────────────────
         # 6 squares (2 rows × 3 cols), one per user team in power_board order.
@@ -16271,7 +16370,13 @@ with tabs[0]:
                 _bl_home  = _u_matchup.get('home', False)
                 _bl_hteam = team if _bl_home else _bl_opp
                 _bl_ateam = _bl_opp if _bl_home else team
-                _bl_result = estimate_game_line_from_ratings(_bl_hteam, _bl_ateam, _cfp_ratings_map, home_field=True, perf_map=_cfp_perf_map)
+                _bl_result = estimate_game_line_blended(
+                    _bl_hteam, _bl_ateam, _cfp_ratings_map,
+                    perf_map=_cfp_perf_map,
+                    fpi_table=_cfp_fpi_table,
+                    ms_table=_cfp_ms_table,
+                    home_field=True,
+                )
                 if _bl_result and _bl_result != "Pick'em":
                     _bl_str, _bl_fav, _bl_diff = _bl_result if len(_bl_result) == 3 else (_bl_result[0], _bl_result[1], 0)
                     if _bl_str and _bl_str != "Pick'em":
@@ -23657,6 +23762,13 @@ def render_dynasty_youtube_tab():
     f_score      = str(featured.get("score","")).strip()
     f_score_l    = featured.get("user_score_raw", None)
     f_score_r    = featured.get("opp_score_raw",  None)
+    # Cast to int at render time — source may be float (28.0) if raw CSV path was hit
+    try:
+        if f_score_l is not None: f_score_l = int(float(f_score_l))
+    except Exception: pass
+    try:
+        if f_score_r is not None: f_score_r = int(float(f_score_r))
+    except Exception: pass
     f_result     = str(featured.get("result","")).strip().upper()
     f_summary    = str(featured.get("summary","")).strip()
     f_is_playoff = bool(featured.get("is_playoff", False))
