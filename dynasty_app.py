@@ -8765,10 +8765,8 @@ def sync_derived_stats():
 def load_data(current_year=CURRENT_YEAR):
     try:
         # LOAD ALL CORE FILES
-        scores = load_scores_master(CURRENT_YEAR)
-        # CPUscores_MASTER.csv is the single source of truth for all historical games.
-        # scores.csv (HTML importer) games were merged into CPUscores_MASTER and it is
-        # no longer read separately — prevents double-counting when both files exist.
+        # multi_year combines schedule_{YEAR}.csv + CPUscores_MASTER.csv across all seasons
+        scores = load_scores_master(multi_year=True)
         rec = pd.read_csv('recruiting.csv')
         champs = pd.read_csv('champs.csv')
         draft = pd.read_csv('UserDraftPicks.csv')
@@ -10525,7 +10523,8 @@ def build_full_ratings_table(year=None, week_cap=None):
         })
 
     out = pd.DataFrame(rows).sort_values('FPI', ascending=False).reset_index(drop=True)
-    out.insert(0, 'Rank', range(1, len(out) + 1))
+    if 'Rank' not in out.columns:
+        out.insert(0, 'Rank', range(1, len(out) + 1))
     return out
 
 
@@ -14844,7 +14843,7 @@ with _spd_tabs[1]:
                         f"<td style='padding:4px 5px;text-align:center;color:{_orc};font-size:0.7rem;'>{_orv:+.3f}</td>"
                         f"<td style='padding:4px 5px;text-align:center;color:{_stkc};font-size:0.7rem;'>{_stk}</td>"
                         f"<td style='padding:4px 5px;text-align:center;color:#3b82f6;font-size:0.68rem;'>"
-                        f"{(_qw if _qw else chr(8212))+(' '+_bw if _bw else '')}</td>"
+                        f"{(str(_qw) if _qw else '—')+(' '+_bw if _bw else '')}</td>"
                         f"{_msc}</tr>"
                     )
                 return rh
@@ -23046,6 +23045,11 @@ def load_stream_archive_data():
     return df
 
 def _load_cpu_scores_for_archives():
+    """Load all historical game scores across all seasons."""
+    df = load_scores_master(multi_year=True)
+    if not df.empty:
+        df.columns = [str(c).strip() for c in df.columns]
+        return df
     for name in ["CPUscores_MASTER.csv", "CPUscores_MASTER (3).csv", "CPUscores_MASTER (2).csv", "CPUscores_MASTER (1).csv"]:
         if os.path.exists(name):
             try:
@@ -23152,6 +23156,8 @@ def _format_archive_row(row, scores_df=None, gs_df=None):
         home = str(m.get("Home","")).strip()
         vis_score = pd.to_numeric(pd.Series([m.get("Vis Score")]), errors="coerce").iloc[0]
         home_score = pd.to_numeric(pd.Series([m.get("Home Score")]), errors="coerce").iloc[0]
+        if pd.notna(vis_score) and vis_score == int(vis_score): vis_score = int(vis_score)
+        if pd.notna(home_score) and home_score == int(home_score): home_score = int(home_score)
         if _norm_team_name(out.get("user_team","")) == _norm_team_name(visitor):
             user_score = vis_score
             opp_score = home_score
