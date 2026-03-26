@@ -10077,12 +10077,10 @@ def get_team_schedule_summary(scores_df, user):
 
 def load_scores_master(year=None, multi_year=False, **kwargs):
     """
-    Load CPUscores_MASTER data. Handles year-based file splitting transparently.
-
-    - If CPUscores_MASTER_{YEAR}.csv exists for the requested year, loads that.
-    - Falls back to CPUscores_MASTER.csv (legacy/current season file).
-    - If multi_year=True, loads all available year files + the master and concatenates.
-    - kwargs passed through to pd.read_csv (e.g. dtype=str)
+    Load game schedule/results data. Source of truth by year:
+    - 2042+: schedule_{YEAR}.csv  (full league, all games)
+    - Pre-2042: CPUscores_MASTER.csv  (legacy, user games only)
+    - multi_year=True: combines all available sources across all seasons
     """
     import glob as _glob
 
@@ -10093,31 +10091,44 @@ def load_scores_master(year=None, multi_year=False, **kwargs):
             return pd.DataFrame()
 
     if multi_year:
-        # Load all year-specific files + master, combine
         parts = []
-        year_files = sorted(_glob.glob('CPUscores_MASTER_*.csv'))
-        for yf in year_files:
+        # New-style year files (2042+)
+        for yf in sorted(_glob.glob('schedule_*.csv')):
             parts.append(_read(yf, **kwargs))
+        # Legacy CPUscores year files
+        for yf in sorted(_glob.glob('CPUscores_MASTER_*.csv')):
+            parts.append(_read(yf, **kwargs))
+        # Legacy master (pre-split)
         if os.path.exists('CPUscores_MASTER.csv'):
             parts.append(_read('CPUscores_MASTER.csv', **kwargs))
         if not parts:
             return pd.DataFrame()
         combined = pd.concat(parts, ignore_index=True)
-        # Dedup: keep last occurrence per YEAR+Week+Visitor+Home
-        for c in ['YEAR','Week']:
+        for c in ['YEAR', 'Week']:
             if c in combined.columns:
                 combined[c] = pd.to_numeric(combined[c], errors='coerce')
-        dk = [c for c in ['YEAR','Week','Visitor','Home'] if c in combined.columns]
+        dk = [c for c in ['YEAR', 'Week', 'Visitor', 'Home'] if c in combined.columns]
         if dk:
             combined = combined.drop_duplicates(subset=dk, keep='last')
         return combined
 
-    if year is not None:
-        year_file = f'CPUscores_MASTER_{int(year)}.csv'
-        if os.path.exists(year_file):
-            return _read(year_file, **kwargs)
-    # Fallback to master
-    return _read('CPUscores_MASTER.csv', **kwargs)
+    target_year = int(year) if year else CURRENT_YEAR
+    # 2042+: prefer schedule_{YEAR}.csv
+    schedule_file = f'schedule_{target_year}.csv'
+    if os.path.exists(schedule_file):
+        return _read(schedule_file, **kwargs)
+    # Fallback: CPUscores_MASTER_{YEAR}.csv
+    year_master = f'CPUscores_MASTER_{target_year}.csv'
+    if os.path.exists(year_master):
+        return _read(year_master, **kwargs)
+    # Final fallback: legacy master (filter by year)
+    if os.path.exists('CPUscores_MASTER.csv'):
+        df = _read('CPUscores_MASTER.csv', **kwargs)
+        if not df.empty and 'YEAR' in df.columns:
+            df['YEAR'] = pd.to_numeric(df['YEAR'], errors='coerce')
+            return df[df['YEAR'].fillna(-1).astype(int) == target_year]
+        return df
+    return pd.DataFrame()
 
 
 def get_full_league_schedule(year=None):
@@ -10314,6 +10325,208 @@ def get_quality_win_context(scores_df, user_team, through_week):
                 best_rank_beaten = rk
 
     return wins_vs_ranked, best_rank_beaten
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRUE SOS / SOR / FPI ANALYTICS ENGINE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def compute_power_ratings(scores_df, year=None, week_cap=None, iterations=50):
+    """
+    Iterative Colley-matrix-inspired power ratings (FPI).
+
+    FPI for team i = avg(margin_of_victory_adjusted) vs opponent FPI.
+    Iterates until stable. Returns dict: {team: fpi_score}
+
+    MOV is capped at 28 to prevent blowouts dominating.
+    Home-field adjustment: -3 from home team's margin.
+    """
+    df = scores_df.copy()
+    if year:
+        df = df[df['YEAR'].fillna(-1).astype(int) == int(year)]
+    if week_cap:
+        df = df[df['Week'].fillna(0).astype(int) <= int(week_cap)]
+    df = df[df['Status'].astype(str).str.upper() == 'FINAL'].copy()
+    df['Vis Score']  = pd.to_numeric(df['Vis Score'],  errors='coerce')
+    df['Home Score'] = pd.to_numeric(df['Home Score'], errors='coerce')
+    df = df.dropna(subset=['Vis Score', 'Home Score'])
+    if df.empty:
+        return {}
+
+    all_teams = set(df['Visitor'].dropna().astype(str).str.strip().tolist() +
+                    df['Home'].dropna().astype(str).str.strip().tolist())
+    fpi = {t: 0.0 for t in all_teams}
+
+    for _ in range(iterations):
+        new_fpi = {}
+        for team in all_teams:
+            t_games = df[(df['Visitor'].astype(str).str.strip() == team) |
+                         (df['Home'].astype(str).str.strip() == team)]
+            if t_games.empty:
+                new_fpi[team] = 0.0
+                continue
+            values = []
+            for _, g in t_games.iterrows():
+                vis = str(g['Visitor']).strip()
+                vs  = float(g['Vis Score'])
+                hs  = float(g['Home Score'])
+                is_home = vis != team
+                # Raw MOV from team's perspective, home adjustment
+                raw_mov = (hs - vs) if is_home else (vs - hs)
+                ha_adj  = 3.0 if is_home else -3.0  # home field ~3 pts
+                adj_mov = raw_mov - ha_adj
+                adj_mov = max(-28, min(28, adj_mov))  # cap at 28
+                opp = str(g['Home']).strip() if vis == team else vis
+                opp_fpi = fpi.get(opp, 0.0)
+                # FPI component: adjusted MOV + opponent quality adjustment
+                values.append(adj_mov + opp_fpi * 0.5)
+            new_fpi[team] = round(sum(values) / len(values), 3) if values else 0.0
+        # Normalize to mean=0
+        vals = list(new_fpi.values())
+        mean = sum(vals) / len(vals) if vals else 0
+        new_fpi = {t: round(v - mean, 3) for t, v in new_fpi.items()}
+        if all(abs(new_fpi.get(t, 0) - fpi.get(t, 0)) < 0.001 for t in all_teams):
+            break
+        fpi = new_fpi
+
+    return fpi
+
+
+def compute_sos(scores_df, team, year=None, week_cap=None, fpi_ratings=None):
+    """
+    Strength of Schedule: average FPI of all opponents faced.
+    If fpi_ratings not provided, uses opponent win percentage instead.
+    Returns (sos_score, opponents_list)
+    """
+    df = scores_df.copy()
+    if year:
+        df = df[df['YEAR'].fillna(-1).astype(int) == int(year)]
+    if week_cap:
+        df = df[df['Week'].fillna(0).astype(int) <= int(week_cap)]
+
+    team_games = df[(df['Visitor'].astype(str).str.strip() == team) |
+                    (df['Home'].astype(str).str.strip() == team)]
+    if team_games.empty:
+        return 0.0, []
+
+    opponents = []
+    for _, g in team_games.iterrows():
+        vis = str(g['Visitor']).strip()
+        opp = str(g['Home']).strip() if vis == team else vis
+        opponents.append(opp)
+
+    if fpi_ratings:
+        opp_scores = [fpi_ratings.get(o, 0.0) for o in opponents]
+        sos = round(sum(opp_scores) / len(opp_scores), 3) if opp_scores else 0.0
+    else:
+        # Fallback: win percentage of opponents
+        completed = df[df['Status'].astype(str).str.upper() == 'FINAL'].copy()
+        completed['Vis Score']  = pd.to_numeric(completed['Vis Score'],  errors='coerce')
+        completed['Home Score'] = pd.to_numeric(completed['Home Score'], errors='coerce')
+        opp_wpcts = []
+        for opp in opponents:
+            w, l = get_team_record(completed, opp, week_cap)
+            wpct = w / max(1, w + l)
+            opp_wpcts.append(wpct)
+        sos = round(sum(opp_wpcts) / len(opp_wpcts), 3) if opp_wpcts else 0.0
+
+    return sos, opponents
+
+
+def compute_sor(scores_df, team, year=None, week_cap=None, fpi_ratings=None):
+    """
+    Strength of Record: credit wins over good opponents, penalize losses to weak ones.
+    Each win = +opponent_fpi_percentile, each loss = -inverse_fpi_percentile.
+    Returns sor_score (higher = better résumé).
+    """
+    df = scores_df.copy()
+    if year:
+        df = df[df['YEAR'].fillna(-1).astype(int) == int(year)]
+    if week_cap:
+        df = df[df['Week'].fillna(0).astype(int) <= int(week_cap)]
+    completed = df[df['Status'].astype(str).str.upper() == 'FINAL'].copy()
+    completed['Vis Score']  = pd.to_numeric(completed['Vis Score'],  errors='coerce')
+    completed['Home Score'] = pd.to_numeric(completed['Home Score'], errors='coerce')
+    completed = completed.dropna(subset=['Vis Score', 'Home Score'])
+
+    team_games = completed[(completed['Visitor'].astype(str).str.strip() == team) |
+                           (completed['Home'].astype(str).str.strip() == team)]
+    if team_games.empty:
+        return 0.0
+
+    if not fpi_ratings:
+        return 0.0
+
+    # Build percentile ranks of FPI
+    all_fpis = sorted(fpi_ratings.values())
+    n = len(all_fpis)
+
+    def _pct(fpi_val):
+        if n == 0: return 0.5
+        pos = sum(1 for v in all_fpis if v <= fpi_val)
+        return pos / n
+
+    score_parts = []
+    for _, g in team_games.iterrows():
+        vis = str(g['Visitor']).strip()
+        vs  = float(g['Vis Score'])
+        hs  = float(g['Home Score'])
+        opp = str(g['Home']).strip() if vis == team else vis
+        won = (vs > hs) if vis == team else (hs > vs)
+        opp_pct = _pct(fpi_ratings.get(opp, 0.0))
+        if won:
+            score_parts.append(opp_pct)         # win over good team = high value
+        else:
+            score_parts.append(-(1.0 - opp_pct))  # loss to weak team = big penalty
+
+    return round(sum(score_parts) / len(score_parts), 4) if score_parts else 0.0
+
+
+def build_full_ratings_table(year=None, week_cap=None):
+    """
+    Build a complete ratings table for all teams with FPI, SOS, SOR, record.
+    Returns DataFrame sorted by FPI desc.
+    """
+    target_year = int(year) if year else CURRENT_YEAR
+    df = load_scores_master(target_year)
+    if df.empty:
+        return pd.DataFrame()
+
+    df['YEAR'] = pd.to_numeric(df.get('YEAR'), errors='coerce')
+    df['Week'] = pd.to_numeric(df.get('Week'), errors='coerce')
+
+    # Compute FPI first (needed for SOS/SOR)
+    fpi = compute_power_ratings(df, year=target_year, week_cap=week_cap)
+    if not fpi:
+        return pd.DataFrame()
+
+    completed = df[df['Status'].astype(str).str.upper() == 'FINAL'].copy()
+    wk = int(week_cap) if week_cap else None
+
+    rows = []
+    for team in sorted(fpi.keys()):
+        w, l = get_team_record(completed, team, wk)
+        sos, opps = compute_sos(df, team, year=target_year, week_cap=wk, fpi_ratings=fpi)
+        sor = compute_sor(df, team, year=target_year, week_cap=wk, fpi_ratings=fpi)
+        streak_n, streak_t = get_team_current_streak(completed, team, wk or 99)
+        qw, best_rk = get_quality_win_context(completed, team, wk or 99)
+        rows.append({
+            'Team':       team,
+            'W':          w,
+            'L':          l,
+            'WinPct':     round(w / max(1, w + l), 3),
+            'FPI':        fpi[team],
+            'SOS':        sos,
+            'SOR':        sor,
+            'Streak':     f"{streak_n}{streak_t}" if streak_n else '',
+            'QualityWins': qw,
+            'BestWin':    f"#{best_rk}" if best_rk else '',
+            'GamesPlayed': w + l,
+        })
+
+    out = pd.DataFrame(rows).sort_values('FPI', ascending=False).reset_index(drop=True)
+    out.insert(0, 'Rank', range(1, len(out) + 1))
+    return out
 
 
 def infer_best_fun_stat(y_data):
@@ -14287,6 +14500,87 @@ with tabs[3]:
 with _spd_tabs[1]:
         st.header("📐 SOS & True Path")
         st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
+
+        # ── TRUE POWER RATINGS (FPI / SOS / SOR) ─────────────────────────────
+        try:
+            _ratings_df = build_full_ratings_table(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            if not _ratings_df.empty:
+                st.markdown("### 🏆 Power Ratings")
+                st.caption(
+                    "**FPI** (Football Power Index) — margin-of-victory based power rating adjusted for opponent quality and home field. "
+                    "**SOS** — average FPI of opponents faced. "
+                    "**SOR** (Strength of Record) — résumé score: credits wins over elite opponents, penalizes losses to weak ones."
+                )
+
+                # Filter/highlight controls
+                _fpi_col1, _fpi_col2 = st.columns([2, 1])
+                with _fpi_col2:
+                    _show_user_only = st.checkbox("User programs only", value=False, key="fpi_user_only")
+                with _fpi_col1:
+                    _fpi_search = st.text_input("Filter team", placeholder="Search...", key="fpi_search", label_visibility="collapsed")
+
+                _disp = _ratings_df.copy()
+                if _show_user_only:
+                    _user_team_set = set(USER_TEAMS.values())
+                    _disp = _disp[_disp['Team'].isin(_user_team_set)]
+                if _fpi_search:
+                    _disp = _disp[_disp['Team'].str.contains(_fpi_search, case=False, na=False)]
+
+                # Build HTML table
+                _fpi_rows = ""
+                for _, _fr in _disp.iterrows():
+                    _ft   = str(_fr['Team'])
+                    _fw   = int(_fr['W'])
+                    _fl   = int(_fr['L'])
+                    _ffpi = float(_fr['FPI'])
+                    _fsos = float(_fr['SOS'])
+                    _fsor = float(_fr['SOR'])
+                    _fstreak = str(_fr.get('Streak',''))
+                    _fqw  = int(_fr.get('QualityWins',0))
+                    _fbw  = str(_fr.get('BestWin',''))
+                    _frank = int(_fr['Rank'])
+                    _is_user = _ft in set(USER_TEAMS.values())
+                    _u_color = get_team_primary_color(_ft) if _is_user else '#1e293b'
+                    _logo = get_school_logo_src(_ft) if _is_user else None
+                    _logo_html = f"<img src='{_logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _logo else ""
+                    _fpi_col  = "#4ade80" if _ffpi >= 5 else ("#fbbf24" if _ffpi >= 0 else "#f87171")
+                    _sor_col  = "#4ade80" if _fsor >= 0.1 else ("#fbbf24" if _fsor >= 0 else "#f87171")
+                    _streak_col = "#4ade80" if 'W' in _fstreak else ("#f87171" if 'L' in _fstreak else "#94a3b8")
+                    _bg = f"background:linear-gradient(90deg,{_u_color}22 0%,#080f1a 30%);" if _is_user else "background:#080f1a;"
+                    _border = f"border-left:3px solid {_u_color};" if _is_user else "border-left:3px solid #1e293b;"
+                    _fpi_rows += (
+                        f"<tr style='{_bg}{_border}'>"
+                        f"<td style='padding:5px 8px;color:#475569;font-size:0.72rem;text-align:center;'>{_frank}</td>"
+                        f"<td style='padding:5px 8px;white-space:nowrap;'>{_logo_html}<span style='color:#f1f5f9;font-size:0.78rem;font-weight:{'700' if _is_user else '400'};'>{html.escape(_ft)}</span></td>"
+                        f"<td style='padding:5px 8px;text-align:center;color:#94a3b8;font-size:0.78rem;'>{_fw}-{_fl}</td>"
+                        f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:1rem;color:{_fpi_col};'>{_ffpi:+.1f}</td>"
+                        f"<td style='padding:5px 8px;text-align:center;color:#64748b;font-size:0.75rem;'>{_fsos:+.1f}</td>"
+                        f"<td style='padding:5px 8px;text-align:center;color:{_sor_col};font-size:0.75rem;'>{_fsor:+.3f}</td>"
+                        f"<td style='padding:5px 8px;text-align:center;color:{_streak_col};font-size:0.72rem;'>{_fstreak}</td>"
+                        f"<td style='padding:5px 8px;text-align:center;color:#60a5fa;font-size:0.72rem;'>{_fqw if _fqw else '—'}{(' '+_fbw) if _fbw else ''}</td>"
+                        f"</tr>"
+                    )
+
+                st.markdown(
+                    f"<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:8px;'>"
+                    f"<table style='width:100%;border-collapse:collapse;background:#06090f;font-family:Barlow Condensed,sans-serif;'>"
+                    f"<thead><tr style='background:#0a1220;'>"
+                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>#</th>"
+                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:left;'>Team</th>"
+                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>W-L</th>"
+                    f"<th style='padding:7px 8px;color:#fbbf24;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>FPI</th>"
+                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOS</th>"
+                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOR</th>"
+                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Streak</th>"
+                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Q-Wins</th>"
+                    f"</tr></thead>"
+                    f"<tbody>{_fpi_rows}</tbody></table></div>",
+                    unsafe_allow_html=True
+                )
+                st.markdown("---")
+        except Exception as _fpi_err:
+            st.caption(f"Power ratings unavailable: {_fpi_err}")
+
 
         # 1. LOAD MASTER DATA
         try:
