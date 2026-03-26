@@ -16930,7 +16930,6 @@ with tabs[0]:
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
         st.subheader("🚑 Injury Report")
-        st.caption("Last updated: Bowl Week 1, 2041. Drop new screenshots in the ISPN chat to refresh.")
 
         INJURY_DATA = []
         try:
@@ -21986,6 +21985,8 @@ def _format_archive_row(row, scores_df=None, gs_df=None):
         if pd.notna(user_score) and pd.notna(opp_score):
             out["result"] = "W" if user_score > opp_score else ("L" if user_score < opp_score else "T")
             out["score"] = f"{out.get('user_team','')} {int(user_score)}, {out.get('opponent','')} {int(opp_score)}"
+            out["user_score_raw"] = int(user_score)
+            out["opp_score_raw"]  = int(opp_score)
         out["is_playoff"] = str(m.get("CFP","")).strip().lower() in ("yes","y","1","true") or str(m.get("Natty Game","")).strip().lower() in ("yes","y","1","true") or str(m.get("Bowl","")).strip().lower() in ("yes","y","1","true")
     else:
         out["is_playoff"] = False
@@ -22472,6 +22473,8 @@ def render_dynasty_youtube_tab():
     f_logo_l     = _logo_img(f_team_l, 72)
     f_logo_r     = _logo_img(f_team_r, 72)
     f_score      = str(featured.get("score","")).strip()
+    f_score_l    = featured.get("user_score_raw", None)
+    f_score_r    = featured.get("opp_score_raw",  None)
     f_result     = str(featured.get("result","")).strip().upper()
     f_summary    = str(featured.get("summary","")).strip()
     f_is_playoff = bool(featured.get("is_playoff", False))
@@ -22505,7 +22508,13 @@ def render_dynasty_youtube_tab():
           </div>
           <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
             <div class="yt-hero-vs">VS</div>
-            {('<div class="yt-hero-score-block"><div class="yt-hero-score">' + _html.escape(f_score) + '</div><div class="yt-hero-score-lbl">Final Score</div></div>') if f_score else ''}
+            {(f'<div class="yt-hero-score-block"><div style="display:flex;align-items:center;gap:10px;justify-content:center;">'
+              f'<span style="font-family:Bebas Neue,Barlow Condensed,sans-serif;font-size:2.8rem;font-weight:900;color:{f_cl};line-height:1;">{f_score_l}</span>'
+              f'<span style="font-size:1.2rem;color:#334155;font-weight:900;">–</span>'
+              f'<span style="font-family:Bebas Neue,Barlow Condensed,sans-serif;font-size:2.8rem;font-weight:900;color:{f_cr};line-height:1;opacity:0.65;">{f_score_r}</span>'
+              f'</div><div class="yt-hero-score-lbl">FINAL SCORE</div></div>')
+             if f_score_l is not None and f_score_r is not None
+             else (f'<div class="yt-hero-score-block"><div class="yt-hero-score">{_html.escape(f_score)}</div><div class="yt-hero-score-lbl">Final Score</div></div>' if f_score else '')}
           </div>
           <div class="yt-hero-team-block">
             {f_logo_r}
@@ -24162,6 +24171,12 @@ with tabs[2]:
       .dc-header-label {{ font-size: 11px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }}
       .dc-year-tabs {{ display: flex; gap: 4px; }}
       .dc-body {{ display: grid; grid-template-columns: 1fr auto 1fr; }}
+      @media (max-width: 600px) {{
+        .dc-body {{ grid-template-columns: 1fr; }}
+        .dc-panel-mid {{ border-left: none !important; border-right: none !important; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08); min-width: unset !important; }}
+        .dc-metrics {{ grid-template-columns: repeat(3, minmax(0,1fr)) !important; }}
+        .dc-pick-num {{ font-size: 38px !important; }}
+      }}
       .dc-panel {{ padding: 18px 20px; }}
       .dc-panel-mid {{ border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 24px; text-align: center; min-width: 190px; }}
       .dc-panel-label {{ font-size: 10px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }}
@@ -24282,92 +24297,85 @@ with tabs[2]:
                         f"</div></div>"
                     )
 
-                _draft_rows_html = []
-                for _, _r in show_df.iterrows():
-                    _pick = clean_display(_r.get("Pick", "—"), "—")
-                    _rnd = clean_display(_r.get("Rnd", "—"), "—")
-                    _player = clean_display(_r.get("Player", "—"), "—")
-                    _school = clean_display(_r.get("School", "—"), "—")
-                    _user = clean_display(_r.get("User", "—"), "—") or "—"
-                    _pos = clean_display(_r.get("Pos", "—"), "—")
-                    _bucket = clean_display(_r.get("PosBucket", "—"), "—")
-                    _covr = clean_display(_r.get("College OVR", "—"), "—")
-                    _novr = clean_display(_r.get("NFL Rookie OVR", "—"), "—")
-                    _nfl = clean_display(_r.get("NFL Team", "—"), "—")
-                    _role = clean_display(_r.get("RookieRole", "—"), "—")
-                    _tier = clean_display(_r.get("CareerTier", "—"), "—")
-                    _story = clean_display(_r.get("StoryTag", "—"), "—")
-                    _pos_colors = {
-                        'QB':'#f97316','RB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa',
-                        'EDGE':'#ef4444','IDL':'#94a3b8','OL':'#64748b',
-                        'LB':'#fbbf24','CB':'#06b6d4','S':'#8b5cf6',
-                        'K':'#475569','P':'#475569',
-                    }
-                    _tier_badge_map = {
-                        'superstar': ('#fbbf24','#451a03'),
-                        'star':      ('#4ade80','#052e16'),
-                        'starter':   ('#60a5fa','#0c1a2e'),
-                        'backup':    ('#94a3b8','#1e293b'),
-                    }
+                _pos_colors = {
+                    'QB':'#f97316','RB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa',
+                    'EDGE':'#ef4444','IDL':'#94a3b8','OL':'#64748b',
+                    'LB':'#fbbf24','CB':'#06b6d4','S':'#8b5cf6',
+                    'K':'#475569','P':'#475569',
+                }
+                _tier_badge_map = {
+                    'superstar': ('#fbbf24','#451a03'),
+                    'star':      ('#4ade80','#052e16'),
+                    'starter':   ('#60a5fa','#0c1a2e'),
+                    'backup':    ('#94a3b8','#1e293b'),
+                }
 
-                    _cards_html = "<div style='display:flex;flex-direction:column;gap:8px;margin-top:8px;'>"
-                    for _, _r in show_df.iterrows():
-                        _pick  = clean_display(_r.get("Pick","—"),"—")
-                        _rnd   = clean_display(_r.get("Rnd","—"),"—")
-                        _player= clean_display(_r.get("Player","—"),"—")
-                        _school= clean_display(_r.get("School","—"),"—")
-                        _user  = clean_display(_r.get("User","—"),"—") or "—"
-                        _pos   = clean_display(_r.get("Pos","—"),"—")
-                        _bucket= clean_display(_r.get("PosBucket","—"),"—")
-                        _covr  = clean_display(_r.get("College OVR","—"),"—")
-                        _novr  = clean_display(_r.get("NFL Rookie OVR","—"),"—")
-                        _nfl   = clean_display(_r.get("NFL Team","—"),"—")
-                        _role  = clean_display(_r.get("RookieRole","—"),"—")
-                        _tier  = clean_display(_r.get("CareerTier","—"),"—")
-                        _story = clean_display(_r.get("StoryTag",""),"")
+                def _build_pick_card(r):
+                    _pick  = clean_display(r.get("Pick","—"),"—")
+                    _rnd   = clean_display(r.get("Rnd","—"),"—")
+                    _player= clean_display(r.get("Player","—"),"—")
+                    _school= clean_display(r.get("School","—"),"—")
+                    _user  = clean_display(r.get("User","—"),"—") or "—"
+                    _pos   = clean_display(r.get("Pos","—"),"—")
+                    _bucket= clean_display(r.get("PosBucket","—"),"—")
+                    _covr  = clean_display(r.get("College OVR","—"),"—")
+                    _novr  = clean_display(r.get("NFL Rookie OVR","—"),"—")
+                    _nfl   = clean_display(r.get("NFL Team","—"),"—")
+                    _role  = clean_display(r.get("RookieRole","—"),"—")
+                    _tier  = clean_display(r.get("CareerTier","—"),"—")
+                    _story = clean_display(r.get("StoryTag",""),"")
+                    _pc      = _pos_colors.get(_bucket, '#64748b')
+                    _tb, _tf = _tier_badge_map.get(_tier.lower(), ('#94a3b8','#1e293b'))
+                    _u_color = get_team_primary_color(_school) if _school != "—" else "#64748b"
+                    _nfl_color = get_nfl_team_color(_nfl)
+                    _slogo   = get_school_logo_src(_school)
+                    _nlogo   = get_nfl_logo_src(_nfl)
+                    _simg    = f"<img src=\'{_slogo}\' style=\'width:28px;height:28px;object-fit:contain;\'/>" if _slogo else "<span style=\'width:28px;height:28px;background:#1e293b;border-radius:4px;display:inline-block;\'></span>"
+                    _nimg    = f"<img src=\'{_nlogo}\' style=\'width:28px;height:28px;object-fit:contain;\'/>" if _nlogo else "<span style=\'width:28px;height:28px;background:#1e293b;border-radius:4px;display:inline-block;\'></span>"
+                    _pick_col = '#fbbf24' if int(safe_num(_pick,99)) <= 10 else ('#94a3b8' if int(safe_num(_pick,99)) <= 32 else '#475569')
+                    return (
+                        f"<div style=\'display:flex;align-items:center;gap:10px;padding:10px 12px;"
+                        f"background:#0a1628;border-radius:8px;border-left:3px solid {_nfl_color};"
+                        f"margin-bottom:4px;\'>"
+                        f"<div style=\'font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:{_pick_col};"
+                        f"min-width:36px;text-align:center;flex-shrink:0;line-height:1;\'>#{_pick}</div>"
+                        f"<div style=\'display:flex;flex-direction:column;gap:2px;align-items:center;flex-shrink:0;\'>"
+                        f"{_simg}{_nimg}</div>"
+                        f"<div style=\'flex:1;min-width:0;\'>"
+                        f"<div style=\'font-weight:800;color:#f1f5f9;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;\'>"
+                        f"{html.escape(_player)}</div>"
+                        f"<div style=\'font-size:0.68rem;color:#64748b;margin-top:1px;\'>"
+                        f"<span style=\'color:{_u_color};font-weight:700;\'>{html.escape(_user)}</span>"
+                        f" · {html.escape(_school)} → <span style=\'color:{_nfl_color};\'>{html.escape(_nfl)}</span></div>"
+                        f"<div style=\'display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;\'>"
+                        f"<span style=\'background:{_pc}22;color:{_pc};font-size:0.6rem;font-weight:900;padding:1px 5px;border-radius:3px;\'>{html.escape(_pos)}</span>"
+                        f"<span style=\'background:{_tb}33;color:{_tb};font-size:0.6rem;font-weight:900;padding:1px 5px;border-radius:3px;\'>{html.escape(_tier)}</span>"
+                        f"<span style=\'color:#475569;font-size:0.6rem;padding:1px 4px;\'>Rd {_rnd}</span>"
+                        f"<span style=\'color:#475569;font-size:0.6rem;padding:1px 4px;\'>{_covr}→{_novr} OVR</span>"
+                        f"</div>"
+                        f"{'<div style=\"font-size:0.63rem;color:#475569;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;\">' + html.escape(_story) + '</div>' if _story and _story not in ('—','nan','') else ''}"
+                        f"</div>"
+                        f"<div style=\'flex-shrink:0;text-align:right;font-size:0.62rem;color:#64748b;max-width:72px;line-height:1.3;\'>"
+                        f"{html.escape(_role)}</div>"
+                        f"</div>"
+                    )
 
-                        _pc      = _pos_colors.get(_bucket, '#64748b')
-                        _tb, _tf = _tier_badge_map.get(_tier.lower(), ('#94a3b8','#1e293b'))
-                        _u_color = get_team_primary_color(_school) if _school != "—" else "#64748b"
-                        _nfl_color = get_nfl_team_color(_nfl)
-                        _slogo   = get_school_logo_src(_school)
-                        _nlogo   = get_nfl_logo_src(_nfl)
-                        _simg    = f"<img src='{_slogo}' style='width:28px;height:28px;object-fit:contain;'/>" if _slogo else "<span style='width:28px;height:28px;background:#1e293b;border-radius:4px;display:inline-block;'></span>"
-                        _nimg    = f"<img src='{_nlogo}' style='width:28px;height:28px;object-fit:contain;'/>" if _nlogo else "<span style='width:28px;height:28px;background:#1e293b;border-radius:4px;display:inline-block;'></span>"
-
-                        _pick_col = '#fbbf24' if int(safe_num(_pick,99)) <= 10 else ('#94a3b8' if int(safe_num(_pick,99)) <= 32 else '#475569')
-
-                        _cards_html += (
-                            f"<div style='display:flex;align-items:center;gap:10px;padding:10px 12px;"
-                            f"background:#0a1628;border-radius:8px;border-left:3px solid {_nfl_color};'>"
-                            # Pick number
-                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:{_pick_col};"
-                            f"min-width:36px;text-align:center;flex-shrink:0;line-height:1;'>#{_pick}</div>"
-                            # Logos
-                            f"<div style='display:flex;flex-direction:column;gap:2px;align-items:center;flex-shrink:0;'>"
-                            f"{_simg}{_nimg}</div>"
-                            # Main info
-                            f"<div style='flex:1;min-width:0;'>"
-                            f"<div style='font-weight:800;color:#f1f5f9;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
-                            f"{html.escape(_player)}</div>"
-                            f"<div style='font-size:0.68rem;color:#64748b;margin-top:1px;'>"
-                            f"<span style='color:{_u_color};font-weight:700;'>{html.escape(_user)}</span>"
-                            f" · {html.escape(_school)} → <span style='color:{_nfl_color};'>{html.escape(_nfl)}</span></div>"
-                            f"<div style='display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;'>"
-                            f"<span style='background:{_pc}22;color:{_pc};font-size:0.6rem;font-weight:900;padding:1px 5px;border-radius:3px;'>{html.escape(_pos)}</span>"
-                            f"<span style='background:{_tb}33;color:{_tb};font-size:0.6rem;font-weight:900;padding:1px 5px;border-radius:3px;'>{html.escape(_tier)}</span>"
-                            f"<span style='color:#475569;font-size:0.6rem;padding:1px 4px;'>Rd {_rnd}</span>"
-                            f"<span style='color:#475569;font-size:0.6rem;padding:1px 4px;'>{_covr}→{_novr} OVR</span>"
-                            f"</div>"
-                            f"{'<div style=\"font-size:0.63rem;color:#475569;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;\">' + html.escape(_story) + '</div>' if _story and _story not in ('—','nan','') else ''}"
-                            f"</div>"
-                            # Role badge right side
-                            f"<div style='flex-shrink:0;text-align:right;font-size:0.62rem;color:#64748b;max-width:72px;line-height:1.3;'>"
-                            f"{html.escape(_role)}</div>"
-                            f"</div>"
-                        )
-                    _cards_html += "</div>"
-                    st.markdown(_cards_html, unsafe_allow_html=True)
+                # Group by round — Round 1 open, later rounds collapsed
+                _rounds = sorted(show_df["Rnd"].dropna().unique().tolist(), key=lambda x: int(safe_num(x, 99)))
+                for _rnd_num in _rounds:
+                    try:
+                        _rnd_int = int(safe_num(_rnd_num, 99))
+                    except Exception:
+                        _rnd_int = 99
+                    _rnd_df = show_df[show_df["Rnd"].astype(str) == str(_rnd_num)].copy()
+                    _rnd_label = f"Round {_rnd_int} — {len(_rnd_df)} picks"
+                    _is_r1 = _rnd_int == 1
+                    with st.expander(_rnd_label, expanded=_is_r1):
+                        _cards_html = "<div style='display:flex;flex-direction:column;gap:0;'>"
+                        for _, _pick_row in _rnd_df.iterrows():
+                            _cards_html += _build_pick_card(_pick_row.to_dict())
+                        _cards_html += "</div>"
+                        st.markdown(_cards_html, unsafe_allow_html=True)
 
                 st.markdown("#### User Summary")
                 user_sum = (
