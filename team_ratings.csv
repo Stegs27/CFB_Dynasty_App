@@ -1,26 +1,51 @@
 YEAR,TEAM,OVR,OFF,DEF
 2042,Alabama,94,96,91
 2042,Alabaster,84,84,84
+2042,Appalachian State,71,69,74
+2042,Arizona State,82,81,84
+2042,Arkansas,84,84,84
 2042,Auburn,86,84,91
+2042,Baylor,81,81,81
+2042,Boise State,74,74,76
+2042,Boston College,73,71,76
 2042,Bowling Green,96,96,96
+2042,California,76,76,76
 2042,Clemson,97,99,96
+2042,Death Valley,79,81,76
+2042,Duke,77,79,76
+2042,Eastern Michigan,69,69,69
+2042,East Carolina,76,76,76
 2042,Florida,89,89,91
 2042,Florida State,92,91,94
-2042,Georgia,97,99,96
+2042,Fresno State,69,69,69
+2042,Gate City,69,69,71
+2042,Georgia,97,99,94
 2042,Georgia Tech,91,91,91
 2042,Hammond,91,91,91
+2042,Houston,78,76,81
+2042,Illinois,72,74,71
 2042,Indiana,76,76,76
 2042,Iowa,79,81,76
+2042,Kansas,75,76,74
+2042,Kansas State,67,66,69
 2042,Kentucky,71,69,74
 2042,LSU,90,91,89
+2042,Louisville,74,74,74
+2042,Marshall,69,69,71
 2042,Maryland,74,74,74
+2042,Memphis,75,76,74
 2042,Miami,95,96,94
 2042,Michigan,99,99,99
 2042,Michigan State,72,71,74
 2042,Minnesota,71,71,71
 2042,Missouri,76,76,76
+2042,NC State,87,86,89
+2042,Navy,74,74,74
 2042,Nebraska,99,99,99
+2042,North Carolina,79,79,81
+2042,Northwestern,67,66,69
 2042,Notre Dame,99,99,99
+2042,Ohio,71,71,71
 2042,Ohio State,97,96,99
 2042,Oklahoma,86,84,89
 2042,Oklahoma State,87,89,84
@@ -28,18 +53,29 @@ YEAR,TEAM,OVR,OFF,DEF
 2042,Oregon,90,91,89
 2042,Panama City,81,79,86
 2042,Penn State,94,94,94
+2042,Pittsburgh,77,79,76
 2042,Purdue,71,71,71
 2042,Rapid City,92,94,91
+2042,SMU,79,79,81
+2042,San Diego State,82,84,79
 2042,San Jose State,83,86,79
 2042,South Carolina,72,71,74
+2042,Stanford,80,81,79
+2042,TCU,86,86,86
 2042,Tennessee,84,84,84
 2042,Texas,97,99,96
 2042,Texas A&M,89,89,89
-2042,Texas Tech,91,91,91
+2042,Texas Tech,92,94,91
+2042,Toledo,74,76,71
+2042,Tulane,71,71,71
+2042,UCF,69,69,71
+2042,UCLA,82,81,84
 2042,USC,95,96,94
-2042,USF,84,84,84
+2042,USF,84,84,86
 2042,Virginia Tech,80,81,79
+2042,Wake Forest,71,69,76
 2042,Washington,90,91,89
+2042,West Virginia,80,81,79
 2042,Wisconsin,76,76,76
 2042,Wyoming,84,84,86
 2042,BYU,79,79,79
