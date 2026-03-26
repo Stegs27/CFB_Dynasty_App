@@ -19872,6 +19872,10 @@ with _ods_tabs[0]:
     else:
         st.caption("No recruiting history columns were found in recruiting.csv.")
 
+    # --- DYNASTY YOUTUBE ---
+with tabs[7]:
+    _yt_tabs = st.tabs(["▶️ Dynasty YouTube", "⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
+
     # --- H2H MATRIX ---
 with _yt_tabs[1]:
         st.header("⚔️ Head-to-Head Matrix")
@@ -23642,8 +23646,6 @@ with _yt_tabs[3]:
 # ──────────────────────────────────────────────────────────────────────
 # DYNASTY YOUTUBE ARCHIVES
 # ──────────────────────────────────────────────────────────────────────
-with tabs[7]:
-    _yt_tabs = st.tabs(["▶️ Dynasty YouTube", "⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
 with _yt_tabs[0]:
     render_dynasty_youtube_tab()
 
