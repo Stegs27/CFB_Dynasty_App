@@ -25431,6 +25431,10 @@ with tabs[2]:
                         headline    = headline.replace("a dynasty alum", player_name).replace("dynasty alum", player_name)
                         description = description.replace("a dynasty alum", player_name).replace("dynasty alum", player_name)
 
+                    school_logo_src = get_school_logo_src(school)
+                    nfl_logo_src    = get_nfl_logo_src(nfl_team)
+                    event_type      = str(r.get("EventType", "")).strip()
+
                     border_color = "#22c55e" if event_type == "Award" else "#4f46e5" if event_type == "SeasonOutcome" else "#eab308" if event_type == "SuperBowl" else "#334155"
                     bg_color = "rgba(34,197,94,0.08)" if event_type == "Award" else "rgba(79,70,229,0.08)" if event_type == "SeasonOutcome" else "rgba(234,179,8,0.08)" if event_type == "SuperBowl" else "rgba(148,163,184,0.08)"
 
