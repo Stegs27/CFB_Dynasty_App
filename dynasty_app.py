@@ -26343,6 +26343,83 @@ with tabs[1]:
             if _base_nfl_roster is None or (hasattr(_base_nfl_roster, "empty") and _base_nfl_roster.empty):
                 st.warning("⚠️ **NFLroster26_MASTER.csv** is missing or empty in the repo. Rebuild will produce 0 rows until you push that file. Upload it to GitHub first.")
 
+            # ── Apply Trades to Current Rosters ──────────────────────────────
+            if st.button("🔀 Apply Trades → Current Rosters", use_container_width=True,
+                         key="apply_trades_to_rosters_btn",
+                         help="Reads nfl_trade_history.csv and updates player team assignments in nfl_current_rosters.csv. Run after any trade, then download and push."):
+                try:
+                    if not os.path.exists("nfl_trade_history.csv"):
+                        st.warning("No nfl_trade_history.csv found.")
+                    elif not os.path.exists("nfl_current_rosters.csv"):
+                        st.warning("No nfl_current_rosters.csv found. Rebuild rosters first.")
+                    else:
+                        _trades = pd.read_csv("nfl_trade_history.csv")
+                        _rosters = pd.read_csv("nfl_current_rosters.csv")
+                        _cur_season = get_current_nfl_season()
+
+                        # Only process trades from current season
+                        _trades["Season"] = pd.to_numeric(_trades["Season"], errors="coerce")
+                        _season_trades = _trades[_trades["Season"].fillna(-1).astype(int) == int(_cur_season)].copy()
+
+                        if _season_trades.empty:
+                            st.info(f"No trades found for season {_cur_season}.")
+                        else:
+                            _applied = []
+                            _not_found = []
+
+                            for _, _tr in _season_trades.iterrows():
+                                _t1 = str(_tr.get("Team1","")).strip()
+                                _t2 = str(_tr.get("Team2","")).strip()
+                                _t1_gives = str(_tr.get("Team1Gives","")).strip()
+                                _t2_gives = str(_tr.get("Team2Gives","")).strip()
+                                _wk = int(safe_num(_tr.get("Week",0),0))
+
+                                # Parse player names from "Name (Pos, OVR OVR)" format
+                                import re as _re
+                                def _parse_player(gives_str):
+                                    m = _re.match(r'^(.+?)\s*\(', gives_str)
+                                    return m.group(1).strip() if m else gives_str.strip()
+
+                                # Team1 gives player(s) to Team2
+                                if "pick" not in _t1_gives.lower() and _t1_gives:
+                                    _pname = _parse_player(_t1_gives)
+                                    _mask = _rosters["Name"].astype(str).str.strip() == _pname
+                                    if _mask.any():
+                                        _rosters.loc[_mask, "Team"] = _t2
+                                        _applied.append(f"Wk {_wk}: {_pname} → {_t2}")
+                                    else:
+                                        _not_found.append(f"{_pname} (from {_t1})")
+
+                                # Team2 gives player(s) to Team1
+                                if "pick" not in _t2_gives.lower() and _t2_gives:
+                                    _pname2 = _parse_player(_t2_gives)
+                                    _mask2 = _rosters["Name"].astype(str).str.strip() == _pname2
+                                    if _mask2.any():
+                                        _rosters.loc[_mask2, "Team"] = _t1
+                                        _applied.append(f"Wk {_wk}: {_pname2} → {_t1}")
+                                    else:
+                                        _not_found.append(f"{_pname2} (from {_t2})")
+
+                            _rosters.to_csv("nfl_current_rosters.csv", index=False)
+
+                            if _applied:
+                                st.success(f"✅ Applied {len(_applied)} trade move(s):\n" + "\n".join(f"  • {a}" for a in _applied))
+                            if _not_found:
+                                st.warning("⚠️ Could not find these players in current rosters (may already be moved or name mismatch):\n" + "\n".join(f"  • n" for n in _not_found))
+
+                            st.download_button(
+                                label="⬇️ Download updated nfl_current_rosters.csv — push to repo",
+                                data=_rosters.to_csv(index=False).encode("utf-8"),
+                                file_name="nfl_current_rosters.csv",
+                                mime="text/csv",
+                                use_container_width=True,
+                                key="download_traded_rosters_inline"
+                            )
+                except Exception as _te:
+                    st.error(f"Trade apply error: {type(_te).__name__}: {_te}")
+
+            st.markdown("---")
+
             if st.button("🔄 Rebuild Current NFL Rosters", use_container_width=True, key="rebuild_current_nfl_rosters_now",
                          help="Run this if rosters look stale after a new draft or offseason. Then download nfl_current_rosters.csv and push."):
                 try:
