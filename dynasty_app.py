@@ -3557,9 +3557,17 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
                 win_user = hu if winner == home else au
                 lose_user = au if winner == home else hu
                 margin = int(game["Margin"])
-                # Find best player on winning team
+                # Find best player on winning team — must be from win_user's own program
                 win_players = _dynasty_for_team(winner)
-                spotlight = max(win_players, key=lambda p: safe_num(p.get("OVR",60),60)) if win_players else None
+                win_user_college = USER_TEAMS.get(win_user, "")
+                # Filter to players whose CollegeUser matches win_user OR CollegeTeam matches their school
+                own_players = [
+                    p for p in win_players
+                    if str(p.get("CollegeUser","")).strip().lower() == win_user.lower()
+                    or str(p.get("CollegeTeam","")).strip() == win_user_college
+                ]
+                spotlight_pool = own_players if own_players else win_players
+                spotlight = max(spotlight_pool, key=lambda p: safe_num(p.get("OVR",60),60)) if spotlight_pool else None
                 player_str = f"{spotlight['Name']} ({spotlight.get('Pos',spotlight.get('PosBucket',''))})" if spotlight else "their dynasty crew"
                 college_str = f"out of {spotlight.get('CollegeTeam','')}" if spotlight and spotlight.get('CollegeTeam') else ""
                 new_events.append({
@@ -16696,8 +16704,13 @@ with tabs[0]:
                 if _gsh_yr_c: _gs_hl[_gsh_yr_c] = pd.to_numeric(_gs_hl[_gsh_yr_c], errors='coerce')
                 if _gsh_wk_c: _gs_hl[_gsh_wk_c] = pd.to_numeric(_gs_hl[_gsh_wk_c], errors='coerce')
 
-                # Filter to current year only
+                # Filter to current year AND only current or prior week (same cap as score headlines)
                 _gs_cy_hl = _gs_hl[_gs_hl[_gsh_yr_c] == CURRENT_YEAR].copy() if _gsh_yr_c else _gs_hl.copy()
+                if _gsh_wk_c:
+                    _gs_cy_hl = _gs_cy_hl[_gs_cy_hl[_gsh_wk_c] <= CURRENT_WEEK_NUMBER]
+                    if not _gs_cy_hl.empty:
+                        _gs_latest_wk = int(_gs_cy_hl[_gsh_wk_c].max())
+                        _gs_cy_hl = _gs_cy_hl[_gs_cy_hl[_gsh_wk_c] == _gs_latest_wk]
 
                 def _gsh_q(row, team_key, q):
                     for c in [f'Q{q}_{team_key}', f'{team_key}_Q{q}',
@@ -25511,6 +25524,18 @@ with tabs[1]:
                     school = draft_lookup.get(player_id, {}).get("CollegeTeam", "")
                     college_user = clean_display(draft_lookup.get(player_id, {}).get("CollegeUser", ""), "")
                     nfl_team = str(r.get("NFLTeam", ""))
+
+                    # Verify school matches the college_user's actual program
+                    # If there's a mismatch (e.g. CollegeUser=Nick but CollegeTeam=Miami),
+                    # show the user's real school logo instead
+                    _USER_SCHOOLS = {
+                        "Mike": "San Jose State", "Devin": "Bowling Green", "Josh": "USF",
+                        "Noah": "Texas Tech", "Doug": "Florida", "Nick": "Florida State",
+                    }
+                    if college_user and college_user in _USER_SCHOOLS:
+                        expected_school = _USER_SCHOOLS[college_user]
+                        if school and school != expected_school:
+                            school = expected_school  # use coach's actual school
 
                     # If headline/description mention "dynasty alum" or "a dynasty alum", replace with actual name
                     headline    = str(r.get("Headline", "")).strip()
