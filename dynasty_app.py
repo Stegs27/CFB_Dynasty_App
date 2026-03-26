@@ -10529,6 +10529,265 @@ def build_full_ratings_table(year=None, week_cap=None):
     return out
 
 
+
+@st.cache_data(ttl=600)
+def compute_ms_plus(year=None, week_cap=None):
+    """
+    MS+ Ratings — CFB26-tuned composite rating inspired by SP+.
+    Returns DataFrame with Team, MSPlus, and component scores.
+    """
+    target_year = int(year) if year else CURRENT_YEAR
+
+    # ── Load data sources ─────────────────────────────────────────────
+    try:
+        ratings_df = pd.read_csv('TeamRatingsHistory.csv')
+        ratings_df['YEAR'] = pd.to_numeric(ratings_df['YEAR'], errors='coerce')
+        ratings_df['TEAM'] = ratings_df['TEAM'].astype(str).str.strip()
+    except Exception:
+        ratings_df = pd.DataFrame()
+
+    try:
+        recruit_df = pd.read_csv('recruiting_class_history_all.csv')
+        recruit_df['Year'] = pd.to_numeric(recruit_df.get('Year', recruit_df.get('YEAR', 0)), errors='coerce')
+    except Exception:
+        recruit_df = pd.DataFrame()
+
+    try:
+        roster_df = pd.read_csv('cfb26_rosters_full.csv')
+        roster_df['Season'] = pd.to_numeric(roster_df.get('Season', roster_df.get('YEAR', target_year)), errors='coerce')
+        roster_df = roster_df[roster_df['Season'].fillna(-1).astype(int) == target_year].copy()
+        roster_df['OVR'] = pd.to_numeric(roster_df.get('OVR', 0), errors='coerce').fillna(0)
+        roster_df['SPD'] = pd.to_numeric(roster_df.get('SPD', 0), errors='coerce').fillna(0)
+        roster_df['ACC'] = pd.to_numeric(roster_df.get('ACC', 0), errors='coerce').fillna(0)
+    except Exception:
+        roster_df = pd.DataFrame()
+
+    try:
+        champs_df = pd.read_csv('champs.csv')
+        champs_df['year'] = pd.to_numeric(champs_df.get('year', champs_df.get('Year', 0)), errors='coerce')
+    except Exception:
+        champs_df = pd.DataFrame()
+
+    try:
+        heisman_watch = pd.read_csv('Heisman_watch_history.csv')
+        heisman_watch['YEAR'] = pd.to_numeric(heisman_watch.get('YEAR', 0), errors='coerce')
+        hw_current = heisman_watch[heisman_watch['YEAR'] == target_year].copy()
+        hw_current['RANK'] = pd.to_numeric(hw_current.get('RANK', 99), errors='coerce').fillna(99)
+    except Exception:
+        hw_current = pd.DataFrame()
+
+    # Get FPI for Clobber Rating component
+    fpi_scores = {}
+    try:
+        _sched = load_scores_master(target_year)
+        if not _sched.empty:
+            fpi_scores = compute_power_ratings(_sched, year=target_year, week_cap=week_cap)
+    except Exception:
+        pass
+
+    # Build team list from ratings
+    if ratings_df.empty:
+        return pd.DataFrame()
+    yr_ratings = ratings_df[ratings_df['YEAR'].fillna(-1).astype(int) == target_year].copy()
+    if yr_ratings.empty:
+        yr_ratings = ratings_df[ratings_df['YEAR'].fillna(-1).astype(int) == target_year - 1].copy()
+    if yr_ratings.empty:
+        return pd.DataFrame()
+
+    all_teams = yr_ratings['TEAM'].dropna().unique().tolist()
+
+    # Veteran presence mean (league-wide 86+ JR/SR OVR) for relative comparison
+    _VET_YEARS = {'JR','JR (RS)','SR','SR (RS)','JR(RS)','SR(RS)'}
+    vet_mean = 0.0
+    if not roster_df.empty and 'Year' in roster_df.columns:
+        _vet_all = roster_df[
+            (roster_df['OVR'] >= 86) &
+            (roster_df['Year'].astype(str).str.strip().str.upper().isin({y.upper() for y in _VET_YEARS}))
+        ]
+        vet_mean = _vet_all['OVR'].mean() if not _vet_all.empty else 86.0
+
+    rows = []
+    for team in all_teams:
+        team = str(team).strip()
+        components = {}
+
+        # ── 1. Team Ratings (OVR, OFF, DEF) — weight 0.20 ────────────
+        tr = yr_ratings[yr_ratings['TEAM'] == team]
+        if not tr.empty:
+            r0 = tr.iloc[0]
+            t_ovr = safe_num(r0.get('OVERALL', r0.get('OVR', 75)), 75)
+            t_off = safe_num(r0.get('OFFENSE', r0.get('OFF', 75)), 75)
+            t_def = safe_num(r0.get('DEFENSE', r0.get('DEF', 75)), 75)
+        else:
+            t_ovr = t_off = t_def = 75.0
+        components['ratings'] = round((t_ovr * 0.5 + t_off * 0.25 + t_def * 0.25 - 70) / 30 * 100, 1)
+
+        # ── 2. Recruiting Pipeline (last 4 class ranks) — weight 0.15 ─
+        rec_score = 50.0
+        if not recruit_df.empty and 'Team' in recruit_df.columns and 'Rank' in recruit_df.columns:
+            _rc = recruit_df[
+                (recruit_df['Team'].astype(str).str.strip() == team) &
+                (recruit_df['Year'] >= target_year - 4) &
+                (recruit_df['Year'] < target_year)
+            ].copy()
+            _rc['Rank'] = pd.to_numeric(_rc['Rank'], errors='coerce')
+            if not _rc.empty:
+                avg_rk = _rc['Rank'].dropna().mean()
+                # Lower rank = better: rank 1 = 100, rank 130 = 0
+                rec_score = max(0, min(100, round((130 - avg_rk) / 130 * 100, 1)))
+        components['recruiting'] = rec_score
+
+        # ── 3. Transfer Portal (last 4 years) — weight 0.08 ──────────
+        xfer_score = 50.0
+        if not recruit_df.empty and 'ClassType' in recruit_df.columns:
+            _xf = recruit_df[
+                (recruit_df['Team'].astype(str).str.strip() == team) &
+                (recruit_df['Year'] >= target_year - 4) &
+                (recruit_df['Year'] < target_year) &
+                (recruit_df['ClassType'].astype(str).str.upper().isin({'TRANSFER','PORTAL'}))
+            ].copy()
+            if not _xf.empty and 'Rank' in _xf.columns:
+                _xf['Rank'] = pd.to_numeric(_xf['Rank'], errors='coerce')
+                avg_xf = _xf['Rank'].dropna().mean()
+                xfer_score = max(0, min(100, round((130 - avg_xf) / 130 * 100, 1)))
+        components['transfer'] = xfer_score
+
+        # ── 4. Veteran Presence (86+ OVR JR/SR) — weight 0.10 ────────
+        vet_score = 50.0
+        if not roster_df.empty and 'Team' in roster_df.columns and 'Year' in roster_df.columns:
+            _tv = roster_df[
+                (roster_df['Team'].astype(str).str.strip() == team) &
+                (roster_df['OVR'] >= 86) &
+                (roster_df['Year'].astype(str).str.strip().str.upper().isin({y.upper() for y in _VET_YEARS}))
+            ]
+            if not _tv.empty:
+                team_vet_avg = _tv['OVR'].mean()
+                vet_score = min(100, max(0, 50 + (team_vet_avg - vet_mean) * 5))
+                vet_score = round(vet_score + len(_tv) * 0.5, 1)  # bonus for depth
+        components['veteran'] = min(100, vet_score)
+
+        # ── 5. Starting Speed (90+ SPD at JR/SR level) — weight 0.07 ─
+        spd_score = 50.0
+        if not roster_df.empty and 'Team' in roster_df.columns:
+            _ts = roster_df[
+                (roster_df['Team'].astype(str).str.strip() == team) &
+                (roster_df['SPD'] >= 90) &
+                (roster_df['Year'].astype(str).str.strip().str.upper().isin({y.upper() for y in _VET_YEARS}))
+            ]
+            spd_score = min(100, 50 + len(_ts) * 4)
+        components['speed'] = spd_score
+
+        # ── 6. Captain of the Ship (QB rating) — weight 0.12 ─────────
+        qb_score = 50.0
+        if not roster_df.empty and 'Pos' in roster_df.columns:
+            _qbs = roster_df[
+                (roster_df['Team'].astype(str).str.strip() == team) &
+                (roster_df['Pos'].astype(str).str.upper().isin({'QB'}))
+            ].sort_values('OVR', ascending=False)
+            if not _qbs.empty:
+                _qb1 = _qbs.iloc[0]
+                _qb_ovr = float(_qb1.get('OVR', 75))
+                _qb_spd = float(_qb1.get('SPD', 75))
+                _qb_acc = float(_qb1.get('ACC', 75))
+                if _qb_ovr >= 91:
+                    qb_score = 90.0
+                elif _qb_ovr >= 85:
+                    qb_score = 70.0
+                elif _qb_ovr >= 80:
+                    qb_score = 55.0
+                else:
+                    qb_score = 35.0
+                # Dual-threat bonus
+                if _qb_spd >= 88 and _qb_acc >= 85:
+                    qb_score = min(100, qb_score + 10)
+        components['qb'] = qb_score
+
+        # ── 7. Recent Performance (last 4 seasons) — weight 0.10 ──────
+        perf_score = 50.0
+        if not champs_df.empty:
+            _cp = champs_df[
+                (champs_df['Team'].astype(str).str.strip() == team) &
+                (champs_df['year'] >= target_year - 4) &
+                (champs_df['year'] < target_year)
+            ] if 'Team' in champs_df.columns else pd.DataFrame()
+            natty_count = len(_cp[_cp.get('type', _cp.get('Type', pd.Series())).astype(str).str.upper().str.contains('NATTY|NATIONAL', na=False)]) if not _cp.empty else 0
+            conf_count  = len(_cp[_cp.get('type', _cp.get('Type', pd.Series())).astype(str).str.upper().str.contains('CONF', na=False)]) if not _cp.empty else 0
+            perf_score = min(100, 50 + natty_count * 15 + conf_count * 8)
+        components['performance'] = perf_score
+
+        # ── 8. Clobber Rating (FPI) — weight 0.10 ────────────────────
+        fpi_val = fpi_scores.get(team, 0.0)
+        all_fpi = list(fpi_scores.values()) if fpi_scores else [0]
+        fpi_min, fpi_max = min(all_fpi), max(all_fpi)
+        fpi_range = fpi_max - fpi_min if fpi_max != fpi_min else 1
+        clobber = round((fpi_val - fpi_min) / fpi_range * 100, 1)
+        components['clobber'] = clobber
+
+        # ── 9. Generational Talent (90+ OVR with 96+ SPD or ACC) — weight 0.05
+        gen_score = 50.0
+        if not roster_df.empty and 'Team' in roster_df.columns:
+            _gen = roster_df[
+                (roster_df['Team'].astype(str).str.strip() == team) &
+                (roster_df['OVR'] >= 90) &
+                ((roster_df['SPD'] >= 96) | (roster_df['ACC'] >= 96))
+            ]
+            gen_score = min(100, 50 + len(_gen) * 12)
+        components['generational'] = gen_score
+
+        # ── 10. Heisman Hopeful — weight 0.03 ────────────────────────
+        hh_score = 50.0
+        if not hw_current.empty and 'TEAM' in hw_current.columns:
+            _hh = hw_current[hw_current['TEAM'].astype(str).str.strip() == team]
+            top5 = _hh[_hh['RANK'] <= 5]
+            if len(top5) >= 2:
+                hh_score = 100.0
+            elif len(top5) == 1:
+                hh_score = 80.0
+            elif not _hh.empty:
+                hh_score = 65.0
+        components['heisman'] = hh_score
+
+        # ── Composite MS+ score ───────────────────────────────────────
+        weights = {
+            'ratings': 0.20, 'recruiting': 0.15, 'transfer': 0.08,
+            'veteran': 0.10, 'speed': 0.07, 'qb': 0.12,
+            'performance': 0.10, 'clobber': 0.10,
+            'generational': 0.05, 'heisman': 0.03,
+        }
+        ms_plus = sum(components.get(k, 50) * v for k, v in weights.items())
+        ms_plus = round(ms_plus, 1)
+
+        # Get FPI data to include in same row
+        fpi_rk_row = {}
+        rows.append({
+            'Team': team,
+            'MSPlus': ms_plus,
+            **{f'_{k}': v for k, v in components.items()},
+        })
+
+    if not rows:
+        return pd.DataFrame()
+
+    msp_df = pd.DataFrame(rows).sort_values('MSPlus', ascending=False).reset_index(drop=True)
+
+    # Merge FPI/SOS/SOR if available
+    try:
+        _fpi_df = build_full_ratings_table(year=target_year, week_cap=week_cap)
+        if not _fpi_df.empty:
+            _fpi_df = _fpi_df[['Team','W','L','FPI','SOS','SOR','Streak','QualityWins','BestWin']].copy()
+            msp_df = msp_df.merge(_fpi_df, on='Team', how='left')
+            for _c in ['W','L','FPI','SOS','SOR','QualityWins']:
+                msp_df[_c] = msp_df[_c].fillna(0)
+            msp_df['Streak'] = msp_df['Streak'].fillna('')
+            msp_df['BestWin'] = msp_df['BestWin'].fillna('')
+    except Exception:
+        msp_df['W'] = 0; msp_df['L'] = 0; msp_df['FPI'] = 0.0
+        msp_df['SOS'] = 0.0; msp_df['SOR'] = 0.0
+        msp_df['Streak'] = ''; msp_df['QualityWins'] = 0; msp_df['BestWin'] = ''
+
+    return msp_df
+
+
 def infer_best_fun_stat(y_data):
     if y_data.empty:
         return "No games found for that season."
@@ -14498,89 +14757,155 @@ tabs = st.tabs([
 with tabs[3]:
     _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 SOS & True Path"])
 with _spd_tabs[1]:
-        st.header("📐 SOS & True Path")
-        st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
+        st.header("📐 FPI, MS+ and SOS")
+        st.caption("Who actually earned their record? Power ratings, recruiting-adjusted projections, and schedule résumé.")
 
-        # ── TRUE POWER RATINGS (FPI / SOS / SOR) ─────────────────────────────
+        _ABBREV = {
+            "San Jose State":"SJSU","Bowling Green":"BGSU","USF":"USF","Texas Tech":"TTU",
+            "Florida":"UF","Florida State":"FSU","Alabama":"BAMA","Ohio State":"OSU",
+            "Georgia":"UGA","Michigan":"MICH","Penn State":"PSU","Notre Dame":"ND",
+            "USC":"USC","Oklahoma":"OU","Texas":"TEX","LSU":"LSU","Auburn":"AUB",
+            "Tennessee":"TENN","Oregon":"ORE","Washington":"UW","Wisconsin":"WIS",
+            "Iowa":"IOWA","Nebraska":"NEB","Missouri":"MIZZ","Kansas State":"KSU",
+            "Iowa State":"ISU","TCU":"TCU","Oklahoma State":"OKST","West Virginia":"WVU",
+            "BYU":"BYU","South Carolina":"SCAR","Kentucky":"UK","Ole Miss":"MISS",
+            "Mississippi State":"MSST","Miami":"UM","Virginia Tech":"VT",
+            "North Carolina":"UNC","NC State":"NCST","Clemson":"CLEM",
+            "Georgia Tech":"GT","Stanford":"STAN","UCLA":"UCLA","Utah":"UTAH",
+            "Arizona State":"ASU","Arizona":"ARIZ","San Diego State":"SDSU",
+            "Boise State":"BSU","Colorado":"COLO","Colorado State":"CSU",
+            "Minnesota":"MINN","Arkansas":"ARK","Duke":"DUKE","SMU":"SMU",
+            "Rutgers":"RU","Purdue":"PUR","Syracuse":"CUSE","UCF":"UCF",
+            "Cincinnati":"CIN","Memphis":"MEM","Tulane":"TUL","Houston":"HOU",
+            "Air Force":"AF","Wyoming":"WYO","Hawaii":"HAW","Vanderbilt":"VANDY",
+            "Louisville":"LOU","Virginia":"UVA","Maryland":"UMD","Indiana":"IND",
+            "Michigan State":"MSU","Vanderbilt":"VANDY","Kansas":"KU",
+            "FCS Midwest":"FCSMW","FCS West":"FCSW","FCS South":"FCSS","FCS East":"FCSE",
+        }
+        def _abbrev(t):
+            t = str(t).strip()
+            if t in _ABBREV: return _ABBREV[t]
+            w = t.split()
+            return "".join(x[0] for x in w if x)[:5].upper() if len(w)>1 else t[:5].upper()
+
+        def _power_table(df_in, tab_key, primary_col="#fbbf24", caption_txt="", has_msp=False):
+            if df_in.empty:
+                st.caption("No data yet — push schedule data with results.")
+                return
+            _sc1, _sc2, _sc3 = st.columns([3,1,1])
+            with _sc1:
+                if caption_txt: st.caption(caption_txt)
+            _sort_cols = ["FPI","SOS","SOR","W-L"]
+            if has_msp: _sort_cols = ["MS+"] + _sort_cols
+            with _sc2:
+                _sb = st.selectbox("Sort", _sort_cols, key=f"sb_{tab_key}")
+            with _sc3:
+                _uo = st.checkbox("User only", key=f"uo_{tab_key}")
+            _d = df_in.copy()
+            _user_set = set(USER_TEAMS.values())
+            if _uo: _d = _d[_d["Team"].isin(_user_set)]
+            _scol_map = {"FPI":"FPI","SOS":"SOS","SOR":"SOR","W-L":"W","MS+":"MSPlus"}
+            _sc = _scol_map.get(_sb,"FPI")
+            if _sc in _d.columns:
+                _d = _d.sort_values(_sc, ascending=False).reset_index(drop=True)
+            _d.insert(0,"Rank",range(1,len(_d)+1))
+
+            def _rows_html(subset):
+                rh = ""
+                for _, _r in subset.iterrows():
+                    _tm=str(_r["Team"]); _is_u=_tm in _user_set
+                    _uc=get_team_primary_color(_tm) if _is_u else "#0f172a"
+                    _lg=get_school_logo_src(_tm)
+                    _lh=f"<img src='{_lg}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _lg else ""
+                    _ab=_abbrev(_tm)
+                    _nw="font-weight:900;color:#f8fafc;" if _is_u else "font-weight:400;color:#64748b;"
+                    _bg=f"background:linear-gradient(90deg,{_uc}25 0%,#06090f 30%);" if _is_u else "background:#06090f;"
+                    _bl=f"border-left:3px solid {_uc};" if _is_u else "border-left:2px solid #0f172a;"
+                    _w=int(_r.get("W",0)); _l=int(_r.get("L",0))
+                    _wlc="#4ade80" if _w>_l else ("#f87171" if _l>_w else "#64748b")
+                    _fv=float(_r.get("FPI",0)); _fc="#4ade80" if _fv>=5 else ("#fbbf24" if _fv>=0 else "#f87171")
+                    _sv=float(_r.get("SOS",0)); _orv=float(_r.get("SOR",0))
+                    _orc="#4ade80" if _orv>=0.1 else ("#fbbf24" if _orv>=0 else "#f87171")
+                    _stk=str(_r.get("Streak","")); _stkc="#4ade80" if "W" in _stk else ("#f87171" if "L" in _stk else "#334155")
+                    _qw=int(_r.get("QualityWins",0)); _bw=str(_r.get("BestWin",""))
+                    _rk=int(_r.get("Rank",0))
+                    _msc=""
+                    if has_msp and "MSPlus" in _r:
+                        _mv=float(_r.get("MSPlus",0)); _mc="#4ade80" if _mv>=70 else ("#fbbf24" if _mv>=55 else "#f87171")
+                        _msc=f"<td style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_mc};font-size:0.9rem;'>{_mv:.1f}</td>"
+                    rh+=(
+                        f"<tr style='{_bg}{_bl}'>"
+                        f"<td style='padding:4px 5px;color:#1e293b;font-size:0.65rem;text-align:center;width:24px;'>{_rk}</td>"
+                        f"<td style='padding:4px 5px;white-space:nowrap;'>{_lh}"
+                        f"<span style='{_nw}font-size:0.8rem;font-family:Barlow Condensed,sans-serif;letter-spacing:.02em;'>{html.escape(_ab)}</span></td>"
+                        f"<td style='padding:4px 5px;text-align:center;color:{_wlc};font-weight:700;font-size:0.75rem;'>{_w}-{_l}</td>"
+                        f"<td style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:0.92rem;color:{_fc};'>{_fv:+.1f}</td>"
+                        f"<td style='padding:4px 5px;text-align:center;color:#334155;font-size:0.7rem;'>{_sv:+.1f}</td>"
+                        f"<td style='padding:4px 5px;text-align:center;color:{_orc};font-size:0.7rem;'>{_orv:+.3f}</td>"
+                        f"<td style='padding:4px 5px;text-align:center;color:{_stkc};font-size:0.7rem;'>{_stk}</td>"
+                        f"<td style='padding:4px 5px;text-align:center;color:#3b82f6;font-size:0.68rem;'>"
+                        f"{(_qw if _qw else chr(8212))+(' '+_bw if _bw else '')}</td>"
+                        f"{_msc}</tr>"
+                    )
+                return rh
+
+            _msp_th = "<th style='padding:5px 6px;color:#a78bfa;font-size:0.6rem;letter-spacing:.1em;text-transform:uppercase;'>MS+</th>" if has_msp else ""
+            _thead = (
+                f"<tr style='background:#0a1220;'>"
+                f"<th style='padding:5px 6px;color:#1e293b;font-size:0.58rem;text-align:center;width:24px;'>#</th>"
+                f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:left;'>Team</th>"
+                f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>W-L</th>"
+                f"<th style='padding:5px 6px;color:{primary_col};font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>FPI</th>"
+                f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOS</th>"
+                f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOR</th>"
+                f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Streak</th>"
+                f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Q-Wins</th>"
+                f"{_msp_th}</tr>"
+            )
+            top50 = _d.head(50); rest = _d.iloc[50:]
+            st.markdown(
+                f"<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:8px;'>"
+                f"<table style='width:100%;border-collapse:collapse;background:#06090f;'>"
+                f"<thead>{_thead}</thead><tbody>{_rows_html(top50)}</tbody></table></div>",
+                unsafe_allow_html=True
+            )
+            if len(rest) > 0 and not _uo:
+                with st.expander(f"Show {len(rest)} more teams"):
+                    st.markdown(
+                        f"<table style='width:100%;border-collapse:collapse;background:#06090f;'>"
+                        f"<tbody>{_rows_html(rest)}</tbody></table>",
+                        unsafe_allow_html=True
+                    )
+
+        # ── FPI / SOS / SOR ──────────────────────────────────────────────────
         try:
             _ratings_df = build_full_ratings_table(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
             if not _ratings_df.empty:
-                st.markdown("### 🏆 Power Ratings")
-                st.caption(
-                    "**FPI** (Football Power Index) — margin-of-victory based power rating adjusted for opponent quality and home field. "
-                    "**SOS** — average FPI of opponents faced. "
-                    "**SOR** (Strength of Record) — résumé score: credits wins over elite opponents, penalizes losses to weak ones."
-                )
+                st.markdown("#### 🏈 FPI Power Ratings")
+                _power_table(_ratings_df, "fpi", "#fbbf24",
+                    "**FPI** — margin-of-victory power index adjusted for opponent quality and home field.  "
+                    "**SOS** — avg FPI of opponents faced.  **SOR** — résumé: win big vs good teams, get punished for losing to bad ones.")
+            else:
+                st.info("FPI requires schedule_2042.csv with completed game results.")
+        except Exception as _fe:
+            st.caption(f"FPI unavailable: {_fe}")
 
-                # Filter/highlight controls
-                _fpi_col1, _fpi_col2 = st.columns([2, 1])
-                with _fpi_col2:
-                    _show_user_only = st.checkbox("User programs only", value=False, key="fpi_user_only")
-                with _fpi_col1:
-                    _fpi_search = st.text_input("Filter team", placeholder="Search...", key="fpi_search", label_visibility="collapsed")
+        st.markdown("---")
 
-                _disp = _ratings_df.copy()
-                if _show_user_only:
-                    _user_team_set = set(USER_TEAMS.values())
-                    _disp = _disp[_disp['Team'].isin(_user_team_set)]
-                if _fpi_search:
-                    _disp = _disp[_disp['Team'].str.contains(_fpi_search, case=False, na=False)]
+        # ── MS+ ───────────────────────────────────────────────────────────────
+        try:
+            _msp_df = compute_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            if _msp_df is not None and not _msp_df.empty:
+                st.markdown("#### 📊 MS+ Ratings")
+                _power_table(_msp_df, "msp", "#a78bfa",
+                    "**MS+** — CFB26-tuned composite rating. Weights recruiting pipeline, veteran quality, speed, "
+                    "QB grade, recent performance, FPI, and generational talent.", has_msp=True)
+            else:
+                st.info("MS+ requires rosters, recruiting history, and ratings data.")
+        except Exception as _me:
+            st.caption(f"MS+ unavailable: {_me}")
 
-                # Build HTML table
-                _fpi_rows = ""
-                for _, _fr in _disp.iterrows():
-                    _ft   = str(_fr['Team'])
-                    _fw   = int(_fr['W'])
-                    _fl   = int(_fr['L'])
-                    _ffpi = float(_fr['FPI'])
-                    _fsos = float(_fr['SOS'])
-                    _fsor = float(_fr['SOR'])
-                    _fstreak = str(_fr.get('Streak',''))
-                    _fqw  = int(_fr.get('QualityWins',0))
-                    _fbw  = str(_fr.get('BestWin',''))
-                    _frank = int(_fr['Rank'])
-                    _is_user = _ft in set(USER_TEAMS.values())
-                    _u_color = get_team_primary_color(_ft) if _is_user else '#1e293b'
-                    _logo = get_school_logo_src(_ft) if _is_user else None
-                    _logo_html = f"<img src='{_logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _logo else ""
-                    _fpi_col  = "#4ade80" if _ffpi >= 5 else ("#fbbf24" if _ffpi >= 0 else "#f87171")
-                    _sor_col  = "#4ade80" if _fsor >= 0.1 else ("#fbbf24" if _fsor >= 0 else "#f87171")
-                    _streak_col = "#4ade80" if 'W' in _fstreak else ("#f87171" if 'L' in _fstreak else "#94a3b8")
-                    _bg = f"background:linear-gradient(90deg,{_u_color}22 0%,#080f1a 30%);" if _is_user else "background:#080f1a;"
-                    _border = f"border-left:3px solid {_u_color};" if _is_user else "border-left:3px solid #1e293b;"
-                    _fpi_rows += (
-                        f"<tr style='{_bg}{_border}'>"
-                        f"<td style='padding:5px 8px;color:#475569;font-size:0.72rem;text-align:center;'>{_frank}</td>"
-                        f"<td style='padding:5px 8px;white-space:nowrap;'>{_logo_html}<span style='color:#f1f5f9;font-size:0.78rem;font-weight:{'700' if _is_user else '400'};'>{html.escape(_ft)}</span></td>"
-                        f"<td style='padding:5px 8px;text-align:center;color:#94a3b8;font-size:0.78rem;'>{_fw}-{_fl}</td>"
-                        f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:1rem;color:{_fpi_col};'>{_ffpi:+.1f}</td>"
-                        f"<td style='padding:5px 8px;text-align:center;color:#64748b;font-size:0.75rem;'>{_fsos:+.1f}</td>"
-                        f"<td style='padding:5px 8px;text-align:center;color:{_sor_col};font-size:0.75rem;'>{_fsor:+.3f}</td>"
-                        f"<td style='padding:5px 8px;text-align:center;color:{_streak_col};font-size:0.72rem;'>{_fstreak}</td>"
-                        f"<td style='padding:5px 8px;text-align:center;color:#60a5fa;font-size:0.72rem;'>{_fqw if _fqw else '—'}{(' '+_fbw) if _fbw else ''}</td>"
-                        f"</tr>"
-                    )
-
-                st.markdown(
-                    f"<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:8px;'>"
-                    f"<table style='width:100%;border-collapse:collapse;background:#06090f;font-family:Barlow Condensed,sans-serif;'>"
-                    f"<thead><tr style='background:#0a1220;'>"
-                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>#</th>"
-                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:left;'>Team</th>"
-                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>W-L</th>"
-                    f"<th style='padding:7px 8px;color:#fbbf24;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>FPI</th>"
-                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOS</th>"
-                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOR</th>"
-                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Streak</th>"
-                    f"<th style='padding:7px 8px;color:#475569;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Q-Wins</th>"
-                    f"</tr></thead>"
-                    f"<tbody>{_fpi_rows}</tbody></table></div>",
-                    unsafe_allow_html=True
-                )
-                st.markdown("---")
-        except Exception as _fpi_err:
-            st.caption(f"Power ratings unavailable: {_fpi_err}")
-
+        st.markdown("---")
 
         # 1. LOAD MASTER DATA
         try:
@@ -23836,26 +24161,43 @@ with _yt_tabs[2]:
                 )
 
             with _ctab_all:
-                st.caption("Ranked by Classic Score = closeness + stakes + upset factor.")
-                _top25 = _classics_df.head(25)
-                for _ci, (_idx, _crow) in enumerate(_top25.iterrows(), 1):
-                    _render_classic_card(_crow, _ci)
+                st.caption("User vs user classics — ranked by closeness + stakes + upset factor.")
+                _uvsu = _classics_df[
+                    _classics_df['WinnerUser'].astype(str).str.strip().ne('') &
+                    _classics_df['LoserUser'].astype(str).str.strip().ne('')
+                ] if 'WinnerUser' in _classics_df.columns else _classics_df
+                _top25 = _uvsu.head(25)
+                if _top25.empty:
+                    st.info("No user vs user classics yet.")
+                else:
+                    for _ci, (_idx, _crow) in enumerate(_top25.iterrows(), 1):
+                        _render_classic_card(_crow, _ci)
 
             with _ctab_upsets:
-                st.caption("Games where the lower-rated team pulled off the W. Ranked by OVR gap.")
-                _upsets = _classics_df[_classics_df['IsUpset']].sort_values(
-                    'OVR_Diff', ascending=False).head(20)
+                st.caption("User vs user upsets — lower-rated team pulled off the W.")
+                _uvsu2 = _classics_df[
+                    _classics_df['WinnerUser'].astype(str).str.strip().ne('') &
+                    _classics_df['LoserUser'].astype(str).str.strip().ne('')
+                ] if 'WinnerUser' in _classics_df.columns else _classics_df
+                _upsets = _uvsu2[_uvsu2['IsUpset']].sort_values('OVR_Diff', ascending=False).head(20)
                 if _upsets.empty:
-                    st.info("No upset data detected with current ratings proxy.")
+                    st.info("No user vs user upsets yet.")
                 else:
                     for _ci, (_idx, _crow) in enumerate(_upsets.iterrows(), 1):
                         _render_classic_card(_crow, _ci)
 
             with _ctab_close:
-                st.caption("The absolute gut-punchers — decided by a single score or less.")
-                _close = _classics_df.sort_values('Margin').head(20)
-                for _ci, (_idx, _crow) in enumerate(_close.iterrows(), 1):
-                    _render_classic_card(_crow, _ci)
+                st.caption("User vs user gut-punchers — decided by a single score or less.")
+                _uvsu3 = _classics_df[
+                    _classics_df['WinnerUser'].astype(str).str.strip().ne('') &
+                    _classics_df['LoserUser'].astype(str).str.strip().ne('')
+                ] if 'WinnerUser' in _classics_df.columns else _classics_df
+                _close = _uvsu3.sort_values('Margin').head(20)
+                if _close.empty:
+                    st.info("No user vs user close games yet.")
+                else:
+                    for _ci, (_idx, _crow) in enumerate(_close.iterrows(), 1):
+                        _render_classic_card(_crow, _ci)
 
             with _ctab_box:
                 st.caption("Quarter-by-quarter box scores from captured game summaries. Import via the ISPN Data Importer.")
