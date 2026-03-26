@@ -3830,11 +3830,11 @@ def _generate_weekly_story_events(games_df, season_year, week_num):
                         "PlayerID": player_id, "Player": player_name,
                         "NFLTeam": winner,
                         "EventType": "AlumniMatchup",
-                        "Headline": f"{win_user}'s Alumni Beat {lose_user}'s Alumni — {win_score}-{lose_score}",
+                        "Headline": f"{win_user}'s {player_name} & {winner} Beat {lose_user}'s {loser} — {win_score}-{lose_score}",
                         "Description": (
-                            f"Dynasty bragging rights on the line in Week {week_num}: "
-                            f"{winner} ({win_user}'s alumni) handled {loser} ({lose_user}'s alumni) "
-                            f"{win_score}-{lose_score}. {player_name} was in the building."
+                            f"Week {week_num} dynasty bragging rights: {player_name} "
+                            f"and {winner} ({win_user}\'s alumni) took down "
+                            f"{loser} ({lose_user}\'s alumni) {win_score}-{lose_score}."
                         ),
                         "ImpactScore": 8,
                     })
@@ -13027,6 +13027,7 @@ try:
     _wk_df['Home Score'] = pd.to_numeric(_wk_df['Home Score'], errors='coerce')
     _wk_cy = _wk_df[_wk_df['YEAR'] == CURRENT_YEAR].copy()
     _wk_done = _wk_cy.dropna(subset=['Vis Score', 'Home Score'])
+    _wk_done = _wk_done[_wk_done['Week'] <= CURRENT_WEEK_NUMBER]  # cap to current CFB week
     if not _wk_done.empty:
         _latest_wk = int(_wk_done['Week'].max())
         _this_wk_games = _wk_done[_wk_done['Week'] == _latest_wk].copy()
@@ -13624,27 +13625,57 @@ try:
             "Trade":            ("NFL TRADE",     "#7c3aed", "white"),
         }
 
+        _COLLEGE_ABBR = {
+            "San Jose State":"SJSU","Bowling Green":"BGSU","USF":"USF",
+            "Texas Tech":"TTU","Florida":"UF","Florida State":"FSU",
+            "Alabama":"BAMA","Ohio State":"OSU","Georgia":"UGA","Michigan":"MICH",
+            "Penn State":"PSU","Notre Dame":"ND","USC":"USC","Oklahoma":"OU",
+            "Texas":"TEX","LSU":"LSU","Auburn":"AUB","Tennessee":"TENN",
+            "Oregon":"ORE","Wisconsin":"WIS","Iowa":"IOWA","Nebraska":"NEB",
+            "Missouri":"MIZZ","Kansas State":"KSU","Iowa State":"ISU","TCU":"TCU",
+            "Oklahoma State":"OKST","West Virginia":"WVU","BYU":"BYU",
+            "South Carolina":"SCAR","Kentucky":"UK","Vanderbilt":"VANDY",
+            "Ole Miss":"MISS","Mississippi State":"MSST","Miami":"UM",
+            "Virginia Tech":"VT","North Carolina":"UNC","NC State":"NCST",
+            "Clemson":"CLEM","Georgia Tech":"GT","Stanford":"STAN",
+            "UCLA":"UCLA","Utah":"UTAH","Arizona State":"ASU","San Diego State":"SDSU",
+            "Boise State":"BSU",
+        }
+        _nfl_ticker_draft = pd.DataFrame()
+        try:
+            if os.path.exists("nfl_draft_history.csv"):
+                _nfl_ticker_draft = pd.read_csv("nfl_draft_history.csv")
+        except Exception:
+            pass
+
         for _, _ns in _nfl_stories.iterrows():
-            _ns_headline = str(_ns.get("Headline", "")).strip()
-            _ns_team     = str(_ns.get("NFLTeam", "")).strip()
-            _ns_type     = str(_ns.get("EventType", "")).strip()
-            _ns_week     = int(safe_num(_ns.get("Week", 0), 0))
+            _ns_headline = str(_ns.get("Headline","")).strip()
+            _ns_team     = str(_ns.get("NFLTeam","")).strip()
+            _ns_type     = str(_ns.get("EventType","")).strip()
+            _ns_week     = int(safe_num(_ns.get("Week",0),0))
+            _ns_player   = str(_ns.get("Player","")).strip()
+            _ns_pid      = str(_ns.get("PlayerID","")).strip()
             if not _ns_headline:
                 continue
-            _ns_badge, _ns_bg, _ns_fg = _NFL_BADGE_COLORS.get(_ns_type, ("NFL", "#3b82f6", "white"))
-            # Add NFL week to badge
+            _ns_badge, _ns_bg, _ns_fg = _NFL_BADGE_COLORS.get(_ns_type, ("NFL","#3b82f6","white"))
             if _ns_week:
                 _ns_badge = f"{_ns_badge} WK {_ns_week}"
-            # Get NFL logo for the team
-            _ns_logo_src = get_nfl_logo_src(_ns_team)
+            # Prepend "former XYZ standout" if we can find player's school
+            _ns_disp = _ns_headline
+            if _ns_player and _ns_pid and not _nfl_ticker_draft.empty and "PlayerID" in _nfl_ticker_draft.columns:
+                _pm = _nfl_ticker_draft[_nfl_ticker_draft["PlayerID"].astype(str) == _ns_pid]
+                if not _pm.empty:
+                    _school = str(_pm.iloc[0].get("CollegeTeam","")).strip()
+                    _abbr   = _COLLEGE_ABBR.get(_school, _school.split()[-1].upper() if _school else "")
+                    if _abbr and _ns_player in _ns_headline:
+                        _ns_disp = _ns_headline.replace(_ns_player, f"former {_abbr} standout {_ns_player}", 1)
+            _ns_logo_src  = get_nfl_logo_src(_ns_team)
             _ns_logo_html = f"<img src='{_ns_logo_src}' style='height:20px;width:20px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _ns_logo_src else ""
             _all_headlines.append({
-                "badge": _ns_badge,
-                "priority": 3 + int(safe_num(_ns.get("ImpactScore", 0), 0)) * 0.1,
-                "text": _ns_headline,
-                "text_html": f"{_ns_logo_html}<span style='color:#e2e8f0;'>{html.escape(_ns_headline)}</span>",
-                "blurb": str(_ns.get("Description", _ns_headline)),
-                "logo_html": _ns_logo_html,
+                "badge":_ns_badge, "priority":3+int(safe_num(_ns.get("ImpactScore",0),0))*0.1,
+                "text":_ns_disp,
+                "text_html":f"{_ns_logo_html}<span style='color:#e2e8f0;'>{html.escape(_ns_disp)}</span>",
+                "blurb":str(_ns.get("Description",_ns_headline)), "logo_html":_ns_logo_html,
             })
 except Exception:
     pass
@@ -13885,24 +13916,20 @@ st.markdown(f"""
 # ── TABS START ───────────────────────────────────────────────────────
 tabs = st.tabs([
     "🗞️ Dynasty News",          # tabs[0]
-    "▶️ Dynasty YouTube",        # tabs[1]
-    "🏈 NFL Universe",          # tabs[2]
-    "📐 SOS & True Path",       # tabs[3]
-    "🏆 Who's In?",             # tabs[4]
-    "🥇 Recruiting Rankings",   # tabs[5]
-    "🚪 Roster Attrition",      # tabs[6]
-    "💰 NIL Board",             # tabs[7]
-    "📺 Season Recap",          # tabs[8]
-    "🔍 Speed Freaks",          # tabs[9]
-    "🎯 Roster Matchup",        # tabs[10]
-    "🏛️ Coach Legacy",         # tabs[11]
-    "⚔️ H2H Matrix",            # tabs[12]
-    "🎬 ISPN Classics",         # tabs[13]
-    "🐐 GOAT Rankings",         # tabs[14]
+    "🏈 NFL Universe",          # tabs[1]
+    "🌴 Off-Season Drama",      # tabs[2]  subtabs: Recruiting + Attrition
+    "⚡ Speed & SOS",           # tabs[3]  subtabs: Speed Freaks + SOS
+    "🏆 Who\'s In?",           # tabs[4]
+    "📺 Season Recap",          # tabs[5]
+    "🎯 Roster Matchup",        # tabs[6]  subtabs: Matchup + NIL
+    "📺 Dynasty YouTube",       # tabs[7]  subtabs: YouTube + H2H + Classics + GOAT
+    "🏛️ Coach Legacy",         # tabs[8]
 ])
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
 with tabs[3]:
+    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 SOS & True Path"])
+with _spd_tabs[1]:
         st.header("📐 SOS & True Path")
         st.caption("Who actually earned their record? Schedule résumé, speed-adjusted difficulty, and quality wins.")
 
@@ -19147,7 +19174,9 @@ with tabs[4]:
             st.info(f"Who Would Win requires champs.csv and TeamRatingsHistory.csv. ({_www_e})")
 
         # --- RECRUITING RANKINGS ---
-with tabs[5]:
+with tabs[2]:
+    _ods_tabs = st.tabs(["🥇 Recruiting Rankings", "🚪 Roster Attrition"])
+with _ods_tabs[0]:
     # ── Year selector ─────────────────────────────────────────────────────
     try:
         _rec_all_years = _load_recruiting_csv()
@@ -19844,7 +19873,7 @@ with tabs[5]:
         st.caption("No recruiting history columns were found in recruiting.csv.")
 
     # --- H2H MATRIX ---
-with tabs[12]:
+with _yt_tabs[1]:
         st.header("⚔️ Head-to-Head Matrix")
         st.caption("All-time user vs. user records. Net Edge = wins minus losses. Rivalry Score weights game count and balance.")
 
@@ -20063,7 +20092,7 @@ with tabs[12]:
             )
 
 # --- SEASON RECAP ---
-with tabs[8]:
+with tabs[5]:
     st.header("📺 Season Recap")
     _recap_default = (CURRENT_YEAR - 1) if CURRENT_WEEK_NUMBER < 13 else CURRENT_YEAR
     _recap_default = _recap_default if _recap_default in years else (years[-1] if years else CURRENT_YEAR)
@@ -20341,7 +20370,7 @@ with tabs[8]:
 
 
 # --- SPEED FREAKS ---
-with tabs[9]:
+with _spd_tabs[0]:
     st.header("🔍 Speed Freaks")
     st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
 
@@ -20814,7 +20843,7 @@ with tabs[9]:
                 st.plotly_chart(_fig_phys, use_container_width=True, config={'staticPlot': True})
 
 
-with tabs[11]:
+with tabs[8]:
         st.header("🏛️ Coach Legacy")
         st.caption("Career arc by coach across all schools. Powered by CPUscores_MASTER.csv, CFPbracketresults.csv, champs.csv, COTY.csv, recruiting_class_history_all.csv, and preseason_expectations_history.csv.")
 
@@ -22870,7 +22899,7 @@ def render_dynasty_youtube_tab():
 
     _render_card_grid(filtered)
 
-with tabs[13]:
+with _yt_tabs[2]:
         st.header("🎬 ISPN Classics")
         st.caption(
             "The most iconic games in dynasty history — ranked by closeness, "
@@ -23231,7 +23260,7 @@ with tabs[13]:
                     st.error(f"Box Scores error: {_bx_err}")
 
 # --- GOAT RANKINGS (Tab 12) ---
-with tabs[14]:
+with _yt_tabs[3]:
     st.header("🐐 The GOAT Council")
     st.caption("Legacy is built on titles, trophies, pipelines, and sustained dominance.")
 
@@ -23613,13 +23642,15 @@ with tabs[14]:
 # ──────────────────────────────────────────────────────────────────────
 # DYNASTY YOUTUBE ARCHIVES
 # ──────────────────────────────────────────────────────────────────────
-with tabs[1]:
+with tabs[7]:
+    _yt_tabs = st.tabs(["▶️ Dynasty YouTube", "⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
+with _yt_tabs[0]:
     render_dynasty_youtube_tab()
 
 # ──────────────────────────────────────────────────────────────────────
 # NFL UNIVERSE
 # ──────────────────────────────────────────────────────────────────────
-with tabs[2]:
+with tabs[1]:
     nfl_universe_logo_path = "_NFL_logo.png"
     if os.path.exists(nfl_universe_logo_path):
         logo_uri = file_to_data_uri(nfl_universe_logo_path)
@@ -23962,77 +23993,72 @@ with tabs[2]:
                         "Doug": "Florida", "Nick": "Florida State",
                     }
                     _user_list = list(_USER_TEAMS_LOCAL.keys())
-                    for _row_start in range(0, len(_user_list), 3):
-                        _row_users = _user_list[_row_start:_row_start + 3]
-                        _ucols = st.columns(len(_row_users))
-                        for _uc, _u_coach in zip(_ucols, _row_users):
-                            with _uc:
-                                _u_picks = _tw_dynasty[
-                                    _tw_dynasty["CollegeUser"].astype(str).str.strip().str.title() == _u_coach.title()
-                                ].sort_values("OVR", ascending=False).copy()
-                                _u_team  = _USER_TEAMS_LOCAL[_u_coach]
-                                _u_color = get_team_primary_color(_u_team)
-                                st.markdown(
-                                    f"<div style='font-family:Barlow Condensed,sans-serif;font-size:0.85rem;"
-                                    f"font-weight:900;color:{_u_color};text-transform:uppercase;"
-                                    f"letter-spacing:.06em;margin-bottom:6px;'>{_u_coach} · {_u_team}</div>",
-                                    unsafe_allow_html=True
-                                )
-                                if _u_picks.empty:
-                                    st.caption("No picks yet.")
-                                else:
-                                    # Build draft info lookup for round/pick/year
-                                    _draft_lookup = {}
-                                    if not _draft_df.empty and "PlayerID" in _draft_df.columns:
-                                        for _, _dr in _draft_df.iterrows():
-                                            _pid = str(_dr.get("PlayerID","")).strip()
-                                            if _pid:
-                                                _draft_lookup[_pid] = _dr
-
-                                    for _, _pp in _u_picks.head(5).iterrows():
-                                        _pp_name    = str(_pp.get("Name",""))
-                                        _pp_pos     = str(_pp.get("Pos", _pp.get("PosBucket","")))
-                                        _pp_nfl     = str(_pp.get("Team",""))
-                                        _pp_college = str(_pp.get("CollegeTeam",""))
-                                        _pp_ovr     = int(safe_num(_pp.get("OVR",0),0))
-                                        _pp_src     = str(_pp.get("Source",""))
-                                        _pp_pid     = str(_pp.get("PlayerID","")).strip()
-                                        _is_rookie  = _pp_src == "dynasty_rookie"
-                                        _ovr_col    = "#4ade80" if _pp_ovr >= 88 else ("#fbbf24" if _pp_ovr >= 80 else "#94a3b8")
-                                        _nfl_color  = get_nfl_team_color(_pp_nfl)
-                                        # Draft info
-                                        _dr_row     = _draft_lookup.get(_pp_pid, None)
-                                        _has_dr     = _dr_row is not None and not (hasattr(_dr_row, "empty") and _dr_row.empty if hasattr(_dr_row,"empty") else False)
-                                        _dr_year    = int(safe_num(_dr_row.get("DraftYear",0),0)) if _has_dr else 0
-                                        _dr_rnd     = int(safe_num(_dr_row.get("DraftRoundCanon", _dr_row.get("IsCanonRound",0)),0)) if _has_dr else 0
-                                        _dr_pick    = int(safe_num(_dr_row.get("GeneratedOverallPick",0),0)) if _has_dr else 0
-                                        _draft_str  = f"Rd {_dr_rnd} · #{_dr_pick} · {_dr_year}" if _dr_rnd and _dr_pick and _dr_year else ("Rookie" if _is_rookie else "")
-                                        # Logos — use get_school_logo_src (data URI) not path
-                                        _nfl_logo   = get_nfl_logo_src(_pp_nfl)
-                                        _cfb_logo   = get_school_logo_src(_pp_college)
-                                        _nfl_img    = f"<img src='{_nfl_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _nfl_logo else "<span style='width:22px;display:inline-block;'></span>"
-                                        _cfb_img    = f"<img src='{_cfb_logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _cfb_logo else "<span style='width:22px;display:inline-block;'></span>"
-                                        _rookie_tag = "<span style='background:#7c3aed;color:#fff;font-size:0.55rem;font-weight:900;padding:1px 4px;border-radius:3px;margin-right:3px;vertical-align:middle;'>R</span>" if _is_rookie else ""
-                                        st.markdown(
-                                            f"<div style='display:flex;align-items:center;gap:6px;padding:6px 8px;"
-                                            f"background:#0a1628;border-radius:6px;"
-                                            f"border-left:3px solid {_nfl_color};"
-                                            f"margin-bottom:3px;'>"
-                                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;width:26px;'>"
-                                            f"{_cfb_img}{_nfl_img}"
-                                            f"</div>"
-                                            f"<div style='flex:1;min-width:0;'>"
-                                            f"<div style='color:#f1f5f9;font-weight:700;font-size:0.78rem;line-height:1.2;'>{_rookie_tag}{html.escape(_pp_name)}</div>"
-                                            f"<div style='color:#64748b;font-size:0.65rem;line-height:1.3;'>"
-                                            f"{_pp_pos} · <span style='color:{_nfl_color};'>{html.escape(_pp_nfl)}</span>"
-                                            f"{'<br><span style=\"color:#475569;\">' + _draft_str + '</span>' if _draft_str else ''}"
-                                            f"</div>"
-                                            f"</div>"
-                                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:{_ovr_col};flex-shrink:0;'>{_pp_ovr}</div>"
-                                            f"</div>",
-                                            unsafe_allow_html=True
-                                        )
-
+                    # Build draft lookup once
+                    _dp_draft_lookup = {}
+                    if not _draft_df.empty and "PlayerID" in _draft_df.columns:
+                        for _, _ddr in _draft_df.iterrows():
+                            _dpid = str(_ddr.get("PlayerID","")).strip()
+                            if _dpid:
+                                _dp_draft_lookup[_dpid] = _ddr
+                    for _u_coach in _user_list:
+                        _u_picks = _tw_dynasty[
+                            _tw_dynasty["CollegeUser"].astype(str).str.strip().str.title() == _u_coach.title()
+                        ].sort_values("OVR", ascending=False).copy()
+                        _u_team   = _USER_TEAMS_LOCAL[_u_coach]
+                        _u_color  = get_team_primary_color(_u_team)
+                        _u_count  = len(_u_picks)
+                        _u_logo   = get_school_logo_src(_u_team)
+                        _exp_label = f"{_u_coach} ({_u_team}) — {_u_count} player{'s' if _u_count != 1 else ''}"
+                        with st.expander(_exp_label, expanded=False):
+                            if _u_logo:
+                                _hc1, _hc2 = st.columns([1, 4])
+                                with _hc1:
+                                    st.image(_u_logo, width=56)
+                                with _hc2:
+                                    st.markdown(
+                                        f"<div style='font-family:Barlow Condensed,sans-serif;font-size:1rem;"
+                                        f"font-weight:900;color:{_u_color};text-transform:uppercase;"
+                                        f"margin-top:6px;'>{_u_coach}</div>"
+                                        f"<div style='color:#64748b;font-size:0.75rem;'>{_u_team} · {_u_count} alumni in the league</div>",
+                                        unsafe_allow_html=True
+                                    )
+                            if _u_picks.empty:
+                                st.caption("No picks in the league yet.")
+                            else:
+                                for _, _pp in _u_picks.iterrows():
+                                    _pp_name    = str(_pp.get("Name",""))
+                                    _pp_pos     = str(_pp.get("Pos", _pp.get("PosBucket","")))
+                                    _pp_nfl     = str(_pp.get("Team",""))
+                                    _pp_college = str(_pp.get("CollegeTeam",""))
+                                    _pp_ovr     = int(safe_num(_pp.get("OVR",0),0))
+                                    _pp_src     = str(_pp.get("Source",""))
+                                    _pp_pid     = str(_pp.get("PlayerID","")).strip()
+                                    _is_rookie  = _pp_src == "dynasty_rookie"
+                                    _ovr_col    = "#4ade80" if _pp_ovr >= 88 else ("#fbbf24" if _pp_ovr >= 80 else "#94a3b8")
+                                    _nfl_color  = get_nfl_team_color(_pp_nfl)
+                                    _dr_row     = _dp_draft_lookup.get(_pp_pid)
+                                    _dr_year    = int(safe_num(_dr_row.get("DraftYear",0),0)) if _dr_row is not None else 0
+                                    _dr_rnd     = int(safe_num(_dr_row.get("DraftRoundCanon",0),0)) if _dr_row is not None else 0
+                                    _dr_pick    = int(safe_num(_dr_row.get("GeneratedOverallPick",0),0)) if _dr_row is not None else 0
+                                    _draft_str  = f"Rd {_dr_rnd} · #{_dr_pick} · {_dr_year}" if _dr_rnd and _dr_pick and _dr_year else ("Rookie" if _is_rookie else "")
+                                    _nfl_logo   = get_nfl_logo_src(_pp_nfl)
+                                    _cfb_logo   = get_school_logo_src(_pp_college)
+                                    _nfl_img    = f"<img src='{_nfl_logo}' style='width:22px;height:22px;object-fit:contain;'/>" if _nfl_logo else ""
+                                    _cfb_img    = f"<img src='{_cfb_logo}' style='width:22px;height:22px;object-fit:contain;'/>" if _cfb_logo else ""
+                                    _rookie_tag = "<span style='background:#7c3aed;color:#fff;font-size:0.55rem;font-weight:900;padding:1px 4px;border-radius:3px;margin-right:3px;'>R</span>" if _is_rookie else ""
+                                    st.markdown(
+                                        f"<div style='display:flex;align-items:center;gap:6px;padding:6px 8px;"
+                                        f"background:#0a1628;border-radius:6px;border-left:3px solid {_nfl_color};margin-bottom:3px;'>"
+                                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;width:26px;'>{_cfb_img}{_nfl_img}</div>"
+                                        f"<div style='flex:1;min-width:0;'>"
+                                        f"<div style='color:#f1f5f9;font-weight:700;font-size:0.78rem;'>{_rookie_tag}{html.escape(_pp_name)}</div>"
+                                        f"<div style='color:#64748b;font-size:0.65rem;'>{_pp_pos} · <span style='color:{_nfl_color};'>{html.escape(_pp_nfl)}</span>"
+                                        f"{'<br><span style=\"color:#475569;\">'+_draft_str+'</span>' if _draft_str else ''}</div>"
+                                        f"</div>"
+                                        f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:{_ovr_col};flex-shrink:0;'>{_pp_ovr}</div>"
+                                        f"</div>",
+                                        unsafe_allow_html=True
+                                    )
     # ── Draft Central ──────────────────────────────────────────────────
         with nfl_tabs[1]:
             st.subheader("📦 Draft Central")
@@ -26330,6 +26356,33 @@ with tabs[2]:
 
             # ── Download workflow ──────────────────────────────────────────────
             st.markdown("---")
+            st.markdown("#### 🚀 Weekly Push — Download All at Once")
+            st.caption("After each Advance Week, grab all five files in one ZIP.")
+            try:
+                import zipfile as _zf, io as _zio
+                _wfiles = ["nfl_weekly_scores.csv","nfl_standings_history.csv",
+                           "nfl_universe_settings.csv","nfl_story_events.csv","dynasty_state.csv"]
+                _zbuf = _zio.BytesIO()
+                _zinc = []
+                with _zf.ZipFile(_zbuf, "w", _zf.ZIP_DEFLATED) as _z:
+                    for _wf in _wfiles:
+                        if os.path.exists(_wf):
+                            _z.write(_wf, _wf)
+                            _zinc.append(_wf)
+                _zbuf.seek(0)
+                if _zinc:
+                    _wkn = get_current_nfl_week()
+                    st.download_button(
+                        label=f"📦 Download Weekly Push ZIP — NFL Wk {_wkn} ({len(_zinc)} files)",
+                        data=_zbuf.read(), file_name=f"nfl_weekly_push_wk{_wkn}.zip",
+                        mime="application/zip", use_container_width=True, key="weekly_push_zip"
+                    )
+                    st.caption("Includes: " + " · ".join(_zinc))
+                else:
+                    st.info("No weekly files yet — advance a week first.")
+            except Exception as _ze:
+                st.error(f"ZIP error: {_ze}")
+            st.markdown("---")
             st.markdown("#### 📥 Download & Push Workflow")
             st.markdown("""
             <div style='background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:14px 16px;font-size:0.82rem;color:#94a3b8;line-height:1.9;margin-bottom:12px;'>
@@ -26416,7 +26469,7 @@ with tabs[2]:
 
 
     # --- ROSTER ATTRITION ---
-with tabs[6]:
+with _ods_tabs[1]:
     # --- 0. Logos & Header ---
     def get_attrition_logo(team_name, width=45, margin="0"):
         if 'image_file_to_data_uri' in globals() and 'get_local_logo_path' in globals():
@@ -28090,8 +28143,10 @@ with tabs[6]:
         st.caption(f"Natty DNA unavailable: {_nd_err}")
 
     # --- ROSTER MATCHUP ---
-    with tabs[10]:
-        render_roster_matchup_tab()
+with tabs[6]:
+    _rm_tabs = st.tabs(["🎯 Roster Matchup", "💰 NIL Board"])
+with _rm_tabs[0]:
+    render_roster_matchup_tab()
 
     # --- SIDEBAR CONTENT ---
     with st.sidebar:
@@ -28150,7 +28205,7 @@ with tabs[6]:
             if _ok:
                 st.cache_data.clear()
 # ── NIL BOARD (Tab 13) ────────────────────────────────────────────────────────
-with tabs[7]:
+with _rm_tabs[1]:
     st.header("💰 NIL Board")
     st.caption("Projected NIL valuations for every player on user rosters — computed from OVR, position scarcity, class year, and athleticism. Team totals show who's running a bag program.")
 
