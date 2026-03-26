@@ -19955,30 +19955,41 @@ with _ods_tabs[2]:
         if os.path.exists("the_100.csv"):
             _t100_raw = pd.read_csv("the_100.csv")
             if not _t100_raw.empty:
-                for _c in ["Year","NationalRank","StarRating","PositionRank","StateRank","RecruitSlot"]:
+                for _c in ["Year","RANK","RATING"]:
                     if _c in _t100_raw.columns:
                         _t100_raw[_c] = pd.to_numeric(_t100_raw[_c], errors="coerce")
+                # Add User column by mapping TAR to known user teams
+                _T100_TEAM_USER = {
+                    "San Jose State":"Mike","Bowling Green":"Devin","USF":"Josh",
+                    "Texas Tech":"Noah","Florida":"Doug","Florida State":"Nick",
+                }
+                if "TAR" in _t100_raw.columns:
+                    _t100_raw["User"] = _t100_raw["TAR"].map(lambda t: _T100_TEAM_USER.get(str(t).strip(),""))
                 _t100_df = _t100_raw.copy()
 
         if _t100_df.empty:
             st.info("No data yet. Push the_100.csv to populate The 100.")
         else:
-            # Year selector
-            _t100_years = sorted(_t100_df["Year"].dropna().astype(int).unique().tolist(), reverse=True)
+            # Year selector — if no Year column, treat all rows as current year
+            if "Year" in _t100_df.columns:
+                _t100_years = sorted(_t100_df["Year"].dropna().astype(int).unique().tolist(), reverse=True)
+            else:
+                _t100_df["Year"] = CURRENT_YEAR
+                _t100_years = [CURRENT_YEAR]
             _t100_sel_yr = st.selectbox("Season", _t100_years, index=0, key="t100_year_sel")
 
             _yr_df = _t100_df[_t100_df["Year"].fillna(-1).astype(int) == int(_t100_sel_yr)].copy()
-            _yr_df = _yr_df.sort_values("NationalRank", ascending=True).reset_index(drop=True)
+            _yr_df = _yr_df.sort_values("RANK", ascending=True).reset_index(drop=True)
 
-            # Filter to top 100 by national rank
-            _top100 = _yr_df[_yr_df["NationalRank"].notna() & (_yr_df["NationalRank"] <= 100)].copy()
-            _rest   = _yr_df[_yr_df["NationalRank"].isna() | (_yr_df["NationalRank"] > 100)].copy()
+            # Filter to top 100 by rank
+            _top100 = _yr_df[_yr_df["RANK"].notna() & (_yr_df["RANK"] <= 100)].copy()
+            _rest   = _yr_df[_yr_df["RANK"].isna() | (_yr_df["RANK"] > 100)].copy()
 
             # Summary stats
             _total_in_top100 = len(_top100)
             _user_in_top100  = _top100[_top100["User"].astype(str).str.strip().ne("")]["User"].value_counts()
-            _five_stars       = int((_top100["StarRating"] == 5).sum())
-            _four_stars       = int((_top100["StarRating"] == 4).sum())
+            _five_stars       = int((_top100["RATING"] == 5).sum())
+            _four_stars       = int((_top100["RATING"] == 4).sum())
 
             _stat_cols = st.columns(4)
             _stat_cols[0].metric("Top 100 Commits", _total_in_top100)
@@ -20021,56 +20032,47 @@ with _ods_tabs[2]:
                 _range_label = f"#{_chunk_start+1}–#{min(_chunk_start+10, len(_display_df))}"
                 with st.expander(_range_label, expanded=(_chunk_start == 0)):
                     for _, _pr in _chunk.iterrows():
-                        _rank   = int(_pr.get("NationalRank", 0)) if pd.notna(_pr.get("NationalRank")) else "—"
-                        _name   = str(_pr.get("Name","")).strip()
-                        _pos    = str(_pr.get("Pos","")).strip()
-                        _team   = str(_pr.get("Team","")).strip()
+                        _rank   = int(_pr.get("RANK", 0)) if pd.notna(_pr.get("RANK")) else "—"
+                        _name   = str(_pr.get("NAME","")).strip()
+                        _pos    = str(_pr.get("POS","")).strip()
+                        _team   = str(_pr.get("TAR","")).strip()
                         _user   = str(_pr.get("User","")).strip()
-                        _stars  = int(_pr.get("StarRating",0)) if pd.notna(_pr.get("StarRating")) else 0
-                        _state  = str(_pr.get("State","")).strip()
-                        _cls    = str(_pr.get("ClassLabel","")).strip()
-                        _nat_rk = int(_rank) if isinstance(_rank, int) else 0
-                        _pos_rk = int(_pr.get("PositionRank",0)) if pd.notna(_pr.get("PositionRank")) else 0
-                        _st_rk  = int(_pr.get("StateRank",0)) if pd.notna(_pr.get("StateRank")) else 0
+                        _stars  = int(_pr.get("RATING",0)) if pd.notna(_pr.get("RATING")) else 0
+                        _state  = str(_pr.get("ST","")).strip()
+                        _cls    = str(_pr.get("CLASS","")).strip()
+                        _committed = _team not in ("", "nan", "not committed")
 
-                        _is_user_team = _user and _user not in ("","nan","CPU")
+                        _is_user_team = _user and _user not in ("","nan")
                         _u_color      = get_team_primary_color(USER_TEAMS.get(_user.title(),"")) if _is_user_team else "#334155"
                         _pc           = _POS_COLORS.get(_pos.upper(), "#64748b")
-                        _school_logo  = get_school_logo_src(_team)
+                        _school_logo  = get_school_logo_src(_team) if _committed else None
                         _logo_html    = f"<img src='{_school_logo}' style='width:26px;height:26px;object-fit:contain;flex-shrink:0;'/>" if _school_logo else "<span style='width:26px;display:inline-block;'></span>"
                         _star_html    = "★" * _stars + "☆" * (5 - _stars)
                         _star_col     = "#fbbf24" if _stars == 5 else ("#94a3b8" if _stars >= 4 else "#475569")
+                        _nat_rk       = int(_rank) if isinstance(_rank, int) else 0
                         _rank_col     = "#fbbf24" if _nat_rk <= 10 else ("#94a3b8" if _nat_rk <= 25 else "#64748b")
                         _bg           = f"background:linear-gradient(90deg,{_u_color}18 0%,#080f1a 35%);" if _is_user_team else "background:#080f1a;"
                         _border       = f"border-left:3px solid {_u_color};" if _is_user_team else "border-left:3px solid #1e293b;"
+                        _team_display = _team if _committed else "<span style='color:#334155;font-style:italic;'>uncommitted</span>"
 
                         st.markdown(
                             f"<div style='display:flex;align-items:center;gap:8px;padding:6px 10px;"
                             f"{_bg}{_border}border-radius:5px;margin-bottom:3px;'>"
-                            # rank
                             f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;"
                             f"color:{_rank_col};min-width:32px;text-align:center;flex-shrink:0;'>{_rank}</span>"
-                            # logo
                             f"{_logo_html}"
-                            # name + meta
                             f"<div style='flex:1;min-width:0;'>"
                             f"<div style='color:#f1f5f9;font-weight:700;font-size:0.82rem;'>{html.escape(_name)}"
                             f"{'<span style=\"background:'+_u_color+'33;color:'+_u_color+';font-size:0.58rem;font-weight:900;padding:1px 5px;border-radius:3px;margin-left:6px;\">'+html.escape(_user.upper())+'</span>' if _is_user_team else ''}"
                             f"</div>"
-                            f"<div style='color:#64748b;font-size:0.65rem;'>"
-                            f"{_state} · {_cls}"
-                            f"{'  · Pos #'+str(_pos_rk) if _pos_rk else ''}"
-                            f"{'  · St #'+str(_st_rk) if _st_rk else ''}"
+                            f"<div style='color:#64748b;font-size:0.65rem;'>{_state} · {_cls}</div>"
                             f"</div>"
-                            f"</div>"
-                            # pos badge
                             f"<span style='background:{_pc}22;color:{_pc};font-size:0.65rem;font-weight:900;"
                             f"padding:2px 6px;border-radius:3px;flex-shrink:0;'>{html.escape(_pos)}</span>"
-                            # stars
                             f"<span style='color:{_star_col};font-size:0.75rem;flex-shrink:0;'>{_star_html}</span>"
-                            # school
-                            f"<span style='color:#475569;font-size:0.68rem;min-width:90px;text-align:right;flex-shrink:0;"
-                            f"{'color:'+_u_color+';font-weight:700;' if _is_user_team else ''}'>{html.escape(_team)}</span>"
+                            f"<span style='color:{'#'+_u_color[1:] if _is_user_team else '475569'};font-size:0.68rem;"
+                            f"min-width:100px;text-align:right;flex-shrink:0;"
+                            f"{'font-weight:700;' if _is_user_team else ''}'>{_team_display}</span>"
                             f"</div>",
                             unsafe_allow_html=True
                         )
@@ -20084,12 +20086,12 @@ with _ods_tabs[2]:
                         st.caption("No user-program commits outside top 100.")
                     else:
                         for _, _pr in _rest_user.iterrows():
-                            _rank  = int(_pr.get("NationalRank",0)) if pd.notna(_pr.get("NationalRank")) else "—"
-                            _name  = str(_pr.get("Name","")).strip()
-                            _pos   = str(_pr.get("Pos","")).strip()
-                            _team  = str(_pr.get("Team","")).strip()
+                            _rank  = int(_pr.get("RANK",0)) if pd.notna(_pr.get("RANK")) else "—"
+                            _name  = str(_pr.get("NAME","")).strip()
+                            _pos   = str(_pr.get("POS","")).strip()
+                            _team  = str(_pr.get("TAR","")).strip()
                             _user  = str(_pr.get("User","")).strip()
-                            _stars = int(_pr.get("StarRating",0)) if pd.notna(_pr.get("StarRating")) else 0
+                            _stars = int(_pr.get("RATING",0)) if pd.notna(_pr.get("RATING")) else 0
                             _u_color = get_team_primary_color(USER_TEAMS.get(_user.title(),""))
                             _pc    = _POS_COLORS.get(_pos.upper(), "#64748b")
                             st.markdown(
