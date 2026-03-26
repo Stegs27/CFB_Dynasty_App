@@ -13277,6 +13277,62 @@ except Exception as e:
 
 # ── 7. INJURY BULLETIN (from CSV) ─────────────────────────────────────
 try:
+    # Pre-load roster for depth chart starter inference
+    _inj_roster_df = pd.DataFrame()
+    try:
+        _inj_roster_raw = pd.read_csv('cfb26_rosters_full.csv')
+        if 'Season' in _inj_roster_raw.columns:
+            _inj_roster_raw['Season'] = pd.to_numeric(_inj_roster_raw['Season'], errors='coerce')
+            _inj_roster_df = _inj_roster_raw[
+                _inj_roster_raw['Season'].fillna(-1).astype(int) == CURRENT_YEAR
+            ].copy()
+        if _inj_roster_df.empty:
+            _inj_roster_df = _inj_roster_raw.copy()
+        _inj_roster_df['OVR'] = pd.to_numeric(_inj_roster_df.get('OVR', 0), errors='coerce').fillna(0)
+    except Exception:
+        pass
+
+    # Position bucket groupings for depth chart — positions that share a depth chart
+    _INJ_POS_GROUP = {
+        'HB': ['HB','RB','FB'], 'RB': ['HB','RB','FB'], 'FB': ['HB','RB','FB'],
+        'WR': ['WR'],
+        'QB': ['QB'],
+        'TE': ['TE'],
+        'LT': ['LT'], 'LG': ['LG'], 'C': ['C'], 'RG': ['RG'], 'RT': ['RT'],
+        'LEDG': ['LEDG','REDG','EDGE','LE','RE'],
+        'REDG': ['LEDG','REDG','EDGE','LE','RE'],
+        'EDGE': ['LEDG','REDG','EDGE','LE','RE'],
+        'LE': ['LEDG','REDG','EDGE','LE','RE'],
+        'RE': ['LEDG','REDG','EDGE','LE','RE'],
+        'DT': ['DT','IDL'], 'IDL': ['DT','IDL'],
+        'MIKE': ['MIKE','WILL','SAM','MLB','LOLB','ROLB','LB'],
+        'WILL': ['MIKE','WILL','SAM','MLB','LOLB','ROLB','LB'],
+        'SAM': ['MIKE','WILL','SAM','MLB','LOLB','ROLB','LB'],
+        'MLB': ['MIKE','WILL','SAM','MLB','LOLB','ROLB','LB'],
+        'LOLB': ['MIKE','WILL','SAM','MLB','LOLB','ROLB','LB'],
+        'ROLB': ['MIKE','WILL','SAM','MLB','LOLB','ROLB','LB'],
+        'LB': ['MIKE','WILL','SAM','MLB','LOLB','ROLB','LB'],
+        'CB': ['CB'],
+        'FS': ['FS','SS','S'], 'SS': ['FS','SS','S'], 'S': ['FS','SS','S'],
+    }
+
+    def _infer_starter_from_roster(team, pos, player_name, player_ovr):
+        """Return True if player ranks #1 at their position group on their team's depth chart."""
+        if _inj_roster_df.empty:
+            return player_ovr >= 88  # fallback to OVR if no roster
+        pos_group = _INJ_POS_GROUP.get(pos.upper(), [pos.upper()])
+        team_pos = _inj_roster_df[
+            (_inj_roster_df.get('Team', pd.Series(dtype=str)).astype(str).str.strip().str.lower() == team.strip().lower()) &
+            (_inj_roster_df.get('Pos', pd.Series(dtype=str)).astype(str).str.strip().str.upper().isin(pos_group))
+        ].copy()
+        if team_pos.empty:
+            return player_ovr >= 88
+        team_pos = team_pos.sort_values('OVR', ascending=False).reset_index(drop=True)
+        # Is this player the top OVR at their position group?
+        if not team_pos.empty:
+            top_ovr = float(team_pos.iloc[0]['OVR'])
+            return float(player_ovr) >= top_ovr  # starter = highest OVR at position
+        return player_ovr >= 88
     _inj_df = pd.read_csv('injury_bulletin.csv')
     if not _inj_df.empty:
         _inj_df['Year'] = pd.to_numeric(_inj_df.get('Year'), errors='coerce')
@@ -13344,11 +13400,17 @@ try:
                 "S": "starting safety",
             }
 
-            # Determine if confirmed starter from CSV, else infer from OVR
+            # Determine if confirmed starter from CSV, else look up depth chart
             _is_starter_raw = str(_inj.get('IsStarter', '')).strip().lower()
             _confirmed_starter = _is_starter_raw in ('yes', 'true', '1')
-            _inferred_starter  = _iovr >= 80  # high OVR = likely starter if not specified
-            _is_starter = _confirmed_starter or (_is_starter_raw == '' and _inferred_starter)
+            _confirmed_not_starter = _is_starter_raw in ('no', 'false', '0')
+            if _confirmed_starter:
+                _is_starter = True
+            elif _confirmed_not_starter:
+                _is_starter = False
+            else:
+                # Not specified — check roster depth chart
+                _is_starter = _infer_starter_from_roster(_it, _ip, _iname, _iovr)
 
             if _is_starter:
                 _role_text = _role_map.get(_ip, f"key {_ip}")
@@ -13445,7 +13507,7 @@ try:
 
             _is_starter_raw = str(_ret.get('IsStarter', '')).strip().lower()
             _ret_is_starter = _is_starter_raw in ('yes','true','1') or (
-                _is_starter_raw == '' and _rovr >= 80
+                _is_starter_raw == '' and _rovr >= 88
             )
 
             _ret_il  = get_header_logo(_rt)
@@ -19175,8 +19237,8 @@ with tabs[4]:
 
         # --- RECRUITING RANKINGS ---
 with tabs[2]:
-    _ods_tabs = st.tabs(["🥇 Recruiting Rankings", "🚪 Roster Attrition"])
-with _ods_tabs[0]:
+    _ods_tabs = st.tabs(["🚪 Roster Attrition", "🥇 Recruiting Rankings"])
+with _ods_tabs[1]:
     # ── Year selector ─────────────────────────────────────────────────────
     try:
         _rec_all_years = _load_recruiting_csv()
@@ -26471,7 +26533,7 @@ with tabs[1]:
 
 
     # --- ROSTER ATTRITION ---
-with _ods_tabs[1]:
+with _ods_tabs[0]:
     # --- 0. Logos & Header ---
     def get_attrition_logo(team_name, width=45, margin="0"):
         if 'image_file_to_data_uri' in globals() and 'get_local_logo_path' in globals():
