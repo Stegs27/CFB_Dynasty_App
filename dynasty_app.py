@@ -10075,6 +10075,195 @@ def get_team_schedule_summary(scores_df, user):
     return wins, losses, round(points_for / max(1, len(games)), 1), avg_margin
 
 
+def get_full_league_schedule(year=None):
+    """Load CPUscores_MASTER and return full-league schedule for a given year."""
+    try:
+        df = pd.read_csv('CPUscores_MASTER.csv')
+        df['YEAR']       = pd.to_numeric(df.get('YEAR'),       errors='coerce')
+        df['Week']       = pd.to_numeric(df.get('Week'),       errors='coerce')
+        df['Vis Score']  = pd.to_numeric(df.get('Vis Score'),  errors='coerce')
+        df['Home Score'] = pd.to_numeric(df.get('Home Score'), errors='coerce')
+        if year:
+            df = df[df['YEAR'].fillna(-1).astype(int) == int(year)]
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def get_team_current_streak(scores_df, team, current_week):
+    """Return (streak_count, 'W'|'L') for a team's current win/loss streak."""
+    completed = scores_df[
+        (scores_df['Status'].astype(str).str.upper() == 'FINAL') &
+        (scores_df['Week'] <= current_week) &
+        ((scores_df['Visitor'].astype(str).str.strip() == team) |
+         (scores_df['Home'].astype(str).str.strip() == team))
+    ].sort_values('Week', ascending=False)
+
+    if completed.empty:
+        return 0, ''
+
+    results = []
+    for _, g in completed.iterrows():
+        vis = str(g.get('Visitor','')).strip()
+        vs  = safe_num(g.get('Vis Score'), 0)
+        hs  = safe_num(g.get('Home Score'), 0)
+        if vis == team:
+            results.append('W' if vs > hs else 'L')
+        else:
+            results.append('W' if hs > vs else 'L')
+
+    if not results:
+        return 0, ''
+    streak_type = results[0]
+    count = 0
+    for r in results:
+        if r == streak_type:
+            count += 1
+        else:
+            break
+    return count, streak_type
+
+
+def get_team_record(scores_df, team, through_week=None):
+    """Return (wins, losses) for any team through a given week."""
+    completed = scores_df[scores_df['Status'].astype(str).str.upper() == 'FINAL'].copy()
+    if through_week:
+        completed = completed[completed['Week'] <= through_week]
+    team_games = completed[
+        (completed['Visitor'].astype(str).str.strip() == team) |
+        (completed['Home'].astype(str).str.strip() == team)
+    ]
+    wins = losses = 0
+    for _, g in team_games.iterrows():
+        vis = str(g.get('Visitor','')).strip()
+        vs  = safe_num(g.get('Vis Score'), 0)
+        hs  = safe_num(g.get('Home Score'), 0)
+        if vis == team:
+            if vs > hs: wins += 1
+            else: losses += 1
+        else:
+            if hs > vs: wins += 1
+            else: losses += 1
+    return wins, losses
+
+
+def get_opponent_context(scores_df, user_team, user_week, current_week):
+    """Return a context string about a user's upcoming opponent."""
+    try:
+        upcoming = scores_df[
+            (scores_df['Status'].astype(str).str.upper() != 'FINAL') &
+            (scores_df['Week'] == int(user_week)) &
+            ((scores_df['Visitor'].astype(str).str.strip() == user_team) |
+             (scores_df['Home'].astype(str).str.strip() == user_team))
+        ]
+        if upcoming.empty:
+            return ''
+
+        row = upcoming.iloc[0]
+        vis = str(row.get('Visitor','')).strip()
+        opp = str(row.get('Home','')).strip() if vis == user_team else vis
+
+        streak_n, streak_t = get_team_current_streak(scores_df, opp, current_week)
+        w, l = get_team_record(scores_df, opp, current_week)
+        opp_rank = row.get('Visitor Rank') if vis != user_team else row.get('Home Rank')
+        rank_str = f"#{int(opp_rank)} " if pd.notna(opp_rank) and str(opp_rank) not in ('','nan') else ''
+
+        if streak_n >= 3:
+            hot_cold = f"on a {streak_n}-game {streak_t} streak"
+        elif streak_n == 2:
+            hot_cold = f"winners of 2 straight" if streak_t == 'W' else f"losers of 2 straight"
+        else:
+            hot_cold = ""
+
+        record_str = f"{w}-{l}" if (w + l) > 0 else ""
+        parts = [p for p in [rank_str + opp, record_str, hot_cold] if p]
+        return " · ".join(parts)
+    except Exception:
+        return ''
+
+
+def get_league_upsets(scores_df, week, rank_threshold=15):
+    """Return list of upset results — unranked beating ranked teams — for a given week."""
+    week_games = scores_df[
+        (scores_df['Status'].astype(str).str.upper() == 'FINAL') &
+        (scores_df['Week'].fillna(-1).astype(int) == int(week))
+    ].copy()
+
+    upsets = []
+    for _, g in week_games.iterrows():
+        vs  = safe_num(g.get('Vis Score'), 0)
+        hs  = safe_num(g.get('Home Score'), 0)
+        v_rank = g.get('Visitor Rank')
+        h_rank = g.get('Home Rank')
+        vis = str(g.get('Visitor','')).strip()
+        hom = str(g.get('Home','')).strip()
+
+        v_ranked = pd.notna(v_rank) and str(v_rank) not in ('','nan') and int(float(v_rank)) <= rank_threshold
+        h_ranked = pd.notna(h_rank) and str(h_rank) not in ('','nan') and int(float(h_rank)) <= rank_threshold
+
+        if v_ranked and not h_ranked and hs > vs:
+            upsets.append({'ranked': vis, 'rank': int(float(v_rank)), 'winner': hom, 'score': f"{int(hs)}-{int(vs)}"})
+        elif h_ranked and not v_ranked and vs > hs:
+            upsets.append({'ranked': hom, 'rank': int(float(h_rank)), 'winner': vis, 'score': f"{int(vs)}-{int(hs)}"})
+
+    return sorted(upsets, key=lambda x: x['rank'])
+
+
+def get_hot_cpu_programs(scores_df, current_week, win_streak_min=4):
+    """Return CPU teams on big winning streaks — potential Cinderella/storyline material."""
+    all_teams = set(scores_df['Visitor'].dropna().astype(str).str.strip().tolist() +
+                    scores_df['Home'].dropna().astype(str).str.strip().tolist())
+    hot = []
+    for team in all_teams:
+        n, t = get_team_current_streak(scores_df, team, current_week)
+        if t == 'W' and n >= win_streak_min:
+            w, l = get_team_record(scores_df, team, current_week)
+            # Check if unranked (no rank in recent game)
+            recent = scores_df[
+                ((scores_df['Visitor'].astype(str).str.strip() == team) |
+                 (scores_df['Home'].astype(str).str.strip() == team)) &
+                (scores_df['Week'] == current_week)
+            ]
+            is_ranked = False
+            if not recent.empty:
+                row = recent.iloc[0]
+                rk = row.get('Visitor Rank') if str(row.get('Visitor','')).strip() == team else row.get('Home Rank')
+                is_ranked = pd.notna(rk) and str(rk) not in ('','nan')
+            hot.append({'team': team, 'streak': n, 'record': f"{w}-{l}", 'ranked': is_ranked})
+    return sorted(hot, key=lambda x: (-x['streak'], x['team']))
+
+
+def get_quality_win_context(scores_df, user_team, through_week):
+    """Return count of wins over ranked opponents for a user's team."""
+    completed = scores_df[
+        (scores_df['Status'].astype(str).str.upper() == 'FINAL') &
+        (scores_df['Week'] <= through_week)
+    ]
+    wins_vs_ranked = 0
+    best_rank_beaten = None
+    for _, g in completed.iterrows():
+        vis = str(g.get('Visitor','')).strip()
+        vs  = safe_num(g.get('Vis Score'), 0)
+        hs  = safe_num(g.get('Home Score'), 0)
+        v_rank = g.get('Visitor Rank')
+        h_rank = g.get('Home Rank')
+
+        if vis == user_team and vs > hs:
+            opp_rank = h_rank
+        elif str(g.get('Home','')).strip() == user_team and hs > vs:
+            opp_rank = v_rank
+        else:
+            continue
+
+        if pd.notna(opp_rank) and str(opp_rank) not in ('','nan'):
+            rk = int(float(opp_rank))
+            wins_vs_ranked += 1
+            if best_rank_beaten is None or rk < best_rank_beaten:
+                best_rank_beaten = rk
+
+    return wins_vs_ranked, best_rank_beaten
+
+
 def infer_best_fun_stat(y_data):
     if y_data.empty:
         return "No games found for that season."
@@ -13672,6 +13861,48 @@ try:
 except Exception:
     pass
 
+# ── LEAGUE-WIDE UPSET ALERTS & HOT PROGRAMS ──────────────────────────
+try:
+    _full_sched = get_full_league_schedule(CURRENT_YEAR)
+    if not _full_sched.empty:
+        # Upset alerts — unranked beating top-15
+        _upsets = get_league_upsets(_full_sched, CURRENT_WEEK_NUMBER, rank_threshold=15)
+        for _ups in _upsets[:3]:  # top 3 upsets max
+            _ukey = f"upset:{CURRENT_YEAR}:{CURRENT_WEEK_NUMBER}:{_ups['winner']}"
+            _ups_lh = get_header_logo(_ups['winner'])
+            _ups_logo = f'<div class="isp-tc"><img src="{_ups_lh}" class="isp-logo-55"></div>' if _ups_lh else ''
+            _all_headlines.append({
+                'badge': f'UPSET WK {CURRENT_WEEK_NUMBER}',
+                'priority': 72,
+                'text': f"{_ups['winner']} stuns #{_ups['rank']} {_ups['ranked']} — {_ups['score']}",
+                'blurb': f"Nobody had this on their bingo card. {_ups['winner']} walked into this one and walked out with a signature win, taking down #{_ups['rank']} {_ups['ranked']} {_ups['score']}. College football chaos is a feature, not a bug.",
+                'logo_html': _ups_logo,
+            })
+
+        # Hot CPU programs — Cinderella storylines
+        _hot_teams = get_hot_cpu_programs(_full_sched, CURRENT_WEEK_NUMBER, win_streak_min=5)
+        for _ht in _hot_teams[:2]:  # top 2
+            if not _ht['ranked']:  # only call out unranked hot teams (ranked ones get CFP coverage)
+                _ht_lh = get_header_logo(_ht['team'])
+                _ht_logo = f'<div class="isp-tc"><img src="{_ht_lh}" class="isp-logo-55"></div>' if _ht_lh else ''
+                _all_headlines.append({
+                    'badge': f'CINDERELLA WK {CURRENT_WEEK_NUMBER}',
+                    'priority': 58,
+                    'text': f"{_ht['team']} is {_ht['record']} and riding a {_ht['streak']}-game win streak",
+                    'blurb': f"{_ht['team']} keeps rolling. {_ht['record']} on the season, {_ht['streak']} straight wins. Nobody's talking about them — yet. The committee will have to notice eventually.",
+                    'logo_html': _ht_logo,
+                })
+
+        # Opponent context for upcoming user games — enrich blurbs
+        # (stored for use by upcoming game headlines already in queue)
+        _opp_context_map = {}
+        for _u, _ut in USER_TEAMS.items():
+            _ctx = get_opponent_context(_full_sched, _ut, CURRENT_WEEK_NUMBER + 1, CURRENT_WEEK_NUMBER)
+            if _ctx:
+                _opp_context_map[_u] = _ctx
+except Exception:
+    _opp_context_map = {}
+
 # ── NFL STORY EVENTS in ticker ────────────────────────────────────────
 try:
     if os.path.exists("nfl_story_events.csv"):
@@ -13834,6 +14065,10 @@ def _badge_color(badge):
         return ('#1e40af', 'white')
     if 'TRADE' in badge.upper():
         return ('#7c3aed', 'white')
+    if 'UPSET' in badge:
+        return ('#dc2626', 'white')
+    if 'CINDERELLA' in badge:
+        return ('#8b5cf6', 'white')
     return ('#3b82f6', 'white')
 
 _ticker_items = ''
