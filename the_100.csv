@@ -1,0 +1,101 @@
+TAR,RANK,POS,NAME,RATING,ST,CLASS
+not committed,1,REDG,D. Cutting,5,GA,HS
+not committed,2,WILL,D. Fisk,5,FL,HS
+not committed,3,SAM,S. Holiday,5,FL,HS
+not committed,4,REDG,R. Coffey,5,VA,HS
+not committed,5,LEDG,D. Uche,5,MO,HS
+not committed,6,QB,M. Wolf,5,LA,HS
+not committed,7,REDG,R. Wragge,5,AL,HS
+not committed,8,RT,J. Nawrath,5,TX,HS
+not committed,9,REDG,B. Ostrowski,5,ID,HS
+not committed,10,FS,N. Stingley,5,TX,HS
+not committed,11,LT,C. Lauletta,5,TX,HS
+not committed,12,MIKE,S. Gold,5,FL,HS
+not committed,13,ATH,J. Gunn,5,AL,HS
+not committed,14,MIKE,R. Coxie,5,TX,HS
+not committed,15,WILL,A. Hoge,5,NJ,HS
+not committed,16,REDG,D. Shurmur,5,NE,HS
+Florida State,17,CB,T. Willis,5,FL,HS
+not committed,18,CB,R. Bliss,5,CA,HS
+Ole Miss,19,HB,D. Hodges,5,MS,HS
+not committed,20,WR,A. Smith,5,TN,HS
+not committed,21,DT,B. Jennings,5,FL,HS
+Florida,22,CB,M. Pututau,5,FL,HS
+not committed,23,MIKE,S. Pryor,5,NY,HS
+not committed,24,QB,A. Poole,5,OH,HS
+not committed,25,RG,B. Pena,5,FL,HS
+not committed,26,RG,S. Kemoeatu,5,KS,HS
+Alabama,27,WR,M. Seder,5,VA,HS
+Clemson,28,WR,K. Wall,5,SC,HS
+not committed,29,TE,L. Waddle,5,GA,HS
+not committed,30,C,L. Ziemaitis,5,NJ,HS
+not committed,31,CB,S. Cheeseman,5,OK,HS
+not committed,32,ATH,D. Jamerson,5,TX,HS
+not committed,33,WR,S. Ivie,4,KY,HS
+not committed,34,WR,K. Nailor,4,NC,HS
+not committed,35,TE,G. Sauer,4,NV,HS
+not committed,36,WR,J. Kowalewski,4,TX,HS
+not committed,37,REDG,S. Gocong,4,PA,HS
+not committed,38,CB,A. Peete,4,TX,HS
+not committed,39,WR,M. Rodriguez,4,TX,HS
+not committed,40,WR,J. Ojeda,4,TN,HS
+not committed,41,QB,C. Verrier,4,TX,HS
+not committed,42,WILL,J. LaRocque,4,GA,HS
+not committed,43,RG,S. Frank,4,WI,HS
+not committed,44,MIKE,J. Tongue,4,TX,HS
+not committed,45,TE,M. Mims,4,NC,HS
+Alabama,46,REDG,G. Kikaha,4,KY,HS
+Texas Tech,47,RT,T. Batista,4,TX,HS
+USF,48,TE,D. Joslin,4,SC,HS
+not committed,49,MIKE,E. Drake,4,VA,HS
+not committed,50,TE,C. Cooks,4,AL,HS
+not committed,51,DT,O. Hester,4,FL,HS
+not committed,52,HB,B. Briggs,4,GA,HS
+not committed,53,HB,C. Travis,4,SC,HS
+not committed,54,LG,T. Tolson,4,PA,HS
+Florida State,55,SAM,C. Woodhead,4,FL,HS
+not committed,56,WR,P. Fuller,4,AL,HS
+not committed,57,HB,K. Haggan,4,LA,HS
+not committed,58,RT,N. Clemens,4,TX,HS
+not committed,59,C,K. Gastineau,4,VA,HS
+not committed,60,MIKE,B. Murphey,4,NJ,HS
+not committed,61,CB,S. Araiza,4,VA,HS
+not committed,62,DT,G. Gooch,4,IL,HS
+Alabama,63,QB,M. Okorafor,4,AL,HS
+not committed,64,RT,J. Hentges,4,AZ,HS
+not committed,65,WR,H. Mettenberger,4,CA,HS
+not committed,66,WR,J. Sharp,4,CA,HS
+Buffalo,67,MIKE,T. Bethel,4,AL,HS
+not committed,68,RG,G. Reeshad,4,PA,HS
+not committed,69,QB,D. Veal,4,FL,HS
+not committed,70,FS,I. Cox,4,KY,HS
+not committed,71,DT,T. Volson,4,TX,HS
+not committed,72,LG,E. Colman,4,MS,HS
+not committed,73,HB,N. Epperson,4,MD,HS
+not committed,74,LT,S. Garbutt,4,KY,HS
+not committed,75,C,M. Meeks,4,MS,HS
+not committed,76,RG,J. Gurley,4,GA,HS
+not committed,77,ATH,I. Siragusa,4,AL,HS
+not committed,78,CB,L. Ogden,4,GA,HS
+not committed,79,WR,Q. Hasty,4,LA,HS
+not committed,80,FS,C. Uzomah,4,VA,HS
+Florida,81,ATH,D. Keene,4,FL,HS
+not committed,82,C,T. Keke,4,TX,HS
+not committed,83,DT,J. Kush,4,MS,HS
+not committed,84,FS,O. York,4,FL,HS
+not committed,85,WR,D. Ausbon,4,WA,HS
+not committed,86,ATH,D. Cashman,4,FL,HS
+not committed,87,DT,M. Burnette,4,CA,HS
+Ohio State,88,MIKE,A. Clarke,4,OH,HS
+not committed,89,CB,J. Ball,4,TX,HS
+not committed,90,RG,K. Jameson,4,MI,HS
+not committed,91,WILL,L. Charles,4,TX,HS
+Cincinnati,92,DT,S. Keenan,4,OH,HS
+Syracuse,93,LG,D. Bushman,4,NY,HS
+not committed,94,ATH,J. Alli,4,SC,HS
+not committed,95,RG,K. Ladd,4,GA,HS
+not committed,96,WR,C. Cole,4,TX,HS
+not committed,97,QB,C. Marciano,4,TX,HS
+not committed,98,LEDG,T. Awosika,4,MD,HS
+Oregon,99,WR,R. Littlejohn,4,WA,HS
+not committed,100,DT,J. Bouye,4,AL,HS
