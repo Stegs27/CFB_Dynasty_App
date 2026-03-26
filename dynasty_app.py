@@ -8590,7 +8590,7 @@ def sync_derived_stats():
     # ── 1. Load source files ─────────────────────────────────────────────────
     try:
         cfp = _pd.read_csv("CFPbracketresults.csv")
-        scores_raw = _pd.read_csv("CPUscores_MASTER.csv")
+        scores_raw = load_scores_master(multi_year=True)
         champs_raw = _pd.read_csv("champs.csv")
     except Exception as e:
         return False, [f"❌ Could not load source CSVs: {e}"]
@@ -8765,7 +8765,7 @@ def sync_derived_stats():
 def load_data(current_year=CURRENT_YEAR):
     try:
         # LOAD ALL CORE FILES
-        scores = pd.read_csv('CPUscores_MASTER.csv')
+        scores = load_scores_master(CURRENT_YEAR)
         # CPUscores_MASTER.csv is the single source of truth for all historical games.
         # scores.csv (HTML importer) games were merged into CPUscores_MASTER and it is
         # no longer read separately — prevents double-counting when both files exist.
@@ -10075,16 +10075,68 @@ def get_team_schedule_summary(scores_df, user):
     return wins, losses, round(points_for / max(1, len(games)), 1), avg_margin
 
 
+def load_scores_master(year=None, multi_year=False, **kwargs):
+    """
+    Load CPUscores_MASTER data. Handles year-based file splitting transparently.
+
+    - If CPUscores_MASTER_{YEAR}.csv exists for the requested year, loads that.
+    - Falls back to CPUscores_MASTER.csv (legacy/current season file).
+    - If multi_year=True, loads all available year files + the master and concatenates.
+    - kwargs passed through to pd.read_csv (e.g. dtype=str)
+    """
+    import glob as _glob
+
+    def _read(path, **kw):
+        try:
+            return pd.read_csv(path, **kw)
+        except Exception:
+            return pd.DataFrame()
+
+    if multi_year:
+        # Load all year-specific files + master, combine
+        parts = []
+        year_files = sorted(_glob.glob('CPUscores_MASTER_*.csv'))
+        for yf in year_files:
+            parts.append(_read(yf, **kwargs))
+        if os.path.exists('CPUscores_MASTER.csv'):
+            parts.append(_read('CPUscores_MASTER.csv', **kwargs))
+        if not parts:
+            return pd.DataFrame()
+        combined = pd.concat(parts, ignore_index=True)
+        # Dedup: keep last occurrence per YEAR+Week+Visitor+Home
+        for c in ['YEAR','Week']:
+            if c in combined.columns:
+                combined[c] = pd.to_numeric(combined[c], errors='coerce')
+        dk = [c for c in ['YEAR','Week','Visitor','Home'] if c in combined.columns]
+        if dk:
+            combined = combined.drop_duplicates(subset=dk, keep='last')
+        return combined
+
+    if year is not None:
+        year_file = f'CPUscores_MASTER_{int(year)}.csv'
+        if os.path.exists(year_file):
+            return _read(year_file, **kwargs)
+    # Fallback to master
+    return _read('CPUscores_MASTER.csv', **kwargs)
+
+
 def get_full_league_schedule(year=None):
-    """Load CPUscores_MASTER and return full-league schedule for a given year."""
+    """Load full league schedule from schedule_{YEAR}.csv, fallback to CPUscores_MASTER."""
+    target_year = int(year) if year else CURRENT_YEAR
+    year_file = f"schedule_{target_year}.csv"
     try:
-        df = pd.read_csv('CPUscores_MASTER.csv')
+        if os.path.exists(year_file):
+            df = pd.read_csv(year_file)
+        elif os.path.exists("CPUscores_MASTER.csv"):
+            df = load_scores_master(CURRENT_YEAR)
+            df['YEAR'] = pd.to_numeric(df.get('YEAR'), errors='coerce')
+            df = df[df['YEAR'].fillna(-1).astype(int) == target_year]
+        else:
+            return pd.DataFrame()
         df['YEAR']       = pd.to_numeric(df.get('YEAR'),       errors='coerce')
         df['Week']       = pd.to_numeric(df.get('Week'),       errors='coerce')
         df['Vis Score']  = pd.to_numeric(df.get('Vis Score'),  errors='coerce')
         df['Home Score'] = pd.to_numeric(df.get('Home Score'), errors='coerce')
-        if year:
-            df = df[df['YEAR'].fillna(-1).astype(int) == int(year)]
         return df
     except Exception:
         return pd.DataFrame()
@@ -10884,7 +10936,7 @@ def get_current_user_games(model_df):
     Falls back to the most recent week available if current week has no data.
     """
     try:
-        scores = pd.read_csv('CPUscores_MASTER.csv')
+        scores = load_scores_master(CURRENT_YEAR)
         scores['YEAR'] = pd.to_numeric(scores['YEAR'], errors='coerce')
         scores['Week'] = pd.to_numeric(scores['Week'], errors='coerce')
         cy = scores[scores['YEAR'] == CURRENT_YEAR].copy()
@@ -11497,7 +11549,7 @@ def build_cfp_bubble_board(rankings_df, model_df):
     # ── REMAINING SOS from CPUscores_MASTER ────────────────────────────────
     # Pull live scheduled games and score each team's remaining opponent quality
     try:
-        cpu_sched = pd.read_csv('CPUscores_MASTER.csv')
+        cpu_sched = load_scores_master(CURRENT_YEAR)
         cpu_sched = cpu_sched[cpu_sched['Status'].str.upper() == 'SCHEDULED'].copy()
         rank_lookup = dict(zip(df['Team'], df['Rank']))
 
@@ -11738,7 +11790,7 @@ def resolve_playoff_bracket_results(bracket_field, year):
         # Fallback source: CPUscores_MASTER.csv
         if games.empty:
             try:
-                cpu = pd.read_csv('CPUscores_MASTER.csv')
+                cpu = load_scores_master(CURRENT_YEAR)
                 if cpu.empty:
                     return result
                 year_col = smart_col(cpu, ['YEAR', 'Year'])
@@ -13123,7 +13175,7 @@ if not _heisman_won_this_year and not any(
 
                     _recent_game_str = ''
                     try:
-                        _cpu_s = pd.read_csv('CPUscores_MASTER.csv')
+                        _cpu_s = load_scores_master(CURRENT_YEAR)
                         _cpu_s['YEAR'] = pd.to_numeric(_cpu_s['YEAR'], errors='coerce')
                         _cpu_s['Week'] = pd.to_numeric(_cpu_s['Week'], errors='coerce')
                         _cpu_s['Vis Score'] = pd.to_numeric(_cpu_s['Vis Score'], errors='coerce')
@@ -13217,7 +13269,7 @@ def _team_color_span(team_name, score_str):
     return f"<span style='color:{c};font-weight:900;'>{html.escape(team_name)} {score_str}</span>"
 
 try:
-    _wk_df = pd.read_csv('CPUscores_MASTER.csv')
+    _wk_df = load_scores_master(CURRENT_YEAR)
     _wk_df['YEAR'] = pd.to_numeric(_wk_df['YEAR'], errors='coerce')
     _wk_df['Week'] = pd.to_numeric(_wk_df['Week'], errors='coerce')
     _wk_df['Vis Score'] = pd.to_numeric(_wk_df['Vis Score'], errors='coerce')
@@ -14238,7 +14290,7 @@ with _spd_tabs[1]:
 
         # 1. LOAD MASTER DATA
         try:
-            _cpu_sos = pd.read_csv('CPUscores_MASTER.csv')
+            _cpu_sos = load_scores_master(CURRENT_YEAR)
             _cpu_sos['YEAR'] = pd.to_numeric(_cpu_sos['YEAR'], errors='coerce')
             _cpu_sos = _cpu_sos[_cpu_sos['YEAR'] == CURRENT_YEAR].copy()
         except Exception:
@@ -15006,7 +15058,7 @@ with tabs[0]:
 
 
         try:
-            cpu_master = pd.read_csv('CPUscores_MASTER.csv')
+            cpu_master = load_scores_master(CURRENT_YEAR)
         except Exception:
             cpu_master = pd.DataFrame()
 
@@ -15185,7 +15237,7 @@ with tabs[0]:
         _user_matchup = {}
         _week_has_games = False
         try:
-            _raw_sched = pd.read_csv('CPUscores_MASTER.csv')
+            _raw_sched = load_scores_master(CURRENT_YEAR)
             _raw_sched['YEAR'] = pd.to_numeric(_raw_sched.get('YEAR', _raw_sched.get('Year')), errors='coerce')
             _wk_col_raw = smart_col(_raw_sched, ['Week','WEEK','week'])
             if _wk_col_raw:
@@ -15286,7 +15338,7 @@ with tabs[0]:
 
         # Fall back to CPUscores_MASTER.csv W-L for any team showing 0-0 or blank
         try:
-            _cpu = pd.read_csv('CPUscores_MASTER.csv')
+            _cpu = load_scores_master(CURRENT_YEAR)
             _yr_key_c  = smart_col(_cpu, ['YEAR', 'Year'])
             _v_col_c   = smart_col(_cpu, ['Visitor', 'V_Team', 'Away', 'VISITOR'])
             _h_col_c   = smart_col(_cpu, ['Home', 'H_Team', 'HOME'])
@@ -16726,7 +16778,7 @@ with tabs[0]:
                 pass
 
             try:
-                _scores = pd.read_csv('CPUscores_MASTER.csv')
+                _scores = load_scores_master(CURRENT_YEAR)
                 _scores['YEAR'] = pd.to_numeric(_scores.get('YEAR'), errors='coerce')
                 _scores['Week'] = pd.to_numeric(_scores.get('Week'), errors='coerce')
                 _scores['Vis Score'] = pd.to_numeric(_scores.get('Vis Score'), errors='coerce')
@@ -17388,7 +17440,7 @@ with tabs[0]:
         st.caption("Viewership formula based on matchup stakes, rankings, rivalry, margin, and game context. Peak = moment the broadcast peaked.")
 
         try:
-            _tv_scores_df = pd.read_csv("CPUscores_MASTER.csv")
+            _tv_scores_df = load_scores_master(CURRENT_YEAR)
             _tv_scores_df["YEAR"] = pd.to_numeric(_tv_scores_df["YEAR"], errors="coerce")
             _tv_scores_df["Week"] = pd.to_numeric(_tv_scores_df["Week"], errors="coerce")
             _tv_scores_df["Vis Score"] = pd.to_numeric(_tv_scores_df["Vis Score"], errors="coerce")
@@ -22536,7 +22588,7 @@ def _compute_archive_tv_rating(row, scores_df=None):
     """
     if scores_df is None or scores_df.empty:
         try:
-            scores_df = pd.read_csv('CPUscores_MASTER.csv')
+            scores_df = load_scores_master(CURRENT_YEAR)
         except Exception:
             return None
     try:
@@ -23106,7 +23158,7 @@ def render_dynasty_youtube_tab():
             # All-time H2H between these two users
             if is_uvs and ut_coach and op_coach:
                 try:
-                    _all_scores = pd.read_csv("CPUscores_MASTER.csv", dtype=str)
+                    _all_scores = load_scores_master(multi_year=True, dtype=str)
                     if os.path.exists("scores.csv"):
                         _all_scores = pd.concat([_all_scores, pd.read_csv("scores.csv",dtype=str)],ignore_index=True)
                     _all_scores["Vis_User"] = _all_scores.get("Vis_User",pd.Series()).fillna("").str.strip().str.title()
