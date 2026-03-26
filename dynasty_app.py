@@ -13400,16 +13400,14 @@ try:
                 "S": "starting safety",
             }
 
-            # Determine if confirmed starter from CSV, else look up depth chart
+            # Determine starter status — depth chart ALWAYS wins over CSV value
+            # CSV IsStarter can be stale (written before a better player was added)
             _is_starter_raw = str(_inj.get('IsStarter', '')).strip().lower()
-            _confirmed_starter = _is_starter_raw in ('yes', 'true', '1')
             _confirmed_not_starter = _is_starter_raw in ('no', 'false', '0')
-            if _confirmed_starter:
-                _is_starter = True
-            elif _confirmed_not_starter:
+            if _confirmed_not_starter:
                 _is_starter = False
             else:
-                # Not specified — check roster depth chart
+                # Always verify against depth chart — even if CSV says Yes
                 _is_starter = _infer_starter_from_roster(_it, _ip, _iname, _iovr)
 
             if _is_starter:
