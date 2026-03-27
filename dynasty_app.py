@@ -16225,6 +16225,128 @@ with tabs[3]:
 
             st.markdown("---")
 
+            # ── WEEK-OVER-WEEK MOVEMENT CHART ─────────────────────────────────────
+            st.subheader("📊 FPI & MS+ Movement")
+            st.caption("Rank movement across weeks. Run COMPUTE_RATINGS.bat after each weekly push — each run adds a data point here.")
+            try:
+                import glob as _mv_glob
+                import plotly.graph_objects as _pgo
+
+                _fpi_files = sorted(_mv_glob.glob(f'fpi_ratings_{CURRENT_YEAR}_wk*.csv'))
+                _ms_files  = sorted(_mv_glob.glob(f'ms_plus_{CURRENT_YEAR}_wk*.csv'))
+
+                def _load_wk_ranks(files, sort_col):
+                    ranks = {}
+                    for fp in files:
+                        try:
+                            wk = int(fp.split('_wk')[-1].replace('.csv',''))
+                            df = pd.read_csv(fp)
+                            df[sort_col] = pd.to_numeric(df[sort_col], errors='coerce')
+                            df = df.dropna(subset=[sort_col]).sort_values(sort_col, ascending=False).reset_index(drop=True)
+                            ranks[wk] = dict(zip(df['Team'].astype(str).str.strip(), range(1, len(df)+1)))
+                        except Exception: pass
+                    return ranks
+
+                _fpi_wk_ranks = _load_wk_ranks(_fpi_files, 'FPI')
+                _ms_wk_ranks  = _load_wk_ranks(_ms_files, 'MSPlus')
+
+                _mv_c1, _mv_c2 = st.columns(2)
+                with _mv_c1:
+                    _mv_user_only = st.checkbox("User teams only", value=True, key="mv_user_only")
+                with _mv_c2:
+                    _mv_metric = st.selectbox("Metric", ["FPI Rank", "MS+ Rank"], key="mv_metric_sel")
+
+                _mv_data  = _fpi_wk_ranks if _mv_metric == "FPI Rank" else _ms_wk_ranks
+                _mv_weeks = sorted(_mv_data.keys())
+
+                if len(_mv_weeks) >= 2:
+                    _all_mv_teams = set()
+                    for _wr in _mv_data.values(): _all_mv_teams.update(_wr.keys())
+                    _user_mv_set = set(USER_TEAMS.values()) if 'USER_TEAMS' in dir() else set()
+                    _teams_show  = _user_mv_set if _mv_user_only else sorted(list(_all_mv_teams))[:30]
+
+                    _fig_mv = _pgo.Figure()
+                    for _mvt in _teams_show:
+                        _ranks = [_mv_data[_w].get(_mvt) for _w in _mv_weeks]
+                        if all(r is None for r in _ranks): continue
+                        _is_user = _mvt in _user_mv_set
+                        _tc = get_team_primary_color(_mvt)
+                        _abbr = _mvt[:6]
+                        _fig_mv.add_trace(_pgo.Scatter(
+                            x=_mv_weeks, y=_ranks,
+                            mode='lines+markers',
+                            name=_abbr,
+                            line=dict(color=_tc, width=2.5 if _is_user else 1),
+                            marker=dict(size=7 if _is_user else 3, color=_tc),
+                            opacity=1.0 if _is_user else 0.45,
+                        ))
+                    _fig_mv.update_layout(
+                        height=310,
+                        paper_bgcolor='#06090f', plot_bgcolor='#06090f',
+                        margin=dict(l=40, r=10, t=10, b=40),
+                        font=dict(color='#94a3b8', size=11),
+                        legend=dict(font=dict(size=9), bgcolor='rgba(0,0,0,0)',
+                                    orientation='h', y=-0.22),
+                        xaxis=dict(gridcolor='#1e293b', tickformat='d',
+                                   title=dict(text='Week', font=dict(size=9)),
+                                   tickvals=_mv_weeks),
+                        yaxis=dict(gridcolor='#1e293b', autorange='reversed',
+                                   title=dict(text=f'{_mv_metric} (lower = better)',
+                                              font=dict(size=9))),
+                    )
+                    st.plotly_chart(_fig_mv, use_container_width=True,
+                                    config={'staticPlot': True})
+
+                    # Biggest Risers / Fallers table
+                    _lw = _mv_weeks[-1]; _pw = _mv_weeks[-2]
+                    _deltas = []
+                    for _t, _cur in _mv_data[_lw].items():
+                        _prv = _mv_data[_pw].get(_t)
+                        if _prv and _cur:
+                            _deltas.append({'Team': _t, 'prev': _prv, 'cur': _cur,
+                                            'move': _prv - _cur})
+                    if _deltas:
+                        _delta_df = pd.DataFrame(_deltas).sort_values('move', ascending=False)
+                        _up5   = _delta_df[_delta_df['move'] > 0].head(5)
+                        _down5 = _delta_df[_delta_df['move'] < 0].tail(5).sort_values('move')
+                        _dc1, _dc2 = st.columns(2)
+                        with _dc1:
+                            st.markdown(f"<div style='font-size:0.72rem;color:#4ade80;font-family:Bebas Neue,sans-serif;"
+                                        f"letter-spacing:.1em;margin-bottom:4px;'>⬆ BIGGEST RISERS (Wk {_pw}→{_lw})</div>",
+                                        unsafe_allow_html=True)
+                            for _, _dr in _up5.iterrows():
+                                _is_u = _dr['Team'] in _user_mv_set
+                                _fw   = "font-weight:900;" if _is_u else ""
+                                st.markdown(
+                                    f"<div style='font-size:0.74rem;{_fw}padding:2px 0;'>"
+                                    f"<span style='color:#4ade80;font-family:Bebas Neue,sans-serif;'>+{int(_dr['move'])}</span>"
+                                    f" <span style='color:#f1f5f9;'>{html.escape(str(_dr['Team']))}</span>"
+                                    f" <span style='color:#475569;font-size:0.65rem;'>"
+                                    f"({int(_dr['prev'])}→{int(_dr['cur'])})</span></div>",
+                                    unsafe_allow_html=True)
+                        with _dc2:
+                            st.markdown(f"<div style='font-size:0.72rem;color:#f87171;font-family:Bebas Neue,sans-serif;"
+                                        f"letter-spacing:.1em;margin-bottom:4px;'>⬇ BIGGEST FALLERS (Wk {_pw}→{_lw})</div>",
+                                        unsafe_allow_html=True)
+                            for _, _dr in _down5.iterrows():
+                                _is_u = _dr['Team'] in _user_mv_set
+                                _fw   = "font-weight:900;" if _is_u else ""
+                                st.markdown(
+                                    f"<div style='font-size:0.74rem;{_fw}padding:2px 0;'>"
+                                    f"<span style='color:#f87171;font-family:Bebas Neue,sans-serif;'>{int(_dr['move'])}</span>"
+                                    f" <span style='color:#f1f5f9;'>{html.escape(str(_dr['Team']))}</span>"
+                                    f" <span style='color:#475569;font-size:0.65rem;'>"
+                                    f"({int(_dr['prev'])}→{int(_dr['cur'])})</span></div>",
+                                    unsafe_allow_html=True)
+                elif len(_mv_weeks) == 1:
+                    st.info(f"Only 1 week of data available. Run COMPUTE_RATINGS.bat after each weekly push to track rank movement over time.")
+                else:
+                    st.caption("No pre-computed rating files found yet. Run COMPUTE_RATINGS.bat after pushing weekly results.")
+            except Exception as _mv_err:
+                st.caption(f"Movement chart unavailable: {_mv_err}")
+
+            st.markdown("---")
+
             # 1. LOAD MASTER DATA
             try:
                 _cpu_sos = load_scores_master(CURRENT_YEAR)
@@ -18604,6 +18726,37 @@ with tabs[0]:
             }
             return _bonus_map.get(_stage, 0.0)
 
+        # ── New section headline templates ─────────────────────────────────────
+        _headline_templates.update({
+            'chaos_leader': {
+                'emoji': '⚔️',
+                'title': 'Chaos King',
+                'bodies': [
+                    "<strong>{team}</strong> tops the Chaos leaderboard at <strong>{chaos:+.0f}</strong> — the most volatile program in the dynasty. Their biggest moment: {best_win}.",
+                    "Nobody is flipping scripts like <strong>{team}</strong>. Chaos rating: <strong>{chaos:+.0f}</strong>. The formula doesn't lie — {best_win}.",
+                    "<strong>{team}</strong> has earned the David &amp; Goliath crown. Chaos score <strong>{chaos:+.0f}</strong>. Best upset: {best_win}.",
+                ],
+            },
+            'underrated_alert': {
+                'emoji': '📡',
+                'title': 'Disrespect Alert',
+                'bodies': [
+                    "The computers love <strong>{team}</strong> and the voters don't. FPI rank: <strong>#{fpi_rank}</strong>. CFP rank: <strong>#{cfp_rank}</strong>. A {gap}-spot gap that says the polls are asleep.",
+                    "<strong>{team}</strong> is flying under the radar — FPI has them at #{fpi_rank} while the polls have them at #{cfp_rank}. That's a {gap}-spot gap. Someone's not watching film.",
+                    "#{cfp_rank} in the polls. #{fpi_rank} by FPI. <strong>{team}</strong> is one of the most underrated teams in the country right now.",
+                ],
+            },
+            'ms_plus_leader': {
+                'emoji': '🎮',
+                'title': "This Ain't Real Life",
+                'bodies': [
+                    "<strong>{team}</strong> leads the MS+ formula at <strong>{ms_val:.1f}</strong> — the most complete program in the dynasty right now. Recruiting, QB grade, veteran depth, chaos — {team} checks every box.",
+                    "The CFB26 formula says <strong>{team}</strong> is the best-built program at MS+ <strong>{ms_val:.1f}</strong>. Not just the record — the whole program.",
+                    "<strong>{ms_val:.1f}</strong> MS+. <strong>{team}</strong> tops the composite leaderboard that weights recruiting, QB grade, speed, veteran presence, and FPI. This ain't a one-week wonder.",
+                ],
+            },
+        })
+
         def _headline_tone(_event_type, _stage, _team=''):
             if _stage in {'crisis', 'pressure'}:
                 return 'pressure cooker'
@@ -19484,6 +19637,115 @@ with tabs[0]:
                     )
             except Exception:
                 pass
+
+        # ── D&G / Underrated / MS+ headline candidates ──────────────────────
+        try:
+            _dg_fpi_hl, _ms_hl = get_ratings_and_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            _dg_sched_hl = load_scores_master(CURRENT_YEAR)
+            _dg_fpi_map_hl = {}
+            if not _dg_fpi_hl.empty and 'FPI' in _dg_fpi_hl.columns:
+                _dg_fpi_map_hl = dict(zip(_dg_fpi_hl['Team'], _dg_fpi_hl['FPI']))
+
+            # ── chaos_leader ────────────────────────────────────────────────────
+            if not _dg_fpi_hl.empty and 'Chaos' in _dg_fpi_hl.columns:
+                _dg_top = _dg_fpi_hl[_dg_fpi_hl['GamesPlayed']>0].nlargest(1,'Chaos')
+                if not _dg_top.empty:
+                    _dg_team  = str(_dg_top.iloc[0]['Team'])
+                    _dg_chaos = float(_dg_top.iloc[0]['Chaos'])
+                    # Find best upset win blurb
+                    _dg_best = ""
+                    if not _dg_sched_hl.empty:
+                        _FCS_SET = {'FCS','FCSMW','FCSW','FCSS','FCSE'}
+                        _dg_c = _dg_sched_hl[_dg_sched_hl['Status'].astype(str).str.upper()=='FINAL'].copy()
+                        for _col in ('Vis Score','Home Score'):
+                            _dg_c[_col] = pd.to_numeric(_dg_c[_col], errors='coerce')
+                        _dg_g = _dg_c[(_dg_c['Visitor'].astype(str).str.strip()==_dg_team)|
+                                       (_dg_c['Home'].astype(str).str.strip()==_dg_team)]
+                        _best_sc = -999
+                        for _, _hg in _dg_g.iterrows():
+                            _hv=str(_hg['Visitor']).strip()
+                            _hvs=float(_hg['Vis Score'] or 0); _hhs=float(_hg['Home Score'] or 0)
+                            _his_vis=(_hv==_dg_team)
+                            _hopp=str(_hg['Home']).strip() if _his_vis else _hv
+                            if any(_hopp.upper().startswith(p) for p in _FCS_SET): continue
+                            _hwon=(_hvs>_hhs) if _his_vis else (_hhs>_hvs)
+                            if not _hwon: continue
+                            _hgap=_dg_fpi_map_hl.get(_dg_team,0)-_dg_fpi_map_hl.get(_hopp,0)
+                            _hmov=abs(_hvs-_hhs)
+                            _hsc=12+abs(_hgap)*1.2+(_hmov/7.0)**0.65*9 if _hgap<-2 else 0
+                            if _hsc>_best_sc:
+                                _best_sc=_hsc
+                                _hrk_col='Home Rank' if _his_vis else 'Visitor Rank'
+                                try: _hrk=int(float(_hg[_hrk_col])) if pd.notna(_hg.get(_hrk_col)) else None
+                                except: _hrk=None
+                                _hws=int(_hvs) if _his_vis else int(_hhs)
+                                _hls=int(_hhs) if _his_vis else int(_hvs)
+                                _hwk=int(_hg.get('Week',0) or 0)
+                                _hrk_str=f" (#{_hrk})" if _hrk and _hrk<=25 else ""
+                                _dg_best=f"Wk {_hwk} def. {_hopp}{_hrk_str} {_hws}–{_hls}"
+                    _dg_ukey = f"chaos_leader:{CURRENT_YEAR}:{_dg_team}"
+                    _dg_sc = 65 + min(35, _dg_chaos / 3)
+                    _dg_sc -= _headline_recent_penalty(_headline_history, _dg_ukey)
+                    _headline_add(
+                        _headline_candidates, 'chaos_leader',
+                        {'team': html.escape(_dg_team), 'chaos': _dg_chaos,
+                         'best_win': _dg_best or "multiple upsets"},
+                        team=_dg_team, score=_dg_sc, uniqueness_key=_dg_ukey
+                    )
+
+            # ── underrated_alert ────────────────────────────────────────────────
+            _ur_cfp_map = {}
+            try:
+                _cfph = pd.read_csv('cfp_rankings_history.csv')
+                _cfph['YEAR'] = pd.to_numeric(_cfph['YEAR'], errors='coerce')
+                _cfph['WEEK'] = pd.to_numeric(_cfph['WEEK'], errors='coerce')
+                _cfph['RANK'] = pd.to_numeric(_cfph['RANK'], errors='coerce')
+                _cfph_cur = _cfph[_cfph['YEAR']==CURRENT_YEAR]
+                if not _cfph_cur.empty:
+                    _cfph_lat = int(_cfph_cur['WEEK'].max())
+                    _cfph_snap = _cfph_cur[_cfph_cur['WEEK']==_cfph_lat]
+                    _ur_cfp_map = dict(zip(_cfph_snap['TEAM'].astype(str).str.strip(),
+                                          _cfph_snap['RANK'].astype(int)))
+            except Exception: pass
+
+            if not _dg_fpi_hl.empty and _ur_cfp_map:
+                _ur_sorted = _dg_fpi_hl.sort_values('FPI', ascending=False).reset_index(drop=True)
+                _ur_sorted['FPI_Rank'] = range(1, len(_ur_sorted)+1)
+                _ur_sorted['CFP_Rank'] = _ur_sorted['Team'].map(_ur_cfp_map)
+                _ur_ranked = _ur_sorted[_ur_sorted['CFP_Rank'].notna()].copy()
+                _ur_ranked['Gap'] = _ur_ranked['CFP_Rank'] - _ur_ranked['FPI_Rank']
+                _ur_big = _ur_ranked[_ur_ranked['Gap']>5].nlargest(1,'Gap')
+                if not _ur_big.empty:
+                    _ur_t   = str(_ur_big.iloc[0]['Team'])
+                    _ur_fpr = int(_ur_big.iloc[0]['FPI_Rank'])
+                    _ur_cfpr= int(_ur_big.iloc[0]['CFP_Rank'])
+                    _ur_gap = int(_ur_big.iloc[0]['Gap'])
+                    _ur_ukey= f"underrated:{CURRENT_YEAR}:{_ur_t}"
+                    _ur_sc  = 60 + min(25, _ur_gap * 2)
+                    _ur_sc -= _headline_recent_penalty(_headline_history, _ur_ukey)
+                    _headline_add(
+                        _headline_candidates, 'underrated_alert',
+                        {'team': html.escape(_ur_t), 'fpi_rank': _ur_fpr,
+                         'cfp_rank': _ur_cfpr, 'gap': _ur_gap},
+                        team=_ur_t, score=_ur_sc, uniqueness_key=_ur_ukey
+                    )
+
+            # ── ms_plus_leader ──────────────────────────────────────────────────
+            if not _ms_hl.empty and 'MSPlus' in _ms_hl.columns:
+                _ms_top = _ms_hl.nlargest(1,'MSPlus')
+                if not _ms_top.empty:
+                    _ms_team = str(_ms_top.iloc[0]['Team'])
+                    _ms_val  = float(_ms_top.iloc[0]['MSPlus'])
+                    _ms_ukey = f"ms_plus_leader:{CURRENT_YEAR}:{_ms_team}"
+                    _ms_sc   = 58 + min(20, _ms_val / 5)
+                    _ms_sc  -= _headline_recent_penalty(_headline_history, _ms_ukey)
+                    _headline_add(
+                        _headline_candidates, 'ms_plus_leader',
+                        {'team': html.escape(_ms_team), 'ms_val': _ms_val},
+                        team=_ms_team, score=_ms_sc, uniqueness_key=_ms_ukey
+                    )
+        except Exception:
+            pass
 
         for _cand in _headline_candidates:
             _sg = _headline_story_group(_cand)
