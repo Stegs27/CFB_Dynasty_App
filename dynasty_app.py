@@ -1095,6 +1095,31 @@ def derive_cpu_draft_from_top20(year=None, write_csv=True):
     df.columns = [str(c).strip() for c in df.columns]
     df['YEAR_CLASS'] = df.get('YEAR_CLASS', df.get('Class', '')).astype(str).str.strip()
 
+    # Normalize TEAM column — same map as compute_ms_plus
+    if 'TEAM' in df.columns:
+        _team_norm = {
+            'University of Nevada, Las Vegas': 'UNLV',
+            'University of South Florida':     'USF',
+            'University of Southern California': 'USC',
+            'University of Texas at San Antonio': 'UTSA',
+            'University of Massachusetts':     'Massachusetts',
+            'Southern Methodist':              'SMU',
+            'Brigham Young':                   'BYU',
+            'Pittsburgh Panthers':             'Pittsburgh',
+            'Alabaster Bulldogs':              'Alabaster',
+            'Hammond Carnivores':              'Hammond',
+            'Rapid City Stegos':               'Rapid City',
+        }
+        df['TEAM'] = df['TEAM'].map(lambda t: _team_norm.get(str(t).strip(), str(t).strip()))
+        # Dedup on TEAM+NAME+POS keeping highest OVR
+        _oc = 'OVR' if 'OVR' in df.columns else None
+        if _oc:
+            df = df.sort_values(_oc, ascending=False)
+        _nc = 'NAME' if 'NAME' in df.columns else ('Name' if 'Name' in df.columns else None)
+        _pc = 'POS'  if 'POS'  in df.columns else ('Pos'  if 'Pos'  in df.columns else None)
+        if _nc and _pc:
+            df = df.drop_duplicates(subset=['TEAM', _nc, _pc], keep='first').reset_index(drop=True)
+
     # Filter to draft-eligible seniors only
     _sr_classes = {'SR', 'SR (RS)', 'SR(RS)'}
     draft_df = df[df['YEAR_CLASS'].str.upper().isin({c.upper() for c in _sr_classes})].copy()
@@ -10672,13 +10697,51 @@ def compute_ms_plus(year=None, week_cap=None):
             roster_df = pd.read_csv(_top20_file)
             roster_df['YEAR'] = pd.to_numeric(roster_df.get('YEAR', target_year), errors='coerce')
             roster_df = roster_df[roster_df['YEAR'].fillna(-1).astype(int) == target_year].copy()
-            # Normalize column names to match what the components expect
-            roster_df = roster_df.rename(columns={'YEAR_CLASS': 'Year'})
+
+            # ── Column rename: watcher writes TEAM/POS/YEAR_CLASS, components expect Team/Pos/Year
+            roster_df = roster_df.rename(columns={
+                'TEAM':       'Team',
+                'POS':        'Pos',
+                'YEAR_CLASS': 'Year',
+            })
+
+            # ── Team name normalization — GPT sometimes uses full names or mascots
+            _team_norm = {
+                'University of Nevada, Las Vegas': 'UNLV',
+                'University of South Florida':     'USF',
+                'University of Southern California': 'USC',
+                'University of Texas at San Antonio': 'UTSA',
+                'University of Massachusetts':     'Massachusetts',
+                'Southern Methodist':              'SMU',
+                'Brigham Young':                   'BYU',
+                'Pittsburgh Panthers':             'Pittsburgh',
+                # Expansion/created dynasty teams — mascot variant → canonical name
+                'Alabaster Bulldogs':              'Alabaster',
+                'Hammond Carnivores':              'Hammond',
+                'Rapid City Stegos':               'Rapid City',
+            }
+            roster_df['Team'] = roster_df['Team'].map(
+                lambda t: _team_norm.get(str(t).strip(), str(t).strip())
+            )
+
+            # ── Drop only true FCS placeholders GPT hallucinates — NOT dynasty created teams
+            _junk_teams = set()  # no real junk after normalization above
+            if _junk_teams:
+                roster_df = roster_df[~roster_df['Team'].isin(_junk_teams)].copy()
+
+            # ── Dedup: keep highest-OVR row per (Team, Name, Pos)
+            _name_col = 'NAME' if 'NAME' in roster_df.columns else 'Name'
+            roster_df = (roster_df
+                .sort_values('OVR', ascending=False)
+                .drop_duplicates(subset=['Team', _name_col, 'Pos'], keep='first')
+                .reset_index(drop=True))
+
         else:
-            roster_df = pd.read_csv('cfb26_rosters_full.csv')
+            roster_df = _load_rosters_full_csv()
             roster_df['Season'] = pd.to_numeric(roster_df.get('Season', roster_df.get('YEAR', target_year)), errors='coerce')
             roster_df = roster_df[roster_df['Season'].fillna(-1).astype(int) == target_year].copy()
-        for _rc in ('OVR','SPD','ACC','AGI','COD'):
+
+        for _rc in ('OVR', 'SPD', 'ACC', 'AGI', 'COD', 'STR', 'AWR'):
             if _rc in roster_df.columns:
                 roster_df[_rc] = pd.to_numeric(roster_df[_rc], errors='coerce').fillna(0)
     except Exception:
