@@ -20539,38 +20539,23 @@ with tabs[0]:
                 _dg_sched_c['Visitor Rank'] = pd.to_numeric(_dg_sched_c.get('Visitor Rank'), errors='coerce')
                 _dg_sched_c['Home Rank']    = pd.to_numeric(_dg_sched_c.get('Home Rank'),    errors='coerce')
 
-            if not _dg_fpi_df.empty:
+            if not _dg_fpi_df.empty and 'Chaos' in _dg_fpi_df.columns:
                 _dg_fpi_map = dict(zip(_dg_fpi_df['Team'], _dg_fpi_df['FPI']))
 
-                # ── Always compute Chaos live so new formula is used regardless of CSV ──
-                _dg_all_scores = load_scores_master(CURRENT_YEAR, multi_year=False)
-                _dg_chaos_live = {}
-                for _dgt in _dg_fpi_df['Team'].tolist():
-                    try:
-                        _dg_chaos_live[_dgt] = compute_chaos_rating(
-                            _dg_all_scores, _dgt,
-                            year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER,
-                            fpi_ratings=_dg_fpi_map
-                        )
-                    except Exception:
-                        _fallback_col = _dg_fpi_df[_dg_fpi_df['Team']==_dgt]
-                        _dg_chaos_live[_dgt] = float(_fallback_col['Chaos'].iloc[0]) if ('Chaos' in _dg_fpi_df.columns and not _fallback_col.empty) else 0.0
-
-                _dg_fpi_df = _dg_fpi_df.copy()
-                _dg_fpi_df['Chaos'] = _dg_fpi_df['Team'].map(_dg_chaos_live).fillna(0.0)
-
+                # Chaos values come from pre-computed fpi_ratings_{YEAR}_wk{WEEK}.csv
+                # Run COMPUTE_RATINGS.bat after each weekly push to refresh with new formula
                 _dg_gp_col = 'GamesPlayed' if 'GamesPlayed' in _dg_fpi_df.columns else None
                 _dg_pool = _dg_fpi_df[_dg_fpi_df[_dg_gp_col] > 0] if _dg_gp_col else _dg_fpi_df
                 _dg_top = _dg_pool.nlargest(10, 'Chaos').reset_index(drop=True)
 
-                # ── Render wrapper, then one st.markdown per card (avoids base64 overflow) ──
+                # ── One st.markdown per card — avoids base64 logo overflow (~400KB in one call) ──
                 st.markdown(
                     "<div style='border:1px solid #1e293b;border-radius:10px;padding:8px 12px;background:#06090f;'>",
                     unsafe_allow_html=True
                 )
                 for _di, _dr in _dg_top.iterrows():
                     _dg_team  = str(_dr['Team'])
-                    _dg_chaos = float(_dg_chaos_live.get(_dg_team, _dr.get('Chaos', 0)))
+                    _dg_chaos = float(_dr.get('Chaos', 0))
                     _dg_fpi   = float(_dr.get('FPI', 0))
                     _dg_w     = int(_dr.get('W', 0))
                     _dg_l     = int(_dr.get('L', 0))
