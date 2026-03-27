@@ -15035,6 +15035,7 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
 # ════════════════════════════════════════════════════════════════════
 
 # ── TICKER DATA — cached, avoids CSV reads every rerun ──────────────
+_gs_ticker_lookup = _build_gs_ticker_lookup(CURRENT_YEAR)
 _all_headlines = _build_ticker_headlines(
     year=CURRENT_YEAR,
     week=CURRENT_WEEK_NUMBER,
