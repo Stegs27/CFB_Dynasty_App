@@ -1,101 +1,101 @@
-TAR,RANK,POS,NAME,RATING,ST,CLASS
-not committed,1,REDG,D. Cutting,5,GA,HS
-not committed,2,WILL,D. Fisk,5,FL,HS
-not committed,3,SAM,S. Holiday,5,FL,HS
-not committed,4,REDG,R. Coffey,5,VA,HS
-not committed,5,LEDG,D. Uche,5,MO,HS
-not committed,6,QB,M. Wolf,5,LA,HS
-not committed,7,REDG,R. Wragge,5,AL,HS
-not committed,8,RT,J. Nawrath,5,TX,HS
-not committed,9,REDG,B. Ostrowski,5,ID,HS
-not committed,10,FS,N. Stingley,5,TX,HS
-not committed,11,LT,C. Lauletta,5,TX,HS
-not committed,12,MIKE,S. Gold,5,FL,HS
-not committed,13,ATH,J. Gunn,5,AL,HS
-not committed,14,MIKE,R. Coxie,5,TX,HS
-not committed,15,WILL,A. Hoge,5,NJ,HS
-not committed,16,REDG,D. Shurmur,5,NE,HS
-Florida State,17,CB,T. Willis,5,FL,HS
-not committed,18,CB,R. Bliss,5,CA,HS
-Ole Miss,19,HB,D. Hodges,5,MS,HS
-not committed,20,WR,A. Smith,5,TN,HS
-not committed,21,DT,B. Jennings,5,FL,HS
-Florida,22,CB,M. Pututau,5,FL,HS
-not committed,23,MIKE,S. Pryor,5,NY,HS
-not committed,24,QB,A. Poole,5,OH,HS
-not committed,25,RG,B. Pena,5,FL,HS
-not committed,26,RG,S. Kemoeatu,5,KS,HS
-Alabama,27,WR,M. Seder,5,VA,HS
-Clemson,28,WR,K. Wall,5,SC,HS
-not committed,29,TE,L. Waddle,5,GA,HS
-not committed,30,C,L. Ziemaitis,5,NJ,HS
-not committed,31,CB,S. Cheeseman,5,OK,HS
-not committed,32,ATH,D. Jamerson,5,TX,HS
-not committed,33,WR,S. Ivie,4,KY,HS
-not committed,34,WR,K. Nailor,4,NC,HS
-not committed,35,TE,G. Sauer,4,NV,HS
-not committed,36,WR,J. Kowalewski,4,TX,HS
-not committed,37,REDG,S. Gocong,4,PA,HS
-not committed,38,CB,A. Peete,4,TX,HS
-not committed,39,WR,M. Rodriguez,4,TX,HS
-not committed,40,WR,J. Ojeda,4,TN,HS
-not committed,41,QB,C. Verrier,4,TX,HS
-not committed,42,WILL,J. LaRocque,4,GA,HS
-not committed,43,RG,S. Frank,4,WI,HS
-not committed,44,MIKE,J. Tongue,4,TX,HS
-not committed,45,TE,M. Mims,4,NC,HS
-Alabama,46,REDG,G. Kikaha,4,KY,HS
-Texas Tech,47,RT,T. Batista,4,TX,HS
-USF,48,TE,D. Joslin,4,SC,HS
-not committed,49,MIKE,E. Drake,4,VA,HS
-not committed,50,TE,C. Cooks,4,AL,HS
-not committed,51,DT,O. Hester,4,FL,HS
-not committed,52,HB,B. Briggs,4,GA,HS
-not committed,53,HB,C. Travis,4,SC,HS
-not committed,54,LG,T. Tolson,4,PA,HS
-Florida State,55,SAM,C. Woodhead,4,FL,HS
-not committed,56,WR,P. Fuller,4,AL,HS
-not committed,57,HB,K. Haggan,4,LA,HS
-not committed,58,RT,N. Clemens,4,TX,HS
-not committed,59,C,K. Gastineau,4,VA,HS
-not committed,60,MIKE,B. Murphey,4,NJ,HS
-not committed,61,CB,S. Araiza,4,VA,HS
-not committed,62,DT,G. Gooch,4,IL,HS
-Alabama,63,QB,M. Okorafor,4,AL,HS
-not committed,64,RT,J. Hentges,4,AZ,HS
-not committed,65,WR,H. Mettenberger,4,CA,HS
-not committed,66,WR,J. Sharp,4,CA,HS
-Buffalo,67,MIKE,T. Bethel,4,AL,HS
-not committed,68,RG,G. Reeshad,4,PA,HS
-not committed,69,QB,D. Veal,4,FL,HS
-not committed,70,FS,I. Cox,4,KY,HS
-not committed,71,DT,T. Volson,4,TX,HS
-not committed,72,LG,E. Colman,4,MS,HS
-not committed,73,HB,N. Epperson,4,MD,HS
-not committed,74,LT,S. Garbutt,4,KY,HS
-not committed,75,C,M. Meeks,4,MS,HS
-not committed,76,RG,J. Gurley,4,GA,HS
-not committed,77,ATH,I. Siragusa,4,AL,HS
-not committed,78,CB,L. Ogden,4,GA,HS
-not committed,79,WR,Q. Hasty,4,LA,HS
-not committed,80,FS,C. Uzomah,4,VA,HS
-Florida,81,ATH,D. Keene,4,FL,HS
-not committed,82,C,T. Keke,4,TX,HS
-not committed,83,DT,J. Kush,4,MS,HS
-not committed,84,FS,O. York,4,FL,HS
-not committed,85,WR,D. Ausbon,4,WA,HS
-not committed,86,ATH,D. Cashman,4,FL,HS
-not committed,87,DT,M. Burnette,4,CA,HS
-Ohio State,88,MIKE,A. Clarke,4,OH,HS
-not committed,89,CB,J. Ball,4,TX,HS
-not committed,90,RG,K. Jameson,4,MI,HS
-not committed,91,WILL,L. Charles,4,TX,HS
-Cincinnati,92,DT,S. Keenan,4,OH,HS
-Syracuse,93,LG,D. Bushman,4,NY,HS
-not committed,94,ATH,J. Alli,4,SC,HS
-not committed,95,RG,K. Ladd,4,GA,HS
-not committed,96,WR,C. Cole,4,TX,HS
-not committed,97,QB,C. Marciano,4,TX,HS
-not committed,98,LEDG,T. Awosika,4,MD,HS
-Oregon,99,WR,R. Littlejohn,4,WA,HS
-not committed,100,DT,J. Bouye,4,AL,HS
+Year,RANK,NAME,POS,RATING,ST,CLASS,TAR,User
+2042,1,D. Cutting,REDG,5,GA,HS,,
+2042,2,D. Fisk,WILL,5,FL,HS,,
+2042,3,S. Holiday,SAM,5,FL,HS,,
+2042,4,R. Coffey,REDG,5,VA,HS,,
+2042,5,D. Uche,LEDG,5,MO,HS,,
+2042,6,M. Wolf,QB,5,LA,HS,,
+2042,7,R. Wragge,REDG,5,AL,HS,,
+2042,8,J. Nawrath,RT,5,TX,HS,,
+2042,9,B. Ostrowski,REDG,5,ID,HS,,
+2042,10,N. Stingley,FS,5,TX,HS,,
+2042,11,C. Lauletta,LT,5,TX,HS,Texas Tech,Noah
+2042,12,S. Gold,MIKE,5,FL,HS,,
+2042,13,J. Gunn,ATH,5,AL,HS,,
+2042,14,R. Coxie,MIKE,5,TX,HS,Texas Tech,Noah
+2042,15,A. Hoge,WILL,5,NJ,HS,,
+2042,16,D. Shurmur,REDG,5,NE,HS,Florida,Doug
+2042,17,T. Willis,CB,5,FL,HS,,
+2042,18,R. Bliss,CB,5,CA,HS,,
+2042,19,D. Hodges,HB,5,MS,HS,,
+2042,20,A. Smith,WR,5,TN,HS,,
+2042,21,B.Jennings,DT,5,FL,HS,,
+2042,22,M.Pututau,CB,5,FL,HS,,
+2042,23,S.Pryor,MIKE,5,NY,HS,,
+2042,24,A.Poole,QB,5,OH,HS,,
+2042,25,B.Pena,RG,5,FL,HS,,
+2042,26,S.Kemoeatu,RG,5,KS,HS,,
+2042,27,M.Seder,WR,5,VA,HS,,
+2042,28,K.Wall,WR,5,SC,HS,,
+2042,29,L.Waddle,TE,5,GA,HS,,
+2042,30,L.Zemaitis,C,5,NJ,HS,,
+2042,31,S. Cheeseman,CB,5,OK,HS,,
+2042,32,D. Jamerson,ATH,5,TX,HS,,
+2042,33,S. Ivie,WR,4,KY,HS,,
+2042,34,K. Nailor,WR,4,NC,HS,,
+2042,35,G. Sauer,TE,4,NV,HS,,
+2042,36,J. Kowalewski,WR,4,TX,HS,,
+2042,37,S. Gocong,REDG,4,PA,HS,,
+2042,38,A. Peete,CB,4,TX,HS,,
+2042,39,M. Rodriguez,WR,4,TX,HS,,
+2042,40,J. Ojeda,WR,4,TN,HS,,
+2042,41,C. Verrier,QB,4,TX,HS,,
+2042,42,J. LaRocque,WILL,4,GA,HS,,
+2042,43,S. Frank,RG,4,WI,HS,,
+2042,44,J. Tongue,MIKE,4,TX,HS,,
+2042,45,M. Mims,TE,4,NC,HS,,
+2042,46,G. Kikaha,REDG,4,KY,HS,,
+2042,47,T. Batista,RT,4,TX,HS,,
+2042,48,D. Joslin,TE,4,SC,HS,,
+2042,49,E. Drake,MIKE,4,VA,HS,,
+2042,50,C. Cooks,TE,4,AL,HS,,
+2042,51,O. Hester,DT,4,FL,HS,,
+2042,52,B. Briggs,HB,4,GA,HS,,
+2042,53,C. Travis,HB,4,SC,HS,,
+2042,54,T. Tolson,LG,4,PA,HS,,
+2042,55,C. Woodhead,SAM,4,FL,HS,,
+2042,56,P. Fuller,WR,4,AL,HS,,
+2042,57,K. Haggan,HB,4,LA,HS,,
+2042,58,N. Clemens,RT,4,TX,HS,,
+2042,59,K. Gastineau,C,4,VA,HS,,
+2042,60,B. Murphey,MIKE,4,NJ,HS,,
+2042,61,S. Araiza,CB,4,VA,HS,Ohio State,
+2042,62,G. Gooch,DT,4,IL,HS,,
+2042,63,M. Okorafor,QB,4,AL,HS,Alabama,
+2042,64,J. Hentges,RT,4,AZ,HS,,
+2042,65,H. Mettenberger,WR,4,CA,HS,,
+2042,66,J. Sharp,WR,4,CA,HS,,
+2042,67,T. Bethel,MIKE,4,AL,HS,,
+2042,68,G. Reeshad,RG,4,PA,HS,,
+2042,69,D. Veal,QB,4,FL,HS,,
+2042,70,I. Cox,FS,4,KY,HS,,
+2042,71,T. Volson,DT,4,TX,HS,,
+2042,72,E. Colman,LG,4,MS,HS,,
+2042,73,N. Epperson,HB,4,MD,HS,,
+2042,74,S. Garbutt,LT,4,KY,HS,,
+2042,75,M. Meeks,C,4,MS,HS,,
+2042,76,J. Gurley,RG,4,GA,HS,,
+2042,77,I. Siragusa,ATH,4,AL,HS,,
+2042,78,L. Ogden,CB,4,GA,HS,,
+2042,79,Q. Hasty,WR,4,LA,HS,,
+2042,80,C. Uzomah,FS,4,VA,HS,,
+2042,81,D. Keene,ATH,4,FL,HS,,
+2042,82,T. Keke,C,4,TX,HS,,
+2042,83,J. Kush,DT,4,MS,HS,,
+2042,84,O. York,FS,4,FL,HS,,
+2042,85,D. Ausbon,WR,4,WA,HS,,
+2042,86,D. Cashman,ATH,4,FL,HS,,
+2042,87,M. Burnette,DT,4,CA,HS,,
+2042,88,A. Clarke,MIKE,4,OH,HS,,
+2042,89,J. Ball,CB,4,TX,HS,,
+2042,90,K. Jameson,RG,4,MI,HS,,
+2042,91,L. Charles,WILL,4,TX,HS,,
+2042,92,S. Keenan,DT,4,OH,HS,,
+2042,93,D. Bushman,LG,4,NY,HS,,
+2042,94,J. Alli,ATH,4,SC,HS,,
+2042,95,K. Ladd,RG,4,GA,HS,,
+2042,96,C. Cole,WR,4,TX,HS,,
+2042,97,C. Marciano,QB,4,TX,HS,,
+2042,98,T. Awosika,LEDG,4,MD,HS,,
+2042,99,R. Littlejohn,WR,4,WA,HS,,
+2042,100,J. Bouye,DT,4,AL,HS,,
