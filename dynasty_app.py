@@ -10593,6 +10593,7 @@ def compute_sor(scores_df, team, year=None, week_cap=None, fpi_ratings=None):
     return round(sum(score_parts) / len(score_parts), 4) if score_parts else 0.0
 
 
+@st.cache_data(ttl=600)
 def build_full_ratings_table(year=None, week_cap=None):
     """
     Build a complete ratings table for all teams with FPI, SOS, SOR, record.
@@ -10959,23 +10960,48 @@ def compute_ms_plus(year=None, week_cap=None):
         return pd.DataFrame()
 
     msp_df = pd.DataFrame(rows).sort_values('MSPlus', ascending=False).reset_index(drop=True)
-
-    # Merge FPI/SOS/SOR if available
-    try:
-        _fpi_df = build_full_ratings_table(year=target_year, week_cap=week_cap)
-        if not _fpi_df.empty:
-            _fpi_df = _fpi_df[['Team','W','L','FPI','SOS','SOR','Streak','QualityWins','BestWin']].copy()
-            msp_df = msp_df.merge(_fpi_df, on='Team', how='left')
-            for _c in ['W','L','FPI','SOS','SOR','QualityWins']:
-                msp_df[_c] = msp_df[_c].fillna(0)
-            msp_df['Streak'] = msp_df['Streak'].fillna('')
-            msp_df['BestWin'] = msp_df['BestWin'].fillna('')
-    except Exception:
-        msp_df['W'] = 0; msp_df['L'] = 0; msp_df['FPI'] = 0.0
-        msp_df['SOS'] = 0.0; msp_df['SOR'] = 0.0
-        msp_df['Streak'] = ''; msp_df['QualityWins'] = 0; msp_df['BestWin'] = ''
-
+    # FPI/SOS/SOR columns are intentionally NOT merged here.
+    # Use get_ratings_and_ms_plus() at render sites so FPI is computed once and shared.
+    for _c in ['W','L','FPI','SOS','SOR','QualityWins']:
+        msp_df[_c] = 0.0
+    msp_df['Streak']  = ''
+    msp_df['BestWin'] = ''
     return msp_df
+
+
+def get_ratings_and_ms_plus(year=None, week_cap=None):
+    """
+    Compute FPI table and MS+ table exactly ONCE and merge them.
+    Call this at every render site instead of calling both functions separately.
+    Both underlying functions are @st.cache_data(ttl=600) so repeated calls
+    within a rerun are free — but this helper also avoids the second
+    build_full_ratings_table() call that compute_ms_plus used to make internally.
+
+    Returns (fpi_df, msp_df) where msp_df has FPI/SOS/SOR columns merged in.
+    """
+    fpi_df = build_full_ratings_table(year=year, week_cap=week_cap)
+    msp_df = compute_ms_plus(year=year, week_cap=week_cap)
+
+    if not fpi_df.empty and not msp_df.empty:
+        try:
+            _fpi_cols = ['Team','W','L','FPI','SOS','SOR','Streak','QualityWins','BestWin']
+            _fpi_slim = fpi_df[[c for c in _fpi_cols if c in fpi_df.columns]].copy()
+            msp_df = msp_df.drop(
+                columns=[c for c in ['W','L','FPI','SOS','SOR','Streak','QualityWins','BestWin']
+                         if c in msp_df.columns],
+                errors='ignore'
+            )
+            msp_df = msp_df.merge(_fpi_slim, on='Team', how='left')
+            for _c in ['W','L','FPI','SOS','SOR','QualityWins']:
+                if _c in msp_df.columns:
+                    msp_df[_c] = pd.to_numeric(msp_df[_c], errors='coerce').fillna(0)
+            for _c in ['Streak','BestWin']:
+                if _c in msp_df.columns:
+                    msp_df[_c] = msp_df[_c].fillna('')
+        except Exception:
+            pass
+
+    return fpi_df, msp_df
 
 
 def infer_best_fun_stat(y_data):
@@ -15307,7 +15333,8 @@ with _spd_tabs[1]:
 
         # ── FPI / SOS / SOR ──────────────────────────────────────────────────
         try:
-            _ratings_df = build_full_ratings_table(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            # Compute FPI and MS+ together — one Colley pass, no duplicate work
+            _ratings_df, _msp_df = get_ratings_and_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
             if not _ratings_df.empty:
                 st.markdown("#### 🏈 FPI Power Ratings")
                 _power_table(_ratings_df, "fpi", "#fbbf24",
@@ -15317,12 +15344,13 @@ with _spd_tabs[1]:
                 st.info("FPI requires schedule_2042.csv with completed game results.")
         except Exception as _fe:
             st.caption(f"FPI unavailable: {_fe}")
+            _ratings_df = pd.DataFrame()
+            _msp_df = pd.DataFrame()
 
         st.markdown("---")
 
         # ── MS+ ───────────────────────────────────────────────────────────────
         try:
-            _msp_df = compute_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
             if _msp_df is not None and not _msp_df.empty:
                 st.markdown("#### 📊 MS+ Ratings")
                 _power_table(_msp_df, "msp", "#a78bfa",
@@ -16431,15 +16459,14 @@ with tabs[0]:
                 # ── Team ratings for betting lines ────────────────────────────────
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
-        # ── FPI + MS+ tables for blended spread model ─────────────────────
+        # ── FPI + MS+ tables for blended spread model — one call, no duplicate Colley pass
         try:
-            _cfp_fpi_table = build_full_ratings_table(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            _cfp_fpi_table, _cfp_ms_table = get_ratings_and_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            if _cfp_fpi_table.empty: _cfp_fpi_table = None
+            if _cfp_ms_table.empty:  _cfp_ms_table  = None
         except Exception:
             _cfp_fpi_table = None
-        try:
-            _cfp_ms_table = compute_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
-        except Exception:
-            _cfp_ms_table = None
+            _cfp_ms_table  = None
 
         # ── QUICK-GLANCE STATUS GRID ─────────────────────────────────────────
         # 6 squares (2 rows × 3 cols), one per user team in power_board order.
