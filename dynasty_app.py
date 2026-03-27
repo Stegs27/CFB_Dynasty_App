@@ -10638,11 +10638,91 @@ def compute_sor(scores_df, team, year=None, week_cap=None, fpi_ratings=None):
     return round(sum(score_parts) / len(score_parts), 4) if score_parts else 0.0
 
 
+def compute_chaos_rating(scores_df, team, year=None, week_cap=None, fpi_ratings=None):
+    """
+    Chaos Rating — measures how unpredictable and explosive a team's season has been.
+
+    WIN as underdog (your FPI < opp FPI):
+      +15 base + up to +25 MOV bonus + underdog magnitude bonus
+    WIN as heavy favorite:
+      minimal — that's not chaos
+    LOSS as favorite to unranked team:
+      -10 base, -8 extra for unranked opponent, scaled by how big the favorite you were
+    LOSS as underdog to ranked team:
+      slight negative — expected, not chaos
+    LOSS as underdog to unranked team:
+      -6 — you should still win
+    """
+    df = scores_df.copy()
+    if year:
+        df = df[df['YEAR'].fillna(-1).astype(int) == int(year)]
+    if week_cap:
+        df = df[df['Week'].fillna(0).astype(int) <= int(week_cap)]
+    completed = df[df['Status'].astype(str).str.upper() == 'FINAL'].copy()
+    completed['Vis Score']  = pd.to_numeric(completed['Vis Score'],  errors='coerce')
+    completed['Home Score'] = pd.to_numeric(completed['Home Score'], errors='coerce')
+    completed = completed.dropna(subset=['Vis Score', 'Home Score'])
+
+    team_games = completed[
+        (completed['Visitor'].astype(str).str.strip() == team) |
+        (completed['Home'].astype(str).str.strip()    == team)
+    ]
+    if team_games.empty:
+        return 0.0
+
+    fpi = fpi_ratings or {}
+    my_fpi = fpi.get(team, 0.0)
+    scores = []
+
+    for _, g in team_games.iterrows():
+        vis = str(g['Visitor']).strip()
+        vs  = float(g['Vis Score'])
+        hs  = float(g['Home Score'])
+        margin = abs(vs - hs)
+        is_vis = vis == team
+        opp    = str(g['Home']).strip() if is_vis else vis
+        won    = (vs > hs) if is_vis else (hs > vs)
+        opp_fpi = fpi.get(opp, 0.0)
+        fpi_gap = my_fpi - opp_fpi   # positive = I'm the favorite
+
+        # Detect if opponent was ranked at game time
+        opp_rank_col = 'Home Rank' if is_vis else 'Visitor Rank'
+        opp_rank_val = g.get(opp_rank_col)
+        try:
+            opp_ranked = pd.notna(opp_rank_val) and int(float(opp_rank_val)) <= 25
+        except Exception:
+            opp_ranked = False
+
+        if won:
+            if fpi_gap < -2:
+                # Upset win — chaos gold
+                underdog_mag = min(abs(fpi_gap) * 0.5, 12)
+                mov_bonus    = min(margin / 28 * 25, 25)
+                scores.append(15 + underdog_mag + mov_bonus)
+            elif fpi_gap > 10:
+                scores.append(1.0)   # beatdown as huge fav — boring
+            else:
+                scores.append(3.0)   # expected win
+        else:
+            if fpi_gap > 2:
+                # Lost as favorite — chaos penalty
+                fav_mag          = min(fpi_gap * 0.5, 10)
+                unranked_penalty = 8 if not opp_ranked else 0
+                scores.append(-(10 + fav_mag + unranked_penalty))
+            elif opp_ranked:
+                scores.append(-2.0)  # lost to ranked as underdog — expected
+            else:
+                scores.append(-6.0)  # lost to unranked as underdog — bad
+
+    return round(sum(scores), 1) if scores else 0.0
+
+
 @st.cache_data(ttl=600)
 def build_full_ratings_table(year=None, week_cap=None):
     """
-    Build a complete ratings table for all teams with FPI, SOS, SOR, record.
+    Build a complete ratings table for all teams with FPI, SOS, SOR, Chaos, record.
     Returns DataFrame sorted by FPI desc.
+
     """
     target_year = int(year) if year else CURRENT_YEAR
     df = load_scores_master(target_year)
@@ -10667,17 +10747,19 @@ def build_full_ratings_table(year=None, week_cap=None):
         sor = compute_sor(df, team, year=target_year, week_cap=wk, fpi_ratings=fpi)
         streak_n, streak_t = get_team_current_streak(completed, team, wk or 99)
         qw, best_rk = get_quality_win_context(completed, team, wk or 99)
+        chaos = compute_chaos_rating(df, team, year=target_year, week_cap=wk, fpi_ratings=fpi)
         rows.append({
-            'Team':       team,
-            'W':          w,
-            'L':          l,
-            'WinPct':     round(w / max(1, w + l), 3),
-            'FPI':        fpi[team],
-            'SOS':        sos,
-            'SOR':        sor,
-            'Streak':     f"{streak_n}{streak_t}" if streak_n else '',
+            'Team':        team,
+            'W':           w,
+            'L':           l,
+            'WinPct':      round(w / max(1, w + l), 3),
+            'FPI':         fpi[team],
+            'SOS':         sos,
+            'SOR':         sor,
+            'Chaos':       chaos,
+            'Streak':      f"{streak_n}{streak_t}" if streak_n else '',
             'QualityWins': qw,
-            'BestWin':    f"#{best_rk}" if best_rk else '',
+            'BestWin':     f"#{best_rk}" if best_rk else '',
             'GamesPlayed': w + l,
         })
 
@@ -11036,20 +11118,31 @@ def compute_ms_plus(year=None, week_cap=None):
         perf_score = min(100, round(win_rate_score * 0.60 + (50 + title_boost) * 0.40, 1))
         components['performance'] = perf_score
 
-        # ── 8. Clobber Rating (FPI) — weight 0.10 ────────────────────
-        # Normalize to 0-100 centered at 50 so teams with average FPI score 50,
-        # not 0. Prevents dragging down all teams when FPI is sparse.
+        # ── 8. Clobber Rating (FPI) — weight 0.08 ────────────────────
         fpi_val = fpi_scores.get(team, None)
         if fpi_val is not None and fpi_scores:
-            all_fpi = list(fpi_scores.values())
+            all_fpi   = list(fpi_scores.values())
             fpi_mean  = sum(all_fpi) / len(all_fpi)
             fpi_stdev = max((sum((x - fpi_mean)**2 for x in all_fpi) / len(all_fpi))**0.5, 1)
-            # Z-score scaled: mean=50, ±2 stdev = ±30 pts
-            clobber = round(50 + (fpi_val - fpi_mean) / fpi_stdev * 15, 1)
-            clobber = max(0, min(100, clobber))
+            clobber   = round(50 + (fpi_val - fpi_mean) / fpi_stdev * 15, 1)
+            clobber   = max(0, min(100, clobber))
         else:
-            clobber = 50.0  # no FPI data → neutral, not penalized
+            clobber = 50.0
         components['clobber'] = clobber
+
+        # ── 8b. Chaos Rating — weight 0.05 ───────────────────────────
+        # Upset wins = big chaos, upset losses = penalty. Normalized to 0-100.
+        try:
+            _sched_chaos = load_scores_master(target_year)
+            raw_chaos = compute_chaos_rating(
+                _sched_chaos, team, year=target_year,
+                week_cap=week_cap, fpi_ratings=fpi_scores
+            )
+        except Exception:
+            raw_chaos = 0.0
+        # Each raw chaos point ≈ 1.5pts; center at 50
+        chaos_score = max(0, min(100, round(50 + raw_chaos * 1.5, 1)))
+        components['chaos'] = chaos_score
 
         # ── 9. Generational Talent (90+ OVR with 96+ SPD or ACC) — weight 0.05
         gen_score = 50.0
@@ -11079,8 +11172,8 @@ def compute_ms_plus(year=None, week_cap=None):
         weights = {
             'ratings': 0.20, 'recruiting': 0.15, 'transfer': 0.08,
             'veteran': 0.10, 'speed': 0.07, 'qb': 0.12,
-            'performance': 0.10, 'clobber': 0.10,
-            'generational': 0.05, 'heisman': 0.03,
+            'performance': 0.10, 'clobber': 0.08,
+            'generational': 0.05, 'heisman': 0.02, 'chaos': 0.03,
         }
         ms_plus = sum(components.get(k, 50) * v for k, v in weights.items())
         ms_plus = round(ms_plus, 1)
@@ -11108,17 +11201,44 @@ def compute_ms_plus(year=None, week_cap=None):
 
 def get_ratings_and_ms_plus(year=None, week_cap=None):
     """
-    Compute FPI table and MS+ table exactly ONCE and merge them.
-    Call this at every render site instead of calling both functions separately.
-    Both underlying functions are @st.cache_data(ttl=600) so repeated calls
-    within a rerun are free — but this helper also avoids the second
-    build_full_ratings_table() call that compute_ms_plus used to make internally.
+    Returns (fpi_df, msp_df) — reads from pre-computed CSVs on first boot if available,
+    falls back to live computation otherwise.
 
-    Returns (fpi_df, msp_df) where msp_df has FPI/SOS/SOR columns merged in.
+    Pre-computed files (written by COMPUTE_RATINGS.bat):
+      fpi_ratings_{YEAR}_wk{WEEK}.csv  — FPI/SOS/SOR table
+      ms_plus_{YEAR}_wk{WEEK}.csv      — MS+ component table
+
+    If no pre-computed file exists, computes live (slow on first boot).
     """
-    fpi_df = build_full_ratings_table(year=year, week_cap=week_cap)
-    msp_df = compute_ms_plus(year=year, week_cap=week_cap)
+    target_year = int(year) if year else CURRENT_YEAR
+    wk          = int(week_cap) if week_cap else CURRENT_WEEK_NUMBER
 
+    fpi_file = f'fpi_ratings_{target_year}_wk{wk}.csv'
+    msp_file = f'ms_plus_{target_year}_wk{wk}.csv'
+
+    # ── Try pre-computed CSVs first ───────────────────────────────────
+    fpi_df = pd.DataFrame()
+    msp_df = pd.DataFrame()
+
+    if os.path.exists(fpi_file):
+        try:
+            fpi_df = pd.read_csv(fpi_file)
+        except Exception:
+            fpi_df = pd.DataFrame()
+
+    if os.path.exists(msp_file):
+        try:
+            msp_df = pd.read_csv(msp_file)
+        except Exception:
+            msp_df = pd.DataFrame()
+
+    # ── Fall back to live computation if CSVs missing ─────────────────
+    if fpi_df.empty:
+        fpi_df = build_full_ratings_table(year=year, week_cap=week_cap)
+    if msp_df.empty:
+        msp_df = compute_ms_plus(year=year, week_cap=week_cap)
+
+    # ── Merge FPI columns into MS+ df ─────────────────────────────────
     if not fpi_df.empty and not msp_df.empty:
         try:
             _fpi_cols = ['Team','W','L','FPI','SOS','SOR','Streak','QualityWins','BestWin']
@@ -15422,7 +15542,7 @@ tabs = st.tabs([
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
 with tabs[3]:
-    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 SOS & True Path"])
+    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 FPI & MS+ Ratings", "📈 Program Trajectory"])
     with _spd_tabs[0]:
         st.header("🔍 Speed Freaks")
         st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
@@ -15975,6 +16095,8 @@ with tabs[3]:
                         _stk=str(_r.get("Streak","")); _stkc="#4ade80" if "W" in _stk else ("#f87171" if "L" in _stk else "#334155")
                         _qw=int(_r.get("QualityWins",0)); _bw=str(_r.get("BestWin",""))
                         _rk=int(_r.get("Rank",0))
+                        _chv=float(_r.get("Chaos",0))
+                        _chc="#f97316" if _chv>=20 else ("#fbbf24" if _chv>=0 else "#f87171")
                         _msc=""
                         if has_msp and "MSPlus" in _r:
                             _mv=float(_r.get("MSPlus",0)); _mc="#4ade80" if _mv>=70 else ("#fbbf24" if _mv>=55 else "#f87171")
@@ -15988,6 +16110,7 @@ with tabs[3]:
                             f"<td style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:0.92rem;color:{_fc};'>{_fv:+.1f}</td>"
                             f"<td style='padding:4px 5px;text-align:center;color:#334155;font-size:0.7rem;'>{_sv:+.1f}</td>"
                             f"<td style='padding:4px 5px;text-align:center;color:{_orc};font-size:0.7rem;'>{_orv:+.3f}</td>"
+                            f"<td style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_chc};font-size:0.85rem;'>{_chv:+.0f}</td>"
                             f"<td style='padding:4px 5px;text-align:center;color:{_stkc};font-size:0.7rem;'>{_stk}</td>"
                             f"<td style='padding:4px 5px;text-align:center;color:#3b82f6;font-size:0.68rem;'>"
                             f"{(str(_qw) if _qw else '—')+(' '+_bw if _bw else '')}</td>"
@@ -16004,6 +16127,7 @@ with tabs[3]:
                     f"<th style='padding:5px 6px;color:{primary_col};font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>FPI</th>"
                     f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOS</th>"
                     f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOR</th>"
+                    f"<th style='padding:5px 6px;color:#f97316;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Chaos</th>"
                     f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Streak</th>"
                     f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Q-Wins</th>"
                     f"{_msp_th}</tr>"
@@ -16819,6 +16943,361 @@ with tabs[3]:
 
             else:
                 st.info("No schedule data found for this user. Make sure CPUscores_MASTER.csv is up to date.")
+
+    # ── PROGRAM TRAJECTORY TAB ────────────────────────────────────────
+    with _spd_tabs[2]:
+        st.header("📈 Program Trajectory")
+        st.caption("How is every program trending? OVR, recruiting, blue chip ratio, NFL pipeline, and times ranked — all over time.")
+
+        # ── Load all trajectory data sources ─────────────────────────
+        import glob as _traj_glob
+
+        # Team ratings — all years (team_ratings_{YEAR}.csv)
+        _tr_parts = []
+        for _f in sorted(_traj_glob.glob('team_ratings_*.csv')):
+            try:
+                _tmp = pd.read_csv(_f)
+                if 'YEAR' in _tmp.columns and 'TEAM' in _tmp.columns:
+                    _tr_parts.append(_tmp)
+            except Exception:
+                pass
+        _tr_all = pd.concat(_tr_parts, ignore_index=True) if _tr_parts else pd.DataFrame()
+        if not _tr_all.empty:
+            _tr_all['YEAR'] = pd.to_numeric(_tr_all['YEAR'], errors='coerce')
+            _tr_all['OVR']  = pd.to_numeric(_tr_all['OVR'],  errors='coerce')
+            _tr_all['OFF']  = pd.to_numeric(_tr_all['OFF'],  errors='coerce')
+            _tr_all['DEF']  = pd.to_numeric(_tr_all['DEF'],  errors='coerce')
+            _tr_all['TEAM'] = _tr_all['TEAM'].astype(str).str.strip()
+
+        # Blue chip ratio — all years (bluechip_ratio_{YEAR}.csv)
+        _bc_parts = []
+        for _f in sorted(_traj_glob.glob('bluechip_ratio_*.csv')):
+            try:
+                _tmp = pd.read_csv(_f)
+                _tmp.columns = [str(c).strip() for c in _tmp.columns]
+                if 'TEAM' in _tmp.columns:
+                    _bc_parts.append(_tmp)
+            except Exception:
+                pass
+        _bc_all = pd.concat(_bc_parts, ignore_index=True) if _bc_parts else pd.DataFrame()
+        if not _bc_all.empty:
+            _bc_all['YEAR'] = pd.to_numeric(_bc_all.get('YEAR', CURRENT_YEAR), errors='coerce')
+            _bc_pct_col = next((c for c in _bc_all.columns if 'CHIP' in c.upper() or 'PCT' in c.upper() or 'PERCENT' in c.upper()), None)
+            if _bc_pct_col:
+                _bc_all['BlueChipPct'] = pd.to_numeric(_bc_all[_bc_pct_col], errors='coerce').fillna(0)
+
+        # Recruiting history
+        try:
+            _rec_traj = pd.read_csv('recruiting_class_history_all.csv')
+            _rec_traj['Year'] = pd.to_numeric(_rec_traj.get('Year', _rec_traj.get('YEAR', 0)), errors='coerce')
+            _rec_traj['Rank'] = pd.to_numeric(_rec_traj['Rank'], errors='coerce')
+            _rec_traj = _rec_traj[_rec_traj.get('ClassType', pd.Series(['OVERALL']*len(_rec_traj))).astype(str).str.upper() == 'OVERALL'].copy()
+        except Exception:
+            _rec_traj = pd.DataFrame()
+
+        # NFL draft history
+        try:
+            _nfl_draft = pd.read_csv('nfl_draft_history.csv')
+            _nfl_draft['DraftYear']    = pd.to_numeric(_nfl_draft['DraftYear'], errors='coerce')
+            _nfl_draft['CollegeTeam']  = _nfl_draft['CollegeTeam'].astype(str).str.strip()
+            _nfl_draft['DraftRoundCanon'] = pd.to_numeric(_nfl_draft.get('DraftRoundCanon', 7), errors='coerce').fillna(7)
+        except Exception:
+            _nfl_draft = pd.DataFrame()
+
+        # CFP rankings history — times ranked per team per year
+        try:
+            _cfp_traj = pd.read_csv('cfp_rankings_history.csv')
+            _cfp_traj['YEAR'] = pd.to_numeric(_cfp_traj['YEAR'], errors='coerce')
+            _cfp_traj['RANK'] = pd.to_numeric(_cfp_traj['RANK'], errors='coerce')
+            _cfp_traj['TEAM'] = _cfp_traj['TEAM'].astype(str).str.strip()
+        except Exception:
+            _cfp_traj = pd.DataFrame()
+
+        # Win % per team per year from schedule_{YEAR}.csv files
+        _winpct_parts = []
+        for _f in sorted(_traj_glob.glob('schedule_*.csv')):
+            try:
+                _yr = int(_f.replace('schedule_', '').replace('.csv', ''))
+                _sg = pd.read_csv(_f)
+                _sg = _sg[_sg['Status'].astype(str).str.upper() == 'FINAL'].copy()
+                _sg['Vis Score']  = pd.to_numeric(_sg.get('Vis Score',  0), errors='coerce')
+                _sg['Home Score'] = pd.to_numeric(_sg.get('Home Score', 0), errors='coerce')
+                _all_t = set(_sg['Visitor'].dropna().astype(str).str.strip().tolist() +
+                             _sg['Home'].dropna().astype(str).str.strip().tolist())
+                for _t in _all_t:
+                    _tg = _sg[(_sg['Visitor'].astype(str).str.strip()==_t)|(_sg['Home'].astype(str).str.strip()==_t)]
+                    _w = sum(1 for _,r in _tg.iterrows() if
+                             (r['Vis Score']>r['Home Score'] and str(r['Visitor']).strip()==_t) or
+                             (r['Home Score']>r['Vis Score'] and str(r['Home']).strip()==_t))
+                    _winpct_parts.append({'YEAR':_yr,'TEAM':_t,'W':_w,'G':len(_tg),
+                                         'WinPct':round(_w/max(1,len(_tg)),3)})
+            except Exception:
+                pass
+        _winpct_all = pd.DataFrame(_winpct_parts) if _winpct_parts else pd.DataFrame()
+
+        # ── Team selector ─────────────────────────────────────────────
+        _user_team_vals = set(USER_TEAMS.values())
+        _all_traj_teams = sorted(
+            set(_tr_all['TEAM'].tolist() if not _tr_all.empty else []) |
+            _user_team_vals
+        )
+        _user_first = sorted(_user_team_vals) + sorted([t for t in _all_traj_teams if t not in _user_team_vals])
+
+        _traj_c1, _traj_c2 = st.columns([2, 1])
+        with _traj_c1:
+            _sel_team = st.selectbox("Select Program", _user_first, key="traj_team_sel")
+        with _traj_c2:
+            _traj_user_only = st.checkbox("User programs only", value=True, key="traj_user_only")
+            if _traj_user_only:
+                _compare_pool = sorted(_user_team_vals - {_sel_team})
+            else:
+                _compare_pool = sorted(set(_all_traj_teams) - {_sel_team})
+
+        st.markdown("---")
+
+        # ── Metrics row ───────────────────────────────────────────────
+        _m1, _m2, _m3, _m4, _m5 = st.columns(5)
+
+        # Current OVR
+        _cur_ovr = None
+        if not _tr_all.empty:
+            _ovr_row = _tr_all[(_tr_all['TEAM']==_sel_team)&(_tr_all['YEAR']==CURRENT_YEAR)]
+            if not _ovr_row.empty:
+                _cur_ovr = int(_ovr_row.iloc[0]['OVR'])
+                _prev_ovr_row = _tr_all[(_tr_all['TEAM']==_sel_team)&(_tr_all['YEAR']==CURRENT_YEAR-1)]
+                _ovr_delta = f"{_cur_ovr - int(_prev_ovr_row.iloc[0]['OVR']):+d}" if not _prev_ovr_row.empty else "—"
+        _m1.metric("OVR", _cur_ovr or "—", _ovr_delta if _cur_ovr else None)
+
+        # Current blue chip %
+        _cur_bc = None
+        if not _bc_all.empty and '_bc_pct_col' in dir() and _bc_pct_col:
+            _bc_row = _bc_all[(_bc_all['TEAM']==_sel_team)&(_bc_all['YEAR']==CURRENT_YEAR)]
+            if not _bc_row.empty:
+                _cur_bc = int(_bc_row.iloc[0]['BlueChipPct'])
+        _m2.metric("Blue Chip %", f"{_cur_bc}%" if _cur_bc is not None else "—")
+
+        # Best recruiting rank
+        _best_rec = None
+        if not _rec_traj.empty:
+            _rt = _rec_traj[_rec_traj['Team'].astype(str).str.strip()==_sel_team]
+            if not _rt.empty:
+                _best_rec = int(_rt['Rank'].dropna().min())
+                _latest_rec = int(_rt.sort_values('Year').iloc[-1]['Rank'])
+        _m3.metric("Best Rec. Class", f"#{_best_rec}" if _best_rec else "—")
+
+        # Total NFL picks
+        _nfl_picks = 0
+        _r1_picks  = 0
+        if not _nfl_draft.empty:
+            _nd = _nfl_draft[_nfl_draft['CollegeTeam']==_sel_team]
+            _nfl_picks = len(_nd)
+            _r1_picks  = len(_nd[_nd['DraftRoundCanon']==1])
+        _m4.metric("NFL Picks", _nfl_picks, f"{_r1_picks} R1" if _r1_picks else None)
+
+        # Times ranked in top 25
+        _times_ranked = 0
+        if not _cfp_traj.empty:
+            _ct = _cfp_traj[_cfp_traj['TEAM']==_sel_team]
+            _times_ranked = len(_ct[_ct['RANK']<=25].drop_duplicates(subset=['YEAR','WEEK' if 'WEEK' in _ct.columns else 'YEAR']))
+        _m5.metric("Times Ranked", _times_ranked)
+
+        st.markdown("---")
+
+        # ── Charts: OVR trend + Recruiting trend ──────────────────────
+        _ch1, _ch2 = st.columns(2)
+
+        with _ch1:
+            st.markdown("##### 📊 OVR Trend")
+            if not _tr_all.empty:
+                _ovr_data = _tr_all[_tr_all['TEAM']==_sel_team].sort_values('YEAR')
+                if not _ovr_data.empty:
+                    import plotly.graph_objects as go
+                    _fig_ovr = go.Figure()
+                    _team_color = get_team_primary_color(_sel_team)
+                    _fig_ovr.add_trace(go.Scatter(
+                        x=_ovr_data['YEAR'], y=_ovr_data['OVR'],
+                        mode='lines+markers',
+                        line=dict(color=_team_color, width=2),
+                        marker=dict(size=7, color=_team_color),
+                        name=_sel_team
+                    ))
+                    # Compare pool overlays (user teams)
+                    for _ct_name in _compare_pool[:5]:
+                        _ct_data = _tr_all[_tr_all['TEAM']==_ct_name].sort_values('YEAR')
+                        if not _ct_data.empty:
+                            _cc = get_team_primary_color(_ct_name) if _ct_name in _user_team_vals else '#334155'
+                            _fig_ovr.add_trace(go.Scatter(
+                                x=_ct_data['YEAR'], y=_ct_data['OVR'],
+                                mode='lines', line=dict(color=_cc, width=1, dash='dot'),
+                                opacity=0.5, name=_abbrev(_ct_name) if '_abbrev' in dir() else _ct_name[:6],
+                                showlegend=True
+                            ))
+                    _fig_ovr.update_layout(
+                        height=260, paper_bgcolor='#06090f', plot_bgcolor='#06090f',
+                        margin=dict(l=30,r=10,t=10,b=30),
+                        font=dict(color='#94a3b8', size=11),
+                        legend=dict(font=dict(size=9), bgcolor='rgba(0,0,0,0)'),
+                        xaxis=dict(gridcolor='#1e293b', tickformat='d'),
+                        yaxis=dict(gridcolor='#1e293b', range=[60,100]),
+                    )
+                    st.plotly_chart(_fig_ovr, use_container_width=True, config={'staticPlot':True})
+                else:
+                    st.caption("No OVR history yet — one season of team_ratings needed.")
+            else:
+                st.caption("Push team_ratings_{YEAR}.csv to see OVR trend.")
+
+        with _ch2:
+            st.markdown("##### 🎯 Recruiting Class Rank")
+            if not _rec_traj.empty:
+                _rec_data = _rec_traj[_rec_traj['Team'].astype(str).str.strip()==_sel_team].sort_values('Year')
+                if not _rec_data.empty:
+                    _fig_rec = go.Figure()
+                    _fig_rec.add_trace(go.Scatter(
+                        x=_rec_data['Year'], y=_rec_data['Rank'],
+                        mode='lines+markers',
+                        line=dict(color=get_team_primary_color(_sel_team), width=2),
+                        marker=dict(size=7),
+                        name=_sel_team
+                    ))
+                    for _ct_name in _compare_pool[:5]:
+                        _ct_rec = _rec_traj[_rec_traj['Team'].astype(str).str.strip()==_ct_name].sort_values('Year')
+                        if not _ct_rec.empty:
+                            _cc = get_team_primary_color(_ct_name) if _ct_name in _user_team_vals else '#334155'
+                            _fig_rec.add_trace(go.Scatter(
+                                x=_ct_rec['Year'], y=_ct_rec['Rank'],
+                                mode='lines', line=dict(color=_cc, width=1, dash='dot'),
+                                opacity=0.5, name=_abbrev(_ct_name) if '_abbrev' in dir() else _ct_name[:6],
+                                showlegend=True
+                            ))
+                    _fig_rec.update_layout(
+                        height=260, paper_bgcolor='#06090f', plot_bgcolor='#06090f',
+                        margin=dict(l=30,r=10,t=10,b=30),
+                        font=dict(color='#94a3b8', size=11),
+                        legend=dict(font=dict(size=9), bgcolor='rgba(0,0,0,0)'),
+                        xaxis=dict(gridcolor='#1e293b', tickformat='d'),
+                        yaxis=dict(gridcolor='#1e293b', autorange='reversed',
+                                   title=dict(text='Rank (lower=better)', font=dict(size=9))),
+                    )
+                    st.plotly_chart(_fig_rec, use_container_width=True, config={'staticPlot':True})
+                else:
+                    st.caption("No recruiting history yet.")
+            else:
+                st.caption("No recruiting_class_history_all.csv found.")
+
+        # ── Blue chip ratio + Win % ───────────────────────────────────
+        _ch3, _ch4 = st.columns(2)
+
+        with _ch3:
+            st.markdown("##### 💎 Blue Chip Ratio")
+            if not _bc_all.empty and 'BlueChipPct' in _bc_all.columns:
+                _bc_data = _bc_all[_bc_all['TEAM']==_sel_team].sort_values('YEAR')
+                if not _bc_data.empty:
+                    _fig_bc = go.Figure()
+                    _fig_bc.add_trace(go.Bar(
+                        x=_bc_data['YEAR'], y=_bc_data['BlueChipPct'],
+                        marker_color=get_team_primary_color(_sel_team),
+                        name=_sel_team
+                    ))
+                    # National average line
+                    _bc_avg = _bc_all.groupby('YEAR')['BlueChipPct'].mean().reset_index()
+                    _fig_bc.add_trace(go.Scatter(
+                        x=_bc_avg['YEAR'], y=_bc_avg['BlueChipPct'],
+                        mode='lines', line=dict(color='#f59e0b', width=1, dash='dot'),
+                        name='Natl avg'
+                    ))
+                    _fig_bc.update_layout(
+                        height=240, paper_bgcolor='#06090f', plot_bgcolor='#06090f',
+                        margin=dict(l=30,r=10,t=10,b=30),
+                        font=dict(color='#94a3b8', size=11),
+                        legend=dict(font=dict(size=9), bgcolor='rgba(0,0,0,0)'),
+                        xaxis=dict(gridcolor='#1e293b', tickformat='d'),
+                        yaxis=dict(gridcolor='#1e293b', ticksuffix='%'),
+                    )
+                    st.plotly_chart(_fig_bc, use_container_width=True, config={'staticPlot':True})
+                else:
+                    st.caption("No blue chip data for this team yet.")
+            else:
+                st.caption("Push bluechip_ratio_{YEAR}.csv to see blue chip trend.")
+
+        with _ch4:
+            st.markdown("##### 🏆 Win % by Season")
+            if not _winpct_all.empty:
+                _wp_data = _winpct_all[_winpct_all['TEAM']==_sel_team].sort_values('YEAR')
+                if not _wp_data.empty:
+                    _fig_wp = go.Figure()
+                    _fig_wp.add_trace(go.Bar(
+                        x=_wp_data['YEAR'], y=(_wp_data['WinPct']*100).round(1),
+                        marker_color=get_team_primary_color(_sel_team),
+                        name=_sel_team,
+                        text=[f"{w}-{g-w}" for w,g in zip(_wp_data['W'],_wp_data['G'])],
+                        textposition='outside', textfont=dict(size=9, color='#94a3b8')
+                    ))
+                    _fig_wp.add_hline(y=50, line_dash='dot', line_color='#475569', line_width=1)
+                    _fig_wp.update_layout(
+                        height=240, paper_bgcolor='#06090f', plot_bgcolor='#06090f',
+                        margin=dict(l=30,r=10,t=20,b=30),
+                        font=dict(color='#94a3b8', size=11),
+                        xaxis=dict(gridcolor='#1e293b', tickformat='d'),
+                        yaxis=dict(gridcolor='#1e293b', ticksuffix='%', range=[0,105]),
+                    )
+                    st.plotly_chart(_fig_wp, use_container_width=True, config={'staticPlot':True})
+                else:
+                    st.caption("No completed season schedule data yet for this team.")
+            else:
+                st.caption("Win % trend activates once schedule_{YEAR}.csv files accumulate.")
+
+        st.markdown("---")
+
+        # ── NFL Pipeline ──────────────────────────────────────────────
+        st.markdown("##### 🏈 NFL Pipeline — Draft Picks by Year")
+        if not _nfl_draft.empty:
+            _nd_team = _nfl_draft[_nfl_draft['CollegeTeam']==_sel_team].copy()
+            if not _nd_team.empty:
+                _nd_pivot = _nd_team.groupby(['DraftYear','DraftRoundCanon']).size().reset_index(name='Picks')
+                _round_colors = {1:'#fbbf24', 2:'#60a5fa', 3:'#4ade80', 4:'#a78bfa', 5:'#f97316', 6:'#94a3b8', 7:'#475569'}
+                _fig_nfl = go.Figure()
+                for _rnd in sorted(_nd_pivot['DraftRoundCanon'].unique()):
+                    _rd = _nd_pivot[_nd_pivot['DraftRoundCanon']==_rnd]
+                    _fig_nfl.add_trace(go.Bar(
+                        x=_rd['DraftYear'], y=_rd['Picks'],
+                        name=f"Rd {int(_rnd)}",
+                        marker_color=_round_colors.get(int(_rnd), '#334155'),
+                    ))
+                # Compare vs user team averages
+                if _user_team_vals:
+                    _peer_avg = (_nfl_draft[_nfl_draft['CollegeTeam'].isin(_compare_pool[:5])]
+                                 .groupby('DraftYear').size() / max(1, len(_compare_pool[:5])))
+                    if not _peer_avg.empty:
+                        _fig_nfl.add_trace(go.Scatter(
+                            x=_peer_avg.index, y=_peer_avg.values,
+                            mode='lines', line=dict(color='#f59e0b', width=1, dash='dot'),
+                            name='Peer avg', yaxis='y'
+                        ))
+                _fig_nfl.update_layout(
+                    barmode='stack', height=280,
+                    paper_bgcolor='#06090f', plot_bgcolor='#06090f',
+                    margin=dict(l=30,r=10,t=10,b=30),
+                    font=dict(color='#94a3b8', size=11),
+                    legend=dict(font=dict(size=9), bgcolor='rgba(0,0,0,0)', orientation='h'),
+                    xaxis=dict(gridcolor='#1e293b', tickformat='d'),
+                    yaxis=dict(gridcolor='#1e293b', title=dict(text='Picks', font=dict(size=9))),
+                )
+                st.plotly_chart(_fig_nfl, use_container_width=True, config={'staticPlot':True})
+
+                # Draft pick detail table
+                _nd_detail = _nd_team[['DraftYear','Player','Pos','DraftRoundCanon','CollegeOVR','PosBucket']].copy()
+                _nd_detail = _nd_detail.rename(columns={'DraftYear':'Year','DraftRoundCanon':'Round','CollegeOVR':'OVR'})
+                _nd_detail['Round'] = _nd_detail['Round'].astype(int)
+                _nd_detail = _nd_detail.sort_values(['Year','Round'])
+                st.dataframe(_nd_detail, use_container_width=True, hide_index=True,
+                             column_config={
+                                 'Year': st.column_config.NumberColumn(format='%d'),
+                                 'Round': st.column_config.NumberColumn(format='Rd %d'),
+                             })
+            else:
+                st.info(f"No NFL draft picks recorded yet for {_sel_team}.")
+        else:
+            st.caption("Push nfl_draft_history.csv to see NFL pipeline data.")
 
 
 with tabs[0]:
