@@ -20953,51 +20953,10 @@ with tabs[0]:
                 _pos_colors_map = {'QB': '#f97316', 'HB': '#22c55e', 'WR': '#3b82f6', 'TE': '#a78bfa', 'K': '#94a3b8', 'P': '#94a3b8'}
                 _medal_map = {1: '🥇', 2: '🥈', 3: '🥉'}
 
-                _cards_html = """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;1,600&family=Barlow:wght@400;500;600&display=swap');
-.hboard-wrap { margin: 8px 0 20px 0; }
-.hboard-subhead { font-family: 'Barlow', sans-serif; font-size: 0.68rem; letter-spacing: 0.15em; color: #475569; text-transform: uppercase; margin-bottom: 14px; padding-bottom: 7px; border-bottom: 1px solid rgba(255,255,255,0.07); }
-.hgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-@media (max-width: 820px) { .hgrid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px) { .hgrid { grid-template-columns: 1fr; } }
-.hcard {
-    background: linear-gradient(160deg, #0c1622 0%, #111c2b 100%);
-    border-radius: 10px; overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.07);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.45);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-.hcard.user-card { border-color: rgba(251,191,36,0.35); box-shadow: 0 4px 24px rgba(251,191,36,0.12); }
-.hcard:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(0,0,0,0.6); }
-.hcard-stripe { height: 3px; width: 100%; }
-.hcard-body { padding: 13px 14px 12px 14px; }
-.hcard-toprow { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 7px; }
-.hcard-rank-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.8rem; line-height: 1; opacity: 0.22; }
-.hcard-rank-medal { font-size: 2.0rem; line-height: 1; }
-.hcard-logo { width: 44px; height: 44px; object-fit: contain; }
-.hcard-name { font-family: 'Barlow Condensed', sans-serif; font-size: 1.15rem; font-weight: 700; color: #f1f5f9; line-height: 1.1; margin: 0 0 5px 0; }
-.hcard-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 7px; }
-.pos-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; }
-.hcard-team { font-family: 'Barlow', sans-serif; font-size: 0.60rem; color: #64748b; }
-.hcard-user-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.35); font-family: 'Barlow Condensed', sans-serif; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; margin-top: 7px; }
-.hcard-cpu-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: rgba(100,116,139,0.1); color: #475569; border: 1px solid rgba(100,116,139,0.2); font-family: 'Barlow Condensed', sans-serif; font-size: 0.62rem; letter-spacing: 0.06em; margin-top: 7px; }
-.hmove { font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 700; }
-.hmove-up { color: #22c55e; }
-.hmove-dn { color: #ef4444; }
-.hmove-same { color: #475569; }
-</style>
-<div class="hboard-wrap">
-  <div class="hgrid">
-"""
-
-                # Build prev-week lookup for movement arrows
-                _prev_wks = sorted(_hw_cy[_hw_cy['WEEK'] < _hw_latest_wk]['WEEK'].dropna().unique())
-                _prev_snap = {}
-                if _prev_wks:
-                    _pw = int(_prev_wks[-1])
-                    for _, _pr in _hw_cy[_hw_cy['WEEK'] == _pw].iterrows():
-                        _prev_snap[str(_pr['NAME']).strip().lower()] = int(_pr['RANK'])
+                # ── Per-card st.markdown (same approach as Spoiling the Moment) ──
+                # Rendering each card individually avoids base64 logo overflow
+                _pos_colors_heis = {'QB':'#f97316','HB':'#22c55e','RB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa','K':'#94a3b8','P':'#94a3b8'}
+                _medal_heis = {1:'🥇', 2:'🥈', 3:'🥉'}
 
                 for _, _r in _hw_snap.iterrows():
                     _rank   = int(_r['RANK'])
@@ -21007,62 +20966,80 @@ with tabs[0]:
                     _user   = _team_to_user.get(_team, None)
                     _is_user = _user is not None
 
-                    _tc   = get_team_primary_color(_team)
-                    _pc   = _pos_colors_map.get(_pos, '#94a3b8')
-                    _logo_uri = image_file_to_data_uri(get_logo_source(_team))
-                    _logo_html = f"<img class='hcard-logo' src='{_logo_uri}'/>" if _logo_uri else ""
+                    _tc  = get_team_primary_color(_team)
+                    _pc  = _pos_colors_heis.get(_pos, '#94a3b8')
+                    _logo_uri  = image_file_to_data_uri(get_logo_source(_team))
+                    _logo_html_h = f"<img src='{_logo_uri}' style='width:34px;height:34px;object-fit:contain;vertical-align:middle;'/>" if _logo_uri else ""
 
-                    # Movement vs prior week
+                    # Movement arrow
                     _prev_rank = _prev_snap.get(_name.lower())
                     if _prev_rank is not None:
                         _diff = _prev_rank - _rank
-                        if _diff > 0:
-                            _move_html = f"<span class='hmove hmove-up'>▲{_diff}</span>"
-                        elif _diff < 0:
-                            _move_html = f"<span class='hmove hmove-dn'>▼{abs(_diff)}</span>"
-                        else:
-                            _move_html = "<span class='hmove hmove-same'>—</span>"
+                        if _diff > 0:   _move_h = f"<span style='color:#22c55e;font-family:Bebas Neue,sans-serif;font-size:0.7rem;font-weight:700;'>▲{_diff}</span>"
+                        elif _diff < 0: _move_h = f"<span style='color:#ef4444;font-family:Bebas Neue,sans-serif;font-size:0.7rem;font-weight:700;'>▼{abs(_diff)}</span>"
+                        else:           _move_h = "<span style='color:#475569;font-size:0.7rem;'>—</span>"
                     elif _rank <= len(_prev_snap) + 1 and _prev_snap:
-                        _move_html = "<span class='hmove hmove-up' style='font-size:0.6rem;'>NEW</span>"
+                        _move_h = "<span style='color:#22c55e;font-size:0.65rem;font-family:Bebas Neue,sans-serif;'>NEW</span>"
                     else:
-                        _move_html = ""
+                        _move_h = ""
 
                     # Rank display
-                    _medal = _medal_map.get(_rank)
-                    _rank_html = (f"<span class='hcard-rank-medal'>{_medal}</span>"
-                                  if _medal else
-                                  f"<span class='hcard-rank-num' style='color:{_tc};'>{_rank}</span>")
-
-                    # User or CPU badge
-                    if _is_user:
-                        _badge_html = f"<div class='hcard-user-badge'>👤 {html.escape(str(_user).upper())} · {html.escape(_team)}</div>"
-                        _card_cls = "hcard user-card"
+                    _medal_h = _medal_heis.get(_rank)
+                    if _medal_h:
+                        _rank_html_h = f"<span style='font-size:1.6rem;line-height:1;'>{_medal_h}</span>"
                     else:
-                        _badge_html = f"<div class='hcard-cpu-badge'>{html.escape(_team)}</div>"
-                        _card_cls = "hcard"
+                        _rank_html_h = (
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:2.2rem;"
+                            f"line-height:1;opacity:0.22;color:{_tc};'>{_rank}</span>"
+                        )
 
-                    _cards_html += f"""
-    <div class="{_card_cls}">
-      <div class="hcard-stripe" style="background:{_tc};"></div>
-      <div class="hcard-body">
-        <div class="hcard-toprow">
-          {_rank_html}
-          <div style="display:flex;align-items:center;gap:6px;">{_move_html}{_logo_html}</div>
-        </div>
-        <div class="hcard-name">{html.escape(_name)}</div>
-        <div class="hcard-meta">
-          <span class="pos-badge" style="background:{_pc}22;color:{_pc};border:1px solid {_pc}55;">{html.escape(_pos)}</span>
-        </div>
-        {_badge_html}
-      </div>
-    </div>"""
+                    # User/CPU badge
+                    if _is_user:
+                        _badge_h = (
+                            f"<span style='display:inline-block;padding:2px 8px;border-radius:4px;"
+                            f"background:rgba(251,191,36,0.12);color:#fbbf24;"
+                            f"border:1px solid rgba(251,191,36,0.35);"
+                            f"font-family:Barlow Condensed,sans-serif;font-size:0.62rem;"
+                            f"font-weight:700;letter-spacing:.08em;'>"
+                            f"👤 {html.escape(str(_user).upper())} · {html.escape(_team)}</span>"
+                        )
+                        _card_border = f"border-left:4px solid {_tc}; box-shadow:0 4px 24px rgba(251,191,36,0.10);"
+                        _card_bg     = f"background:linear-gradient(160deg,{_tc}18 0%,#0c1622 60%);"
+                    else:
+                        _badge_h = (
+                            f"<span style='display:inline-block;padding:2px 8px;border-radius:4px;"
+                            f"background:rgba(100,116,139,0.1);color:#475569;"
+                            f"border:1px solid rgba(100,116,139,0.2);"
+                            f"font-family:Barlow Condensed,sans-serif;font-size:0.62rem;"
+                            f"letter-spacing:.06em;'>{html.escape(_team)}</span>"
+                        )
+                        _card_border = "border-left:2px solid #1e293b;"
+                        _card_bg     = "background:linear-gradient(160deg,#0c1622 0%,#111c2b 100%);"
 
-                _cards_html += "\n  </div>\n</div>"
-
-                _n_cards = len(_hw_snap)
-                _n_rows  = -(-_n_cards // 3)
-                _card_height = 80 + (_n_rows * 200)
-                components.html(_cards_html, height=_card_height, scrolling=True)
+                    st.markdown(
+                        f"<div style='{_card_bg}{_card_border}border-radius:10px;"
+                        f"overflow:hidden;border-top:1px solid rgba(255,255,255,0.06);"
+                        f"border-right:1px solid rgba(255,255,255,0.04);"
+                        f"border-bottom:1px solid rgba(255,255,255,0.04);"
+                        f"box-shadow:0 4px 20px rgba(0,0,0,0.45);margin-bottom:8px;'>"
+                        f"<div style='height:3px;background:{_tc};width:100%;'></div>"
+                        f"<div style='padding:13px 14px 12px 14px;'>"
+                        f"<div style='display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px;'>"
+                        f"{_rank_html_h}"
+                        f"<div style='display:flex;align-items:center;gap:6px;'>{_move_h}{_logo_html_h}</div>"
+                        f"</div>"
+                        f"<div style='font-family:Barlow Condensed,sans-serif;font-size:1.15rem;"
+                        f"font-weight:700;color:#f1f5f9;line-height:1.1;margin-bottom:5px;'>{html.escape(_name)}</div>"
+                        f"<div style='display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:7px;'>"
+                        f"<span style='display:inline-block;padding:1px 7px;border-radius:3px;"
+                        f"background:{_pc}22;color:{_pc};border:1px solid {_pc}55;"
+                        f"font-family:Barlow Condensed,sans-serif;font-size:0.64rem;font-weight:700;"
+                        f"letter-spacing:.08em;'>{html.escape(_pos)}</span>"
+                        f"</div>"
+                        f"{_badge_h}"
+                        f"</div></div>",
+                        unsafe_allow_html=True
+                    )
 
                 # Show snapshot history expander if multiple weeks
                 _all_weeks = sorted(_hw_cy['WEEK'].dropna().unique().tolist(), reverse=True)
@@ -21634,7 +21611,7 @@ with tabs[4]:
             {"label": "🅱️ Best Bye Shot",     "value": f"{projected_field.sort_values('Bye %', ascending=False).iloc[0]['Team']}", "delta": format_pct(projected_field['Bye %'].max(), 1)},
         ])
 
-        st.subheader('Projected CFP Field')
+        st.subheader('📡 FPI Projected CFP Field')
         projected_field_display = projected_field.copy()
         projected_field_display['Projected Seed Display'] = pd.to_numeric(
             projected_field_display['Projected Seed'] if 'Projected Seed' in projected_field_display.columns else 0,
@@ -21700,20 +21677,50 @@ with tabs[4]:
                     return v
             return {}
 
-        # ── National odds across full 136-team field ──────────────────────────
+        # ── FPI-based national odds — same formula as Dynasty News user cards ─
+        # Softmax over 136-team FPI: natty = exp(FPI*0.18)/sum * 100
+        # CFP% = rank-based curve (top8=95%, bubble=30%, out=3%)
+        _wi_fpi_odds = {}   # team -> {'natty_pct': float, 'cfp_pct': float}
         try:
-            _national_odds = build_sigmoid_natty_odds(year=CURRENT_YEAR)
+            import numpy as _np_wi
+            _wi_fpi_tbl, _ = get_ratings_and_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            if not _wi_fpi_tbl.empty and 'FPI' in _wi_fpi_tbl.columns:
+                _wi_fpi_v = _wi_fpi_tbl[['Team','FPI']].copy()
+                _wi_fpi_v['FPI'] = pd.to_numeric(_wi_fpi_v['FPI'], errors='coerce').fillna(0)
+                _wi_k = 0.18
+                _wi_fpi_v['_exp'] = _np_wi.exp(_wi_fpi_v['FPI'] * _wi_k)
+                _wi_total = _wi_fpi_v['_exp'].sum()
+                _wi_fpi_v['natty'] = (_wi_fpi_v['_exp'] / _wi_total * 100).round(2)
+                _wi_sorted = _wi_fpi_v.sort_values('FPI', ascending=False).reset_index(drop=True)
+                _wi_sorted['_fpi_rank'] = range(1, len(_wi_sorted)+1)
+                def _wi_cfp_pct(rk):
+                    if rk <= 4:  return min(97.0, 90 + (4-rk)*2.0)
+                    if rk <= 8:  return min(88.0, 76 + (8-rk)*3.0)
+                    if rk <= 12: return min(74.0, 58 + (12-rk)*4.0)
+                    if rk <= 16: return min(52.0, 32 + (16-rk)*5.0)
+                    if rk <= 25: return min(28.0, 10 + (25-rk)*2.0)
+                    return max(1.0, 8.0 - (rk-25)*0.3)
+                _wi_sorted['cfp'] = _wi_sorted['_fpi_rank'].apply(_wi_cfp_pct)
+                for _, _wr in _wi_sorted.iterrows():
+                    _nt = float(_wi_fpi_v[_wi_fpi_v['Team']==_wr['Team']]['natty'].iloc[0])
+                    _wi_fpi_odds[str(_wr['Team'])] = {'natty_pct': _nt, 'cfp_pct': float(_wr['cfp'])}
         except Exception:
-            _national_odds = {}
-        # Fuzzy lookup for national odds (same name-mismatch tolerance)
+            pass
+        # Fall back to sigmoid model if FPI unavailable
+        if not _wi_fpi_odds:
+            try:
+                _wi_fpi_odds = build_sigmoid_natty_odds(year=CURRENT_YEAR)
+            except Exception:
+                pass
+
         def _get_natl_odds(team_name):
             t = str(team_name).strip()
-            if t in _national_odds: return _national_odds[t]
+            if t in _wi_fpi_odds: return _wi_fpi_odds[t]
             tl = t.lower()
-            for k, v in _national_odds.items():
+            for k, v in _wi_fpi_odds.items():
                 if k.lower() == tl: return v
             tn = tl.replace('&','and')
-            for k, v in _national_odds.items():
+            for k, v in _wi_fpi_odds.items():
                 if k.lower().replace('&','and') == tn: return v
             return None
 
