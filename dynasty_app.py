@@ -20539,16 +20539,38 @@ with tabs[0]:
                 _dg_sched_c['Visitor Rank'] = pd.to_numeric(_dg_sched_c.get('Visitor Rank'), errors='coerce')
                 _dg_sched_c['Home Rank']    = pd.to_numeric(_dg_sched_c.get('Home Rank'),    errors='coerce')
 
-            if not _dg_fpi_df.empty and 'Chaos' in _dg_fpi_df.columns:
+            if not _dg_fpi_df.empty:
                 _dg_fpi_map = dict(zip(_dg_fpi_df['Team'], _dg_fpi_df['FPI']))
-                # Top 10 by Chaos, exclude teams with 0 games or 0 chaos
-                _dg_top = _dg_fpi_df[_dg_fpi_df['GamesPlayed'] > 0].copy()
-                _dg_top = _dg_top.nlargest(10, 'Chaos').reset_index(drop=True)
 
-                _dg_cards = ""
+                # ── Always compute Chaos live so new formula is used regardless of CSV ──
+                _dg_all_scores = load_scores_master(CURRENT_YEAR, multi_year=False)
+                _dg_chaos_live = {}
+                for _dgt in _dg_fpi_df['Team'].tolist():
+                    try:
+                        _dg_chaos_live[_dgt] = compute_chaos_rating(
+                            _dg_all_scores, _dgt,
+                            year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER,
+                            fpi_ratings=_dg_fpi_map
+                        )
+                    except Exception:
+                        _fallback_col = _dg_fpi_df[_dg_fpi_df['Team']==_dgt]
+                        _dg_chaos_live[_dgt] = float(_fallback_col['Chaos'].iloc[0]) if ('Chaos' in _dg_fpi_df.columns and not _fallback_col.empty) else 0.0
+
+                _dg_fpi_df = _dg_fpi_df.copy()
+                _dg_fpi_df['Chaos'] = _dg_fpi_df['Team'].map(_dg_chaos_live).fillna(0.0)
+
+                _dg_gp_col = 'GamesPlayed' if 'GamesPlayed' in _dg_fpi_df.columns else None
+                _dg_pool = _dg_fpi_df[_dg_fpi_df[_dg_gp_col] > 0] if _dg_gp_col else _dg_fpi_df
+                _dg_top = _dg_pool.nlargest(10, 'Chaos').reset_index(drop=True)
+
+                # ── Render wrapper, then one st.markdown per card (avoids base64 overflow) ──
+                st.markdown(
+                    "<div style='border:1px solid #1e293b;border-radius:10px;padding:8px 12px;background:#06090f;'>",
+                    unsafe_allow_html=True
+                )
                 for _di, _dr in _dg_top.iterrows():
                     _dg_team  = str(_dr['Team'])
-                    _dg_chaos = float(_dr.get('Chaos', 0))
+                    _dg_chaos = float(_dg_chaos_live.get(_dg_team, _dr.get('Chaos', 0)))
                     _dg_fpi   = float(_dr.get('FPI', 0))
                     _dg_w     = int(_dr.get('W', 0))
                     _dg_l     = int(_dr.get('L', 0))
@@ -20558,7 +20580,7 @@ with tabs[0]:
                     _dg_ab    = _abbrev(_dg_team) if '_abbrev' in dir() else _dg_team[:6]
                     _dg_is_user = _dg_team in set(USER_TEAMS.values())
 
-                    # Find this team's biggest upset win (won as underdog by FPI)
+                    # Find biggest upset win
                     _best_upset_line = ""
                     _best_upset_score = -999
                     if not _dg_sched_c.empty:
@@ -20569,18 +20591,17 @@ with tabs[0]:
                         ]
                         _FCS_PFX = {'FCS','FCSMW','FCSW','FCSS','FCSE'}
                         for _, _gg in _tg.iterrows():
-                            _vis = str(_gg['Visitor']).strip()
-                            _vs  = float(_gg['Vis Score'] or 0)
-                            _hs  = float(_gg['Home Score'] or 0)
+                            _vis    = str(_gg['Visitor']).strip()
+                            _vs     = float(_gg['Vis Score'] or 0)
+                            _hs     = float(_gg['Home Score'] or 0)
                             _is_vis = _vis == _dg_team
-                            _opp  = str(_gg['Home']).strip() if _is_vis else _vis
-                            _won  = (_vs > _hs) if _is_vis else (_hs > _vs)
+                            _opp    = str(_gg['Home']).strip() if _is_vis else _vis
+                            _won    = (_vs > _hs) if _is_vis else (_hs > _vs)
                             if not _won: continue
-                            # Skip FCS opponents — not a real upset
                             if any(_opp.upper().startswith(p) for p in _FCS_PFX): continue
-                            _opp_fpi = _dg_fpi_map.get(_opp, 0.0)
-                            _fpi_gap = my_fpi - _opp_fpi  # negative = we were the underdog
-                            _margin  = abs(_vs - _hs)
+                            _opp_fpi  = _dg_fpi_map.get(_opp, 0.0)
+                            _fpi_gap  = my_fpi - _opp_fpi
+                            _margin   = abs(_vs - _hs)
                             _chaos_pts = 0
                             if _fpi_gap < -2:
                                 _chaos_pts = 12 + abs(_fpi_gap)*1.2 + (_margin/7.0)**0.65*9
@@ -20590,34 +20611,33 @@ with tabs[0]:
                                 _chaos_pts = 1.0
                             if _chaos_pts > _best_upset_score:
                                 _best_upset_score = _chaos_pts
-                                # Build game line
                                 _opp_rk_col = 'Home Rank' if _is_vis else 'Visitor Rank'
                                 _opp_rk_val = _gg.get(_opp_rk_col)
                                 try:
                                     _opp_rk = int(float(_opp_rk_val)) if pd.notna(_opp_rk_val) else None
                                 except Exception:
                                     _opp_rk = None
-                                _wk = int(_gg.get('Week', 0) or 0)
-                                _our_score  = int(_vs) if _is_vis else int(_hs)
+                                _wk          = int(_gg.get('Week', 0) or 0)
+                                _our_score   = int(_vs) if _is_vis else int(_hs)
                                 _their_score = int(_hs) if _is_vis else int(_vs)
-                                _rank_str = f" (#{_opp_rk})" if _opp_rk and _opp_rk <= 25 else ""
-                                _gap_str  = f" as {abs(_fpi_gap):.0f}-pt FPI underdogs" if _fpi_gap < -2 else ""
+                                _rank_str    = f" (#{_opp_rk})" if _opp_rk and _opp_rk <= 25 else ""
+                                _gap_str     = f" as {abs(_fpi_gap):.0f}-pt FPI underdogs" if _fpi_gap < -2 else ""
                                 _best_upset_line = (
                                     f"Wk {_wk} def. {_opp}{_rank_str} "
                                     f"<strong>{_our_score}–{_their_score}</strong>{_gap_str}"
                                 )
 
-                    # Chaos tier label — tuned to new variance scale
                     if _dg_chaos >= 80:   _tier = "🔥 PURE CHAOS";  _tier_c = "#f97316"
                     elif _dg_chaos >= 50: _tier = "⚡ VOLATILE";     _tier_c = "#fbbf24"
                     elif _dg_chaos >= 25: _tier = "📈 DISRUPTIVE";   _tier_c = "#4ade80"
                     elif _dg_chaos >= 5:  _tier = "🎲 WILD CARD";    _tier_c = "#94a3b8"
                     else:                 _tier = "💀 CHOKER";        _tier_c = "#f87171"
 
-                    _border_style = f"border-left:4px solid {_dg_color};" if _dg_is_user else f"border-left:2px solid #1e293b;"
-                    _bg_style = f"background:linear-gradient(90deg,{_dg_color}18 0%,#06090f 35%);" if _dg_is_user else "background:#06090f;"
+                    _border_style = f"border-left:4px solid {_dg_color};" if _dg_is_user else "border-left:2px solid #1e293b;"
+                    _bg_style     = f"background:linear-gradient(90deg,{_dg_color}18 0%,#06090f 35%);" if _dg_is_user else "background:#06090f;"
+                    _upset_html   = f"<div style='margin-top:5px;font-size:0.68rem;color:#64748b;padding-left:26px;'>{_best_upset_line}</div>" if _best_upset_line else ""
 
-                    _dg_cards += f"""
+                    st.markdown(f"""
                     <div style='{_bg_style}{_border_style}border-radius:8px;padding:10px 14px;margin-bottom:6px;'>
                       <div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>
                         <div style='display:flex;align-items:center;gap:6px;'>
@@ -20631,14 +20651,10 @@ with tabs[0]:
                           <span style='font-family:Bebas Neue,sans-serif;font-size:1.15rem;color:#f97316;'>{_dg_chaos:+.0f}</span>
                         </div>
                       </div>
-                      {f"<div style='margin-top:5px;font-size:0.68rem;color:#64748b;padding-left:26px;'>{_best_upset_line}</div>" if _best_upset_line else ""}
-                    </div>"""
+                      {_upset_html}
+                    </div>""", unsafe_allow_html=True)
 
-                st.markdown(
-                    f"<div style='border:1px solid #1e293b;border-radius:10px;padding:12px;background:#06090f;'>"
-                    f"{_dg_cards}</div>",
-                    unsafe_allow_html=True
-                )
+                st.markdown("</div>", unsafe_allow_html=True)
             else:
                 st.info("Run COMPUTE_RATINGS.bat and push fpi_ratings_{YEAR}_wk{WEEK}.csv to see the Chaos leaderboard.")
         except Exception as _dg_err:
