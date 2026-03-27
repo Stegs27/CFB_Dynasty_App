@@ -1068,6 +1068,119 @@ def calc_draft_value(row):
     return round((ovr * 0.70) + (awr * 0.08) + athletic_bonus + pos_bonus + class_bonus + variance, 2)
 
 
+def derive_cpu_draft_from_top20(year=None, write_csv=True):
+    """
+    Build cpu_draft_pool.csv candidates from cfb_136_top20_rosters_{YEAR}.csv.
+
+    Filters to SR / SR (RS) players (draft-eligible seniors), derives PosBucket,
+    calculates DraftValueScore, assigns provisional DraftRound, and outputs a
+    DataFrame schema-compatible with cpu_draft_pool.csv.
+
+    Call this after the 272-screenshot TOP20_ROSTERS batch is complete.
+    Existing cpu_draft_pool entries are preserved; only new players are appended.
+    Returns the derived DataFrame (not the merged one).
+    """
+    target_year = int(year) if year else CURRENT_YEAR
+    roster_file = f'cfb_136_top20_rosters_{target_year}.csv'
+
+    if not os.path.exists(roster_file):
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_csv(roster_file)
+    except Exception:
+        return pd.DataFrame()
+
+    # Normalize columns
+    df.columns = [str(c).strip() for c in df.columns]
+    df['YEAR_CLASS'] = df.get('YEAR_CLASS', df.get('Class', '')).astype(str).str.strip()
+
+    # Filter to draft-eligible seniors only
+    _sr_classes = {'SR', 'SR (RS)', 'SR(RS)'}
+    draft_df = df[df['YEAR_CLASS'].str.upper().isin({c.upper() for c in _sr_classes})].copy()
+    if draft_df.empty:
+        return pd.DataFrame()
+
+    # Coerce numeric stat columns
+    _stat_cols = ['OVR','SPD','ACC','AGI','COD','STR','AWR',
+                  'THP','THV','THA','THS','TRL','ELU','CAR',
+                  'CTH','SPC','RLS','MCV','ZCV','PRC','TAK',
+                  'POW','BKB','BLK','PBK','RBK']
+    for c in _stat_cols:
+        if c in draft_df.columns:
+            draft_df[c] = pd.to_numeric(draft_df[c], errors='coerce').fillna(0).astype(int)
+
+    # Derive PosBucket from POS
+    draft_df['PosBucket'] = draft_df['POS'].apply(
+        lambda p: clean_bucket(str(p).strip().upper())
+    )
+
+    # Build draft value score
+    draft_df['DraftValueScore'] = draft_df.apply(
+        lambda r: calc_draft_value({
+            **r.to_dict(),
+            'Class': r['YEAR_CLASS'],
+            'PosBucket': r['PosBucket'],
+        }), axis=1
+    )
+
+    # Assign provisional draft round based on DraftValueScore
+    def _round(score):
+        if score >= 103: return 1
+        if score >= 97:  return 2
+        if score >= 91:  return 3
+        if score >= 85:  return 4
+        if score >= 79:  return 5
+        if score >= 73:  return 6
+        return 7
+
+    draft_df['DraftRound'] = draft_df['DraftValueScore'].apply(_round)
+    draft_df = draft_df.sort_values('DraftValueScore', ascending=False).reset_index(drop=True)
+    draft_df['DraftRank'] = draft_df.index + 1
+
+    # Build output in cpu_draft_pool schema
+    out = pd.DataFrame({
+        'DraftYear':       target_year,
+        'DraftRank':       draft_df['DraftRank'],
+        'Player':          draft_df['NAME'],
+        'CollegeTeam':     draft_df['TEAM'],
+        'Pos':             draft_df['POS'],
+        'PosBucket':       draft_df['PosBucket'],
+        'Class':           draft_df['YEAR_CLASS'],
+        'OVR':             draft_df.get('OVR', 0),
+        'SPD':             draft_df.get('SPD', 0),
+        'ACC':             draft_df.get('ACC', 0),
+        'AGI':             draft_df.get('AGI', 0),
+        'COD':             draft_df.get('COD', 0),
+        'STR':             draft_df.get('STR', 0),
+        'AWR':             draft_df.get('AWR', 0),
+        'DraftValueScore': draft_df['DraftValueScore'],
+        'DraftRound':      draft_df['DraftRound'],
+    })
+
+    if write_csv:
+        pool_file = 'cpu_draft_pool.csv'
+        try:
+            if os.path.exists(pool_file):
+                existing = pd.read_csv(pool_file)
+                existing['DraftYear'] = pd.to_numeric(existing.get('DraftYear', 0), errors='coerce')
+                # Remove any prior auto-derived entries for this year, keep manual/watcher entries
+                existing = existing[
+                    ~((existing['DraftYear'].fillna(-1).astype(int) == target_year) &
+                      (existing.get('Source', pd.Series([''] * len(existing))).astype(str).str.upper() == 'TOP20_DERIVED'))
+                ]
+                out['Source'] = 'TOP20_DERIVED'
+                combined = pd.concat([existing, out], ignore_index=True)
+                combined.to_csv(pool_file, index=False)
+            else:
+                out['Source'] = 'TOP20_DERIVED'
+                out.to_csv(pool_file, index=False)
+        except Exception:
+            pass
+
+    return out
+
+
 def build_nfl_team_needs(nfl_roster_df):
     if nfl_roster_df is None or nfl_roster_df.empty:
         return pd.DataFrame(columns=[
@@ -27824,6 +27937,34 @@ with tabs[1]:
             # Warn upfront if the base roster file is missing — rebuild will produce 0 rows without it
             if _base_nfl_roster is None or (hasattr(_base_nfl_roster, "empty") and _base_nfl_roster.empty):
                 st.warning("⚠️ **NFLroster26_MASTER.csv** is missing or empty in the repo. Rebuild will produce 0 rows until you push that file. Upload it to GitHub first.")
+
+            # ── Derive CPU Draft Pool from Top-20 Rosters ────────────────────
+            st.markdown("#### 🎓 CPU Draft Pool")
+            st.caption(
+                f"After completing all TOP20_ROSTERS screenshots, generate CPU draft candidates "
+                f"from `cfb_136_top20_rosters_{CURRENT_YEAR}.csv`. Extracts SR/SR(RS) players, "
+                f"calculates DraftValueScore, and appends to `cpu_draft_pool.csv`."
+            )
+            if st.button("🎓 Derive CPU Draft Pool from Top-20 Rosters",
+                         use_container_width=True, key="derive_draft_from_top20_btn",
+                         help="Reads cfb_136_top20_rosters_{YEAR}.csv, filters seniors, scores them, and writes to cpu_draft_pool.csv."):
+                _derived = derive_cpu_draft_from_top20(year=CURRENT_YEAR, write_csv=True)
+                if _derived.empty:
+                    st.warning(f"No data found in cfb_136_top20_rosters_{CURRENT_YEAR}.csv, or no SR/SR(RS) players present.")
+                else:
+                    _sr_count = len(_derived)
+                    _r1 = len(_derived[_derived['DraftRound'] == 1])
+                    st.success(
+                        f"✅ Derived **{_sr_count} draft candidates** from Top-20 rosters "
+                        f"({_r1} projected Round 1). Written to `cpu_draft_pool.csv`. "
+                        f"Download and push to repo."
+                    )
+                    st.dataframe(
+                        _derived[['Player','CollegeTeam','Pos','Class','OVR','SPD','ACC','DraftValueScore','DraftRound']]
+                        .head(30),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
 
             # ── Apply Trades to Current Rosters ──────────────────────────────
             if st.button("🔀 Apply Trades → Current Rosters", use_container_width=True,
