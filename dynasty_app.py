@@ -11204,10 +11204,147 @@ def load_team_ratings(year=None):
         return {}
 
 
+@st.cache_data(ttl=300)
+def compute_conf_standings_from_schedule(year=None, write_csv=True):
+    """
+    Derive conf_standings_{YEAR}.csv from schedule_{YEAR}.csv (or CPUscores fallback).
+
+    Computes per-team: W, L, PF, PA, DIFF, MOV, HOME (W-L string), AWAY (W-L string),
+    STK (signed int: +3=W3, -2=L2), CONF_W, CONF_L, and CONFERENCE (from
+    team_conferences.csv if available).
+
+    Returns a DataFrame in the same schema as conf_standings_{YEAR}.csv so all
+    existing callers (load_team_performance, Who's In, SOS, FPI) work unchanged.
+    Also writes the CSV to disk if write_csv=True so the watcher-imported file
+    is no longer strictly required.
+    """
+    target_year = int(year) if year else CURRENT_YEAR
+    df = load_scores_master(target_year)
+    if df.empty:
+        return pd.DataFrame()
+
+    # Only completed games
+    df = df.copy()
+    df['YEAR'] = pd.to_numeric(df.get('YEAR', target_year), errors='coerce')
+    df['Week'] = pd.to_numeric(df.get('Week', 0), errors='coerce')
+    df = df[df['YEAR'].fillna(-1).astype(int) == target_year]
+    completed = df[df.get('Status', pd.Series(['FINAL']*len(df))).astype(str).str.upper() == 'FINAL'].copy()
+    if completed.empty:
+        return pd.DataFrame()
+
+    # Coerce scores
+    for col in ('Vis Score', 'Home Score'):
+        completed[col] = pd.to_numeric(completed.get(col, 0), errors='coerce').fillna(0)
+
+    # Load conference map from team_conferences.csv
+    conf_map = {}
+    try:
+        _tc = pd.read_csv('team_conferences.csv')
+        _tc['TEAM'] = _tc['TEAM'].astype(str).str.strip()
+        _tc['CONFERENCE'] = _tc['CONFERENCE'].astype(str).str.strip()
+        conf_map = dict(zip(_tc['TEAM'], _tc['CONFERENCE']))
+    except Exception:
+        pass
+
+    # Build per-team stats
+    stats = {}  # team → running totals dict
+
+    def _get(team):
+        if team not in stats:
+            stats[team] = {
+                'W': 0, 'L': 0, 'PF': 0.0, 'PA': 0.0,
+                'HOME_W': 0, 'HOME_L': 0, 'AWAY_W': 0, 'AWAY_L': 0,
+                'CONF_W': 0, 'CONF_L': 0,
+                'results': [],  # ordered list of 'W'/'L' for streak calc
+            }
+        return stats[team]
+
+    for _, g in completed.iterrows():
+        vis  = str(g.get('Visitor', '')).strip()
+        hom  = str(g.get('Home',    '')).strip()
+        vpts = float(g.get('Vis Score',  0) or 0)
+        hpts = float(g.get('Home Score', 0) or 0)
+        if not vis or not hom:
+            continue
+
+        v_won = vpts > hpts
+        is_conf = (conf_map.get(vis) and conf_map.get(hom) and
+                   conf_map.get(vis) == conf_map.get(hom))
+
+        # Visitor record
+        sv = _get(vis)
+        sv['PF'] += vpts; sv['PA'] += hpts
+        sv['AWAY_W' if v_won else 'AWAY_L'] += 1
+        sv['W' if v_won else 'L'] += 1
+        if is_conf: sv['CONF_W' if v_won else 'CONF_L'] += 1
+        sv['results'].append('W' if v_won else 'L')
+
+        # Home record
+        sh = _get(hom)
+        sh['PF'] += hpts; sh['PA'] += vpts
+        sh['HOME_W' if not v_won else 'HOME_L'] += 1
+        sh['W' if not v_won else 'L'] += 1
+        if is_conf: sh['CONF_W' if not v_won else 'CONF_L'] += 1
+        sh['results'].append('W' if not v_won else 'L')
+
+    if not stats:
+        return pd.DataFrame()
+
+    rows = []
+    for team, s in sorted(stats.items()):
+        gp   = max(s['W'] + s['L'], 1)
+        diff = s['PF'] - s['PA']
+        mov  = round(diff / gp, 2)
+
+        # Streak: walk results backwards
+        streak_sign = s['results'][-1] if s['results'] else 'W'
+        streak_count = 0
+        for r in reversed(s['results']):
+            if r == streak_sign:
+                streak_count += 1
+            else:
+                break
+        stk = streak_count if streak_sign == 'W' else -streak_count
+
+        rows.append({
+            'YEAR':       target_year,
+            'TEAM':       team,
+            'CONFERENCE': conf_map.get(team, ''),
+            'W':          s['W'],
+            'L':          s['L'],
+            'CONF_W':     s['CONF_W'],
+            'CONF_L':     s['CONF_L'],
+            'PF':         round(s['PF'], 1),
+            'PA':         round(s['PA'], 1),
+            'DIFF':       round(diff, 1),
+            'MOV':        mov,
+            'HOME':       f"{s['HOME_W']}-{s['HOME_L']}",
+            'AWAY':       f"{s['AWAY_W']}-{s['AWAY_L']}",
+            'STK':        stk,
+        })
+
+    out = pd.DataFrame(rows)
+
+    # Compute conf rank within each conference by conf W-L then overall W-L
+    if not out.empty:
+        out = out.sort_values(['CONFERENCE', 'CONF_W', 'W'], ascending=[True, False, False])
+        out['CONF_RANK'] = out.groupby('CONFERENCE').cumcount() + 1
+        out = out.sort_values(['W', 'DIFF'], ascending=False).reset_index(drop=True)
+
+    if write_csv and not out.empty:
+        try:
+            out.to_csv(f'conf_standings_{target_year}.csv', index=False)
+        except Exception:
+            pass
+
+    return out
+
+
 def load_team_performance(year=None):
     """
     Load in-season performance stats from conf_standings_{year}.csv.
     Returns dict: team → {PF, PA, DIFF, MOV, HOME_W, HOME_L, AWAY_W, AWAY_L, W, L, STK}
+
     HOME/AWAY columns are W-L strings e.g. "7-2". DIFF and MOV pre-computed.
     Handles multiple rows per team (weekly snapshots) by taking the latest week.
     """
@@ -11215,6 +11352,8 @@ def load_team_performance(year=None):
         year = CURRENT_YEAR
     try:
         cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
+        if cs.empty:
+            raise FileNotFoundError("empty")
         cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
         if 'CONFERENCE' in cs.columns:
             cs['CONFERENCE'] = cs['CONFERENCE'].astype(str).apply(normalize_conf_name)
@@ -11274,7 +11413,15 @@ def load_team_performance(year=None):
             }
         return result
     except Exception:
-        return {}
+        # CSV missing or empty — derive from schedule_{YEAR}.csv on the fly
+        try:
+            _sched_cs = compute_conf_standings_from_schedule(year=year, write_csv=True)
+            if _sched_cs.empty:
+                return {}
+            # Recursively call self now that CSV was written
+            return load_team_performance(year=year)
+        except Exception:
+            return {}
 
 
 def estimate_game_line_from_ratings(home_team, away_team, ratings_map, home_field=True, perf_map=None):
@@ -24280,10 +24427,14 @@ with _yt_tabs[2]:
 
             with _ctab_all:
                 st.caption("User vs user classics — ranked by closeness + stakes + upset factor.")
-                _uvsu = _classics_df[
-                    _classics_df['WinnerUser'].astype(str).str.strip().ne('') &
-                    _classics_df['LoserUser'].astype(str).str.strip().ne('')
-                ] if 'WinnerUser' in _classics_df.columns else _classics_df
+                _valid_users = {str(u).strip() for u in USER_TEAMS.keys() if u and str(u).strip().lower() not in ('', 'nan')}
+                if 'WinnerUser' in _classics_df.columns and 'LoserUser' in _classics_df.columns:
+                    _uvsu = _classics_df[
+                        _classics_df['WinnerUser'].astype(str).str.strip().isin(_valid_users) &
+                        _classics_df['LoserUser'].astype(str).str.strip().isin(_valid_users)
+                    ]
+                else:
+                    _uvsu = _classics_df
                 _top25 = _uvsu.head(25)
                 if _top25.empty:
                     st.info("No user vs user classics yet.")
@@ -24293,10 +24444,14 @@ with _yt_tabs[2]:
 
             with _ctab_upsets:
                 st.caption("User vs user upsets — lower-rated team pulled off the W.")
-                _uvsu2 = _classics_df[
-                    _classics_df['WinnerUser'].astype(str).str.strip().ne('') &
-                    _classics_df['LoserUser'].astype(str).str.strip().ne('')
-                ] if 'WinnerUser' in _classics_df.columns else _classics_df
+                _valid_users = {str(u).strip() for u in USER_TEAMS.keys() if u and str(u).strip().lower() not in ('', 'nan')}
+                if 'WinnerUser' in _classics_df.columns and 'LoserUser' in _classics_df.columns:
+                    _uvsu2 = _classics_df[
+                        _classics_df['WinnerUser'].astype(str).str.strip().isin(_valid_users) &
+                        _classics_df['LoserUser'].astype(str).str.strip().isin(_valid_users)
+                    ]
+                else:
+                    _uvsu2 = _classics_df
                 _upsets = _uvsu2[_uvsu2['IsUpset']].sort_values('OVR_Diff', ascending=False).head(20)
                 if _upsets.empty:
                     st.info("No user vs user upsets yet.")
@@ -24306,10 +24461,14 @@ with _yt_tabs[2]:
 
             with _ctab_close:
                 st.caption("User vs user gut-punchers — decided by a single score or less.")
-                _uvsu3 = _classics_df[
-                    _classics_df['WinnerUser'].astype(str).str.strip().ne('') &
-                    _classics_df['LoserUser'].astype(str).str.strip().ne('')
-                ] if 'WinnerUser' in _classics_df.columns else _classics_df
+                _valid_users = {str(u).strip() for u in USER_TEAMS.keys() if u and str(u).strip().lower() not in ('', 'nan')}
+                if 'WinnerUser' in _classics_df.columns and 'LoserUser' in _classics_df.columns:
+                    _uvsu3 = _classics_df[
+                        _classics_df['WinnerUser'].astype(str).str.strip().isin(_valid_users) &
+                        _classics_df['LoserUser'].astype(str).str.strip().isin(_valid_users)
+                    ]
+                else:
+                    _uvsu3 = _classics_df
                 _close = _uvsu3.sort_values('Margin').head(20)
                 if _close.empty:
                     st.info("No user vs user close games yet.")
@@ -24948,24 +25107,38 @@ with tabs[1]:
 
     st.caption("Track where dynasty alumni land, how their NFL careers evolve, and who owns the fictional pro landscape.")
 
-    # Auto-load — no click barrier
+    # ── Load gate — heavy tab, only renders on button click ───────────
     if "nfl_universe_loaded" not in st.session_state:
-        st.session_state["nfl_universe_loaded"] = True
+        st.session_state["nfl_universe_loaded"] = False
 
-    universe = None
-    nfl_roster = pd.DataFrame()
-    cfb_draft = pd.DataFrame()
+    if not st.session_state["nfl_universe_loaded"]:
+        st.markdown("<div style='height:60px;'></div>", unsafe_allow_html=True)
+        _nfl_col = st.columns([1, 2, 1])[1]
+        with _nfl_col:
+            if st.button("🏈 Load NFL Universe", use_container_width=True, key="nfl_universe_load_btn"):
+                st.session_state["nfl_universe_loaded"] = True
+                st.rerun()
+        st.markdown(
+            "<div style='text-align:center;color:#475569;font-size:0.85rem;margin-top:10px;'>"
+            "NFL sim data, draft history, rosters and alumni tracking load on demand.</div>",
+            unsafe_allow_html=True
+        )
 
-    try:
-        universe = load_nfl_universe_data()
-        nfl_roster = universe.get("nfl_current_rosters", pd.DataFrame())
-        cfb_draft  = universe.get("cfb_draft", pd.DataFrame())
-    except Exception as _univ_err:
-        st.error(f"Error loading NFL Universe data: {_univ_err}")
+    if st.session_state["nfl_universe_loaded"]:
         universe = None
-    if universe is not None:
-        nfl_draft_hist = universe["nfl_draft_hist"]
-        nfl_current_rosters = universe["nfl_current_rosters"]
+        nfl_roster = pd.DataFrame()
+        cfb_draft = pd.DataFrame()
+
+        try:
+            universe = load_nfl_universe_data()
+            nfl_roster = universe.get("nfl_current_rosters", pd.DataFrame())
+            cfb_draft  = universe.get("cfb_draft", pd.DataFrame())
+        except Exception as _univ_err:
+            st.error(f"Error loading NFL Universe data: {_univ_err}")
+            universe = None
+        if universe is not None:
+            nfl_draft_hist = universe["nfl_draft_hist"]
+            nfl_current_rosters = universe["nfl_current_rosters"]
 
         for col in NFL_DRAFT_HISTORY_COLS:
             if col not in nfl_draft_hist.columns:
