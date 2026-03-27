@@ -10552,12 +10552,21 @@ def compute_ms_plus(year=None, week_cap=None):
         recruit_df = pd.DataFrame()
 
     try:
-        roster_df = pd.read_csv('cfb26_rosters_full.csv')
-        roster_df['Season'] = pd.to_numeric(roster_df.get('Season', roster_df.get('YEAR', target_year)), errors='coerce')
-        roster_df = roster_df[roster_df['Season'].fillna(-1).astype(int) == target_year].copy()
-        roster_df['OVR'] = pd.to_numeric(roster_df.get('OVR', 0), errors='coerce').fillna(0)
-        roster_df['SPD'] = pd.to_numeric(roster_df.get('SPD', 0), errors='coerce').fillna(0)
-        roster_df['ACC'] = pd.to_numeric(roster_df.get('ACC', 0), errors='coerce').fillna(0)
+        # Prefer the new year-keyed top-20 roster file; fall back to full roster
+        _top20_file = f'cfb_136_top20_rosters_{target_year}.csv'
+        if os.path.exists(_top20_file):
+            roster_df = pd.read_csv(_top20_file)
+            roster_df['YEAR'] = pd.to_numeric(roster_df.get('YEAR', target_year), errors='coerce')
+            roster_df = roster_df[roster_df['YEAR'].fillna(-1).astype(int) == target_year].copy()
+            # Normalize column names to match what the components expect
+            roster_df = roster_df.rename(columns={'YEAR_CLASS': 'Year'})
+        else:
+            roster_df = pd.read_csv('cfb26_rosters_full.csv')
+            roster_df['Season'] = pd.to_numeric(roster_df.get('Season', roster_df.get('YEAR', target_year)), errors='coerce')
+            roster_df = roster_df[roster_df['Season'].fillna(-1).astype(int) == target_year].copy()
+        for _rc in ('OVR','SPD','ACC','AGI','COD'):
+            if _rc in roster_df.columns:
+                roster_df[_rc] = pd.to_numeric(roster_df[_rc], errors='coerce').fillna(0)
     except Exception:
         roster_df = pd.DataFrame()
 
@@ -10583,6 +10592,22 @@ def compute_ms_plus(year=None, week_cap=None):
             fpi_scores = compute_power_ratings(_sched, year=target_year, week_cap=week_cap)
     except Exception:
         pass
+
+    # Load multi-year schedule for Recent Performance W/L history (last 4 seasons)
+    _hist_sched = pd.DataFrame()
+    try:
+        _hist_sched = load_scores_master(multi_year=True)
+        if not _hist_sched.empty:
+            _hist_sched['YEAR'] = pd.to_numeric(_hist_sched.get('YEAR', target_year), errors='coerce')
+            _hist_sched['Vis Score']  = pd.to_numeric(_hist_sched.get('Vis Score', 0),  errors='coerce')
+            _hist_sched['Home Score'] = pd.to_numeric(_hist_sched.get('Home Score', 0), errors='coerce')
+            _hist_sched = _hist_sched[
+                (_hist_sched['YEAR'] >= target_year - 4) &
+                (_hist_sched['YEAR'] <  target_year) &
+                (_hist_sched.get('Status', pd.Series(['FINAL']*len(_hist_sched))).astype(str).str.upper() == 'FINAL')
+            ].copy()
+    except Exception:
+        _hist_sched = pd.DataFrame()
 
     # Build team list from ratings
     if ratings_df.empty:
@@ -10722,16 +10747,49 @@ def compute_ms_plus(year=None, week_cap=None):
         components['qb'] = qb_score
 
         # ── 7. Recent Performance (last 4 seasons) — weight 0.10 ──────
+        # Blends: titles (natty +15, conf +8) + win rate from schedule history
         perf_score = 50.0
-        if not champs_df.empty:
+
+        # Title component — from champs.csv
+        natty_count = 0
+        conf_count  = 0
+        if not champs_df.empty and 'Team' in champs_df.columns:
             _cp = champs_df[
                 (champs_df['Team'].astype(str).str.strip() == team) &
                 (champs_df['year'] >= target_year - 4) &
-                (champs_df['year'] < target_year)
-            ] if 'Team' in champs_df.columns else pd.DataFrame()
-            natty_count = len(_cp[_cp.get('type', _cp.get('Type', pd.Series())).astype(str).str.upper().str.contains('NATTY|NATIONAL', na=False)]) if not _cp.empty else 0
-            conf_count  = len(_cp[_cp.get('type', _cp.get('Type', pd.Series())).astype(str).str.upper().str.contains('CONF', na=False)]) if not _cp.empty else 0
-            perf_score = min(100, 50 + natty_count * 15 + conf_count * 8)
+                (champs_df['year'] <  target_year)
+            ]
+            if not _cp.empty:
+                _type_col = 'type' if 'type' in _cp.columns else ('Type' if 'Type' in _cp.columns else None)
+                if _type_col:
+                    natty_count = len(_cp[_cp[_type_col].astype(str).str.upper().str.contains('NATTY|NATIONAL', na=False)])
+                    conf_count  = len(_cp[_cp[_type_col].astype(str).str.upper().str.contains('CONF', na=False)])
+        title_boost = natty_count * 15 + conf_count * 8
+
+        # Win rate component — from schedule_{YEAR}.csv history
+        win_rate_score = 50.0
+        if not _hist_sched.empty:
+            _vis_col = next((c for c in ('Visitor','VISITOR','visitor') if c in _hist_sched.columns), None)
+            _hom_col = next((c for c in ('Home','HOME','home')         if c in _hist_sched.columns), None)
+            if _vis_col and _hom_col:
+                _tm_games = _hist_sched[
+                    (_hist_sched[_vis_col].astype(str).str.strip() == team) |
+                    (_hist_sched[_hom_col].astype(str).str.strip() == team)
+                ]
+                if not _tm_games.empty:
+                    _wins = 0
+                    for _, _g in _tm_games.iterrows():
+                        _vs = float(_g.get('Vis Score', 0) or 0)
+                        _hs = float(_g.get('Home Score', 0) or 0)
+                        _is_vis = str(_g.get(_vis_col, '')).strip() == team
+                        _won = (_vs > _hs) if _is_vis else (_hs > _vs)
+                        if _won: _wins += 1
+                    _win_pct = _wins / len(_tm_games)
+                    # Scale: .800+ = 100, .500 = 50, .200 = 0
+                    win_rate_score = max(0, min(100, round((_win_pct - 0.200) / 0.600 * 100, 1)))
+
+        # Blend: 60% win rate history, 40% titles (titles are rare — weight them but don't dominate)
+        perf_score = min(100, round(win_rate_score * 0.60 + (50 + title_boost) * 0.40, 1))
         components['performance'] = perf_score
 
         # ── 8. Clobber Rating (FPI) — weight 0.10 ────────────────────
@@ -11161,11 +11219,32 @@ def normalize_game_summaries(df):
 
 def load_team_ratings(year=None):
     """
-    Load team ratings from team_ratings.csv.
+    Load team ratings. Prefers team_ratings_{YEAR}.csv (new year-keyed format),
+    falls back to legacy team_ratings.csv.
     Returns dict: team_name.lower() → {'OVR': x, 'OFF': x, 'DEF': x}
-    For the current year: merges all years so CPU teams always resolve.
-    User-team year-specific data takes priority over older entries.
     """
+    target_year = int(year) if year else CURRENT_YEAR
+
+    # Try year-keyed file first
+    _yr_file = f'team_ratings_{target_year}.csv'
+    if os.path.exists(_yr_file):
+        try:
+            tr = pd.read_csv(_yr_file)
+            result = {}
+            for _, row in tr.iterrows():
+                k = str(row.get('TEAM', '')).strip().lower()
+                if not k: continue
+                result[k] = {
+                    'OVR': row.get('OVR', row.get('OVERALL', 82)),
+                    'OFF': row.get('OFF', row.get('OFFENSE', 82)),
+                    'DEF': row.get('DEF', row.get('DEFENSE', 82)),
+                }
+            if result:
+                return result
+        except Exception:
+            pass
+
+    # Fall back to legacy team_ratings.csv (multi-year flat file)
     try:
         tr = pd.read_csv('team_ratings.csv')
         tr['YEAR'] = pd.to_numeric(tr['YEAR'], errors='coerce')
