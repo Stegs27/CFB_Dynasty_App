@@ -12102,15 +12102,16 @@ def estimate_game_line_blended(home_team, away_team, ratings_map, perf_map=None,
         except Exception:
             ms_diff = 0.0
 
-    # ── Blend weights: 40% ratings, 40% FPI, 20% MS+ ─────────────────
+    # ── Blend weights: 65% FPI, 25% ratings, 10% MS+ ──────────────────
+    # FPI is the primary driver; ratings and MS+ provide context
     has_fpi = fpi_diff != 0.0
     has_ms  = ms_diff  != 0.0
     if has_fpi and has_ms:
-        blended_diff = base_diff * 0.40 + fpi_diff * 0.40 + ms_diff * 0.20
+        blended_diff = base_diff * 0.25 + fpi_diff * 0.65 + ms_diff * 0.10
     elif has_fpi:
-        blended_diff = base_diff * 0.50 + fpi_diff * 0.50
+        blended_diff = base_diff * 0.30 + fpi_diff * 0.70
     elif has_ms:
-        blended_diff = base_diff * 0.65 + ms_diff * 0.35
+        blended_diff = base_diff * 0.70 + ms_diff * 0.30
     else:
         blended_diff = base_diff  # pure ratings fallback
 
@@ -17739,7 +17740,10 @@ with tabs[0]:
                 # ── Team ratings for betting lines ────────────────────────────────
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
-        # ── FPI + MS+ tables for blended spread model — one call, no duplicate Colley pass
+        # ── FPI + MS+ tables: spread model + odds + sort order ─────────────────
+        _fpi_live_odds  = {}   # team -> (natty_pct, cfp_pct)
+        _ms_pre_odds    = {}   # team -> (natty_pct, cfp_pct)
+        _sig_win_map    = {}   # team -> blurb string
         try:
             _cfp_fpi_table, _cfp_ms_table = get_ratings_and_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
             if _cfp_fpi_table.empty: _cfp_fpi_table = None
@@ -17747,6 +17751,99 @@ with tabs[0]:
         except Exception:
             _cfp_fpi_table = None
             _cfp_ms_table  = None
+
+        # ── Re-sort power_board by live FPI (fallback: keep current order) ─────
+        if _cfp_fpi_table is not None and 'FPI' in _cfp_fpi_table.columns:
+            _fpi_sort_map = dict(zip(_cfp_fpi_table['Team'], _cfp_fpi_table['FPI']))
+            power_board['_fpi_sort'] = power_board['TEAM'].map(_fpi_sort_map).fillna(-999)
+            power_board = power_board.sort_values('_fpi_sort', ascending=False).reset_index(drop=True)
+            power_board = power_board.drop(columns=['_fpi_sort'], errors='ignore')
+
+        # ── FPI-based LIVE odds (softmax over all 136 teams) ────────────────────
+        if _cfp_fpi_table is not None and 'FPI' in _cfp_fpi_table.columns:
+            try:
+                import numpy as _np_odds
+                _fpi_v = _cfp_fpi_table[['Team','FPI']].copy()
+                _fpi_v['FPI'] = pd.to_numeric(_fpi_v['FPI'], errors='coerce').fillna(0)
+                _k = 0.18
+                _fpi_v['_exp'] = _np_odds.exp(_fpi_v['FPI'] * _k)
+                _total = _fpi_v['_exp'].sum()
+                _fpi_v['natty'] = (_fpi_v['_exp'] / _total * 100).round(1)
+                _fpi_sorted = _fpi_v.sort_values('FPI', ascending=False).reset_index(drop=True)
+                _fpi_sorted['_rk'] = range(1, len(_fpi_sorted)+1)
+                def _cfp_from_rank(rk):
+                    if rk <= 8:  return min(95, round(100 - rk*0.5))
+                    if rk <= 16: return max(30, round(85 - (rk-8)*6))
+                    return max(3, round(30 - (rk-16)*2))
+                _fpi_sorted['cfp'] = _fpi_sorted['_rk'].apply(_cfp_from_rank)
+                for _, _fr in _fpi_sorted.iterrows():
+                    _nt = float(_fpi_v[_fpi_v['Team']==_fr['Team']]['natty'].iloc[0])
+                    _fpi_live_odds[str(_fr['Team'])] = (_nt, float(_fr['cfp']), int(_fr['_rk']))
+            except Exception:
+                pass
+
+        # ── MS+-based PRESEASON odds (softmax) ─────────────────────────────────
+        if _cfp_ms_table is not None and 'MSPlus' in _cfp_ms_table.columns:
+            try:
+                import numpy as _np_ms
+                _ms_v = _cfp_ms_table[['Team','MSPlus']].copy()
+                _ms_v['MSPlus'] = pd.to_numeric(_ms_v['MSPlus'], errors='coerce').fillna(50)
+                # Both natty and CFP: national 136-team softmax
+                _k_ms = 0.04
+                _ms_v['_exp'] = _np_ms.exp(_ms_v['MSPlus'] * _k_ms)
+                _t_ms = _ms_v['_exp'].sum()
+                _ms_v['natty'] = (_ms_v['_exp'] / _t_ms * 100).round(1)
+                # CFP odds: scale natty to 12-team field (multiply by ~12)
+                _ms_v['cfp'] = (_ms_v['natty'] * 12).round(1).clip(upper=92)
+                _user_set_ms = set(USER_TEAMS.values())
+                for _, _mr in _ms_v[_ms_v['Team'].isin(_user_set_ms)].iterrows():
+                    _ms_pre_odds[str(_mr['Team'])] = (float(_mr['natty']), float(_mr['cfp']))
+            except Exception:
+                pass
+
+        # ── Signature win per team ───────────────────────────────────────────────
+        try:
+            _sig_sched = load_scores_master(CURRENT_YEAR)
+            _sig_fpi_map = dict(zip(_cfp_fpi_table['Team'], _cfp_fpi_table['FPI'])) if _cfp_fpi_table is not None else {}
+            if not _sig_sched.empty and _sig_fpi_map:
+                _sig_c = _sig_sched[_sig_sched['Status'].astype(str).str.upper()=='FINAL'].copy()
+                _sig_c['Vis Score']  = pd.to_numeric(_sig_c['Vis Score'],  errors='coerce')
+                _sig_c['Home Score'] = pd.to_numeric(_sig_c['Home Score'], errors='coerce')
+                _sig_c['Week']       = pd.to_numeric(_sig_c['Week'],       errors='coerce').fillna(0)
+                _sig_c['Visitor Rank'] = pd.to_numeric(_sig_c.get('Visitor Rank'), errors='coerce')
+                _sig_c['Home Rank']    = pd.to_numeric(_sig_c.get('Home Rank'),    errors='coerce')
+                _FCS_SIG = {'FCS','FCSMW','FCSW','FCSS','FCSE'}
+                for _su, _st in USER_TEAMS.items():
+                    _sg = _sig_c[(_sig_c['Visitor'].astype(str).str.strip()==_st)|
+                                 (_sig_c['Home'].astype(str).str.strip()==_st)]
+                    _best_sc = -999; _best_line = ""
+                    _my_fpi = _sig_fpi_map.get(_st, 0.0)
+                    for _, _sg_row in _sg.iterrows():
+                        _sv = str(_sg_row['Visitor']).strip()
+                        _vs = float(_sg_row['Vis Score'] or 0); _hs = float(_sg_row['Home Score'] or 0)
+                        _iv = (_sv == _st)
+                        _so = str(_sg_row['Home']).strip() if _iv else _sv
+                        if any(_so.upper().startswith(p) for p in _FCS_SIG): continue
+                        _wo = (_vs > _hs) if _iv else (_hs > _vs)
+                        if not _wo: continue
+                        _of = _sig_fpi_map.get(_so, 0.0)
+                        _fg = _my_fpi - _of  # negative = we were underdog
+                        _mo = abs(_vs - _hs)
+                        # Score = ranked win bonus + upset bonus + MOV
+                        _rk_col = 'Home Rank' if _iv else 'Visitor Rank'
+                        try: _rk = int(float(_sg_row[_rk_col])) if pd.notna(_sg_row.get(_rk_col)) else None
+                        except: _rk = None
+                        _sc = (50 - (_rk if _rk else 99)) + max(0, -_fg * 1.5) + _mo * 0.3
+                        if _sc > _best_sc:
+                            _best_sc = _sc
+                            _wk = int(_sg_row.get('Week', 0) or 0)
+                            _ws = int(_vs) if _iv else int(_hs)
+                            _ls = int(_hs) if _iv else int(_vs)
+                            _rk_str = f" (#{_rk})" if _rk and _rk <= 25 else ""
+                            _ud_str = f" as {abs(_fg):.0f}-pt dogs" if _fg < -3 else ""
+                            _sig_win_map[_st] = f"Wk {_wk} def. {_so}{_rk_str} {_ws}–{_ls}{_ud_str}"
+        except Exception:
+            pass
 
         # ── QUICK-GLANCE STATUS GRID ─────────────────────────────────────────
         # 6 squares (2 rows × 3 cols), one per user team in power_board order.
@@ -17830,11 +17927,27 @@ with tabs[0]:
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
             user = str(row.get('USER', ''))
-            pi    = row.get('Preseason PI', row.get('Power Index', 0))
-            natty = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
-            cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
-            live_natty = float(row.get('Natty Odds', 0))
-            live_cfp = float(row.get('CFP Odds', 0))
+            pi      = row.get('Preseason PI', row.get('Power Index', 0))
+
+            # ── Live odds from FPI (national, 136-team softmax) ──────────────
+            _team_str = str(team).strip()
+            _fpi_odds_t = _fpi_live_odds.get(_team_str, (0.0, 0.0, 0))
+            live_natty  = float(_fpi_odds_t[0])   # FPI-based natty %
+            live_cfp    = float(_fpi_odds_t[1])   # FPI-based CFP %
+            _fpi_rank_n = int(_fpi_odds_t[2]) if _fpi_odds_t[2] else 0  # FPI rank among 136
+
+            # ── Preseason odds from MS+ ───────────────────────────────────────
+            _ms_odds_t  = _ms_pre_odds.get(_team_str, (0.0, 0.0))
+            natty       = float(_ms_odds_t[0])    # MS+-based preseason natty % (6-team)
+            cfp_pct     = float(_ms_odds_t[1])    # MS+-based preseason CFP %
+
+            # ── Fall back to model_2041 values if FPI/MS+ unavailable ────────
+            if live_natty == 0.0:
+                live_natty = float(row.get('Natty Odds', 0))
+                live_cfp   = float(row.get('CFP Odds', 0))
+            if natty == 0.0:
+                natty   = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
+                cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
 
             # --- THE FIX: Official Rank & Gold Glow Logic ---
             _team_name = team.strip()
@@ -17937,18 +18050,24 @@ with tabs[0]:
                                 f"letter-spacing:0.04em;'>{html.escape(str(_rec_str))}</span> ")
             # Conf rank chip removed
 
-            # ── Live PI (show when we have real season data) ──────────────
-            _live_pi = float(row.get('Power Index', 0))
-            _pre_pi  = float(row.get('Preseason PI', _live_pi))
-            _pi_diff = _live_pi - _pre_pi
-            if abs(_pi_diff) > 1 and _live_pi > 0:
-                _pi_arrow = "▲" if _pi_diff > 0 else "▼"
-                _pi_arrow_color = "#4ade80" if _pi_diff > 0 else "#f87171"
-                _pi_line = (f"<span style='font-size:0.8rem;color:#d1d5db;'>PI: "
-                            f"<strong style='color:white;'>{round(_live_pi,1)}</strong>"
-                            f"<span style='color:{_pi_arrow_color};font-size:0.7rem;'> {_pi_arrow}{abs(round(_pi_diff,1))}</span>"
+            # ── Live FPI (replaces Power Index) ──────────────────────────────
+            _live_fpi_val = 0.0
+            if _cfp_fpi_table is not None and 'FPI' in _cfp_fpi_table.columns:
+                try:
+                    _fpi_row = _cfp_fpi_table[_cfp_fpi_table['Team']==_team_str]
+                    if not _fpi_row.empty:
+                        _live_fpi_val = float(_fpi_row.iloc[0]['FPI'])
+                except Exception:
+                    pass
+            _fpi_color = '#4ade80' if _live_fpi_val > 0 else ('#f87171' if _live_fpi_val < 0 else '#94a3b8')
+            if _live_fpi_val != 0.0:
+                _rk_disp = f" · #{_fpi_rank_n}" if _fpi_rank_n > 0 else ""
+                _pi_line = (f"<span style='font-size:0.8rem;color:#d1d5db;'>FPI: "
+                            f"<strong style='color:{_fpi_color};'>{_live_fpi_val:+.1f}</strong>"
+                            f"<span style='color:#64748b;font-size:0.7rem;'>{_rk_disp}</span>"
                             f"</span><br>")
             else:
+                _pre_pi  = float(row.get('Preseason PI', row.get('Power Index', 0)))
                 _pi_line = f"<span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(_pre_pi,1)}</strong></span><br>"
 
             # Render HTML Card
@@ -18036,6 +18155,15 @@ with tabs[0]:
                     _line_html = (f"<span style='font-family:Barlow Condensed,sans-serif;font-size:0.88rem;"
                                   f"font-weight:900;color:#94a3b8;margin-left:4px;'>LINE: <strong style='color:#fbbf24;font-size:0.95rem;'>Pick'em</strong></span>")
 
+            _sig_win_str = _sig_win_map.get(_team_str, "")
+            _sig_win_html = (
+                f"<div style='margin-top:5px;font-size:0.68rem;color:#64748b;"
+                f"display:flex;align-items:center;gap:4px;'>"
+                f"<span style='color:#fbbf24;font-size:0.65rem;font-family:Bebas Neue,sans-serif;"
+                f"letter-spacing:.06em;'>🏆 SIG WIN</span> "
+                f"<span>{html.escape(_sig_win_str)}</span></div>"
+            ) if _sig_win_str else ""
+
             _game_strip = (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;"
                 f"border-top:1px solid rgba(255,255,255,0.09);flex-wrap:wrap;'>"
@@ -18044,6 +18172,7 @@ with tabs[0]:
                 f"{_status_chip} {_game_line}"
                 f"{_line_html}"
                 f"</div>"
+                f"{_sig_win_html}"
             )
 
             # ── Convert national odds % to ratio format ────────────────────
@@ -18106,10 +18235,10 @@ with tabs[0]:
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
                 f"{_pi_line}"
-                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 Preseason</span> "
+                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 MS+ Preseason</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(6-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP <span style='color:#60a5fa;font-weight:700;'>{float(cfp_pct):.0f}%</span></span><br>"
-                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 National</span> "
+                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 FPI Live</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:#60a5fa;font-weight:700;'>{live_cfp:.0f}%</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
