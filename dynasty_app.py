@@ -10219,10 +10219,21 @@ def load_scores_master(year=None, multi_year=False, **kwargs):
     - multi_year=True: combines all available sources across all seasons
     """
     import glob as _glob
+    import re as _re
+
+    def _clean_team_cols(df):
+        """Strip watcher artifacts like '2 Panama City' → 'Panama City' from team name columns."""
+        for _col in ('Visitor', 'Home', 'VISITOR', 'HOME'):
+            if _col in df.columns:
+                df[_col] = df[_col].astype(str).apply(
+                    lambda t: _re.sub(r'^\d+\s+', '', t.strip())
+                )
+        return df
 
     def _read(path, **kw):
         try:
-            return pd.read_csv(path, **kw)
+            df = pd.read_csv(path, **kw)
+            return _clean_team_cols(df)
         except Exception:
             return pd.DataFrame()
 
@@ -10491,6 +10502,15 @@ def compute_power_ratings(scores_df, year=None, week_cap=None, iterations=50):
 
     all_teams = set(df['Visitor'].dropna().astype(str).str.strip().tolist() +
                     df['Home'].dropna().astype(str).str.strip().tolist())
+
+    # Strip watcher misread artifacts like "2 Panama City" → "Panama City"
+    # GPT sometimes prepends a row number to the team name
+    import re as _re
+    def _clean_team(t):
+        return _re.sub(r'^\d+\s+', '', str(t).strip())
+    df['Visitor'] = df['Visitor'].astype(str).apply(_clean_team)
+    df['Home']    = df['Home'].astype(str).apply(_clean_team)
+    all_teams = set(df['Visitor'].tolist() + df['Home'].tolist())
     fpi = {t: 0.0 for t in all_teams}
 
     for _ in range(iterations):
@@ -15899,8 +15919,11 @@ with tabs[3]:
                 "Cincinnati":"CIN","Memphis":"MEM","Tulane":"TUL","Houston":"HOU",
                 "Air Force":"AF","Wyoming":"WYO","Hawaii":"HAW","Vanderbilt":"VANDY",
                 "Louisville":"LOU","Virginia":"UVA","Maryland":"UMD","Indiana":"IND",
-                "Michigan State":"MSU","Vanderbilt":"VANDY","Kansas":"KU",
+                "Michigan State":"MSU","Kansas":"KU","Texas A&M":"TAMU",
                 "FCS Midwest":"FCSMW","FCS West":"FCSW","FCS South":"FCSS","FCS East":"FCSE",
+                # Expansion/created dynasty teams
+                "Death Valley":"DV","Hammond":"HAM","Rapid City":"RC",
+                "Alabaster":"ALA","Gate City":"GC","Panama City":"PC",
             }
             def _abbrev(t):
                 t = str(t).strip()
