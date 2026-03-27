@@ -10642,12 +10642,12 @@ def compute_chaos_rating(scores_df, team, year=None, week_cap=None, fpi_ratings=
     """
     Chaos Rating — volatility/unpredictability score for a team's season.
 
-    Upset wins (team FPI < opponent FPI by >2) score big, especially blowouts.
-    Losses as a favorite to unranked teams score heavily negative.
-    Expected wins/losses contribute small amounts.
+    Non-linear MOV scaling gives real variance between a 3-pt upset and a 31-pt blowout upset.
+    Ranked opponent bonus makes taking down a top-25 team as an underdog the money moment.
+    FCS opponents excluded entirely.
 
-    Note: A dominant 7-0 team beating everyone by 30pts scores low Chaos (+7) —
-    that's correct. Chaos rewards UNPREDICTABILITY, not dominance.
+    Scale:  80+ = PURE CHAOS  |  50-79 = VOLATILE  |  25-49 = DISRUPTIVE
+            5-24 = WILD CARD  |  <0 = CHOKER
     """
     df = scores_df.copy()
     if year:
@@ -10658,6 +10658,8 @@ def compute_chaos_rating(scores_df, team, year=None, week_cap=None, fpi_ratings=
     df['Vis Score']  = pd.to_numeric(df['Vis Score'],  errors='coerce')
     df['Home Score'] = pd.to_numeric(df['Home Score'], errors='coerce')
     df = df.dropna(subset=['Vis Score', 'Home Score'])
+
+    _FCS_P = {'FCS', 'FCSMW', 'FCSW', 'FCSS', 'FCSE'}
 
     team_games = df[
         (df['Visitor'].astype(str).str.strip() == team) |
@@ -10678,6 +10680,11 @@ def compute_chaos_rating(scores_df, team, year=None, week_cap=None, fpi_ratings=
         is_vis = vis == team
         opp    = str(g['Home']).strip() if is_vis else vis
         won    = (vs > hs) if is_vis else (hs > vs)
+
+        # Skip FCS placeholder teams — meaningless for chaos
+        if any(opp.upper().startswith(p) for p in _FCS_P):
+            continue
+
         opp_fpi  = fpi.get(opp, 0.0)
         fpi_gap  = my_fpi - opp_fpi   # positive = I'm favored
 
@@ -10689,19 +10696,23 @@ def compute_chaos_rating(scores_df, team, year=None, week_cap=None, fpi_ratings=
 
         if won:
             if fpi_gap < -2:
-                # Upset win — core chaos. Scale by how big an underdog + margin
-                underdog_mag = min(abs(fpi_gap) * 0.5, 12)
-                mov_bonus    = min(margin / 28 * 25, 25)
-                scores.append(15 + underdog_mag + mov_bonus)
+                # Non-linear MOV: (margin/7)^0.65 * 9 gives fractional variance
+                # 3pt  upset → ~6pts mov_bonus
+                # 14pt upset → ~14pts mov_bonus
+                # 35pt upset → ~22pts mov_bonus
+                underdog_mag = abs(fpi_gap) * 1.2         # uncapped — real FPI gap matters
+                mov_bonus    = (margin / 7.0) ** 0.65 * 9  # fractional power = spread
+                ranked_bonus = 20 if opp_ranked else 0     # knocking off a ranked team = big deal
+                scores.append(round(12 + underdog_mag + mov_bonus + ranked_bonus, 2))
             elif fpi_gap > 10:
-                scores.append(1.0)    # dominant win — boring
+                scores.append(1.0)    # dominant win — expected, boring
             else:
-                scores.append(3.0)    # expected close win
+                scores.append(3.0)    # close expected win
         else:
             if fpi_gap > 2:
-                # Lost as favorite — chaos penalty
-                fav_mag          = min(fpi_gap * 0.5, 10)
-                unranked_penalty = 8 if not opp_ranked else 0
+                # Lost as favorite — penalty scales with how big a favorite you were
+                fav_mag          = fpi_gap * 0.8   # uncapped
+                unranked_penalty = 12 if not opp_ranked else 0
                 scores.append(-(10 + fav_mag + unranked_penalty))
             elif opp_ranked:
                 scores.append(-2.0)   # lost to ranked as underdog — expected
@@ -20294,6 +20305,7 @@ with tabs[0]:
                             (_dg_sched_c['Visitor'].astype(str).str.strip() == _dg_team) |
                             (_dg_sched_c['Home'].astype(str).str.strip()    == _dg_team)
                         ]
+                        _FCS_PFX = {'FCS','FCSMW','FCSW','FCSS','FCSE'}
                         for _, _gg in _tg.iterrows():
                             _vis = str(_gg['Visitor']).strip()
                             _vs  = float(_gg['Vis Score'] or 0)
@@ -20302,12 +20314,14 @@ with tabs[0]:
                             _opp  = str(_gg['Home']).strip() if _is_vis else _vis
                             _won  = (_vs > _hs) if _is_vis else (_hs > _vs)
                             if not _won: continue
+                            # Skip FCS opponents — not a real upset
+                            if any(_opp.upper().startswith(p) for p in _FCS_PFX): continue
                             _opp_fpi = _dg_fpi_map.get(_opp, 0.0)
                             _fpi_gap = my_fpi - _opp_fpi  # negative = we were the underdog
                             _margin  = abs(_vs - _hs)
                             _chaos_pts = 0
                             if _fpi_gap < -2:
-                                _chaos_pts = 15 + min(abs(_fpi_gap)*0.5, 12) + min(_margin/28*25, 25)
+                                _chaos_pts = 12 + abs(_fpi_gap)*1.2 + (_margin/7.0)**0.65*9
                             elif _fpi_gap <= 2:
                                 _chaos_pts = 3.0
                             else:
@@ -20331,11 +20345,12 @@ with tabs[0]:
                                     f"<strong>{_our_score}–{_their_score}</strong>{_gap_str}"
                                 )
 
-                    # Chaos tier label
-                    if _dg_chaos >= 60:  _tier = "🔥 PURE CHAOS"; _tier_c = "#f97316"
-                    elif _dg_chaos >= 35: _tier = "⚡ VOLATILE";    _tier_c = "#fbbf24"
-                    elif _dg_chaos >= 15: _tier = "📈 DISRUPTIVE";  _tier_c = "#4ade80"
-                    else:                 _tier = "🎲 WILD CARD";   _tier_c = "#94a3b8"
+                    # Chaos tier label — tuned to new variance scale
+                    if _dg_chaos >= 80:   _tier = "🔥 PURE CHAOS";  _tier_c = "#f97316"
+                    elif _dg_chaos >= 50: _tier = "⚡ VOLATILE";     _tier_c = "#fbbf24"
+                    elif _dg_chaos >= 25: _tier = "📈 DISRUPTIVE";   _tier_c = "#4ade80"
+                    elif _dg_chaos >= 5:  _tier = "🎲 WILD CARD";    _tier_c = "#94a3b8"
+                    else:                 _tier = "💀 CHOKER";        _tier_c = "#f87171"
 
                     _border_style = f"border-left:4px solid {_dg_color};" if _dg_is_user else f"border-left:2px solid #1e293b;"
                     _bg_style = f"background:linear-gradient(90deg,{_dg_color}18 0%,#06090f 35%);" if _dg_is_user else "background:#06090f;"
@@ -20366,6 +20381,162 @@ with tabs[0]:
                 st.info("Run COMPUTE_RATINGS.bat and push fpi_ratings_{YEAR}_wk{WEEK}.csv to see the Chaos leaderboard.")
         except Exception as _dg_err:
             st.caption(f"Chaos leaderboard unavailable: {_dg_err}")
+
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 2c — UNDERRATED TEAMS (FPI vs CFP rank disparity)
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("📡 Flying Under the Radar")
+        st.caption(
+            "Teams whose **FPI rank is significantly better than their CFP rank** — "
+            "the computers see something the voters don't. Sorted by biggest FPI-to-CFP gap."
+        )
+        try:
+            _ur_fpi_df, _ = get_ratings_and_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            _ur_cfp_map = {}
+            try:
+                _ur_cfp_h = pd.read_csv('cfp_rankings_history.csv')
+                _ur_cfp_h['YEAR'] = pd.to_numeric(_ur_cfp_h['YEAR'], errors='coerce')
+                _ur_cfp_h['WEEK'] = pd.to_numeric(_ur_cfp_h['WEEK'], errors='coerce')
+                _ur_cfp_h['RANK'] = pd.to_numeric(_ur_cfp_h['RANK'], errors='coerce')
+                _ur_cfp_cur = _ur_cfp_h[_ur_cfp_h['YEAR']==CURRENT_YEAR]
+                if not _ur_cfp_cur.empty:
+                    _ur_latest_wk = int(_ur_cfp_cur['WEEK'].max())
+                    _ur_snap = _ur_cfp_cur[_ur_cfp_cur['WEEK']==_ur_latest_wk]
+                    _ur_cfp_map = dict(zip(_ur_snap['TEAM'].astype(str).str.strip(), _ur_snap['RANK'].astype(int)))
+            except Exception:
+                pass
+
+            if not _ur_fpi_df.empty and _ur_cfp_map:
+                # Assign FPI rank from sorted position
+                _ur_fpi_df = _ur_fpi_df.sort_values('FPI', ascending=False).reset_index(drop=True)
+                _ur_fpi_df['FPI_Rank'] = range(1, len(_ur_fpi_df)+1)
+                # Join CFP rank — only teams that are ranked in CFP
+                _ur_fpi_df['CFP_Rank'] = _ur_fpi_df['Team'].map(_ur_cfp_map)
+                # Gap: positive = FPI rank better than CFP rank (underrated)
+                _ur_ranked = _ur_fpi_df[_ur_fpi_df['CFP_Rank'].notna()].copy()
+                _ur_ranked['Gap'] = _ur_ranked['CFP_Rank'] - _ur_ranked['FPI_Rank']
+                _ur_ranked = _ur_ranked[_ur_ranked['Gap'] > 3].sort_values('Gap', ascending=False).head(5)
+
+                if not _ur_ranked.empty:
+                    _ur_cards = ""
+                    for _ui, _ur in _ur_ranked.iterrows():
+                        _ur_team  = str(_ur['Team'])
+                        _ur_fpi_v = float(_ur['FPI'])
+                        _ur_fpi_r = int(_ur['FPI_Rank'])
+                        _ur_cfp_r = int(_ur['CFP_Rank'])
+                        _ur_gap   = int(_ur['Gap'])
+                        _ur_w     = int(_ur.get('W', 0))
+                        _ur_l     = int(_ur.get('L', 0))
+                        _ur_color = get_team_primary_color(_ur_team)
+                        _ur_logo  = get_school_logo_src(_ur_team)
+                        _ur_logo_html = f"<img src='{_ur_logo}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _ur_logo else ""
+                        _ur_ab    = _abbrev(_ur_team) if '_abbrev' in dir() else _ur_team[:6]
+                        _ur_is_user = _ur_team in set(USER_TEAMS.values())
+                        _border_style = f"border-left:4px solid {_ur_color};" if _ur_is_user else "border-left:2px solid #1e293b;"
+                        _bg_style = f"background:linear-gradient(90deg,{_ur_color}18 0%,#06090f 35%);" if _ur_is_user else "background:#06090f;"
+                        _ur_cards += f"""
+                        <div style='{_bg_style}{_border_style}border-radius:8px;padding:10px 14px;margin-bottom:6px;'>
+                          <div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>
+                            <div style='display:flex;align-items:center;gap:6px;'>
+                              {_ur_logo_html}
+                              <span style='font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:1rem;color:#f8fafc;letter-spacing:.03em;'>{_ur_ab}</span>
+                              <span style='font-size:0.68rem;color:#64748b;margin-left:2px;'>{_ur_w}-{_ur_l} · FPI {_ur_fpi_v:+.1f}</span>
+                            </div>
+                            <div style='display:flex;align-items:center;gap:14px;'>
+                              <div style='text-align:center;'>
+                                <div style='font-size:0.55rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>CFP</div>
+                                <div style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#f87171;'>#{_ur_cfp_r}</div>
+                              </div>
+                              <div style='text-align:center;'>
+                                <div style='font-size:0.55rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>FPI</div>
+                                <div style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#4ade80;'>#{_ur_fpi_r}</div>
+                              </div>
+                              <div style='text-align:center;'>
+                                <div style='font-size:0.55rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>Gap</div>
+                                <div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#fbbf24;'>+{_ur_gap}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>"""
+                    st.markdown(
+                        f"<div style='border:1px solid #1e293b;border-radius:10px;padding:12px;background:#06090f;'>"
+                        f"{_ur_cards}</div>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.caption("No teams with significant FPI vs CFP disparity right now. The polls and computers are roughly in agreement.")
+            else:
+                st.caption("Push cfp_rankings_history.csv and fpi_ratings_{YEAR}_wk{WEEK}.csv to see underrated teams.")
+        except Exception as _ur_err:
+            st.caption(f"Underrated section unavailable: {_ur_err}")
+
+        # ════════════════════════════════════════════════════════════════════
+        # SECTION 2d — THIS AIN'T REAL LIFE (MS+ Top 10)
+        # ════════════════════════════════════════════════════════════════════
+        st.markdown("---")
+        st.subheader("🎮 This Ain't Real Life")
+        st.caption(
+            "**Mike's MS+ formula** is tuned specifically to CFB26 dynasty — where recruiting class rank, "
+            "veteran depth, QB grade, blue-chip ratio, and on-field chaos all matter differently than in real life. "
+            "It weights: **Team OVR** (20%) · **Recruiting pipeline** (15%) · **QB Grade** (12%) · "
+            "**Veteran Presence** (10%) · **Recent Performance** (10%) · **FPI/Clobber** (8%) · "
+            "**Transfer Portal** (8%) · **Starting Speed** (7%) · **Chaos Rating** (3%) · "
+            "**Generational Talent** (5%) · **Heisman Factor** (2%)"
+        )
+        try:
+            _, _ms_df = get_ratings_and_ms_plus(year=CURRENT_YEAR, week_cap=CURRENT_WEEK_NUMBER)
+            if not _ms_df.empty and 'MSPlus' in _ms_df.columns:
+                _ms_top = _ms_df.sort_values('MSPlus', ascending=False).head(10).reset_index(drop=True)
+                _ms_cards = ""
+                for _mi, _mr in _ms_top.iterrows():
+                    _ms_team  = str(_mr['Team'])
+                    _ms_val   = float(_mr['MSPlus'])
+                    _ms_fpi   = float(_mr.get('FPI', 0))
+                    _ms_w     = int(_mr.get('W', 0))
+                    _ms_l     = int(_mr.get('L', 0))
+                    _ms_color = get_team_primary_color(_ms_team)
+                    _ms_logo  = get_school_logo_src(_ms_team)
+                    _ms_logo_html = f"<img src='{_ms_logo}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _ms_logo else ""
+                    _ms_ab    = _abbrev(_ms_team) if '_abbrev' in dir() else _ms_team[:6]
+                    _ms_is_user = _ms_team in set(USER_TEAMS.values())
+                    _ms_border = f"border-left:4px solid {_ms_color};" if _ms_is_user else "border-left:2px solid #1e293b;"
+                    _ms_bg = f"background:linear-gradient(90deg,{_ms_color}18 0%,#06090f 35%);" if _ms_is_user else "background:#06090f;"
+                    _ms_bar_pct = min(100, round(_ms_val))
+                    _ms_bar_color = "#4ade80" if _ms_val >= 70 else ("#fbbf24" if _ms_val >= 55 else "#f87171")
+                    _ms_cards += f"""
+                    <div style='{_ms_bg}{_ms_border}border-radius:8px;padding:10px 14px;margin-bottom:6px;'>
+                      <div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>
+                        <div style='display:flex;align-items:center;gap:6px;'>
+                          <span style='color:#475569;font-size:0.7rem;font-family:Bebas Neue,sans-serif;width:18px;'>#{_mi+1}</span>
+                          {_ms_logo_html}
+                          <span style='font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:1rem;color:#f8fafc;letter-spacing:.03em;'>{_ms_ab}</span>
+                          <span style='font-size:0.68rem;color:#64748b;margin-left:2px;'>{_ms_w}-{_ms_l} · FPI {_ms_fpi:+.1f}</span>
+                        </div>
+                        <div style='display:flex;align-items:center;gap:8px;'>
+                          <div style='width:80px;background:#111f33;border-radius:4px;height:6px;overflow:hidden;'>
+                            <div style='background:{_ms_bar_color};width:{_ms_bar_pct}%;height:6px;border-radius:4px;opacity:0.85;'></div>
+                          </div>
+                          <span style='font-family:Bebas Neue,sans-serif;font-size:1.15rem;color:{_ms_bar_color};'>{_ms_val:.1f}</span>
+                        </div>
+                      </div>
+                    </div>"""
+                st.markdown(
+                    f"<div style='border:1px solid #1e293b;border-radius:10px;padding:12px;background:#06090f;'>"
+                    f"{_ms_cards}</div>",
+                    unsafe_allow_html=True
+                )
+                # Link to full MS+ table
+                st.markdown(
+                    "<div style='margin-top:8px;text-align:right;font-size:0.7rem;color:#475569;'>"
+                    "Full MS+ ratings in <strong>⚡ Speed & SOS → 📐 FPI & MS+ Ratings</strong></div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info("Run COMPUTE_RATINGS.bat and push ms_plus_{YEAR}_wk{WEEK}.csv to see the MS+ top 10.")
+        except Exception as _ms_err:
+            st.caption(f"MS+ section unavailable: {_ms_err}")
 
         # ════════════════════════════════════════════════════════════════════
         # SECTION 3 — HEISMAN CANDIDATES
