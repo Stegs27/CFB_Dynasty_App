@@ -10771,18 +10771,53 @@ def compute_ms_plus(year=None, week_cap=None):
         pass
 
     # Load multi-year schedule for Recent Performance W/L history (last 4 seasons)
+    # Priority: schedule_{YEAR}.csv (full league, 2042+) → CPUscores for older years
     _hist_sched = pd.DataFrame()
     try:
-        _hist_sched = load_scores_master(multi_year=True)
-        if not _hist_sched.empty:
+        import glob as _glob
+        _hist_parts = []
+        # Years in range: target_year-4 to target_year-1
+        for _hy in range(target_year - 4, target_year):
+            _sf = f'schedule_{_hy}.csv'
+            if os.path.exists(_sf):
+                # schedule_{YEAR}.csv — full league, preferred
+                _hp = pd.read_csv(_sf)
+                _hp['YEAR'] = _hy
+                _hist_parts.append(_hp)
+            else:
+                # Fall back to CPUscores year file (user teams only pre-2042)
+                _cf = f'CPUscores_MASTER_{_hy}.csv'
+                if os.path.exists(_cf):
+                    _hp = pd.read_csv(_cf)
+                    _hp['YEAR'] = _hy
+                    _hist_parts.append(_hp)
+        # Also check legacy CPUscores_MASTER.csv for any years not covered above
+        if os.path.exists('CPUscores_MASTER.csv'):
+            _legacy = pd.read_csv('CPUscores_MASTER.csv')
+            if 'YEAR' in _legacy.columns:
+                _legacy['YEAR'] = pd.to_numeric(_legacy['YEAR'], errors='coerce')
+                _legacy = _legacy[
+                    (_legacy['YEAR'] >= target_year - 4) &
+                    (_legacy['YEAR'] <  target_year)
+                ]
+                # Only append years not already covered by schedule_ files
+                _covered_years = {int(_hp['YEAR'].iloc[0]) for _hp in _hist_parts if not _hp.empty and 'YEAR' in _hp.columns}
+                _legacy = _legacy[~_legacy['YEAR'].isin(_covered_years)]
+                if not _legacy.empty:
+                    _hist_parts.append(_legacy)
+
+        if _hist_parts:
+            _hist_sched = pd.concat(_hist_parts, ignore_index=True)
             _hist_sched['YEAR'] = pd.to_numeric(_hist_sched.get('YEAR', target_year), errors='coerce')
             _hist_sched['Vis Score']  = pd.to_numeric(_hist_sched.get('Vis Score', 0),  errors='coerce')
             _hist_sched['Home Score'] = pd.to_numeric(_hist_sched.get('Home Score', 0), errors='coerce')
-            _hist_sched = _hist_sched[
-                (_hist_sched['YEAR'] >= target_year - 4) &
-                (_hist_sched['YEAR'] <  target_year) &
-                (_hist_sched.get('Status', pd.Series(['FINAL']*len(_hist_sched))).astype(str).str.upper() == 'FINAL')
-            ].copy()
+            # Only completed games
+            _status_col = next((c for c in ('Status','STATUS') if c in _hist_sched.columns), None)
+            if _status_col:
+                _hist_sched = _hist_sched[
+                    _hist_sched[_status_col].astype(str).str.upper() == 'FINAL'
+                ].copy()
+            _hist_sched = _hist_sched.reset_index(drop=True)
     except Exception:
         _hist_sched = pd.DataFrame()
 
@@ -10844,21 +10879,27 @@ def compute_ms_plus(year=None, week_cap=None):
         components['ratings'] = round((t_ovr * 0.5 + t_off * 0.25 + t_def * 0.25 - 70) / 30 * 100, 1)
 
         # ── 2. Recruiting Pipeline (last 4 class ranks) — weight 0.15 ─
-        rec_score = 50.0
+        # Use OVERALL class rank only — avoids mixing HS/Transfer ranks with overall rank
+        rec_score = None
         if not recruit_df.empty and 'Team' in recruit_df.columns and 'Rank' in recruit_df.columns:
             _rc = recruit_df[
                 (recruit_df['Team'].astype(str).str.strip() == team) &
                 (recruit_df['Year'] >= target_year - 4) &
                 (recruit_df['Year'] < target_year)
             ].copy()
+            # Prefer OVERALL rank; fall back to any ClassType if OVERALL not present
+            if 'ClassType' in _rc.columns:
+                _rc_overall = _rc[_rc['ClassType'].astype(str).str.upper() == 'OVERALL'].copy()
+                if not _rc_overall.empty:
+                    _rc = _rc_overall
             _rc['Rank'] = pd.to_numeric(_rc['Rank'], errors='coerce')
             if not _rc.empty:
                 avg_rk = _rc['Rank'].dropna().mean()
-                # Lower rank = better: rank 1 = 100, rank 130 = 0
                 rec_score = max(0, min(100, round((130 - avg_rk) / 130 * 100, 1)))
+        if rec_score is None:
+            # No recruiting history — proxy from team OVR
+            rec_score = max(0, min(100, round((t_ovr - 70) / 30 * 100, 1)))
         components['recruiting'] = rec_score
-
-        # ── 3. Transfer Portal (last 4 years) — weight 0.08 ──────────
         xfer_score = 50.0
         if not recruit_df.empty and 'ClassType' in recruit_df.columns:
             _xf = recruit_df[
@@ -10943,9 +10984,16 @@ def compute_ms_plus(year=None, week_cap=None):
                     conf_count  = len(_cp[_cp[_type_col].astype(str).str.upper().str.contains('CONF', na=False)])
         title_boost = natty_count * 15 + conf_count * 8
 
-        # Win rate component — from schedule_{YEAR}.csv history
+        # Win rate component — only fires when schedule_{YEAR}.csv files exist in the lookback window.
+        # This ensures CPU and user teams are always on equal footing:
+        # - Season 2042: no schedule_ history yet → everyone gets neutral 50
+        # - Season 2043+: schedule_2042.csv in window → all 136 teams get real win rates
         win_rate_score = 50.0
-        if not _hist_sched.empty:
+        _has_schedule_history = any(
+            os.path.exists(f'schedule_{_hy}.csv')
+            for _hy in range(target_year - 4, target_year)
+        )
+        if _has_schedule_history and not _hist_sched.empty:
             _vis_col = next((c for c in ('Visitor','VISITOR','visitor') if c in _hist_sched.columns), None)
             _hom_col = next((c for c in ('Home','HOME','home')         if c in _hist_sched.columns), None)
             if _vis_col and _hom_col:
@@ -10962,19 +11010,25 @@ def compute_ms_plus(year=None, week_cap=None):
                         _won = (_vs > _hs) if _is_vis else (_hs > _vs)
                         if _won: _wins += 1
                     _win_pct = _wins / len(_tm_games)
-                    # Scale: .800+ = 100, .500 = 50, .200 = 0
                     win_rate_score = max(0, min(100, round((_win_pct - 0.200) / 0.600 * 100, 1)))
 
-        # Blend: 60% win rate history, 40% titles (titles are rare — weight them but don't dominate)
+        # Blend: 60% win rate, 40% titles
         perf_score = min(100, round(win_rate_score * 0.60 + (50 + title_boost) * 0.40, 1))
         components['performance'] = perf_score
 
         # ── 8. Clobber Rating (FPI) — weight 0.10 ────────────────────
-        fpi_val = fpi_scores.get(team, 0.0)
-        all_fpi = list(fpi_scores.values()) if fpi_scores else [0]
-        fpi_min, fpi_max = min(all_fpi), max(all_fpi)
-        fpi_range = fpi_max - fpi_min if fpi_max != fpi_min else 1
-        clobber = round((fpi_val - fpi_min) / fpi_range * 100, 1)
+        # Normalize to 0-100 centered at 50 so teams with average FPI score 50,
+        # not 0. Prevents dragging down all teams when FPI is sparse.
+        fpi_val = fpi_scores.get(team, None)
+        if fpi_val is not None and fpi_scores:
+            all_fpi = list(fpi_scores.values())
+            fpi_mean  = sum(all_fpi) / len(all_fpi)
+            fpi_stdev = max((sum((x - fpi_mean)**2 for x in all_fpi) / len(all_fpi))**0.5, 1)
+            # Z-score scaled: mean=50, ±2 stdev = ±30 pts
+            clobber = round(50 + (fpi_val - fpi_mean) / fpi_stdev * 15, 1)
+            clobber = max(0, min(100, clobber))
+        else:
+            clobber = 50.0  # no FPI data → neutral, not penalized
         components['clobber'] = clobber
 
         # ── 9. Generational Talent (90+ OVR with 96+ SPD or ACC) — weight 0.05
