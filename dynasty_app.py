@@ -13931,7 +13931,11 @@ if data:
                 'Quad 90 (90+ SPD, ACC, AGI & COD)':
                     int(((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 90) & (_tdf['AGI'] >= 90) & (_tdf['COD'] >= 90)).sum()),
                 'Generational (96+ speed or 96+ Acceleration)':
-                    int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum()),
+                    int(_tdf.apply(lambda _gr: (
+                        float(_gr.get('OVR',0) or 0) >= 90 and
+                        sum(1 for _ga in [float(_gr.get('SPD',0) or 0), float(_gr.get('ACC',0) or 0),
+                                          float(_gr.get('AGI',0) or 0), float(_gr.get('COD',0) or 0)] if _ga >= 95) >= 2
+                    ), axis=1).sum()),
                 'Off Speed (90+ speed)':
                     int(((_tdf['SPD'] >= 90) & (_tdf['PosNorm'].isin(_off_pos))).sum()),
                 'Def Speed (90+ speed)':
@@ -15730,7 +15734,7 @@ with tabs[3]:
                     <div><strong>Cheat Code</strong>: 90+ SPD, 90+ ACC, 90+ AGI, and 90+ COD.</div>
                     <div><strong>Monster</strong>: DT / EDGE / LB with 90+ ACC and 84+ SPD, or 90+ SPD and 84+ ACC.</div>
                     <div><strong>Quick Hog</strong>: OL with 85+ AGI and 90+ STR.</div>
-                    <div><strong>Generational Freak</strong>: any player with 96+ SPD or 96+ ACC.</div>
+                    <div><strong>Generational Freak</strong>: 90+ OVR with 2+ of {SPD, ACC, AGI, COD} at 95+.</div>
                   </div>
                 </div>
                 """,
@@ -18734,7 +18738,7 @@ with tabs[0]:
                 'bodies': [
                     "<strong>{team}</strong> tops the Chaos leaderboard at <strong>{chaos:+.0f}</strong> — the most volatile program in the dynasty. Their biggest moment: {best_win}.",
                     "Nobody is flipping scripts like <strong>{team}</strong>. Chaos rating: <strong>{chaos:+.0f}</strong>. The formula doesn't lie — {best_win}.",
-                    "<strong>{team}</strong> has earned the David &amp; Goliath crown. Chaos score <strong>{chaos:+.0f}</strong>. Best upset: {best_win}.",
+                    "<strong>{team}</strong> leads the Spoiling the Moment leaderboard. Chaos score <strong>{chaos:+.0f}</strong>. Best upset: {best_win}.",
                 ],
             },
             'underrated_alert': {
@@ -20517,10 +20521,10 @@ with tabs[0]:
 
 
         # ════════════════════════════════════════════════════════════════════
-        # SECTION 2b — DAVID & GOLIATH (Chaos Rating Leaderboard)
+        # SECTION 2b — SPOILING THE MOMENT (Chaos Rating Leaderboard)
         # ════════════════════════════════════════════════════════════════════
         st.markdown("---")
-        st.subheader("⚔️ David & Goliath")
+        st.subheader("⚔️ Spoiling the Moment")
         st.caption(
             "**Chaos Rating** measures how unpredictable a team's season has been. "
             "Upset wins score big — especially blowout upsets. Choking to teams you should beat costs big. "
@@ -20541,18 +20545,8 @@ with tabs[0]:
 
             if not _dg_fpi_df.empty and 'Chaos' in _dg_fpi_df.columns:
                 _dg_fpi_map = dict(zip(_dg_fpi_df['Team'], _dg_fpi_df['FPI']))
+                _dg_top = _dg_fpi_df[_dg_fpi_df['GamesPlayed'] > 0].nlargest(10, 'Chaos').reset_index(drop=True)
 
-                # Chaos values come from pre-computed fpi_ratings_{YEAR}_wk{WEEK}.csv
-                # Run COMPUTE_RATINGS.bat after each weekly push to refresh with new formula
-                _dg_gp_col = 'GamesPlayed' if 'GamesPlayed' in _dg_fpi_df.columns else None
-                _dg_pool = _dg_fpi_df[_dg_fpi_df[_dg_gp_col] > 0] if _dg_gp_col else _dg_fpi_df
-                _dg_top = _dg_pool.nlargest(10, 'Chaos').reset_index(drop=True)
-
-                # ── One st.markdown per card — avoids base64 logo overflow (~400KB in one call) ──
-                st.markdown(
-                    "<div style='border:1px solid #1e293b;border-radius:10px;padding:8px 12px;background:#06090f;'>",
-                    unsafe_allow_html=True
-                )
                 for _di, _dr in _dg_top.iterrows():
                     _dg_team  = str(_dr['Team'])
                     _dg_chaos = float(_dr.get('Chaos', 0))
@@ -20596,8 +20590,8 @@ with tabs[0]:
                                 _chaos_pts = 1.0
                             if _chaos_pts > _best_upset_score:
                                 _best_upset_score = _chaos_pts
-                                _opp_rk_col = 'Home Rank' if _is_vis else 'Visitor Rank'
-                                _opp_rk_val = _gg.get(_opp_rk_col)
+                                _opp_rk_col  = 'Home Rank' if _is_vis else 'Visitor Rank'
+                                _opp_rk_val  = _gg.get(_opp_rk_col)
                                 try:
                                     _opp_rk = int(float(_opp_rk_val)) if pd.notna(_opp_rk_val) else None
                                 except Exception:
@@ -20607,10 +20601,7 @@ with tabs[0]:
                                 _their_score = int(_hs) if _is_vis else int(_vs)
                                 _rank_str    = f" (#{_opp_rk})" if _opp_rk and _opp_rk <= 25 else ""
                                 _gap_str     = f" as {abs(_fpi_gap):.0f}-pt FPI underdogs" if _fpi_gap < -2 else ""
-                                _best_upset_line = (
-                                    f"Wk {_wk} def. {_opp}{_rank_str} "
-                                    f"<strong>{_our_score}–{_their_score}</strong>{_gap_str}"
-                                )
+                                _best_upset_line = f"Wk {_wk} def. {_opp}{_rank_str} <strong>{_our_score}–{_their_score}</strong>{_gap_str}"
 
                     if _dg_chaos >= 80:   _tier = "🔥 PURE CHAOS";  _tier_c = "#f97316"
                     elif _dg_chaos >= 50: _tier = "⚡ VOLATILE";     _tier_c = "#fbbf24"
@@ -20622,24 +20613,21 @@ with tabs[0]:
                     _bg_style     = f"background:linear-gradient(90deg,{_dg_color}18 0%,#06090f 35%);" if _dg_is_user else "background:#06090f;"
                     _upset_html   = f"<div style='margin-top:5px;font-size:0.68rem;color:#64748b;padding-left:26px;'>{_best_upset_line}</div>" if _best_upset_line else ""
 
-                    st.markdown(f"""
-                    <div style='{_bg_style}{_border_style}border-radius:8px;padding:10px 14px;margin-bottom:6px;'>
-                      <div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>
-                        <div style='display:flex;align-items:center;gap:6px;'>
-                          <span style='color:#475569;font-size:0.7rem;font-family:Bebas Neue,sans-serif;width:18px;'>#{_di+1}</span>
-                          {_dg_logo_html}
-                          <span style='font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:1rem;color:#f8fafc;letter-spacing:.03em;'>{_dg_ab}</span>
-                          <span style='font-size:0.68rem;color:#64748b;margin-left:2px;'>{_dg_w}-{_dg_l} · FPI {_dg_fpi:+.1f}</span>
-                        </div>
-                        <div style='display:flex;align-items:center;gap:10px;'>
-                          <span style='font-size:0.65rem;color:{_tier_c};font-family:Bebas Neue,sans-serif;letter-spacing:.08em;'>{_tier}</span>
-                          <span style='font-family:Bebas Neue,sans-serif;font-size:1.15rem;color:#f97316;'>{_dg_chaos:+.0f}</span>
-                        </div>
-                      </div>
-                      {_upset_html}
-                    </div>""", unsafe_allow_html=True)
-
-                st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div style='{_bg_style}{_border_style}border-radius:8px;padding:10px 14px;margin-bottom:6px;'>"
+                        f"<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>"
+                        f"<div style='display:flex;align-items:center;gap:6px;'>"
+                        f"<span style='color:#475569;font-size:0.7rem;font-family:Bebas Neue,sans-serif;width:18px;'>#{_di+1}</span>"
+                        f"{_dg_logo_html}"
+                        f"<span style='font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:1rem;color:#f8fafc;letter-spacing:.03em;'>{_dg_ab}</span>"
+                        f"<span style='font-size:0.68rem;color:#64748b;margin-left:2px;'>{_dg_w}-{_dg_l} · FPI {_dg_fpi:+.1f}</span>"
+                        f"</div>"
+                        f"<div style='display:flex;align-items:center;gap:10px;'>"
+                        f"<span style='font-size:0.65rem;color:{_tier_c};font-family:Bebas Neue,sans-serif;letter-spacing:.08em;'>{_tier}</span>"
+                        f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.15rem;color:#f97316;'>{_dg_chaos:+.0f}</span>"
+                        f"</div></div>{_upset_html}</div>",
+                        unsafe_allow_html=True
+                    )
             else:
                 st.info("Run COMPUTE_RATINGS.bat and push fpi_ratings_{YEAR}_wk{WEEK}.csv to see the Chaos leaderboard.")
         except Exception as _dg_err:
