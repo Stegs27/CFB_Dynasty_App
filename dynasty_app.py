@@ -21949,6 +21949,9 @@ with tabs[4]:
         conf_teams = board_by_rank.dropna(subset=['Conference'])
         if not conf_teams.empty:
             champs = conf_teams.drop_duplicates(subset=['Conference'], keep='first')
+            # Also dedup by Team — a team can only be conf champ once even if
+            # normalize_conf_name produces two variants of the same conference name
+            champs = champs.drop_duplicates(subset=['Team'], keep='first')
             
             # 4. The 5 highest-ranked champions are our Automatic Qualifiers (AQs)
             aq_champs = champs.head(5)
@@ -21975,11 +21978,11 @@ with tabs[4]:
                 _already_in = projected_field['Team'].tolist()
                 _extras = board_by_rank[~board_by_rank['Team'].isin(_already_in)].head(12 - len(projected_field))
                 projected_field = pd.concat([projected_field, _extras]).reset_index(drop=True)
-            projected_field = projected_field.head(12).reset_index(drop=True)
+            projected_field = projected_field.drop_duplicates(subset=['Team'], keep='first').head(12).reset_index(drop=True)
             projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
         else:
             # Fallback if no conference data is found
-            projected_field = board_by_rank.head(12).copy().reset_index(drop=True)
+            projected_field = board_by_rank.drop_duplicates(subset=['Team'], keep='first').head(12).copy().reset_index(drop=True)
             projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
 
         # Calculate seed scores (for internal model consistency)
