@@ -10244,15 +10244,18 @@ def load_scores_master(year=None, multi_year=False, **kwargs):
 
     if multi_year:
         parts = []
-        # New-style year files (2042+)
-        for yf in sorted(_glob.glob('schedule_*.csv')):
-            parts.append(_read(yf, **kwargs))
-        # Legacy CPUscores year files
-        for yf in sorted(_glob.glob('CPUscores_MASTER_*.csv')):
-            parts.append(_read(yf, **kwargs))
+        # Load CPUscores FIRST — schedule_{YEAR}.csv loaded last so that
+        # keep='last' in dedup always preserves the schedule file's data
+        # (including user tags) over any stale CPUscores_MASTER entries.
         # Legacy master (pre-split)
         if os.path.exists('CPUscores_MASTER.csv'):
             parts.append(_read('CPUscores_MASTER.csv', **kwargs))
+        # Legacy CPUscores year files
+        for yf in sorted(_glob.glob('CPUscores_MASTER_*.csv')):
+            parts.append(_read(yf, **kwargs))
+        # New-style year files (2042+) — LAST = wins on dedup
+        for yf in sorted(_glob.glob('schedule_*.csv')):
+            parts.append(_read(yf, **kwargs))
         if not parts:
             return pd.DataFrame()
         combined = pd.concat(parts, ignore_index=True)
@@ -14122,33 +14125,43 @@ if data:
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
 
-    # ── Merge national odds (136-team field) into model_2041 for LIVE columns ──
-    # Preseason Natty Odds / Preseason CFP % stay as the 6-team rich model output.
-    # Only Natty Odds and CFP Odds (the "live" columns) get the national numbers.
+    # ── Merge committee-model odds into model_2041 for LIVE columns ──────────
+    # Source of truth: _cfp_board_early (CFP Make % + Bye % from rank+schedule model).
+    # Replaces the old FPI/sigmoid overwrite that gave expansion teams 1% odds.
+    # Natty % = P(make field) × P(win natty | in field), same formula as CFP display.
+    # Preseason Natty Odds / Preseason CFP % columns are left untouched.
     try:
-        _nat_odds_model = build_sigmoid_natty_odds(year=CURRENT_YEAR)
-        if _nat_odds_model:
-            _nat_rows = []
+        if not _cfp_board_early.empty and 'CFP Make %' in _cfp_board_early.columns:
+            _comm_nat_rows = []
+            _cb_idx = _cfp_board_early.set_index('Team')
             for _, _mr in model_2041.iterrows():
                 _mt = str(_mr.get('TEAM', '')).strip()
-                _nd = _nat_odds_model.get(_mt)
-                if _nd is None:
+                # Try exact match then case-insensitive
+                _cb_row = _cb_idx.loc[_mt] if _mt in _cb_idx.index else None
+                if _cb_row is None:
                     _mtl = _mt.lower()
-                    for _nk, _nv in _nat_odds_model.items():
-                        if _nk.lower() == _mtl or _nk.lower().replace('&','and') == _mtl.replace('&','and'):
-                            _nd = _nv
+                    for _ck in _cb_idx.index:
+                        if str(_ck).lower() == _mtl:
+                            _cb_row = _cb_idx.loc[_ck]
                             break
-                # Only replace live columns — preseason stays from 6-team model above
-                _nat_rows.append({
-                    'TEAM':      _mt,
-                    'Natty Odds': _nd['natty_pct'] if _nd else float(_mr.get('Natty Odds', 0) or 0),
-                    'CFP Odds':   _nd['cfp_pct']   if _nd else float(_mr.get('CFP Odds', 20) or 20),
+                if _cb_row is not None:
+                    _cfp_m = float(_cb_row.get('CFP Make %', 0) or 0)
+                    _bye_m = float(_cb_row.get('Bye %',      0) or 0)
+                    _mult  = (1/6.0) if _bye_m > 50 else (1/9.0 if _cfp_m > 70 else 1/14.0)
+                    _natty_m = round((_cfp_m / 100.0) * _mult * 100, 2)
+                    _cfp_odds_m = round(_cfp_m, 1)
+                else:
+                    _natty_m    = float(_mr.get('Natty Odds', 0) or 0)
+                    _cfp_odds_m = float(_mr.get('CFP Odds',  20) or 20)
+                _comm_nat_rows.append({
+                    'TEAM': _mt,
+                    'Natty Odds': _natty_m,
+                    'CFP Odds':   _cfp_odds_m,
                 })
-            _nat_df = pd.DataFrame(_nat_rows)
-            # Only drop and replace live columns — leave Preseason columns intact
+            _comm_nat_df = pd.DataFrame(_comm_nat_rows)
             _drop_nat = [c for c in ['Natty Odds', 'CFP Odds'] if c in model_2041.columns]
             model_2041 = model_2041.drop(columns=_drop_nat, errors='ignore').merge(
-                _nat_df, on='TEAM', how='left'
+                _comm_nat_df, on='TEAM', how='left'
             )
     except Exception:
         pass
@@ -17805,10 +17818,29 @@ with tabs[0]:
         # ── Conf rank lookup from conf_standings CSV ──────────────────────
         _conf_rank_map = {}  # Conference rank removed — calculated on-screen instead
 
-                # ── Team ratings for betting lines ────────────────────────────────
+        # ── Team ratings for betting lines ────────────────────────────────
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
-        # ── FPI + MS+ tables: spread model + odds + sort order ─────────────────
+
+        # ── Committee-model odds lookup for user cards ─────────────────────
+        # Replaces FPI softmax — uses same rank+schedule formula as CFP display.
+        # keyed by team name (exact string from cfp_board)
+        _comm_card_odds = {}  # team_str -> {'cfp': float, 'natty': float}
+        try:
+            _cb_card = _cfp_board_early.copy() if not _cfp_board_early.empty else pd.DataFrame()
+            if not _cb_card.empty and 'CFP Make %' in _cb_card.columns:
+                for _, _cbr in _cb_card.iterrows():
+                    _cbt = str(_cbr['Team']).strip()
+                    _cfp_c = float(_cbr.get('CFP Make %', 0) or 0)
+                    _bye_c = float(_cbr.get('Bye %', 0) or 0)
+                    _mult_c = (1/6.0) if _bye_c > 50 else (1/9.0 if _cfp_c > 70 else 1/14.0)
+                    _nat_c  = round((_cfp_c / 100.0) * _mult_c * 100, 2)
+                    _comm_card_odds[_cbt] = {'cfp': round(_cfp_c, 1), 'natty': _nat_c}
+                    _comm_card_odds[_cbt.lower()] = _comm_card_odds[_cbt]
+        except Exception:
+            pass
+
+        # ── FPI + MS+ tables: spread model + sort order ────────────────────
         _fpi_live_odds  = {}   # team -> (natty_pct, cfp_pct)
         _ms_pre_odds    = {}   # team -> (natty_pct, cfp_pct)
         _sig_win_map    = {}   # team -> blurb string
@@ -17997,22 +18029,26 @@ with tabs[0]:
             user = str(row.get('USER', ''))
             pi      = row.get('Preseason PI', row.get('Power Index', 0))
 
-            # ── Live odds from FPI (national, 136-team softmax) ──────────────
+            # ── Live odds from committee model (rank + schedule path) ────────
+            # Same formula as CFP Projected Field display — no more FPI softmax
+            # making expansion teams look like 713:1 long shots.
             _team_str = str(team).strip()
-            _fpi_odds_t = _fpi_live_odds.get(_team_str, (0.0, 0.0, 0))
-            live_natty  = float(_fpi_odds_t[0])   # FPI-based natty %
-            live_cfp    = float(_fpi_odds_t[1])   # FPI-based CFP %
-            _fpi_rank_n = int(_fpi_odds_t[2]) if _fpi_odds_t[2] else 0  # FPI rank among 136
+            _co = _comm_card_odds.get(_team_str) or _comm_card_odds.get(_team_str.lower())
+            if _co:
+                live_natty = float(_co['natty'])
+                live_cfp   = float(_co['cfp'])
+            else:
+                # Team not in CFP rankings — unranked, use model_2041 fallback
+                live_natty = float(row.get('Natty Odds', 0) or 0)
+                live_cfp   = float(row.get('CFP Odds',   0) or 0)
+            _fpi_rank_n = 0  # no longer used for display
 
             # ── Preseason odds from MS+ ───────────────────────────────────────
             _ms_odds_t  = _ms_pre_odds.get(_team_str, (0.0, 0.0))
-            natty       = float(_ms_odds_t[0])    # MS+-based preseason natty % (6-team)
+            natty       = float(_ms_odds_t[0])    # MS+-based preseason natty %
             cfp_pct     = float(_ms_odds_t[1])    # MS+-based preseason CFP %
 
-            # ── Fall back to model_2041 values if FPI/MS+ unavailable ────────
-            if live_natty == 0.0:
-                live_natty = float(row.get('Natty Odds', 0))
-                live_cfp   = float(row.get('CFP Odds', 0))
+            # Fall back to model_2041 values if MS+ unavailable
             if natty == 0.0:
                 natty   = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
                 cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
@@ -21887,10 +21923,17 @@ with tabs[4]:
             _mov_val = _cp.get('MOV', None)
             _stk_val = _cp.get('STK', None)
 
-            # National odds
-            _nord = _get_natl_odds(team)
-            _natty_pct = _nord['natty_pct'] if _nord else None
-            _cfp_make  = _nord['cfp_pct']   if _nord else None
+            # National odds — use committee model directly from cfp_board row
+            # CFP Make % is the rank+schedule formula, not the FPI softmax.
+            # Natty odds derived from CFP Make %: a team that makes it has
+            # roughly 1-in-12 shot inside the field, adjusted by seeding.
+            _cfp_make_pct = float(row.get('CFP Make %', 0.0) or 0.0)
+            _bye_pct      = float(row.get('Bye %',      0.0) or 0.0)
+            # Natty = P(make CFP) × P(win natty | in field)
+            # Top bye seeds: ~1/6 shot once in. Seeds 5-12: ~1/12.
+            _in_field_natty_mult = (1/6.0) if _bye_pct > 50 else (1/9.0 if _cfp_make_pct > 70 else 1/14.0)
+            _natty_pct = round((_cfp_make_pct / 100.0) * _in_field_natty_mult * 100, 2)
+            _cfp_make  = round(_cfp_make_pct, 1)
 
             def _odds_cell(val):
                 """Natty% → ratio odds: 3.1% → 31:1"""
