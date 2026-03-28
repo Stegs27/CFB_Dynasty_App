@@ -11886,13 +11886,25 @@ def load_team_performance(year=None):
 
     HOME/AWAY columns are W-L strings e.g. "7-2". DIFF and MOV pre-computed.
     Handles multiple rows per team (weekly snapshots) by taking the latest week.
+    For 2042+ seasons, always recomputes from schedule_{year}.csv so the CSV
+    never goes stale between watcher imports.
     """
     if year is None:
         year = CURRENT_YEAR
     try:
-        cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
-        if cs.empty:
-            raise FileNotFoundError("empty")
+        # For current-era seasons, always recompute from schedule file if it exists.
+        # This ensures newly imported games show up immediately without manual CSV refresh.
+        _sched_file = f'schedule_{int(year)}.csv'
+        if int(year) >= 2042 and os.path.exists(_sched_file):
+            _fresh = compute_conf_standings_from_schedule(year=year, write_csv=True)
+            if not _fresh.empty:
+                cs = _fresh
+            else:
+                raise FileNotFoundError("empty schedule recompute")
+        else:
+            cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
+            if cs.empty:
+                raise FileNotFoundError("empty")
         cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
         if 'CONFERENCE' in cs.columns:
             cs['CONFERENCE'] = cs['CONFERENCE'].astype(str).apply(normalize_conf_name)
@@ -18109,7 +18121,8 @@ with tabs[0]:
 
             tc = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
-            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
+            _logo_not_ready_style = '' if _is_ready_or_final else 'filter:grayscale(70%) opacity(0.45);'
+            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style or _logo_not_ready_style}'/>" if logo_uri else "🏈 "
 
             qb_tier = row.get('QB Tier', '—')
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
@@ -18327,12 +18340,12 @@ with tabs[0]:
 
             card_html = (
                 f"<div style='display:flex; align-items:center; "
-                f"background:linear-gradient(90deg,{tc}40 0%,{tc}18 25%,#1f2937 60%); "
-                f"border-left:5px solid {tc}; {card_glow}{_ready_outline} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
+                f"background:{'linear-gradient(90deg,'+tc+'40 0%,'+tc+'18 25%,#1f2937 60%)' if _is_ready_or_final else 'linear-gradient(90deg,#1e293b 0%,#0f172a 100%)'}; "
+                f"border-left:5px solid {tc if _is_ready_or_final else '#334155'}; {card_glow}{_ready_outline} opacity:{'1.0' if _is_ready_or_final else '0.52'}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
                 f"{_rank_circle}"
                 f"{logo_html}"
-                f"<div style='flex:1; min-width:200px; {bw_style}'>"
-                f"<span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else '#9ca3af'};'>{html.escape(team)}</span> "
+                f"<div style='flex:1; min-width:200px; {bw_style if bw_style else ('filter:grayscale(60%);' if not _is_ready_or_final else '')}'>"
+                f"<span style='font-size:1.05rem; font-weight:800; color:{tc if (_is_ready_or_final and not bw_style) else '#6b7280'};'>{html.escape(team)}</span> "
                 f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span>"
                 f"<div style='margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;'>{_tier_chips} {official_badge}</div>"
                 f"{_game_strip}"
@@ -18342,7 +18355,7 @@ with tabs[0]:
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 MS+ Preseason</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(6-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP <span style='color:#60a5fa;font-weight:700;'>{float(cfp_pct):.0f}%</span></span><br>"
-                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 FPI Live</span> "
+                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 Committee Live</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:#60a5fa;font-weight:700;'>{live_cfp:.0f}%</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
