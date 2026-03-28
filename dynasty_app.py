@@ -21969,13 +21969,18 @@ with tabs[4]:
             # 9. Combine the 5th Champ and the 7 At-Larges, and sort them purely by Rank for seeds 5-12
             seeds_5_to_12 = pd.concat([fifth_champ, at_large_bids]).sort_values('Rank', ascending=True)
             
-            # 10. Build the final 12-team field!
+            # 10. Build the final 12-team field — pad/trim to exactly 12
             projected_field = pd.concat([top_4_byes, seeds_5_to_12]).reset_index(drop=True)
-            projected_field['Projected Seed'] = range(1, 13)
+            if len(projected_field) < 12:
+                _already_in = projected_field['Team'].tolist()
+                _extras = board_by_rank[~board_by_rank['Team'].isin(_already_in)].head(12 - len(projected_field))
+                projected_field = pd.concat([projected_field, _extras]).reset_index(drop=True)
+            projected_field = projected_field.head(12).reset_index(drop=True)
+            projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
         else:
             # Fallback if no conference data is found
-            projected_field = board_by_rank.head(12).copy()
-            projected_field['Projected Seed'] = range(1, 13)
+            projected_field = board_by_rank.head(12).copy().reset_index(drop=True)
+            projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
 
         # Calculate seed scores (for internal model consistency)
         projected_field = compute_projected_seed_score(projected_field)
