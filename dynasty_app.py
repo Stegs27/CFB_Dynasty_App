@@ -18121,8 +18121,7 @@ with tabs[0]:
 
             tc = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
-            _logo_not_ready_style = '' if _is_ready_or_final else 'filter:grayscale(70%) opacity(0.45);'
-            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style or _logo_not_ready_style}'/>" if logo_uri else "🏈 "
+            logo_uri  = image_file_to_data_uri(get_logo_source(team))
 
             qb_tier = row.get('QB Tier', '—')
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
@@ -18336,6 +18335,8 @@ with tabs[0]:
                 (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
                 bool(_manual_score_map.get(user, {}).get('user_score', 0))
             )
+            _logo_not_ready_style = '' if _is_ready_or_final else 'filter:grayscale(70%) opacity(0.45);'
+            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style or _logo_not_ready_style}'/>" if logo_uri else "🏈 "
             _ready_outline = f"box-shadow:0 0 0 2px {tc}; " if _is_ready_or_final and not bw_style else ""
 
             card_html = (
