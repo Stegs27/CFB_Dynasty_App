@@ -4388,16 +4388,21 @@ def simulate_nfl_trades(season_year, week_num, rosters_df, season_target=4):
 
     try:
         if trade_type == "PickOnly":
-            # Swap picks across rounds
+            # Swap picks across rounds — r2 must always be at least 1 round later
+            # than r1 so there's actual value in the trade (no same-round swaps)
             r1 = random.choice([1, 2, 3])
-            r2 = r1 + random.randint(0, 1)
-            t1_gives_str = f"{season_year + 1} Round {r1} pick"
-            t2_gives_str = f"{season_year + 1} Round {r2} pick"
-            headline = f"TRADE: {team1} and {team2} swap {season_year + 1} draft picks"
+            r2 = min(r1 + random.randint(1, 2), 7)  # always higher round, capped at 7
+            yr_delta = random.choice([0, 1])  # sometimes cross-year adds variety
+            yr1 = season_year + 1
+            yr2 = season_year + 1 + yr_delta
+            t1_gives_str = f"{yr1} Round {r1} pick"
+            t2_gives_str = f"{yr2} Round {r2} pick"
+            yr2_label = f"{yr2} " if yr_delta else ""
+            headline = f"TRADE: {team1} and {team2} swap {yr1} draft picks"
             description = (
                 f"In a quiet pre-deadline move, {team1} and {team2} exchanged "
-                f"future draft capital. {team1} sends their {season_year + 1} "
-                f"Round {r1} pick to {team2} in exchange for a Round {r2} selection. "
+                f"future draft capital. {team1} sends their {yr1} "
+                f"Round {r1} pick to {team2} in exchange for a {yr2_label}Round {r2} selection. "
                 f"Both teams are positioning for the future."
             )
 
@@ -12792,9 +12797,8 @@ def build_cfp_bubble_board(rankings_df, model_df):
 
         def remaining_sos_delta(team):
             """
-            Returns a modifier ranging roughly -6 to +6 based on remaining opponents.
-            Playing a top-5 ranked team: +4 to +6 (win would be huge, loss survivable if already in)
-            Playing unranked: +0 (neutral for locks, slight help if bubble)
+            Bonus for facing ranked opponents remaining. Ranges -6 to +6.
+            Top-5 opponent = big deal; unranked = neutral.
             """
             games = cpu_sched[
                 (cpu_sched['Visitor'] == team) | (cpu_sched['Home'] == team)
@@ -12806,19 +12810,47 @@ def build_cfp_bubble_board(rankings_df, model_df):
                 opp = g['Visitor'] if g['Home'] == team else g['Home']
                 opp_rank = rank_lookup.get(opp, None)
                 if opp_rank is not None:
-                    # Top 5 opponent = huge deal; ranked but lower = moderate
                     if opp_rank <= 5:
                         total_delta += 5.5
                     elif opp_rank <= 12:
                         total_delta += 3.0
                     elif opp_rank <= 25:
                         total_delta += 1.2
-                # Unranked opponent = no bonus (expected win)
             return round(total_delta, 1)
 
+        def _rank_win_prob(my_rank, opp_rank):
+            """Sigmoid win probability from CFP rank gap. Higher rank = better team."""
+            my_r  = float(my_rank)  if my_rank  else 20.0
+            opp_r = float(opp_rank) if opp_rank else 30.0
+            diff = opp_r - my_r   # positive = favored
+            return 1 / (1 + 10 ** (-diff / 8.0))
+
+        def projected_win_path(team):
+            """
+            Expected additional wins from remaining schedule using rank-vs-rank
+            win probability. #1 team vs cream puffs → near-max score (easy path).
+            Bubble team facing #3 and #7 → low score (must-win gauntlet).
+            Normalized 0-10 to replace the old Power Index modifier in CFP Raw.
+            """
+            my_rank = rank_lookup.get(team, 20)
+            games = cpu_sched[
+                (cpu_sched['Visitor'] == team) | (cpu_sched['Home'] == team)
+            ]
+            if games.empty:
+                return 5.0  # no data = neutral assumption of average path
+            expected_wins = sum(
+                _rank_win_prob(my_rank, rank_lookup.get(
+                    g['Visitor'] if g['Home'] == team else g['Home'], 30
+                ))
+                for _, g in games.iterrows()
+            )
+            return round(min(expected_wins * 2.0, 10.0), 2)
+
         df['Remaining SOS Delta'] = df['Team'].apply(remaining_sos_delta)
+        df['Projected Win Path']  = df['Team'].apply(projected_win_path)
     except Exception:
         df['Remaining SOS Delta'] = 0.0
+        df['Projected Win Path']  = 5.0  # neutral fallback
 
     # ── RANK SCORE: non-linear, steep around bubble (8-16) ─────────────────
     # Rank 1 = 100, Rank 4 = 91, Rank 8 = 79, Rank 12 = 60, Rank 13 = 45, Rank 16 = 28, Rank 25 = 5
@@ -12858,14 +12890,17 @@ def build_cfp_bubble_board(rankings_df, model_df):
     )
 
     # ── COMBINED RAW SCORE ───────────────────────────────────────────────────
-    # Rank Score is dominant (55%), everything else sharpens the edges
+    # Formula philosophy: committee rank IS the story — it's already their verdict.
+    # Projected Win Path replaces Power Index: tells us HOW HARD the road ahead is,
+    # not just how good the team is in the abstract (that's what rank already says).
+    # Rank Score (58%) → dominant. Win Path (12%) → schedule-path realism.
+    # SOS + Resume (12%) → earned resume weight. QB + Roster mods → edge sharpeners.
     df['CFP Raw'] = (
-        df['Rank Score'] * 0.55
+        df['Rank Score'] * 0.58
         + df['Win %'] * 100 * 0.10
         + df['SOS'] * 0.06
         + df['Resume Score'] * 0.06
-        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.2) * 0.04
-        + df['OVERALL'] * 0.04
+        + df['Projected Win Path'] * 0.12   # replaces Power Index — schedule path matters
         + df['QB Mod']
         + df['Overall CFP Mod']
         + df['Remaining SOS Delta']
@@ -12873,9 +12908,9 @@ def build_cfp_bubble_board(rankings_df, model_df):
     )
 
     # ── CFP MAKE % ───────────────────────────────────────────────────────────
-    # Sigmoid tuned so rank-1 = ~97%, rank-12 = ~80%, rank-13 = ~45%, rank-25 = ~5%
-    # Sigmoid center 42 so rank-12 w/ 1 loss lands ~55%, rank-1 w/ 0 losses ~97%
-    df['CFP Make %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 42) / 5.5)) * 100).round(1)
+    # Sigmoid center 44: rank-1 undefeated ≈ 97%, rank-12 1-loss ≈ 75%,
+    # rank-13 ≈ 42%, rank-16 ≈ 18%, rank-25 ≈ 5%.
+    df['CFP Make %'] = (1 / (1 + np.exp(-(df['CFP Raw'] - 44) / 5.5)) * 100).round(1)
     df['CFP Make %'] = df['CFP Make %'].clip(lower=0.5, upper=99.0)
 
     # ── AUTO-BID PATH ────────────────────────────────────────────────────────
@@ -12921,11 +12956,11 @@ def build_cfp_bubble_board(rankings_df, model_df):
 def compute_projected_seed_score(board_df):
     df = board_df.copy()
     df['Seed Score'] = (
-        df['Committee Score'] * 0.36
-        + (df['Win %'] * 100) * 0.18
+        df['Committee Score'] * 0.38
+        + (df['Win %'] * 100) * 0.20
         + df['Resume Score'] * 0.16
         + df['SOS'] * 0.12
-        + df['Power Index'].clip(lower=160, upper=360).sub(160).div(2.15) * 0.08
+        + df.get('Projected Win Path', pd.Series(5.0, index=df.index)) * 0.06
         + df['Bye %'] * 0.04
         + df['Auto-Bid %'] * 0.03
         + df['QB Mod'] * 0.55
@@ -15223,6 +15258,37 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
         _opp_context_map = {}
 
     # ── NFL STORY EVENTS in ticker ────────────────────────────────────────
+    # Pre-build live NFL record lookup so stale story event headlines get corrected
+    _nfl_live_records = {}  # team_lower -> "W-L"
+    try:
+        if os.path.exists("nfl_standings_history.csv"):
+            _nfl_live_sh = pd.read_csv("nfl_standings_history.csv")
+            _nfl_live_sh["Season"] = pd.to_numeric(_nfl_live_sh["Season"], errors="coerce")
+            _nfl_live_sh["Wins"]   = pd.to_numeric(_nfl_live_sh.get("Wins",   pd.Series()), errors="coerce").fillna(0)
+            _nfl_live_sh["Losses"] = pd.to_numeric(_nfl_live_sh.get("Losses", pd.Series()), errors="coerce").fillna(0)
+            _nfl_live_latest_szn = _nfl_live_sh["Season"].dropna().astype(int).max()
+            _nfl_live_latest = _nfl_live_sh[_nfl_live_sh["Season"].fillna(-1).astype(int) == int(_nfl_live_latest_szn)]
+            for _, _nfl_r in _nfl_live_latest.iterrows():
+                _t = str(_nfl_r.get("Team", "")).strip()
+                if _t:
+                    _nfl_live_records[_t.lower()] = f"{int(_nfl_r['Wins'])}-{int(_nfl_r['Losses'])}"
+                    # Also index by short city name for fuzzy matching
+                    _nfl_live_records[_t.split()[-1].lower()] = f"{int(_nfl_r['Wins'])}-{int(_nfl_r['Losses'])}"
+    except Exception:
+        pass
+
+    import re as _nfl_re
+    _WL_PATTERN = _nfl_re.compile(r'\b(\d{1,2}-\d{1,2})\b')
+
+    def _patch_nfl_record(text, nfl_team):
+        """Replace any W-L pattern in text with the live record for nfl_team."""
+        live = _nfl_live_records.get(str(nfl_team).lower())
+        if not live:
+            live = _nfl_live_records.get(str(nfl_team).split()[-1].lower())
+        if live:
+            return _nfl_re.sub(_WL_PATTERN, live, text, count=1)
+        return text
+
     try:
         if os.path.exists("nfl_story_events.csv"):
             _nfl_stories = pd.read_csv("nfl_story_events.csv")
@@ -15287,6 +15353,8 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                         _abbr   = _COLLEGE_ABBR.get(_school, _school.split()[-1].upper() if _school else "")
                         if _abbr and _ns_player in _ns_headline:
                             _ns_disp = _ns_headline.replace(_ns_player, f"former {_abbr} standout {_ns_player}", 1)
+                # Patch any stale W-L record in the headline with live standings
+                _ns_disp = _patch_nfl_record(_ns_disp, _ns_team)
                 _ns_logo_src  = get_nfl_logo_src(_ns_team)
                 _ns_logo_html = f"<img src='{_ns_logo_src}' style='height:20px;width:20px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _ns_logo_src else ""
                 _all_headlines.append({
@@ -20958,6 +21026,21 @@ with tabs[0]:
                 _pos_colors_heis = {'QB':'#f97316','HB':'#22c55e','RB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa','K':'#94a3b8','P':'#94a3b8'}
                 _medal_heis = {1:'🥇', 2:'🥈', 3:'🥉'}
 
+                # Build previous-week snapshot for movement arrows
+                _prev_snap = {}
+                try:
+                    _hw_prev_wk = _hw_latest_wk - 1
+                    if _hw_prev_wk >= 0:
+                        _hw_prev_rows = _hw_cy[_hw_cy['WEEK'] == _hw_prev_wk]
+                        if not _hw_prev_rows.empty:
+                            _prev_snap = {
+                                str(r['NAME']).strip().lower(): int(r['RANK'])
+                                for _, r in _hw_prev_rows.iterrows()
+                                if pd.notna(r.get('RANK'))
+                            }
+                except Exception:
+                    _prev_snap = {}
+
                 for _, _r in _hw_snap.iterrows():
                     _rank   = int(_r['RANK'])
                     _name   = str(_r['NAME']).strip()
@@ -21611,7 +21694,7 @@ with tabs[4]:
             {"label": "🅱️ Best Bye Shot",     "value": f"{projected_field.sort_values('Bye %', ascending=False).iloc[0]['Team']}", "delta": format_pct(projected_field['Bye %'].max(), 1)},
         ])
 
-        st.subheader('📡 FPI Projected CFP Field')
+        st.subheader('📡 Committee Projected CFP Field')
         projected_field_display = projected_field.copy()
         projected_field_display['Projected Seed Display'] = pd.to_numeric(
             projected_field_display['Projected Seed'] if 'Projected Seed' in projected_field_display.columns else 0,
@@ -26350,6 +26433,43 @@ with _yt_tabs[3]:
                 goat_stats[u_name]['top5_classes'] = max(goat_stats[u_name]['top5_classes'], _safe_int(row.get('Top5RecruitingClasses', 0), 0))
     except Exception:
         coach_records = pd.DataFrame()
+
+    # ── Live career W/L re-derive from schedule data ─────────────────────
+    # Overrides stale coach_records.csv values with a fresh count from the
+    # full multi-year schedule (includes schedule_2042.csv not yet synced).
+    try:
+        _goat_scores = load_scores_master(multi_year=True)
+        if not _goat_scores.empty:
+            _goat_v_user = smart_col(_goat_scores, ['Vis_User', 'Visitor User', 'Vis User'])
+            _goat_h_user = smart_col(_goat_scores, ['Home_User', 'Home User'])
+            _goat_v_pts  = smart_col(_goat_scores, ['Vis Score', 'Vis_Score'])
+            _goat_h_pts  = smart_col(_goat_scores, ['Home Score', 'Home_Score'])
+            if _goat_v_user and _goat_h_user and _goat_v_pts and _goat_h_pts:
+                _goat_scores['_vu'] = safe_title_series(_goat_scores[_goat_v_user])
+                _goat_scores['_hu'] = safe_title_series(_goat_scores[_goat_h_user])
+                _goat_scores['_vs'] = pd.to_numeric(_goat_scores[_goat_v_pts], errors='coerce')
+                _goat_scores['_hs'] = pd.to_numeric(_goat_scores[_goat_h_pts], errors='coerce')
+                _goat_final = _goat_scores.dropna(subset=['_vs', '_hs']).copy()
+                _live_cw = {}; _live_cl = {}
+                for _, _gr in _goat_final.iterrows():
+                    _vs2 = float(_gr['_vs']); _hs2 = float(_gr['_hs'])
+                    for _ucol, _my, _opp in [('_vu', _vs2, _hs2), ('_hu', _hs2, _vs2)]:
+                        _u2 = str(_gr[_ucol]).strip()
+                        if not _u2 or _u2.upper() == 'CPU' or _u2.lower() in ('nan', ''):
+                            continue
+                        if _my > _opp:
+                            _live_cw[_u2] = _live_cw.get(_u2, 0) + 1
+                        elif _opp > _my:
+                            _live_cl[_u2] = _live_cl.get(_u2, 0) + 1
+                for _u2 in set(list(_live_cw.keys()) + list(_live_cl.keys())):
+                    if _u2 not in goat_stats:
+                        continue
+                    _lcw = _live_cw.get(_u2, 0); _lcl = _live_cl.get(_u2, 0)
+                    # Only override if live count is HIGHER (never reduce from manual edits)
+                    goat_stats[_u2]['career_wins']   = max(goat_stats[_u2]['career_wins'],   _lcw)
+                    goat_stats[_u2]['career_losses'] = max(goat_stats[_u2]['career_losses'], _lcl)
+    except Exception:
+        pass
 
     # champs.csv
     try:
