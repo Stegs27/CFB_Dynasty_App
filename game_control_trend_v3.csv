@@ -1,0 +1,48 @@
+YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,OPP_RANK_AT_GAME,OPP_RANK_CURRENT,OPP_RANK_USED,game_control_score,rolling_3_game_control,trend_vs_prev,game_control_tier,close_escape,false_blowout,stealth_dominance,got_robbed_flag
+2042,1,Devin,Bowling Green,Miami,W,56,28,21.0,25.0,21.0,67.21,67.21,,Solid Control,False,False,False,False
+2042,1,Doug,Florida,Washington,W,56,21,20.0,,20.0,76.01,76.01,,Strong Control,False,False,False,False
+2042,1,Josh,USF,Hammond,W,77,24,14.0,14.0,14.0,83.6,83.6,,Strong Control,False,False,False,False
+2042,1,Mike,San Jose State,Stanford,W,71,61,,,,59.72,59.72,,Toss-Up / Fragile,False,False,False,False
+2042,1,Nick,Florida State,North Carolina,W,56,35,,,,62.7,62.7,,Solid Control,False,True,False,False
+2042,1,Noah,Texas Tech,Georgia Tech,W,48,10,19.0,19.0,19.0,73.46,73.46,,Solid Control,False,False,False,False
+2042,2,Devin,Bowling Green,Penn State,W,49,21,14.0,,14.0,71.84,69.53,4.63,Solid Control,False,False,False,False
+2042,2,Doug,Florida,NC State,W,43,26,,,,65.68,70.84,-10.33,Solid Control,False,False,False,False
+2042,2,Josh,USF,Arkansas,W,56,16,,,,79.83,81.72,-3.77,Strong Control,False,False,False,False
+2042,2,Mike,San Jose State,Texas,W,38,37,1.0,8.0,1.0,61.15,60.44,1.43,Solid Control,False,False,False,False
+2042,2,Nick,Florida State,Nebraska,L,21,43,19.0,11.0,19.0,35.49,49.1,-27.21,Outplayed / Survived,False,False,False,False
+2042,2,Noah,Texas Tech,TCU,W,36,13,,,,72.52,72.99,-0.94,Solid Control,False,False,False,False
+2042,3,Devin,Bowling Green,Toledo,W,77,10,,,,83.77,74.27,11.93,Strong Control,False,False,False,False
+2042,3,Josh,USF,Oklahoma,W,49,0,23.0,23.0,23.0,82.64,82.02,2.81,Strong Control,False,False,False,False
+2042,3,Mike,San Jose State,Auburn,W,34,19,16.0,16.0,16.0,68.63,63.17,7.48,Solid Control,False,False,False,False
+2042,3,Noah,Texas Tech,Tennessee,W,52,10,,,,84.82,76.93,12.3,Strong Control,False,False,False,False
+2042,4,Devin,Bowling Green,Kentucky,W,69,10,,,,73.44,76.35,-10.33,Solid Control,False,False,False,False
+2042,4,Doug,Florida,Texas,W,38,35,9.0,9.0,9.0,56.7,66.13,-8.98,Toss-Up / Fragile,True,False,False,False
+2042,4,Josh,USF,San Jose State,L,23,28,3.0,3.0,3.0,43.19,68.55,-39.45,Outplayed / Survived,False,False,False,False
+2042,4,Mike,San Jose State,USF,W,28,23,6.0,6.0,6.0,61.25,63.68,-7.38,Solid Control,False,False,False,False
+2042,4,Nick,Florida State,South Carolina,W,56,19,,,,66.47,54.89,30.98,Solid Control,False,True,False,False
+2042,4,Noah,Texas Tech,Oregon,W,45,21,10.0,10.0,10.0,76.34,77.89,-8.48,Strong Control,False,False,False,False
+2042,5,Devin,Bowling Green,Florida,W,56,38,8.0,8.0,8.0,69.29,75.5,-4.15,Solid Control,False,False,False,False
+2042,5,Doug,Florida,Bowling Green,L,38,56,3.0,3.0,3.0,35.9,52.76,-20.8,Outplayed / Survived,False,False,False,False
+2042,5,Mike,San Jose State,Washington,L,36,57,,,,37.05,55.64,-24.2,Outplayed / Survived,False,False,False,False
+2042,5,Nick,Florida State,Auburn,L,35,47,17.0,17.0,17.0,39.01,46.99,-27.46,Outplayed / Survived,False,False,False,True
+2042,5,Noah,Texas Tech,USC,W,48,21,13.0,13.0,13.0,74.02,78.39,-2.32,Solid Control,False,False,False,False
+2042,6,Devin,Bowling Green,Missouri,W,42,24,,,,64.43,69.05,-4.86,Solid Control,False,True,False,False
+2042,6,Doug,Florida,Oklahoma State,W,56,49,11.0,11.0,11.0,57.83,50.14,21.93,Toss-Up / Fragile,True,False,False,False
+2042,6,Josh,USF,Indiana,W,77,14,,,,76.81,67.55,33.62,Strong Control,False,False,False,False
+2042,6,Mike,San Jose State,USC,W,52,35,21.0,21.0,21.0,65.73,54.68,28.68,Solid Control,False,True,False,False
+2042,6,Nick,Florida State,Georgia,W,63,53,6.0,6.0,6.0,51.86,52.45,12.85,Toss-Up / Fragile,False,False,False,False
+2042,6,Noah,Texas Tech,Purdue,W,60,26,,,,61.74,70.7,-12.28,Solid Control,False,True,False,False
+2042,7,Devin,Bowling Green,South Carolina,W,49,0,,,,71.33,68.35,6.9,Solid Control,False,False,False,False
+2042,7,Josh,USF,Nebraska,W,56,31,6.0,6.0,6.0,76.22,65.41,-0.59,Strong Control,False,False,False,False
+2042,7,Mike,San Jose State,Indiana,W,59,36,,,,59.25,54.01,-6.48,Toss-Up / Fragile,False,True,False,False
+2042,7,Nick,Florida State,Miami,W,21,14,23.0,23.0,23.0,57.51,49.46,5.65,Toss-Up / Fragile,True,False,False,False
+2042,7,Noah,Texas Tech,Penn State,W,59,24,22.0,,22.0,70.97,68.91,9.23,Solid Control,False,False,False,False
+2042,8,Devin,Bowling Green,Notre Dame,W,44,36,4.0,4.0,4.0,62.77,66.18,-8.56,Solid Control,False,False,False,False
+2042,8,Doug,Florida,Tennessee,W,38,23,,,,62.51,52.08,4.68,Solid Control,False,False,False,False
+2042,8,Josh,USF,Michigan,W,52,14,19.0,,19.0,76.27,76.43,0.05,Strong Control,False,False,False,False
+2042,8,Mike,San Jose State,Texas Tech,L,31,35,2.0,2.0,2.0,49.1,58.03,-10.15,Toss-Up / Fragile,False,False,False,True
+2042,8,Nick,Florida State,Oklahoma,W,58,10,,,,73.68,61.02,16.17,Solid Control,False,False,False,False
+2042,8,Noah,Texas Tech,San Jose State,W,35,31,6.0,6.0,6.0,55.4,62.7,-15.57,Toss-Up / Fragile,True,False,False,False
+2042,9,Devin,Bowling Green,Oklahoma,W,35,28,,,,51.93,62.01,-10.84,Toss-Up / Fragile,True,False,False,False
+2042,9,Josh,USF,Michigan State,W,56,19,,,,70.64,74.38,-5.63,Solid Control,False,False,False,False
+2042,9,Mike,San Jose State,Nebraska,L,37,52,15.0,15.0,15.0,42.97,50.44,-6.13,Outplayed / Survived,False,False,False,True

@@ -10244,18 +10244,15 @@ def load_scores_master(year=None, multi_year=False, **kwargs):
 
     if multi_year:
         parts = []
-        # Load CPUscores FIRST — schedule_{YEAR}.csv loaded last so that
-        # keep='last' in dedup always preserves the schedule file's data
-        # (including user tags) over any stale CPUscores_MASTER entries.
-        # Legacy master (pre-split)
-        if os.path.exists('CPUscores_MASTER.csv'):
-            parts.append(_read('CPUscores_MASTER.csv', **kwargs))
+        # New-style year files (2042+)
+        for yf in sorted(_glob.glob('schedule_*.csv')):
+            parts.append(_read(yf, **kwargs))
         # Legacy CPUscores year files
         for yf in sorted(_glob.glob('CPUscores_MASTER_*.csv')):
             parts.append(_read(yf, **kwargs))
-        # New-style year files (2042+) — LAST = wins on dedup
-        for yf in sorted(_glob.glob('schedule_*.csv')):
-            parts.append(_read(yf, **kwargs))
+        # Legacy master (pre-split)
+        if os.path.exists('CPUscores_MASTER.csv'):
+            parts.append(_read('CPUscores_MASTER.csv', **kwargs))
         if not parts:
             return pd.DataFrame()
         combined = pd.concat(parts, ignore_index=True)
@@ -11886,25 +11883,13 @@ def load_team_performance(year=None):
 
     HOME/AWAY columns are W-L strings e.g. "7-2". DIFF and MOV pre-computed.
     Handles multiple rows per team (weekly snapshots) by taking the latest week.
-    For 2042+ seasons, always recomputes from schedule_{year}.csv so the CSV
-    never goes stale between watcher imports.
     """
     if year is None:
         year = CURRENT_YEAR
     try:
-        # For current-era seasons, always recompute from schedule file if it exists.
-        # This ensures newly imported games show up immediately without manual CSV refresh.
-        _sched_file = f'schedule_{int(year)}.csv'
-        if int(year) >= 2042 and os.path.exists(_sched_file):
-            _fresh = compute_conf_standings_from_schedule(year=year, write_csv=True)
-            if not _fresh.empty:
-                cs = _fresh
-            else:
-                raise FileNotFoundError("empty schedule recompute")
-        else:
-            cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
-            if cs.empty:
-                raise FileNotFoundError("empty")
+        cs = pd.read_csv(f'conf_standings_{int(year)}.csv')
+        if cs.empty:
+            raise FileNotFoundError("empty")
         cs['TEAM'] = cs['TEAM'].astype(str).str.strip()
         if 'CONFERENCE' in cs.columns:
             cs['CONFERENCE'] = cs['CONFERENCE'].astype(str).apply(normalize_conf_name)
@@ -14137,43 +14122,33 @@ if data:
     except Exception:
         model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
 
-    # ── Merge committee-model odds into model_2041 for LIVE columns ──────────
-    # Source of truth: _cfp_board_early (CFP Make % + Bye % from rank+schedule model).
-    # Replaces the old FPI/sigmoid overwrite that gave expansion teams 1% odds.
-    # Natty % = P(make field) × P(win natty | in field), same formula as CFP display.
-    # Preseason Natty Odds / Preseason CFP % columns are left untouched.
+    # ── Merge national odds (136-team field) into model_2041 for LIVE columns ──
+    # Preseason Natty Odds / Preseason CFP % stay as the 6-team rich model output.
+    # Only Natty Odds and CFP Odds (the "live" columns) get the national numbers.
     try:
-        if not _cfp_board_early.empty and 'CFP Make %' in _cfp_board_early.columns:
-            _comm_nat_rows = []
-            _cb_idx = _cfp_board_early.set_index('Team')
+        _nat_odds_model = build_sigmoid_natty_odds(year=CURRENT_YEAR)
+        if _nat_odds_model:
+            _nat_rows = []
             for _, _mr in model_2041.iterrows():
                 _mt = str(_mr.get('TEAM', '')).strip()
-                # Try exact match then case-insensitive
-                _cb_row = _cb_idx.loc[_mt] if _mt in _cb_idx.index else None
-                if _cb_row is None:
+                _nd = _nat_odds_model.get(_mt)
+                if _nd is None:
                     _mtl = _mt.lower()
-                    for _ck in _cb_idx.index:
-                        if str(_ck).lower() == _mtl:
-                            _cb_row = _cb_idx.loc[_ck]
+                    for _nk, _nv in _nat_odds_model.items():
+                        if _nk.lower() == _mtl or _nk.lower().replace('&','and') == _mtl.replace('&','and'):
+                            _nd = _nv
                             break
-                if _cb_row is not None:
-                    _cfp_m = float(_cb_row.get('CFP Make %', 0) or 0)
-                    _bye_m = float(_cb_row.get('Bye %',      0) or 0)
-                    _mult  = (1/6.0) if _bye_m > 50 else (1/9.0 if _cfp_m > 70 else 1/14.0)
-                    _natty_m = round((_cfp_m / 100.0) * _mult * 100, 2)
-                    _cfp_odds_m = round(_cfp_m, 1)
-                else:
-                    _natty_m    = float(_mr.get('Natty Odds', 0) or 0)
-                    _cfp_odds_m = float(_mr.get('CFP Odds',  20) or 20)
-                _comm_nat_rows.append({
-                    'TEAM': _mt,
-                    'Natty Odds': _natty_m,
-                    'CFP Odds':   _cfp_odds_m,
+                # Only replace live columns — preseason stays from 6-team model above
+                _nat_rows.append({
+                    'TEAM':      _mt,
+                    'Natty Odds': _nd['natty_pct'] if _nd else float(_mr.get('Natty Odds', 0) or 0),
+                    'CFP Odds':   _nd['cfp_pct']   if _nd else float(_mr.get('CFP Odds', 20) or 20),
                 })
-            _comm_nat_df = pd.DataFrame(_comm_nat_rows)
+            _nat_df = pd.DataFrame(_nat_rows)
+            # Only drop and replace live columns — leave Preseason columns intact
             _drop_nat = [c for c in ['Natty Odds', 'CFP Odds'] if c in model_2041.columns]
             model_2041 = model_2041.drop(columns=_drop_nat, errors='ignore').merge(
-                _comm_nat_df, on='TEAM', how='left'
+                _nat_df, on='TEAM', how='left'
             )
     except Exception:
         pass
@@ -15650,7 +15625,7 @@ tabs = st.tabs([
     "🗞️ Dynasty News",          # tabs[0]
     "🏈 NFL Universe",          # tabs[1]
     "🌴 Off-Season Drama",      # tabs[2]  subtabs: Recruiting + Attrition
-    "⚡ Speed & SOS",           # tabs[3]  subtabs: Speed Freaks + SOS
+    "🎯 The Metrics",           # tabs[3]  subtabs: Speed Freaks + FPI + Game Control + Program Trajectory
     "🏆 Who\'s In?",           # tabs[4]
     "📺 Season Recap",          # tabs[5]
     "🎯 Roster Matchup",        # tabs[6]  subtabs: Matchup + NIL
@@ -15660,7 +15635,7 @@ tabs = st.tabs([
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
 with tabs[3]:
-    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 FPI & MS+ Ratings", "📈 Program Trajectory"])
+    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 FPI & MS+ Ratings", "🎮 Game Control", "📈 Program Trajectory"])
     with _spd_tabs[0]:
         st.header("🔍 Speed Freaks")
         st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
@@ -17211,8 +17186,254 @@ with tabs[3]:
                 st.info("No schedule data found for this user. Make sure CPUscores_MASTER.csv is up to date.")
 
 
-    # ── PROGRAM TRAJECTORY TAB ────────────────────────────────────────
+    # ── GAME CONTROL TAB ──────────────────────────────────────────────
     with _spd_tabs[2]:
+
+        @st.cache_data(ttl=300)
+        def load_game_control_files():
+            summary = pd.read_csv("game_control_summary_v3.csv")
+            games   = pd.read_csv("game_control_by_game_v3.csv")
+            trend   = pd.read_csv("game_control_trend_v3.csv")
+            return summary, games, trend
+
+        try:
+            gc_summary, gc_games, gc_trend = load_game_control_files()
+        except Exception as _gce:
+            st.warning(f"Game Control files could not be loaded: {_gce}")
+            gc_summary = gc_games = gc_trend = pd.DataFrame()
+
+        if gc_summary.empty:
+            st.info("Push game_control_summary_v3.csv, game_control_by_game_v3.csv, and game_control_trend_v3.csv to enable this tab.")
+        else:
+            for _gcdf in [gc_summary, gc_games, gc_trend]:
+                if "TEAM" in _gcdf.columns:
+                    _gcdf["TEAM"] = _gcdf["TEAM"].astype(str).str.strip()
+                if "USER" in _gcdf.columns:
+                    _gcdf["USER"] = _gcdf["USER"].astype(str).str.strip()
+
+            def _gc_safe_int(val, default=0):
+                try:
+                    return default if pd.isna(val) else int(float(val))
+                except Exception:
+                    return default
+
+            def _gc_safe_float(val, default=0.0):
+                try:
+                    return default if pd.isna(val) else float(val)
+                except Exception:
+                    return default
+
+            def _gc_format_rank(r):
+                v = _gc_safe_int(r, 0)
+                return f"#{v}" if v > 0 else "Unranked"
+
+            def _gc_badge(score):
+                if score >= 82: return "👑 TOTAL CONTROL",  "#ff9d2f"
+                if score >= 72: return "🔥 COMMANDING",     "#ff9d2f"
+                if score >= 60: return "⚡ SOLID CONTROL",  "#ffd34d"
+                if score >= 48: return "🪓 FRAGILE",        "#4ade80"
+                if score >= 35: return "⚠️ SURVIVING",      "#60a5fa"
+                return           "☠️ OUTPLAYED",             "#f87171"
+
+            def _gc_accent(score):
+                if score >= 82: return "#ff8f1f"
+                if score >= 72: return "#ffb347"
+                if score >= 60: return "#ffd84d"
+                if score >= 48: return "#22c55e"
+                if score >= 35: return "#3b82f6"
+                return "#ef4444"
+
+            def _gc_sig_line(team_name, user_name):
+                _tg = gc_games[(gc_games["TEAM"] == team_name) & (gc_games["USER"] == user_name)].copy()
+                if _tg.empty:
+                    return "No games recorded yet."
+                _wins = _tg[_tg["RESULT"].astype(str).str.upper() == "W"].copy()
+                _pool = _wins if not _wins.empty else _tg
+                if "game_control_score" in _pool.columns:
+                    _g = _pool.sort_values("game_control_score", ascending=False).iloc[0]
+                else:
+                    _g = _pool.iloc[0]
+                _wk  = _gc_safe_int(_g.get("WEEK", 0))
+                _opp = str(_g.get("OPPONENT", "?"))
+                _ts  = _gc_safe_int(_g.get("TEAM_SCORE", 0))
+                _os  = _gc_safe_int(_g.get("OPP_SCORE", 0))
+                _res = str(_g.get("RESULT", ""))
+                _ven = str(_g.get("HOME_AWAY", ""))
+                _gcs = _gc_safe_float(_g.get("game_control_score", 0.0))
+                _opp_rk = _g.get("OPP_RANK_AT_GAME", _g.get("OPP_RANK_USED", None))
+                _opp_lbl = _opp
+                if _opp_rk is not None and _gc_safe_int(_opp_rk, 0) > 0:
+                    _opp_lbl = f"{_opp} ({_gc_format_rank(_opp_rk)} at game time)"
+                _vtxt = " on the road" if _ven.upper() in ("A","AWAY") else (" at home" if _ven.upper() in ("H","HOME") else "")
+                if _res.upper() == "W":
+                    return f"Wk {_wk} beat {_opp_lbl} {_ts}-{_os}{_vtxt} — GC score: {_gcs:.1f}"
+                return f"Wk {_wk} lost to {_opp_lbl} {_ts}-{_os}{_vtxt} — GC score: {_gcs:.1f}"
+
+            def _gc_trend_label(team_name, user_name):
+                _t = gc_trend[(gc_trend["TEAM"] == team_name) & (gc_trend["USER"] == user_name)].copy()
+                if _t.empty or "trend_vs_prev" not in _t.columns:
+                    return "Stable"
+                _t = _t.sort_values(["YEAR", "WEEK"])
+                _last = _t["trend_vs_prev"].dropna()
+                if _last.empty:
+                    return "Stable"
+                _v = _gc_safe_float(_last.iloc[-1], 0)
+                if _v >= 8:  return "🔥 Heating Up"
+                if _v >= 3:  return "📈 Trending Up"
+                if _v <= -8: return "🚨 Fraud Alert"
+                if _v <= -3: return "📉 Cooling Off"
+                return "➡️ Stable"
+
+            # Build ranking table
+            _gc_rank = gc_summary.copy()
+            _gc_rank["AVG_GAME_CONTROL"] = pd.to_numeric(_gc_rank["AVG_GAME_CONTROL"], errors="coerce").fillna(0)
+            _gc_rank = _gc_rank.sort_values("AVG_GAME_CONTROL", ascending=False).reset_index(drop=True)
+            _gc_rank["RANK"] = range(1, len(_gc_rank) + 1)
+
+            # ── CSS ───────────────────────────────────────────────────────
+            st.markdown("""
+            <style>
+            .gc-card {
+                position:relative; display:flex; align-items:center;
+                justify-content:space-between; gap:16px;
+                background:linear-gradient(90deg,rgba(2,8,23,.97) 0%,rgba(1,10,30,.97) 55%,rgba(2,8,23,.99) 100%);
+                border-radius:18px; padding:18px 22px; margin-bottom:12px;
+                border:1px solid rgba(80,100,140,.16);
+                overflow:hidden;
+            }
+            .gc-card::before {
+                content:""; position:absolute; left:0; top:0; bottom:0; width:5px;
+                background:var(--gc-accent); box-shadow:0 0 22px var(--gc-accent);
+                border-radius:18px 0 0 18px;
+            }
+            .gc-rank  { width:44px; color:#6b7a94; font-size:1.4rem; font-weight:800; text-align:center; flex-shrink:0; }
+            .gc-logo  { width:48px; height:48px; object-fit:contain; flex-shrink:0; filter:drop-shadow(0 2px 8px rgba(0,0,0,.45)); }
+            .gc-team  { color:#f8fafc; font-size:1.7rem; font-weight:900; line-height:1; text-transform:uppercase; }
+            .gc-meta  { color:#8ea0bb; font-size:0.95rem; font-weight:600; }
+            .gc-sig   { color:#7f8faa; font-size:0.9rem; margin-top:4px; }
+            .gc-badge { color:var(--gc-accent); font-size:0.95rem; font-weight:900; text-transform:uppercase; letter-spacing:.5px; }
+            .gc-score { color:var(--gc-accent); font-size:2.1rem; font-weight:900; line-height:1; }
+            .gc-mini  { color:#72829d; font-size:.85rem; margin-top:6px; font-weight:600; }
+            </style>
+            """, unsafe_allow_html=True)
+
+            st.markdown("<h2 style='text-align:center;font-weight:900;text-transform:uppercase;letter-spacing:.5px;'>🎮 Game Control</h2>", unsafe_allow_html=True)
+            st.caption("Measures how thoroughly a team dictated the game beyond the final score — efficiency, situational execution, and opponent strength at game time.")
+
+            # ── LEADERBOARD ───────────────────────────────────────────────
+            for _, _gr in _gc_rank.iterrows():
+                _gc_team  = str(_gr["TEAM"])
+                _gc_user  = str(_gr["USER"])
+                _gc_r     = _gc_safe_int(_gr["RANK"])
+                _gc_avg   = _gc_safe_float(_gr["AVG_GAME_CONTROL"])
+                _gc_w     = _gc_safe_int(_gr.get("RECORD_WINS", 0))
+                _gc_l     = _gc_safe_int(_gr.get("RECORD_LOSSES", 0))
+                _gc_last3 = _gc_safe_float(_gr.get("LAST_3_AVG", 0))
+                _gc_vol   = _gc_safe_float(_gr.get("CONTROL_VOLATILITY", 0))
+                _gc_con   = str(_gr.get("CONSISTENCY_LABEL", ""))
+                _gc_esc   = _gc_safe_int(_gr.get("CLOSE_ESCAPES", 0))
+                _gc_trnd  = _gc_trend_label(_gc_team, _gc_user)
+                _gc_bdg, _ = _gc_badge(_gc_avg)
+                _gc_acc   = _gc_accent(_gc_avg)
+                _gc_sig   = _gc_sig_line(_gc_team, _gc_user)
+                _gc_logo_uri = image_file_to_data_uri(get_logo_source(_gc_team))
+                _gc_logo_html = f"<img class='gc-logo' src='{_gc_logo_uri}'/>" if _gc_logo_uri else ""
+
+                _mini = _gc_con
+                if _gc_last3: _mini += f" · Last 3: {_gc_last3:.1f}"
+                if _gc_vol:   _mini += f" · Vol: {_gc_vol:.1f}"
+                if _gc_esc:   _mini += f" · Escapes: {_gc_esc}"
+                if _gc_trnd:  _mini += f" · {_gc_trnd}"
+
+                st.markdown(f"""
+                <div class="gc-card" style="--gc-accent:{_gc_acc};">
+                  <div style="display:flex;align-items:center;gap:16px;flex:1;min-width:0;">
+                    <div class="gc-rank">#{_gc_r}</div>
+                    {_gc_logo_html}
+                    <div>
+                      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+                        <div class="gc-team">{html.escape(_gc_team)}</div>
+                        <div class="gc-meta">{_gc_w}-{_gc_l} · {html.escape(_gc_user)} · Avg GC {_gc_avg:.1f}</div>
+                      </div>
+                      <div class="gc-sig">{html.escape(_gc_sig)}</div>
+                    </div>
+                  </div>
+                  <div style="text-align:right;flex-shrink:0;min-width:200px;">
+                    <div class="gc-badge">{_gc_bdg}</div>
+                    <div class="gc-score">+{_gc_avg:.0f}</div>
+                    <div class="gc-mini">{html.escape(_mini)}</div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("<div style='margin-top:16px;padding:14px 18px;border-radius:16px;background:rgba(15,23,42,.7);border:1px solid rgba(100,116,139,.16);color:#b9c4d6;font-size:.95rem;'><b>How to read it:</b> higher scores = controlling the script, not just winning. Opponent rank is measured at game time.</div>", unsafe_allow_html=True)
+
+            # ── TEAM DEEP DIVE ─────────────────────────────────────────────
+            st.markdown("---")
+            st.subheader("🔍 Team Deep Dive")
+
+            _gc_sel_df = _gc_rank[["USER","TEAM"]].copy()
+            _gc_sel_df["LABEL"] = _gc_sel_df["USER"] + " • " + _gc_sel_df["TEAM"]
+            _gc_selected = st.selectbox("Choose a team", _gc_sel_df["LABEL"].tolist(), key="gc_team_select")
+            _gc_sel_user = _gc_sel_df.loc[_gc_sel_df["LABEL"] == _gc_selected, "USER"].iloc[0]
+            _gc_sel_team = _gc_sel_df.loc[_gc_sel_df["LABEL"] == _gc_selected, "TEAM"].iloc[0]
+
+            _gc_tg = gc_games[(gc_games["USER"] == _gc_sel_user) & (gc_games["TEAM"] == _gc_sel_team)].copy()
+            _gc_tt = gc_trend[(gc_trend["USER"] == _gc_sel_user) & (gc_trend["TEAM"] == _gc_sel_team)].copy()
+
+            if not _gc_tg.empty:
+                _gc_tg = _gc_tg.sort_values(["YEAR","WEEK"], ascending=[False,False])
+                if "OPP_RANK_AT_GAME" not in _gc_tg.columns and "OPP_RANK_USED" in _gc_tg.columns:
+                    _gc_tg["OPP_RANK_AT_GAME"] = _gc_tg["OPP_RANK_USED"]
+                if "TEAM_RANK_AT_GAME" not in _gc_tg.columns and "TEAM_RANK_USED" in _gc_tg.columns:
+                    _gc_tg["TEAM_RANK_AT_GAME"] = _gc_tg["TEAM_RANK_USED"]
+                if "OPP_RANK_AT_GAME" in _gc_tg.columns:
+                    _gc_tg["Opp Rank"] = _gc_tg["OPP_RANK_AT_GAME"].apply(_gc_format_rank)
+                if "TEAM_RANK_AT_GAME" in _gc_tg.columns:
+                    _gc_tg["Team Rank"] = _gc_tg["TEAM_RANK_AT_GAME"].apply(_gc_format_rank)
+
+                _gc_show = [c for c in [
+                    "YEAR","WEEK","OPPONENT","Team Rank","Opp Rank","HOME_AWAY","RESULT",
+                    "TEAM_SCORE","OPP_SCORE","game_control_score","game_control_tier",
+                    "rolling_3_game_control","close_escape","false_blowout","stealth_dominance","got_robbed_flag"
+                ] if c in _gc_tg.columns]
+
+                st.dataframe(
+                    _gc_tg[_gc_show].rename(columns={
+                        "HOME_AWAY":"Venue","TEAM_SCORE":"Team","OPP_SCORE":"Opp",
+                        "game_control_score":"GC Score","game_control_tier":"Tier",
+                        "rolling_3_game_control":"Roll 3","close_escape":"Escape",
+                        "false_blowout":"False Blowout","stealth_dominance":"Stealth",
+                        "got_robbed_flag":"Robbed"
+                    }),
+                    use_container_width=True, hide_index=True
+                )
+
+                if not _gc_tt.empty and "game_control_score" in _gc_tt.columns:
+                    _gc_tt = _gc_tt.sort_values(["YEAR","WEEK"])
+                    _gc_tt["week_label"] = "W" + _gc_tt["WEEK"].astype(str)
+                    import plotly.express as _px_gc
+                    _gc_fig = _px_gc.line(
+                        _gc_tt, x="week_label", y="game_control_score", markers=True,
+                        hover_data=[c for c in ["OPPONENT","RESULT","TEAM_SCORE","OPP_SCORE",
+                            "OPP_RANK_AT_GAME","rolling_3_game_control","game_control_tier"] if c in _gc_tt.columns]
+                    )
+                    _gc_fig.update_layout(
+                        height=340, margin=dict(l=20,r=20,t=20,b=20),
+                        xaxis_title="Week", yaxis_title="Game Control",
+                        paper_bgcolor='#06090f', plot_bgcolor='#06090f',
+                        font=dict(color='#94a3b8'),
+                        xaxis=dict(gridcolor='#1e293b'), yaxis=dict(gridcolor='#1e293b')
+                    )
+                    _gc_fig.add_hline(y=75, line_dash="dash",  line_color="#22c55e", annotation_text="Elite")
+                    _gc_fig.add_hline(y=60, line_dash="dot",   line_color="#38bdf8", annotation_text="Solid")
+                    _gc_fig.add_hline(y=45, line_dash="dot",   line_color="#f97316", annotation_text="Fragile")
+                    st.plotly_chart(_gc_fig, use_container_width=True, config={'staticPlot': True})
+            else:
+                st.info("No game data for this team yet.")
+
+    # ── PROGRAM TRAJECTORY TAB ────────────────────────────────────────
+    with _spd_tabs[3]:
         st.header("📈 Program Trajectory")
         st.caption("How is every program trending? OVR, recruiting class rank, blue chip ratio, win %, NFL pipeline — all over time.")
 
@@ -17830,29 +18051,10 @@ with tabs[0]:
         # ── Conf rank lookup from conf_standings CSV ──────────────────────
         _conf_rank_map = {}  # Conference rank removed — calculated on-screen instead
 
-        # ── Team ratings for betting lines ────────────────────────────────
+                # ── Team ratings for betting lines ────────────────────────────────
         _cfp_ratings_map = load_team_ratings(year=CURRENT_YEAR)
         _cfp_perf_map    = load_team_performance(year=CURRENT_YEAR)
-
-        # ── Committee-model odds lookup for user cards ─────────────────────
-        # Replaces FPI softmax — uses same rank+schedule formula as CFP display.
-        # keyed by team name (exact string from cfp_board)
-        _comm_card_odds = {}  # team_str -> {'cfp': float, 'natty': float}
-        try:
-            _cb_card = _cfp_board_early.copy() if not _cfp_board_early.empty else pd.DataFrame()
-            if not _cb_card.empty and 'CFP Make %' in _cb_card.columns:
-                for _, _cbr in _cb_card.iterrows():
-                    _cbt = str(_cbr['Team']).strip()
-                    _cfp_c = float(_cbr.get('CFP Make %', 0) or 0)
-                    _bye_c = float(_cbr.get('Bye %', 0) or 0)
-                    _mult_c = (1/6.0) if _bye_c > 50 else (1/9.0 if _cfp_c > 70 else 1/14.0)
-                    _nat_c  = round((_cfp_c / 100.0) * _mult_c * 100, 2)
-                    _comm_card_odds[_cbt] = {'cfp': round(_cfp_c, 1), 'natty': _nat_c}
-                    _comm_card_odds[_cbt.lower()] = _comm_card_odds[_cbt]
-        except Exception:
-            pass
-
-        # ── FPI + MS+ tables: spread model + sort order ────────────────────
+        # ── FPI + MS+ tables: spread model + odds + sort order ─────────────────
         _fpi_live_odds  = {}   # team -> (natty_pct, cfp_pct)
         _ms_pre_odds    = {}   # team -> (natty_pct, cfp_pct)
         _sig_win_map    = {}   # team -> blurb string
@@ -18041,26 +18243,22 @@ with tabs[0]:
             user = str(row.get('USER', ''))
             pi      = row.get('Preseason PI', row.get('Power Index', 0))
 
-            # ── Live odds from committee model (rank + schedule path) ────────
-            # Same formula as CFP Projected Field display — no more FPI softmax
-            # making expansion teams look like 713:1 long shots.
+            # ── Live odds from FPI (national, 136-team softmax) ──────────────
             _team_str = str(team).strip()
-            _co = _comm_card_odds.get(_team_str) or _comm_card_odds.get(_team_str.lower())
-            if _co:
-                live_natty = float(_co['natty'])
-                live_cfp   = float(_co['cfp'])
-            else:
-                # Team not in CFP rankings — unranked, use model_2041 fallback
-                live_natty = float(row.get('Natty Odds', 0) or 0)
-                live_cfp   = float(row.get('CFP Odds',   0) or 0)
-            _fpi_rank_n = 0  # no longer used for display
+            _fpi_odds_t = _fpi_live_odds.get(_team_str, (0.0, 0.0, 0))
+            live_natty  = float(_fpi_odds_t[0])   # FPI-based natty %
+            live_cfp    = float(_fpi_odds_t[1])   # FPI-based CFP %
+            _fpi_rank_n = int(_fpi_odds_t[2]) if _fpi_odds_t[2] else 0  # FPI rank among 136
 
             # ── Preseason odds from MS+ ───────────────────────────────────────
             _ms_odds_t  = _ms_pre_odds.get(_team_str, (0.0, 0.0))
-            natty       = float(_ms_odds_t[0])    # MS+-based preseason natty %
+            natty       = float(_ms_odds_t[0])    # MS+-based preseason natty % (6-team)
             cfp_pct     = float(_ms_odds_t[1])    # MS+-based preseason CFP %
 
-            # Fall back to model_2041 values if MS+ unavailable
+            # ── Fall back to model_2041 values if FPI/MS+ unavailable ────────
+            if live_natty == 0.0:
+                live_natty = float(row.get('Natty Odds', 0))
+                live_cfp   = float(row.get('CFP Odds', 0))
             if natty == 0.0:
                 natty   = row.get('Preseason Natty Odds', row.get('Natty Odds', 0))
                 cfp_pct = row.get('Preseason CFP %', row.get('CFP Odds', 0))
@@ -18121,7 +18319,7 @@ with tabs[0]:
 
             tc = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
-            logo_uri  = image_file_to_data_uri(get_logo_source(team))
+            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
 
             qb_tier = row.get('QB Tier', '—')
             qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
@@ -18335,18 +18533,16 @@ with tabs[0]:
                 (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
                 bool(_manual_score_map.get(user, {}).get('user_score', 0))
             )
-            _logo_not_ready_style = '' if _is_ready_or_final else 'filter:grayscale(70%) opacity(0.45);'
-            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style or _logo_not_ready_style}'/>" if logo_uri else "🏈 "
             _ready_outline = f"box-shadow:0 0 0 2px {tc}; " if _is_ready_or_final and not bw_style else ""
 
             card_html = (
                 f"<div style='display:flex; align-items:center; "
-                f"background:{'linear-gradient(90deg,'+tc+'40 0%,'+tc+'18 25%,#1f2937 60%)' if _is_ready_or_final else 'linear-gradient(90deg,#1e293b 0%,#0f172a 100%)'}; "
-                f"border-left:5px solid {tc if _is_ready_or_final else '#334155'}; {card_glow}{_ready_outline} opacity:{'1.0' if _is_ready_or_final else '0.52'}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
+                f"background:linear-gradient(90deg,{tc}40 0%,{tc}18 25%,#1f2937 60%); "
+                f"border-left:5px solid {tc}; {card_glow}{_ready_outline} opacity:{card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
                 f"{_rank_circle}"
                 f"{logo_html}"
-                f"<div style='flex:1; min-width:200px; {bw_style if bw_style else ('filter:grayscale(60%);' if not _is_ready_or_final else '')}'>"
-                f"<span style='font-size:1.05rem; font-weight:800; color:{tc if (_is_ready_or_final and not bw_style) else '#6b7280'};'>{html.escape(team)}</span> "
+                f"<div style='flex:1; min-width:200px; {bw_style}'>"
+                f"<span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else '#9ca3af'};'>{html.escape(team)}</span> "
                 f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span>"
                 f"<div style='margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;'>{_tier_chips} {official_badge}</div>"
                 f"{_game_strip}"
@@ -18356,7 +18552,7 @@ with tabs[0]:
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 MS+ Preseason</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(6-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP <span style='color:#60a5fa;font-weight:700;'>{float(cfp_pct):.0f}%</span></span><br>"
-                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 Committee Live</span> "
+                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 FPI Live</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:#60a5fa;font-weight:700;'>{live_cfp:.0f}%</strong></span>"
                 f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
@@ -21028,7 +21224,7 @@ with tabs[0]:
                 # Link to full MS+ table
                 st.markdown(
                     "<div style='margin-top:8px;text-align:right;font-size:0.7rem;color:#475569;'>"
-                    "Full MS+ ratings in <strong>⚡ Speed & SOS → 📐 FPI & MS+ Ratings</strong></div>",
+                    "Full MS+ ratings in <strong>🎯 The Metrics → 📐 FPI & MS+ Ratings</strong></div>",
                     unsafe_allow_html=True
                 )
             else:
@@ -21716,13 +21912,19 @@ with tabs[4]:
             # 9. Combine the 5th Champ and the 7 At-Larges, and sort them purely by Rank for seeds 5-12
             seeds_5_to_12 = pd.concat([fifth_champ, at_large_bids]).sort_values('Rank', ascending=True)
             
-            # 10. Build the final 12-team field!
+            # 10. Build the final 12-team field — pad or trim to exactly 12
             projected_field = pd.concat([top_4_byes, seeds_5_to_12]).reset_index(drop=True)
-            projected_field['Projected Seed'] = range(1, 13)
+            # If fewer than 12 (sparse conference data), pull more from board_by_rank
+            if len(projected_field) < 12:
+                _already_in = projected_field['Team'].tolist()
+                _extras = board_by_rank[~board_by_rank['Team'].isin(_already_in)].head(12 - len(projected_field))
+                projected_field = pd.concat([projected_field, _extras]).reset_index(drop=True)
+            projected_field = projected_field.head(12).reset_index(drop=True)
+            projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
         else:
             # Fallback if no conference data is found
-            projected_field = board_by_rank.head(12).copy()
-            projected_field['Projected Seed'] = range(1, 13)
+            projected_field = board_by_rank.head(12).copy().reset_index(drop=True)
+            projected_field['Projected Seed'] = range(1, len(projected_field) + 1)
 
         # Calculate seed scores (for internal model consistency)
         projected_field = compute_projected_seed_score(projected_field)
@@ -21937,17 +22139,10 @@ with tabs[4]:
             _mov_val = _cp.get('MOV', None)
             _stk_val = _cp.get('STK', None)
 
-            # National odds — use committee model directly from cfp_board row
-            # CFP Make % is the rank+schedule formula, not the FPI softmax.
-            # Natty odds derived from CFP Make %: a team that makes it has
-            # roughly 1-in-12 shot inside the field, adjusted by seeding.
-            _cfp_make_pct = float(row.get('CFP Make %', 0.0) or 0.0)
-            _bye_pct      = float(row.get('Bye %',      0.0) or 0.0)
-            # Natty = P(make CFP) × P(win natty | in field)
-            # Top bye seeds: ~1/6 shot once in. Seeds 5-12: ~1/12.
-            _in_field_natty_mult = (1/6.0) if _bye_pct > 50 else (1/9.0 if _cfp_make_pct > 70 else 1/14.0)
-            _natty_pct = round((_cfp_make_pct / 100.0) * _in_field_natty_mult * 100, 2)
-            _cfp_make  = round(_cfp_make_pct, 1)
+            # National odds
+            _nord = _get_natl_odds(team)
+            _natty_pct = _nord['natty_pct'] if _nord else None
+            _cfp_make  = _nord['cfp_pct']   if _nord else None
 
             def _odds_cell(val):
                 """Natty% → ratio odds: 3.1% → 31:1"""
