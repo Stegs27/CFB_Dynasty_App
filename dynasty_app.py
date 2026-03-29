@@ -17880,27 +17880,31 @@ with tabs[3]:
             _bar = _bar.sort_values("truth_margin").copy()
 
             if not _bar.empty:
-                _matchup_html = ""
+                _matchup_cards = []
                 for _, _mr in _bar.iterrows():
                     _team_logo = get_school_logo_src(_mr.get("TEAM", "")) or ""
                     _opp_logo = get_school_logo_src(_mr.get("OPPONENT", "")) or ""
                     _ha = "vs" if str(_mr.get("HOME_AWAY", "")).upper() == "HOME" else "@"
                     _scoreline = f"{int(pd.to_numeric(_mr.get('TEAM_SCORE',0), errors='coerce'))}-{int(pd.to_numeric(_mr.get('OPP_SCORE',0), errors='coerce'))}"
-                    _matchup_html += f"""
-                    <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03);'>
-                      <div style='display:flex;align-items:center;gap:8px;min-width:0;'>
-                        {f"<img src='{_team_logo}' style='width:24px;height:24px;object-fit:contain;'>" if _team_logo else "<div style='width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.08);'></div>"}
-                        <div style='font-size:.82rem;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(str(_mr.get('TEAM','')))}</div>
-                      </div>
-                      <div style='font-size:.74rem;font-weight:900;color:#94a3b8;white-space:nowrap;'>{_ha}</div>
-                      <div style='display:flex;align-items:center;gap:8px;min-width:0;justify-content:flex-end;'>
-                        <div style='font-size:.82rem;font-weight:800;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;'>{html.escape(str(_mr.get('OPPONENT','')))}</div>
-                        {f"<img src='{_opp_logo}' style='width:24px;height:24px;object-fit:contain;'>" if _opp_logo else "<div style='width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.08);'></div>"}
-                      </div>
-                      <div style='font-size:.74rem;font-weight:900;color:#e2e8f0;white-space:nowrap;'>{_scoreline}</div>
-                    </div>
-                    """
-                st.markdown(f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:6px 0 12px 0;'>{_matchup_html}</div>", unsafe_allow_html=True)
+                    _matchup_cards.append(
+                        f"<div style='display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03);'>"
+                        f"<div style='display:flex;align-items:center;gap:8px;min-width:0;'>"
+                        f"{(f"<img src='{_team_logo}' style='width:24px;height:24px;object-fit:contain;'>" if _team_logo else "<div style='width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.08);'></div>")}"
+                        f"<div style='font-size:.82rem;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(str(_mr.get('TEAM','')))}</div>"
+                        f"</div>"
+                        f"<div style='font-size:.74rem;font-weight:900;color:#94a3b8;white-space:nowrap;'>{_ha}</div>"
+                        f"<div style='display:flex;align-items:center;gap:8px;min-width:0;justify-content:flex-end;'>"
+                        f"<div style='font-size:.82rem;font-weight:800;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;'>{html.escape(str(_mr.get('OPPONENT','')))}</div>"
+                        f"{(f"<img src='{_opp_logo}' style='width:24px;height:24px;object-fit:contain;'>" if _opp_logo else "<div style='width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.08);'></div>")}"
+                        f"</div>"
+                        f"<div style='font-size:.74rem;font-weight:900;color:#e2e8f0;white-space:nowrap;'>{_scoreline}</div>"
+                        f"</div>"
+                    )
+                _matchup_html = "".join(_matchup_cards)
+                st.markdown(
+                    f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:6px 0 12px 0;'>{_matchup_html}</div>",
+                    unsafe_allow_html=True,
+                )
 
             _fig = go.Figure()
             _bar_colors = [_brc_truth_color(_v) for _v in _bar["truth_margin"]]
