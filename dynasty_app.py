@@ -15662,7 +15662,7 @@ tabs = st.tabs([
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
 with tabs[3]:
-    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 FPI & MS+ Ratings", "📅 The Schedule", "🎮 Game Control", "📈 Program Trajectory"])
+    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 FPI & MS+ Ratings", "📅 The Schedule", "🎮 Game Control", "💥 Explosive Index", "🕵️ Did The Score Lie?", "📈 Program Trajectory"])
     with _spd_tabs[0]:
         st.header("🔍 Speed Freaks")
         st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
@@ -17326,9 +17326,9 @@ with tabs[3]:
             st.info("No schedule data found for this user.")
 
 
+
     with _spd_tabs[3]:
         # ── GAME CONTROL ─────────────────────────────────────────────
-
         @st.cache_data(ttl=300)
         def load_game_control_files():
             summary = pd.read_csv("game_control_summary_v3.csv")
@@ -17360,12 +17360,12 @@ with tabs[3]:
                 v = _gc_int(r, 0); return f"#{v}" if v > 0 else "Unranked"
 
             def _gc_badge(s):
-                if s >= 82: return "👑 TOTAL CONTROL", "#ff9d2f"
-                if s >= 72: return "🔥 COMMANDING",    "#ff9d2f"
-                if s >= 60: return "⚡ SOLID CONTROL", "#ffd34d"
-                if s >= 48: return "🪓 FRAGILE",       "#4ade80"
-                if s >= 35: return "⚠️ SURVIVING",     "#60a5fa"
-                return           "☠️ OUTPLAYED",        "#f87171"
+                if s >= 82: return "TOTAL CONTROL", "#ff9d2f"
+                if s >= 72: return "COMMANDING",    "#ffb347"
+                if s >= 60: return "SOLID CONTROL", "#ffd34d"
+                if s >= 48: return "FRAGILE",       "#4ade80"
+                if s >= 35: return "SURVIVING",     "#60a5fa"
+                return           "OUTPLAYED",       "#f87171"
             def _gc_acc(s):
                 if s >= 82: return "#ff8f1f"
                 if s >= 72: return "#ffb347"
@@ -17373,212 +17373,428 @@ with tabs[3]:
                 if s >= 48: return "#22c55e"
                 if s >= 35: return "#3b82f6"
                 return "#ef4444"
+            def _gc_trend_lbl(v):
+                v = _gc_flt(v, 0)
+                if v >= 8: return "Heating Up"
+                if v >= 3: return "Trending Up"
+                if v <= -8: return "Fraud Alert"
+                if v <= -3: return "Cooling Off"
+                return "Stable"
 
-            def _gc_sig(tm, us):
-                _tg = gc_games[(gc_games["TEAM"]==tm)&(gc_games["USER"]==us)].copy()
-                if _tg.empty: return "No games yet."
-                _w = _tg[_tg["RESULT"].astype(str).str.upper()=="W"]
-                _p = _w if not _w.empty else _tg
-                _g = _p.sort_values("game_control_score",ascending=False).iloc[0] if "game_control_score" in _p.columns else _p.iloc[0]
-                _wk=_gc_int(_g.get("WEEK",0)); _opp=str(_g.get("OPPONENT","?")); _ts=_gc_int(_g.get("TEAM_SCORE",0))
-                _os=_gc_int(_g.get("OPP_SCORE",0)); _res=str(_g.get("RESULT","")); _ven=str(_g.get("HOME_AWAY",""))
-                _gcs=_gc_flt(_g.get("game_control_score",0.0))
-                _rk=_g.get("OPP_RANK_AT_GAME",_g.get("OPP_RANK_USED",None))
-                _ol=f"{_opp} ({_gc_rank_lbl(_rk)} at game time)" if _rk is not None and _gc_int(_rk,0)>0 else _opp
-                _vt=" on the road" if _ven.upper() in("A","AWAY") else(" at home" if _ven.upper() in("H","HOME") else "")
-                if _res.upper()=="W": return f"Wk {_wk} beat {_ol} {_ts}-{_os}{_vt} — GC {_gcs:.1f}"
-                return f"Wk {_wk} lost to {_ol} {_ts}-{_os}{_vt} — GC {_gcs:.1f}"
+            st.markdown("""
+            <style>
+            .metric-wrap{background:radial-gradient(circle at top, rgba(15,23,42,.78), rgba(2,6,23,.98) 58%);border-radius:24px;padding:18px 10px 14px 10px;margin-bottom:14px;}
+            .metric-title{text-align:center;font-size:2.05rem;font-weight:900;letter-spacing:.4px;color:#f8fafc;margin-bottom:6px;text-transform:uppercase;line-height:1.05;}
+            .metric-sub{text-align:center;max-width:1050px;margin:0 auto 18px auto;color:#aeb8c8;font-size:1rem;line-height:1.55;}
+            .leader-card{position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(90deg, rgba(2,8,23,.97) 0%, rgba(1,10,30,.97) 55%, rgba(2,8,23,.99) 100%);border-radius:18px;padding:16px 18px;margin-bottom:10px;border:1px solid rgba(80,100,140,.16);overflow:hidden;}
+            .leader-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--acc);box-shadow:0 0 20px var(--acc);}
+            .leader-left{display:flex;align-items:center;gap:12px;min-width:0;flex:1;}
+            .leader-rank{width:34px;color:#64748b;font-size:1.1rem;font-weight:900;flex-shrink:0;text-align:center;}
+            .leader-logo{width:40px;height:40px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 2px 7px rgba(0,0,0,.45));}
+            .leader-team{color:#f8fafc;font-size:1.35rem;font-weight:900;line-height:1;text-transform:uppercase;}
+            .leader-meta{color:#8ea0bb;font-size:.84rem;font-weight:600;margin-top:3px;}
+            .leader-sig{color:#7f8faa;font-size:.82rem;line-height:1.4;margin-top:6px;}
+            .leader-right{text-align:right;flex-shrink:0;min-width:115px;}
+            .leader-badge{color:var(--acc);font-size:.84rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em;}
+            .leader-score{color:var(--acc);font-size:1.75rem;font-weight:900;line-height:1;margin-top:2px;}
+            .leader-mini{color:#72829d;font-size:.74rem;font-weight:700;line-height:1.45;margin-top:6px;}
+            .panel-note{margin-top:12px;padding:12px 15px;border-radius:14px;background:rgba(15,23,42,.72);border:1px solid rgba(100,116,139,.16);color:#b9c4d6;font-size:.9rem;line-height:1.55;}
+            .mini-card{background:linear-gradient(180deg, rgba(2,6,23,.92), rgba(15,23,42,.88));border-radius:16px;border:1px solid rgba(100,116,139,.14);padding:12px 14px;}
+            .mini-label{font-size:.72rem;color:#94a3b8;text-transform:uppercase;font-weight:800;letter-spacing:.08em;}
+            .mini-val{font-size:1.45rem;color:#fff;font-weight:900;line-height:1.1;margin-top:4px;}
+            .game-card{background:linear-gradient(90deg,var(--cardacc)16 0%,#0a1628 28%);border-left:4px solid var(--cardacc);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
+            .pill{display:inline-block;font-size:.72rem;font-weight:900;padding:2px 8px;border-radius:999px;margin:3px 6px 0 0;}
+            @media (max-width: 900px){
+              .metric-title{font-size:1.6rem;}
+              .metric-sub{font-size:.92rem;}
+              .leader-card{padding:14px 14px;gap:10px;align-items:flex-start;}
+              .leader-left{align-items:flex-start;}
+              .leader-team{font-size:1.08rem;}
+              .leader-right{min-width:84px;}
+              .leader-score{font-size:1.35rem;}
+              .leader-mini{font-size:.68rem;}
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
-            def _gc_trend_lbl(tm, us):
-                _t=gc_trend[(gc_trend["TEAM"]==tm)&(gc_trend["USER"]==us)].copy()
-                if _t.empty or "trend_vs_prev" not in _t.columns: return "➡️ Stable"
-                _t=_t.sort_values(["YEAR","WEEK"]); _l=_t["trend_vs_prev"].dropna()
-                if _l.empty: return "➡️ Stable"
-                v=_gc_flt(_l.iloc[-1],0)
-                if v>=8: return "🔥 Heating Up"
-                if v>=3: return "📈 Trending Up"
-                if v<=-8: return "🚨 Fraud Alert"
-                if v<=-3: return "📉 Cooling Off"
-                return "➡️ Stable"
+            st.markdown("<div class='metric-wrap'>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-title'>🎮 Game Control</div>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-sub'>How thoroughly did you control the game — not just the scoreboard? This rewards efficiency, situational execution, and opponent quality <b>at the time of the game</b>.</div>", unsafe_allow_html=True)
 
             _gc_rank = gc_summary.copy()
-            _gc_rank["AVG_GAME_CONTROL"] = pd.to_numeric(_gc_rank["AVG_GAME_CONTROL"],errors="coerce").fillna(0)
-            _gc_rank = _gc_rank.sort_values("AVG_GAME_CONTROL",ascending=False).reset_index(drop=True)
-            _gc_rank["RANK"] = range(1, len(_gc_rank)+1)
-
-            st.markdown("""<style>
-            .gcc{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;
-              background:linear-gradient(90deg,rgba(2,8,23,.97) 0%,rgba(1,10,30,.97) 55%,rgba(2,8,23,.99) 100%);
-              border-radius:18px;padding:18px 22px;margin-bottom:12px;border:1px solid rgba(80,100,140,.16);overflow:hidden;}
-            .gcc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
-              background:var(--ga);box-shadow:0 0 22px var(--ga);border-radius:18px 0 0 18px;}
-            .gcr{width:44px;color:#6b7a94;font-size:1.4rem;font-weight:800;text-align:center;flex-shrink:0;}
-            .gct{color:#f8fafc;font-size:1.7rem;font-weight:900;line-height:1;text-transform:uppercase;}
-            .gcm{color:#8ea0bb;font-size:.9rem;font-weight:600;}
-            .gcs{color:var(--ga);font-size:2.1rem;font-weight:900;line-height:1;}
-            .gcb{color:var(--ga);font-size:.95rem;font-weight:900;text-transform:uppercase;letter-spacing:.5px;}
-            .gcn{color:#72829d;font-size:.82rem;margin-top:6px;font-weight:600;}
-            .gc-sig{color:#7f8faa;font-size:.88rem;margin-top:4px;}
-            </style>""", unsafe_allow_html=True)
-
-            st.markdown("<h2 style='text-align:center;font-weight:900;text-transform:uppercase;'>🎮 Game Control</h2>", unsafe_allow_html=True)
-            st.caption("How thoroughly did you control the game — not just the scoreboard? Rewards efficiency, situational execution, and opponent quality at game time.")
+            _gc_rank["AVG_GAME_CONTROL"] = pd.to_numeric(_gc_rank["AVG_GAME_CONTROL"], errors="coerce").fillna(0)
+            _gc_rank = _gc_rank.sort_values("AVG_GAME_CONTROL", ascending=False).reset_index(drop=True)
+            _gc_rank["RANK"] = range(1, len(_gc_rank) + 1)
 
             for _, _gr in _gc_rank.iterrows():
-                _t=str(_gr["TEAM"]); _u=str(_gr["USER"])
-                _r=_gc_int(_gr["RANK"]); _a=_gc_flt(_gr["AVG_GAME_CONTROL"])
+                _t=str(_gr["TEAM"]); _u=str(_gr["USER"]); _r=_gc_int(_gr["RANK"]); _a=_gc_flt(_gr["AVG_GAME_CONTROL"])
                 _w=_gc_int(_gr.get("RECORD_WINS",0)); _l=_gc_int(_gr.get("RECORD_LOSSES",0))
                 _l3=_gc_flt(_gr.get("LAST_3_AVG",0)); _vol=_gc_flt(_gr.get("CONTROL_VOLATILITY",0))
                 _con=str(_gr.get("CONSISTENCY_LABEL","")); _esc=_gc_int(_gr.get("CLOSE_ESCAPES",0))
-                _bdg,_=_gc_badge(_a); _acc=_gc_acc(_a)
-                _sig=_gc_sig(_t,_u); _trnd=_gc_trend_lbl(_t,_u)
+                _badge,_acc = _gc_badge(_a)
+                _sig = "No games yet."
+                _tg = gc_games[(gc_games["TEAM"]==_t)&(gc_games["USER"]==_u)].copy()
+                if not _tg.empty:
+                    _p = _tg[_tg["RESULT"].astype(str).str.upper()=="W"].copy()
+                    _p = _p if not _p.empty else _tg
+                    _g = _p.sort_values("game_control_score", ascending=False).iloc[0]
+                    _wk=_gc_int(_g.get("WEEK",0)); _opp=str(_g.get("OPPONENT","?")); _ts=_gc_int(_g.get("TEAM_SCORE",0)); _os=_gc_int(_g.get("OPP_SCORE",0))
+                    _rk=_g.get("OPP_RANK_AT_GAME", _g.get("OPP_RANK_USED", None))
+                    _opp_lbl = f"{_opp} ({_gc_rank_lbl(_rk)} at game time)" if _gc_int(_rk,0)>0 else _opp
+                    _sig = f"Wk {_wk} {'beat' if str(_g.get('RESULT','')).upper()=='W' else 'lost to'} {_opp_lbl} {_ts}-{_os}"
+                _trend = gc_trend[(gc_trend["TEAM"]==_t)&(gc_trend["USER"]==_u)].copy()
+                _trend_last = _gc_trend_lbl(_trend.sort_values(["YEAR","WEEK"])["trend_vs_prev"].dropna().iloc[-1] if not _trend.empty and _trend["trend_vs_prev"].dropna().shape[0] else 0)
                 _logo_uri=image_file_to_data_uri(get_logo_source(_t))
-                _li=f"<img src='{_logo_uri}' style='width:48px;height:48px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 2px 8px rgba(0,0,0,.45));'/>" if _logo_uri else ""
-                _mini=_con
-                if _l3: _mini+=f" · Last 3: {_l3:.1f}"
-                if _vol: _mini+=f" · Vol: {_vol:.1f}"
-                if _esc: _mini+=f" · {_esc} Escape{'s' if _esc>1 else ''}"
-                if _trnd: _mini+=f" · {_trnd}"
-                st.markdown(f"""<div class="gcc" style="--ga:{_acc};">
-                  <div style="display:flex;align-items:center;gap:16px;flex:1;min-width:0;">
-                    <div class="gcr">#{_r}</div>{_li}
-                    <div><div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
-                      <div class="gct">{html.escape(_t)}</div>
-                      <div class="gcm">{_w}-{_l} · {html.escape(_u)} · Avg GC {_a:.1f}</div></div>
-                      <div class="gc-sig">{html.escape(_sig)}</div></div></div>
-                  <div style="text-align:right;flex-shrink:0;min-width:190px;">
-                    <div class="gcb">{_bdg}</div><div class="gcs">+{_a:.0f}</div>
-                    <div class="gcn">{html.escape(_mini)}</div></div></div>""", unsafe_allow_html=True)
+                _logo=f"<img class='leader-logo' src='{_logo_uri}'/>" if _logo_uri else ""
+                _mini=f"{_con} · Last 3: {_l3:.1f} · Vol: {_vol:.1f}"
+                if _esc: _mini += f" · Escapes: {_esc}"
+                _mini += f" · {_trend_last}"
+                st.markdown(f"""
+                <div class='leader-card' style='--acc:{_acc};'>
+                  <div class='leader-left'>
+                    <div class='leader-rank'>#{_r}</div>
+                    {_logo}
+                    <div style='min-width:0;'>
+                      <div class='leader-team'>{html.escape(_t)}</div>
+                      <div class='leader-meta'>{_w}-{_l} · {html.escape(_u)} · Avg GC {_a:.1f}</div>
+                      <div class='leader-sig'>{html.escape(_sig)}</div>
+                    </div>
+                  </div>
+                  <div class='leader-right'>
+                    <div class='leader-badge'>{_badge}</div>
+                    <div class='leader-score'>+{_a:.0f}</div>
+                    <div class='leader-mini'>{html.escape(_mini)}</div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-            st.markdown("<div style='margin-top:14px;padding:12px 18px;border-radius:14px;background:rgba(15,23,42,.7);border:1px solid rgba(100,116,139,.15);color:#b9c4d6;font-size:.9rem;'>Higher score = controlled the script, not just won. Opponent rank is measured <em>at game time</em> — no hindsight inflation.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='panel-note'>Higher score means your team controlled the script, not just the final. The leaderboard is compacted for phones, and the deeper view below breaks down the weekly story.</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-            # ── DEEP DIVE ────────────────────────────────────────────────────
-            st.markdown("---")
             st.subheader("🔍 Team Deep Dive")
-
             _gc_sel_df=_gc_rank[["USER","TEAM"]].copy()
             _gc_sel_df["LABEL"]=_gc_sel_df["USER"]+" • "+_gc_sel_df["TEAM"]
-            _gc_sel=st.selectbox("Choose a team",_gc_sel_df["LABEL"].tolist(),key="gc_team_select")
+            _gc_sel=st.selectbox("Choose a team", _gc_sel_df["LABEL"].tolist(), key="gc_team_select_v2")
             _gc_su=_gc_sel_df.loc[_gc_sel_df["LABEL"]==_gc_sel,"USER"].iloc[0]
             _gc_st=_gc_sel_df.loc[_gc_sel_df["LABEL"]==_gc_sel,"TEAM"].iloc[0]
 
+            _gc_team_row = gc_summary[(gc_summary["USER"]==_gc_su)&(gc_summary["TEAM"]==_gc_st)].copy()
             _gc_tg=gc_games[(gc_games["USER"]==_gc_su)&(gc_games["TEAM"]==_gc_st)].copy()
             _gc_tt=gc_trend[(gc_trend["USER"]==_gc_su)&(gc_trend["TEAM"]==_gc_st)].copy()
+
+            if not _gc_team_row.empty:
+                _gcr = _gc_team_row.iloc[0]
+                _c1,_c2,_c3,_c4,_c5 = st.columns(5)
+                for _col,_lab,_val in [
+                    (_c1,"Avg GC", f"{_gc_flt(_gcr.get('AVG_GAME_CONTROL',0)):.1f}"),
+                    (_c2,"Best", f"{_gc_flt(_gcr.get('BEST_GAME_CONTROL',0)):.1f}"),
+                    (_c3,"Worst", f"{_gc_flt(_gcr.get('WORST_GAME_CONTROL',0)):.1f}"),
+                    (_c4,"Last 3", f"{_gc_flt(_gcr.get('LAST_3_AVG',0)):.1f}"),
+                    (_c5,"Consistency", str(_gcr.get("CONSISTENCY_LABEL",""))),
+                ]:
+                    _col.markdown(f"<div class='mini-card'><div class='mini-label'>{_lab}</div><div class='mini-val'>{html.escape(_val)}</div></div>", unsafe_allow_html=True)
+
+            if not _gc_tt.empty and "game_control_score" in _gc_tt.columns:
+                _gc_tt=_gc_tt.sort_values(["YEAR","WEEK"]).copy()
+                _gc_tt["wlbl"]="W"+_gc_tt["WEEK"].astype(str)
+                _gcfig=go.Figure()
+                _gcfig.add_trace(go.Scatter(
+                    x=_gc_tt["wlbl"], y=_gc_tt["game_control_score"], mode='lines+markers',
+                    line=dict(color='#94a3b8',width=2), marker=dict(size=11,color=[_gc_acc(v) for v in _gc_tt["game_control_score"]], line=dict(color='#0f172a', width=2)),
+                    hovertemplate='<b>%{x}</b><br>GC Score: %{y:.1f}<extra></extra>'
+                ))
+                for _y,_clr in [(82,"#ff9d2f"),(72,"#ffb347"),(60,"#ffd84d"),(48,"#22c55e"),(35,"#3b82f6")]:
+                    _gcfig.add_hline(y=_y,line_dash="dot",line_color=_clr,opacity=.35)
+                _gcfig.update_layout(height=285, margin=dict(l=24,r=16,t=14,b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                     font=dict(color='#cbd5e1'), xaxis=dict(title="Week", gridcolor='rgba(255,255,255,.06)'), yaxis=dict(title="GC Score", gridcolor='rgba(255,255,255,.06)', range=[0,100]), showlegend=False)
+                st.plotly_chart(_gcfig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
 
             if _gc_tg.empty:
                 st.info("No game data for this team yet.")
             else:
-                _gc_tg=_gc_tg.sort_values(["YEAR","WEEK"])
-                if "OPP_RANK_AT_GAME" not in _gc_tg.columns and "OPP_RANK_USED" in _gc_tg.columns:
-                    _gc_tg["OPP_RANK_AT_GAME"]=_gc_tg["OPP_RANK_USED"]
-                if "TEAM_RANK_AT_GAME" not in _gc_tg.columns and "TEAM_RANK_USED" in _gc_tg.columns:
-                    _gc_tg["TEAM_RANK_AT_GAME"]=_gc_tg["TEAM_RANK_USED"]
-
-                # ── TREND CHART ───────────────────────────────────────────────
-                if not _gc_tt.empty and "game_control_score" in _gc_tt.columns:
-                    _gc_tt=_gc_tt.sort_values(["YEAR","WEEK"])
-                    _gc_tt["wlbl"]="W"+_gc_tt["WEEK"].astype(str)
-                    import plotly.graph_objects as _gc_go
-                    _gcfig=_gc_go.Figure()
-                    _gcs_vals=_gc_tt["game_control_score"].tolist()
-                    _gcwks=_gc_tt["wlbl"].tolist()
-                    # Color each marker by tier
-                    _gc_mcolors=[_gc_acc(_gc_flt(v)) for v in _gcs_vals]
-                    _gcfig.add_trace(_gc_go.Scatter(
-                        x=_gcwks, y=_gcs_vals, mode='lines+markers',
-                        line=dict(color='#475569',width=2),
-                        marker=dict(size=14,color=_gc_mcolors,line=dict(color='#0f172a',width=2)),
-                        hovertemplate='<b>%{x}</b><br>GC Score: %{y:.1f}<extra></extra>',
-                    ))
-                    _gcfig.add_hrect(y0=82,y1=100,fillcolor="#ff9d2f",opacity=0.06,line_width=0)
-                    _gcfig.add_hrect(y0=72,y1=82,fillcolor="#ffb347",opacity=0.06,line_width=0)
-                    _gcfig.add_hrect(y0=60,y1=72,fillcolor="#ffd84d",opacity=0.06,line_width=0)
-                    _gcfig.add_hrect(y0=48,y1=60,fillcolor="#22c55e",opacity=0.06,line_width=0)
-                    _gcfig.add_hrect(y0=35,y1=48,fillcolor="#3b82f6",opacity=0.06,line_width=0)
-                    _gcfig.add_hrect(y0=0, y1=35,fillcolor="#ef4444",opacity=0.06,line_width=0)
-                    for _gly,_glc,_gll in [(82,"#ff9d2f","Total Control"),(72,"#ffb347","Commanding"),(60,"#ffd84d","Solid"),(48,"#22c55e","Fragile"),(35,"#3b82f6","Surviving")]:
-                        _gcfig.add_hline(y=_gly,line_dash="dot",line_color=_glc,opacity=0.5,
-                            annotation_text=_gll,annotation_position="left",
-                            annotation_font=dict(size=9,color=_glc))
-                    _gcfig.update_layout(
-                        height=300,margin=dict(l=70,r=20,t=20,b=30),
-                        paper_bgcolor='#06090f',plot_bgcolor='#06090f',
-                        font=dict(color='#94a3b8',size=11),
-                        xaxis=dict(gridcolor='#1e293b',title="Week"),
-                        yaxis=dict(gridcolor='#1e293b',title="GC Score",range=[max(0,min(_gcs_vals)-10),min(100,max(_gcs_vals)+10)]),
-                        showlegend=False
-                    )
-                    st.plotly_chart(_gcfig,use_container_width=True,config={'staticPlot':True})
-
-                # ── PER-GAME CARDS ─────────────────────────────────────────────
-                _gc_tg_rev=_gc_tg.sort_values(["YEAR","WEEK"],ascending=[False,False])
-                for _,_gg in _gc_tg_rev.iterrows():
-                    _gwk=_gc_int(_gg.get("WEEK",0)); _gopp=str(_gg.get("OPPONENT","?"))
-                    _gts=_gc_int(_gg.get("TEAM_SCORE",0)); _gos=_gc_int(_gg.get("OPP_SCORE",0))
-                    _gres=str(_gg.get("RESULT","?")); _gven=str(_gg.get("HOME_AWAY",""))
-                    _ggcs=_gc_flt(_gg.get("game_control_score",0.0))
-                    _gtier=str(_gg.get("game_control_tier",""))
-                    _grk=_gc_int(_gg.get("TEAM_RANK_AT_GAME",_gg.get("TEAM_RANK_USED",0)),0)
-                    _ork=_gc_int(_gg.get("OPP_RANK_AT_GAME",_gg.get("OPP_RANK_USED",0)),0)
-                    _g_acc=_gc_acc(_ggcs)
-                    _res_color="#4ade80" if _gres.upper()=="W" else "#f87171"
-                    _ven_lbl="🏠 Home" if _gven.upper() in("H","HOME") else("✈️ Away" if _gven.upper() in("A","AWAY") else "")
-
-                    # rare event flags
-                    _escape=str(_gg.get("close_escape","")).upper() in("TRUE","1","YES")
-                    _fb=    str(_gg.get("false_blowout","")).upper() in("TRUE","1","YES")
-                    _stealth=str(_gg.get("stealth_dominance","")).upper() in("TRUE","1","YES")
-                    _robbed= str(_gg.get("got_robbed_flag","")).upper() in("TRUE","1","YES")
-
-                    # rare event pills
+                _gc_tg=_gc_tg.sort_values(["YEAR","WEEK"], ascending=[False,False]).copy()
+                for _,_gg in _gc_tg.iterrows():
+                    _wk=_gc_int(_gg.get("WEEK",0)); _opp=str(_gg.get("OPPONENT","?")); _ts=_gc_int(_gg.get("TEAM_SCORE",0)); _os=_gc_int(_gg.get("OPP_SCORE",0))
+                    _res=str(_gg.get("RESULT","?")); _ven=str(_gg.get("HOME_AWAY",""))
+                    _score=_gc_flt(_gg.get("game_control_score",0)); _tier=str(_gg.get("game_control_tier",""))
+                    _acc=_gc_acc(_score); _ven_lbl="Home" if _ven.upper() in("H","HOME") else ("Away" if _ven.upper() in("A","AWAY") else "")
                     _pills=""
-                    if _escape: _pills+=f"<span style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;font-size:.72rem;font-weight:900;padding:2px 8px;border-radius:4px;margin-right:6px;'>🚪 CLOSE ESCAPE</span>"
-                    if _fb:     _pills+=f"<span style='background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed55;font-size:.72rem;font-weight:900;padding:2px 8px;border-radius:4px;margin-right:6px;'>🎭 FALSE BLOWOUT</span>"
-                    if _stealth:_pills+=f"<span style='background:#0ea5e922;color:#38bdf8;border:1px solid #0ea5e955;font-size:.72rem;font-weight:900;padding:2px 8px;border-radius:4px;margin-right:6px;'>🥷 STEALTH DOM</span>"
-                    if _robbed: _pills+=f"<span style='background:#ef444422;color:#f87171;border:1px solid #ef444455;font-size:.72rem;font-weight:900;padding:2px 8px;border-radius:4px;margin-right:6px;'>🏴‍☠️ GOT ROBBED</span>"
-
-                    _opp_logo_uri=image_file_to_data_uri(get_logo_source(_gopp))
-                    _opp_logo=f"<img src='{_opp_logo_uri}' style='width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _opp_logo_uri else ""
-                    _rk_chip=f"<span style='font-family:Bebas Neue,sans-serif;color:#fbbf24;font-size:.8rem;'>#{_grk}</span> " if _grk else ""
-                    _ork_chip=f"<span style='font-family:Bebas Neue,sans-serif;color:#94a3b8;font-size:.8rem;'>#{_ork}</span> " if _ork else ""
-
+                    if str(_gg.get("close_escape","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;'>CLOSE ESCAPE</span>"
+                    if str(_gg.get("false_blowout","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed55;'>FALSE BLOWOUT</span>"
+                    if str(_gg.get("stealth_dominance","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#0ea5e922;color:#38bdf8;border:1px solid #0ea5e955;'>STEALTH DOM</span>"
+                    if str(_gg.get("got_robbed_flag","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#ef444422;color:#f87171;border:1px solid #ef444455;'>GOT ROBBED</span>"
                     st.markdown(f"""
-                    <div style='background:linear-gradient(90deg,{_g_acc}18 0%,#0a1628 30%);border-left:4px solid {_g_acc};
-                      border-radius:10px;padding:12px 16px;margin-bottom:8px;'>
-                      <div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;'>
-                        <div style='display:flex;align-items:center;gap:10px;'>
-                          <span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#475569;letter-spacing:.06em;'>WK {_gwk}</span>
-                          <span style='color:#94a3b8;font-size:.85rem;'>{_ven_lbl}</span>
-                          <span style='color:#64748b;font-size:.85rem;'>vs {_ork_chip}{_opp_logo}{html.escape(_gopp)}</span>
-                        </div>
-                        <div style='display:flex;align-items:center;gap:12px;'>
-                          <span style='font-weight:900;font-size:1.1rem;color:{_res_color};'>{_gres} {_gts}–{_gos}</span>
-                          <span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:{_g_acc};font-weight:900;'>GC {_ggcs:.1f}</span>
-                          <span style='font-size:.75rem;color:#64748b;'>{html.escape(_gtier)}</span>
-                        </div>
+                    <div class='game-card' style='--cardacc:{_acc};'>
+                      <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;'>
+                        <div style='font-weight:800;color:#f8fafc;'>Wk {_wk} · {_ven_lbl} · {html.escape(_opp)}</div>
+                        <div style='font-weight:900;color:{'#4ade80' if _res.upper()=='W' else '#f87171'};'>{_res} {_ts}-{_os}</div>
+                      </div>
+                      <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px;'>
+                        <div style='font-size:.82rem;color:#94a3b8;'>{html.escape(_tier)}</div>
+                        <div style='font-family:Bebas Neue,sans-serif;font-size:1.25rem;color:{_acc};'>GC {_score:.1f}</div>
                       </div>
                       {f"<div style='margin-top:8px;'>{_pills}</div>" if _pills else ""}
-                    </div>""", unsafe_allow_html=True)
-
-                # ── RARE EVENTS CALLOUT ────────────────────────────────────────
-                _all_escape =_gc_int(gc_summary.loc[(gc_summary["TEAM"]==_gc_st)&(gc_summary["USER"]==_gc_su),"CLOSE_ESCAPES"].values[0] if not gc_summary[(gc_summary["TEAM"]==_gc_st)&(gc_summary["USER"]==_gc_su)].empty and "CLOSE_ESCAPES" in gc_summary.columns else 0)
-                _rare_any=any(str(_gc_tg[c].astype(str).str.upper().eq("TRUE").any()) == "True"
-                              for c in ["close_escape","false_blowout","stealth_dominance","got_robbed_flag"]
-                              if c in _gc_tg.columns)
-                if _rare_any:
-                    st.markdown("""
-                    <div style='margin-top:16px;padding:14px 18px;border-radius:14px;
-                      background:rgba(15,23,42,.8);border:1px solid rgba(251,191,36,.2);'>
-                      <div style='font-weight:900;color:#fbbf24;font-size:.9rem;margin-bottom:8px;letter-spacing:.05em;'>⚡ RARE EVENT GLOSSARY</div>
-                      <div style='color:#94a3b8;font-size:.82rem;line-height:1.7;'>
-                        🚪 <b style='color:#f59e0b;'>Close Escape</b> — Won a game where GC score suggests you shouldn't have. Score was close and control metrics favored the opponent.<br>
-                        🎭 <b style='color:#a78bfa;'>False Blowout</b> — The margin inflated the score. The game was actually tighter in the trenches and efficiency than the final suggests.<br>
-                        🥷 <b style='color:#38bdf8;'>Stealth Dominance</b> — Controlled every phase of the game but the score doesn't show it. A quiet beatdown that stats confirm.<br>
-                        🏴‍☠️ <b style='color:#f87171;'>Got Robbed</b> — Lost a game you statistically dominated. Better in yards, turnovers, possession — the football gods weren't watching.
-                      </div>
-                    </div>""", unsafe_allow_html=True)
+                    </div>
+                    """, unsafe_allow_html=True)
 
     with _spd_tabs[4]:
+        # ── EXPLOSIVE INDEX ──────────────────────────────────────────
+        @st.cache_data(ttl=300)
+        def load_explosive_files():
+            summary = pd.read_csv("explosive_index_summary.csv")
+            games   = pd.read_csv("explosive_index_by_game.csv")
+            trend   = pd.read_csv("explosive_index_trend.csv")
+            return summary, games, trend
+
+        try:
+            ex_summary, ex_games, ex_trend = load_explosive_files()
+        except Exception as _exe:
+            st.warning(f"Explosive Index files could not be loaded: {_exe}")
+            ex_summary = ex_games = ex_trend = pd.DataFrame()
+
+        if ex_summary.empty:
+            st.info("Push explosive_index_summary.csv, explosive_index_by_game.csv, and explosive_index_trend.csv to enable this tab.")
+        else:
+            for _df in [ex_summary, ex_games, ex_trend]:
+                for _c in ("TEAM","USER"):
+                    if _c in _df.columns:
+                        _df[_c] = _df[_c].astype(str).str.strip()
+
+            def _ex_acc(v):
+                if v >= 85: return "#f97316"
+                if v >= 75: return "#fb923c"
+                if v >= 65: return "#facc15"
+                if v >= 55: return "#38bdf8"
+                if v >= 45: return "#22c55e"
+                return "#64748b"
+            def _def_acc(v):
+                if v >= 85: return "#22c55e"
+                if v >= 75: return "#4ade80"
+                if v >= 65: return "#38bdf8"
+                if v >= 55: return "#facc15"
+                if v >= 45: return "#fb923c"
+                return "#ef4444"
+
+            st.markdown("<div class='metric-wrap'>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-title'>💥 Explosive Index</div>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-sub'>This is your offense's ability to strike fast and your defense's ability to suppress chunk-style efficiency. One side asks <b>can you detonate</b>; the other asks <b>can you choke the life out of it</b>.</div>", unsafe_allow_html=True)
+
+            _ex_rank = ex_summary.copy()
+            _ex_rank["AVG_EXPLOSIVE_INDEX"] = pd.to_numeric(_ex_rank["AVG_EXPLOSIVE_INDEX"], errors="coerce").fillna(0)
+            _ex_rank = _ex_rank.sort_values(["AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX"], ascending=[False,False]).reset_index(drop=True)
+            _ex_rank["RANK"] = range(1, len(_ex_rank)+1)
+
+            for _, _er in _ex_rank.iterrows():
+                _t=str(_er["TEAM"]); _u=str(_er["USER"]); _r=int(_er["RANK"])
+                _off=float(pd.to_numeric(_er.get("AVG_EXPLOSIVE_INDEX",0), errors='coerce'))
+                _def=float(pd.to_numeric(_er.get("AVG_STEEL_CURTAIN_INDEX",0), errors='coerce'))
+                _w=int(pd.to_numeric(_er.get("RECORD_WINS",0), errors='coerce')); _l=int(pd.to_numeric(_er.get("RECORD_LOSSES",0), errors='coerce'))
+                _logo_uri=image_file_to_data_uri(get_logo_source(_t))
+                _logo=f"<img class='leader-logo' src='{_logo_uri}'/>" if _logo_uri else ""
+                _off_lbl=str(_er.get("OFF_STYLE_LABEL",""))
+                _def_lbl=str(_er.get("DEF_STYLE_LABEL",""))
+                _mini=f"{str(_er.get('OFF_CONSISTENCY',''))} offense · {str(_er.get('DEF_CONSISTENCY',''))} defense"
+                st.markdown(f"""
+                <div class='leader-card' style='--acc:{_ex_acc(_off)};'>
+                  <div class='leader-left'>
+                    <div class='leader-rank'>#{_r}</div>
+                    {_logo}
+                    <div>
+                      <div class='leader-team'>{html.escape(_t)}</div>
+                      <div class='leader-meta'>{_w}-{_l} · {html.escape(_u)}</div>
+                      <div class='leader-sig'>Offense: {html.escape(_off_lbl)} · Defense: {html.escape(_def_lbl)}</div>
+                    </div>
+                  </div>
+                  <div class='leader-right'>
+                    <div class='leader-badge'>Off { _off:.1f } · Def { _def:.1f }</div>
+                    <div class='leader-score'>+{_off:.0f}</div>
+                    <div class='leader-mini'>{html.escape(_mini)}</div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("<div class='panel-note'>Orange-hot teams blow games open. Green defenses suffocate life. This view keeps both in the same place so you can see whether a team is a missile battery, a steel curtain, or a complete identity crisis.</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            st.subheader("🎯 Team Identity Deep Dive")
+            _ex_sel_df=_ex_rank[["USER","TEAM"]].copy()
+            _ex_sel_df["LABEL"]=_ex_sel_df["USER"]+" • "+_ex_sel_df["TEAM"]
+            _ex_sel=st.selectbox("Choose a team", _ex_sel_df["LABEL"].tolist(), key="ex_team_select_v2")
+            _ex_su=_ex_sel_df.loc[_ex_sel_df["LABEL"]==_ex_sel,"USER"].iloc[0]
+            _ex_st=_ex_sel_df.loc[_ex_sel_df["LABEL"]==_ex_sel,"TEAM"].iloc[0]
+
+            _ex_row = ex_summary[(ex_summary["USER"]==_ex_su)&(ex_summary["TEAM"]==_ex_st)].copy()
+            _ex_g = ex_games[(ex_games["USER"]==_ex_su)&(ex_games["TEAM"]==_ex_st)].copy()
+            _ex_t = ex_trend[(ex_trend["USER"]==_ex_su)&(ex_trend["TEAM"]==_ex_st)].copy()
+
+            if not _ex_row.empty:
+                _er = _ex_row.iloc[0]
+                _c1,_c2,_c3,_c4 = st.columns(4)
+                _c1.markdown(f"<div class='mini-card'><div class='mini-label'>Offensive Style</div><div class='mini-val'>{html.escape(str(_er.get('OFF_STYLE_LABEL','')))}</div></div>", unsafe_allow_html=True)
+                _c2.markdown(f"<div class='mini-card'><div class='mini-label'>Defensive Style</div><div class='mini-val'>{html.escape(str(_er.get('DEF_STYLE_LABEL','')))}</div></div>", unsafe_allow_html=True)
+                _c3.markdown(f"<div class='mini-card'><div class='mini-label'>Quick Strikes</div><div class='mini-val'>{int(pd.to_numeric(_er.get('QUICK_STRIKES',0), errors='coerce'))}</div></div>", unsafe_allow_html=True)
+                _c4.markdown(f"<div class='mini-card'><div class='mini-label'>Wet Paper Bag Games</div><div class='mini-val'>{int(pd.to_numeric(_er.get('WET_PAPER_BAG_GAMES',0), errors='coerce'))}</div></div>", unsafe_allow_html=True)
+
+            if not _ex_t.empty:
+                _ex_t = _ex_t.sort_values(["YEAR","WEEK"]).copy()
+                _ex_t["wlbl"] = "W" + _ex_t["WEEK"].astype(str)
+                _fig = go.Figure()
+                _fig.add_trace(go.Scatter(x=_ex_t["wlbl"], y=_ex_t["off_explosive_index"], mode='lines+markers', name='Offense',
+                                          line=dict(color='#fb923c', width=2.5), marker=dict(size=10, color='#fb923c')))
+                _fig.add_trace(go.Scatter(x=_ex_t["wlbl"], y=_ex_t["def_steel_curtain_index"], mode='lines+markers', name='Defense',
+                                          line=dict(color='#22c55e', width=2.5), marker=dict(size=10, color='#22c55e')))
+                _fig.update_layout(height=300, margin=dict(l=24,r=16,t=18,b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                   font=dict(color='#cbd5e1'), xaxis=dict(title='Week', gridcolor='rgba(255,255,255,.06)'),
+                                   yaxis=dict(title='Index', gridcolor='rgba(255,255,255,.06)', range=[0,100]),
+                                   legend=dict(orientation='h', y=1.08, x=0))
+                st.plotly_chart(_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
+
+            if not _ex_g.empty:
+                _ex_g = _ex_g.sort_values(["YEAR","WEEK"], ascending=[False,False]).copy()
+                for _, _eg in _ex_g.iterrows():
+                    _wk=int(pd.to_numeric(_eg.get("WEEK",0), errors='coerce')); _opp=str(_eg.get("OPPONENT","?")); _res=str(_eg.get("RESULT","?")); _ts=int(pd.to_numeric(_eg.get("TEAM_SCORE",0), errors='coerce')); _os=int(pd.to_numeric(_eg.get("OPP_SCORE",0), errors='coerce'))
+                    _off=float(pd.to_numeric(_eg.get("off_explosive_index",0), errors='coerce')); _def=float(pd.to_numeric(_eg.get("def_steel_curtain_index",0), errors='coerce'))
+                    _flags=""
+                    if str(_eg.get("quick_strike_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#f9731622;color:#fb923c;border:1px solid #fb923c55;'>QUICK STRIKE</span>"
+                    if str(_eg.get("aerial_nuke_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#f59e0b22;color:#facc15;border:1px solid #facc1555;'>AERIAL NUKE</span>"
+                    if str(_eg.get("ground_blast_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#22c55e22;color:#4ade80;border:1px solid #4ade8055;'>GROUND BLAST</span>"
+                    if str(_eg.get("steel_curtain_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#16a34a22;color:#4ade80;border:1px solid #4ade8055;'>STEEL CURTAIN</span>"
+                    if str(_eg.get("wet_paper_bag_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#ef444422;color:#f87171;border:1px solid #ef444455;'>WET PAPER BAG</span>"
+                    st.markdown(f"""
+                    <div class='game-card' style='--cardacc:{_ex_acc(_off)};'>
+                      <div style='display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;'>
+                        <div style='font-weight:800;color:#f8fafc;'>Wk {_wk} · {html.escape(_opp)}</div>
+                        <div style='font-weight:900;color:{'#4ade80' if _res.upper()=='W' else '#f87171'};'>{_res} {_ts}-{_os}</div>
+                      </div>
+                      <div style='display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px;color:#cbd5e1;'>
+                        <div>Off <span style='color:{_ex_acc(_off)};font-weight:900;'>{_off:.1f}</span></div>
+                        <div>Def <span style='color:{_def_acc(_def)};font-weight:900;'>{_def:.1f}</span></div>
+                      </div>
+                      {f"<div style='margin-top:8px;'>{_flags}</div>" if _flags else ""}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    with _spd_tabs[5]:
+        # ── DID THE SCORE LIE? ───────────────────────────────────────
+        @st.cache_data(ttl=300)
+        def load_brc_files():
+            summary = pd.read_csv("beatdown_reality_check_summary.csv")
+            games   = pd.read_csv("beatdown_reality_check_by_game.csv")
+            trend   = pd.read_csv("beatdown_reality_check_trend.csv")
+            return summary, games, trend
+
+        try:
+            brc_summary, brc_games, brc_trend = load_brc_files()
+        except Exception as _brce:
+            st.warning(f"Did The Score Lie files could not be loaded: {_brce}")
+            brc_summary = brc_games = brc_trend = pd.DataFrame()
+
+        if brc_summary.empty:
+            st.info("Push beatdown_reality_check_summary.csv, beatdown_reality_check_by_game.csv, and beatdown_reality_check_trend.csv to enable this tab.")
+        else:
+            for _df in [brc_summary, brc_games, brc_trend]:
+                for _c in ("TEAM","USER","OPPONENT","RESULT"):
+                    if _c in _df.columns:
+                        _df[_c] = _df[_c].astype(str).str.strip()
+
+            st.markdown("<div class='metric-wrap'>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-title'>🕵️ Did The Score Lie?</div>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-sub'>A scoreboard can be honest, flattering, or full of nonsense. This section compares the final score to the underlying fight — yards per play, first downs, situational leverage, and how much the margin matched what actually happened.</div>", unsafe_allow_html=True)
+
+            _all_brc = brc_games.copy()
+            _all_brc["BarLabel"] = _all_brc["TEAM"].astype(str).str.slice(0,4).str.upper() + " " + _all_brc["TEAM_SCORE"].astype(str) + "-" + _all_brc["OPP_SCORE"].astype(str)
+            _all_brc["truth_margin"] = pd.to_numeric(_all_brc["truth_margin"], errors="coerce").fillna(0)
+            _bar = _all_brc.sort_values("truth_margin").copy()
+
+            _fig = go.Figure()
+            _bar_colors = []
+            for _v in _bar["truth_margin"]:
+                if _v >= 10: _bar_colors.append("#7c3aed")
+                elif _v >= 4: _bar_colors.append("#f97316")
+                elif _v >= 0: _bar_colors.append("#38bdf8")
+                elif _v >= -4: _bar_colors.append("#94a3b8")
+                else: _bar_colors.append("#ef4444")
+
+            _fig.add_trace(go.Bar(
+                x=_bar["BarLabel"], y=_bar["truth_margin"],
+                marker_color=_bar_colors,
+                text=_bar["TEAM"].astype(str),
+                textposition="outside",
+                hovertemplate="<b>%{text}</b><br>Truth Margin: %{y:.2f}<br>%{x}<extra></extra>"
+            ))
+            _fig.add_hline(y=0, line_color="rgba(255,255,255,.35)", line_width=1)
+            _fig.update_layout(
+                height=430, margin=dict(l=10,r=10,t=14,b=90),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#e2e8f0'),
+                xaxis=dict(title="", tickangle=-45, gridcolor='rgba(255,255,255,.03)'),
+                yaxis=dict(title="Truth Margin", gridcolor='rgba(255,255,255,.06)')
+            )
+            st.plotly_chart(_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
+            st.markdown("<div class='panel-note'><b>How to read it:</b> the farther right a game lands, the more the underlying play said the team should've controlled it. The farther left it lands, the more the score or result flattered the other side.</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            st.subheader("🎭 Per-Team Lie Detector")
+            _brc_sel_df=brc_summary[["USER","TEAM"]].copy()
+            _brc_sel_df["LABEL"]=_brc_sel_df["USER"]+" • "+_brc_sel_df["TEAM"]
+            _brc_sel=st.selectbox("Choose a team", _brc_sel_df["LABEL"].tolist(), key="brc_team_select_v2")
+            _brc_su=_brc_sel_df.loc[_brc_sel_df["LABEL"]==_brc_sel,"USER"].iloc[0]
+            _brc_st=_brc_sel_df.loc[_brc_sel_df["LABEL"]==_brc_sel,"TEAM"].iloc[0]
+
+            _brc_row = brc_summary[(brc_summary["USER"]==_brc_su)&(brc_summary["TEAM"]==_brc_st)].copy()
+            _brc_g = brc_games[(brc_games["USER"]==_brc_su)&(brc_games["TEAM"]==_brc_st)].copy()
+            _brc_t = brc_trend[(brc_trend["USER"]==_brc_su)&(brc_trend["TEAM"]==_brc_st)].copy()
+
+            if not _brc_row.empty:
+                _br = _brc_row.iloc[0]
+                _c1,_c2,_c3,_c4 = st.columns(4)
+                _c1.markdown(f"<div class='mini-card'><div class='mini-label'>Avg Reality Score</div><div class='mini-val'>{float(pd.to_numeric(_br.get('AVG_BEATDOWN_REALITY_SCORE',0), errors='coerce')):.1f}</div></div>", unsafe_allow_html=True)
+                _c2.markdown(f"<div class='mini-card'><div class='mini-label'>Avg Truth Margin</div><div class='mini-val'>{float(pd.to_numeric(_br.get('AVG_TRUTH_MARGIN',0), errors='coerce')):.1f}</div></div>", unsafe_allow_html=True)
+                _c3.markdown(f"<div class='mini-card'><div class='mini-label'>Avg Truth Gap</div><div class='mini-val'>{float(pd.to_numeric(_br.get('AVG_TRUTH_GAP',0), errors='coerce')):.1f}</div></div>", unsafe_allow_html=True)
+                _c4.markdown(f"<div class='mini-card'><div class='mini-label'>Profile</div><div class='mini-val'>{html.escape(str(_br.get('BRC_PROFILE_LABEL','')))}</div></div>", unsafe_allow_html=True)
+
+            if not _brc_t.empty:
+                _brc_t = _brc_t.sort_values(["YEAR","WEEK"]).copy()
+                _brc_t["wlbl"] = "W" + _brc_t["WEEK"].astype(str)
+                _bfig = go.Figure()
+                _bfig.add_trace(go.Scatter(x=_brc_t["wlbl"], y=_brc_t["beatdown_reality_score"], mode='lines+markers',
+                                           line=dict(color='#38bdf8', width=2.5), marker=dict(size=10, color='#38bdf8'),
+                                           hovertemplate='<b>%{x}</b><br>Reality Score: %{y:.1f}<extra></extra>'))
+                _bfig.update_layout(height=285, margin=dict(l=24,r=16,t=18,b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                    font=dict(color='#cbd5e1'), xaxis=dict(title='Week', gridcolor='rgba(255,255,255,.06)'),
+                                    yaxis=dict(title='Reality Score', gridcolor='rgba(255,255,255,.06)', range=[0,100]), showlegend=False)
+                st.plotly_chart(_bfig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
+
+            if not _brc_g.empty:
+                _brc_g = _brc_g.sort_values(["YEAR","WEEK"], ascending=[False,False]).copy()
+                for _, _bg in _brc_g.iterrows():
+                    _wk=int(pd.to_numeric(_bg.get("WEEK",0), errors='coerce')); _opp=str(_bg.get("OPPONENT","?")); _res=str(_bg.get("RESULT","?")); _ts=int(pd.to_numeric(_bg.get("TEAM_SCORE",0), errors='coerce')); _os=int(pd.to_numeric(_bg.get("OPP_SCORE",0), errors='coerce'))
+                    _tm=float(pd.to_numeric(_bg.get("truth_margin",0), errors='coerce')); _tg=float(pd.to_numeric(_bg.get("truth_gap",0), errors='coerce')); _rs=float(pd.to_numeric(_bg.get("beatdown_reality_score",0), errors='coerce'))
+                    _vd=str(_bg.get("beatdown_reality_verdict",""))
+                    _acc = "#7c3aed" if _tm >= 10 else ("#f97316" if _tm >= 4 else ("#38bdf8" if _tm >= 0 else ("#94a3b8" if _tm >= -4 else "#ef4444")))
+                    _pills=""
+                    if str(_bg.get("score_flattered_us_flag","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#f59e0b22;color:#facc15;border:1px solid #facc1555;'>SCORE LIED FOR US</span>"
+                    if str(_bg.get("win_was_shakier_than_score_flag","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#fb923c22;color:#fb923c;border:1px solid #fb923c55;'>WE GOT AWAY WITH ONE</span>"
+                    if str(_bg.get("score_flattered_them_flag","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#ef444422;color:#f87171;border:1px solid #ef444455;'>SCORE LIED FOR THEM</span>"
+                    if str(_bg.get("we_should_have_won_bigger_flag","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#7c3aed22;color:#c084fc;border:1px solid #c084fc55;'>SHOULD'VE BEAT THEIR ASS</span>"
+                    if str(_bg.get("got_worked_flag","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#991b1b22;color:#f87171;border:1px solid #f8717155;'>GOT WORKED</span>"
+                    st.markdown(f"""
+                    <div class='game-card' style='--cardacc:{_acc};'>
+                      <div style='display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;'>
+                        <div style='font-weight:800;color:#f8fafc;'>Wk {_wk} · {html.escape(_opp)}</div>
+                        <div style='font-weight:900;color:{'#4ade80' if _res.upper()=='W' else '#f87171'};'>{_res} {_ts}-{_os}</div>
+                      </div>
+                      <div style='display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px;color:#cbd5e1;'>
+                        <div>Truth Margin <span style='color:{_acc};font-weight:900;'>{_tm:.1f}</span></div>
+                        <div>Truth Gap <span style='color:#94a3b8;font-weight:900;'>{_tg:.1f}</span></div>
+                        <div>Reality <span style='color:#38bdf8;font-weight:900;'>{_rs:.1f}</span></div>
+                      </div>
+                      <div style='margin-top:7px;font-size:.84rem;color:#e2e8f0;font-weight:800;'>{html.escape(_vd)}</div>
+                      {f"<div style='margin-top:8px;'>{_pills}</div>" if _pills else ""}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    with _spd_tabs[6]:
         st.header("📈 Program Trajectory")
         st.caption("How is every program trending? OVR, recruiting class rank, blue chip ratio, win %, NFL pipeline — all over time.")
 
