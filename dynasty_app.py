@@ -14916,10 +14916,13 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
             _inj_df['Year'] = pd.to_numeric(_inj_df.get('Year'), errors='coerce')
             _inj_df['WeeksOut'] = pd.to_numeric(_inj_df.get('WeeksOut'), errors='coerce')
             _inj_df['OVR'] = pd.to_numeric(_inj_df.get('OVR'), errors='coerce')
-            # Normalize IsStarter — Yes/True/1 = starter, blank/No/False = unknown/backup
+            # Normalize explicit starter columns from injury_bulletin.csv
             if 'IsStarter' not in _inj_df.columns:
                 _inj_df['IsStarter'] = ''
+            if 'Starter' not in _inj_df.columns:
+                _inj_df['Starter'] = ''
             _inj_df['IsStarter'] = _inj_df['IsStarter'].astype(str).str.strip().str.lower()
+            _inj_df['Starter'] = _inj_df['Starter'].astype(str).str.strip().str.lower()
 
             _inj_df['Week'] = pd.to_numeric(_inj_df.get('Week'), errors='coerce').fillna(0)
             _inj_df['_remaining'] = (_inj_df['WeeksOut'] - (CURRENT_WEEK_NUMBER - _inj_df['Week'])).clip(lower=0)
@@ -14978,14 +14981,16 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                     "S": "starting safety",
                 }
 
-                # Determine starter status — depth chart ALWAYS wins over CSV value
-                # CSV IsStarter can be stale (written before a better player was added)
+                # Determine starter status — explicit injury CSV starter flags win first.
                 _is_starter_raw = str(_inj.get('IsStarter', '')).strip().lower()
-                _confirmed_not_starter = _is_starter_raw in ('no', 'false', '0')
-                if _confirmed_not_starter:
+                _starter_raw = str(_inj.get('Starter', '')).strip().lower()
+                _starter_yes = {'yes','y','true','1','starter'}
+                _starter_no = {'no','n','false','0','backup','depth'}
+                if _starter_raw in _starter_yes or _is_starter_raw in _starter_yes:
+                    _is_starter = True
+                elif _starter_raw in _starter_no or _is_starter_raw in _starter_no:
                     _is_starter = False
                 else:
-                    # Always verify against depth chart — even if CSV says Yes
                     _is_starter = _infer_starter_from_roster(_it, _ip, _iname, _iovr)
 
                 if _is_starter:
@@ -17002,7 +17007,8 @@ with tabs[3]:
 
         # ── WEEK-BY-WEEK / QUALITY WINS / CONFERENCE GAUNTLET ────────
 
-        _scht_user = st.selectbox("Select a user to inspect", list(USER_TEAMS.keys()), key="sched_tab_user_select")
+        _sched_user_opts = [u for u in list(USER_TEAMS.keys()) if str(u).strip() and str(u).strip().lower() not in ("nan","none")]
+        _scht_user = st.selectbox("Select a user to inspect", _sched_user_opts, key="sched_tab_user_select")
 
         _scht_games = _get_user_games(_scht_user)
         _scht_team  = USER_TEAMS.get(_scht_user, _scht_user)
@@ -17701,10 +17707,10 @@ with tabs[3]:
                     )
                     _chunk_sum["CHUNK_PLAYS_SCORE"] = (
                         100
-                        - (_chunk_sum["AVG_YPP_ALLOWED"] * 8.0)
-                        - (_chunk_sum["AVG_PASS_ALLOWED"] * 3.2)
-                        - (_chunk_sum["AVG_RUSH_ALLOWED"] * 4.0)
-                        - (_chunk_sum["AVG_MAX_Q_ALLOWED"] * 1.5)
+                        - ((_chunk_sum["AVG_YPP_ALLOWED"] - 4.5).clip(lower=0) * 10.0)
+                        - ((_chunk_sum["AVG_PASS_ALLOWED"] - 5.5).clip(lower=0) * 7.0)
+                        - ((_chunk_sum["AVG_RUSH_ALLOWED"] - 4.5).clip(lower=0) * 8.0)
+                        - ((_chunk_sum["AVG_MAX_Q_ALLOWED"] - 7.0).clip(lower=0) * 2.0)
                     ).clip(lower=0, upper=100)
                     _chunk_sum = _chunk_sum.sort_values(["CHUNK_PLAYS_SCORE","AVG_YPP_ALLOWED"], ascending=[False,True]).reset_index(drop=True)
                     _chunk_sum["LABEL"] = _chunk_sum["TEAM"].astype(str) + " · " + _chunk_sum["USER"].astype(str)
@@ -17730,7 +17736,7 @@ with tabs[3]:
                         showlegend=False,
                     )
                     st.plotly_chart(_chunk_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
-                    st.caption("Higher Chunk Plays Score = better at preventing easy explosives. It blends overall yards per play allowed, pass YPA allowed, rush YPA allowed, and opponent max quarter points.")
+                    st.caption("Higher Chunk Plays Score = better at preventing chunk damage. Around 80+ is clamp-down ball, 60-79 is solid, 40-59 is shaky, and below 40 means teams are finding explosives too easily. It blends overall yards per play allowed, pass YPA allowed, rush YPA allowed, and opponent max quarter points.")
                 else:
                     st.info("No defensive chunk-play data available yet.")
 
@@ -17910,11 +17916,16 @@ with tabs[3]:
             st.plotly_chart(_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
             st.markdown("""
             <div class='panel-note'>
-              <b>Legend:</b><br>
-              <b>Truth Margin</b> = what the underneath stats say the margin should've felt like.<br>
-              <b>Truth Gap</b> = actual margin minus truth margin. Big negative means the opponent got a kinder scoreboard than the play suggested.<br>
-              <b>Reality Score</b> = overall read of how much you actually controlled or got controlled.<br>
-              <b>Flag precedence:</b> if a game was both ugly and misleading, the app now shows the uglier truth first. So a game can read <b>Got Worked — and the score still lied for them</b>.
+              <b>How to read this:</b><br>
+              <b>Truth Margin</b> = the margin the game <i>played like</i>. If the stats say it felt like a 10-point win, the Truth Margin is about +10.<br>
+              <b>Reality Score</b> = the overall control meter. High = you really drove the game. Low = you got pushed around. Think of it as the eye-test score built from the stat profile.<br>
+              <b>Truth Gap</b> = <i>actual margin minus truth margin</i>. Positive means the scoreboard was kinder to <b>you</b> than the play suggested. Negative means the scoreboard was kinder to <b>them</b> than the play suggested.<br><br>
+              <b>Color guide on the weekly chart:</b><br>
+              <span style='color:#22c55e;font-weight:800;'>Green bar</span> = the score probably lied <b>for them</b>. You played better than the final margin says.<br>
+              <span style='color:#fbbf24;font-weight:800;'>Gold bar</span> = roughly honest game. Score and stat profile mostly match.<br>
+              <span style='color:#ef4444;font-weight:800;'>Red bar</span> = the score probably lied <b>for you</b>. The final looked prettier than the actual fight.<br><br>
+              <b>Simple example:</b> if you won by 21, but the stats only looked like a 7-point win, then the <b>Truth Margin</b> is about +7 and the <b>Truth Gap</b> is +14 — meaning the scoreboard made you look better than you really were.<br>
+              <b>Flag precedence:</b> if a game was both ugly and misleading, the app shows the uglier truth first. So a game can read <b>Got Worked — and the score still lied for them</b>.
             </div>
             """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
