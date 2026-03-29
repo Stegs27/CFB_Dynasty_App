@@ -17606,7 +17606,7 @@ with tabs[3]:
                     </div>
                   </div>
                   <div class='leader-right'>
-                    <div class='leader-badge'>Off { _off:.1f } · Def { _def:.1f }</div>
+                    <div class='leader-badge'>Off {_off:.1f} · Def {_def:.1f}</div>
                     <div class='leader-score'>+{_off:.0f}</div>
                     <div class='leader-mini'>{html.escape(_mini)}</div>
                   </div>
