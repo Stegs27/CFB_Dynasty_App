@@ -1,16 +1,18 @@
 Year,Week,User,Team,Player,Pos,OVR,Injury,WeeksOut,Status,IsStarter
-2041,,Mike,San Jose State,M.Shorter,QB,85,Torn Pectoral,27,Out,Yes
-2041,,Mike,San Jose State,D.Caplan,LT,86,Broken Collarbone,4,Out,Yes
-2041,,Noah,Texas Tech,K.Cota,LT,82,Knee Cartilage Tear,2,Out,Yes
-2041,,Josh,USF,T.Christmas,RG,76,Dislocated Hip,4,Out,Yes
-2041,,Devin,Bowling Green,B.Franco,DT,84,Torn Pectoral,24,Out,Yes
-2041,,Doug,Florida,S.Ivie,LEDG,80,Dislocated Hip,1,Out,Yes
-2041,,Doug,Florida,R.Casey,MIKE,87,Fractured Shoulder Blade,14,Out,Yes
-2041,,Nick,Florida State,S.Winterswyk,QB,80,Dislocated Elbow,3,Out,Yes
-2041,,Nick,Florida State,J.Fe'esago,WR,90,Torn Pectoral,20,Out,Yes
-2042,0,,,,,0,,,,
-2042,4,Mike,San Jose State,A. Wint,C,81,Dislocated Elbow,1,Out,Yes
-2042,4,Mike,San Jose State,E. McDaniels,HB,84,Broken Collarbone,7,Out,Yes
-2042,4,Devin,Bowling Green,S. Fogg,LT,85,Torn Labrum,3,Out,Yes
-2042,6,Noah,Texas Tech,M. Williams,HB,86,Complete MCL Tear,29,Out,No
-2042,7,Doug,Florida,Manny Coale,C,91,Broken Collarbone,7,Out,Yes
+2041,,Mike,San Jose State,M.Shorter,QB,85,Torn Pectoral,27.0,Out,Yes
+2041,,Mike,San Jose State,D.Caplan,LT,86,Broken Collarbone,4.0,Out,Yes
+2041,,Noah,Texas Tech,K.Cota,LT,82,Knee Cartilage Tear,2.0,Out,Yes
+2041,,Josh,USF,T.Christmas,RG,76,Dislocated Hip,4.0,Out,Yes
+2041,,Devin,Bowling Green,B.Franco,DT,84,Torn Pectoral,24.0,Out,Yes
+2041,,Doug,Florida,S.Ivie,LEDG,80,Dislocated Hip,1.0,Out,Yes
+2041,,Doug,Florida,R.Casey,MIKE,87,Fractured Shoulder Blade,14.0,Out,Yes
+2041,,Nick,Florida State,S.Winterswyk,QB,80,Dislocated Elbow,3.0,Out,Yes
+2041,,Nick,Florida State,J.Fe'esago,WR,90,Torn Pectoral,20.0,Out,Yes
+2042,0.0,,,,,0,,,,
+2042,4.0,Mike,San Jose State,A. Wint,C,81,Dislocated Elbow,1.0,Out,Yes
+2042,4.0,Mike,San Jose State,E. McDaniels,HB,84,Broken Collarbone,7.0,Out,Yes
+2042,4.0,Devin,Bowling Green,S. Fogg,LT,85,Torn Labrum,3.0,Out,Yes
+2042,6.0,Noah,Texas Tech,M. Williams,HB,86,Complete MCL Tear,29.0,Out,Yes
+2042,7.0,Doug,Florida,Manny Coale,C,91,Broken Collarbone,7.0,Out,Yes
+2042,10.0,Doug,Florida,P. Iwuagwu,DT,84,Torn Labrum,1.0,,Yes
+2042,10.0,Doug,Florida,M. Coale,C,91,Broken Collarbone,4.0,,Yes
