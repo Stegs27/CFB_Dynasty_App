@@ -17697,6 +17697,31 @@ with tabs[3]:
                     if _c in _df.columns:
                         _df[_c] = _df[_c].astype(str).str.strip()
 
+            _brc_verdict_map = {
+                "Results Flattered Us": "Score Lied for Us",
+                "Win Was Shakier Than Score": "We Got Away With One",
+                "Results Flattered Them": "Score Lied for Them",
+                "Score Flattered Opponent": "Score Lied for Them",
+                "Should Have Won Bigger": "Should've Beat Their Ass",
+                "Score Was About Right": "Score Told the Truth",
+                "Loss Was Softer Than Score": "We Didn't Get Beat That Bad",
+                "Got Worked": "Got Our Ass Beat",
+            }
+            _brc_profile_map = {
+                "Results Undersold Them": "They Were Better Than the Score",
+                "Results Flatter Them": "Score Kept Lying for Them",
+                "Usually Dictated Terms": "Usually Beat Ass",
+                "Usually Got Worked": "Usually Got Their Ass Beat",
+                "Score Usually Matched The Fight": "Usually Was What It Was",
+                "Score Kept Saving Them": "Score Kept Lying for Them",
+            }
+            if "beatdown_reality_verdict" in brc_games.columns:
+                brc_games["beatdown_reality_verdict"] = brc_games["beatdown_reality_verdict"].astype(str).replace(_brc_verdict_map)
+            if "beatdown_reality_verdict" in brc_trend.columns:
+                brc_trend["beatdown_reality_verdict"] = brc_trend["beatdown_reality_verdict"].astype(str).replace(_brc_verdict_map)
+            if "BRC_PROFILE_LABEL" in brc_summary.columns:
+                brc_summary["BRC_PROFILE_LABEL"] = brc_summary["BRC_PROFILE_LABEL"].astype(str).replace(_brc_profile_map)
+
             st.markdown("<div class='metric-wrap'>", unsafe_allow_html=True)
             st.markdown("<div class='metric-title'>🕵️ Did The Score Lie?</div>", unsafe_allow_html=True)
             st.markdown("<div class='metric-sub'>A scoreboard can be honest, flattering, or full of nonsense. This section compares the final score to the underlying fight — yards per play, first downs, situational leverage, and how much the margin matched what actually happened.</div>", unsafe_allow_html=True)
