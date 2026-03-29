@@ -14180,31 +14180,30 @@ if data:
     except Exception:
         pass
 
-    # ── USER_TEAMS: auto-derived from team_conferences.csv ───────────────
-    # Falls back to hardcoded dict only if CSV is missing or empty.
+    # ── USER_TEAMS: only the six dynasty users, optionally refreshed from team_conferences.csv ───────────────
+    _canonical_user_teams = {
+        'Mike':  'San Jose State',
+        'Devin': 'Bowling Green',
+        'Josh':  'USF',
+        'Noah':  'Texas Tech',
+        'Doug':  'Florida',
+        'Nick':  'Florida State',
+    }
     try:
         _tc_df = _load_team_conferences_csv()
         _tc_df['USER'] = _tc_df['USER'].astype(str).str.strip().str.title()
         _tc_df['TEAM'] = _tc_df['TEAM'].astype(str).str.strip()
+        _tc_df = _tc_df[_tc_df['USER'].isin(list(_canonical_user_teams.keys()))].copy()
         # Keep most recent entry per user (highest YEAR_JOINED)
         if 'YEAR_JOINED' in _tc_df.columns:
             _tc_df['YEAR_JOINED'] = pd.to_numeric(_tc_df['YEAR_JOINED'], errors='coerce')
             _tc_df = _tc_df.sort_values('YEAR_JOINED', ascending=False)
-        USER_TEAMS = dict(zip(
-            _tc_df.drop_duplicates('USER', keep='first')['USER'],
-            _tc_df.drop_duplicates('USER', keep='first')['TEAM']
-        ))
-        if not USER_TEAMS:
-            raise ValueError("Empty team_conferences.csv")
+        USER_TEAMS = _canonical_user_teams.copy()
+        if not _tc_df.empty:
+            _tc_latest = _tc_df.drop_duplicates('USER', keep='first')
+            USER_TEAMS.update(dict(zip(_tc_latest['USER'], _tc_latest['TEAM'])))
     except Exception:
-        USER_TEAMS = {
-            'Mike':  'San Jose State',
-            'Devin': 'Bowling Green',
-            'Josh':  'USF',
-            'Noah':  'Texas Tech',
-            'Doug':  'Florida',
-            'Nick':  'Florida State',
-        }
+        USER_TEAMS = _canonical_user_teams.copy()
 
     RIVALRY_NAMES = {
         frozenset(["Mike",  "Noah"]):  ("⚡ The Overclocked Bowl",      "Two tech schools. One beef. It's the nerd rivalry nobody asked for and everyone should fear."),
@@ -17589,14 +17588,16 @@ with tabs[3]:
             st.markdown("""
             <div class='panel-note'>
               <b>Explosive Index legend:</b><br>
+              <b>Color guide:</b> <span style='color:#22c55e;font-weight:900;'>green</span> = strong / dangerous, <span style='color:#facc15;font-weight:900;'>yellow</span> = mixed or middle-of-the-road, <span style='color:#ef4444;font-weight:900;'>red</span> = weak / vulnerable.<br>
               <b>Detonation Machine / Missile Battery / Strike Force</b> = the offense creates chunk damage fast.<br>
               <b>Capable / Methodical</b> = the offense can move it, but not always with knockout shots.<br>
               <b>Sparkless</b> = not enough explosive juice.<br>
               <b>Quick Strike</b> = scored big without needing a long possession.<br>
-              <b>Aerial Nuke</b> = the passing game detonated the opponent.<br>
-              <b>Ground Blast</b> = the run game did the heavy damage.<br>
+              <b>Aerial Nuke</b> = the passing game was doing the biggest damage.<br>
+              <b>Ground Blast</b> = the run game was doing the heavy damage.<br>
               <b>Steel Curtain / Clamp Unit / Vice Grip</b> = the defense choked off chunk plays and clean efficiency.<br>
-              <b>Wet Paper Bag</b> = the defense gave up too much easy damage.
+              <b>Wet Paper Bag</b> = the defense gave up too much easy damage.<br>
+              <b>Chunk Plays Score</b> = how well the defense prevented easy explosives. Higher is better.
             </div>
             """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
@@ -17634,30 +17635,44 @@ with tabs[3]:
                                    legend=dict(orientation='h', y=1.08, x=0))
                 st.plotly_chart(_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
 
-                st.subheader("🧱 Chunk Plays Allowed")
-                _chunk_rank = ex_games.copy()
-                for _cc in ["def_opp_ypp_allowed","def_opp_pass_ypa_allowed","def_opp_rush_ypa_allowed","def_opp_max_quarter_points"]:
-                    if _cc not in _chunk_rank.columns:
-                        _chunk_rank[_cc] = 0
-                    _chunk_rank[_cc] = pd.to_numeric(_chunk_rank[_cc], errors='coerce').fillna(0)
+            st.subheader("🧱 Chunk Plays Allowed")
+            _chunk_rank = ex_games.copy()
+            for _cc in ["def_opp_ypp_allowed","def_opp_pass_ypa_allowed","def_opp_rush_ypa_allowed","def_opp_max_quarter_points"]:
+                if _cc not in _chunk_rank.columns:
+                    _chunk_rank[_cc] = np.nan
+                _chunk_rank[_cc] = pd.to_numeric(_chunk_rank[_cc], errors='coerce')
 
-                if not _chunk_rank.empty:
-                    _chunk_sum = (
-                        _chunk_rank.groupby(["USER","TEAM"], dropna=False)
-                        .agg(
-                            AVG_YPP_ALLOWED=("def_opp_ypp_allowed","mean"),
-                            AVG_PASS_ALLOWED=("def_opp_pass_ypa_allowed","mean"),
-                            AVG_RUSH_ALLOWED=("def_opp_rush_ypa_allowed","mean"),
-                            AVG_MAX_Q_ALLOWED=("def_opp_max_quarter_points","mean"),
-                        )
-                        .reset_index()
+            _chunk_rank = _chunk_rank.dropna(subset=["def_opp_ypp_allowed","def_opp_pass_ypa_allowed","def_opp_rush_ypa_allowed","def_opp_max_quarter_points"], how='all').copy()
+
+            if not _chunk_rank.empty:
+                _chunk_sum = (
+                    _chunk_rank.groupby(["USER","TEAM"], dropna=False)
+                    .agg(
+                        AVG_YPP_ALLOWED=("def_opp_ypp_allowed","mean"),
+                        AVG_PASS_ALLOWED=("def_opp_pass_ypa_allowed","mean"),
+                        AVG_RUSH_ALLOWED=("def_opp_rush_ypa_allowed","mean"),
+                        AVG_MAX_Q_ALLOWED=("def_opp_max_quarter_points","mean"),
                     )
+                    .reset_index()
+                )
+
+                for _cc in ["AVG_YPP_ALLOWED","AVG_PASS_ALLOWED","AVG_RUSH_ALLOWED","AVG_MAX_Q_ALLOWED"]:
+                    _chunk_sum[_cc] = pd.to_numeric(_chunk_sum[_cc], errors='coerce')
+
+                _chunk_sum = _chunk_sum.dropna(subset=["AVG_YPP_ALLOWED","AVG_PASS_ALLOWED","AVG_RUSH_ALLOWED","AVG_MAX_Q_ALLOWED"], how='all').copy()
+
+                if not _chunk_sum.empty:
+                    _chunk_sum["AVG_YPP_ALLOWED"] = _chunk_sum["AVG_YPP_ALLOWED"].fillna(_chunk_sum["AVG_YPP_ALLOWED"].median())
+                    _chunk_sum["AVG_PASS_ALLOWED"] = _chunk_sum["AVG_PASS_ALLOWED"].fillna(_chunk_sum["AVG_PASS_ALLOWED"].median())
+                    _chunk_sum["AVG_RUSH_ALLOWED"] = _chunk_sum["AVG_RUSH_ALLOWED"].fillna(_chunk_sum["AVG_RUSH_ALLOWED"].median())
+                    _chunk_sum["AVG_MAX_Q_ALLOWED"] = _chunk_sum["AVG_MAX_Q_ALLOWED"].fillna(_chunk_sum["AVG_MAX_Q_ALLOWED"].median())
+
                     _chunk_sum["CHUNK_PLAYS_SCORE"] = (
                         100
-                        - (_chunk_sum["AVG_YPP_ALLOWED"] * 8.0)
-                        - (_chunk_sum["AVG_PASS_ALLOWED"] * 3.2)
-                        - (_chunk_sum["AVG_RUSH_ALLOWED"] * 4.0)
-                        - (_chunk_sum["AVG_MAX_Q_ALLOWED"] * 1.5)
+                        - (_chunk_sum["AVG_YPP_ALLOWED"] * 6.5)
+                        - (_chunk_sum["AVG_PASS_ALLOWED"] * 2.6)
+                        - (_chunk_sum["AVG_RUSH_ALLOWED"] * 3.0)
+                        - (_chunk_sum["AVG_MAX_Q_ALLOWED"] * 1.0)
                     ).clip(lower=0, upper=100)
                     _chunk_sum = _chunk_sum.sort_values(["CHUNK_PLAYS_SCORE","AVG_YPP_ALLOWED"], ascending=[False,True]).reset_index(drop=True)
                     _chunk_sum["LABEL"] = _chunk_sum["TEAM"].astype(str) + " · " + _chunk_sum["USER"].astype(str)
@@ -17686,6 +17701,8 @@ with tabs[3]:
                     st.caption("Higher Chunk Plays Score = better at preventing easy explosives. It blends overall yards per play allowed, pass YPA allowed, rush YPA allowed, and opponent max quarter points.")
                 else:
                     st.info("No defensive chunk-play data available yet.")
+            else:
+                st.info("No defensive chunk-play data available yet.")
 
             if not _ex_g.empty:
                 _ex_g = _ex_g.sort_values(["YEAR","WEEK"], ascending=[False,False]).copy()
@@ -17863,11 +17880,12 @@ with tabs[3]:
             st.plotly_chart(_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
             st.markdown("""
             <div class='panel-note'>
-              <b>Legend:</b><br>
-              <b>Truth Margin</b> = what the underneath stats say the margin should've felt like.<br>
-              <b>Truth Gap</b> = actual margin minus truth margin. Big negative means the opponent got a kinder scoreboard than the play suggested.<br>
-              <b>Reality Score</b> = overall read of how much you actually controlled or got controlled.<br>
-              <b>Flag precedence:</b> if a game was both ugly and misleading, the app now shows the uglier truth first. So a game can read <b>Got Worked — and the score still lied for them</b>.
+              <b>Did The Score Lie? legend:</b><br>
+              <b>Color guide:</b> <span style='color:#22c55e;font-weight:900;'>green</span> = you controlled it, <span style='color:#facc15;font-weight:900;'>yellow</span> = messy / coin-flip feel, <span style='color:#ef4444;font-weight:900;'>red</span> = the opponent controlled more than the scoreboard suggests.<br>
+              <b>Truth Margin</b> = what the box score says the game <i>felt</i> like, not just what the scoreboard said.<br>
+              <b>Truth Gap</b> = actual margin minus truth margin. Big negative means the scoreboard was kinder to the opponent than the underlying play suggested. Big positive means your side may have been flattered by the score.<br>
+              <b>Reality Score</b> = the overall control meter. Higher means you actually drove the game. Lower means you got pushed around, even if the final score looked fine.<br>
+              <b>Flag precedence:</b> if a game was both ugly and misleading, the app shows the uglier truth first. So a game can read <b>Got Worked — and the score still lied for them</b>.
             </div>
             """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
