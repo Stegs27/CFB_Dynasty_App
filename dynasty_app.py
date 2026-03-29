@@ -14916,9 +14916,13 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
             _inj_df['Year'] = pd.to_numeric(_inj_df.get('Year'), errors='coerce')
             _inj_df['WeeksOut'] = pd.to_numeric(_inj_df.get('WeeksOut'), errors='coerce')
             _inj_df['OVR'] = pd.to_numeric(_inj_df.get('OVR'), errors='coerce')
-            # Normalize IsStarter — Yes/True/1 = starter, blank/No/False = unknown/backup
+            # Prefer the explicit starter column from injury_bulletin.csv.
+            # Support both Starter and IsStarter for backward compatibility.
+            if 'Starter' not in _inj_df.columns:
+                _inj_df['Starter'] = _inj_df.get('IsStarter', '')
             if 'IsStarter' not in _inj_df.columns:
-                _inj_df['IsStarter'] = ''
+                _inj_df['IsStarter'] = _inj_df.get('Starter', '')
+            _inj_df['Starter'] = _inj_df['Starter'].astype(str).str.strip().str.lower()
             _inj_df['IsStarter'] = _inj_df['IsStarter'].astype(str).str.strip().str.lower()
 
             _inj_df['Week'] = pd.to_numeric(_inj_df.get('Week'), errors='coerce').fillna(0)
@@ -14978,14 +14982,18 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                     "S": "starting safety",
                 }
 
-                # Determine starter status — depth chart ALWAYS wins over CSV value
-                # CSV IsStarter can be stale (written before a better player was added)
+                # Use the explicit CSV starter flag first. If it is missing, fall back to the old logic.
+                _starter_raw = str(_inj.get('Starter', '')).strip().lower()
                 _is_starter_raw = str(_inj.get('IsStarter', '')).strip().lower()
-                _confirmed_not_starter = _is_starter_raw in ('no', 'false', '0')
-                if _confirmed_not_starter:
+                if _starter_raw in ('yes', 'true', '1'):
+                    _is_starter = True
+                elif _starter_raw in ('no', 'false', '0'):
+                    _is_starter = False
+                elif _is_starter_raw in ('yes', 'true', '1'):
+                    _is_starter = True
+                elif _is_starter_raw in ('no', 'false', '0'):
                     _is_starter = False
                 else:
-                    # Always verify against depth chart — even if CSV says Yes
                     _is_starter = _infer_starter_from_roster(_it, _ip, _iname, _iovr)
 
                 if _is_starter:
@@ -15054,8 +15062,11 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
             _ret_df['Week']     = pd.to_numeric(_ret_df.get('Week'),     errors='coerce')
             _ret_df['WeeksOut'] = pd.to_numeric(_ret_df.get('WeeksOut'), errors='coerce')
             _ret_df['OVR']      = pd.to_numeric(_ret_df.get('OVR'),      errors='coerce')
+            if 'Starter' not in _ret_df.columns:
+                _ret_df['Starter'] = _ret_df.get('IsStarter', '')
             if 'IsStarter' not in _ret_df.columns:
-                _ret_df['IsStarter'] = ''
+                _ret_df['IsStarter'] = _ret_df.get('Starter', '')
+            _ret_df['Starter'] = _ret_df['Starter'].astype(str).str.strip().str.lower()
             _ret_df['IsStarter'] = _ret_df['IsStarter'].astype(str).str.strip().str.lower()
 
             # Only current year, only rows where Week is known, only non-season-ending
@@ -15081,10 +15092,16 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                 _rii  = str(_ret.get('Injury', 'injury')).strip()
                 _rovr = int(pd.to_numeric(_ret.get('OVR'), errors='coerce') or 0)
 
+                _starter_raw = str(_ret.get('Starter', '')).strip().lower()
                 _is_starter_raw = str(_ret.get('IsStarter', '')).strip().lower()
-                _ret_is_starter = _is_starter_raw in ('yes','true','1') or (
-                    _is_starter_raw == '' and _rovr >= 88
-                )
+                if _starter_raw in ('yes','true','1'):
+                    _ret_is_starter = True
+                elif _starter_raw in ('no','false','0'):
+                    _ret_is_starter = False
+                else:
+                    _ret_is_starter = _is_starter_raw in ('yes','true','1') or (
+                        _is_starter_raw == '' and _rovr >= 88
+                    )
 
                 _ret_il  = get_header_logo(_rt)
                 _ret_ilh = f'<div class="isp-tc"><img src="{_ret_il}" class="isp-logo-60"></div>'
@@ -16891,104 +16908,147 @@ with tabs[3]:
         st.header("📅 The Schedule")
         st.caption("Conference standings, week-by-week results, quality wins, and conference gauntlet for every user team.")
 
-        # ── CONFERENCE STANDINGS ─────────────────────────────────────
-        st.subheader("🏟️ Conference Standings")
-        try:
-            _sct_df = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
-            if _sct_df.empty:
-                raise FileNotFoundError("empty")
-        except Exception:
-            try:
-                _sct_df = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
-            except Exception:
-                _sct_df = pd.DataFrame()
+        # ── CONFERENCE TOP 5 BY QUALITY WIN INDEX ────────────────────
+        st.subheader("🏟️ Conference Top 5 by Quality Win Index")
 
-        if not _sct_df.empty:
-            _sct_df['TEAM'] = _sct_df['TEAM'].astype(str).str.strip()
-            if 'CONFERENCE' in _sct_df.columns:
-                _sct_df['CONFERENCE'] = _sct_df['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
-            try:
-                _rh_sct = pd.read_csv('cfp_rankings_history.csv')
-                _rh_sct['YEAR'] = pd.to_numeric(_rh_sct['YEAR'], errors='coerce')
-                _rh_sct['WEEK'] = pd.to_numeric(_rh_sct['WEEK'], errors='coerce')
-                _rh_sct['RANK'] = pd.to_numeric(_rh_sct['RANK'], errors='coerce')
-                _rh_cy_sct = _rh_sct[_rh_sct['YEAR'] == int(CURRENT_YEAR)]
-                if not _rh_cy_sct.empty:
-                    _snap_sct = _rh_cy_sct[_rh_cy_sct['WEEK'] == _rh_cy_sct['WEEK'].max()]
-                    _cfp_rk_sct = dict(zip(_snap_sct['TEAM'].str.strip(), _snap_sct['RANK']))
-                else:
-                    _cfp_rk_sct = {}
-            except Exception:
-                _cfp_rk_sct = {}
-            _sct_df['RANK'] = pd.to_numeric(_sct_df['TEAM'].map(_cfp_rk_sct), errors='coerce')
+        def _build_conf_qwi_board(_scores_df, _rank_lookup, _final_rank_lookup):
+            if _scores_df is None or _scores_df.empty:
+                return pd.DataFrame()
 
+            _df = _scores_df.copy()
+            _df = _df[_df['Status'].astype(str).str.upper() == 'FINAL'].copy()
+            if _df.empty:
+                return pd.DataFrame()
+
+            _rows = []
+            for _, _g in _df.iterrows():
+                _vis = str(_g.get('Visitor', '')).strip()
+                _home = str(_g.get('Home', '')).strip()
+                _vs = pd.to_numeric(_g.get('Vis Score'), errors='coerce')
+                _hs = pd.to_numeric(_g.get('Home Score'), errors='coerce')
+                _wk = int(pd.to_numeric(_g.get('Week'), errors='coerce') or 0)
+                if pd.isna(_vs) or pd.isna(_hs):
+                    continue
+
+                for _team, _opp, _my_score, _opp_score, _is_home, _team_user in [
+                    (_vis, _home, _vs, _hs, False, _g.get('Vis_User', 'CPU')),
+                    (_home, _vis, _hs, _vs, True, _g.get('Home_User', 'CPU')),
+                ]:
+                    _result = 'W' if _my_score > _opp_score else ('L' if _my_score < _opp_score else 'T')
+                    _opp_week_rank = _rank_lookup.get((str(_opp).lower(), _wk))
+                    _opp_final_rank = _final_rank_lookup.get(str(_opp).lower())
+                    _eff_rank = _opp_week_rank if _opp_week_rank is not None and not pd.isna(_opp_week_rank) else _opp_final_rank
+                    _margin = float(_my_score - _opp_score)
+                    _venue_bonus = 1.1 if not _is_home else 1.0
+                    if _result == 'W':
+                        if _eff_rank is not None and not pd.isna(_eff_rank):
+                            _rank_pts = max(0, 31 - int(_eff_rank)) * 2.2
+                        else:
+                            _rank_pts = 2.0
+                        _margin_pts = max(0.0, min(14.0, _margin)) * 0.6
+                        _qwi_delta = (_rank_pts + _margin_pts) * _venue_bonus
+                    elif _result == 'L':
+                        if _eff_rank is not None and not pd.isna(_eff_rank):
+                            _loss_penalty = max(1.0, (31 - int(_eff_rank)) * 0.18)
+                        else:
+                            _loss_penalty = 4.0
+                        _margin_penalty = min(14.0, abs(_margin)) * 0.35
+                        _qwi_delta = -(_loss_penalty + _margin_penalty)
+                    else:
+                        _qwi_delta = 0.0
+
+                    _rows.append({
+                        'TEAM': _team,
+                        'USER': _team_user,
+                        'QWI_DELTA': _qwi_delta,
+                    })
+
+            _games = pd.DataFrame(_rows)
+            if _games.empty:
+                return pd.DataFrame()
+
+            try:
+                _stand = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
+                if _stand.empty:
+                    _stand = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+            except Exception:
+                try:
+                    _stand = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+                except Exception:
+                    _stand = pd.DataFrame()
+
+            if _stand.empty or 'TEAM' not in _stand.columns:
+                return pd.DataFrame()
+
+            _stand['TEAM'] = _stand['TEAM'].astype(str).str.strip()
+            if 'CONFERENCE' in _stand.columns:
+                _stand['CONFERENCE'] = _stand['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
+            if 'WEEK' in _stand.columns:
+                _stand['WEEK'] = pd.to_numeric(_stand['WEEK'], errors='coerce').fillna(0)
+                _stand = _stand.sort_values('WEEK').drop_duplicates('TEAM', keep='last')
+
+            _agg = (_games.groupby('TEAM', dropna=False)
+                    .agg(Quality_Win_Index=('QWI_DELTA', 'sum'))
+                    .reset_index())
+            _board = _stand.merge(_agg, on='TEAM', how='left')
+            _board['Quality_Win_Index'] = pd.to_numeric(_board['Quality_Win_Index'], errors='coerce').fillna(0.0)
+            _board['W'] = pd.to_numeric(_board.get('W'), errors='coerce').fillna(0).astype(int)
+            _board['L'] = pd.to_numeric(_board.get('L'), errors='coerce').fillna(0).astype(int)
+            return _board
+
+        _conf_qwi_board = _build_conf_qwi_board(_cpu_sos, _week_rank_lookup, _final_rank_lookup)
+        if not _conf_qwi_board.empty:
             _user_confs_sct = set()
             for _ut in USER_TEAMS.values():
-                _uc = _sct_df.loc[_sct_df['TEAM'] == _ut, 'CONFERENCE']
+                _uc = _conf_qwi_board.loc[_conf_qwi_board['TEAM'] == _ut, 'CONFERENCE']
                 if not _uc.empty:
                     _user_confs_sct.add(str(_uc.iloc[0]))
-            _all_confs_sct  = sorted(_sct_df['CONFERENCE'].dropna().unique().tolist())
+            _all_confs_sct  = sorted(_conf_qwi_board['CONFERENCE'].dropna().unique().tolist())
             _conf_order_sct = sorted(_user_confs_sct) + [c for c in _all_confs_sct if c not in _user_confs_sct]
 
             _sct_cols = st.columns(3)
             for _ci, _conf in enumerate(_conf_order_sct):
-                _cdf = _sct_df[_sct_df['CONFERENCE'] == _conf].copy()
-                _sort_col = 'CONF_W' if 'CONF_W' in _cdf.columns else 'W'
-                _cdf = _cdf.sort_values([_sort_col, 'W'], ascending=False)
+                _cdf = _conf_qwi_board[_conf_qwi_board['CONFERENCE'] == _conf].copy()
+                _cdf = _cdf.sort_values(['Quality_Win_Index', 'W'], ascending=[False, False]).head(5)
                 with _sct_cols[_ci % 3]:
                     st.markdown(
-                        f"<div style='font-size:0.72rem;color:#64748b;margin:10px 0 4px;"
-                        f"letter-spacing:.06em;font-weight:700;'>{html.escape(_conf)}</div>",
+                        f"<div style='font-size:0.72rem;color:#64748b;margin:10px 0 4px;letter-spacing:.06em;font-weight:700;'>{html.escape(_conf)}</div>",
                         unsafe_allow_html=True
                     )
                     _cst_h = "<div style='display:flex;flex-direction:column;gap:3px;'>"
                     for _, _cr in _cdf.iterrows():
-                        _cr_rk   = int(_cr['RANK']) if pd.notna(_cr.get('RANK')) else None
                         _cr_usr  = str(_cr.get('USER', '')).strip()
-                        _cr_usr  = _cr_usr if _cr_usr not in ('', 'nan') else None
+                        _cr_usr  = _cr_usr if _cr_usr not in ('', 'nan', 'CPU') else None
                         _cr_team = str(_cr['TEAM'])
                         _cr_logo = image_file_to_data_uri(get_logo_source(_cr_team))
-                        _logo_h  = (f"<img src='{_cr_logo}' style='width:16px;height:16px;"
-                                    f"object-fit:contain;vertical-align:middle;margin-right:4px;'/>"
-                                    if _cr_logo else "")
-                        _cw = int(_cr.get('CONF_W', 0)) if 'CONF_W' in _cr.index else 0
-                        _cl = int(_cr.get('CONF_L', 0)) if 'CONF_L' in _cr.index else 0
+                        _logo_h  = (f"<img src='{_cr_logo}' style='width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _cr_logo else "")
                         _ow = int(_cr.get('W', 0)); _ol = int(_cr.get('L', 0))
+                        _qwi = float(_cr.get('Quality_Win_Index', 0.0))
                         _is_usr = _cr_usr is not None
-                        _tc     = get_team_primary_color(_cr_team) if _is_usr else '#1e293b'
-                        _rk_col = "#fbbf24" if (_cr_rk and _cr_rk <= 4) else ("#60a5fa" if _cr_rk else "#374151")
-                        _rk_str = f"#{_cr_rk}" if _cr_rk else "—"
+                        _tc = get_team_primary_color(_cr_team) if _is_usr else '#1e293b'
                         _nm_col = '#f1f5f9' if _is_usr else '#94a3b8'
-                        _ubadge = (f"<span style='font-size:0.6rem;padding:1px 4px;background:#1e3a5f;"
-                                   f"color:#60a5fa;border-radius:3px;margin-left:4px;'>"
-                                   f"{html.escape(_cr_usr)}</span>") if _is_usr else ""
+                        _ubadge = (f"<span style='font-size:0.6rem;padding:1px 4px;background:#1e3a5f;color:#60a5fa;border-radius:3px;margin-left:4px;'>{html.escape(_cr_usr)}</span>") if _is_usr else ""
                         _row_bg = f"border-left:3px solid {_tc};background:rgba(15,23,42,0.5);"
                         if _is_usr:
                             try:
-                                _ri = int(_tc[1:3], 16)
-                                _gi = int(_tc[3:5], 16)
-                                _bi = int(_tc[5:7], 16)
+                                _ri = int(_tc[1:3], 16); _gi = int(_tc[3:5], 16); _bi = int(_tc[5:7], 16)
                                 _row_bg = f"border-left:3px solid {_tc};background:rgba({_ri},{_gi},{_bi},0.12);"
                             except Exception:
                                 pass
+                        _qwi_col = '#4ade80' if _qwi >= 20 else ('#facc15' if _qwi >= 10 else ('#94a3b8' if _qwi >= 0 else '#f87171'))
                         _cst_h += (
-                            f"<div style='display:flex;align-items:center;"
-                            f"justify-content:space-between;padding:4px 8px;"
-                            f"border-radius:6px;{_row_bg}'>"
+                            f"<div style='display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:6px;{_row_bg}'>"
                             f"<div style='display:flex;align-items:center;gap:4px;'>"
-                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:0.75rem;"
-                            f"color:{_rk_col};min-width:28px;'>{_rk_str}</span>"
-                            f"{_logo_h}<span style='font-size:0.78rem;font-weight:700;"
-                            f"color:{_nm_col};'>{html.escape(_cr_team)}</span>{_ubadge}</div>"
-                            f"<div style='font-size:0.72rem;color:#64748b;'>"
-                            f"<span style='color:#94a3b8;'>{_ow}-{_ol}</span>"
-                            f"<span style='color:#475569;margin-left:6px;'>"
-                            f"({_cw}-{_cl})</span></div></div>"
+                            f"{_logo_h}<span style='font-size:0.78rem;font-weight:700;color:{_nm_col};'>{html.escape(_cr_team)}</span>{_ubadge}</div>"
+                            f"<div style='font-size:0.72rem;color:#64748b;text-align:right;'>"
+                            f"<span style='color:{_qwi_col};font-weight:800;'>QWI {round(_qwi,1):.1f}</span>"
+                            f"<span style='color:#475569;margin-left:6px;'>{_ow}-{_ol}</span></div></div>"
                         )
                     _cst_h += "</div>"
                     st.markdown(_cst_h, unsafe_allow_html=True)
+            st.caption("Quality Win Index rewards ranked wins, punishes bad losses, and gives a small road bonus. This replaces the old overall conference standings block.")
         else:
-            st.info("Conference standings will appear once schedule_2042.csv is available.")
+            st.info("Conference top-5 board will appear once scores and standings are available.")
 
         st.markdown("---")
 
@@ -20790,7 +20850,7 @@ with tabs[0]:
                     _rk_raw = get_current_rank(_t)
                     _rk_disp = int(_rk_raw) if not (isinstance(_rk_raw, float) and _rk_raw != _rk_raw) else None
                     _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': _rk_disp, 'injuries': []}
-                _is_raw = str(_ir.get('IsStarter', '')).strip().lower()
+                _is_raw = str((_ir.get('Starter', '') if 'Starter' in _inj_csv.columns else _ir.get('IsStarter', ''))).strip().lower()
                 _starter_flag = _is_raw in ('yes', 'true', '1') or (
                     _is_raw == '' and int(_ir.get('OVR', 0) or 0) >= 80
                 )
