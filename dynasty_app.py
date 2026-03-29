@@ -14916,13 +14916,9 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
             _inj_df['Year'] = pd.to_numeric(_inj_df.get('Year'), errors='coerce')
             _inj_df['WeeksOut'] = pd.to_numeric(_inj_df.get('WeeksOut'), errors='coerce')
             _inj_df['OVR'] = pd.to_numeric(_inj_df.get('OVR'), errors='coerce')
-            # Prefer the explicit starter column from injury_bulletin.csv.
-            # Support both Starter and IsStarter for backward compatibility.
-            if 'Starter' not in _inj_df.columns:
-                _inj_df['Starter'] = _inj_df.get('IsStarter', '')
+            # Normalize IsStarter — Yes/True/1 = starter, blank/No/False = unknown/backup
             if 'IsStarter' not in _inj_df.columns:
-                _inj_df['IsStarter'] = _inj_df.get('Starter', '')
-            _inj_df['Starter'] = _inj_df['Starter'].astype(str).str.strip().str.lower()
+                _inj_df['IsStarter'] = ''
             _inj_df['IsStarter'] = _inj_df['IsStarter'].astype(str).str.strip().str.lower()
 
             _inj_df['Week'] = pd.to_numeric(_inj_df.get('Week'), errors='coerce').fillna(0)
@@ -14982,18 +14978,14 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                     "S": "starting safety",
                 }
 
-                # Use the explicit CSV starter flag first. If it is missing, fall back to the old logic.
-                _starter_raw = str(_inj.get('Starter', '')).strip().lower()
+                # Determine starter status — depth chart ALWAYS wins over CSV value
+                # CSV IsStarter can be stale (written before a better player was added)
                 _is_starter_raw = str(_inj.get('IsStarter', '')).strip().lower()
-                if _starter_raw in ('yes', 'true', '1'):
-                    _is_starter = True
-                elif _starter_raw in ('no', 'false', '0'):
-                    _is_starter = False
-                elif _is_starter_raw in ('yes', 'true', '1'):
-                    _is_starter = True
-                elif _is_starter_raw in ('no', 'false', '0'):
+                _confirmed_not_starter = _is_starter_raw in ('no', 'false', '0')
+                if _confirmed_not_starter:
                     _is_starter = False
                 else:
+                    # Always verify against depth chart — even if CSV says Yes
                     _is_starter = _infer_starter_from_roster(_it, _ip, _iname, _iovr)
 
                 if _is_starter:
@@ -15062,11 +15054,8 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
             _ret_df['Week']     = pd.to_numeric(_ret_df.get('Week'),     errors='coerce')
             _ret_df['WeeksOut'] = pd.to_numeric(_ret_df.get('WeeksOut'), errors='coerce')
             _ret_df['OVR']      = pd.to_numeric(_ret_df.get('OVR'),      errors='coerce')
-            if 'Starter' not in _ret_df.columns:
-                _ret_df['Starter'] = _ret_df.get('IsStarter', '')
             if 'IsStarter' not in _ret_df.columns:
-                _ret_df['IsStarter'] = _ret_df.get('Starter', '')
-            _ret_df['Starter'] = _ret_df['Starter'].astype(str).str.strip().str.lower()
+                _ret_df['IsStarter'] = ''
             _ret_df['IsStarter'] = _ret_df['IsStarter'].astype(str).str.strip().str.lower()
 
             # Only current year, only rows where Week is known, only non-season-ending
@@ -15092,16 +15081,10 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                 _rii  = str(_ret.get('Injury', 'injury')).strip()
                 _rovr = int(pd.to_numeric(_ret.get('OVR'), errors='coerce') or 0)
 
-                _starter_raw = str(_ret.get('Starter', '')).strip().lower()
                 _is_starter_raw = str(_ret.get('IsStarter', '')).strip().lower()
-                if _starter_raw in ('yes','true','1'):
-                    _ret_is_starter = True
-                elif _starter_raw in ('no','false','0'):
-                    _ret_is_starter = False
-                else:
-                    _ret_is_starter = _is_starter_raw in ('yes','true','1') or (
-                        _is_starter_raw == '' and _rovr >= 88
-                    )
+                _ret_is_starter = _is_starter_raw in ('yes','true','1') or (
+                    _is_starter_raw == '' and _rovr >= 88
+                )
 
                 _ret_il  = get_header_logo(_rt)
                 _ret_ilh = f'<div class="isp-tc"><img src="{_ret_il}" class="isp-logo-60"></div>'
@@ -16908,147 +16891,112 @@ with tabs[3]:
         st.header("📅 The Schedule")
         st.caption("Conference standings, week-by-week results, quality wins, and conference gauntlet for every user team.")
 
-        # ── CONFERENCE TOP 5 BY QUALITY WIN INDEX ────────────────────
-        st.subheader("🏟️ Conference Top 5 by Quality Win Index")
+        # ── CONFERENCE ORDER BY AVERAGE FPI ─────────────────────
+        st.subheader("🏟️ Conference Order by Average FPI")
+        st.caption("Pulls from the most recent FPI file in the repo's FPI folder and ranks conferences by average current FPI.")
 
-        def _build_conf_qwi_board(_scores_df, _rank_lookup, _final_rank_lookup):
-            if _scores_df is None or _scores_df.empty:
-                return pd.DataFrame()
+        try:
+            import glob as _sched_glob
 
-            _df = _scores_df.copy()
-            _df = _df[_df['Status'].astype(str).str.upper() == 'FINAL'].copy()
-            if _df.empty:
-                return pd.DataFrame()
+            def _latest_fpi_path(_year=None):
+                _target_year = int(_year) if _year else CURRENT_YEAR
+                _files = sorted(
+                    _sched_glob.glob(f'FPI/fpi_ratings_{_target_year}_wk*.csv') or
+                    _sched_glob.glob(f'fpi_ratings_{_target_year}_wk*.csv')
+                )
+                if not _files:
+                    return None
+                def _wk_num(_fp):
+                    try:
+                        return int(str(_fp).split('_wk')[-1].replace('.csv',''))
+                    except Exception:
+                        return -1
+                _files = sorted(_files, key=_wk_num)
+                return _files[-1]
 
-            _rows = []
-            for _, _g in _df.iterrows():
-                _vis = str(_g.get('Visitor', '')).strip()
-                _home = str(_g.get('Home', '')).strip()
-                _vs = pd.to_numeric(_g.get('Vis Score'), errors='coerce')
-                _hs = pd.to_numeric(_g.get('Home Score'), errors='coerce')
-                _wk = int(pd.to_numeric(_g.get('Week'), errors='coerce') or 0)
-                if pd.isna(_vs) or pd.isna(_hs):
-                    continue
+            _latest_fpi_fp = _latest_fpi_path(CURRENT_YEAR)
+            if not _latest_fpi_fp:
+                raise FileNotFoundError('No FPI weekly files found.')
 
-                for _team, _opp, _my_score, _opp_score, _is_home, _team_user in [
-                    (_vis, _home, _vs, _hs, False, _g.get('Vis_User', 'CPU')),
-                    (_home, _vis, _hs, _vs, True, _g.get('Home_User', 'CPU')),
-                ]:
-                    _result = 'W' if _my_score > _opp_score else ('L' if _my_score < _opp_score else 'T')
-                    _opp_week_rank = _rank_lookup.get((str(_opp).lower(), _wk))
-                    _opp_final_rank = _final_rank_lookup.get(str(_opp).lower())
-                    _eff_rank = _opp_week_rank if _opp_week_rank is not None and not pd.isna(_opp_week_rank) else _opp_final_rank
-                    _margin = float(_my_score - _opp_score)
-                    _venue_bonus = 1.1 if not _is_home else 1.0
-                    if _result == 'W':
-                        if _eff_rank is not None and not pd.isna(_eff_rank):
-                            _rank_pts = max(0, 31 - int(_eff_rank)) * 2.2
-                        else:
-                            _rank_pts = 2.0
-                        _margin_pts = max(0.0, min(14.0, _margin)) * 0.6
-                        _qwi_delta = (_rank_pts + _margin_pts) * _venue_bonus
-                    elif _result == 'L':
-                        if _eff_rank is not None and not pd.isna(_eff_rank):
-                            _loss_penalty = max(1.0, (31 - int(_eff_rank)) * 0.18)
-                        else:
-                            _loss_penalty = 4.0
-                        _margin_penalty = min(14.0, abs(_margin)) * 0.35
-                        _qwi_delta = -(_loss_penalty + _margin_penalty)
-                    else:
-                        _qwi_delta = 0.0
+            _fpi_conf_df = pd.read_csv(_latest_fpi_fp)
+            if _fpi_conf_df.empty or 'Team' not in _fpi_conf_df.columns or 'FPI' not in _fpi_conf_df.columns:
+                raise ValueError('Latest FPI file missing Team/FPI columns.')
 
-                    _rows.append({
-                        'TEAM': _team,
-                        'USER': _team_user,
-                        'QWI_DELTA': _qwi_delta,
-                    })
+            _fpi_conf_df['Team'] = _fpi_conf_df['Team'].astype(str).str.strip()
+            _fpi_conf_df['FPI'] = pd.to_numeric(_fpi_conf_df['FPI'], errors='coerce')
 
-            _games = pd.DataFrame(_rows)
-            if _games.empty:
-                return pd.DataFrame()
-
+            _conf_map_sched = {}
             try:
-                _stand = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
-                if _stand.empty:
-                    _stand = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+                _sct_df = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
+                if _sct_df is not None and not _sct_df.empty and 'TEAM' in _sct_df.columns and 'CONFERENCE' in _sct_df.columns:
+                    _tmp = _sct_df[['TEAM','CONFERENCE']].dropna().copy()
+                    _tmp['TEAM'] = _tmp['TEAM'].astype(str).str.strip()
+                    _tmp['CONFERENCE'] = _tmp['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
+                    _conf_map_sched.update(dict(zip(_tmp['TEAM'], _tmp['CONFERENCE'])))
             except Exception:
+                pass
+
+            if not _conf_map_sched:
                 try:
-                    _stand = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+                    _fallback_conf = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+                    if not _fallback_conf.empty and 'TEAM' in _fallback_conf.columns and 'CONFERENCE' in _fallback_conf.columns:
+                        _tmp = _fallback_conf[['TEAM','CONFERENCE']].dropna().copy()
+                        _tmp['TEAM'] = _tmp['TEAM'].astype(str).str.strip()
+                        _tmp['CONFERENCE'] = _tmp['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
+                        _conf_map_sched.update(dict(zip(_tmp['TEAM'], _tmp['CONFERENCE'])))
                 except Exception:
-                    _stand = pd.DataFrame()
+                    pass
 
-            if _stand.empty or 'TEAM' not in _stand.columns:
-                return pd.DataFrame()
+            _fpi_conf_df['CONFERENCE'] = _fpi_conf_df['Team'].map(_conf_map_sched)
+            _fpi_conf_df = _fpi_conf_df.dropna(subset=['FPI', 'CONFERENCE']).copy()
 
-            _stand['TEAM'] = _stand['TEAM'].astype(str).str.strip()
-            if 'CONFERENCE' in _stand.columns:
-                _stand['CONFERENCE'] = _stand['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
-            if 'WEEK' in _stand.columns:
-                _stand['WEEK'] = pd.to_numeric(_stand['WEEK'], errors='coerce').fillna(0)
-                _stand = _stand.sort_values('WEEK').drop_duplicates('TEAM', keep='last')
+            if _fpi_conf_df.empty:
+                raise ValueError('No teams could be matched to conferences from the latest FPI file.')
 
-            _agg = (_games.groupby('TEAM', dropna=False)
-                    .agg(Quality_Win_Index=('QWI_DELTA', 'sum'))
-                    .reset_index())
-            _board = _stand.merge(_agg, on='TEAM', how='left')
-            _board['Quality_Win_Index'] = pd.to_numeric(_board['Quality_Win_Index'], errors='coerce').fillna(0.0)
-            _board['W'] = pd.to_numeric(_board.get('W'), errors='coerce').fillna(0).astype(int)
-            _board['L'] = pd.to_numeric(_board.get('L'), errors='coerce').fillna(0).astype(int)
-            return _board
+            _conf_avg = (
+                _fpi_conf_df.groupby('CONFERENCE', as_index=False)
+                .agg(AVG_FPI=('FPI', 'mean'), TEAM_COUNT=('Team', 'nunique'))
+                .sort_values(['AVG_FPI', 'TEAM_COUNT', 'CONFERENCE'], ascending=[False, False, True])
+                .reset_index(drop=True)
+            )
+            _conf_avg['AVG_FPI'] = _conf_avg['AVG_FPI'].round(1)
 
-        _conf_qwi_board = _build_conf_qwi_board(_cpu_sos, _week_rank_lookup, _final_rank_lookup)
-        if not _conf_qwi_board.empty:
-            _user_confs_sct = set()
-            for _ut in USER_TEAMS.values():
-                _uc = _conf_qwi_board.loc[_conf_qwi_board['TEAM'] == _ut, 'CONFERENCE']
-                if not _uc.empty:
-                    _user_confs_sct.add(str(_uc.iloc[0]))
-            _all_confs_sct  = sorted(_conf_qwi_board['CONFERENCE'].dropna().unique().tolist())
-            _conf_order_sct = sorted(_user_confs_sct) + [c for c in _all_confs_sct if c not in _user_confs_sct]
+            _current_fpi_week = None
+            try:
+                _current_fpi_week = int(str(_latest_fpi_fp).split('_wk')[-1].replace('.csv',''))
+            except Exception:
+                pass
 
-            _sct_cols = st.columns(3)
-            for _ci, _conf in enumerate(_conf_order_sct):
-                _cdf = _conf_qwi_board[_conf_qwi_board['CONFERENCE'] == _conf].copy()
-                _cdf = _cdf.sort_values(['Quality_Win_Index', 'W'], ascending=[False, False]).head(5)
-                with _sct_cols[_ci % 3]:
-                    st.markdown(
-                        f"<div style='font-size:0.72rem;color:#64748b;margin:10px 0 4px;letter-spacing:.06em;font-weight:700;'>{html.escape(_conf)}</div>",
-                        unsafe_allow_html=True
-                    )
-                    _cst_h = "<div style='display:flex;flex-direction:column;gap:3px;'>"
-                    for _, _cr in _cdf.iterrows():
-                        _cr_usr  = str(_cr.get('USER', '')).strip()
-                        _cr_usr  = _cr_usr if _cr_usr not in ('', 'nan', 'CPU') else None
-                        _cr_team = str(_cr['TEAM'])
-                        _cr_logo = image_file_to_data_uri(get_logo_source(_cr_team))
-                        _logo_h  = (f"<img src='{_cr_logo}' style='width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _cr_logo else "")
-                        _ow = int(_cr.get('W', 0)); _ol = int(_cr.get('L', 0))
-                        _qwi = float(_cr.get('Quality_Win_Index', 0.0))
-                        _is_usr = _cr_usr is not None
-                        _tc = get_team_primary_color(_cr_team) if _is_usr else '#1e293b'
-                        _nm_col = '#f1f5f9' if _is_usr else '#94a3b8'
-                        _ubadge = (f"<span style='font-size:0.6rem;padding:1px 4px;background:#1e3a5f;color:#60a5fa;border-radius:3px;margin-left:4px;'>{html.escape(_cr_usr)}</span>") if _is_usr else ""
-                        _row_bg = f"border-left:3px solid {_tc};background:rgba(15,23,42,0.5);"
-                        if _is_usr:
-                            try:
-                                _ri = int(_tc[1:3], 16); _gi = int(_tc[3:5], 16); _bi = int(_tc[5:7], 16)
-                                _row_bg = f"border-left:3px solid {_tc};background:rgba({_ri},{_gi},{_bi},0.12);"
-                            except Exception:
-                                pass
-                        _qwi_col = '#4ade80' if _qwi >= 20 else ('#facc15' if _qwi >= 10 else ('#94a3b8' if _qwi >= 0 else '#f87171'))
-                        _cst_h += (
-                            f"<div style='display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:6px;{_row_bg}'>"
-                            f"<div style='display:flex;align-items:center;gap:4px;'>"
-                            f"{_logo_h}<span style='font-size:0.78rem;font-weight:700;color:{_nm_col};'>{html.escape(_cr_team)}</span>{_ubadge}</div>"
-                            f"<div style='font-size:0.72rem;color:#64748b;text-align:right;'>"
-                            f"<span style='color:{_qwi_col};font-weight:800;'>QWI {round(_qwi,1):.1f}</span>"
-                            f"<span style='color:#475569;margin-left:6px;'>{_ow}-{_ol}</span></div></div>"
-                        )
-                    _cst_h += "</div>"
-                    st.markdown(_cst_h, unsafe_allow_html=True)
-            st.caption("Quality Win Index rewards ranked wins, punishes bad losses, and gives a small road bonus. This replaces the old overall conference standings block.")
-        else:
-            st.info("Conference top-5 board will appear once scores and standings are available.")
+            _conf_cards = "<div style='display:flex;flex-direction:column;gap:8px;'>"
+            for _i, _r in _conf_avg.iterrows():
+                _conf = str(_r['CONFERENCE'])
+                _avg  = float(_r['AVG_FPI'])
+                _cnt  = int(_r['TEAM_COUNT'])
+                _accent = '#38bdf8'
+                if _i == 0:
+                    _accent = '#4ade80'
+                elif _i == 1:
+                    _accent = '#fbbf24'
+                elif _i == 2:
+                    _accent = '#f97316'
+                _conf_cards += (
+                    f"<div style='display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;"
+                    f"border-radius:10px;background:rgba(15,23,42,0.52);border-left:4px solid {_accent};'>"
+                    f"<div style='display:flex;align-items:center;gap:10px;'>"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:{_accent};min-width:26px;'>#{_i+1}</span>"
+                    f"<div><div style='font-size:0.94rem;font-weight:800;color:#f8fafc;'>{html.escape(_conf)}</div>"
+                    f"<div style='font-size:0.72rem;color:#64748b;'>{_cnt} teams in current file</div></div></div>"
+                    f"<div style='font-size:0.88rem;font-weight:900;color:{_accent};'>AVG FPI {_avg:.1f}</div></div>"
+                )
+            _conf_cards += "</div>"
+            st.markdown(_conf_cards, unsafe_allow_html=True)
+            if _current_fpi_week is not None:
+                st.caption(f"Using FPI/fpi_ratings_{CURRENT_YEAR}_wk{_current_fpi_week}.csv automatically. Next week it will pull the newest file the same way.")
+            else:
+                st.caption("Using the newest FPI weekly file automatically from the FPI folder.")
+
+        except Exception as _sched_conf_e:
+            st.info(f"Conference order will appear once the newest FPI file is available and conference standings can map teams to conferences. ({_sched_conf_e})")
 
         st.markdown("---")
 
@@ -17616,7 +17564,7 @@ with tabs[3]:
             st.info("Push explosive_index_summary.csv, explosive_index_by_game.csv, and explosive_index_trend.csv to enable this tab.")
         else:
             for _df in [ex_summary, ex_games, ex_trend]:
-                for _c in ("TEAM","USER","OPPONENT","RESULT"):
+                for _c in ("TEAM","USER"):
                     if _c in _df.columns:
                         _df[_c] = _df[_c].astype(str).str.strip()
 
@@ -17627,41 +17575,13 @@ with tabs[3]:
                 if v >= 55: return "#38bdf8"
                 if v >= 45: return "#22c55e"
                 return "#64748b"
-
             def _def_acc(v):
                 if v >= 85: return "#22c55e"
                 if v >= 75: return "#4ade80"
                 if v >= 65: return "#38bdf8"
-                if v >= 50: return "#facc15"
-                if v >= 35: return "#fb923c"
-                if v >= 20: return "#f87171"
-                return "#dc2626"
-
-            def _def_display_label(v):
-                v = float(pd.to_numeric(v, errors='coerce')) if str(v) not in ("nan","None","") else 0.0
-                if v >= 85: return "Steel Curtain"
-                if v >= 75: return "Clamp Unit"
-                if v >= 65: return "Vice Grip"
-                if v >= 50: return "Bend Don’t Break"
-                if v >= 35: return "Leaky"
-                if v >= 20: return "Cracked Wall"
-                return "Wet Paper Bag"
-
-            def _def_terrible_game(v, opp_score=0):
-                _v = float(pd.to_numeric(v, errors='coerce')) if str(v) not in ("nan","None","") else 0.0
-                _opp = float(pd.to_numeric(opp_score, errors='coerce')) if str(opp_score) not in ("nan","None","") else 0.0
-                return (_v < 20) or (_v < 25 and _opp >= 35)
-
-            if "AVG_STEEL_CURTAIN_INDEX" in ex_summary.columns:
-                ex_summary["DEF_STYLE_DISPLAY"] = ex_summary["AVG_STEEL_CURTAIN_INDEX"].apply(_def_display_label)
-            else:
-                ex_summary["DEF_STYLE_DISPLAY"] = ex_summary.get("DEF_STYLE_LABEL", "Leaky")
-
-            if not ex_games.empty:
-                ex_games["DISPLAY_WET_PAPER_BAG_FLAG"] = ex_games.apply(
-                    lambda r: _def_terrible_game(r.get("def_steel_curtain_index", 0), r.get("OPP_SCORE", 0)),
-                    axis=1
-                )
+                if v >= 55: return "#facc15"
+                if v >= 45: return "#fb923c"
+                return "#ef4444"
 
             st.markdown("<div class='metric-wrap'>", unsafe_allow_html=True)
             st.markdown("<div class='metric-title'>💥 Explosive Index</div>", unsafe_allow_html=True)
@@ -17669,7 +17589,6 @@ with tabs[3]:
 
             _ex_rank = ex_summary.copy()
             _ex_rank["AVG_EXPLOSIVE_INDEX"] = pd.to_numeric(_ex_rank["AVG_EXPLOSIVE_INDEX"], errors="coerce").fillna(0)
-            _ex_rank["AVG_STEEL_CURTAIN_INDEX"] = pd.to_numeric(_ex_rank["AVG_STEEL_CURTAIN_INDEX"], errors="coerce").fillna(0)
             _ex_rank = _ex_rank.sort_values(["AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX"], ascending=[False,False]).reset_index(drop=True)
             _ex_rank["RANK"] = range(1, len(_ex_rank)+1)
 
@@ -17681,11 +17600,8 @@ with tabs[3]:
                 _logo_uri=image_file_to_data_uri(get_logo_source(_t))
                 _logo=f"<img class='leader-logo' src='{_logo_uri}'/>" if _logo_uri else ""
                 _off_lbl=str(_er.get("OFF_STYLE_LABEL",""))
-                _def_lbl=str(_er.get("DEF_STYLE_DISPLAY", _er.get("DEF_STYLE_LABEL","")))
-                _terr = 0
-                if not ex_games.empty:
-                    _terr = int(ex_games[(ex_games["TEAM"]==_t)&(ex_games["USER"]==_u)]["DISPLAY_WET_PAPER_BAG_FLAG"].sum())
-                _mini=f"{str(_er.get('OFF_CONSISTENCY',''))} offense · {str(_er.get('DEF_CONSISTENCY',''))} defense · Terrible D games: {_terr}"
+                _def_lbl=str(_er.get("DEF_STYLE_LABEL",""))
+                _mini=f"{str(_er.get('OFF_CONSISTENCY',''))} offense · {str(_er.get('DEF_CONSISTENCY',''))} defense"
                 st.markdown(f"""
                 <div class='leader-card' style='--acc:{_ex_acc(_off)};'>
                   <div class='leader-left'>
@@ -17705,21 +17621,13 @@ with tabs[3]:
                 </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("""
-            <div class='panel-note'>
-              <b>Legend:</b><br>
-              <b>Offensive Explosive Index</b> = how fast you create chunk offense and points.<br>
-              <b>Defensive Steel Curtain Index</b> = how badly you suppress the other side's efficiency.<br>
-              <b>Defense labels in the app are now less harsh:</b> only truly disastrous defenses land in <b>Wet Paper Bag</b>. 
-              The next level up is <b>Cracked Wall</b>, then <b>Leaky</b>.
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("<div class='panel-note'>Orange-hot teams blow games open. Green defenses suffocate life. This view keeps both in the same place so you can see whether a team is a missile battery, a steel curtain, or a complete identity crisis.</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             st.subheader("🎯 Team Identity Deep Dive")
             _ex_sel_df=_ex_rank[["USER","TEAM"]].copy()
             _ex_sel_df["LABEL"]=_ex_sel_df["USER"]+" • "+_ex_sel_df["TEAM"]
-            _ex_sel=st.selectbox("Choose a team", _ex_sel_df["LABEL"].tolist(), key="ex_team_select_v3")
+            _ex_sel=st.selectbox("Choose a team", _ex_sel_df["LABEL"].tolist(), key="ex_team_select_v2")
             _ex_su=_ex_sel_df.loc[_ex_sel_df["LABEL"]==_ex_sel,"USER"].iloc[0]
             _ex_st=_ex_sel_df.loc[_ex_sel_df["LABEL"]==_ex_sel,"TEAM"].iloc[0]
 
@@ -17729,12 +17637,11 @@ with tabs[3]:
 
             if not _ex_row.empty:
                 _er = _ex_row.iloc[0]
-                _terr = int(_ex_g["DISPLAY_WET_PAPER_BAG_FLAG"].sum()) if not _ex_g.empty and "DISPLAY_WET_PAPER_BAG_FLAG" in _ex_g.columns else 0
                 _c1,_c2,_c3,_c4 = st.columns(4)
                 _c1.markdown(f"<div class='mini-card'><div class='mini-label'>Offensive Style</div><div class='mini-val'>{html.escape(str(_er.get('OFF_STYLE_LABEL','')))}</div></div>", unsafe_allow_html=True)
-                _c2.markdown(f"<div class='mini-card'><div class='mini-label'>Defensive Style</div><div class='mini-val'>{html.escape(str(_er.get('DEF_STYLE_DISPLAY', _er.get('DEF_STYLE_LABEL',''))))}</div></div>", unsafe_allow_html=True)
+                _c2.markdown(f"<div class='mini-card'><div class='mini-label'>Defensive Style</div><div class='mini-val'>{html.escape(str(_er.get('DEF_STYLE_LABEL','')))}</div></div>", unsafe_allow_html=True)
                 _c3.markdown(f"<div class='mini-card'><div class='mini-label'>Quick Strikes</div><div class='mini-val'>{int(pd.to_numeric(_er.get('QUICK_STRIKES',0), errors='coerce'))}</div></div>", unsafe_allow_html=True)
-                _c4.markdown(f"<div class='mini-card'><div class='mini-label'>Flat-Out Terrible D Games</div><div class='mini-val'>{_terr}</div></div>", unsafe_allow_html=True)
+                _c4.markdown(f"<div class='mini-card'><div class='mini-label'>Wet Paper Bag Games</div><div class='mini-val'>{int(pd.to_numeric(_er.get('WET_PAPER_BAG_GAMES',0), errors='coerce'))}</div></div>", unsafe_allow_html=True)
 
             if not _ex_t.empty:
                 _ex_t = _ex_t.sort_values(["YEAR","WEEK"]).copy()
@@ -17759,8 +17666,8 @@ with tabs[3]:
                     if str(_eg.get("quick_strike_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#f9731622;color:#fb923c;border:1px solid #fb923c55;'>QUICK STRIKE</span>"
                     if str(_eg.get("aerial_nuke_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#f59e0b22;color:#facc15;border:1px solid #facc1555;'>AERIAL NUKE</span>"
                     if str(_eg.get("ground_blast_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#22c55e22;color:#4ade80;border:1px solid #4ade8055;'>GROUND BLAST</span>"
-                    if _def >= 80 and _os <= 20: _flags += "<span class='pill' style='background:#16a34a22;color:#4ade80;border:1px solid #4ade8055;'>STEEL CURTAIN</span>"
-                    if bool(_eg.get("DISPLAY_WET_PAPER_BAG_FLAG", False)): _flags += "<span class='pill' style='background:#ef444422;color:#f87171;border:1px solid #ef444455;'>FLAT-OUT TERRIBLE DEFENSE</span>"
+                    if str(_eg.get("steel_curtain_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#16a34a22;color:#4ade80;border:1px solid #4ade8055;'>STEEL CURTAIN</span>"
+                    if str(_eg.get("wet_paper_bag_flag","")).upper() in ("TRUE","1","YES"): _flags += "<span class='pill' style='background:#ef444422;color:#f87171;border:1px solid #ef444455;'>WET PAPER BAG</span>"
                     st.markdown(f"""
                     <div class='game-card' style='--cardacc:{_ex_acc(_off)};'>
                       <div style='display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;'>
@@ -17769,12 +17676,11 @@ with tabs[3]:
                       </div>
                       <div style='display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px;color:#cbd5e1;'>
                         <div>Off <span style='color:{_ex_acc(_off)};font-weight:900;'>{_off:.1f}</span></div>
-                        <div>Def <span style='color:{_def_acc(_def)};font-weight:900;'>{_def:.1f}</span> · {html.escape(_def_display_label(_def))}</div>
+                        <div>Def <span style='color:{_def_acc(_def)};font-weight:900;'>{_def:.1f}</span></div>
                       </div>
                       {f"<div style='margin-top:8px;'>{_flags}</div>" if _flags else ""}
                     </div>
                     """, unsafe_allow_html=True)
-
 
     with _spd_tabs[5]:
         # ── DID THE SCORE LIE? ───────────────────────────────────────
@@ -20881,7 +20787,7 @@ with tabs[0]:
                     _rk_raw = get_current_rank(_t)
                     _rk_disp = int(_rk_raw) if not (isinstance(_rk_raw, float) and _rk_raw != _rk_raw) else None
                     _team_injuries[_t] = {'user': _u, 'team': _t, 'seed': _rk_disp, 'injuries': []}
-                _is_raw = str((_ir.get('Starter', '') if 'Starter' in _inj_csv.columns else _ir.get('IsStarter', ''))).strip().lower()
+                _is_raw = str(_ir.get('IsStarter', '')).strip().lower()
                 _starter_flag = _is_raw in ('yes', 'true', '1') or (
                     _is_raw == '' and int(_ir.get('OVR', 0) or 0) >= 80
                 )
