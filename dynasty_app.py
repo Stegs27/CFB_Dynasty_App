@@ -14401,7 +14401,7 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                         _t5lhtml  = f"<img src='{_t5logo}' style='width:52px;height:52px;object-fit:contain;'/>" if _t5logo else ""
                         _logo_strip_parts.append(
                             f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;'>"
-                            f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.78rem;color:{_t5color};'>"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:0.78rem;color:{_t5color};'>"
                             f"#{_t5rank}</span>"
                             f"{_t5lhtml}"
                             f"</div>"
@@ -15662,7 +15662,7 @@ tabs = st.tabs([
 
     # ── SOS & TRUE PATH ──────────────────────────────────────────────────
 with tabs[3]:
-    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 FPI & MS+ Ratings", "🎮 Game Control", "📈 Program Trajectory"])
+    _spd_tabs = st.tabs(["⚡ Speed Freaks", "📐 FPI & MS+ Ratings", "📅 The Schedule", "🎮 Game Control", "📈 Program Trajectory"])
     with _spd_tabs[0]:
         st.header("🔍 Speed Freaks")
         st.caption("Team speed, cheat-code athletes, and where the juice actually lives on the roster.")
@@ -16884,343 +16884,449 @@ with tabs[3]:
                   <div style='color:#94a3b8;font-size:0.82rem;line-height:1.5;'>{narrative}</div>
                 </div>""", unsafe_allow_html=True)
 
-            # ── SECTION 3: WEEK-BY-WEEK TIMELINE ─────────────────────────────────
-            st.markdown("---")
-            st.subheader("📅 Week-by-Week Schedule")
-            sel_user = st.selectbox("Select a user to inspect", list(USER_TEAMS.keys()), key="sos_user_select")
-
-            sel_games = _get_user_games(sel_user)
-            sel_team  = USER_TEAMS.get(sel_user, sel_user)
-            sel_color = get_team_primary_color(sel_team)
-            sel_speed = _speed_map.get(sel_user, {}).get('team_speed', 0)
-            sel_handicap = _speed_handicap(sel_user)
-
-            if not sel_games.empty:
-                # Speed + QB context banner
-                sel_qb_tier = _speed_map.get(sel_user, {}).get('qb_tier', 'Average Joe')
-                sel_qb_ovr  = int(_speed_map.get(sel_user, {}).get('qb_ovr', 80))
-                spd_tier = "Elite 🔥" if sel_speed >= 13 else ("Above Avg ⚡" if sel_speed >= 10 else ("Below Avg ⚠️" if sel_speed >= 7 else "Slow 🐢"))
-                _qb_notes = {
-                    'Elite':       f"Elite QB ({sel_qb_ovr} OVR) — bails you out when the schedule gets nasty.",
-                    'Leader':      f"Leader QB ({sel_qb_ovr} OVR) — solid, won't lose you games you should win.",
-                    'Average Joe': f"Average Joe QB ({sel_qb_ovr} OVR) — adds +1.5 to difficulty. Can't paper over mediocre.",
-                    'Ass':         f"💀 Ass QB ({sel_qb_ovr} OVR) — adds +5.0 to effective difficulty. This whole season is a knife fight.",
-                }
-                qb_note = _qb_notes.get(sel_qb_tier, "")
-                spd_msg = ("Speed advantage softens tough matchups. " if sel_speed >= 10 else f"Limited speed means no margin for error. ") + qb_note
-                st.markdown(
-                    f"<div style='background:#0d1a2e;border-left:4px solid {sel_color};border-radius:8px;padding:10px 14px;margin-bottom:12px;'>"
-                    f"<span style='color:{sel_color};font-weight:800;'>{html.escape(sel_team)}</span> "
-                    f"<span style='color:#94a3b8;font-size:0.82rem;'> · {int(sel_speed)} speed guys — {spd_tier} · {spd_msg}</span>"
-                    f"</div>", unsafe_allow_html=True
-                )
-
-                # Timeline chips
-                chips_html = "<div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;'>"
-                week_order = []
-                for wk in sel_games['week'].tolist():
-                    if wk not in week_order: week_order.append(wk)
-                # Sort: numeric weeks first, then special
-                num_wks  = sorted([w for w in week_order if str(w).isdigit()], key=lambda x: int(x))
-                spec_wks = [w for w in week_order if not str(w).isdigit()]
-                for wk in num_wks + spec_wks:
-                    wk_games = sel_games[sel_games['week'] == wk]
-                    for _, g in wk_games.iterrows():
-                        r = g['result']
-                        ranked = g['opp_ranked']
-                        opp_name_full = str(g['opponent'])
-                        # Final-rank fallback: opponent was unranked at game time but
-                        # ended the season ranked (e.g. BG was #4 at season end)
-                        final_rk = _final_rank_lookup.get(opp_name_full)
-                        if ranked:
-                            opp_rk_label  = f"#{int(g['opp_rank'])}"
-                            opp_rk_suffix = ""
-                        elif final_rk:
-                            opp_rk_label  = f"▸#{final_rk}"   # ended ranked
-                            opp_rk_suffix = " fin"
-                        else:
-                            opp_rk_label  = ""
-                            opp_rk_suffix = ""
-                        opp    = opp_name_full[:14]
-                        margin = f" {'+' if (g['margin'] or 0)>0 else ''}{int(g['margin'])}" if (g['margin'] is not None and not pd.isna(g['margin'])) else ""
-                        if r == 'W' and ranked:
-                            bg, txt, border = "#14532d", "#4ade80", "#22c55e"
-                            icon = "✅"
-                        elif r == 'W' and final_rk:
-                            # Win vs team that ended ranked — treat as quality win, slightly dimmer green
-                            bg, txt, border = "#0f3320", "#34d399", "#10b981"
-                            icon = "✅"
-                        elif r == 'W':
-                            bg, txt, border = "#1e3a5f", "#93c5fd", "#3b82f6"
-                            icon = "✓"
-                        elif r == 'L' and ranked:
-                            bg, txt, border = "#7f1d1d", "#fca5a5", "#ef4444"
-                            icon = "💀"
-                        elif r == 'L' and final_rk:
-                            bg, txt, border = "#5c1a1a", "#fca5a5", "#dc2626"
-                            icon = "💀"
-                        elif r == 'L':
-                            bg, txt, border = "#3b1f1f", "#f87171", "#dc2626"
-                            icon = "✗"
-                        else:
-                            bg, txt, border = "#1a2535", "#6b7280", "#374151"
-                            icon = "⏳"
-                        wk_label = f"W{wk}" if str(wk).isdigit() else str(wk)
-                        chips_html += (
-                            f"<div style='background:{bg};border:1px solid {border};border-radius:8px;"
-                            f"padding:7px 10px;min-width:90px;cursor:default;'>"
-                            f"<div style='font-size:0.65rem;color:#475569;margin-bottom:2px;'>{wk_label} · {g['home_away']}</div>"
-                            f"<div style='font-size:0.78rem;font-weight:800;color:{txt};'>{icon} {opp_rk_label}</div>"
-                            f"<div style='font-size:0.7rem;color:{txt}99;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;'>{html.escape(opp)}</div>"
-                            f"<div style='font-size:0.7rem;color:{txt}cc;font-weight:700;'>{r}{margin}</div>"
-                            f"</div>"
-                        )
-                chips_html += "</div>"
-                st.markdown(chips_html, unsafe_allow_html=True)
-                st.caption("🟩 Win vs ranked at game time  ·  🟩 ▸ Win vs team that ended ranked  ·  🟦 Win vs unranked  ·  🟥 Loss vs ranked  ·  ◼ Loss vs unranked  ·  ⏳ Pending")
-
-                # ── SECTION 4: QUALITY WIN / STRENGTH OF LOSS BREAKDOWN ──────────
-                st.markdown("---")
-                st.subheader("🔬 Quality Win Index")
-
-                wins_df   = sel_games[sel_games['result'] == 'W'].copy()
-                losses_df = sel_games[sel_games['result'] == 'L'].copy()
-                # Include wins vs teams that ended ranked as quality wins too
-                wins_df['_final_rk'] = wins_df['opponent'].apply(lambda o: _final_rank_lookup.get(str(o)))
-                losses_df['_final_rk'] = losses_df['opponent'].apply(lambda o: _final_rank_lookup.get(str(o)))
-                ranked_wins_df  = wins_df[wins_df['opp_ranked']].sort_values('opp_rank')
-                fin_rank_wins_df = wins_df[~wins_df['opp_ranked'] & wins_df['_final_rk'].notna()].sort_values('_final_rk')
-                ranked_loss_df  = losses_df[losses_df['opp_ranked']].sort_values('opp_rank')
-                unrank_loss_df  = losses_df[~losses_df['opp_ranked']]
-
-                total_quality_wins = len(ranked_wins_df) + len(fin_rank_wins_df)
-                qw_col, ql_col = st.columns(2)
-                with qw_col:
-                    st.markdown(f"<div style='font-weight:800;color:#4ade80;margin-bottom:8px;'>✅ Quality Wins ({total_quality_wins})</div>", unsafe_allow_html=True)
-                    if ranked_wins_df.empty and fin_rank_wins_df.empty:
-                        st.caption("No ranked wins yet.")
-                    else:
-                        for _, g in ranked_wins_df.iterrows():
-                            margin_str = f"+{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
-                            st.markdown(
-                                f"<div style='padding:5px 8px;margin-bottom:4px;background:#0d2010;border-left:3px solid #22c55e;border-radius:5px;font-size:0.8rem;'>"
-                                f"<span style='color:#4ade80;font-weight:800;'>#{int(g['opp_rank'])}</span> "
-                                f"<span style='color:#d1d5db;'>{html.escape(str(g['opponent']))}</span> "
-                                f"<span style='color:#22c55e;font-weight:700;'>{margin_str}</span>"
-                                f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']}</span>"
-                                f"</div>", unsafe_allow_html=True
-                            )
-                        for _, g in fin_rank_wins_df.iterrows():
-                            margin_str = f"+{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
-                            fr = int(g['_final_rk'])
-                            st.markdown(
-                                f"<div style='padding:5px 8px;margin-bottom:4px;background:#0a1f12;border-left:3px solid #10b981;border-radius:5px;font-size:0.8rem;'>"
-                                f"<span style='color:#34d399;font-weight:800;'>▸#{fr} fin</span> "
-                                f"<span style='color:#d1d5db;'>{html.escape(str(g['opponent']))}</span> "
-                                f"<span style='color:#10b981;font-weight:700;'>{margin_str}</span>"
-                                f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']} · unranked at game time</span>"
-                                f"</div>", unsafe_allow_html=True
-                            )
-
-                with ql_col:
-                    st.markdown(f"<div style='font-weight:800;color:#f87171;margin-bottom:8px;'>💀 Losses ({len(losses_df)})</div>", unsafe_allow_html=True)
-                    if losses_df.empty:
-                        st.caption("No losses — dynasty.")
-                    else:
-                        for _, g in losses_df.iterrows():
-                            margin_str = f"{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
-                            fin_rk = g.get('_final_rk')
-                            fin_rk_valid = (fin_rk is not None) and not (isinstance(fin_rk, float) and pd.isna(fin_rk))
-                            if g['opp_ranked']:
-                                rk_str   = f"#{int(g['opp_rank'])}"
-                                rk_color = "#fca5a5"
-                                badge    = ""
-                            elif fin_rk_valid:
-                                rk_str   = f"▸#{int(fin_rk)} fin"
-                                rk_color = "#fca5a5"
-                                badge    = ""
-                            else:
-                                rk_str   = "Unranked"
-                                rk_color = "#f97316"
-                                badge    = "<span style='margin-left:6px;padding:1px 5px;background:#7c2d12;color:#fed7aa;font-size:0.65rem;border-radius:4px;font-weight:800;'>BAD L</span>"
-                            st.markdown(
-                                f"<div style='padding:5px 8px;margin-bottom:4px;background:#200d0d;border-left:3px solid #ef4444;border-radius:5px;font-size:0.8rem;'>"
-                                f"<span style='color:{rk_color};font-weight:800;'>{rk_str}</span> "
-                                f"<span style='color:#d1d5db;'>{html.escape(str(g['opponent']))}</span> "
-                                f"<span style='color:#ef4444;font-weight:700;'>{margin_str}</span>"
-                                f"{badge}"
-                                f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']}</span>"
-                                f"</div>", unsafe_allow_html=True
-                            )
-
-                # ── SECTION 5: CONFERENCE GAUNTLET ───────────────────────────────
-                st.markdown("---")
-                st.subheader("🏟️ Conference Gauntlet")
-
-                sel_conf_name = _speed_map.get(sel_user, {}).get('conf', '—')
-                sel_team_name = USER_TEAMS.get(sel_user, '')
-                conf_str      = CONF_STRENGTH.get(sel_conf_name, 0)
-                _conf_groups  = {'SEC': {'Nick','Devin','Doug'}, 'B1G': {'Noah','Josh','Mike'}}
-                _conf_rivals_users = _conf_groups.get(sel_conf_name, set()) - {sel_user}
-
-                # ── Pull real full conf record from conf_standings_2041.csv ───────
-                _from_standings = False
-                conf_w = conf_l = conf_ranked_w = 0
-                avg_conf_rank = None
-                _uvw_games = pd.DataFrame()
-                _conf_st   = pd.DataFrame()
-                try:
-                    _conf_st = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
-                    _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
-                    _conf_st['USER'] = _conf_st['USER'].fillna('')
-                    if 'CONFERENCE' in _conf_st.columns:
-                        _conf_st['CONFERENCE'] = _conf_st['CONFERENCE'].astype(str).apply(normalize_conf_name)
-                    # Filter to current year only — file may contain multiple seasons
-                    if 'YEAR' in _conf_st.columns:
-                        _conf_st['YEAR'] = pd.to_numeric(_conf_st['YEAR'], errors='coerce')
-                        _conf_st = _conf_st[_conf_st['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
-                    _team_row = _conf_st[_conf_st['TEAM'] == sel_team_name]
-                    if _team_row.empty:
-                        raise ValueError("team not in standings")
-                    _tr    = _team_row.iloc[0]
-                    conf_w = int(_tr['CONF_W'])
-                    conf_l = int(_tr['CONF_L'])
-                    _conf_peers = _conf_st[
-                        (_conf_st['CONFERENCE'] == sel_conf_name)
-                    ].copy()
-                    # Rank comes from cfp_rankings_history.csv — authoritative source
-                    # conf_standings no longer carries a RANK column
-                    try:
-                        _rh2 = pd.read_csv('cfp_rankings_history.csv')
-                        _rh2['YEAR'] = pd.to_numeric(_rh2['YEAR'], errors='coerce')
-                        _rh2['WEEK'] = pd.to_numeric(_rh2['WEEK'], errors='coerce')
-                        _rh2['RANK'] = pd.to_numeric(_rh2['RANK'], errors='coerce')
-                        _rh2_cy = _rh2[_rh2['YEAR'] == int(CURRENT_YEAR)]
-                        if not _rh2_cy.empty:
-                            _rh2_snap = _rh2_cy[_rh2_cy['WEEK'] == _rh2_cy['WEEK'].max()]
-                            _cfp_rank_lookup = dict(zip(_rh2_snap['TEAM'].str.strip(), _rh2_snap['RANK']))
-                        else:
-                            _cfp_rank_lookup = {}
-                    except Exception:
-                        _cfp_rank_lookup = {}
-                    _conf_peers['RANK'] = _conf_peers['TEAM'].map(_cfp_rank_lookup)
-                    conf_opp_ranks_s = pd.to_numeric(_conf_peers['RANK'], errors='coerce').dropna()
-                    avg_conf_rank = round(float(conf_opp_ranks_s.mean()), 1) if not conf_opp_ranks_s.empty else None
-                    _from_standings = True
-                except Exception:
-                    pass
-
-                # User-vs-user matchups for detailed card display
-                if not sel_games.empty:
-                    _uvw_games = sel_games[
-                        sel_games['week'].isin(['Conf Champ']) |
-                        sel_games['opponent'].apply(
-                            lambda opp: any(USER_TEAMS.get(r,'') == opp for r in _conf_rivals_users)
-                        )
-                    ].copy()
-                    conf_ranked_w = int(
-                        ((_uvw_games['result']=='W') & _uvw_games['opp_ranked_final']).sum()
-                    ) if not _uvw_games.empty else 0
-
-                cg_metrics = [
-                    {"label": f"🏟️ {sel_conf_name} Record", "value": f"{conf_w}-{conf_l}", "delta": f"Conf strength: {conf_str}"},
-                    {"label": "💪 Conf Ranked Wins (u-v-u)", "value": str(conf_ranked_w)},
-                ]
-                if avg_conf_rank:
-                    cg_metrics.append({"label": "📊 Avg Ranked Conf Opp", "value": f"#{int(avg_conf_rank)}"})
-                mobile_metrics(cg_metrics, cols_desktop=3)
-
-                # Full conf standings (all teams, not just user-vs-user)
-                if _from_standings and not _conf_st.empty:
-                    _conf_peers_all = _conf_st[
-                        (_conf_st['CONFERENCE'] == sel_conf_name)
-                    ].copy()
-                    # RANK comes from cfp_rankings_history — conf_standings no longer carries it
-                    try:
-                        _rh_cp = pd.read_csv('cfp_rankings_history.csv')
-                        _rh_cp['YEAR'] = pd.to_numeric(_rh_cp['YEAR'], errors='coerce')
-                        _rh_cp['WEEK'] = pd.to_numeric(_rh_cp['WEEK'], errors='coerce')
-                        _rh_cp['RANK'] = pd.to_numeric(_rh_cp['RANK'], errors='coerce')
-                        _rh_cp_cy = _rh_cp[_rh_cp['YEAR'] == int(CURRENT_YEAR)]
-                        if not _rh_cp_cy.empty:
-                            _rh_cp_snap = _rh_cp_cy[_rh_cp_cy['WEEK'] == _rh_cp_cy['WEEK'].max()]
-                            _cfp_rank_cp = dict(zip(_rh_cp_snap['TEAM'].str.strip(), _rh_cp_snap['RANK']))
-                        else:
-                            _cfp_rank_cp = {}
-                    except Exception:
-                        _cfp_rank_cp = {}
-                    _conf_peers_all['RANK'] = _conf_peers_all['TEAM'].map(_cfp_rank_cp)
-                    _conf_peers_all['RANK'] = pd.to_numeric(_conf_peers_all['RANK'], errors='coerce')
-                    _conf_peers_all = _conf_peers_all.sort_values(['CONF_W','W'], ascending=False)
-                    if not _conf_peers_all.empty:
-                        st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:10px 0 5px;letter-spacing:.06em;font-weight:700;'>CONFERENCE STANDINGS (full)</div>", unsafe_allow_html=True)
-                        cst_html = "<div style='display:flex;flex-direction:column;gap:3px;'>"
-                        for _, cr in _conf_peers_all.iterrows():
-                            cr_rk   = int(cr['RANK']) if pd.notna(cr.get('RANK')) else None
-                            cr_user = str(cr['USER']).strip() if str(cr.get('USER','')).strip() not in ('','nan') else None
-                            rk_str  = f"#{cr_rk}" if cr_rk else "—"
-                            rk_col  = "#fbbf24" if cr_rk else "#374151"
-                            user_badge = (
-                                f"<span style='font-size:0.62rem;padding:1px 4px;background:#1e3a5f;"
-                                f"color:#60a5fa;border-radius:3px;margin-left:5px;'>{html.escape(cr_user)}</span>"
-                            ) if cr_user else ""
-                            _is_sel = str(cr['TEAM']).strip() == sel_team_name
-                            _row_bg = f'background:linear-gradient(90deg,{get_team_primary_color(sel_team_name)}22,#0a1628)' if _is_sel else 'background:#0a1628'
-                            _row_border = f'border-left:3px solid {get_team_primary_color(sel_team_name)};' if _is_sel else 'border-left:3px solid transparent;'
-                            cst_html += (
-                                f"<div style='display:flex;align-items:center;gap:8px;padding:5px 10px;"
-                                f"{_row_bg};{_row_border}border-radius:5px;font-size:0.78rem;'>"
-                                f"<span style='color:{rk_col};font-weight:800;min-width:28px;'>{rk_str}</span>"
-                                f"<span style='color:{'#f8fafc' if _is_sel else '#d1d5db'};font-weight:{'800' if _is_sel else '400'};flex:1;'>{html.escape(str(cr['TEAM']))}{user_badge}</span>"
-                                f"<span style='color:#94a3b8;min-width:36px;text-align:right;'>{int(cr['W'])}-{int(cr['L'])}</span>"
-                                f"<span style='color:#475569;font-size:0.7rem;min-width:52px;text-align:right;'>({int(cr['CONF_W'])}-{int(cr['CONF_L'])} conf)</span>"
-                                f"</div>"
-                            )
-                        cst_html += "</div>"
-                        st.markdown(cst_html, unsafe_allow_html=True)
-
-                # User-vs-user matchup detail
-                if not _uvw_games.empty:
-                    st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:12px 0 5px;letter-spacing:.06em;font-weight:700;'>USER-VS-USER MATCHUPS</div>", unsafe_allow_html=True)
-                    conf_html = "<div style='display:flex;flex-direction:column;gap:4px;'>"
-                    for _, cg in _uvw_games.iterrows():
-                        r    = cg['result']
-                        rk   = f"#{int(cg['effective_rank'])}" if cg['opp_ranked_final'] else "Unranked"
-                        mg   = f" ({'+' if (cg['margin'] or 0)>0 else ''}{int(cg['margin'])})" if (cg['margin'] is not None and not pd.isna(cg['margin'])) else ""
-                        wk   = str(cg['week'])
-                        opp  = str(cg['opponent'])
-                        rc   = "#22c55e" if r=='W' else ("#ef4444" if r=='L' else "#6b7280")
-                        icon = "✅" if r=='W' else ("❌" if r=='L' else "⏳")
-                        cc_badge = "<span style='font-size:0.62rem;padding:1px 5px;background:#7c2d12;color:#fed7aa;border-radius:3px;margin-left:6px;font-weight:800;'>CONF CHAMP</span>" if wk=='Conf Champ' else ""
-                        fin_note = "<span style='font-size:0.62rem;color:#64748b;margin-left:3px;'>▸fin</span>" if (cg['opp_ranked_final'] and not cg['opp_ranked']) else ""
-                        conf_html += (
-                            f"<div style='display:flex;align-items:center;gap:10px;padding:7px 12px;"
-                            f"background:#0d1a2e;border-left:3px solid {rc};border-radius:6px;font-size:0.82rem;'>"
-                            f"<span style='color:{rc};font-weight:800;min-width:14px;'>{icon}</span>"
-                            f"<span style='color:#94a3b8;min-width:60px;'>{wk}</span>"
-                            f"<span style='color:{rc};font-weight:700;'>{rk}{fin_note}</span>"
-                            f"<span style='color:#d1d5db;flex:1;'>{html.escape(opp)}</span>"
-                            f"<span style='color:{rc};font-weight:700;'>{r}{mg}</span>"
-                            f"{cc_badge}"
-                            f"</div>"
-                        )
-                    conf_html += "</div>"
-                    st.markdown(conf_html, unsafe_allow_html=True)
-
-                conf_tier_note = {
-                    'SEC': "SEC — 16-team murder conference.",
-                    'B1G': "B1G — co-king of the dynasty. 9-game conf schedule.",
-                    'ACC': "ACC — top-heavy, real teeth at the top.",
-                }.get(sel_conf_name, f"{sel_conf_name}.")
-                src_note = f"Record from conf_standings_{CURRENT_YEAR}.csv." if _from_standings else f"⚠️ conf_standings_{CURRENT_YEAR}.csv not found — user-vs-user fallback only."
-                st.caption(f"📌 {conf_tier_note} {src_note} User-vs-user matchups shown individually.")
-
-            else:
-                st.info("No schedule data found for this user. Make sure CPUscores_MASTER.csv is up to date.")
-
 
     # ── PROGRAM TRAJECTORY TAB ────────────────────────────────────────
+    # ── THE SCHEDULE TAB ─────────────────────────────────────────────
     with _spd_tabs[2]:
+        st.header("📅 The Schedule")
+        st.caption("Conference standings, week-by-week results, quality wins, and conference gauntlet for every user team.")
+
+        # ── CONFERENCE STANDINGS ─────────────────────────────────────
+        st.subheader("🏟️ Conference Standings")
+        try:
+            _sct_df = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
+            if _sct_df.empty:
+                raise FileNotFoundError("empty")
+        except Exception:
+            try:
+                _sct_df = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+            except Exception:
+                _sct_df = pd.DataFrame()
+
+        if not _sct_df.empty:
+            _sct_df['TEAM'] = _sct_df['TEAM'].astype(str).str.strip()
+            if 'CONFERENCE' in _sct_df.columns:
+                _sct_df['CONFERENCE'] = _sct_df['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
+            try:
+                _rh_sct = pd.read_csv('cfp_rankings_history.csv')
+                _rh_sct['YEAR'] = pd.to_numeric(_rh_sct['YEAR'], errors='coerce')
+                _rh_sct['WEEK'] = pd.to_numeric(_rh_sct['WEEK'], errors='coerce')
+                _rh_sct['RANK'] = pd.to_numeric(_rh_sct['RANK'], errors='coerce')
+                _rh_cy_sct = _rh_sct[_rh_sct['YEAR'] == int(CURRENT_YEAR)]
+                if not _rh_cy_sct.empty:
+                    _snap_sct = _rh_cy_sct[_rh_cy_sct['WEEK'] == _rh_cy_sct['WEEK'].max()]
+                    _cfp_rk_sct = dict(zip(_snap_sct['TEAM'].str.strip(), _snap_sct['RANK']))
+                else:
+                    _cfp_rk_sct = {}
+            except Exception:
+                _cfp_rk_sct = {}
+            _sct_df['RANK'] = pd.to_numeric(_sct_df['TEAM'].map(_cfp_rk_sct), errors='coerce')
+
+            _user_confs_sct = set()
+            for _ut in USER_TEAMS.values():
+                _uc = _sct_df.loc[_sct_df['TEAM'] == _ut, 'CONFERENCE']
+                if not _uc.empty:
+                    _user_confs_sct.add(str(_uc.iloc[0]))
+            _all_confs_sct  = sorted(_sct_df['CONFERENCE'].dropna().unique().tolist())
+            _conf_order_sct = sorted(_user_confs_sct) + [c for c in _all_confs_sct if c not in _user_confs_sct]
+
+            _sct_cols = st.columns(3)
+            for _ci, _conf in enumerate(_conf_order_sct):
+                _cdf = _sct_df[_sct_df['CONFERENCE'] == _conf].copy()
+                _sort_col = 'CONF_W' if 'CONF_W' in _cdf.columns else 'W'
+                _cdf = _cdf.sort_values([_sort_col, 'W'], ascending=False)
+                with _sct_cols[_ci % 3]:
+                    st.markdown(
+                        f"<div style='font-size:0.72rem;color:#64748b;margin:10px 0 4px;"
+                        f"letter-spacing:.06em;font-weight:700;'>{html.escape(_conf)}</div>",
+                        unsafe_allow_html=True
+                    )
+                    _cst_h = "<div style='display:flex;flex-direction:column;gap:3px;'>"
+                    for _, _cr in _cdf.iterrows():
+                        _cr_rk   = int(_cr['RANK']) if pd.notna(_cr.get('RANK')) else None
+                        _cr_usr  = str(_cr.get('USER', '')).strip()
+                        _cr_usr  = _cr_usr if _cr_usr not in ('', 'nan') else None
+                        _cr_team = str(_cr['TEAM'])
+                        _cr_logo = image_file_to_data_uri(get_logo_source(_cr_team))
+                        _logo_h  = (f"<img src='{_cr_logo}' style='width:16px;height:16px;"
+                                    f"object-fit:contain;vertical-align:middle;margin-right:4px;'/>"
+                                    if _cr_logo else "")
+                        _cw = int(_cr.get('CONF_W', 0)) if 'CONF_W' in _cr.index else 0
+                        _cl = int(_cr.get('CONF_L', 0)) if 'CONF_L' in _cr.index else 0
+                        _ow = int(_cr.get('W', 0)); _ol = int(_cr.get('L', 0))
+                        _is_usr = _cr_usr is not None
+                        _tc     = get_team_primary_color(_cr_team) if _is_usr else '#1e293b'
+                        _rk_col = "#fbbf24" if (_cr_rk and _cr_rk <= 4) else ("#60a5fa" if _cr_rk else "#374151")
+                        _rk_str = f"#{_cr_rk}" if _cr_rk else "—"
+                        _nm_col = '#f1f5f9' if _is_usr else '#94a3b8'
+                        _ubadge = (f"<span style='font-size:0.6rem;padding:1px 4px;background:#1e3a5f;"
+                                   f"color:#60a5fa;border-radius:3px;margin-left:4px;'>"
+                                   f"{html.escape(_cr_usr)}</span>") if _is_usr else ""
+                        _row_bg = f"border-left:3px solid {_tc};background:rgba(15,23,42,0.5);"
+                        if _is_usr:
+                            try:
+                                _ri = int(_tc[1:3], 16)
+                                _gi = int(_tc[3:5], 16)
+                                _bi = int(_tc[5:7], 16)
+                                _row_bg = f"border-left:3px solid {_tc};background:rgba({_ri},{_gi},{_bi},0.12);"
+                            except Exception:
+                                pass
+                        _cst_h += (
+                            f"<div style='display:flex;align-items:center;"
+                            f"justify-content:space-between;padding:4px 8px;"
+                            f"border-radius:6px;{_row_bg}'>"
+                            f"<div style='display:flex;align-items:center;gap:4px;'>"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:0.75rem;"
+                            f"color:{_rk_col};min-width:28px;'>{_rk_str}</span>"
+                            f"{_logo_h}<span style='font-size:0.78rem;font-weight:700;"
+                            f"color:{_nm_col};'>{html.escape(_cr_team)}</span>{_ubadge}</div>"
+                            f"<div style='font-size:0.72rem;color:#64748b;'>"
+                            f"<span style='color:#94a3b8;'>{_ow}-{_ol}</span>"
+                            f"<span style='color:#475569;margin-left:6px;'>"
+                            f"({_cw}-{_cl})</span></div></div>"
+                        )
+                    _cst_h += "</div>"
+                    st.markdown(_cst_h, unsafe_allow_html=True)
+        else:
+            st.info("Conference standings will appear once schedule_2042.csv is available.")
+
+        st.markdown("---")
+
+        # ── WEEK-BY-WEEK / QUALITY WINS / CONFERENCE GAUNTLET ────────
+
+        _scht_user = st.selectbox("Select a user to inspect", list(USER_TEAMS.keys()), key="sched_tab_user_select")
+
+        _scht_games = _get_user_games(_scht_user)
+        _scht_team  = USER_TEAMS.get(_scht_user, _scht_user)
+        _scht_color = get_team_primary_color(_scht_team)
+        _scht_speed = _speed_map.get(_scht_user, {}).get('team_speed', 0)
+        _scht_handicap = _speed_handicap(_scht_user)
+
+        if not _scht_games.empty:
+            # Speed + QB context banner
+            _scht_qb_tier = _speed_map.get(_scht_user, {}).get('qb_tier', 'Average Joe')
+            _scht_qb_ovr  = int(_speed_map.get(_scht_user, {}).get('qb_ovr', 80))
+            spd_tier = "Elite 🔥" if _scht_speed >= 13 else ("Above Avg ⚡" if _scht_speed >= 10 else ("Below Avg ⚠️" if _scht_speed >= 7 else "Slow 🐢"))
+            _qb_notes = {
+                'Elite':       f"Elite QB ({_scht_qb_ovr} OVR) — bails you out when the schedule gets nasty.",
+                'Leader':      f"Leader QB ({_scht_qb_ovr} OVR) — solid, won't lose you games you should win.",
+                'Average Joe': f"Average Joe QB ({_scht_qb_ovr} OVR) — adds +1.5 to difficulty. Can't paper over mediocre.",
+                'Ass':         f"💀 Ass QB ({_scht_qb_ovr} OVR) — adds +5.0 to effective difficulty. This whole season is a knife fight.",
+            }
+            qb_note = _qb_notes.get(_scht_qb_tier, "")
+            spd_msg = ("Speed advantage softens tough matchups. " if _scht_speed >= 10 else f"Limited speed means no margin for error. ") + qb_note
+            st.markdown(
+                f"<div style='background:#0d1a2e;border-left:4px solid {_scht_color};border-radius:8px;padding:10px 14px;margin-bottom:12px;'>"
+                f"<span style='color:{_scht_color};font-weight:800;'>{html.escape(_scht_team)}</span> "
+                f"<span style='color:#94a3b8;font-size:0.82rem;'> · {int(_scht_speed)} speed guys — {spd_tier} · {spd_msg}</span>"
+                f"</div>", unsafe_allow_html=True
+            )
+
+            # Timeline chips
+            chips_html = "<div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;'>"
+            week_order = []
+            for wk in _scht_games['week'].tolist():
+                if wk not in week_order: week_order.append(wk)
+            # Sort: numeric weeks first, then special
+            num_wks  = sorted([w for w in week_order if str(w).isdigit()], key=lambda x: int(x))
+            spec_wks = [w for w in week_order if not str(w).isdigit()]
+            for wk in num_wks + spec_wks:
+                wk_games = _scht_games[_scht_games['week'] == wk]
+                for _, g in wk_games.iterrows():
+                    r = g['result']
+                    ranked = g['opp_ranked']
+                    opp_name_full = str(g['opponent'])
+                    # Final-rank fallback: opponent was unranked at game time but
+                    # ended the season ranked (e.g. BG was #4 at season end)
+                    final_rk = _final_rank_lookup.get(opp_name_full)
+                    if ranked:
+                        opp_rk_label  = f"#{int(g['opp_rank'])}"
+                        opp_rk_suffix = ""
+                    elif final_rk:
+                        opp_rk_label  = f"▸#{final_rk}"   # ended ranked
+                        opp_rk_suffix = " fin"
+                    else:
+                        opp_rk_label  = ""
+                        opp_rk_suffix = ""
+                    opp    = opp_name_full[:14]
+                    margin = f" {'+' if (g['margin'] or 0)>0 else ''}{int(g['margin'])}" if (g['margin'] is not None and not pd.isna(g['margin'])) else ""
+                    if r == 'W' and ranked:
+                        bg, txt, border = "#14532d", "#4ade80", "#22c55e"
+                        icon = "✅"
+                    elif r == 'W' and final_rk:
+                        # Win vs team that ended ranked — treat as quality win, slightly dimmer green
+                        bg, txt, border = "#0f3320", "#34d399", "#10b981"
+                        icon = "✅"
+                    elif r == 'W':
+                        bg, txt, border = "#1e3a5f", "#93c5fd", "#3b82f6"
+                        icon = "✓"
+                    elif r == 'L' and ranked:
+                        bg, txt, border = "#7f1d1d", "#fca5a5", "#ef4444"
+                        icon = "💀"
+                    elif r == 'L' and final_rk:
+                        bg, txt, border = "#5c1a1a", "#fca5a5", "#dc2626"
+                        icon = "💀"
+                    elif r == 'L':
+                        bg, txt, border = "#3b1f1f", "#f87171", "#dc2626"
+                        icon = "✗"
+                    else:
+                        bg, txt, border = "#1a2535", "#6b7280", "#374151"
+                        icon = "⏳"
+                    wk_label = f"W{wk}" if str(wk).isdigit() else str(wk)
+                    chips_html += (
+                        f"<div style='background:{bg};border:1px solid {border};border-radius:8px;"
+                        f"padding:7px 10px;min-width:90px;cursor:default;'>"
+                        f"<div style='font-size:0.65rem;color:#475569;margin-bottom:2px;'>{wk_label} · {g['home_away']}</div>"
+                        f"<div style='font-size:0.78rem;font-weight:800;color:{txt};'>{icon} {opp_rk_label}</div>"
+                        f"<div style='font-size:0.7rem;color:{txt}99;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;'>{html.escape(opp)}</div>"
+                        f"<div style='font-size:0.7rem;color:{txt}cc;font-weight:700;'>{r}{margin}</div>"
+                        f"</div>"
+                    )
+            chips_html += "</div>"
+            st.markdown(chips_html, unsafe_allow_html=True)
+            st.caption("🟩 Win vs ranked at game time  ·  🟩 ▸ Win vs team that ended ranked  ·  🟦 Win vs unranked  ·  🟥 Loss vs ranked  ·  ◼ Loss vs unranked  ·  ⏳ Pending")
+
+            # ── SECTION 4: QUALITY WIN / STRENGTH OF LOSS BREAKDOWN ──────────
+            st.markdown("---")
+            st.subheader("🔬 Quality Win Index")
+
+            wins_df   = _scht_games[_scht_games['result'] == 'W'].copy()
+            losses_df = _scht_games[_scht_games['result'] == 'L'].copy()
+            # Include wins vs teams that ended ranked as quality wins too
+            wins_df['_final_rk'] = wins_df['opponent'].apply(lambda o: _final_rank_lookup.get(str(o)))
+            losses_df['_final_rk'] = losses_df['opponent'].apply(lambda o: _final_rank_lookup.get(str(o)))
+            ranked_wins_df  = wins_df[wins_df['opp_ranked']].sort_values('opp_rank')
+            fin_rank_wins_df = wins_df[~wins_df['opp_ranked'] & wins_df['_final_rk'].notna()].sort_values('_final_rk')
+            ranked_loss_df  = losses_df[losses_df['opp_ranked']].sort_values('opp_rank')
+            unrank_loss_df  = losses_df[~losses_df['opp_ranked']]
+
+            total_quality_wins = len(ranked_wins_df) + len(fin_rank_wins_df)
+            qw_col, ql_col = st.columns(2)
+            with qw_col:
+                st.markdown(f"<div style='font-weight:800;color:#4ade80;margin-bottom:8px;'>✅ Quality Wins ({total_quality_wins})</div>", unsafe_allow_html=True)
+                if ranked_wins_df.empty and fin_rank_wins_df.empty:
+                    st.caption("No ranked wins yet.")
+                else:
+                    for _, g in ranked_wins_df.iterrows():
+                        margin_str = f"+{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
+                        st.markdown(
+                            f"<div style='padding:5px 8px;margin-bottom:4px;background:#0d2010;border-left:3px solid #22c55e;border-radius:5px;font-size:0.8rem;'>"
+                            f"<span style='color:#4ade80;font-weight:800;'>#{int(g['opp_rank'])}</span> "
+                            f"<span style='color:#d1d5db;'>{html.escape(str(g['opponent']))}</span> "
+                            f"<span style='color:#22c55e;font-weight:700;'>{margin_str}</span>"
+                            f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']}</span>"
+                            f"</div>", unsafe_allow_html=True
+                        )
+                    for _, g in fin_rank_wins_df.iterrows():
+                        margin_str = f"+{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
+                        fr = int(g['_final_rk'])
+                        st.markdown(
+                            f"<div style='padding:5px 8px;margin-bottom:4px;background:#0a1f12;border-left:3px solid #10b981;border-radius:5px;font-size:0.8rem;'>"
+                            f"<span style='color:#34d399;font-weight:800;'>▸#{fr} fin</span> "
+                            f"<span style='color:#d1d5db;'>{html.escape(str(g['opponent']))}</span> "
+                            f"<span style='color:#10b981;font-weight:700;'>{margin_str}</span>"
+                            f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']} · unranked at game time</span>"
+                            f"</div>", unsafe_allow_html=True
+                        )
+
+            with ql_col:
+                st.markdown(f"<div style='font-weight:800;color:#f87171;margin-bottom:8px;'>💀 Losses ({len(losses_df)})</div>", unsafe_allow_html=True)
+                if losses_df.empty:
+                    st.caption("No losses — dynasty.")
+                else:
+                    for _, g in losses_df.iterrows():
+                        margin_str = f"{int(g['margin'])}" if (g['margin'] and not pd.isna(g['margin'])) else ""
+                        fin_rk = g.get('_final_rk')
+                        fin_rk_valid = (fin_rk is not None) and not (isinstance(fin_rk, float) and pd.isna(fin_rk))
+                        if g['opp_ranked']:
+                            rk_str   = f"#{int(g['opp_rank'])}"
+                            rk_color = "#fca5a5"
+                            badge    = ""
+                        elif fin_rk_valid:
+                            rk_str   = f"▸#{int(fin_rk)} fin"
+                            rk_color = "#fca5a5"
+                            badge    = ""
+                        else:
+                            rk_str   = "Unranked"
+                            rk_color = "#f97316"
+                            badge    = "<span style='margin-left:6px;padding:1px 5px;background:#7c2d12;color:#fed7aa;font-size:0.65rem;border-radius:4px;font-weight:800;'>BAD L</span>"
+                        st.markdown(
+                            f"<div style='padding:5px 8px;margin-bottom:4px;background:#200d0d;border-left:3px solid #ef4444;border-radius:5px;font-size:0.8rem;'>"
+                            f"<span style='color:{rk_color};font-weight:800;'>{rk_str}</span> "
+                            f"<span style='color:#d1d5db;'>{html.escape(str(g['opponent']))}</span> "
+                            f"<span style='color:#ef4444;font-weight:700;'>{margin_str}</span>"
+                            f"{badge}"
+                            f"<span style='color:#475569;font-size:0.72rem;margin-left:6px;'>{g['home_away']}</span>"
+                            f"</div>", unsafe_allow_html=True
+                        )
+
+            # ── SECTION 5: CONFERENCE GAUNTLET ───────────────────────────────
+            st.markdown("---")
+            st.subheader("🏟️ Conference Gauntlet")
+
+            _scht_conf_name = _speed_map.get(_scht_user, {}).get('conf', '—')
+            _scht_team_name = USER_TEAMS.get(_scht_user, '')
+            conf_str      = CONF_STRENGTH.get(_scht_conf_name, 0)
+            _conf_groups  = {'SEC': {'Nick','Devin','Doug'}, 'B1G': {'Noah','Josh','Mike'}}
+            _conf_rivals_users = _conf_groups.get(_scht_conf_name, set()) - {_scht_user}
+
+            # ── Pull real full conf record from conf_standings_2041.csv ───────
+            _from_standings = False
+            conf_w = conf_l = conf_ranked_w = 0
+            avg_conf_rank = None
+            _uvw_games = pd.DataFrame()
+            _conf_st   = pd.DataFrame()
+            try:
+                _conf_st = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
+                _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
+                _conf_st['USER'] = _conf_st['USER'].fillna('')
+                if 'CONFERENCE' in _conf_st.columns:
+                    _conf_st['CONFERENCE'] = _conf_st['CONFERENCE'].astype(str).apply(normalize_conf_name)
+                # Filter to current year only — file may contain multiple seasons
+                if 'YEAR' in _conf_st.columns:
+                    _conf_st['YEAR'] = pd.to_numeric(_conf_st['YEAR'], errors='coerce')
+                    _conf_st = _conf_st[_conf_st['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
+                _team_row = _conf_st[_conf_st['TEAM'] == _scht_team_name]
+                if _team_row.empty:
+                    raise ValueError("team not in standings")
+                _tr    = _team_row.iloc[0]
+                conf_w = int(_tr['CONF_W'])
+                conf_l = int(_tr['CONF_L'])
+                _conf_peers = _conf_st[
+                    (_conf_st['CONFERENCE'] == _scht_conf_name)
+                ].copy()
+                # Rank comes from cfp_rankings_history.csv — authoritative source
+                # conf_standings no longer carries a RANK column
+                try:
+                    _rh2 = pd.read_csv('cfp_rankings_history.csv')
+                    _rh2['YEAR'] = pd.to_numeric(_rh2['YEAR'], errors='coerce')
+                    _rh2['WEEK'] = pd.to_numeric(_rh2['WEEK'], errors='coerce')
+                    _rh2['RANK'] = pd.to_numeric(_rh2['RANK'], errors='coerce')
+                    _rh2_cy = _rh2[_rh2['YEAR'] == int(CURRENT_YEAR)]
+                    if not _rh2_cy.empty:
+                        _rh2_snap = _rh2_cy[_rh2_cy['WEEK'] == _rh2_cy['WEEK'].max()]
+                        _cfp_rank_lookup = dict(zip(_rh2_snap['TEAM'].str.strip(), _rh2_snap['RANK']))
+                    else:
+                        _cfp_rank_lookup = {}
+                except Exception:
+                    _cfp_rank_lookup = {}
+                _conf_peers['RANK'] = _conf_peers['TEAM'].map(_cfp_rank_lookup)
+                conf_opp_ranks_s = pd.to_numeric(_conf_peers['RANK'], errors='coerce').dropna()
+                avg_conf_rank = round(float(conf_opp_ranks_s.mean()), 1) if not conf_opp_ranks_s.empty else None
+                _from_standings = True
+            except Exception:
+                pass
+
+            # User-vs-user matchups for detailed card display
+            if not _scht_games.empty:
+                _uvw_games = _scht_games[
+                    _scht_games['week'].isin(['Conf Champ']) |
+                    _scht_games['opponent'].apply(
+                        lambda opp: any(USER_TEAMS.get(r,'') == opp for r in _conf_rivals_users)
+                    )
+                ].copy()
+                conf_ranked_w = int(
+                    ((_uvw_games['result']=='W') & _uvw_games['opp_ranked_final']).sum()
+                ) if not _uvw_games.empty else 0
+
+            cg_metrics = [
+                {"label": f"🏟️ {_scht_conf_name} Record", "value": f"{conf_w}-{conf_l}", "delta": f"Conf strength: {conf_str}"},
+                {"label": "💪 Conf Ranked Wins (u-v-u)", "value": str(conf_ranked_w)},
+            ]
+            if avg_conf_rank:
+                cg_metrics.append({"label": "📊 Avg Ranked Conf Opp", "value": f"#{int(avg_conf_rank)}"})
+            mobile_metrics(cg_metrics, cols_desktop=3)
+
+            # Full conf standings (all teams, not just user-vs-user)
+            if _from_standings and not _conf_st.empty:
+                _conf_peers_all = _conf_st[
+                    (_conf_st['CONFERENCE'] == _scht_conf_name)
+                ].copy()
+                # RANK comes from cfp_rankings_history — conf_standings no longer carries it
+                try:
+                    _rh_cp = pd.read_csv('cfp_rankings_history.csv')
+                    _rh_cp['YEAR'] = pd.to_numeric(_rh_cp['YEAR'], errors='coerce')
+                    _rh_cp['WEEK'] = pd.to_numeric(_rh_cp['WEEK'], errors='coerce')
+                    _rh_cp['RANK'] = pd.to_numeric(_rh_cp['RANK'], errors='coerce')
+                    _rh_cp_cy = _rh_cp[_rh_cp['YEAR'] == int(CURRENT_YEAR)]
+                    if not _rh_cp_cy.empty:
+                        _rh_cp_snap = _rh_cp_cy[_rh_cp_cy['WEEK'] == _rh_cp_cy['WEEK'].max()]
+                        _cfp_rank_cp = dict(zip(_rh_cp_snap['TEAM'].str.strip(), _rh_cp_snap['RANK']))
+                    else:
+                        _cfp_rank_cp = {}
+                except Exception:
+                    _cfp_rank_cp = {}
+                _conf_peers_all['RANK'] = _conf_peers_all['TEAM'].map(_cfp_rank_cp)
+                _conf_peers_all['RANK'] = pd.to_numeric(_conf_peers_all['RANK'], errors='coerce')
+                _conf_peers_all = _conf_peers_all.sort_values(['CONF_W','W'], ascending=False)
+                if not _conf_peers_all.empty:
+                    st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:10px 0 5px;letter-spacing:.06em;font-weight:700;'>CONFERENCE STANDINGS (full)</div>", unsafe_allow_html=True)
+                    cst_html = "<div style='display:flex;flex-direction:column;gap:3px;'>"
+                    for _, cr in _conf_peers_all.iterrows():
+                        cr_rk   = int(cr['RANK']) if pd.notna(cr.get('RANK')) else None
+                        cr_user = str(cr['USER']).strip() if str(cr.get('USER','')).strip() not in ('','nan') else None
+                        rk_str  = f"#{cr_rk}" if cr_rk else "—"
+                        rk_col  = "#fbbf24" if cr_rk else "#374151"
+                        user_badge = (
+                            f"<span style='font-size:0.62rem;padding:1px 4px;background:#1e3a5f;"
+                            f"color:#60a5fa;border-radius:3px;margin-left:5px;'>{html.escape(cr_user)}</span>"
+                        ) if cr_user else ""
+                        _is_sel = str(cr['TEAM']).strip() == _scht_team_name
+                        _row_bg = f'background:linear-gradient(90deg,{get_team_primary_color(_scht_team_name)}22,#0a1628)' if _is_sel else 'background:#0a1628'
+                        _row_border = f'border-left:3px solid {get_team_primary_color(_scht_team_name)};' if _is_sel else 'border-left:3px solid transparent;'
+                        cst_html += (
+                            f"<div style='display:flex;align-items:center;gap:8px;padding:5px 10px;"
+                            f"{_row_bg};{_row_border}border-radius:5px;font-size:0.78rem;'>"
+                            f"<span style='color:{rk_col};font-weight:800;min-width:28px;'>{rk_str}</span>"
+                            f"<span style='color:{'#f8fafc' if _is_sel else '#d1d5db'};font-weight:{'800' if _is_sel else '400'};flex:1;'>{html.escape(str(cr['TEAM']))}{user_badge}</span>"
+                            f"<span style='color:#94a3b8;min-width:36px;text-align:right;'>{int(cr['W'])}-{int(cr['L'])}</span>"
+                            f"<span style='color:#475569;font-size:0.7rem;min-width:52px;text-align:right;'>({int(cr['CONF_W'])}-{int(cr['CONF_L'])} conf)</span>"
+                            f"</div>"
+                        )
+                    cst_html += "</div>"
+                    st.markdown(cst_html, unsafe_allow_html=True)
+
+            # User-vs-user matchup detail
+            if not _uvw_games.empty:
+                st.markdown("<div style='font-size:0.72rem;color:#64748b;margin:12px 0 5px;letter-spacing:.06em;font-weight:700;'>USER-VS-USER MATCHUPS</div>", unsafe_allow_html=True)
+                conf_html = "<div style='display:flex;flex-direction:column;gap:4px;'>"
+                for _, cg in _uvw_games.iterrows():
+                    r    = cg['result']
+                    rk   = f"#{int(cg['effective_rank'])}" if cg['opp_ranked_final'] else "Unranked"
+                    mg   = f" ({'+' if (cg['margin'] or 0)>0 else ''}{int(cg['margin'])})" if (cg['margin'] is not None and not pd.isna(cg['margin'])) else ""
+                    wk   = str(cg['week'])
+                    opp  = str(cg['opponent'])
+                    rc   = "#22c55e" if r=='W' else ("#ef4444" if r=='L' else "#6b7280")
+                    icon = "✅" if r=='W' else ("❌" if r=='L' else "⏳")
+                    cc_badge = "<span style='font-size:0.62rem;padding:1px 5px;background:#7c2d12;color:#fed7aa;border-radius:3px;margin-left:6px;font-weight:800;'>CONF CHAMP</span>" if wk=='Conf Champ' else ""
+                    fin_note = "<span style='font-size:0.62rem;color:#64748b;margin-left:3px;'>▸fin</span>" if (cg['opp_ranked_final'] and not cg['opp_ranked']) else ""
+                    conf_html += (
+                        f"<div style='display:flex;align-items:center;gap:10px;padding:7px 12px;"
+                        f"background:#0d1a2e;border-left:3px solid {rc};border-radius:6px;font-size:0.82rem;'>"
+                        f"<span style='color:{rc};font-weight:800;min-width:14px;'>{icon}</span>"
+                        f"<span style='color:#94a3b8;min-width:60px;'>{wk}</span>"
+                        f"<span style='color:{rc};font-weight:700;'>{rk}{fin_note}</span>"
+                        f"<span style='color:#d1d5db;flex:1;'>{html.escape(opp)}</span>"
+                        f"<span style='color:{rc};font-weight:700;'>{r}{mg}</span>"
+                        f"{cc_badge}"
+                        f"</div>"
+                    )
+                conf_html += "</div>"
+                st.markdown(conf_html, unsafe_allow_html=True)
+
+            conf_tier_note = {
+                'SEC': "SEC — 16-team murder conference.",
+                'B1G': "B1G — co-king of the dynasty. 9-game conf schedule.",
+                'ACC': "ACC — top-heavy, real teeth at the top.",
+            }.get(_scht_conf_name, f"{_scht_conf_name}.")
+            src_note = f"Record from conf_standings_{CURRENT_YEAR}.csv." if _from_standings else f"⚠️ conf_standings_{CURRENT_YEAR}.csv not found — user-vs-user fallback only."
+            st.caption(f"📌 {conf_tier_note} {src_note} User-vs-user matchups shown individually.")
+
+        else:
+            st.info("No schedule data found for this user.")
+
+
+    with _spd_tabs[3]:
         # ── GAME CONTROL ─────────────────────────────────────────────
 
         @st.cache_data(ttl=300)
@@ -17433,21 +17539,21 @@ with tabs[3]:
 
                     _opp_logo_uri=image_file_to_data_uri(get_logo_source(_gopp))
                     _opp_logo=f"<img src='{_opp_logo_uri}' style='width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _opp_logo_uri else ""
-                    _rk_chip=f"<span style='font-family:\"Bebas Neue\",sans-serif;color:#fbbf24;font-size:.8rem;'>#{_grk}</span> " if _grk else ""
-                    _ork_chip=f"<span style='font-family:\"Bebas Neue\",sans-serif;color:#94a3b8;font-size:.8rem;'>#{_ork}</span> " if _ork else ""
+                    _rk_chip=f"<span style='font-family:Bebas Neue,sans-serif;color:#fbbf24;font-size:.8rem;'>#{_grk}</span> " if _grk else ""
+                    _ork_chip=f"<span style='font-family:Bebas Neue,sans-serif;color:#94a3b8;font-size:.8rem;'>#{_ork}</span> " if _ork else ""
 
                     st.markdown(f"""
                     <div style='background:linear-gradient(90deg,{_g_acc}18 0%,#0a1628 30%);border-left:4px solid {_g_acc};
                       border-radius:10px;padding:12px 16px;margin-bottom:8px;'>
                       <div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;'>
                         <div style='display:flex;align-items:center;gap:10px;'>
-                          <span style='font-family:"Bebas Neue",sans-serif;font-size:1rem;color:#475569;letter-spacing:.06em;'>WK {_gwk}</span>
+                          <span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#475569;letter-spacing:.06em;'>WK {_gwk}</span>
                           <span style='color:#94a3b8;font-size:.85rem;'>{_ven_lbl}</span>
                           <span style='color:#64748b;font-size:.85rem;'>vs {_ork_chip}{_opp_logo}{html.escape(_gopp)}</span>
                         </div>
                         <div style='display:flex;align-items:center;gap:12px;'>
                           <span style='font-weight:900;font-size:1.1rem;color:{_res_color};'>{_gres} {_gts}–{_gos}</span>
-                          <span style='font-family:"Bebas Neue",sans-serif;font-size:1.3rem;color:{_g_acc};font-weight:900;'>GC {_ggcs:.1f}</span>
+                          <span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:{_g_acc};font-weight:900;'>GC {_ggcs:.1f}</span>
                           <span style='font-size:.75rem;color:#64748b;'>{html.escape(_gtier)}</span>
                         </div>
                       </div>
@@ -17472,7 +17578,7 @@ with tabs[3]:
                       </div>
                     </div>""", unsafe_allow_html=True)
 
-    with _spd_tabs[3]:
+    with _spd_tabs[4]:
         st.header("📈 Program Trajectory")
         st.caption("How is every program trending? OVR, recruiting class rank, blue chip ratio, win %, NFL pipeline — all over time.")
 
@@ -17842,19 +17948,19 @@ with tabs[0]:
             <div style='text-align:center;display:flex;align-items:center;'>
                 {_ncaa_img}
                 <div>
-                    <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#fbbf24;line-height:1;'>{_dn_year}</div>
+                    <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#fbbf24;line-height:1;'>{_dn_year}</div>
                     <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>Season</div>
                 </div>
             </div>
             <div style='width:1px;height:40px;background:rgba(255,255,255,0.1);'></div>
             <div style='text-align:center;'>
-                <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#60a5fa;line-height:1;'>{_wk_label}</div>
+                <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#60a5fa;line-height:1;'>{_wk_label}</div>
                 <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>Current Week</div>
             </div>
             <div style='width:1px;height:40px;background:rgba(255,255,255,0.1);'></div>
             <div style='text-align:center;display:flex;align-items:center;'>
                 <div>
-                    <div style='font-family:"Bebas Neue",sans-serif;font-size:2.8rem;color:#4ade80;line-height:1;'>{CURRENT_YEAR + 1}</div>
+                    <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#4ade80;line-height:1;'>{CURRENT_YEAR + 1}</div>
                     <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.12em;'>NFL Draft Class</div>
                 </div>
                 {_nfl_img}
@@ -18387,7 +18493,7 @@ with tabs[0]:
                     f"<div style='min-width:36px;height:36px;width:36px;border-radius:50%;"
                     f"border:2px solid {_rc};display:flex;align-items:center;justify-content:center;"
                     f"background:{_rc}18;{bw_style}'>"
-                    f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:{'1rem' if _rn < 10 else '0.85rem'};"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:{'1rem' if _rn < 10 else '0.85rem'};"
                     f"color:{_rc};line-height:1;'>#{_rn}</span></div>"
                 )
             else:
@@ -18395,7 +18501,7 @@ with tabs[0]:
                     f"<div style='min-width:36px;height:36px;width:36px;border-radius:50%;"
                     f"border:2px solid #334155;display:flex;align-items:center;justify-content:center;"
                     f"background:#33415518;{bw_style}'>"
-                    f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.5rem;"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:0.5rem;"
                     f"color:#475569;line-height:1;'>UR</span></div>"
                 )
 
@@ -18454,7 +18560,7 @@ with tabs[0]:
                     try:
                         _r_int = int(float(_ol_rank))
                         _r_color = '#fbbf24' if _r_int <= 4 else '#60a5fa'
-                        _ol_rank_html = f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.85rem;color:{_r_color};vertical-align:middle;'>#{_r_int} </span>"
+                        _ol_rank_html = f"<span style='font-family:Bebas Neue,sans-serif;font-size:0.85rem;color:{_r_color};vertical-align:middle;'>#{_r_int} </span>"
                     except Exception:
                         pass
                 return f"<span style='display:inline-flex;align-items:center;gap:3px;'>{_ol_rank_html}{_ol_img}</span>"
@@ -18536,7 +18642,7 @@ with tabs[0]:
             _game_strip = (
                 f"<div style='display:flex;align-items:center;gap:8px;margin-top:6px;padding-top:6px;"
                 f"border-top:1px solid rgba(255,255,255,0.09);flex-wrap:wrap;'>"
-                f"<span style='font-family:\"Bebas Neue\",sans-serif;font-size:0.92rem;color:#475569;"
+                f"<span style='font-family:Bebas Neue,sans-serif;font-size:0.92rem;color:#475569;"
                 f"letter-spacing:0.08em;'>WK {_gs_week}</span>"
                 f"{_status_chip} {_game_line}"
                 f"{_line_html}"
@@ -20773,14 +20879,14 @@ with tabs[0]:
                                 margin-bottom:8px;'>
                       <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;'>
                         <div style='display:flex;align-items:center;gap:8px;'>
-                          <span style='font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:{_rk_color};line-height:1;'>{_rk_disp}</span>
+                          <span style='font-family:Bebas Neue,sans-serif;font-size:1.4rem;color:{_rk_color};line-height:1;'>{_rk_disp}</span>
                           <span style='background:{_badge_bg};color:{_badge_fg};font-size:0.62rem;font-weight:900;
                                        padding:3px 8px;border-radius:5px;font-family:Barlow Condensed,sans-serif;
                                        letter-spacing:0.08em;'>{_badge}</span>
                           <span style='font-size:0.65rem;color:#475569;font-family:Barlow Condensed,sans-serif;'>{_wk_disp}</span>
                         </div>
                         <div style='text-align:right;'>
-                          <div style='font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:#fbbf24;line-height:1;'>{_viewers:.1f}M</div>
+                          <div style='font-family:Bebas Neue,sans-serif;font-size:1.4rem;color:#fbbf24;line-height:1;'>{_viewers:.1f}M</div>
                           <div style='font-size:0.55rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>viewers</div>
                         </div>
                       </div>
@@ -20794,9 +20900,9 @@ with tabs[0]:
                         </div>
                         <div style='text-align:center;flex-shrink:0;padding:0 6px;'>
                           <div style='display:flex;align-items:center;gap:4px;'>
-                            <span style='{_vis_bold}font-family:"Bebas Neue",sans-serif;font-size:1.5rem;line-height:1;'>{_vis_score}</span>
+                            <span style='{_vis_bold}font-family:Bebas Neue,sans-serif;font-size:1.5rem;line-height:1;'>{_vis_score}</span>
                             <span style='color:#334155;font-weight:900;font-size:1rem;'>-</span>
-                            <span style='{_home_bold}font-family:"Bebas Neue",sans-serif;font-size:1.5rem;line-height:1;'>{_home_score}</span>
+                            <span style='{_home_bold}font-family:Bebas Neue,sans-serif;font-size:1.5rem;line-height:1;'>{_home_score}</span>
                           </div>
                           <div style='font-size:0.55rem;color:#334155;text-transform:uppercase;letter-spacing:.06em;margin-top:1px;'>FINAL</div>
                         </div>
@@ -21814,7 +21920,7 @@ with tabs[0]:
 
                     _mock_rows.append(f"""
                     <tr style='{_row_bg}'>
-                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;font-family:"Bebas Neue",sans-serif;font-size:{_pick_fs};color:{_pick_color};white-space:nowrap;'>{_pick}</td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;font-family:Bebas Neue,sans-serif;font-size:{_pick_fs};color:{_pick_color};white-space:nowrap;'>{_pick}</td>
                       <td style='padding:8px 10px;border-bottom:1px solid #0f172a;white-space:nowrap;'>
                         <div style='display:flex;align-items:center;gap:4px;'>{_nfl_logo_html}<span style='font-size:0.72rem;color:#64748b;font-family:Barlow Condensed,sans-serif;'>{html.escape(_nfl_team)}</span></div>
                       </td>
@@ -21833,7 +21939,7 @@ with tabs[0]:
                       <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#e2e8f0;font-weight:700;'>{_povr}</td>
                       <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#94a3b8;'>{_pspd}</td>
                       <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#94a3b8;'>{_pawr}</td>
-                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#60a5fa;font-family:"Bebas Neue",sans-serif;font-size:1rem;'>{_pval:.1f}</td>
+                      <td style='padding:8px 10px;border-bottom:1px solid #0f172a;text-align:center;color:#60a5fa;font-family:Bebas Neue,sans-serif;font-size:1rem;'>{_pval:.1f}</td>
                     </tr>""")
 
                 _user_count = int((_r1['Source'] == 'USER').sum()) if 'Source' in _r1.columns else 0
@@ -21919,7 +22025,7 @@ with tabs[4]:
                     st.markdown(f"""
                     <div style='background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);
                                 border-radius:8px;padding:8px 12px;text-align:center;'>
-                        <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#fbbf24;line-height:1;'>{_wk_label_wi}</div>
+                        <div style='font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:#fbbf24;line-height:1;'>{_wk_label_wi}</div>
                         <div style='font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;'>{_ly} Season</div>
                     </div>""", unsafe_allow_html=True)
             else:
@@ -22490,7 +22596,7 @@ with tabs[4]:
             <div style='font-size:0.78rem;color:#94a3b8;'>Currently #{int(_safe_float(sim_row['Rank'], 13))} · {sim_row.get('Record','?')} · CFP {_safe_float(sim_row['CFP Make %']):.1f}%</div>
           </div>
           <div style='text-align:right;'>
-            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:#fbbf24;line-height:1;'>→ #{int(sim_result["Rank"])}</div>
+            <div style='font-family:Bebas Neue,sans-serif;font-size:1.8rem;color:#fbbf24;line-height:1;'>→ #{int(sim_result["Rank"])}</div>
             <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Projected Rank</div>
           </div>
         </div>""", unsafe_allow_html=True)
@@ -22499,17 +22605,17 @@ with tabs[4]:
         st.markdown(f"""
         <div style='display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;'>
           <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
-            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_cfp_color};'>{_d_cfp:+.1f}%</div>
+            <div style='font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:{_cfp_color};'>{_d_cfp:+.1f}%</div>
             <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>CFP Make %</div>
             <div style='font-size:0.75rem;color:#64748b;'>{_safe_float(sim_row["CFP Make %"]):.1f}% → {_safe_float(sim_result["CFP Make %"]):.1f}%</div>
           </div>
           <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
-            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_bye_color};'>{_d_bye:+.1f}%</div>
+            <div style='font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:{_bye_color};'>{_d_bye:+.1f}%</div>
             <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Bye %</div>
             <div style='font-size:0.75rem;color:#64748b;'>{_safe_float(sim_row["Bye %"]):.1f}% → {_safe_float(sim_result["Bye %"]):.1f}%</div>
           </div>
           <div style='background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:10px 16px;flex:1;text-align:center;'>
-            <div style='font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:{_rnk_color};'>{_d_rank:+d}</div>
+            <div style='font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:{_rnk_color};'>{_d_rank:+d}</div>
             <div style='font-size:0.62rem;color:#475569;text-transform:uppercase;letter-spacing:0.1em;'>Rank Change</div>
             <div style='font-size:0.75rem;color:#64748b;'>#{int(_safe_float(sim_row["Rank"], 13))} → #{int(_safe_float(sim_result["Rank"], 13))}</div>
           </div>
@@ -23319,7 +23425,7 @@ with _ods_tabs[1]:
                   <div style='margin-top:10px;display:flex;justify-content:space-between;align-items:flex-end;'>
                     <div>
                       <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>Projected Class NIL</div>
-                      <div style='font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:#4ade80;line-height:1;'>{_u_nil_total}</div>
+                      <div style='font-family:Bebas Neue,sans-serif;font-size:1.8rem;color:#4ade80;line-height:1;'>{_u_nil_total}</div>
                     </div>
                     <div style='text-align:right;'>
                       <div style='font-size:0.6rem;color:#475569;text-transform:uppercase;letter-spacing:0.08em;'>Avg / Commit</div>
@@ -23363,7 +23469,7 @@ with _ods_tabs[1]:
                   </td>
                   <td style='padding:9px 10px;border-bottom:1px solid #1e293b;white-space:nowrap;'>{_star_pills}</td>
                   <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#64748b;text-align:center;'>{int(_pr2['Total'])}</td>
-                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:"Bebas Neue",sans-serif;font-size:1.1rem;text-align:right;'>{_nil_disp2}</td>
+                  <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.1rem;text-align:right;'>{_nil_disp2}</td>
                   <td style='padding:9px 10px;border-bottom:1px solid #1e293b;color:#fbbf24;font-size:0.85rem;text-align:right;'>{_avg_disp2}</td>
                 </tr>""")
 
@@ -31862,7 +31968,7 @@ with _rm_tabs[1]:
                     <div style='display:flex;align-items:center;'>{_tlogo_html}<span style='font-weight:800;color:{_tc2};'>{html.escape(_tt)}</span></div>
                   </td>
                   <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{html.escape(str(_trow2.get('User','—')))}</td>
-                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:"Bebas Neue",sans-serif;font-size:1.15rem;text-align:right;'>{_trow2['NIL_Display']}</td>
+                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.15rem;text-align:right;'>{_trow2['NIL_Display']}</td>
                   <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;'>{_trow2['Avg_Display']}</td>
                   <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:center;'>{int(_trow2['Roster_Size'])}</td>
                   <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#fbbf24;font-size:0.82rem;'>{_t_top_name}</td>
@@ -32089,7 +32195,7 @@ with _rm_tabs[1]:
                           <div style='flex:1;max-width:80px;background:rgba(255,255,255,0.07);border-radius:2px;height:4px;'>
                             <div style='width:{_nil_bar_w}%;height:100%;background:{_nil_tc};border-radius:2px;'></div>
                           </div>
-                          <span style='color:#4ade80;font-weight:800;font-family:"Bebas Neue",sans-serif;font-size:1.05rem;white-space:nowrap;'>{_tnil}</span>
+                          <span style='color:#4ade80;font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.05rem;white-space:nowrap;'>{_tnil}</span>
                         </div>
                       </td>
                     </tr>""")
