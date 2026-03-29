@@ -17477,6 +17477,17 @@ with tabs[3]:
                 """, unsafe_allow_html=True)
 
             st.markdown("<div class='panel-note'>Higher score means your team controlled the script, not just the final. The leaderboard is compacted for phones, and the deeper view below breaks down the weekly story.</div>", unsafe_allow_html=True)
+            st.markdown("""
+            <div class='panel-note'>
+              <b>Game Control legend:</b><br>
+              <b>Total Control / Commanding / Solid Control</b> = you drove the game, not just the score.<br>
+              <b>Fragile</b> = you won, but the grip was shakier than it looked.<br>
+              <b>Surviving</b> = you escaped more than you controlled.<br>
+              <b>Outplayed</b> = the opponent had the cleaner game underneath.<br>
+              <b>Championship Gear</b> = this looked like a top-end team performance.<br>
+              <b>Living Dangerous / Red Alert</b> = the weekly process is getting ugly.
+            </div>
+            """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             st.subheader("🔍 Team Deep Dive")
@@ -17622,6 +17633,19 @@ with tabs[3]:
                 """, unsafe_allow_html=True)
 
             st.markdown("<div class='panel-note'>Orange-hot teams blow games open. Green defenses suffocate life. This view keeps both in the same place so you can see whether a team is a missile battery, a steel curtain, or a complete identity crisis.</div>", unsafe_allow_html=True)
+            st.markdown("""
+            <div class='panel-note'>
+              <b>Explosive Index legend:</b><br>
+              <b>Detonation Machine / Missile Battery / Strike Force</b> = the offense creates chunk damage fast.<br>
+              <b>Capable / Methodical</b> = the offense can move it, but not always with knockout shots.<br>
+              <b>Sparkless</b> = not enough explosive juice.<br>
+              <b>Quick Strike</b> = scored big without needing a long possession.<br>
+              <b>Aerial Nuke</b> = the passing game detonated the opponent.<br>
+              <b>Ground Blast</b> = the run game did the heavy damage.<br>
+              <b>Steel Curtain / Clamp Unit / Vice Grip</b> = the defense choked off chunk plays and clean efficiency.<br>
+              <b>Wet Paper Bag</b> = the defense gave up too much easy damage.
+            </div>
+            """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             st.subheader("🎯 Team Identity Deep Dive")
@@ -17656,6 +17680,59 @@ with tabs[3]:
                                    yaxis=dict(title='Index', gridcolor='rgba(255,255,255,.06)', range=[0,100]),
                                    legend=dict(orientation='h', y=1.08, x=0))
                 st.plotly_chart(_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
+
+                st.subheader("🧱 Chunk Plays Allowed")
+                _chunk_rank = ex_games.copy()
+                for _cc in ["def_opp_ypp_allowed","def_opp_pass_ypa_allowed","def_opp_rush_ypa_allowed","def_opp_max_quarter_points"]:
+                    if _cc not in _chunk_rank.columns:
+                        _chunk_rank[_cc] = 0
+                    _chunk_rank[_cc] = pd.to_numeric(_chunk_rank[_cc], errors='coerce').fillna(0)
+
+                if not _chunk_rank.empty:
+                    _chunk_sum = (
+                        _chunk_rank.groupby(["USER","TEAM"], dropna=False)
+                        .agg(
+                            AVG_YPP_ALLOWED=("def_opp_ypp_allowed","mean"),
+                            AVG_PASS_ALLOWED=("def_opp_pass_ypa_allowed","mean"),
+                            AVG_RUSH_ALLOWED=("def_opp_rush_ypa_allowed","mean"),
+                            AVG_MAX_Q_ALLOWED=("def_opp_max_quarter_points","mean"),
+                        )
+                        .reset_index()
+                    )
+                    _chunk_sum["CHUNK_PLAYS_SCORE"] = (
+                        100
+                        - (_chunk_sum["AVG_YPP_ALLOWED"] * 8.0)
+                        - (_chunk_sum["AVG_PASS_ALLOWED"] * 3.2)
+                        - (_chunk_sum["AVG_RUSH_ALLOWED"] * 4.0)
+                        - (_chunk_sum["AVG_MAX_Q_ALLOWED"] * 1.5)
+                    ).clip(lower=0, upper=100)
+                    _chunk_sum = _chunk_sum.sort_values(["CHUNK_PLAYS_SCORE","AVG_YPP_ALLOWED"], ascending=[False,True]).reset_index(drop=True)
+                    _chunk_sum["LABEL"] = _chunk_sum["TEAM"].astype(str) + " · " + _chunk_sum["USER"].astype(str)
+
+                    _chunk_fig = go.Figure()
+                    _chunk_fig.add_trace(go.Bar(
+                        x=_chunk_sum["CHUNK_PLAYS_SCORE"],
+                        y=_chunk_sum["LABEL"],
+                        orientation='h',
+                        marker_color=[_def_acc(v) for v in _chunk_sum["CHUNK_PLAYS_SCORE"]],
+                        text=[f"{v:.1f}" for v in _chunk_sum["CHUNK_PLAYS_SCORE"]],
+                        textposition='outside',
+                        hovertemplate='<b>%{y}</b><br>Chunk Plays Score: %{x:.1f}<extra></extra>'
+                    ))
+                    _chunk_fig.update_layout(
+                        height=max(260, 52 * len(_chunk_sum)),
+                        margin=dict(l=24,r=16,t=14,b=20),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='#cbd5e1'),
+                        xaxis=dict(title='Chunk Plays Score', gridcolor='rgba(255,255,255,.06)', range=[0,100]),
+                        yaxis=dict(title='', autorange='reversed', gridcolor='rgba(255,255,255,.03)'),
+                        showlegend=False,
+                    )
+                    st.plotly_chart(_chunk_fig, use_container_width=True, config={'displayModeBar':False,'staticPlot':True})
+                    st.caption("Higher Chunk Plays Score = better at preventing easy explosives. It blends overall yards per play allowed, pass YPA allowed, rush YPA allowed, and opponent max quarter points.")
+                else:
+                    st.info("No defensive chunk-play data available yet.")
 
             if not _ex_g.empty:
                 _ex_g = _ex_g.sort_values(["YEAR","WEEK"], ascending=[False,False]).copy()
