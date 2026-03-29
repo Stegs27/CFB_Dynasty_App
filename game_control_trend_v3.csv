@@ -49,6 +49,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,OPP_RANK_AT_GAME,OPP_RA
 2042,9,Josh,USF,Michigan State,W,56,19,,,,76.64,80.38,-5.63,Strong Control,False,False,False,False
 2042,9,Mike,San Jose State,Nebraska,L,37,52,15.0,13.0,15.0,48.97,56.44,-6.13,Toss-Up / Fragile,False,False,False,True
 2042,9,Noah,Texas Tech,Ohio State,W,49,35,17.0,19.0,17.0,77.09,71.82,15.69,Strong Control,False,False,False,False
+2042,10,Devin,Bowling Green,Georgia,W,42,17,17.0,17.0,17.0,76.97,68.09,18.44,Strong Control,False,False,False,False
 2042,10,Doug,Florida,Iowa,W,42,3,,21.0,21.0,83.36,73.13,17.5,Strong Control,False,False,False,False
 2042,10,Josh,USF,Texas Tech,L,21,42,2.0,2.0,2.0,44.93,67.95,-31.71,Outplayed / Survived,False,False,False,True
 2042,10,Mike,San Jose State,Michigan,W,30,27,20.0,20.0,20.0,60.15,54.74,11.18,Solid Control,True,False,False,False

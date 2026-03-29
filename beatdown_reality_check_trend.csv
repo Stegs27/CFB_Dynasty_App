@@ -49,6 +49,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2042,9,Josh,USF,Michigan State,W,56,19,37.0,18.24,18.76,100.0,Score Lied for Us,96.9,0.0,True,False,True,False,False
 2042,9,Mike,San Jose State,Nebraska,L,37,52,-15.0,3.38,-18.38,40.1,Score Lied for Them,52.59,-7.67,False,True,False,False,False
 2042,9,Noah,Texas Tech,Ohio State,W,49,35,14.0,26.52,-12.52,91.45,Should've Beat Their Ass,81.23,39.22,False,True,False,True,False
+2042,10,Devin,Bowling Green,Georgia,W,42,17,25.0,14.92,10.08,88.77,We Got Away With One,70.47,31.69,True,False,True,False,False
 2042,10,Doug,Florida,Iowa,W,42,3,39.0,27.9,11.1,100.0,We Got Away With One,82.01,28.47,True,False,True,False,False
 2042,10,Josh,USF,Texas Tech,L,21,42,-21.0,-9.41,-11.59,20.73,Got Our Ass Beat,73.58,-79.27,False,True,False,False,True
 2042,10,Mike,San Jose State,Michigan,W,30,27,3.0,1.03,1.97,53.82,Score Told the Truth,47.23,13.72,False,False,False,False,False

@@ -49,6 +49,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,off_explosive_index,off
 2042,9,Josh,USF,Michigan State,W,56,19,100.0,Detonation Machine,100.0,0.0,49.38,Leaky,32.87,12.59,True,False,True,False,False,False,False,False,False
 2042,9,Mike,San Jose State,Nebraska,L,37,52,71.74,Strike Force,85.06,-14.58,0.0,Wet Paper Bag,13.9,0.0,False,False,False,False,False,False,True,True,True
 2042,9,Noah,Texas Tech,Ohio State,W,49,35,100.0,Detonation Machine,100.0,0.0,10.39,Wet Paper Bag,15.57,-7.32,True,True,True,False,False,False,True,True,False
+2042,10,Devin,Bowling Green,Georgia,W,42,17,100.0,Detonation Machine,100.0,0.0,40.37,Leaky,24.85,25.23,True,False,True,False,False,False,False,False,False
 2042,10,Doug,Florida,Iowa,W,42,3,100.0,Detonation Machine,84.71,26.72,100.0,Steel Curtain,63.63,41.42,False,True,True,False,True,True,False,False,False
 2042,10,Josh,USF,Texas Tech,L,21,42,71.67,Strike Force,90.56,-28.33,0.0,Wet Paper Bag,28.72,-49.38,False,False,False,False,False,False,True,True,False
 2042,10,Mike,San Jose State,Michigan,W,30,27,68.5,Strike Force,75.52,-3.24,40.26,Leaky,13.42,40.26,False,False,False,False,False,False,False,False,False
