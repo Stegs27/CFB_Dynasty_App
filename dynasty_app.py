@@ -17866,7 +17866,11 @@ with tabs[3]:
             _all_brc = brc_games.copy()
             _all_brc["WEEK"] = pd.to_numeric(_all_brc["WEEK"], errors="coerce").fillna(0).astype(int)
             _all_brc["truth_margin"] = pd.to_numeric(_all_brc["truth_margin"], errors="coerce").fillna(0)
-            _all_brc["BarLabel"] = _all_brc["TEAM"].astype(str).str.slice(0,4).str.upper() + " " + _all_brc["TEAM_SCORE"].astype(str) + "-" + _all_brc["OPP_SCORE"].astype(str)
+            _all_brc["TEAM_SCORE"] = pd.to_numeric(_all_brc["TEAM_SCORE"], errors="coerce").fillna(0).astype(int)
+            _all_brc["OPP_SCORE"] = pd.to_numeric(_all_brc["OPP_SCORE"], errors="coerce").fillna(0).astype(int)
+            _all_brc["HOME_AWAY"] = _all_brc["HOME_AWAY"].astype(str).fillna("") if "HOME_AWAY" in _all_brc.columns else ""
+            _all_brc["MatchupLabel"] = _all_brc.apply(lambda r: f"{r['TEAM']} {'vs' if str(r.get('HOME_AWAY','')).upper()=='HOME' else '@'} {r['OPPONENT']}", axis=1)
+            _all_brc["BarLabel"] = _all_brc.apply(lambda r: f"{str(r['TEAM'])[:4].upper()} {'vs' if str(r.get('HOME_AWAY','')).upper()=='HOME' else '@'} {str(r['OPPONENT'])[:4].upper()} · {int(r['TEAM_SCORE'])}-{int(r['OPP_SCORE'])}", axis=1)
 
             _weeks = sorted([int(w) for w in _all_brc["WEEK"].dropna().unique().tolist()])
             _latest_week = _weeks[-1] if _weeks else 0
@@ -17875,19 +17879,42 @@ with tabs[3]:
             _bar = _all_brc[_all_brc["WEEK"] == _sel_week].copy() if _sel_week else _all_brc.copy()
             _bar = _bar.sort_values("truth_margin").copy()
 
+            if not _bar.empty:
+                _matchup_html = ""
+                for _, _mr in _bar.iterrows():
+                    _team_logo = get_school_logo_src(_mr.get("TEAM", "")) or ""
+                    _opp_logo = get_school_logo_src(_mr.get("OPPONENT", "")) or ""
+                    _ha = "vs" if str(_mr.get("HOME_AWAY", "")).upper() == "HOME" else "@"
+                    _scoreline = f"{int(pd.to_numeric(_mr.get('TEAM_SCORE',0), errors='coerce'))}-{int(pd.to_numeric(_mr.get('OPP_SCORE',0), errors='coerce'))}"
+                    _matchup_html += f"""
+                    <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03);'>
+                      <div style='display:flex;align-items:center;gap:8px;min-width:0;'>
+                        {f"<img src='{_team_logo}' style='width:24px;height:24px;object-fit:contain;'>" if _team_logo else "<div style='width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.08);'></div>"}
+                        <div style='font-size:.82rem;font-weight:800;color:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(str(_mr.get('TEAM','')))}</div>
+                      </div>
+                      <div style='font-size:.74rem;font-weight:900;color:#94a3b8;white-space:nowrap;'>{_ha}</div>
+                      <div style='display:flex;align-items:center;gap:8px;min-width:0;justify-content:flex-end;'>
+                        <div style='font-size:.82rem;font-weight:800;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;'>{html.escape(str(_mr.get('OPPONENT','')))}</div>
+                        {f"<img src='{_opp_logo}' style='width:24px;height:24px;object-fit:contain;'>" if _opp_logo else "<div style='width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.08);'></div>"}
+                      </div>
+                      <div style='font-size:.74rem;font-weight:900;color:#e2e8f0;white-space:nowrap;'>{_scoreline}</div>
+                    </div>
+                    """
+                st.markdown(f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:6px 0 12px 0;'>{_matchup_html}</div>", unsafe_allow_html=True)
+
             _fig = go.Figure()
             _bar_colors = [_brc_truth_color(_v) for _v in _bar["truth_margin"]]
 
             _fig.add_trace(go.Bar(
                 x=_bar["BarLabel"], y=_bar["truth_margin"],
                 marker_color=_bar_colors,
-                text=_bar["TEAM"].astype(str),
+                text=_bar["MatchupLabel"],
                 textposition="outside",
                 hovertemplate="<b>%{text}</b><br>Truth Margin: %{y:.2f}<br>%{x}<extra></extra>"
             ))
             _fig.add_hline(y=0, line_color="rgba(255,255,255,.35)", line_width=1)
             _fig.update_layout(
-                height=430, margin=dict(l=10,r=10,t=14,b=90),
+                height=460, margin=dict(l=10,r=10,t=14,b=100),
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                 font=dict(color='#e2e8f0'),
                 xaxis=dict(title="", tickangle=-35, gridcolor='rgba(255,255,255,.03)'),
