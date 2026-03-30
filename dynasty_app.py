@@ -15760,28 +15760,30 @@ with tabs[3]:
                 if not _live_speed_df.empty:
                     _sf_df = _sf_df.drop(columns=[
                         'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                        'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ], errors='ignore').merge(_live_speed_df, on='TEAM', how='left')
 
                     for _num_col in [
                         'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                        'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ]:
                         _sf_df[_num_col] = pd.to_numeric(_sf_df[_num_col], errors='coerce').fillna(0)
 
+                    _sf_df['Cheat Codes'] = pd.to_numeric(
+                        _sf_df.get('Cheat Codes', _sf_df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)),
+                        errors='coerce'
+                    ).fillna(0)
+
                     _sf_df['Team Speed Score'] = (
-                        _sf_df['Team Speed (90+ Speed Guys)'] * 2.2
-                        + _sf_df['Off Speed (90+ speed)'] * 1.0
-                        + _sf_df['Def Speed (90+ speed)'] * 1.0
-                        + _sf_df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 2.5
-                        + _sf_df['Monsters'] * 1.4
-                        + _sf_df['Quick Hogs'] * 1.2
-                    ) * (
-                        1
-                        + _sf_df['Generational (96+ speed or 96+ Acceleration)'] * 0.16
-                        + _sf_df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 0.07
+                        _sf_df['Cheat Codes'] * 12.0
+                        + _sf_df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
+                        + _sf_df['Monsters'] * 5.0
+                        + _sf_df['Quick Hogs'] * 3.0
+                        + _sf_df['Team Speed (90+ Speed Guys)'] * 1.5
                     )
                     _sf_df['Team Speed Score'] = _sf_df['Team Speed Score'].round(1)
 
