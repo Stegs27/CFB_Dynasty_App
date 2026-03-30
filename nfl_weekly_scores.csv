@@ -164,3 +164,17 @@ Season,Week,HomeTeam,AwayTeam,HomeScore,AwayScore,WinTeam,LoseTeam,Margin,HomeCo
 2042,11,Los Angeles Chargers,Houston Texans,44,35,Los Angeles Chargers,Houston Texans,9,AFC,AFC
 2042,11,Miami Dolphins,Buffalo Bills,53,23,Miami Dolphins,Buffalo Bills,30,AFC,AFC
 2042,11,Cleveland Browns,Detroit Lions,31,28,Cleveland Browns,Detroit Lions,3,AFC,NFC
+2042,12,New York Giants,Chicago Bears,34,29,New York Giants,Chicago Bears,5,NFC,NFC
+2042,12,Tennessee Titans,New York Jets,32,36,New York Jets,Tennessee Titans,4,AFC,AFC
+2042,12,Carolina Panthers,Green Bay Packers,35,26,Carolina Panthers,Green Bay Packers,9,NFC,NFC
+2042,12,New England Patriots,Baltimore Ravens,27,34,Baltimore Ravens,New England Patriots,7,AFC,AFC
+2042,12,Indianapolis Colts,Los Angeles Chargers,28,17,Indianapolis Colts,Los Angeles Chargers,11,AFC,AFC
+2042,12,Detroit Lions,Atlanta Falcons,33,31,Detroit Lions,Atlanta Falcons,2,NFC,NFC
+2042,12,Jacksonville Jaguars,Miami Dolphins,36,47,Miami Dolphins,Jacksonville Jaguars,11,AFC,AFC
+2042,12,Buffalo Bills,Denver Broncos,42,28,Buffalo Bills,Denver Broncos,14,AFC,AFC
+2042,12,Minnesota Vikings,Los Angeles Rams,35,34,Minnesota Vikings,Los Angeles Rams,1,NFC,NFC
+2042,12,Philadelphia Eagles,San Francisco 49ers,25,41,San Francisco 49ers,Philadelphia Eagles,16,NFC,NFC
+2042,12,Tampa Bay Buccaneers,Dallas Cowboys,38,32,Tampa Bay Buccaneers,Dallas Cowboys,6,NFC,NFC
+2042,12,Houston Texans,Cincinnati Bengals,31,37,Cincinnati Bengals,Houston Texans,6,AFC,AFC
+2042,12,Seattle Seahawks,Washington Commanders,46,36,Seattle Seahawks,Washington Commanders,10,NFC,NFC
+2042,12,Pittsburgh Steelers,Kansas City Chiefs,40,36,Pittsburgh Steelers,Kansas City Chiefs,4,AFC,AFC
