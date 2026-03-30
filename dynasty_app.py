@@ -15687,6 +15687,7 @@ with tabs[3]:
                 'TEAM SPEED Rank': 0,
                 'Team Speed (90+ Speed Guys)': 0,
                 'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
+                'Cheat Codes': 0,
                 'Generational (96+ speed or 96+ Acceleration)': 0,
                 'Off Speed (90+ speed)': 0,
                 'Def Speed (90+ speed)': 0,
@@ -15700,7 +15701,7 @@ with tabs[3]:
 
             for _num_col in [
                 'Team Speed Score', 'Speedometer', 'TEAM SPEED Rank',
-                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                 'Generational (96+ speed or 96+ Acceleration)',
                 'Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Monsters', 'Quick Hogs'
             ]:
@@ -15752,13 +15753,13 @@ with tabs[3]:
                 _live_speed_df = pd.DataFrame(_live_rows)
                 if not _live_speed_df.empty:
                     _sf_df = _sf_df.drop(columns=[
-                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ], errors='ignore').merge(_live_speed_df, on='TEAM', how='left')
 
                     for _num_col in [
-                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ]:
