@@ -18943,14 +18943,14 @@ with tabs[0]:
                     pass
             _fpi_color = '#4ade80' if _live_fpi_val > 0 else ('#f87171' if _live_fpi_val < 0 else '#94a3b8')
             if _live_fpi_val != 0.0:
-                _rk_disp = f" · #{_fpi_rank_n}" if _fpi_rank_n > 0 else ""
-                _pi_line = (f"<span style='font-size:0.8rem;color:#d1d5db;'>FPI: "
+                _rk_disp = f" &nbsp;<span style='color:#fbbf24;font-size:0.82rem;font-weight:800;'>#{_fpi_rank_n}</span>" if _fpi_rank_n > 0 else ""
+                _pi_line = (f"<span style='font-size:0.84rem;color:#d1d5db;'>FPI: "
                             f"<strong style='color:{_fpi_color};'>{_live_fpi_val:+.1f}</strong>"
-                            f"<span style='color:#64748b;font-size:0.7rem;'>{_rk_disp}</span>"
+                            f"{_rk_disp}"
                             f"</span><br>")
             else:
                 _pre_pi  = float(row.get('Preseason PI', row.get('Power Index', 0)))
-                _pi_line = f"<span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(_pre_pi,1)}</strong></span><br>"
+                _pi_line = f"<span style='font-size:0.84rem;color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(_pre_pi,1)}</strong></span><br>"
 
             # Render HTML Card
             # Game status strip for this user
@@ -19119,9 +19119,6 @@ with tabs[0]:
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
                 f"{_pi_line}"
-                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 MS+ Preseason</span> "
-                f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(6-team)</span><br>"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP <span style='color:#60a5fa;font-weight:700;'>{float(cfp_pct):.0f}%</span></span><br>"
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 Committee Live</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:#60a5fa;font-weight:700;'>{live_cfp:.0f}%</strong></span>"
@@ -19130,15 +19127,16 @@ with tabs[0]:
             )
             st.markdown(card_html, unsafe_allow_html=True)
 
-            # ── TEAM OVERVIEW JUMP BUTTON ─────────────────────────────────────
-            _btn_user_label = user.title() if user and str(user).lower() not in ('nan', '') else team
+            # ── NEXT SEASON OUTLOOK JUMP BUTTON ─────────────────────────────────
+            _next_outlook_year = int(CURRENT_YEAR) + 1
             if st.button(
-                f"🏛️ View {_btn_user_label}'s Coach Legacy →",
-                key=f"_goto_overview_{team}_{idx}",
+                f"🔮 {team}'s {_next_outlook_year} Outlook →",
+                key=f"_goto_outlook_{team}_{idx}",
                 use_container_width=False,
             ):
-                st.session_state["team_analysis_user"] = user
-                st.session_state["_jump_to_team_analysis"] = True
+                st.session_state["attrition_team_select"] = team
+                st.session_state["attrition_year_select"] = _next_outlook_year
+                st.session_state["_jump_to_attrition"] = True
                 st.rerun()
 
             st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
@@ -23361,6 +23359,17 @@ with tabs[4]:
 
         # --- RECRUITING RANKINGS ---
 with tabs[2]:
+    if st.session_state.pop("_jump_to_attrition", False):
+        components.html("""
+        <script>
+        setTimeout(function() {
+            try {
+                var tabs = window.parent.document.querySelectorAll('[data-baseweb=\"tab\"]');
+                if (tabs && tabs[2]) { tabs[2].click(); }
+            } catch(e) {}
+        }, 150);
+        </script>
+        """, height=0)
     _ods_tabs = st.tabs(["🚪 Roster Attrition", "🥇 Recruiting Rankings", "💯 The 100"])
 with _ods_tabs[1]:
     # ── Year selector ─────────────────────────────────────────────────────
