@@ -10067,15 +10067,21 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         )
 
     df['Power Index'] = df.apply(power_index, axis=1)
+    df['Cheat Codes'] = pd.to_numeric(df.get('Cheat Codes', df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)), errors='coerce').fillna(0)
     df['Team Speed Score'] = (
-        df['Team Speed (90+ Speed Guys)'] * 2.2
-        + df['Off Speed (90+ speed)'] * 1.0
-        + df['Def Speed (90+ speed)'] * 1.0
-        + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 2.5
-    ) * (1 + df['Generational (96+ speed or 96+ Acceleration)'] * 0.16
-           + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 0.07)
+        df['Cheat Codes'] * 12.0
+        + df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
+        + df['Monsters'] * 5.0
+        + df['Quick Hogs'] * 3.0
+        + df['Team Speed (90+ Speed Guys)'] * 1.5
+    )
     df['Team Speed Score'] = df['Team Speed Score'].round(1)
     df['Speedometer'] = df['Team Speed Score'].apply(team_speed_to_mph)
+    df = df.sort_values(
+        ['Team Speed Score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
+        ascending=[False, False, False, False, False, False, True]
+    ).reset_index(drop=True)
+    df['TEAM SPEED Rank'] = range(1, len(df) + 1)
 
     def where_is_the_speed(row):
         off_fast = row['Off Speed (90+ speed)'] > 5
@@ -14026,20 +14032,7 @@ if data:
                 model_2041[_sc] = pd.to_numeric(model_2041[_sc], errors='coerce').fillna(0)
 
             # Alias: Quad 90 guys are also called Cheat Codes
-            model_2041['Cheat Codes'] = pd.to_numeric(model_2041['Quad 90 (90+ SPD, ACC, AGI & COD)'], errors='coerce').fillna(0)
-            model_2041['Team Speed Score'] = (
-                model_2041['Cheat Codes'] * 12.0
-                + pd.to_numeric(model_2041['Generational (96+ speed or 96+ Acceleration)'], errors='coerce').fillna(0) * 8.0
-                + pd.to_numeric(model_2041['Monsters'], errors='coerce').fillna(0) * 5.0
-                + pd.to_numeric(model_2041['Quick Hogs'], errors='coerce').fillna(0) * 3.0
-                + pd.to_numeric(model_2041['Team Speed (90+ Speed Guys)'], errors='coerce').fillna(0) * 1.5
-            ).round(1)
-            model_2041['Speedometer'] = model_2041['Team Speed Score'].apply(team_speed_to_mph)
-            model_2041 = model_2041.sort_values(
-                ['Team Speed Score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
-                ascending=[False, False, False, False, False, False, True]
-            ).reset_index(drop=True)
-            model_2041['TEAM SPEED Rank'] = range(1, len(model_2041) + 1)
+            model_2041['Cheat Codes'] = model_2041['Quad 90 (90+ SPD, ACC, AGI & COD)']
     except Exception:
         pass
 
@@ -15694,6 +15687,7 @@ with tabs[3]:
                 'TEAM SPEED Rank': 0,
                 'Team Speed (90+ Speed Guys)': 0,
                 'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
+                'Cheat Codes': 0,
                 'Generational (96+ speed or 96+ Acceleration)': 0,
                 'Off Speed (90+ speed)': 0,
                 'Def Speed (90+ speed)': 0,
@@ -15707,7 +15701,7 @@ with tabs[3]:
 
             for _num_col in [
                 'Team Speed Score', 'Speedometer', 'TEAM SPEED Rank',
-                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                 'Generational (96+ speed or 96+ Acceleration)',
                 'Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Monsters', 'Quick Hogs'
             ]:
@@ -15759,24 +15753,17 @@ with tabs[3]:
                 _live_speed_df = pd.DataFrame(_live_rows)
                 if not _live_speed_df.empty:
                     _sf_df = _sf_df.drop(columns=[
-                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
-                        'Cheat Codes',
+                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ], errors='ignore').merge(_live_speed_df, on='TEAM', how='left')
 
                     for _num_col in [
-                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
-                        'Cheat Codes',
+                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ]:
                         _sf_df[_num_col] = pd.to_numeric(_sf_df[_num_col], errors='coerce').fillna(0)
-
-                    _sf_df['Cheat Codes'] = pd.to_numeric(
-                        _sf_df.get('Cheat Codes', _sf_df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)),
-                        errors='coerce'
-                    ).fillna(0)
 
                     _sf_df['Team Speed Score'] = (
                         _sf_df['Cheat Codes'] * 12.0
@@ -15810,8 +15797,8 @@ with tabs[3]:
             _sf_df['Where is the Speed?'] = _sf_df.apply(_where_is_the_speed, axis=1)
 
             _sf_df = _sf_df.sort_values(
-                ['Team Speed Score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
-                ascending=[False, False, False, False, False, False, True]
+                ['Team Speed Score', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Monsters', 'TEAM'],
+                ascending=[False, False, False, True]
             ).reset_index(drop=True)
             _sf_df['TEAM SPEED Rank'] = range(1, len(_sf_df) + 1)
 
@@ -16189,6 +16176,30 @@ with tabs[3]:
                 if df_in.empty:
                     st.caption("No data yet — push schedule data with results.")
                     return
+
+                st.markdown("""
+                <style>
+                .isp-power-table-wrap{overflow-x:auto;border:1px solid #1e293b;border-radius:8px;}
+                .isp-power-table{width:100%;border-collapse:collapse;background:#06090f;}
+                @media (max-width: 768px){
+                    .isp-power-table th{padding:4px 4px !important;font-size:0.50rem !important;letter-spacing:.08em !important;}
+                    .isp-power-table td{padding:4px 4px !important;}
+                    .isp-power-table .isp-power-rank{width:18px !important;font-size:0.55rem !important;}
+                    .isp-power-table .isp-power-team{font-size:0.68rem !important;}
+                    .isp-power-table .isp-power-logo{width:16px !important;height:16px !important;}
+                    .isp-power-table .isp-power-wl{font-size:0.68rem !important;}
+                    .isp-power-table .isp-power-fpi{font-size:0.78rem !important;}
+                    .isp-power-table .isp-power-sos,
+                    .isp-power-table .isp-power-sor,
+                    .isp-power-table .isp-power-stk,
+                    .isp-power-table .isp-power-qw,
+                    .isp-power-table .isp-power-cfp{font-size:0.62rem !important;}
+                    .isp-power-table .isp-power-chaos{font-size:0.72rem !important;}
+                    .isp-power-table .isp-power-ms{font-size:0.76rem !important;}
+                }
+                </style>
+                """, unsafe_allow_html=True)
+
                 _sc1, _sc2, _sc3 = st.columns([3,1,1])
                 with _sc1:
                     if caption_txt: st.caption(caption_txt)
@@ -16233,7 +16244,7 @@ with tabs[3]:
                         _tm=str(_r["Team"]); _is_u=_tm in _user_set
                         _uc=get_team_primary_color(_tm) if _is_u else "#0f172a"
                         _lg=get_school_logo_src(_tm)
-                        _lh=(f"<img src='{_lg}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _lg else "")
+                        _lh=(f"<img src='{_lg}' class='isp-power-logo' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _lg else "")
                         _ab=_abbrev(_tm)
                         _nw="font-weight:900;color:#f8fafc;" if _is_u else "font-weight:400;color:#64748b;"
                         _bg=(f"background:linear-gradient(90deg,{_uc}25 0%,#06090f 30%);" if _is_u else "background:#06090f;")
@@ -16256,21 +16267,21 @@ with tabs[3]:
                         _msc=""
                         if has_msp and "MSPlus" in _r:
                             _mv=float(_r.get("MSPlus",0)); _mc="#4ade80" if _mv>=70 else ("#fbbf24" if _mv>=55 else "#f87171")
-                            _msc=f"<td style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_mc};font-size:0.9rem;font-weight:700;'>{_mv:.1f}</td>"
+                            _msc=f"<td class='isp-power-ms' style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_mc};font-size:0.9rem;font-weight:700;'>{_mv:.1f}</td>"
                         rh+=(
                             f"<tr style='{_bg}{_bl}'>"
-                            f"<td style='padding:4px 5px;color:#1e293b;font-size:0.65rem;text-align:center;width:24px;'>{_rk}</td>"
+                            f"<td class='isp-power-rank' style='padding:4px 5px;color:#1e293b;font-size:0.65rem;text-align:center;width:24px;'>{_rk}</td>"
                             f"<td style='padding:4px 5px;white-space:nowrap;'>{_lh}"
-                            f"<span style='{_nw}font-size:0.8rem;font-family:Barlow Condensed,sans-serif;letter-spacing:.02em;'>{html.escape(_ab)}</span></td>"
+                            f"<span class='isp-power-team' style='{_nw}font-size:0.8rem;font-family:Barlow Condensed,sans-serif;letter-spacing:.02em;'>{html.escape(_ab)}</span></td>"
                             +(_msc if has_msp else "")
-                            +f"<td style='padding:4px 5px;text-align:center;color:{_wlc};font-weight:700;font-size:0.75rem;'>{_w}-{_l}</td>"
-                            f"<td style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:0.92rem;color:{_fc};'>{_fv:+.1f}</td>"
-                            f"<td style='padding:4px 5px;text-align:center;color:#334155;font-size:0.7rem;'>{_sv:+.1f}</td>"
-                            f"<td style='padding:4px 5px;text-align:center;color:{_orc};font-size:0.7rem;'>{_orv:+.3f}</td>"
-                            f"<td style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_chc};font-size:0.85rem;'>{_chv:+.0f}</td>"
-                            +_cfp_cell
-                            +f"<td style='padding:4px 5px;text-align:center;color:{_stkc};font-size:0.7rem;'>{_stk}</td>"
-                            f"<td style='padding:4px 5px;text-align:center;color:#3b82f6;font-size:0.68rem;'>"
+                            +f"<td class='isp-power-wl' style='padding:4px 5px;text-align:center;color:{_wlc};font-weight:700;font-size:0.75rem;'>{_w}-{_l}</td>"
+                            f"<td class='isp-power-fpi' style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:0.92rem;color:{_fc};'>{_fv:+.1f}</td>"
+                            f"<td class='isp-power-sos' style='padding:4px 5px;text-align:center;color:#334155;font-size:0.7rem;'>{_sv:+.1f}</td>"
+                            f"<td class='isp-power-sor' style='padding:4px 5px;text-align:center;color:{_orc};font-size:0.7rem;'>{_orv:+.3f}</td>"
+                            f"<td class='isp-power-chaos' style='padding:4px 5px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_chc};font-size:0.85rem;'>{_chv:+.0f}</td>"
+                            +_cfp_cell.replace('<td ', "<td class='isp-power-cfp' ", 1)
+                            +f"<td class='isp-power-stk' style='padding:4px 5px;text-align:center;color:{_stkc};font-size:0.7rem;'>{_stk}</td>"
+                            f"<td class='isp-power-qw' style='padding:4px 5px;text-align:center;color:#3b82f6;font-size:0.68rem;'>"
                             f"{(str(_qw) if _qw else chr(8212))+(' '+_bw if _bw else '')}</td>"
                             f"</tr>"
                         )
@@ -16288,21 +16299,21 @@ with tabs[3]:
                     f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>SOR</th>"
                     f"<th style='padding:5px 6px;color:#f97316;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Chaos</th>"
                     f"<th style='padding:5px 6px;color:#fbbf24;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>CFP</th>"
-                    f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Streak</th>"
+                    f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>STK</th>"
                     f"<th style='padding:5px 6px;color:#475569;font-size:0.58rem;letter-spacing:.1em;text-transform:uppercase;text-align:center;'>Q-Wins</th>"
                     f"</tr>"
                 )
                 top50 = _d.head(50); rest = _d.iloc[50:]
                 st.markdown(
-                    f"<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:8px;'>"
-                    f"<table style='width:100%;border-collapse:collapse;background:#06090f;'>"
+                    f"<div class='isp-power-table-wrap'>"
+                    f"<table class='isp-power-table' style='width:100%;border-collapse:collapse;background:#06090f;'>"
                     f"<thead>{_thead}</thead><tbody>{_rows_html(top50)}</tbody></table></div>",
                     unsafe_allow_html=True
                 )
                 if len(rest) > 0 and not _uo:
                     with st.expander(f"Show {len(rest)} more teams"):
                         st.markdown(
-                            f"<table style='width:100%;border-collapse:collapse;background:#06090f;'>"
+                            f"<table class='isp-power-table' style='width:100%;border-collapse:collapse;background:#06090f;'>"
                             f"<tbody>{_rows_html(rest)}</tbody></table>",
                             unsafe_allow_html=True
                         )
@@ -18797,110 +18808,6 @@ with tabs[0]:
             )
 
         # 5. Render the Cards
-        # Keep Dynasty News Speed Freaks rank aligned with the live Speed Freaks tab.
-        _dynasty_speed_rank_map = {}
-        try:
-            _news_sf_df = model_2041.copy() if 'model_2041' in globals() else pd.DataFrame()
-            if _news_sf_df is not None and not _news_sf_df.empty:
-                _news_sf_df = _news_sf_df.copy()
-
-                _sf_required_defaults = {
-                    'TEAM': '',
-                    'Team Speed Score': 0,
-                    'Team Speed (90+ Speed Guys)': 0,
-                    'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
-                    'Cheat Codes': 0,
-                    'Generational (96+ speed or 96+ Acceleration)': 0,
-                    'Monsters': 0,
-                    'Quick Hogs': 0,
-                    'Off Speed (90+ speed)': 0,
-                    'Def Speed (90+ speed)': 0,
-                }
-                for _col, _default in _sf_required_defaults.items():
-                    if _col not in _news_sf_df.columns:
-                        _news_sf_df[_col] = _default
-
-                for _num_col in [
-                    'Team Speed Score', 'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
-                    'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
-                    'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
-                ]:
-                    _news_sf_df[_num_col] = pd.to_numeric(_news_sf_df[_num_col], errors='coerce').fillna(0)
-
-                try:
-                    _news_sf_roster = pd.read_csv('cfb26_rosters_full.csv')
-                    if 'Season' in _news_sf_roster.columns:
-                        _news_sf_roster['Season'] = pd.to_numeric(_news_sf_roster['Season'], errors='coerce')
-                        _news_avail = _news_sf_roster['Season'].dropna().unique()
-                        _news_tgt = CURRENT_YEAR if CURRENT_YEAR in _news_avail else (int(max(_news_avail)) if len(_news_avail) else CURRENT_YEAR)
-                        _news_sf_roster = _news_sf_roster[_news_sf_roster['Season'] == _news_tgt].copy()
-
-                    for _c in ['SPD', 'ACC', 'AGI', 'COD', 'STR']:
-                        _news_sf_roster[_c] = pd.to_numeric(_news_sf_roster.get(_c), errors='coerce')
-                    _news_sf_roster['PosNorm'] = _news_sf_roster.get('Pos', '').astype(str).str.upper().str.strip()
-
-                    _news_front7 = {'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL'}
-                    _news_ol = {'LT', 'LG', 'C', 'RG', 'RT'}
-                    _news_live_rows = []
-                    for _t in _news_sf_df['TEAM'].dropna().astype(str).unique():
-                        _tdf = _news_sf_roster[_news_sf_roster['Team'].astype(str) == _t].copy()
-                        _s90 = int((_tdf['SPD'] >= 90).sum())
-                        _gen = int(((_tdf['SPD'] >= 96) | (_tdf['ACC'] >= 96)).sum())
-                        _quad = int(((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 90) & (_tdf['AGI'] >= 90) & (_tdf['COD'] >= 90)).sum())
-                        _mon = int(((_tdf['PosNorm'].isin(_news_front7)) & (((_tdf['ACC'] >= 90) & (_tdf['SPD'] >= 84)) | ((_tdf['SPD'] >= 90) & (_tdf['ACC'] >= 84)))).sum())
-                        _qh = int(((_tdf['PosNorm'].isin(_news_ol)) & (_tdf['AGI'] >= 85) & (_tdf['STR'] >= 90)).sum())
-                        _off = int(((_tdf['SPD'] >= 90) & (_tdf['PosNorm'].isin({'QB', 'HB', 'RB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT'}))).sum())
-                        _def = int(((_tdf['SPD'] >= 90) & (_tdf['PosNorm'].isin({'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'S'}))).sum())
-                        _news_live_rows.append({
-                            'TEAM': _t,
-                            'Team Speed (90+ Speed Guys)': _s90,
-                            'Quad 90 (90+ SPD, ACC, AGI & COD)': _quad,
-                            'Cheat Codes': _quad,
-                            'Generational (96+ speed or 96+ Acceleration)': _gen,
-                            'Monsters': _mon,
-                            'Quick Hogs': _qh,
-                            'Off Speed (90+ speed)': _off,
-                            'Def Speed (90+ speed)': _def,
-                        })
-
-                    _news_live_speed_df = pd.DataFrame(_news_live_rows)
-                    if not _news_live_speed_df.empty:
-                        _news_sf_df = _news_sf_df.drop(columns=[
-                            'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
-                            'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
-                            'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
-                        ], errors='ignore').merge(_news_live_speed_df, on='TEAM', how='left')
-
-                        for _num_col in [
-                            'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
-                            'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
-                            'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
-                        ]:
-                            _news_sf_df[_num_col] = pd.to_numeric(_news_sf_df[_num_col], errors='coerce').fillna(0)
-
-                    _news_sf_df['Cheat Codes'] = pd.to_numeric(
-                        _news_sf_df.get('Cheat Codes', _news_sf_df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)),
-                        errors='coerce'
-                    ).fillna(0)
-
-                    _news_sf_df['Team Speed Score'] = (
-                        _news_sf_df['Cheat Codes'] * 12.0
-                        + _news_sf_df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
-                        + _news_sf_df['Monsters'] * 5.0
-                        + _news_sf_df['Quick Hogs'] * 3.0
-                        + _news_sf_df['Team Speed (90+ Speed Guys)'] * 1.5
-                    ).round(1)
-                except Exception:
-                    pass
-
-                _news_sf_df = _news_sf_df.sort_values(
-                    ['Team Speed Score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
-                    ascending=[False, False, False, False, False, False, True]
-                ).reset_index(drop=True)
-                _news_sf_df['TEAM SPEED Rank'] = range(1, len(_news_sf_df) + 1)
-                _dynasty_speed_rank_map = dict(zip(_news_sf_df['TEAM'].astype(str), _news_sf_df['TEAM SPEED Rank']))
-        except Exception:
-            _dynasty_speed_rank_map = {}
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
             user = str(row.get('USER', ''))
@@ -18984,9 +18891,60 @@ with tabs[0]:
             tc = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
 
-            _speed_rank_n = int(_dynasty_speed_rank_map.get(_team_str, 0) or 0)
-            _speed_chip_color = '#ef4444' if _speed_rank_n == 1 else ('#f97316' if _speed_rank_n <= 3 else ('#fbbf24' if _speed_rank_n <= 5 else '#8b5cf6'))
-            _speed_chip_label = f"Speed Freaks: #{_speed_rank_n}" if _speed_rank_n > 0 else 'Speed Freaks: —'
+            _speed_rank_n = 0
+            try:
+                _speed_rank_n = int(pd.to_numeric(row.get('TEAM SPEED Rank', 0), errors='coerce') or 0)
+            except Exception:
+                _speed_rank_n = 0
+
+            if _speed_rank_n <= 0 and 'model_2041' in globals() and model_2041 is not None and not model_2041.empty:
+                try:
+                    _speed_lookup_df = model_2041.copy()
+                    for _col, _default in {
+                        'TEAM': '',
+                        'Cheat Codes': 0,
+                        'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
+                        'Generational (96+ speed or 96+ Acceleration)': 0,
+                        'Monsters': 0,
+                        'Quick Hogs': 0,
+                        'Team Speed (90+ Speed Guys)': 0,
+                    }.items():
+                        if _col not in _speed_lookup_df.columns:
+                            _speed_lookup_df[_col] = _default
+
+                    _speed_lookup_df['Cheat Codes'] = pd.to_numeric(_speed_lookup_df.get('Cheat Codes', _speed_lookup_df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)), errors='coerce').fillna(0)
+                    for _sc in ['Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)']:
+                        _speed_lookup_df[_sc] = pd.to_numeric(_speed_lookup_df[_sc], errors='coerce').fillna(0)
+
+                    _speed_lookup_df['__sf_score'] = (
+                        _speed_lookup_df['Cheat Codes'] * 12.0
+                        + _speed_lookup_df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
+                        + _speed_lookup_df['Monsters'] * 5.0
+                        + _speed_lookup_df['Quick Hogs'] * 3.0
+                        + _speed_lookup_df['Team Speed (90+ Speed Guys)'] * 1.5
+                    )
+                    _speed_lookup_df = _speed_lookup_df.sort_values(
+                        ['__sf_score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
+                        ascending=[False, False, False, False, False, False, True]
+                    ).reset_index(drop=True)
+                    _speed_lookup_df['TEAM SPEED Rank'] = range(1, len(_speed_lookup_df) + 1)
+                    _speed_match = _speed_lookup_df[_speed_lookup_df['TEAM'].astype(str) == _team_str]
+                    if not _speed_match.empty:
+                        _speed_rank_n = int(_speed_match.iloc[0]['TEAM SPEED Rank'])
+                except Exception:
+                    pass
+
+            if _speed_rank_n > 0:
+                if _speed_rank_n <= 3:
+                    _speed_chip_color = '#fbbf24'
+                elif _speed_rank_n <= 10:
+                    _speed_chip_color = '#60a5fa'
+                elif _speed_rank_n <= 25:
+                    _speed_chip_color = '#34d399'
+                else:
+                    _speed_chip_color = '#94a3b8'
+            else:
+                _speed_chip_color = '#6b7280'
 
             # ── CFP rank circle (replaces medal emoji) ────────────────────
             if curr_rank != "UR":
@@ -19039,14 +18997,14 @@ with tabs[0]:
                     pass
             _fpi_color = '#4ade80' if _live_fpi_val > 0 else ('#f87171' if _live_fpi_val < 0 else '#94a3b8')
             if _live_fpi_val != 0.0:
-                _rk_disp = f" · #{_fpi_rank_n}" if _fpi_rank_n > 0 else ""
-                _pi_line = (f"<span style='font-size:0.8rem;color:#d1d5db;'>FPI: "
+                _rk_disp = f" <span style='color:#fbbf24;font-size:0.84rem;font-weight:800;'>| #{_fpi_rank_n}</span>" if _fpi_rank_n > 0 else ""
+                _pi_line = (f"<span style='font-size:0.84rem;color:#d1d5db;'>FPI: "
                             f"<strong style='color:{_fpi_color};'>{_live_fpi_val:+.1f}</strong>"
-                            f"<span style='color:#64748b;font-size:0.7rem;'>{_rk_disp}</span>"
+                            f"{_rk_disp}"
                             f"</span><br>")
             else:
                 _pre_pi  = float(row.get('Preseason PI', row.get('Power Index', 0)))
-                _pi_line = f"<span style='font-size:0.8rem;color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(_pre_pi,1)}</strong></span><br>"
+                _pi_line = f"<span style='font-size:0.84rem;color:#d1d5db;'>Pre-PI: <strong style='color:white;'>{round(_pre_pi,1)}</strong></span><br>"
 
             # Render HTML Card
             # Game status strip for this user
@@ -19215,26 +19173,24 @@ with tabs[0]:
                 f"</div>"
                 f"<div style='text-align:right; {bw_style}'>"
                 f"{_pi_line}"
-                f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600;'>📋 MS+ Preseason</span> "
-                f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(6-team)</span><br>"
-                f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 {_pct_to_pre_odds(natty)} &nbsp; CFP <span style='color:#60a5fa;font-weight:700;'>{float(cfp_pct):.0f}%</span></span><br>"
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 Committee Live</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:#60a5fa;font-weight:700;'>{live_cfp:.0f}%</strong></span>"
-                f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{_speed_chip_color}33;color:{_speed_chip_color};border:1px solid {_speed_chip_color};'>{html.escape(_speed_chip_label)}</span></div>"
+                f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{_speed_chip_color}33;color:{_speed_chip_color};border:1px solid {_speed_chip_color};'>Speed Freaks: #{_speed_rank_n}</span></div>"
                 f"</div></div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
 
-            # ── TEAM OVERVIEW JUMP BUTTON ─────────────────────────────────────
-            _btn_user_label = user.title() if user and str(user).lower() not in ('nan', '') else team
+            # ── NEXT SEASON OUTLOOK JUMP BUTTON ─────────────────────────────────
+            _next_outlook_year = int(CURRENT_YEAR) + 1
             if st.button(
-                f"🏛️ View {_btn_user_label}'s Coach Legacy →",
-                key=f"_goto_overview_{team}_{idx}",
+                f"🔮 {team}'s {_next_outlook_year} Outlook →",
+                key=f"_goto_outlook_{team}_{idx}",
                 use_container_width=False,
             ):
-                st.session_state["team_analysis_user"] = user
-                st.session_state["_jump_to_team_analysis"] = True
+                st.session_state["attrition_team_select"] = team
+                st.session_state["attrition_year_select"] = _next_outlook_year
+                st.session_state["_jump_to_attrition"] = True
                 st.rerun()
 
             st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
@@ -23457,6 +23413,17 @@ with tabs[4]:
 
         # --- RECRUITING RANKINGS ---
 with tabs[2]:
+    if st.session_state.pop("_jump_to_attrition", False):
+        components.html("""
+        <script>
+        setTimeout(function() {
+            try {
+                var tabs = window.parent.document.querySelectorAll('[data-baseweb=\"tab\"]');
+                if (tabs && tabs[2]) { tabs[2].click(); }
+            } catch(e) {}
+        }, 150);
+        </script>
+        """, height=0)
     _ods_tabs = st.tabs(["🚪 Roster Attrition", "🥇 Recruiting Rankings", "💯 The 100"])
 with _ods_tabs[1]:
     # ── Year selector ─────────────────────────────────────────────────────
