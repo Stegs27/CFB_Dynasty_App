@@ -10067,15 +10067,21 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         )
 
     df['Power Index'] = df.apply(power_index, axis=1)
+    df['Cheat Codes'] = pd.to_numeric(df.get('Cheat Codes', df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)), errors='coerce').fillna(0)
     df['Team Speed Score'] = (
-        df['Team Speed (90+ Speed Guys)'] * 2.2
-        + df['Off Speed (90+ speed)'] * 1.0
-        + df['Def Speed (90+ speed)'] * 1.0
-        + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 2.5
-    ) * (1 + df['Generational (96+ speed or 96+ Acceleration)'] * 0.16
-           + df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 0.07)
+        df['Cheat Codes'] * 12.0
+        + df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
+        + df['Monsters'] * 5.0
+        + df['Quick Hogs'] * 3.0
+        + df['Team Speed (90+ Speed Guys)'] * 1.5
+    )
     df['Team Speed Score'] = df['Team Speed Score'].round(1)
     df['Speedometer'] = df['Team Speed Score'].apply(team_speed_to_mph)
+    df = df.sort_values(
+        ['Team Speed Score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
+        ascending=[False, False, False, False, False, False, True]
+    ).reset_index(drop=True)
+    df['TEAM SPEED Rank'] = range(1, len(df) + 1)
 
     def where_is_the_speed(row):
         off_fast = row['Off Speed (90+ speed)'] > 5
@@ -15681,6 +15687,7 @@ with tabs[3]:
                 'TEAM SPEED Rank': 0,
                 'Team Speed (90+ Speed Guys)': 0,
                 'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
+                'Cheat Codes': 0,
                 'Generational (96+ speed or 96+ Acceleration)': 0,
                 'Off Speed (90+ speed)': 0,
                 'Def Speed (90+ speed)': 0,
@@ -15694,7 +15701,7 @@ with tabs[3]:
 
             for _num_col in [
                 'Team Speed Score', 'Speedometer', 'TEAM SPEED Rank',
-                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                 'Generational (96+ speed or 96+ Acceleration)',
                 'Off Speed (90+ speed)', 'Def Speed (90+ speed)', 'Monsters', 'Quick Hogs'
             ]:
@@ -15746,29 +15753,24 @@ with tabs[3]:
                 _live_speed_df = pd.DataFrame(_live_rows)
                 if not _live_speed_df.empty:
                     _sf_df = _sf_df.drop(columns=[
-                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ], errors='ignore').merge(_live_speed_df, on='TEAM', how='left')
 
                     for _num_col in [
-                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
+                        'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
                         'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)'
                     ]:
                         _sf_df[_num_col] = pd.to_numeric(_sf_df[_num_col], errors='coerce').fillna(0)
 
                     _sf_df['Team Speed Score'] = (
-                        _sf_df['Team Speed (90+ Speed Guys)'] * 2.2
-                        + _sf_df['Off Speed (90+ speed)'] * 1.0
-                        + _sf_df['Def Speed (90+ speed)'] * 1.0
-                        + _sf_df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 2.5
-                        + _sf_df['Monsters'] * 1.4
-                        + _sf_df['Quick Hogs'] * 1.2
-                    ) * (
-                        1
-                        + _sf_df['Generational (96+ speed or 96+ Acceleration)'] * 0.16
-                        + _sf_df['Quad 90 (90+ SPD, ACC, AGI & COD)'] * 0.07
+                        _sf_df['Cheat Codes'] * 12.0
+                        + _sf_df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
+                        + _sf_df['Monsters'] * 5.0
+                        + _sf_df['Quick Hogs'] * 3.0
+                        + _sf_df['Team Speed (90+ Speed Guys)'] * 1.5
                     )
                     _sf_df['Team Speed Score'] = _sf_df['Team Speed Score'].round(1)
 
@@ -18889,8 +18891,60 @@ with tabs[0]:
             tc = get_team_primary_color(team)
             logo_uri = image_file_to_data_uri(get_logo_source(team))
 
-            qb_tier = row.get('QB Tier', '—')
-            qb_chip_color = {"Elite": "#22c55e", "Leader": "#3b82f6", "Average Joe": "#f59e0b", "Ass": "#ef4444"}.get(qb_tier, "#6b7280")
+            _speed_rank_n = 0
+            try:
+                _speed_rank_n = int(pd.to_numeric(row.get('TEAM SPEED Rank', 0), errors='coerce') or 0)
+            except Exception:
+                _speed_rank_n = 0
+
+            if _speed_rank_n <= 0 and 'model_2041' in globals() and model_2041 is not None and not model_2041.empty:
+                try:
+                    _speed_lookup_df = model_2041.copy()
+                    for _col, _default in {
+                        'TEAM': '',
+                        'Cheat Codes': 0,
+                        'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
+                        'Generational (96+ speed or 96+ Acceleration)': 0,
+                        'Monsters': 0,
+                        'Quick Hogs': 0,
+                        'Team Speed (90+ Speed Guys)': 0,
+                    }.items():
+                        if _col not in _speed_lookup_df.columns:
+                            _speed_lookup_df[_col] = _default
+
+                    _speed_lookup_df['Cheat Codes'] = pd.to_numeric(_speed_lookup_df.get('Cheat Codes', _speed_lookup_df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)), errors='coerce').fillna(0)
+                    for _sc in ['Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)']:
+                        _speed_lookup_df[_sc] = pd.to_numeric(_speed_lookup_df[_sc], errors='coerce').fillna(0)
+
+                    _speed_lookup_df['__sf_score'] = (
+                        _speed_lookup_df['Cheat Codes'] * 12.0
+                        + _speed_lookup_df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
+                        + _speed_lookup_df['Monsters'] * 5.0
+                        + _speed_lookup_df['Quick Hogs'] * 3.0
+                        + _speed_lookup_df['Team Speed (90+ Speed Guys)'] * 1.5
+                    )
+                    _speed_lookup_df = _speed_lookup_df.sort_values(
+                        ['__sf_score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
+                        ascending=[False, False, False, False, False, False, True]
+                    ).reset_index(drop=True)
+                    _speed_lookup_df['TEAM SPEED Rank'] = range(1, len(_speed_lookup_df) + 1)
+                    _speed_match = _speed_lookup_df[_speed_lookup_df['TEAM'].astype(str) == _team_str]
+                    if not _speed_match.empty:
+                        _speed_rank_n = int(_speed_match.iloc[0]['TEAM SPEED Rank'])
+                except Exception:
+                    pass
+
+            if _speed_rank_n > 0:
+                if _speed_rank_n <= 3:
+                    _speed_chip_color = '#fbbf24'
+                elif _speed_rank_n <= 10:
+                    _speed_chip_color = '#60a5fa'
+                elif _speed_rank_n <= 25:
+                    _speed_chip_color = '#34d399'
+                else:
+                    _speed_chip_color = '#94a3b8'
+            else:
+                _speed_chip_color = '#6b7280'
 
             # ── CFP rank circle (replaces medal emoji) ────────────────────
             if curr_rank != "UR":
@@ -18943,7 +18997,7 @@ with tabs[0]:
                     pass
             _fpi_color = '#4ade80' if _live_fpi_val > 0 else ('#f87171' if _live_fpi_val < 0 else '#94a3b8')
             if _live_fpi_val != 0.0:
-                _rk_disp = f" &nbsp;<span style='color:#fbbf24;font-size:0.82rem;font-weight:800;'>#{_fpi_rank_n}</span>" if _fpi_rank_n > 0 else ""
+                _rk_disp = f" <span style='color:#fbbf24;font-size:0.84rem;font-weight:800;'>| #{_fpi_rank_n}</span>" if _fpi_rank_n > 0 else ""
                 _pi_line = (f"<span style='font-size:0.84rem;color:#d1d5db;'>FPI: "
                             f"<strong style='color:{_fpi_color};'>{_live_fpi_val:+.1f}</strong>"
                             f"{_rk_disp}"
@@ -19122,7 +19176,7 @@ with tabs[0]:
                 f"<span style='font-size:0.72rem; color:#94a3b8; font-weight:600; margin-top:4px; display:inline-block;'>📡 Committee Live</span> "
                 f"<span style='font-size:0.62rem; color:#475569; font-style:italic;'>(136-team)</span><br>"
                 f"<span style='font-size:0.8rem; color:#d1d5db;'>🏆 <strong style='color:{_nat_natty_color};'>{_nat_natty_odds}</strong> Natty &nbsp; CFP <strong style='color:#60a5fa;font-weight:700;'>{live_cfp:.0f}%</strong></span>"
-                f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{qb_chip_color}33;color:{qb_chip_color};border:1px solid {qb_chip_color};'>QB: {html.escape(str(qb_tier))}</span></div>"
+                f"<div style='margin-top:4px;'><span style='display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:{_speed_chip_color}33;color:{_speed_chip_color};border:1px solid {_speed_chip_color};'>Speed Freaks: #{_speed_rank_n}</span></div>"
                 f"</div></div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
