@@ -18893,15 +18893,11 @@ with tabs[0]:
 
             _speed_rank_n = 0
             try:
-                _speed_rank_n = int(pd.to_numeric(row.get('TEAM SPEED Rank', 0), errors='coerce') or 0)
-            except Exception:
-                _speed_rank_n = 0
-
-            if _speed_rank_n <= 0 and 'model_2041' in globals() and model_2041 is not None and not model_2041.empty:
-                try:
+                if 'model_2041' in globals() and model_2041 is not None and not model_2041.empty:
                     _speed_lookup_df = model_2041.copy()
                     for _col, _default in {
                         'TEAM': '',
+                        'Team Speed Score': 0,
                         'Cheat Codes': 0,
                         'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
                         'Generational (96+ speed or 96+ Acceleration)': 0,
@@ -18912,39 +18908,84 @@ with tabs[0]:
                         if _col not in _speed_lookup_df.columns:
                             _speed_lookup_df[_col] = _default
 
+                    try:
+                        _speed_roster = pd.read_csv('cfb26_rosters_full.csv')
+                        if 'Season' in _speed_roster.columns:
+                            _speed_roster['Season'] = pd.to_numeric(_speed_roster['Season'], errors='coerce')
+                            _speed_avail = _speed_roster['Season'].dropna().unique()
+                            _speed_tgt = CURRENT_YEAR if CURRENT_YEAR in _speed_avail else (int(max(_speed_avail)) if len(_speed_avail) else CURRENT_YEAR)
+                            _speed_roster = _speed_roster[_speed_roster['Season'] == _speed_tgt].copy()
+                        _speed_roster['SPD'] = pd.to_numeric(_speed_roster.get('SPD'), errors='coerce')
+                        _speed_roster['ACC'] = pd.to_numeric(_speed_roster.get('ACC'), errors='coerce')
+                        _speed_roster['AGI'] = pd.to_numeric(_speed_roster.get('AGI'), errors='coerce')
+                        _speed_roster['COD'] = pd.to_numeric(_speed_roster.get('COD'), errors='coerce')
+                        _speed_roster['STR'] = pd.to_numeric(_speed_roster.get('STR'), errors='coerce')
+                        _speed_roster['PosNorm'] = _speed_roster.get('Pos', '').astype(str).str.upper().str.strip()
+
+                        _speed_front7 = {'DT', 'LEDG', 'REDG', 'SAM', 'MIKE', 'WILL'}
+                        _speed_ol = {'LT', 'LG', 'C', 'RG', 'RT'}
+                        _speed_live_rows = []
+                        for _speed_team in _speed_lookup_df['TEAM'].dropna().astype(str).unique():
+                            _team_roster = _speed_roster[_speed_roster['Team'].astype(str) == _speed_team].copy()
+                            _speed_s90 = int((_team_roster['SPD'] >= 90).sum())
+                            _speed_quad = int(((_team_roster['SPD'] >= 90) & (_team_roster['ACC'] >= 90) & (_team_roster['AGI'] >= 90) & (_team_roster['COD'] >= 90)).sum())
+                            _speed_gen = int(((_team_roster['SPD'] >= 96) | (_team_roster['ACC'] >= 96)).sum())
+                            _speed_mon = int(((_team_roster['PosNorm'].isin(_speed_front7)) & (((_team_roster['ACC'] >= 90) & (_team_roster['SPD'] >= 84)) | ((_team_roster['SPD'] >= 90) & (_team_roster['ACC'] >= 84)))).sum())
+                            _speed_qh = int(((_team_roster['PosNorm'].isin(_speed_ol)) & (_team_roster['AGI'] >= 85) & (_team_roster['STR'] >= 90)).sum())
+                            _speed_live_rows.append({
+                                'TEAM': _speed_team,
+                                'Team Speed (90+ Speed Guys)': _speed_s90,
+                                'Quad 90 (90+ SPD, ACC, AGI & COD)': _speed_quad,
+                                'Cheat Codes': _speed_quad,
+                                'Generational (96+ speed or 96+ Acceleration)': _speed_gen,
+                                'Monsters': _speed_mon,
+                                'Quick Hogs': _speed_qh,
+                            })
+
+                        _speed_live_df = pd.DataFrame(_speed_live_rows)
+                        if not _speed_live_df.empty:
+                            _speed_lookup_df = _speed_lookup_df.drop(columns=[
+                                'Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Cheat Codes',
+                                'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs'
+                            ], errors='ignore').merge(_speed_live_df, on='TEAM', how='left')
+                    except Exception:
+                        pass
+
                     _speed_lookup_df['Cheat Codes'] = pd.to_numeric(_speed_lookup_df.get('Cheat Codes', _speed_lookup_df.get('Quad 90 (90+ SPD, ACC, AGI & COD)', 0)), errors='coerce').fillna(0)
                     for _sc in ['Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)']:
                         _speed_lookup_df[_sc] = pd.to_numeric(_speed_lookup_df[_sc], errors='coerce').fillna(0)
 
-                    _speed_lookup_df['__sf_score'] = (
+                    _speed_lookup_df['Team Speed Score'] = (
                         _speed_lookup_df['Cheat Codes'] * 12.0
                         + _speed_lookup_df['Generational (96+ speed or 96+ Acceleration)'] * 8.0
                         + _speed_lookup_df['Monsters'] * 5.0
                         + _speed_lookup_df['Quick Hogs'] * 3.0
                         + _speed_lookup_df['Team Speed (90+ Speed Guys)'] * 1.5
-                    )
+                    ).round(1)
+
                     _speed_lookup_df = _speed_lookup_df.sort_values(
-                        ['__sf_score', 'Cheat Codes', 'Generational (96+ speed or 96+ Acceleration)', 'Monsters', 'Quick Hogs', 'Team Speed (90+ Speed Guys)', 'TEAM'],
-                        ascending=[False, False, False, False, False, False, True]
+                        ['Team Speed Score', 'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Monsters', 'TEAM'],
+                        ascending=[False, False, False, True]
                     ).reset_index(drop=True)
+
+                    _user_speed_teams = list(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else []
+                    _speed_lookup_df = _speed_lookup_df[_speed_lookup_df['TEAM'].astype(str).isin(_user_speed_teams)].reset_index(drop=True)
                     _speed_lookup_df['TEAM SPEED Rank'] = range(1, len(_speed_lookup_df) + 1)
                     _speed_match = _speed_lookup_df[_speed_lookup_df['TEAM'].astype(str) == _team_str]
                     if not _speed_match.empty:
                         _speed_rank_n = int(_speed_match.iloc[0]['TEAM SPEED Rank'])
-                except Exception:
-                    pass
+            except Exception:
+                _speed_rank_n = 0
 
-            if _speed_rank_n > 0:
-                if _speed_rank_n <= 3:
-                    _speed_chip_color = '#fbbf24'
-                elif _speed_rank_n <= 10:
-                    _speed_chip_color = '#60a5fa'
-                elif _speed_rank_n <= 25:
-                    _speed_chip_color = '#34d399'
-                else:
-                    _speed_chip_color = '#94a3b8'
-            else:
-                _speed_chip_color = '#6b7280'
+            _speed_rank_palette = {
+                1: '#22c55e',
+                2: '#65a30d',
+                3: '#eab308',
+                4: '#f59e0b',
+                5: '#f97316',
+                6: '#dc2626',
+            }
+            _speed_chip_color = _speed_rank_palette.get(_speed_rank_n, '#6b7280')
 
             # ── CFP rank circle (replaces medal emoji) ────────────────────
             if curr_rank != "UR":
