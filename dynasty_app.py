@@ -17365,14 +17365,21 @@ with tabs[3]:
             .game-card{background:linear-gradient(90deg,var(--cardacc)16 0%,#0a1628 28%);border-left:4px solid var(--cardacc);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
             .pill{display:inline-block;font-size:.72rem;font-weight:900;padding:2px 8px;border-radius:999px;margin:3px 6px 0 0;}
             @media (max-width: 900px){
+              .metric-wrap{padding:14px 8px 12px 8px;overflow:hidden;}
               .metric-title{font-size:1.6rem;}
               .metric-sub{font-size:.92rem;}
-              .leader-card{padding:14px 14px;gap:10px;align-items:flex-start;}
-              .leader-left{align-items:flex-start;}
-              .leader-team{font-size:1.08rem;}
-              .leader-right{min-width:84px;}
-              .leader-score{font-size:1.35rem;}
-              .leader-mini{font-size:.68rem;}
+              .leader-card{padding:12px 12px 12px 14px;gap:10px;align-items:flex-start;flex-wrap:wrap;}
+              .leader-left{align-items:flex-start;width:100%;min-width:0;}
+              .leader-rank{width:28px;font-size:1rem;}
+              .leader-logo{width:34px;height:34px;}
+              .leader-team{font-size:1.02rem;line-height:1.1;word-break:break-word;}
+              .leader-meta,.leader-sig,.leader-mini{font-size:.72rem;line-height:1.35;word-break:break-word;}
+              .leader-right{width:100%;min-width:0;text-align:left;padding-left:74px;margin-top:2px;}
+              .leader-badge{font-size:.72rem;}
+              .leader-score{font-size:1.25rem;}
+              .game-card{padding:11px 12px;}
+              .mini-card{padding:10px 12px;}
+              .mini-val{font-size:1.15rem;}
             }
             </style>
             """, unsafe_allow_html=True)
@@ -17588,7 +17595,7 @@ with tabs[3]:
             st.markdown("""
             <div class='panel-note'>
               <b>Explosive Index legend:</b><br>
-              <b>Color guide:</b> <span style='color:#22c55e;font-weight:900;'>green</span> = strong / dangerous, <span style='color:#facc15;font-weight:900;'>yellow</span> = mixed or middle-of-the-road, <span style='color:#ef4444;font-weight:900;'>red</span> = weak / vulnerable.<br>
+              <b>Color guide actually used here:</b> <span style='color:#f97316;font-weight:900;'>orange</span>/<span style='color:#fb923c;font-weight:900;'>amber</span> = explosive offense pressure, <span style='color:#facc15;font-weight:900;'>yellow</span> = mixed band, <span style='color:#38bdf8;font-weight:900;'>blue</span> = balanced / middling zone, <span style='color:#22c55e;font-weight:900;'>green</span> = strong defensive suppression, <span style='color:#ef4444;font-weight:900;'>red</span> = defensive vulnerability / chunk damage allowed.<br>
               <b>Detonation Machine / Missile Battery / Strike Force</b> = the offense creates chunk damage fast.<br>
               <b>Capable / Methodical</b> = the offense can move it, but not always with knockout shots.<br>
               <b>Sparkless</b> = not enough explosive juice.<br>
@@ -17881,7 +17888,7 @@ with tabs[3]:
             st.markdown("""
             <div class='panel-note'>
               <b>Did The Score Lie? legend:</b><br>
-              <b>Color guide:</b> <span style='color:#22c55e;font-weight:900;'>green</span> = you controlled it, <span style='color:#facc15;font-weight:900;'>yellow</span> = messy / coin-flip feel, <span style='color:#ef4444;font-weight:900;'>red</span> = the opponent controlled more than the scoreboard suggests.<br>
+              <b>Color guide actually used in the bars:</b> <span style='color:#7c3aed;font-weight:900;'>purple</span> = you should've won by way more, <span style='color:#f97316;font-weight:900;'>orange</span> = you controlled it more than the final said, <span style='color:#38bdf8;font-weight:900;'>blue</span> = basically told the truth / slight edge to you, <span style='color:#94a3b8;font-weight:900;'>gray</span> = messy coin-flip range, <span style='color:#ef4444;font-weight:900;'>red</span> = they controlled more than the scoreboard suggests.<br>
               <b>Truth Margin</b> = what the box score says the game <i>felt</i> like, not just what the scoreboard said.<br>
               <b>Truth Gap</b> = actual margin minus truth margin. Big negative means the scoreboard was kinder to the opponent than the underlying play suggested. Big positive means your side may have been flattered by the score.<br>
               <b>Reality Score</b> = the overall control meter. Higher means you actually drove the game. Lower means you got pushed around, even if the final score looked fine.<br>
