@@ -11304,6 +11304,88 @@ def get_ratings_and_ms_plus(year=None, week_cap=None):
     return fpi_df, msp_df
 
 
+def _send_score_notification(user, team, score_us, score_opp, opp, week, year, status):
+    """
+    Fire a notification when a player saves their score.
+    Reads credentials from Streamlit secrets — silently skips if not configured.
+
+    Set up in Streamlit Cloud -> App Settings -> Secrets:
+
+        [notifications]
+        discord_webhook = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
+        gmail_user     = "yourappaccount@gmail.com"
+        gmail_app_password = "xxxx xxxx xxxx xxxx"
+        gmail_to       = "yourpersonalemail@gmail.com"
+
+    Only one required. Discord is easiest: channel Settings -> Integrations -> Webhooks -> New -> Copy URL.
+    Gmail app password: myaccount.google.com -> Security -> 2-Step -> App Passwords.
+    """
+    import requests as _req
+    result = None
+
+    result_lbl = "W" if score_us > score_opp else ("L" if score_opp > score_us else "TIE")
+    score_str  = f"{score_us}-{score_opp}" if (score_us or score_opp) else "Status only"
+    emoji      = "U+1F7E2" if result_lbl == "W" else ("U+1F534" if result_lbl == "L" else "U+1F7E1")
+
+    try:
+        _disc_url = st.secrets.get("notifications", {}).get("discord_webhook", "")
+        if _disc_url:
+            _color = 0x4ade80 if result_lbl == "W" else (0xf87171 if result_lbl == "L" else 0xfbbf24)
+            _msg_body = (
+                f"**{user}** ({team}) vs {opp}\n"
+                f"Score: **{score_str}** | Status: **{status}**\n"
+                f"Season {year} Wk {week} - Needs CSV push to go live"
+            )
+            _payload = {
+                "embeds": [{
+                    "title": f"ISPN Score Submitted - Week {week}",
+                    "description": _msg_body,
+                    "color": _color,
+                    "fields": [
+                        {"name": "Coach",  "value": f"{user} ({team})", "inline": True},
+                        {"name": "Score",  "value": score_str,          "inline": True},
+                        {"name": "Status", "value": status,             "inline": True},
+                    ],
+                    "footer": {"text": f"ISPN Dynasty - Season {year} Wk {week}"},
+                }]
+            }
+            _r = _req.post(_disc_url, json=_payload, timeout=6)
+            if _r.status_code in (200, 204):
+                result = "discord"
+    except Exception:
+        pass
+
+    if result is None:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText as _MIMEText
+            _notif = st.secrets.get("notifications", {})
+            _guser = _notif.get("gmail_user", "")
+            _gpw   = _notif.get("gmail_app_password", "")
+            _gto   = _notif.get("gmail_to", "")
+            if _guser and _gpw and _gto:
+                _body = (
+                    f"ISPN Dynasty Score Submitted\n\n"
+                    f"Coach: {user} ({team})\n"
+                    f"Week {week} vs {opp}\n"
+                    f"Score: {score_str}\n"
+                    f"Status: {status}\n\n"
+                    f"Log into the app -> Commissioner Tools -> download CSVs and push to GitHub."
+                )
+                _msg = _MIMEText(_body)
+                _msg["Subject"] = f"ISPN Wk {week}: {user} submitted {score_str}"
+                _msg["From"]    = _guser
+                _msg["To"]      = _gto
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=8) as _srv:
+                    _srv.login(_guser, _gpw)
+                    _srv.sendmail(_guser, [_gto], _msg.as_string())
+                result = "email"
+        except Exception:
+            pass
+
+    return result
+
+
 def infer_best_fun_stat(y_data):
     if y_data.empty:
         return "No games found for that season."
@@ -14983,6 +15065,31 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                     "S": "starting safety",
                 }
 
+                # ── Heisman Watch cross-reference ────────────────────────────
+                # Check if injured player is on the current Heisman watch list
+                _heisman_rank = None
+                try:
+                    _hw_inj = pd.read_csv('Heisman_watch_history.csv')
+                    _hw_inj['YEAR'] = pd.to_numeric(_hw_inj['YEAR'], errors='coerce')
+                    _hw_inj['WEEK'] = pd.to_numeric(_hw_inj['WEEK'], errors='coerce')
+                    _hw_cy = _hw_inj[_hw_inj['YEAR'] == CURRENT_YEAR]
+                    if not _hw_cy.empty:
+                        _hw_snap = _hw_cy[_hw_cy['WEEK'] == _hw_cy['WEEK'].max()]
+                        # Match by last name (names vary between CSVs — e.g. "K.Alston" vs "Kareem Alston")
+                        _iname_last = _iname.strip().split()[-1].lower()
+                        for _, _hwr in _hw_snap.iterrows():
+                            _hw_name_last = str(_hwr.get('NAME', '')).strip().split()[-1].lower()
+                            if _hw_name_last == _iname_last and str(_hwr.get('TEAM','')).strip().lower() == _it.strip().lower():
+                                _heisman_rank = int(pd.to_numeric(_hwr.get('RANK', 0), errors='coerce') or 0)
+                                break
+                except Exception:
+                    pass
+
+                _heisman_suffix = f" — Heisman #{_heisman_rank} candidate" if _heisman_rank else ""
+                _heisman_blurb_extra = (
+                    f" {_iname} is currently ranked #{_heisman_rank} in Heisman voting — this injury hits the award race too."
+                ) if _heisman_rank else ""
+
                 # Determine starter status:
                 # 1. CSV IsStarter=Yes/True/1 → trust it (watcher already infers from roster)
                 # 2. CSV IsStarter=No/False/0 → trust it
@@ -15005,9 +15112,9 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                 if _iw >= 20:
                     if _is_starter:
                         _headline_options = [
-                            f"{_iu}'s season takes a hit — loses {_role_text} to {_ii}",
-                            f"{_iu} loses {_role_text} for the season — {_ii}",
-                            f"Disaster for {_iu} — {_role_text} done for the year with {_ii}",
+                            f"{_iu}'s season takes a hit — loses {_role_text} to {_ii}{_heisman_suffix}",
+                            f"{_iu} loses {_role_text} for the season — {_ii}{_heisman_suffix}",
+                            f"Disaster for {_iu} — {_role_text} done for the year with {_ii}{_heisman_suffix}",
                         ]
                     else:
                         _headline_options = [
@@ -15017,14 +15124,14 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                         ]
                     _blurb = (
                         f"{_iu}'s {_it} will be without {_iname} ({_ip}, {_iovr} OVR) for the rest of the year "
-                        f"after a {_ii.lower()}."
+                        f"after a {_ii.lower()}.{_heisman_blurb_extra}"
                     )
                 else:
                     if _is_starter:
                         _headline_options = [
-                            f"{_iu} loses {_role_text} long term — {_ii}",
-                            f"{_iu}'s depth chart takes a hit — {_role_text} out with {_ii}",
-                            f"Big injury blow for {_iu} — {_role_text} sidelined by {_ii}",
+                            f"{_iu} loses {_role_text} long term — {_ii}{_heisman_suffix}",
+                            f"{_iu}'s depth chart takes a hit — {_role_text} out with {_ii}{_heisman_suffix}",
+                            f"Big injury blow for {_iu} — {_role_text} sidelined by {_ii}{_heisman_suffix}",
                         ]
                     else:
                         _headline_options = [
@@ -15034,7 +15141,7 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                         ]
                     _blurb = (
                         f"{_iu}'s {_it} is without {_iname} ({_ip}, {_iovr} OVR) for about {_iw} weeks "
-                        f"with a {_ii.lower()}."
+                        f"with a {_ii.lower()}.{_heisman_blurb_extra}"
                     )
 
                 _headline_text = random.choice(_headline_options)
@@ -15044,6 +15151,11 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                 _inj_recorded_wk = int(pd.to_numeric(_inj.get('Week', CURRENT_WEEK_NUMBER), errors='coerce') or CURRENT_WEEK_NUMBER)
                 _inj_age = max(0, CURRENT_WEEK_NUMBER - _inj_recorded_wk)
                 _inj_priority = max(55, 90 - (_inj_age * 8))
+                # Heisman candidates on IR get a priority boost — big story
+                if _heisman_rank and _heisman_rank <= 5:
+                    _inj_priority = min(98, _inj_priority + 12)
+                elif _heisman_rank:
+                    _inj_priority = min(95, _inj_priority + 6)
                 _all_headlines.append({
                     'badge': _sev,
                     'priority': _inj_priority,
@@ -19364,6 +19476,236 @@ with tabs[0]:
             st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
 
         # ════════════════════════════════════════════════════════════════════
+        # ── Player Login — self-service score & status entry ────────────────
+        st.markdown("---")
+
+        # Per-user passwords — kept in user_passwords.csv (User,Password columns)
+        # Falls back to hardcoded defaults if file not found.
+        _user_pw_map = {
+            "Mike": "sjsu26", "Devin": "bgsu26", "Josh": "usf26",
+            "Noah": "ttu26",  "Doug": "uf26",    "Nick": "fsu26",
+        }
+        try:
+            if os.path.exists('user_passwords.csv'):
+                _upw_df = pd.read_csv('user_passwords.csv')
+                _upw_df['User']     = _upw_df['User'].astype(str).str.strip().str.title()
+                _upw_df['Password'] = _upw_df['Password'].astype(str).str.strip()
+                _user_pw_map = dict(zip(_upw_df['User'], _upw_df['Password']))
+        except Exception:
+            pass
+
+        _logged_in_user = st.session_state.get('_player_logged_in_as', None)
+
+        with st.expander(
+            f"🎮 {'Logged in as ' + _logged_in_user if _logged_in_user else 'Player Login — Enter Your Score'}",
+            expanded=bool(_logged_in_user)
+        ):
+            if not _logged_in_user:
+                st.caption("Log in to set your own score and game status without needing commissioner access.")
+                _pl_col1, _pl_col2 = st.columns(2)
+                with _pl_col1:
+                    _pl_user_sel = st.selectbox(
+                        "Who are you?",
+                        list(USER_TEAMS.keys()),
+                        key="player_login_user_select"
+                    )
+                with _pl_col2:
+                    _pl_pw = st.text_input(
+                        "Password", type="password",
+                        key="player_login_pw",
+                        placeholder="Your team password"
+                    )
+                if _pl_pw:
+                    if _pl_pw == _user_pw_map.get(_pl_user_sel, ''):
+                        st.session_state['_player_logged_in_as'] = _pl_user_sel
+                        st.rerun()
+                    else:
+                        st.error("Wrong password. Check with the commissioner.")
+            else:
+                _pl_logout_col, _pl_name_col = st.columns([1, 4])
+                with _pl_name_col:
+                    _pl_team = USER_TEAMS.get(_logged_in_user, _logged_in_user)
+                    _pl_tc   = get_team_primary_color(_pl_team)
+                    st.markdown(
+                        f"<span style='font-weight:900;color:{_pl_tc};font-size:1.05rem;'>"
+                        f"{html.escape(_logged_in_user)}</span> "
+                        f"<span style='color:#475569;font-size:0.85rem;'>— {html.escape(_pl_team)}</span>",
+                        unsafe_allow_html=True
+                    )
+                with _pl_logout_col:
+                    if st.button("🔒 Logout", key="player_logout_btn", use_container_width=True):
+                        st.session_state.pop('_player_logged_in_as', None)
+                        st.rerun()
+
+                # Show only this user's matchup widget
+                _pl_matchup = _user_matchup.get(_logged_in_user)
+                _pl_cur_msc = {}
+                try:
+                    if os.path.exists('week_manual_scores.csv'):
+                        _pl_msc_df = pd.read_csv('week_manual_scores.csv')
+                        for _c in ['Year','Week']:
+                            _pl_msc_df[_c] = pd.to_numeric(_pl_msc_df.get(_c), errors='coerce').fillna(0).astype(int)
+                        _pl_msc_cur = _pl_msc_df[
+                            (_pl_msc_df['User'].astype(str).str.strip().str.title() == _logged_in_user) &
+                            (_pl_msc_df['Year'] == int(_gs_year)) &
+                            (_pl_msc_df['Week'] == int(_gs_week))
+                        ]
+                        if not _pl_msc_cur.empty:
+                            _pl_cur_msc = {
+                                'user_score': int(pd.to_numeric(_pl_msc_cur.iloc[0].get('UserScore', 0), errors='coerce') or 0),
+                                'opp_score':  int(pd.to_numeric(_pl_msc_cur.iloc[0].get('OppScore',  0), errors='coerce') or 0),
+                            }
+                except Exception:
+                    pass
+
+                _pl_cur_st = _game_status_map.get(_logged_in_user, 'Not Set')
+
+                if _pl_matchup == 'BYE':
+                    st.info("You have a BYE this week.")
+                    _pl_status_sel = st.selectbox("Status", ['Not Set', 'Ready'],
+                        index=1 if _pl_cur_st == 'Ready' else 0,
+                        key=f"pl_status_bye_{_logged_in_user}")
+                    _pl_us = 0; _pl_os = 0; _pl_opp = 'BYE'
+                elif isinstance(_pl_matchup, dict):
+                    _pl_opp   = str(_pl_matchup.get('opp', '')).strip()
+                    _pl_ha    = "vs" if _pl_matchup.get('home') else "@"
+                    _pl_opp_logo_uri = image_file_to_data_uri(get_logo_source(_pl_opp))
+                    _pl_opp_logo_h = (f"<img src='{_pl_opp_logo_uri}' style='width:22px;height:22px;"
+                                      f"object-fit:contain;vertical-align:middle;margin-right:4px;'/>"
+                                      if _pl_opp_logo_uri else "")
+                    st.markdown(
+                        f"<div style='font-size:0.9rem;color:#94a3b8;margin-bottom:8px;'>"
+                        f"Week {_gs_week} · <strong style='color:#e2e8f0;'>{_pl_ha} "
+                        f"{_pl_opp_logo_h}{html.escape(_pl_opp)}</strong></div>",
+                        unsafe_allow_html=True
+                    )
+                    _pl_sc1, _pl_sc2, _pl_sc3 = st.columns([1, 1, 2])
+                    with _pl_sc1:
+                        _pl_us = st.number_input(
+                            f"{_logged_in_user}", min_value=0, max_value=99,
+                            value=_pl_cur_msc.get('user_score', 0),
+                            key=f"pl_us_{_logged_in_user}_{_gs_week}"
+                        )
+                    with _pl_sc2:
+                        _pl_os = st.number_input(
+                            _pl_opp[:10], min_value=0, max_value=99,
+                            value=_pl_cur_msc.get('opp_score', 0),
+                            key=f"pl_os_{_logged_in_user}_{_gs_week}"
+                        )
+                    with _pl_sc3:
+                        if _pl_us > 0 or _pl_os > 0:
+                            _pl_rl = "W" if _pl_us > _pl_os else ("L" if _pl_os > _pl_us else "TIE")
+                            _pl_rc = "#4ade80" if _pl_rl == "W" else ("#f87171" if _pl_rl == "L" else "#94a3b8")
+                            st.markdown(
+                                f"<span style='color:{_pl_rc};font-weight:800;font-family:Bebas Neue,sans-serif;"
+                                f"font-size:1.4rem;'>{_pl_rl} {_pl_us}–{_pl_os}</span>",
+                                unsafe_allow_html=True
+                            )
+                            _pl_status_sel = 'Ready'
+                        else:
+                            _pl_status_sel = st.selectbox(
+                                "Status", ['Not Set', 'Ready'],
+                                index=1 if _pl_cur_st == 'Ready' else 0,
+                                key=f"pl_status_{_logged_in_user}_{_gs_week}"
+                            )
+                else:
+                    st.info("No matchup found for this week yet.")
+                    _pl_us = 0; _pl_os = 0; _pl_opp = ''; _pl_status_sel = 'Not Set'
+
+                if st.button("💾 Save My Score", key="pl_save_btn", type="primary", use_container_width=True):
+                    try:
+                        # Write score
+                        if _pl_us > 0 or _pl_os > 0:
+                            _pl_msc_base = (pd.read_csv('week_manual_scores.csv')
+                                            if os.path.exists('week_manual_scores.csv')
+                                            else pd.DataFrame(columns=['User','Year','Week','Opponent','UserScore','OppScore']))
+                            for _c in ['Year','Week']:
+                                _pl_msc_base[_c] = pd.to_numeric(_pl_msc_base.get(_c), errors='coerce').fillna(0).astype(int)
+                            # Remove existing row for this user+week
+                            _pl_msc_base = _pl_msc_base[~(
+                                (_pl_msc_base['User'].astype(str).str.strip().str.title() == _logged_in_user) &
+                                (_pl_msc_base['Year'] == int(_gs_year)) &
+                                (_pl_msc_base['Week'] == int(_gs_week))
+                            )].copy()
+                            _pl_new_row = pd.DataFrame([{
+                                'User': _logged_in_user, 'Year': int(_gs_year), 'Week': int(_gs_week),
+                                'Opponent': _pl_opp, 'UserScore': _pl_us, 'OppScore': _pl_os
+                            }])
+                            pd.concat([_pl_msc_base, _pl_new_row], ignore_index=True).to_csv('week_manual_scores.csv', index=False)
+                        # Write status
+                        _pl_wgs_base = (pd.read_csv('week_game_status.csv')
+                                        if os.path.exists('week_game_status.csv')
+                                        else pd.DataFrame(columns=['User','Year','Week','Status']))
+                        for _c in ['Year','Week']:
+                            _pl_wgs_base[_c] = pd.to_numeric(_pl_wgs_base.get(_c), errors='coerce').fillna(0).astype(int)
+                        _pl_wgs_base = _pl_wgs_base[~(
+                            (_pl_wgs_base['User'].astype(str).str.strip().str.title() == _logged_in_user) &
+                            (_pl_wgs_base['Year'] == int(_gs_year)) &
+                            (_pl_wgs_base['Week'] == int(_gs_week))
+                        )].copy()
+                        pd.concat([_pl_wgs_base, pd.DataFrame([{
+                            'User': _logged_in_user, 'Year': int(_gs_year),
+                            'Week': int(_gs_week), 'Status': _pl_status_sel
+                        }])], ignore_index=True).to_csv('week_game_status.csv', index=False)
+                        st.session_state['_pl_last_save'] = {
+                            'user': _logged_in_user,
+                            'week': int(_gs_week),
+                            'score': f"{_pl_us}–{_pl_os}",
+                            'status': _pl_status_sel,
+                        }
+                        # Fire notification to commissioner
+                        _notif_result = _send_score_notification(
+                            user=_logged_in_user, team=_pl_team,
+                            score_us=_pl_us, score_opp=_pl_os,
+                            opp=_pl_opp, week=int(_gs_week), year=int(_gs_year),
+                            status=_pl_status_sel
+                        )
+                        st.session_state['_pl_notif_sent'] = _notif_result
+                        st.cache_data.clear()
+                    except Exception as _plse:
+                        st.error(f"Save error: {_plse}")
+
+                # Show save confirmation and prominent download
+                _pl_last = st.session_state.get('_pl_last_save', {})
+                if _pl_last.get('user') == _logged_in_user:
+                    _notif_sent = st.session_state.get('_pl_notif_sent')
+                    _notif_line = ""
+                    if _notif_sent == "discord":
+                        _notif_line = " Mike got a Discord notification."
+                    elif _notif_sent == "email":
+                        _notif_line = " Mike got an email notification."
+                    else:
+                        _notif_line = " Mike will see it in Commissioner Tools — notifications not configured."
+                    st.markdown(f"""
+                    <div style='background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.35);
+                                border-radius:10px;padding:12px 16px;margin:8px 0;'>
+                        <div style='font-weight:900;color:#4ade80;font-size:0.9rem;margin-bottom:4px;'>
+                            ✅ Week {_pl_last.get('week')} saved — {_pl_last.get('score')} · {_pl_last.get('status')}
+                        </div>
+                        <div style='color:#94a3b8;font-size:0.78rem;line-height:1.5;'>
+                            {_notif_line} <strong style='color:#e2e8f0;'>He still needs to push the CSV to GitHub</strong>
+                            to make it permanent — download below if you want to send it yourself.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # Always-visible download buttons (not just after save)
+                st.markdown("<div style='font-size:0.75rem;color:#475569;margin:6px 0 3px;'>Download your file and send it to Mike, or Mike can grab it from Commissioner Tools:</div>", unsafe_allow_html=True)
+                _pld1, _pld2 = st.columns(2)
+                with _pld1:
+                    if os.path.exists('week_manual_scores.csv'):
+                        with open('week_manual_scores.csv', 'rb') as _pf:
+                            st.download_button("⬇️ Scores CSV", data=_pf.read(),
+                                               file_name="week_manual_scores.csv", mime="text/csv",
+                                               use_container_width=True, key="pl_dl_scores")
+                with _pld2:
+                    if os.path.exists('week_game_status.csv'):
+                        with open('week_game_status.csv', 'rb') as _pf:
+                            st.download_button("⬇️ Status CSV", data=_pf.read(),
+                                               file_name="week_game_status.csv", mime="text/csv",
+                                               use_container_width=True, key="pl_dl_status")
+
+        # ════════════════════════════════════════════════════════════════════
         # ── Commissioner Tools + Manual Scores ──────────────────────────────
         st.markdown("---")
         with st.expander("⚙️ Commissioner Tools", expanded=False):
@@ -19397,6 +19739,32 @@ with tabs[0]:
                     if st.button("🔒 Lock", key="comm_lock_btn", use_container_width=True):
                         st.session_state["_comm_unlocked"] = False
                         st.rerun()
+
+                # ── Pending push banner ───────────────────────────────────────
+                _pending_users = []
+                try:
+                    if os.path.exists('week_manual_scores.csv'):
+                        _pb_df = pd.read_csv('week_manual_scores.csv')
+                        for _c in ['Year','Week']:
+                            _pb_df[_c] = pd.to_numeric(_pb_df.get(_c), errors='coerce').fillna(0).astype(int)
+                        _pb_cur = _pb_df[(_pb_df['Year']==int(_gs_year))&(_pb_df['Week']==int(_gs_week))]
+                        _pending_users = _pb_cur['User'].astype(str).str.strip().tolist()
+                except Exception:
+                    pass
+                if _pending_users:
+                    _pending_str = ", ".join(_pending_users)
+                    st.markdown(f"""
+                    <div style='background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.4);
+                                border-radius:10px;padding:10px 14px;margin-bottom:10px;'>
+                        <span style='font-weight:900;color:#fbbf24;font-size:0.85rem;'>
+                            📋 PUSH NEEDED — Week {_gs_week} scores on file for: {html.escape(_pending_str)}
+                        </span><br>
+                        <span style='color:#94a3b8;font-size:0.75rem;'>
+                            Download both CSVs below and push to GitHub to make these permanent.
+                            They'll disappear on the next app restart if you don't.
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 col_sync, col_ref = st.columns(2)
                 with col_sync:
