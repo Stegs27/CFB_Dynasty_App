@@ -59,3 +59,4 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2042,11,Josh,USF,Minnesota,W,49,10,39.0,35.0,4.0,6.09,0.8489,0.3379,100.0,Score Told the Truth,66.67,100.0,False,False,False,False,False
 2042,11,Mike,San Jose State,Wisconsin,W,66,9,57.0,35.0,22.0,-0.21,0.6619,0.4379,100.0,Score Lied for Us,55.26,43.11,True,False,True,False,False
 2042,11,Noah,Texas Tech,Iowa,W,63,21,42.0,35.0,7.0,8.14,1.0,0.2319,100.0,We Got Away With One,93.03,0.0,False,False,True,False,False
+2042,12,Doug,Florida,Wyoming,W,34,21,13.0,35.0,-22.0,3.3,0.8076,0.6457,99.18,Score Lied for Them,96.78,8.02,False,True,False,True,False
