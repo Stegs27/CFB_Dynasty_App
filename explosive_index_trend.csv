@@ -60,3 +60,5 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,off_explosive_index,off
 2042,11,Mike,San Jose State,Wisconsin,W,66,9,100.0,Detonation Machine,80.08,31.5,96.56,Steel Curtain,45.61,56.3,True,True,True,False,True,True,False,False,False
 2042,11,Noah,Texas Tech,Iowa,W,63,21,100.0,Detonation Machine,100.0,0.0,32.59,Wet Paper Bag,24.36,2.49,True,True,True,False,False,False,False,False,False
 2042,12,Doug,Florida,Wyoming,W,34,21,75.09,Missile Battery,91.62,-24.67,65.6,Vice Grip,74.3,8.3,False,False,False,False,False,False,False,False,False
+2042,12,Nick,Florida State,Kentucky,W,77,31,100.0,Detonation Machine,99.52,1.43,40.86,Wet Paper Bag,59.4,2.02,True,True,False,False,False,False,True,False,False
+2042,12,Noah,Texas Tech,Wisconsin,W,59,54,100.0,Detonation Machine,100.0,0.0,0.26,Wet Paper Bag,20.98,-32.33,True,True,False,False,False,False,True,True,False

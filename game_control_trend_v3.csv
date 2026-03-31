@@ -60,3 +60,5 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,OPP_RANK_AT_GAME,OPP_RA
 2042,11,Mike,San Jose State,Wisconsin,W,66,9,,,,0.375,3.0,0.4379,94.73,66.65,31.24,Total Control,False,False,False,False
 2042,11,Noah,Texas Tech,Iowa,W,63,21,,21.0,21.0,0.25,-12.875,0.2319,84.55,81.33,-0.46,Strong Control,False,False,False,False
 2042,12,Doug,Florida,Wyoming,W,34,21,,22.0,22.0,0.6,10.2,0.6457,79.36,83.96,1.24,Strong Control,False,False,False,False
+2042,12,Nick,Florida State,Kentucky,W,77,31,,,,0.2222,-19.778,0.1604,95.53,90.09,14.69,Total Control,False,False,False,False
+2042,12,Noah,Texas Tech,Wisconsin,W,59,54,,,,0.3333,-3.667,0.3587,68.99,79.52,-15.56,Solid Control,False,False,False,False
