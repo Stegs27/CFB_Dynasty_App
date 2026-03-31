@@ -14983,14 +14983,17 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                     "S": "starting safety",
                 }
 
-                # Determine starter status — depth chart ALWAYS wins over CSV value
-                # CSV IsStarter can be stale (written before a better player was added)
+                # Determine starter status:
+                # 1. CSV IsStarter=Yes/True/1 → trust it (watcher already infers from roster)
+                # 2. CSV IsStarter=No/False/0 → trust it
+                # 3. CSV blank/unknown → infer from depth chart
                 _is_starter_raw = str(_inj.get('IsStarter', '')).strip().lower()
-                _confirmed_not_starter = _is_starter_raw in ('no', 'false', '0')
-                if _confirmed_not_starter:
+                if _is_starter_raw in ('yes', 'true', '1'):
+                    _is_starter = True
+                elif _is_starter_raw in ('no', 'false', '0'):
                     _is_starter = False
                 else:
-                    # Always verify against depth chart — even if CSV says Yes
+                    # Blank/unknown — fall back to OVR-based depth chart inference
                     _is_starter = _infer_starter_from_roster(_it, _ip, _iname, _iovr)
 
                 if _is_starter:
@@ -17462,15 +17465,45 @@ with tabs[3]:
                 """, unsafe_allow_html=True)
 
             st.markdown("<div class='panel-note'>Higher score means your team controlled the script, not just the final. The leaderboard is compacted for phones, and the deeper view below breaks down the weekly story.</div>", unsafe_allow_html=True)
+
+            # ── QUICK COMPARISON BAR CHART ────────────────────────────
+            _gc_bar_fig = go.Figure()
+            _gc_bar_sorted = _gc_rank.sort_values("AVG_GAME_CONTROL", ascending=True).copy()
+            _gc_bar_fig.add_trace(go.Bar(
+                y=[f"{r['TEAM']} ({r['USER']})" for _, r in _gc_bar_sorted.iterrows()],
+                x=_gc_bar_sorted["AVG_GAME_CONTROL"],
+                orientation='h',
+                marker_color=[_gc_acc(_gc_flt(v)) for v in _gc_bar_sorted["AVG_GAME_CONTROL"]],
+                text=[f"{_gc_flt(v):.1f}" for v in _gc_bar_sorted["AVG_GAME_CONTROL"]],
+                textposition='outside',
+                hovertemplate='<b>%{y}</b><br>Avg GC: %{x:.1f}<extra></extra>'
+            ))
+            _gc_bar_fig.add_vline(x=72, line_dash="dot", line_color="#4ade80", opacity=0.5, annotation_text="Commanding", annotation_font_size=9)
+            _gc_bar_fig.add_vline(x=60, line_dash="dot", line_color="#84cc16", opacity=0.5, annotation_text="Solid", annotation_font_size=9)
+            _gc_bar_fig.add_vline(x=48, line_dash="dot", line_color="#facc15", opacity=0.4, annotation_text="Fragile", annotation_font_size=9)
+            _gc_bar_fig.update_layout(
+                height=max(220, 52 * len(_gc_bar_sorted)),
+                margin=dict(l=10, r=40, t=14, b=10),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#cbd5e1', size=11),
+                xaxis=dict(title='Avg Game Control', gridcolor='rgba(255,255,255,.06)', range=[0, 100]),
+                yaxis=dict(gridcolor='rgba(255,255,255,.03)'),
+                showlegend=False
+            )
+            st.plotly_chart(_gc_bar_fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+
             st.markdown("""
             <div class='panel-note'>
               <b>Game Control legend:</b><br>
-              <b>Total Control / Commanding / Solid Control</b> = you drove the game, not just the score.<br>
-              <b>Fragile</b> = you won, but the grip was shakier than it looked.<br>
-              <b>Surviving</b> = you escaped more than you controlled.<br>
-              <b>Outplayed</b> = the opponent had the cleaner game underneath.<br>
-              <b>Championship Gear</b> = this looked like a top-end team performance.<br>
-              <b>Living Dangerous / Red Alert</b> = the weekly process is getting ugly.
+              <span style='color:#22c55e;font-weight:900;'>Total Control / Commanding</span> = you drove the game, not just the scoreboard.<br>
+              <span style='color:#84cc16;font-weight:900;'>Solid Control</span> = clean execution, controlled the tempo.<br>
+              <span style='color:#facc15;font-weight:900;'>Fragile</span> = you won, but the grip was shakier than the score looked.<br>
+              <span style='color:#fb923c;font-weight:900;'>Surviving</span> = escaped more than you controlled.<br>
+              <span style='color:#ef4444;font-weight:900;'>Outplayed</span> = the opponent had the cleaner game underneath.<br>
+              🚪 <b>Close Escape</b> = won but GC says you shouldn't have. &nbsp;&nbsp;
+              🎭 <b>False Blowout</b> = margin inflated vs actual control. &nbsp;&nbsp;
+              🥷 <b>Stealth Dom</b> = dominated everything but the score. &nbsp;&nbsp;
+              🏴‍☠️ <b>Got Robbed</b> = lost a game you statistically ran.
             </div>
             """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
@@ -17527,16 +17560,25 @@ with tabs[3]:
                     if str(_gg.get("false_blowout","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed55;'>FALSE BLOWOUT</span>"
                     if str(_gg.get("stealth_dominance","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#0ea5e922;color:#38bdf8;border:1px solid #0ea5e955;'>STEALTH DOM</span>"
                     if str(_gg.get("got_robbed_flag","")).upper() in ("TRUE","1","YES"): _pills += "<span class='pill' style='background:#ef444422;color:#f87171;border:1px solid #ef444455;'>GOT ROBBED</span>"
+                    _opp_logo_uri = image_file_to_data_uri(get_logo_source(_opp))
+                    _opp_logo_h = f"<img src='{_opp_logo_uri}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _opp_logo_uri else ""
+                    _rk3 = _gc_flt(_gg.get("rolling_3_game_control", 0))
+                    _rk3_html = f"<span style='font-size:.75rem;color:#64748b;margin-left:8px;'>Roll 3: {_rk3:.1f}</span>" if _rk3 else ""
                     st.markdown(f"""
                     <div class='game-card' style='--cardacc:{_acc};'>
                       <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;'>
-                        <div style='font-weight:800;color:#f8fafc;'>Wk {_wk} · {_ven_lbl} · {html.escape(_opp)}</div>
-                        <div style='font-weight:900;color:{'#4ade80' if _res.upper()=='W' else '#f87171'};'>{_res} {_ts}-{_os}</div>
+                        <div style='font-weight:800;color:#f8fafc;display:flex;align-items:center;gap:6px;'>
+                          <span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;'>WK {_wk}</span>
+                          <span style='color:#475569;font-size:.8rem;'>{_ven_lbl}</span>
+                          {_opp_logo_h}<span>{html.escape(_opp)}</span>
+                        </div>
+                        <div style='display:flex;align-items:center;gap:10px;'>
+                          <span style='font-weight:900;color:{"#4ade80" if _res.upper()=="W" else "#f87171"};'>{_res} {_ts}–{_os}</span>
+                          <span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:{_acc};font-weight:900;'>GC {_score:.1f}</span>
+                          {_rk3_html}
+                        </div>
                       </div>
-                      <div style='display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px;'>
-                        <div style='font-size:.82rem;color:#94a3b8;'>{html.escape(_tier)}</div>
-                        <div style='font-family:Bebas Neue,sans-serif;font-size:1.25rem;color:{_acc};'>GC {_score:.1f}</div>
-                      </div>
+                      <div style='font-size:.78rem;color:#64748b;margin-top:4px;'>{html.escape(_tier)}</div>
                       {f"<div style='margin-top:8px;'>{_pills}</div>" if _pills else ""}
                     </div>
                     """, unsafe_allow_html=True)
@@ -17618,6 +17660,57 @@ with tabs[3]:
                 """, unsafe_allow_html=True)
 
             st.markdown("<div class='panel-note'>Orange-hot teams blow games open. Green defenses suffocate life. This view keeps both in the same place so you can see whether a team is a missile battery, a steel curtain, or a complete identity crisis.</div>", unsafe_allow_html=True)
+
+            # ── IDENTITY QUADRANT SCATTER ─────────────────────────────
+            st.markdown("#### ⚔️ Offensive vs Defensive Identity")
+            st.caption("Top-right = two-way wrecking ball. Top-left = elite defense, limited offense. Bottom-right = shoot-out team, leaky D. Bottom-left = struggle season.")
+            _ex_scatter_fig = go.Figure()
+            _scatter_data = _ex_rank.copy()
+            _scatter_data["AVG_EXPLOSIVE_INDEX"]    = pd.to_numeric(_scatter_data["AVG_EXPLOSIVE_INDEX"],    errors='coerce').fillna(0)
+            _scatter_data["AVG_STEEL_CURTAIN_INDEX"] = pd.to_numeric(_scatter_data["AVG_STEEL_CURTAIN_INDEX"], errors='coerce').fillna(0)
+            _off_mid = _scatter_data["AVG_EXPLOSIVE_INDEX"].mean()
+            _def_mid = _scatter_data["AVG_STEEL_CURTAIN_INDEX"].mean()
+
+            for _, _srow in _scatter_data.iterrows():
+                _s_t   = str(_srow["TEAM"]); _s_u = str(_srow["USER"])
+                _s_off = float(_srow["AVG_EXPLOSIVE_INDEX"]); _s_def = float(_srow["AVG_STEEL_CURTAIN_INDEX"])
+                _s_clr = _ex_acc(_s_off)
+                _s_logo_uri = image_file_to_data_uri(get_logo_source(_s_t))
+                _ex_scatter_fig.add_trace(go.Scatter(
+                    x=[_s_off], y=[_s_def],
+                    mode='markers+text',
+                    name=_s_t,
+                    text=[f"  {_s_u}"],
+                    textposition='middle right',
+                    textfont=dict(size=10, color='#cbd5e1'),
+                    marker=dict(size=18, color=_s_clr, line=dict(color='#0f172a', width=2),
+                                symbol='circle'),
+                    hovertemplate=f'<b>{_s_t}</b> ({_s_u})<br>Offense: {_s_off:.1f}<br>Defense: {_s_def:.1f}<extra></extra>',
+                    showlegend=False
+                ))
+            _ex_scatter_fig.add_vline(x=_off_mid, line_dash="dot", line_color="rgba(255,255,255,.2)")
+            _ex_scatter_fig.add_hline(y=_def_mid, line_dash="dot", line_color="rgba(255,255,255,.2)")
+            _ex_scatter_fig.update_layout(
+                height=380,
+                margin=dict(l=24, r=30, t=30, b=40),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#cbd5e1', size=11),
+                xaxis=dict(title="Offensive Explosive Index →", gridcolor='rgba(255,255,255,.05)', zeroline=False),
+                yaxis=dict(title="↑ Steel Curtain Index (Defense)", gridcolor='rgba(255,255,255,.05)', zeroline=False),
+            )
+            # Quadrant labels
+            _x_rng = [_scatter_data["AVG_EXPLOSIVE_INDEX"].min() - 3, _scatter_data["AVG_EXPLOSIVE_INDEX"].max() + 3]
+            _y_rng = [_scatter_data["AVG_STEEL_CURTAIN_INDEX"].min() - 3, _scatter_data["AVG_STEEL_CURTAIN_INDEX"].max() + 3]
+            for _qx, _qy, _qlbl, _qclr in [
+                (_x_rng[0]+1, _y_rng[1]-1, "ELITE D / LIMITED O", "#22c55e"),
+                (_x_rng[1]-1, _y_rng[1]-1, "TWO-WAY MONSTER", "#f97316"),
+                (_x_rng[0]+1, _y_rng[0]+1, "BOTH SIDES STRUGGLE", "#64748b"),
+                (_x_rng[1]-1, _y_rng[0]+1, "SHOOT-OUT OFFENSE / LEAKY D", "#fb923c"),
+            ]:
+                _ex_scatter_fig.add_annotation(x=_qx, y=_qy, text=_qlbl, showarrow=False,
+                    font=dict(size=8, color=_qclr), opacity=0.5, xanchor='left' if _qx < _off_mid else 'right')
+            st.plotly_chart(_ex_scatter_fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+
             st.markdown("""
             <div class='panel-note'>
               <b>Explosive Index legend:</b><br>
@@ -17848,6 +17941,40 @@ with tabs[3]:
             st.markdown("<div class='metric-wrap'>", unsafe_allow_html=True)
             st.markdown("<div class='metric-title'>🕵️ Did The Score Lie?</div>", unsafe_allow_html=True)
             st.markdown("<div class='metric-sub'>A scoreboard can be honest, flattering, or full of nonsense. This section compares the final score to the underlying fight — yards per play, first downs, situational leverage, and how much the margin matched what actually happened.</div>", unsafe_allow_html=True)
+
+            # ── LEAGUE-WIDE VERDICT BREAKDOWN ─────────────────────────
+            if "DISPLAY_VERDICT" in brc_games.columns:
+                _verdict_counts = brc_games["DISPLAY_VERDICT"].value_counts().reset_index()
+                _verdict_counts.columns = ["Verdict", "Count"]
+                _verdict_color_map = {
+                    "Score Told the Truth": "#38bdf8",
+                    "Score Lied for Us":    "#f59e0b",
+                    "We Got Away With One": "#fb923c",
+                    "Score Lied for Them":  "#ef4444",
+                    "Should've Beat Their Ass": "#7c3aed",
+                    "Got Our Ass Beat":     "#991b1b",
+                    "We Didn't Get Beat That Bad": "#94a3b8",
+                }
+                _vbar_fig = go.Figure(go.Bar(
+                    x=_verdict_counts["Count"],
+                    y=_verdict_counts["Verdict"],
+                    orientation='h',
+                    marker_color=[_verdict_color_map.get(v, "#475569") for v in _verdict_counts["Verdict"]],
+                    text=_verdict_counts["Count"],
+                    textposition='outside',
+                    hovertemplate='<b>%{y}</b><br>Games: %{x}<extra></extra>'
+                ))
+                _vbar_fig.update_layout(
+                    height=max(200, 44 * len(_verdict_counts)),
+                    margin=dict(l=10, r=30, t=12, b=10),
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#cbd5e1', size=11),
+                    xaxis=dict(title='Games', gridcolor='rgba(255,255,255,.05)'),
+                    yaxis=dict(autorange='reversed', gridcolor='rgba(255,255,255,.03)'),
+                    showlegend=False,
+                    title=dict(text="League-Wide Verdict Distribution — All Games", font=dict(size=12, color='#94a3b8'))
+                )
+                st.plotly_chart(_vbar_fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
 
             _all_brc = brc_games.copy()
             _all_brc["WEEK"] = pd.to_numeric(_all_brc["WEEK"], errors="coerce").fillna(0).astype(int)
