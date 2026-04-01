@@ -14344,12 +14344,14 @@ if data:
 # ════════════════════════════════════════════════════════════════════
 # DYNAMIC GLOBAL HEADER (Fixed Syntax & Eastern Time)
 # ════════════════════════════════════════════════════════════════════
-import pytz
-from datetime import datetime
-
-# 1. ROBUST TIMEZONE LOGIC (Miramar, FL is US/Eastern)
 try:
+    import pytz
     eastern = pytz.timezone('US/Eastern')
+    from datetime import datetime
+    now_et = datetime.now(eastern)
+except ImportError:
+    from datetime import datetime, timezone, timedelta
+    eastern = timezone(timedelta(hours=-5))
     now_et = datetime.now(eastern)
     time_display = now_et.strftime("%-I:%M %p")
 except Exception:
