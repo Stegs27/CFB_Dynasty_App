@@ -10312,20 +10312,45 @@ def get_full_league_schedule(year=None):
 
 
 def get_team_current_streak(scores_df, team, current_week):
-    """Return (streak_count, 'W'|'L') for a team's current win/loss streak."""
+    """Return (streak_count, 'W'|'L') for a team's current win/loss streak.
+
+    When scores_df contains multiple seasons (YEAR column present), sorts by
+    (YEAR, Week) descending so cross-season win/loss streaks are counted correctly.
+    current_week caps only the most recent year — prior seasons are fully included,
+    so a team that ended last year on a win streak and hasn't lost yet this year
+    will carry that streak forward automatically.
+    """
+    team = str(team).strip()
     completed = scores_df[
         (scores_df['Status'].astype(str).str.upper() == 'FINAL') &
-        (scores_df['Week'] <= current_week) &
         ((scores_df['Visitor'].astype(str).str.strip() == team) |
          (scores_df['Home'].astype(str).str.strip() == team))
-    ].sort_values('Week', ascending=False)
+    ].copy()
+
+    if completed.empty:
+        return 0, ''
+
+    if 'YEAR' in completed.columns:
+        completed['YEAR'] = pd.to_numeric(completed['YEAR'], errors='coerce')
+        completed['Week'] = pd.to_numeric(completed.get('Week', pd.Series(dtype=float)), errors='coerce')
+        max_year = completed['YEAR'].max()
+        # Cap current season at current_week; all prior seasons count fully
+        completed = completed[
+            (completed['YEAR'] < max_year) |
+            ((completed['YEAR'] == max_year) & (completed['Week'] <= current_week))
+        ]
+        completed = completed.sort_values(['YEAR', 'Week'], ascending=[False, False])
+    else:
+        completed['Week'] = pd.to_numeric(completed.get('Week', pd.Series(dtype=float)), errors='coerce')
+        completed = completed[completed['Week'] <= current_week]
+        completed = completed.sort_values('Week', ascending=False)
 
     if completed.empty:
         return 0, ''
 
     results = []
     for _, g in completed.iterrows():
-        vis = str(g.get('Visitor','')).strip()
+        vis = str(g.get('Visitor', '')).strip()
         vs  = safe_num(g.get('Vis Score'), 0)
         hs  = safe_num(g.get('Home Score'), 0)
         if vis == team:
@@ -10748,6 +10773,12 @@ def build_full_ratings_table(year=None, week_cap=None):
     df['YEAR'] = pd.to_numeric(df.get('YEAR'), errors='coerce')
     df['Week'] = pd.to_numeric(df.get('Week'), errors='coerce')
 
+    # Multi-year data for streak calculation so cross-season streaks carry forward
+    _df_multi = load_scores_master(multi_year=True)
+    for _c in ('YEAR', 'Week'):
+        if _c in _df_multi.columns:
+            _df_multi[_c] = pd.to_numeric(_df_multi[_c], errors='coerce')
+
     # Compute FPI first (needed for SOS/SOR)
     fpi = compute_power_ratings(df, year=target_year, week_cap=week_cap)
     if not fpi:
@@ -10768,7 +10799,7 @@ def build_full_ratings_table(year=None, week_cap=None):
         sos, opps = compute_sos(df, team, year=target_year, week_cap=wk, fpi_ratings=fpi)
         sor = compute_sor(df, team, year=target_year, week_cap=wk, fpi_ratings=fpi)
         chaos = compute_chaos_rating(df, team, year=target_year, week_cap=wk, fpi_ratings=fpi)
-        streak_n, streak_t = get_team_current_streak(completed, team, wk or 99)
+        streak_n, streak_t = get_team_current_streak(_df_multi if not _df_multi.empty else completed, team, wk or 99)
         qw, best_rk = get_quality_win_context(completed, team, wk or 99)
         rows.append({
             'Team':        team,
@@ -32177,8 +32208,12 @@ with _ods_tabs[0]:
             starters_lost_names = confirmed_starter_names
 
         returning_starter_names = [name for name in current_starter_names if str(name) not in starters_lost_names]
-        est_returning_starters = max(0, min(22, len(returning_starter_names)))
-        starters_lost_for_mode = max(0, 22 - est_returning_starters)
+        # Drive starters_lost from confirmed_starter_losses (same source as the departures card below)
+        # instead of the 22-minus-name-match math, which under-counts when roster/departures CSVs
+        # have name-format mismatches. This unifies the header "Starters lost" with the card delta.
+        _early_starter_extra = len(possible_early_starter_names) if outlook_mode == "Aggressive" else 0
+        starters_lost_for_mode = max(0, confirmed_starter_losses + _early_starter_extra)
+        est_returning_starters = max(0, 22 - starters_lost_for_mode)
 
         starter_mod = (est_returning_starters - 13) * 0.35
 
