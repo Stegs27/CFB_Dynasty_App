@@ -32210,11 +32210,10 @@ with _ods_tabs[0]:
             starters_lost_names = confirmed_starter_names
 
         returning_starter_names = [name for name in current_starter_names if str(name) not in starters_lost_names]
-        # Drive starters_lost from confirmed_starter_losses (same source as the departures card below)
-        # instead of the 22-minus-name-match math, which under-counts when roster/departures CSVs
-        # have name-format mismatches. This unifies the header "Starters lost" with the card delta.
-        _early_starter_extra = len(possible_early_starter_names) if outlook_mode == "Aggressive" else 0
-        starters_lost_for_mode = max(0, confirmed_starter_losses + _early_starter_extra)
+        # starters_lost must match the confirmed departures card (confirmed_starter_losses).
+        # Do NOT add possible_early_starter_names — those haven't departed yet and the card
+        # never counts them, so including them here creates a permanent mismatch in Aggressive mode.
+        starters_lost_for_mode = max(0, confirmed_starter_losses)
         est_returning_starters = max(0, 22 - starters_lost_for_mode)
 
         starter_mod = (est_returning_starters - 13) * 0.35
