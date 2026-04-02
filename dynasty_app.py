@@ -31455,13 +31455,16 @@ with _ods_tabs[0]:
 
             # Deduplicate on RecruitSlot within team+year — slot is unique per team per year
             # and is immune to GPT name-spelling variations across multiple screenshot drops.
+            # Only dedup rows that actually have a slot — pass rows without one through untouched.
             if 'RecruitSlot' in incoming.columns:
                 incoming['RecruitSlot'] = pd.to_numeric(incoming['RecruitSlot'], errors='coerce')
                 _slot_dedup_cols = [c for c in ['Year', 'Team', 'RecruitSlot'] if c in incoming.columns]
                 if _slot_dedup_cols:
-                    incoming = incoming.dropna(subset=['RecruitSlot']).drop_duplicates(
+                    _has_slot  = incoming.dropna(subset=['RecruitSlot']).drop_duplicates(
                         subset=_slot_dedup_cols, keep='last'
-                    ).reset_index(drop=True)
+                    )
+                    _no_slot   = incoming[incoming['RecruitSlot'].isna()]
+                    incoming   = pd.concat([_has_slot, _no_slot], ignore_index=True)
 
         # --- Normalize actual user draft results schema ---
         if not user_draft_results.empty:
