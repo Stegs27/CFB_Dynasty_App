@@ -1,76 +1,153 @@
-Year,TeamType,Pos,Player,School,Class
-2041,1st Team,QB,Josh Russo,Clemson,SR (RS)
-2041,1st Team,HB,Carl Isaacs,Bowling Green,SR (RS)
-2041,1st Team,HB,Kevin McCallister,Florida,JR (RS)
-2041,1st Team,WR,Marquise Adams,Notre Dame,JR (RS)
-2041,1st Team,WR,Quincy Longa,Washington,JR (RS)
-2041,1st Team,WR,Rashaun Keys,San Diego State,SR (RS)
-2041,1st Team,TE,Randall Hitchens,USF,SR (RS)
-2041,1st Team,LT,Javier Adams,Miami,JR
-2041,1st Team,LG,Gordon Harris,Miami,SR (RS)
-2041,1st Team,C,Marco Raines,Texas A&M,SR (RS)
-2041,1st Team,RG,Brendan Sumner,Alabaster,SR (RS)
-2041,1st Team,RT,Tobias Bighill,Miami,SO (RS)
-2041,1st Team,LEDG,Vai Burr,Clemson,JR
-2041,1st Team,REDG,Alonzo Dennis,Penn State,SR (RS)
-2041,1st Team,DT,Frederick Blount,Nebraska,JR (RS)
-2041,1st Team,DT,Titus Reiff,Appalachian State,SR (RS)
-2041,1st Team,SAM,Jayden Hicks,Bowling Green,SR (RS)
-2041,1st Team,MIKE,Akeem Rossouw,Texas Tech,SO
-2041,1st Team,WILL,Emmett Cominsky,Penn State,SR (RS)
-2041,1st Team,CB,Bradley Freeman,Alabaster,JR (RS)
-2041,1st Team,CB,Nick Kramer,San Diego State,SR (RS)
-2041,1st Team,FS,DeMarcus Jean-Pierre,Nebraska,SR (RS)
-2041,1st Team,SS,Antuan Shaw,Clemson,SR
-2041,1st Team,K,Brian Swoope,Syracuse,FR (RS)
-2041,1st Team,P,George Salas,Jacksonville State,SR
-2041,2nd Team,QB,Clyde Carlyle,Duke,SR (RS)
-2041,2nd Team,HB,B.J. Henery,Texas Tech,JR (RS)
-2041,2nd Team,HB,Jamie Sturm,Florida State,SR
-2041,2nd Team,WR,Zhaire Lasco,Troy,JR (RS)
-2041,2nd Team,WR,John Kalambayi,Clemson,JR (RS)
-2041,2nd Team,WR,Bobby Cota,Alabaster,SR (RS)
-2041,2nd Team,TE,Nate McCullough,Texas Tech,SR (RS)
-2041,2nd Team,LT,Arnold Lange,Rapid City,JR (RS)
-2041,2nd Team,LG,Diego Bercovici,Miami,SR (RS)
-2041,2nd Team,C,Matthew Gannon,Nebraska,SR (RS)
-2041,2nd Team,RG,Seth Truman,Nebraska,JR (RS)
-2041,2nd Team,RT,Shariff Gastineau,USC,SR (RS)
-2041,2nd Team,LEDG,Braydon Hawkinson,Nebraska,SR (RS)
-2041,2nd Team,REDG,LaDarius Jordan,Miami,SR (RS)
-2041,2nd Team,DT,Avery Keke,SMU,SR (RS)
-2041,2nd Team,DT,Moses Doubs,Michigan State,JR
-2041,2nd Team,SAM,Joaquin Clear,Panama City,SR (RS)
-2041,2nd Team,MIKE,Avery Finley,Rice,SR (RS)
-2041,2nd Team,WILL,Edward Weber,Florida State,JR (RS)
-2041,2nd Team,CB,Levi Teamer,Nebraska,JR
-2041,2nd Team,CB,Mike Loyd,Virginia,SR (RS)
-2041,2nd Team,FS,Tommy Moultrie,Texas Tech,SR (RS)
-2041,2nd Team,SS,Antwan Gaiter,Auburn,JR
-2041,2nd Team,K,Elliot Kane,Missouri,FR
-2041,2nd Team,P,James Wheaton,UConn,JR
-2041,Freshman,QB,Marco Cuevas,San Diego State,FR
-2041,Freshman,HB,Jeremy Boyd,Louisiana,FR (RS)
-2041,Freshman,HB,Rico Vick,Hammond,FR (RS)
-2041,Freshman,WR,Trevor Gooch,Appalachian State,FR (RS)
-2041,Freshman,WR,Eric Kaddu,UMass,FR (RS)
-2041,Freshman,WR,Cole Kuhn,Middle Tennessee,FR (RS)
-2041,Freshman,TE,Reggie Whitted,Virginia,FR
-2041,Freshman,LT,Emanuel Branson,Eastern Michigan,FR (RS)
-2041,Freshman,LG,Damarr Moss,Clemson,FR (RS)
-2041,Freshman,C,Cole Jolly,Michigan,FR (RS)
-2041,Freshman,RG,Manu Fineanganofo,Washington,FR (RS)
-2041,Freshman,RT,Cameron Burks,Clemson,FR (RS)
-2041,Freshman,LEDG,Byron Angel,Ohio State,FR (RS)
-2041,Freshman,REDG,Denton McCoo,Virginia Tech,FR (RS)
-2041,Freshman,DT,Carl Jones,TCU,FR
-2041,Freshman,DT,Randy Misi,Oregon,FR
-2041,Freshman,SAM,Ja'Mario Bredeson,Georgia Tech,FR (RS)
-2041,Freshman,MIKE,George Sprinkle,Texas Tech,FR (RS)
-2041,Freshman,WILL,Curt Joy,UTEP,FR (RS)
-2041,Freshman,CB,C.J. Best,Texas Tech,FR (RS)
-2041,Freshman,CB,Dante Fisk,Wake Forest,FR (RS)
-2041,Freshman,FS,Logan Wade,Louisiana,FR (RS)
-2041,Freshman,SS,Kai Sloman,Middle Tennessee,FR
-2041,Freshman,K,Brian Swoope,Syracuse,FR (RS)
-2041,Freshman,P,Jesus Scioli,Louisiana,FR (RS)
+Year,TeamType,Pos,Player,School,Class,User,USER
+2041,1st Team,C,Marco Raines,Texas A&M,SR (RS),,
+2041,1st Team,CB,Bradley Freeman,Alabaster,JR (RS),,
+2041,1st Team,CB,Nick Kramer,San Diego State,SR (RS),,
+2041,1st Team,DT,Frederick Blount,Nebraska,JR (RS),,
+2041,1st Team,DT,Titus Reiff,Appalachian State,SR (RS),,
+2041,1st Team,FS,DeMarcus Jean-Pierre,Nebraska,SR (RS),,
+2041,1st Team,HB,Carl Isaacs,Bowling Green,SR (RS),,
+2041,1st Team,HB,Kevin McCallister,Florida,JR (RS),,
+2041,1st Team,K,Brian Swoope,Syracuse,FR (RS),,
+2041,1st Team,LEDG,Vai Burr,Clemson,JR,,
+2041,1st Team,LG,Gordon Harris,Miami,SR (RS),,
+2041,1st Team,LT,Javier Adams,Miami,JR,,
+2041,1st Team,MIKE,Akeem Rossouw,Texas Tech,SO,,
+2041,1st Team,P,George Salas,Jacksonville State,SR,,
+2041,1st Team,QB,Josh Russo,Clemson,SR (RS),,
+2041,1st Team,REDG,Alonzo Dennis,Penn State,SR (RS),,
+2041,1st Team,RG,Brendan Sumner,Alabaster,SR (RS),,
+2041,1st Team,RT,Tobias Bighill,Miami,SO (RS),,
+2041,1st Team,SAM,Jayden Hicks,Bowling Green,SR (RS),,
+2041,1st Team,SS,Antuan Shaw,Clemson,SR,,
+2041,1st Team,TE,Randall Hitchens,USF,SR (RS),,
+2041,1st Team,WILL,Emmett Cominsky,Penn State,SR (RS),,
+2041,1st Team,WR,Marquise Adams,Notre Dame,JR (RS),,
+2041,1st Team,WR,Quincy Longa,Washington,JR (RS),,
+2041,1st Team,WR,Rashaun Keys,San Diego State,SR (RS),,
+2041,2nd Team,C,Matthew Gannon,Nebraska,SR (RS),,
+2041,2nd Team,CB,Levi Teamer,Nebraska,JR,,
+2041,2nd Team,CB,Mike Loyd,Virginia,SR (RS),,
+2041,2nd Team,DT,Avery Keke,SMU,SR (RS),,
+2041,2nd Team,DT,Moses Doubs,Michigan State,JR,,
+2041,2nd Team,FS,Tommy Moultrie,Texas Tech,SR (RS),,
+2041,2nd Team,HB,B.J. Henery,Texas Tech,JR (RS),,
+2041,2nd Team,HB,Jamie Sturm,Florida State,SR,,
+2041,2nd Team,K,Elliot Kane,Missouri,FR,,
+2041,2nd Team,LEDG,Braydon Hawkinson,Nebraska,SR (RS),,
+2041,2nd Team,LG,Diego Bercovici,Miami,SR (RS),,
+2041,2nd Team,LT,Arnold Lange,Rapid City,JR (RS),,
+2041,2nd Team,MIKE,Avery Finley,Rice,SR (RS),,
+2041,2nd Team,P,James Wheaton,UConn,JR,,
+2041,2nd Team,QB,Clyde Carlyle,Duke,SR (RS),,
+2041,2nd Team,REDG,LaDarius Jordan,Miami,SR (RS),,
+2041,2nd Team,RG,Seth Truman,Nebraska,JR (RS),,
+2041,2nd Team,RT,Shariff Gastineau,USC,SR (RS),,
+2041,2nd Team,SAM,Joaquin Clear,Panama City,SR (RS),,
+2041,2nd Team,SS,Antwan Gaiter,Auburn,JR,,
+2041,2nd Team,TE,Nate McCullough,Texas Tech,SR (RS),,
+2041,2nd Team,WILL,Edward Weber,Florida State,JR (RS),,
+2041,2nd Team,WR,Zhaire Lasco,Troy,JR (RS),,
+2041,2nd Team,WR,John Kalambayi,Clemson,JR (RS),,
+2041,2nd Team,WR,Bobby Cota,Alabaster,SR (RS),,
+2041,Freshman,C,Cole Jolly,Michigan,FR (RS),,
+2041,Freshman,CB,C.J. Best,Texas Tech,FR (RS),,
+2041,Freshman,CB,Dante Fisk,Wake Forest,FR (RS),,
+2041,Freshman,DT,Carl Jones,TCU,FR,,
+2041,Freshman,DT,Randy Misi,Oregon,FR,,
+2041,Freshman,FS,Logan Wade,Louisiana,FR (RS),,
+2041,Freshman,HB,Jeremy Boyd,Louisiana,FR (RS),,
+2041,Freshman,HB,Rico Vick,Hammond,FR (RS),,
+2041,Freshman,K,Brian Swoope,Syracuse,FR (RS),,
+2041,Freshman,LEDG,Byron Angel,Ohio State,FR (RS),,
+2041,Freshman,LG,Damarr Moss,Clemson,FR (RS),,
+2041,Freshman,LT,Emanuel Branson,Eastern Michigan,FR (RS),,
+2041,Freshman,MIKE,George Sprinkle,Texas Tech,FR (RS),,
+2041,Freshman,P,Jesus Scioli,Louisiana,FR (RS),,
+2041,Freshman,QB,Marco Cuevas,San Diego State,FR,,
+2041,Freshman,REDG,Denton McCoo,Virginia Tech,FR (RS),,
+2041,Freshman,RG,Manu Fineanganofo,Washington,FR (RS),,
+2041,Freshman,RT,Cameron Burks,Clemson,FR (RS),,
+2041,Freshman,SAM,Ja'Mario Bredeson,Georgia Tech,FR (RS),,
+2041,Freshman,SS,Kai Sloman,Middle Tennessee,FR,,
+2041,Freshman,TE,Reggie Whitted,Virginia,FR,,
+2041,Freshman,WILL,Curt Joy,UTEP,FR (RS),,
+2041,Freshman,WR,Trevor Gooch,Appalachian State,FR (RS),,
+2041,Freshman,WR,Eric Kaddu,UMass,FR (RS),,
+2041,Freshman,WR,Cole Kuhn,Middle Tennessee,FR (RS),,
+2042,1st Team,C,Randy Mare,Georgia Tech,SR (RS),,
+2042,1st Team,CB,Levi Teamer,Nebraska,SR,,
+2042,1st Team,CB,C.J. Best,Texas Tech,SO (RS),Noah,
+2042,1st Team,DT,Elijah Womack,Alabaster,SR (RS),,
+2042,1st Team,DT,Devin O'Callaghan,Rapid City,SR (RS),,
+2042,1st Team,FS,Theo Meeks,Death Valley,JR (RS),,
+2042,1st Team,HB,Emmitt Smith,Florida,SR,Doug,
+2042,1st Team,HB,Kareem Alston,Bowling Green,SO (RS),Devin,
+2042,1st Team,K,Tim Madden,Missouri State,FR,,
+2042,1st Team,LEDG,Siaki Taumoepeau,Oregon,SR,,
+2042,1st Team,LEDG,Siaki Taumoepaeu,Oregon,SR,,
+2042,1st Team,LG,David DaSilva,Ohio State,SR (RS),,
+2042,1st Team,LT,Grant Palczewski,Texas,JR (RS),,
+2042,1st Team,MIKE,Akeem Rossouw,Texas Tech,JR,Noah,
+2042,1st Team,P,Diego Mama,Air Force,SO (RS),,
+2042,1st Team,QB,Ramon Poole,Texas Tech,JR (RS),Noah,
+2042,1st Team,REDG,Tashaun Keur,Bowling Green,SR (RS),Devin,
+2042,1st Team,REDG,Tashawn Kour,Bowling Green,SR (RS),Devin,
+2042,1st Team,RG,Onaje Ankou,Georgia Tech,SR (RS),,
+2042,1st Team,RT,Gregory Leman,Notre Dame,JR (RS),,
+2042,1st Team,SAM,Jeremy Paul,Nebraska,SR (RS),,
+2042,1st Team,SS,Tavarres Wilkes,Appalachian State,SR (RS),,
+2042,1st Team,TE,Keke Enunwa,Florida State,JR,Nick,
+2042,1st Team,WILL,Glenn Ghee,Bowling Green,JR (RS),Devin,
+2042,1st Team,WR,Ryan Bragg,San Jose State,JR,Mike,
+2042,1st Team,WR,Cory Potts,Notre Dame,JR (RS),,
+2042,1st Team,WR,John Kalambayi,Clemson,SR (RS),,
+2042,2nd Team,C,Jay McCleod,Nebraska,SR (RS),,
+2042,2nd Team,CB,Eric Patino,Texas Tech,SR,,Noah
+2042,2nd Team,CB,Caleb DeBose,Nebraska,SR,,
+2042,2nd Team,DT,Rashawn Duck,Texas,JR,,
+2042,2nd Team,DT,Brayden Knowles,Missouri State,JR,,
+2042,2nd Team,FS,Logan Wade,San Jose State,SO (RS),,Mike
+2042,2nd Team,HB,Johnathan Yeast,USF,SR,,
+2042,2nd Team,HB,Nick Hendricks,West Virginia,JR (RS),,
+2042,2nd Team,K,Jordan Hentges,Texas,SR (RS),,
+2042,2nd Team,LEDG,Oscar Bush,Texas,SR (RS),,
+2042,2nd Team,LG,Taylor Perkins,San Jose State,SR (RS),,
+2042,2nd Team,LT,Jason Lamur,Miami,FR (RS),,
+2042,2nd Team,MIKE,George Sprinkle,Texas Tech,SO (RS),,Noah
+2042,2nd Team,P,Xavier Blough,UL Monroe,FR,,
+2042,2nd Team,QB,Marquee Pool,Alabaster,JR (RS),,
+2042,2nd Team,REDG,James Tiffin,San Diego State,SR,,
+2042,2nd Team,RG,Lionel Tavares,Oregon,SR (RS),,
+2042,2nd Team,RT,Tyree Conway,Georgia,JR (RS),,
+2042,2nd Team,SAM,Leati Kight,Bowling Green,SO (RS),,Devin
+2042,2nd Team,SS,Tory Teel,UCLA,SR (RS),,
+2042,2nd Team,TE,Pat Jordan,USF,SR (RS),,
+2042,2nd Team,WILL,Bradley Cherry,Ole Miss,JR (RS),,
+2042,2nd Team,WR,Ja'Marr Ellington,Texas,JR (RS),,
+2042,2nd Team,WR,John Eagles,UCLA,SR (RS),,
+2042,2nd Team,WR,Emmett Baggett,Arkansas State,JR (RS),,
+2042,Freshman,C,Owen Hix,Stanford,FR (RS),,
+2042,Freshman,CB,Taj Michaels,New Mexico State,FR (RS),,
+2042,Freshman,CB,Chad Kearns,Louisiana Tech,FR (RS),,
+2042,Freshman,DT,Keenan Pimentel,Bowling Green,FR,,
+2042,Freshman,DT,Alani Waddy,Utah,FR,,
+2042,Freshman,FS,Lawrence Judge,Virginia,FR,,
+2042,Freshman,HB,Deontae Drango,Washington,FR (RS),,
+2042,Freshman,HB,Quincy Idonije,Death Valley,FR (RS),,
+2042,Freshman,K,Tim Madden,Missouri State,FR,,
+2042,Freshman,LEDG,Dee Paulk,UL Monroe,FR,,
+2042,Freshman,LG,Titus Dicker,West Virginia,FR (RS),,
+2042,Freshman,LT,Jason Lamur,Miami,FR (RS),,
+2042,Freshman,MIKE,Tim Mama,Louisiana,FR (RS),,
+2042,Freshman,P,Xavier Blough,UL Monroe,FR,,
+2042,Freshman,QB,Tobias Thomas,Washington,FR (RS),,
+2042,Freshman,REDG,Byron Rhattigan,Missouri State,FR (RS),,
+2042,Freshman,RG,Keelan Chabera,San Diego State,FR (RS),,
+2042,Freshman,RT,Andres Cannida,Miami,FR (RS),,
+2042,Freshman,SAM,Stanley DeMarco,Virginia Tech,FR (RS),,
+2042,Freshman,SS,DeAndre Fischer,NC State,FR,,
+2042,Freshman,TE,Steve Awosika,Texas A&M,FR (RS),,
+2042,Freshman,WILL,Emmanuel Oruwariye,Army,FR (RS),,
+2042,Freshman,WR,Sam Afamasaga,Miami,FR (RS),,
+2042,Freshman,WR,Sidney Bee,James Madison,FR (RS),,
+2042,Freshman,WR,Immanuel Bridges,North Carolina,FR,,
