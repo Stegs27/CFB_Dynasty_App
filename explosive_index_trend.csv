@@ -65,3 +65,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,off_explosive_index,off
 2042,13,Devin,Bowling Green,Florida State,W,38,35,100.0,Detonation Machine,100.0,0.0,0.0,Wet Paper Bag,18.5,-40.37,True,False,True,False,False,False,True,False,True
 2042,13,Josh,USF,Maryland,W,90,10,100.0,Detonation Machine,90.56,0.0,99.41,Steel Curtain,64.23,6.14,True,True,True,False,True,True,False,False,False
 2042,13,Nick,Florida State,Bowling Green,L,35,38,100.0,Detonation Machine,99.52,0.0,0.0,Wet Paper Bag,26.57,-40.86,True,False,True,False,False,False,True,False,True
+2042,14,Doug,Florida,Florida State,L,24,28,55.57,Capable,76.81,-19.52,37.8,Wet Paper Bag,53.57,-27.8,False,False,False,False,False,False,False,False,False
+2042,14,Josh,USF,Penn State,W,52,35,98.16,Detonation Machine,99.39,-1.84,34.68,Wet Paper Bag,75.79,-64.73,True,True,False,False,False,False,True,True,False
+2042,14,Mike,San Jose State,Michigan State,W,50,33,100.0,Detonation Machine,89.5,0.0,28.2,Wet Paper Bag,55.01,-68.36,True,True,False,False,False,False,True,True,False
+2042,14,Nick,Florida State,Florida,W,28,24,65.37,Strike Force,88.46,-34.63,44.25,Wet Paper Bag,28.37,44.25,False,False,False,False,False,False,False,False,False

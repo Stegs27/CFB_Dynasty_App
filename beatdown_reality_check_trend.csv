@@ -65,3 +65,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2042,13,Devin,Bowling Green,Florida State,W,38,35,3.0,7.62,-4.62,-0.91,1.0,0.864,63.13,Score Told the Truth,75.14,-36.87,False,False,False,False,False
 2042,13,Josh,USF,Maryland,W,90,10,80.0,35.0,45.0,4.09,0.864,0.1023,100.0,Score Lied for Us,66.67,0.0,True,False,True,False,False
 2042,13,Nick,Florida State,Bowling Green,L,35,38,-3.0,-7.62,4.62,0.91,0.864,1.0,36.87,Score Told the Truth,78.96,-63.13,False,False,False,False,False
+2042,14,Doug,Florida,Florida State,L,24,28,-4.0,-1.09,-2.91,-1.9,0.8196,0.8069,48.06,Score Told the Truth,79.47,-51.12,False,False,False,False,False
+2042,14,Josh,USF,Penn State,W,52,35,17.0,9.29,7.71,4.04,0.8764,0.621,70.29,We Got Away With One,90.1,-29.71,False,False,True,False,False
+2042,14,Mike,San Jose State,Michigan State,W,50,33,17.0,26.8,-9.8,-0.56,0.7176,0.5371,95.67,Should've Beat Their Ass,84.19,-4.33,False,False,False,True,False
+2042,14,Nick,Florida State,Florida,W,28,24,4.0,1.09,2.91,1.9,0.8069,0.8196,51.94,Score Told the Truth,62.94,15.07,False,False,False,False,False
