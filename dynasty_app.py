@@ -25234,9 +25234,9 @@ with tabs[5]:
               </div>
             </div>""", unsafe_allow_html=True)
 
-# --- 2041 ALL-AMERICANS ---
+# --- ALL-AMERICANS ---
     st.markdown("---")
-    st.subheader("🏅 2041 All-Americans")
+    st.subheader(f"🏅 {sel_year} All-Americans")
 
     try:
         aa_df = pd.read_csv("all_americans.csv")
