@@ -31453,6 +31453,16 @@ with _ods_tabs[0]:
 
             incoming['ProjectedRole'] = incoming.apply(_infer_projected_role, axis=1)
 
+            # Deduplicate on RecruitSlot within team+year — slot is unique per team per year
+            # and is immune to GPT name-spelling variations across multiple screenshot drops.
+            if 'RecruitSlot' in incoming.columns:
+                incoming['RecruitSlot'] = pd.to_numeric(incoming['RecruitSlot'], errors='coerce')
+                _slot_dedup_cols = [c for c in ['Year', 'Team', 'RecruitSlot'] if c in incoming.columns]
+                if _slot_dedup_cols:
+                    incoming = incoming.dropna(subset=['RecruitSlot']).drop_duplicates(
+                        subset=_slot_dedup_cols, keep='last'
+                    ).reset_index(drop=True)
+
         # --- Normalize actual user draft results schema ---
         if not user_draft_results.empty:
             if 'CollegeTeam' not in user_draft_results.columns:
