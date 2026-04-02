@@ -1,78 +1,75 @@
 YEAR,WEEK,RANK,NAME,POS,TEAM
-2041,15,1.0,Carl Isaacs,HB,Bowling Green
-2041,15,2.0,Kevin McCallister,HB,Florida
-2041,15,3.0,Clyde Carlyle,QB,Duke
-2041,15,4.0,Marquise Adams,WR,Notre Dame
-2042,0,1.0,Rico Rossi,QB,Auburn
-2042,0,2.0,Nick Hendricks,HB,West Virginia
-2042,0,3.0,Telvin Sherry,WR,Ohio State
-2042,0,4.0,Terrell Bethea,QB,USF
-2042,0,5.0,Earl Williams,QB,Alabama
-2042,2,1.0,Rico Rossi,QB,Auburn
-2042,2,2.0,Nick Hendricks,HB,West Virginia
-2042,2,3.0,Telvin Sherry,WR,Ohio State
-2042,2,4.0,Terrelle Bethea,QB,USF
-2042,2,5.0,Earl Williams,QB,Alabama
-2042,3,1.0,Ryan Bragg,WR,San Jose State
-2042,3,2.0,Josh Campanaro,QB,Texas
-2042,3,3.0,Terrelle Bethea,QB,USF
-2042,3,4.0,Ramon Poole,QB,Texas Tech
-2042,3,5.0,John Kalambayi,WR,Clemson
-2042,4,1.0,Frederick Drango,QB,Bowling Green
-2042,4,2.0,Ramon Poole,QB,Texas Tech
-2042,4,3.0,Terrelle Bethea,QB,USF
-2042,4,4.0,Gordon Giamello,QB,Death Valley
-2042,4,5.0,Ryan Bragg,WR,San Jose State
-2042,5,1.0,Frederick Drango,QB,Bowling Green
-2042,5,2.0,Terrelle Bethea,QB,USF
-2042,5,3.0,Kareem Alston,HB,Bowling Green
-2042,5,4.0,Ryan Bragg,WR,San Jose State
-2042,5,5.0,Cameron Gorman,QB,LSU
-2042,6,1.0,Frederick Drango,QB,Bowling Green
-2042,6,2.0,Kareem Alston,HB,Bowling Green
-2042,6,3.0,Tavares Scroggins,HB,Florida
-2042,6,4.0,Ryan Bragg,WR,San Jose State
-2042,6,5.0,Cory Potts,WR,Notre Dame
-2042,7,1.0,Frederick Drango,QB,Bowling Green
-2042,7,2.0,Kareem Alston,HB,Bowling Green
-2042,7,3.0,Cory Potts,WR,Notre Dame
-2042,7,4.0,Tavarres Scroggins,HB,Florida
-2042,7,5.0,Cameron Gorman,QB,LSU
-2042,8,1.0,Cory Potts,WR,Notre Dame
-2042,8,2.0,Kareem Alston,HB,Bowling Green
-2042,8,3.0,Frederick Drango,QB,Bowling Green
-2042,8,4.0,Tavares Scroggins,HB,Florida
-2042,8,5.0,Warren Book,QB,Notre Dame
-2042,9,1.0,Kareem Alston,HB,Bowling Green
-2042,9,2.0,Cory Potts,WR,Notre Dame
-2042,9,3.0,Frederick Drango,QB,Bowling Green
-2042,9,4.0,Tavarres Scroggins,HB,Florida
-2042,9,5.0,Warren Book,QB,Notre Dame
-2042,10,1.0,Kareem Alston,HB,Bowling Green
-2042,10,2.0,Cory Potts,WR,Notre Dame
-2042,10,3.0,Frederick Drango,QB,Bowling Green
-2042,10,4.0,Tavarres Scroggins,HB,Florida
-2042,10,5.0,Warren Book,QB,Notre Dame
-2042,11,1.0,Tavares Scroggins,HB,Florida
-2042,11,2.0,Kareem Alston,HB,Bowling Green
-2042,11,3.0,Frederick Drango,QB,Bowling Green
-2042,11,4.0,Cory Potts,WR,Notre Dame
-2042,11,5.0,Warren Book,QB,Notre Dame
-2042,12,1.0,Tavarres Scroggins,HB,Florida
-2042,12,2.0,Ramon Poole,QB,Texas Tech
-2042,12,3.0,Kareem Alston,HB,Bowling Green
-2042,12,4.0,Frederick Drango,QB,Bowling Green
-2042,12,5.0,Cory Potts,WR,Notre Dame
-2042,13,1.0,Tavares Scroggins,HB,Florida
-2042,13,2.0,Ramon Poole,QB,Texas Tech
-2042,13,3.0,Kareem Alston,HB,Bowling Green
-2042,13,4.0,Tobias Blunt,QB,Clemson
-2042,13,5.0,Frederick Drango,QB,Bowling Green
-2042,14,1.0,Tavarres Scroggins,HB,Florida
-2042,14,1.0,Tavares Scroggins,HB,Florida
-2042,14,2.0,Marquee Pool,QB,Alabaster
-2042,14,3.0,Tobias Blunt,QB,Clemson
-2042,14,4.0,Frederick Drango,QB,Bowling Green
-2042,14,4.0,Ramon Poole,QB,Texas Tech
-2042,14,5.0,Kareem Alston,HB,Bowling Green
-2042,14,5.0,Terrelle Bethea,QB,USF
+2041,15,1,Carl Isaacs,HB,Bowling Green
+2041,15,2,Kevin McCallister,HB,Florida
+2041,15,3,Clyde Carlyle,QB,Duke
+2041,15,4,Marquise Adams,WR,Notre Dame
+2042,0,1,Rico Rossi,QB,Auburn
+2042,0,2,Nick Hendricks,HB,West Virginia
+2042,0,3,Telvin Sherry,WR,Ohio State
+2042,0,4,Terrell Bethea,QB,USF
+2042,0,5,Earl Williams,QB,Alabama
+2042,2,1,Rico Rossi,QB,Auburn
+2042,2,2,Nick Hendricks,HB,West Virginia
+2042,2,3,Telvin Sherry,WR,Ohio State
+2042,2,4,Terrelle Bethea,QB,USF
+2042,2,5,Earl Williams,QB,Alabama
+2042,3,1,Ryan Bragg,WR,San Jose State
+2042,3,2,Josh Campanaro,QB,Texas
+2042,3,3,Terrelle Bethea,QB,USF
+2042,3,4,Ramon Poole,QB,Texas Tech
+2042,3,5,John Kalambayi,WR,Clemson
+2042,4,1,Frederick Drango,QB,Bowling Green
+2042,4,2,Ramon Poole,QB,Texas Tech
+2042,4,3,Terrelle Bethea,QB,USF
+2042,4,4,Gordon Giamello,QB,Death Valley
+2042,4,5,Ryan Bragg,WR,San Jose State
+2042,5,1,Frederick Drango,QB,Bowling Green
+2042,5,2,Terrelle Bethea,QB,USF
+2042,5,3,Kareem Alston,HB,Bowling Green
+2042,5,4,Ryan Bragg,WR,San Jose State
+2042,5,5,Cameron Gorman,QB,LSU
+2042,6,1,Frederick Drango,QB,Bowling Green
+2042,6,2,Kareem Alston,HB,Bowling Green
+2042,6,3,Tavares Scroggins,HB,Florida
+2042,6,4,Ryan Bragg,WR,San Jose State
+2042,6,5,Cory Potts,WR,Notre Dame
+2042,7,1,Frederick Drango,QB,Bowling Green
+2042,7,2,Kareem Alston,HB,Bowling Green
+2042,7,3,Cory Potts,WR,Notre Dame
+2042,7,4,Tavarres Scroggins,HB,Florida
+2042,7,5,Cameron Gorman,QB,LSU
+2042,8,1,Cory Potts,WR,Notre Dame
+2042,8,2,Kareem Alston,HB,Bowling Green
+2042,8,3,Frederick Drango,QB,Bowling Green
+2042,8,4,Tavares Scroggins,HB,Florida
+2042,8,5,Warren Book,QB,Notre Dame
+2042,9,1,Kareem Alston,HB,Bowling Green
+2042,9,2,Cory Potts,WR,Notre Dame
+2042,9,3,Frederick Drango,QB,Bowling Green
+2042,9,4,Tavarres Scroggins,HB,Florida
+2042,9,5,Warren Book,QB,Notre Dame
+2042,10,1,Kareem Alston,HB,Bowling Green
+2042,10,2,Cory Potts,WR,Notre Dame
+2042,10,3,Frederick Drango,QB,Bowling Green
+2042,10,4,Tavarres Scroggins,HB,Florida
+2042,10,5,Warren Book,QB,Notre Dame
+2042,11,1,Tavares Scroggins,HB,Florida
+2042,11,2,Kareem Alston,HB,Bowling Green
+2042,11,3,Frederick Drango,QB,Bowling Green
+2042,11,4,Cory Potts,WR,Notre Dame
+2042,11,5,Warren Book,QB,Notre Dame
+2042,12,1,Tavarres Scroggins,HB,Florida
+2042,12,2,Ramon Poole,QB,Texas Tech
+2042,12,3,Kareem Alston,HB,Bowling Green
+2042,12,4,Frederick Drango,QB,Bowling Green
+2042,12,5,Cory Potts,WR,Notre Dame
+2042,13,1,Tavares Scroggins,HB,Florida
+2042,13,2,Ramon Poole,QB,Texas Tech
+2042,13,3,Kareem Alston,HB,Bowling Green
+2042,13,4,Tobias Blunt,QB,Clemson
+2042,13,5,Frederick Drango,QB,Bowling Green
+2042,14,1,Emmitt Smith,HB,Florida
+2042,14,3,Marquee Pool,QB,Alabaster
+2042,14,5,Tobias Blunt,QB,Clemson
+2042,14,4,Frederick Drango,QB,Bowling Green
+2042,14,2,Ramon Poole,QB,Texas Tech
