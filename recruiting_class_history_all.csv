@@ -407,34 +407,33 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2041,OVERALL,136,South Alabama,,8,0,0,0,3.0,5.0,50.85
 2041,HS,136,South Alabama,,5,0,0,0,1.0,4.0,29.15
 2041,TRANSFER,136,Utah State,,1,0,0,1,0.0,0.0,15.0
-2042,OVERALL,1,Ohio State,,20,1,15,4,0.0,0.0,231.05
-2042,OVERALL,2,Alabama,,17,1,14,2,0.0,0.0,223.5
-2042,OVERALL,3,Texas Tech,Noah,13,5,8,0,0.0,0.0,222.75
-2042,OVERALL,4,USC,,18,0,14,4,0.0,0.0,219.55
-2042,OVERALL,5,Nebraska,,15,1,14,0,0.0,0.0,216.6
-2042,OVERALL,6,USF,Josh,13,3,9,1,0.0,0.0,211.4
-2042,OVERALL,7,Miami,,15,1,11,3,0.0,0.0,211.3
-2042,OVERALL,8,Florida State,Nick,14,1,10,3,0.0,0.0,204.45
-2042,OVERALL,9,Penn State,,14,1,10,3,0.0,0.0,204.45
-2042,OVERALL,10,Georgia,,13,0,13,0,0.0,0.0,198.6
-2042,OVERALL,11,San Jose State,Mike,12,2,8,2,0.0,0.0,195.3
-2042,OVERALL,12,Bowling Green,Devin,11,2,8,1,0.0,0.0,188.25
-2042,OVERALL,13,Ole Miss,,10,1,7,2,0.0,0.0,168.8
-2042,OVERALL,13,Clemson,,11,1,8,2,0.0,0.0,180.25
+2042,OVERALL,1,Nebraska,,18,3,15,0,0.0,0.0,239.05
+2042,OVERALL,2,Alabama,,19,2,15,2,0.0,0.0,235.4
+2042,OVERALL,3,Ohio State,,22,1,17,4,0.0,0.0,235.2
+2042,OVERALL,4,Texas Tech,Noah,14,6,8,0,0.0,0.0,234.05
+2042,OVERALL,5,USF,Josh,17,3,11,3,0.0,0.0,231.85
+2042,OVERALL,6,Miami,,18,1,12,5,0.0,0.0,222.8
+2042,OVERALL,7,USC,,18,0,14,4,0.0,0.0,219.55
+2042,OVERALL,8,Penn State,,16,1,12,3,0.0,0.0,217.1
+2042,OVERALL,9,Florida State,Nick,16,1,11,4,0.0,0.0,215.05
+2042,OVERALL,10,Bowling Green,Devin,13,2,9,2,0.0,0.0,204.15
+2042,OVERALL,11,San Jose State,Mike,13,2,8,3,0.0,0.0,201.45
+2042,OVERALL,12,Georgia,,13,0,13,0,0.0,0.0,198.6
+2042,OVERALL,13,Ole Miss,,12,1,8,3,0.0,0.0,187.3
 2042,OVERALL,14,Washington,,11,0,6,5,0.0,0.0,164.2
 2042,OVERALL,14,LSU,,13,0,6,7,0.0,0.0,177.4
+2042,OVERALL,14,Clemson,,11,1,8,2,0.0,0.0,180.25
 2042,OVERALL,15,7 Rapid City,,6,1,5,0,0.0,0.0,118.8
-2042,OVERALL,16,NC State,,10,1,4,5,,,156.8
 2042,OVERALL,18,Auburn,,8,0,6,2,,,136.9
 2042,OVERALL,19,Navy,,13,0,0,8,,,135.45
 2042,OVERALL,20,Rapid City,,7,1,6,0,0.0,0.0,134.8
 2042,OVERALL,20,Baylor,,10,0,4,6,0.0,0.0,147.25
+2042,OVERALL,20,NC State,,10,1,4,5,0.0,0.0,156.8
 2042,OVERALL,21,East Carolina,,12,0,0,9,,,134.7
 2042,OVERALL,23,Oregon,,5,0,4,1,0.0,0.0,92.05
 2042,OVERALL,23,Death Valley,,6,0,6,0,,,113.8
 2042,OVERALL,23,Texas A&M,,8,0,5,3,,,132.6
 2042,OVERALL,24,Michigan State,,14,0,2,2,,,132.35
-2042,OVERALL,25,Texas,,7,0,7,0,,,129.8
 2042,OVERALL,26,Wake Forest,,14,0,0,5,,,126.95
 2042,OVERALL,27,Oklahoma State,,7,0,6,1,,,125.8
 2042,OVERALL,29,11 Death Valley,,6,0,6,0,,,113.8
@@ -446,6 +445,7 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2042,OVERALL,33,Temple,,9,0,1,5,,,112.45
 2042,OVERALL,33,Florida,Doug,6,1,5,0,0.0,0.0,118.8
 2042,OVERALL,33,SMU,,7,0,7,0,0.0,0.0,129.8
+2042,OVERALL,33,Texas,,7,0,7,0,0.0,0.0,129.8
 2042,OVERALL,35,2 Texas A&M,,6,0,5,1,,,109.5
 2042,OVERALL,37,Arizona,,14,0,0,1,,,107.8
 2042,OVERALL,39,6 Notre Dame,,5,2,3,0,,,106.55
@@ -457,6 +457,7 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2042,OVERALL,46,Colorado,,6,0,0,6,,,85.35
 2042,OVERALL,46,Michigan,,6,0,5,1,0.0,0.0,109.5
 2042,OVERALL,46,Oklahoma,,6,0,6,0,0.0,0.0,113.8
+2042,OVERALL,46,Indiana,,12,0,0,4,8.0,0.0,114.8
 2042,OVERALL,47,San Diego St.,,7,0,3,3,,,108.2
 2042,OVERALL,48,Troy,,15,0,0,0,,,105.8
 2042,OVERALL,49,Louisiana Tech,,11,0,0,3,,,105.35
@@ -472,7 +473,7 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2042,OVERALL,57,Southern Miss,,9,0,0,5,,,96.1
 2042,OVERALL,58,Hawai'i,,9,0,0,5,,,96.1
 2042,OVERALL,59,Rice,,12,0,0,0,12.0,0.0,95.2
-2042,OVERALL,59,Indiana,,11,0,0,3,8.0,0.0,105.35
+2042,OVERALL,59,Minnesota,,10,0,0,5,5.0,0.0,109.25
 2042,OVERALL,60,Virginia,,8,0,0,4,,,91.9
 2042,OVERALL,61,UCF,,11,0,0,0,,,90.5
 2042,OVERALL,62,Rutgers,,5,0,0,3,2.0,0.0,63.15
@@ -482,17 +483,15 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2042,OVERALL,66,11 Panama City,,3,0,3,0,0.0,0.0,59.4
 2042,OVERALL,66,Washington St,,7,0,0,4,,,80.5
 2042,OVERALL,67,Army,,7,0,0,3,,,79.75
-2042,OVERALL,68,Minnesota,,7,0,0,3,,,79.75
-2042,OVERALL,69,Memphis,,7,0,0,3,,,79.75
 2042,OVERALL,70,Alabaster,,4,0,4,0,,,78.4
 2042,OVERALL,71,UTSA,,6,0,0,4,,,76.5
 2042,OVERALL,72,Missouri,,6,0,0,4,2.0,0.0,76.5
 2042,OVERALL,72,Washington St.,,7,0,0,4,2.0,1.0,80.5
+2042,OVERALL,72,Memphis,,8,0,0,4,4.0,0.0,91.9
 2042,OVERALL,73,17 Panama City,,3,0,3,0,,,59.4
 2042,OVERALL,73,Northwestern,,9,0,0,0,,,75.65
 2042,OVERALL,74,Oregon State,,8,0,0,2,,,74.55
 2042,OVERALL,75,North Carolina,,3,0,2,1,,,54.5
-2042,OVERALL,75,Wisconsin,,4,1,1,2,,,73.75
 2042,OVERALL,76,Cincinnati,,6,0,0,3,,,71.75
 2042,OVERALL,77,Duke,,6,0,0,3,,,71.75
 2042,OVERALL,78,Colorado State,,7,0,0,2,,,70.85
@@ -503,6 +502,7 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2042,OVERALL,84,Tennessee,,4,0,1,3,,,63.8
 2042,OVERALL,85,Middle Tennessee,,5,0,0,3,2.0,0.0,63.15
 2042,OVERALL,85,App St.,,5,0,0,4,1.0,0.0,67.9
+2042,OVERALL,85,UConn,,6,0,0,4,2.0,0.0,76.5
 2042,OVERALL,86,Iowa State,,10,0,0,0,,,62.15
 2042,OVERALL,87,Boston College,,6,0,0,1,,,61.9
 2042,OVERALL,88,Illinois,,6,0,0,1,,,61.9
@@ -512,13 +512,12 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2042,OVERALL,92,15 Hammond,,2,0,2,0,0.0,0.0,39.8
 2042,OVERALL,92,Charlotte,,17,0,0,0,,,55.2
 2042,OVERALL,93,Louisiana,,9,0,0,0,,,54.35
-2042,OVERALL,94,UConn,,4,0,0,3,,,54.05
 2042,OVERALL,95,Fresno State,,4,0,0,3,,,54.05
-2042,OVERALL,96,Gate City,,4,0,0,3,,,54.05
 2042,OVERALL,97,Maryland,,3,0,1,2,,,49.55
 2042,OVERALL,97,Liberty,,4,0,0,3,,,54.05
 2042,OVERALL,98,Syracuse,,5,0,0,1,4.0,0.0,53.3
 2042,OVERALL,98,UNLV,,10,0,0,0,3.0,7.0,57.4
+2042,OVERALL,98,Gate City,,5,0,0,3,2.0,0.0,63.15
 2042,OVERALL,99,Vanderbilt,,6,0,0,0,,,52.6
 2042,OVERALL,100,James Madison,,8,0,0,0,,,51.0
 2042,OVERALL,102,Toledo,,3,0,1,1,,,44.65
@@ -534,18 +533,19 @@ Year,ClassType,Rank,Team,User,TotalCommits,FiveStar,FourStar,ThreeStar,TwoStar,O
 2042,OVERALL,111,Pittsburgh,,2,0,2,0,,,39.8
 2042,OVERALL,111,UL Monroe,,6,0,0,0,3.0,3.0,43.3
 2042,OVERALL,111,Jax State,,10,0,0,0,1.0,9.0,47.55
+2042,OVERALL,111,Wisconsin,,3,0,1,2,0.0,0.0,49.55
 2042,OVERALL,113,C. Michigan,,9,0,0,0,,,39.5
 2042,OVERALL,114,New Mexico St.,,6,0,0,0,,,38.4
 2042,OVERALL,115,18 Panama City,,1,0,1,0,,,20.0
 2042,OVERALL,116,14 Hammond,,1,0,1,0,,,20.0
 2042,OVERALL,116,Kennesaw St.,,7,0,0,0,,,37.45
 2042,OVERALL,118,Sam Houston,,7,0,0,0,,,37.45
-2042,OVERALL,119,Old Dominion,,7,0,0,0,,,37.45
 2042,OVERALL,120,Georgia Tech,,2,0,1,1,,,34.85
 2042,OVERALL,121,UMass,,4,0,0,0,,,34.45
 2042,OVERALL,122,C. Carolina,,5,0,0,0,,,34.1
 2042,OVERALL,124,E. Michigan,,7,0,0,0,,,32.45
 2042,OVERALL,124,W. Kentucky,,7,0,0,0,1.0,6.0,37.45
+2042,OVERALL,124,Old Dominion,,8,0,0,0,1.0,7.0,41.15
 2042,OVERALL,125,Arizona State,,2,0,0,2,,,29.85
 2042,OVERALL,126,Stanford,,2,0,0,2,,,29.85
 2042,OVERALL,127,Georgia State,,5,0,0,0,,,24.15
