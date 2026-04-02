@@ -69,3 +69,6 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,off_explosive_index,off
 2042,14,Josh,USF,Penn State,W,52,35,98.16,Detonation Machine,99.39,-1.84,34.68,Wet Paper Bag,75.79,-64.73,True,True,False,False,False,False,True,True,False
 2042,14,Mike,San Jose State,Michigan State,W,50,33,100.0,Detonation Machine,89.5,0.0,28.2,Wet Paper Bag,55.01,-68.36,True,True,False,False,False,False,True,True,False
 2042,14,Nick,Florida State,Florida,W,28,24,65.37,Strike Force,88.46,-34.63,44.25,Wet Paper Bag,28.37,44.25,False,False,False,False,False,False,False,False,False
+2042,16,Devin,Bowling Green,Florida State,L,38,41,100.0,Detonation Machine,100.0,0.0,10.0,Wet Paper Bag,16.79,10.0,True,False,False,False,False,False,True,False,True
+2042,16,Nick,Florida State,Bowling Green,W,41,38,91.17,Detonation Machine,85.51,25.8,0.0,Wet Paper Bag,14.75,-44.25,False,False,False,False,False,False,True,False,True
+2042,16,Noah,Texas Tech,Nebraska,W,38,20,100.0,Detonation Machine,100.0,0.0,25.74,Wet Paper Bag,19.53,25.48,True,False,False,False,False,False,False,False,False
