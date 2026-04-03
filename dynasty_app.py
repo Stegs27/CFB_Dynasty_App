@@ -18624,8 +18624,8 @@ with tabs[0]:
         # ════════════════════════════════════════════════════════════════════
         # SECTION 1 — SEASON POWER RANKINGS
         # ════════════════════════════════════════════════════════════════════
-        st.subheader("📡 Power Rankings & Game Status")
-        st.caption("Rankings built on roster strength, speed, recruiting, QB tier, and coaching pedigree. Game status set by commissioner.")
+        st.subheader("🏈 Game Status")
+        st.caption("Status can be set by the Commish or by each User. If set by a User, it triggers a notification to the Commish.")
 
         # 1. Initialize Defaults and Load Data
         power_board = model_2041.copy()
