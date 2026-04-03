@@ -136,6 +136,18 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,2,Hawai'i,UConn,34.0,17.0,,,,,1.0,0.0,0.0,0.0,FINAL,,National,full_schedule,,,
 2042,2,Miami University,Oklahoma,14.0,55.0,,,,,1.0,0.0,0.0,0.0,FINAL,,National,full_schedule,,,
 2042,2,Gate City,Boise State,10.0,34.0,,,,,1.0,0.0,0.0,0.0,FINAL,,National,full_schedule,,,
+2042,2,Eastern Michigan,Delaware,,,,,,,1.0,0.0,1.0,0.0,SCHEDULED,11:00 AM,,full_schedule,,,
+2042,2,USC,Boise State,,,,,,,1.0,0.0,1.0,0.0,SCHEDULED,3:00 PM,,full_schedule,,,
+2042,2,SMU,Oregon,,,,19.0,,,1.0,0.0,1.0,0.0,SCHEDULED,7:30 PM,,full_schedule,,,
+2042,2,Florida State,Notre Dame,,,5.0,4.0,,,1.0,0.0,1.0,0.0,SCHEDULED,8:00 PM,,full_schedule,,,
+2042,2,UCLA,Marshall,,,,,,,1.0,0.0,1.0,0.0,SCHEDULED,4:00 PM,,full_schedule,,,
+2042,2,Georgia,Tulane,,,,,,,1.0,0.0,1.0,0.0,SCHEDULED,8:00 PM,,full_schedule,,,
+2042,2,Georgia Tech,Hammond,,,6.0,3.0,,,1.0,0.0,1.0,0.0,SCHEDULED,4:00 PM,,full_schedule,,,
+2042,2,Ohio State,Texas,,,18.0,13.0,,,1.0,0.0,1.0,0.0,SCHEDULED,12:00 PM,,full_schedule,,,
+2042,2,USF,Texas Tech,,,8.0,1.0,Josh,Noah,1.0,0.0,1.0,0.0,SCHEDULED,7:30 PM,,full_schedule,,,
+2042,2,Death Valley,Bowling Green,,,7.0,2.0,,Devin,1.0,0.0,1.0,0.0,SCHEDULED,12:00 PM,,full_schedule,,,
+2042,2,Hawaii,NC State,,,,22.0,,,1.0,0.0,1.0,0.0,SCHEDULED,2:00 PM,,full_schedule,,,
+2042,2,Auburn,Kennesaw State,,,,,,,1.0,0.0,1.0,0.0,SCHEDULED,3:30 PM,,full_schedule,,,
 2042,2,FCS Southeast,Alabaster,63.0,10.0,,,,,1.0,0.0,0.0,0.0,FINAL,,Regional,full_schedule,,,
 2042,2,FCS Midwest,Kennesaw State,17.0,51.0,,,,,1.0,0.0,0.0,0.0,FINAL,,,full_schedule,,,
 2042,2,FCS Midwest,Appalachian State,49.0,6.0,,,,,1.0,0.0,0.0,0.0,FINAL,,Regional,full_schedule,,,
@@ -898,8 +910,8 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,16,Houston,San Diego State,10.0,34.0,,24.0,,,0.0,1.0,0.0,0.0,FINAL,,,conf_championships,,,
 2042,16,Florida State,Bowling Green,41.0,38.0,5.0,2.0,Nick,Devin,0.0,1.0,0.0,0.0,FINAL,,,conf_championships,,,
 2042,16,Southern Mississippi,Troy,70.0,45.0,,,,,0.0,1.0,0.0,0.0,FINAL,,,conf_championships,,,
-2042,17,Temple,Louisville,24,44,,,,,0.0,0.0,1.0,0.0,FINAL,11:00 AM,,bowl_games,,,Fenway Bowl
-2042,17,Arizona State,East Carolina,10,49,,,,,0.0,0.0,1.0,0.0,FINAL,9:00 PM,,bowl_games,,,Frisco Bowl
+2042,17,Temple,Louisville,24.0,44.0,,,,,0.0,0.0,1.0,0.0,FINAL,11:00 AM,,bowl_games,,,Fenway Bowl
+2042,17,Arizona State,East Carolina,10.0,49.0,,,,,0.0,0.0,1.0,0.0,FINAL,9:00 PM,,bowl_games,,,Frisco Bowl
 2042,17,Arkansas,Western Michigan,37.0,10.0,,,,,0.0,0.0,1.0,0.0,FINAL,2:00 PM,,bowl_games,,,GameAbove Sports Bowl
 2042,17,North Carolina,Oklahoma,17.0,45.0,,,,,0.0,0.0,1.0,0.0,FINAL,3:30 PM,,bowl_games,,,Gasparilla Bowl
 2042,17,Mississippi State,Navy,3.0,43.0,,,,,0.0,0.0,1.0,0.0,FINAL,8:00 PM,,bowl_games,,,Hawaii Bowl
@@ -916,17 +928,29 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,17,BYU,Miami,10.0,41.0,12.0,14.0,,,0.0,0.0,1.0,0.0,FINAL,3:30 PM,,bowl_games,,,Pop-Tarts Bowl
 2042,17,Alabaster,Penn State,20.0,30.0,,,,,0.0,0.0,1.0,0.0,FINAL,5:45 PM,,bowl_games,,,Rate Bowl
 2042,17,Iowa State,Northwestern,38.0,13.0,,,,,0.0,0.0,1.0,0.0,FINAL,9:00 PM,,bowl_games,,,Salute to Veterans Bowl
-2042,17,Georgia State,Toledo,21,24,,,,,0.0,0.0,1.0,0.0,FINAL,9:00 PM,,bowl_games,,,68 Ventures Bowl
-2042,17,Washington State,Panama City,22,30,,,,,0.0,0.0,1.0,0.0,FINAL,7:30 PM,,bowl_games,,,Alamo Bowl
-2042,17,Ohio,Colorado State,14,19,,,,,0.0,0.0,1.0,0.0,FINAL,5:00 PM,,bowl_games,,,Arizona Bowl
-2042,17,Texas A&M,Wake Forest,35,14,15.0,25.0,,,0.0,0.0,1.0,0.0,FINAL,12:00 PM,,bowl_games,,,Armed Forces Bowl
-2042,17,LSU,Clemson,31,45,,21.0,,,0.0,0.0,1.0,0.0,FINAL,3:30 PM,,bowl_games,,,Birmingham Bowl
-2042,17,New Mexico State,Troy,14,28,,,,,0.0,0.0,1.0,0.0,FINAL,5:45 PM,,bowl_games,,,Boca Raton Bowl
-2042,17,Nebraska,USF,42,53,9.0,8.0,,Josh,0.0,0.0,1.0,0.0,FINAL,8:00 PM,,bowl_games,,,CFP First Round
-2042,17,Rapid City,Death Valley,40,27,10.0,7.0,,,0.0,0.0,1.0,0.0,FINAL,4:00 PM,,bowl_games,,,CFP First Round
-2042,17,Florida,Georgia Tech,35,38,11.0,6.0,Doug,,0.0,0.0,1.0,0.0,FINAL,12:00 PM,,bowl_games,,,CFP First Round
-2042,17,West Virginia,Florida State,14,49,12.0,5.0,,Nick,0.0,0.0,1.0,0.0,FINAL,8:00 PM,,bowl_games,,,CFP First Round
-2042,17,Missouri State,Miami University,31,28,,,,,0.0,0.0,1.0,0.0,FINAL,12:00 PM,,bowl_games,,,Cure Bowl
-2042,17,Liberty,San Diego State,7,38,,24.0,,,0.0,0.0,1.0,0.0,FINAL,2:30 PM,,bowl_games,,,Famous Idaho Potato Bowl
+2042,17,Georgia State,Toledo,21.0,24.0,,,,,0.0,0.0,1.0,0.0,FINAL,9:00 PM,,bowl_games,,,68 Ventures Bowl
+2042,17,Washington State,Panama City,22.0,30.0,,,,,0.0,0.0,1.0,0.0,FINAL,7:30 PM,,bowl_games,,,Alamo Bowl
+2042,17,Ohio,Colorado State,14.0,19.0,,,,,0.0,0.0,1.0,0.0,FINAL,5:00 PM,,bowl_games,,,Arizona Bowl
+2042,17,Texas A&M,Wake Forest,35.0,14.0,15.0,25.0,,,0.0,0.0,1.0,0.0,FINAL,12:00 PM,,bowl_games,,,Armed Forces Bowl
+2042,17,LSU,Clemson,31.0,45.0,,21.0,,,0.0,0.0,1.0,0.0,FINAL,3:30 PM,,bowl_games,,,Birmingham Bowl
+2042,17,New Mexico State,Troy,14.0,28.0,,,,,0.0,0.0,1.0,0.0,FINAL,5:45 PM,,bowl_games,,,Boca Raton Bowl
+2042,17,Nebraska,USF,42.0,53.0,9.0,8.0,,Josh,0.0,0.0,1.0,0.0,FINAL,8:00 PM,,bowl_games,,,CFP First Round
+2042,17,Rapid City,Death Valley,40.0,27.0,10.0,7.0,,,0.0,0.0,1.0,0.0,FINAL,4:00 PM,,bowl_games,,,CFP First Round
+2042,17,Florida,Georgia Tech,35.0,38.0,11.0,6.0,Doug,,0.0,0.0,1.0,0.0,FINAL,12:00 PM,,bowl_games,,,CFP First Round
+2042,17,West Virginia,Florida State,14.0,49.0,12.0,5.0,,Nick,0.0,0.0,1.0,0.0,FINAL,8:00 PM,,bowl_games,,,CFP First Round
+2042,17,Missouri State,Miami University,31.0,28.0,,,,,0.0,0.0,1.0,0.0,FINAL,12:00 PM,,bowl_games,,,Cure Bowl
+2042,17,Liberty,San Diego State,7.0,38.0,,24.0,,,0.0,0.0,1.0,0.0,FINAL,2:30 PM,,bowl_games,,,Famous Idaho Potato Bowl
 2042,17,23 Pittsburgh,Fresno State,45.0,21.0,23.0,,,,0.0,0.0,1.0,0.0,FINAL,,,bowl_games,,,Holiday Bowl
 2042,17,17 Ole Miss,16 San Jose State,36.0,13.0,17.0,16.0,,Mike,0.0,0.0,1.0,0.0,FINAL,,,bowl_games,,,Music City Bowl
+2042,18,Eastern Michigan,Delaware,,,,,,,0.0,0.0,1.0,0.0,SCHEDULED,11:00 AM,,bowl_games,,,Bahamas Bowl
+2042,18,USC,Boise State,,,,,,,0.0,0.0,1.0,0.0,SCHEDULED,3:00 PM,,bowl_games,,,Citrus Bowl
+2042,18,SMU,Oregon,,,,19.0,,,0.0,0.0,1.0,0.0,SCHEDULED,7:30 PM,,bowl_games,,,Duke's Mayo Bowl
+2042,18,Florida State,Notre Dame,,,5.0,4.0,Nick,,0.0,0.0,1.0,0.0,SCHEDULED,8:00 PM,,bowl_games,,,Fiesta Bowl
+2042,18,UCLA,Marshall,,,,,,,0.0,0.0,1.0,0.0,SCHEDULED,4:00 PM,,bowl_games,,,First Responder Bowl
+2042,18,Georgia,Tulane,,,,,,,0.0,0.0,1.0,0.0,SCHEDULED,8:00 PM,,bowl_games,,,Gator Bowl
+2042,18,Georgia Tech,Hammond,,,6.0,3.0,,,0.0,0.0,1.0,0.0,SCHEDULED,4:00 PM,,bowl_games,,,Peach Bowl
+2042,18,Ohio State,Texas,,,18.0,13.0,,,0.0,0.0,1.0,0.0,SCHEDULED,12:00 PM,,bowl_games,,,Reliaquest Bowl
+2042,18,USF,Texas Tech,,,8.0,1.0,Josh,Noah,0.0,0.0,1.0,0.0,SCHEDULED,7:30 PM,,bowl_games,,,Rose Bowl
+2042,18,Death Valley,Bowling Green,,,7.0,2.0,,Devin,0.0,0.0,1.0,0.0,SCHEDULED,12:00 PM,,bowl_games,,,Sugar Bowl
+2042,18,Hawaii,NC State,,,,22.0,,,0.0,0.0,1.0,0.0,SCHEDULED,2:00 PM,,bowl_games,,,Sun Bowl
+2042,18,Auburn,Kennesaw State,,,,,,,0.0,0.0,1.0,0.0,SCHEDULED,3:30 PM,,bowl_games,,,Texas Bowl
