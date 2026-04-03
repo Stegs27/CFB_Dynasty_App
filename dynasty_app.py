@@ -19049,30 +19049,30 @@ with tabs[0]:
 
             _cfp_alive_g  = _g_official and not _g_eliminated and len(official_cfp_teams) > 0
 
-            if _cfp_alive_g:
-                # CFP team still alive — gold border always; logo vibrant if ready, gray if not
-                _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
-                _sq_bdr      = '#fbbf24'
-                _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
-                _lbl_col     = '#fbbf24'
-                _logo_filter = 'drop-shadow(0 0 5px rgba(251,191,36,0.7))' if _is_ready else 'grayscale(100%) opacity(0.45)'
-                _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
-            elif _g_eliminated:
-                # Eliminated — gray
-                _sq_bg       = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
-                _sq_bdr      = '#374151'
-                _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.5);'
-                _lbl_col     = '#4b5563'
-                _logo_filter = 'grayscale(100%) opacity(0.35)'
-                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'></span>"
-            elif _is_ready:
-                # Ready/final non-CFP — team color glow
+            if _is_ready:
+                # Ready/final — always team color regardless of CFP or eliminated status
                 _sq_bg       = f'linear-gradient(135deg,{_tc_raw}28 0%,#0a0d14 100%)'
                 _sq_bdr      = _tc_raw
                 _glow        = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
                 _lbl_col     = _tc_raw
                 _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
                 _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
+            elif _cfp_alive_g:
+                # CFP alive, not ready — gold border, grayscale logo
+                _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
+                _sq_bdr      = '#fbbf24'
+                _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
+                _lbl_col     = '#fbbf24'
+                _logo_filter = 'grayscale(100%) opacity(0.45)'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
+            elif _g_eliminated:
+                # Eliminated, not ready — gray
+                _sq_bg       = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
+                _sq_bdr      = '#374151'
+                _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col     = '#4b5563'
+                _logo_filter = 'grayscale(100%) opacity(0.35)'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'></span>"
             else:
                 # Not set yet
                 _sq_bg       = 'linear-gradient(135deg,#0f172a 0%,#080d14 100%)'
@@ -19504,42 +19504,44 @@ with tabs[0]:
             )
 
             # ── Logo styling ──────────────────────────────────────────────────
-            if bw_style:
-                _logo_style = bw_style  # eliminated: full grayscale
-            elif is_official and not is_eliminated and len(official_cfp_teams) > 0 and not _is_ready_or_final:
+            if bw_style and not _is_ready_or_final:
+                _logo_style = bw_style  # eliminated + not ready: full grayscale
+            elif _cfp_alive and not _is_ready_or_final:
                 _logo_style = 'filter:grayscale(100%) opacity(0.45);'  # CFP alive, not ready
             else:
-                _logo_style = ''  # full color (ready, final, or non-CFP)
+                _logo_style = ''  # ready/final always gets full color logo
             logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{_logo_style}'/>" if logo_uri else "🏈 "
 
             # ── Card background / border logic ────────────────────────────────
-            # CFP alive + ready/final → gold border, black bg (dramatic playoff feel)
-            # CFP alive + not ready  → gold border, black bg (waiting state)
-            # Eliminated             → gray
-            # Ready/final (non-CFP)  → team color
-            # Not ready              → near-black muted
+            # Priority: ready always wins → CFP alive → eliminated → not ready
             _cfp_alive = is_official and not is_eliminated and len(official_cfp_teams) > 0
-            if _cfp_alive:
-                # Always gold + black for CFP teams regardless of ready state
+            if _is_ready_or_final:
+                if _cfp_alive:
+                    # Ready + CFP alive: keep gold border, black bg, full logo
+                    _card_bg        = "linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)"
+                    _card_border    = "#fbbf24"
+                    _card_glow      = card_glow
+                else:
+                    # Ready + non-CFP: team color
+                    _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
+                    _card_border    = tc
+                    _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
+                _card_opacity   = "1.0"
+                _content_filter = ""
+            elif _cfp_alive:
+                # CFP alive, not ready: gold border, black bg, grayscale logo
                 _card_bg        = "linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)"
                 _card_border    = "#fbbf24"
                 _card_glow      = card_glow
                 _card_opacity   = "1.0"
                 _content_filter = ""
             elif bw_style:
-                # Eliminated — grayed out
+                # Eliminated, not ready — grayed out
                 _card_bg        = "linear-gradient(90deg,#0d1117 0%,#080d14 100%)"
                 _card_border    = "#374151"
                 _card_glow      = "border: 1px solid #37415155;"
                 _card_opacity   = card_opacity
                 _content_filter = "filter:grayscale(80%);"
-            elif _is_ready_or_final:
-                # Ready/final non-CFP: team color on near-black
-                _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
-                _card_border    = tc
-                _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
-                _card_opacity   = "1.0"
-                _content_filter = ""
             else:
                 # Not ready / unplayed
                 _card_bg        = "linear-gradient(90deg,#0f172a 0%,#080d14 100%)"
@@ -23532,130 +23534,91 @@ with tabs[4]:
         # ── PLAYOFF BRACKET ──────────────────────────────────────────────────
         st.subheader('Playoff Bracket')
 
-        st.info("📸 **To use the official bracket:** enter the seeds below and hit Lock In. It stays saved for the rest of this season — no re-entry needed each visit.")
-
-        with st.expander("✏️ Enter Official CFP Bracket", expanded=False):
-            st.caption("Seed #1–4 get first-round byes. Leave teams blank to fall back to projections.")
-            MANUAL_SLOTS = [
-                (1,"Florida State","12-1"),(2,"Texas Tech","12-1"),
-                (3,"Rapid City","12-1"),(4,"Bowling Green","12-1"),
-                (5,"Clemson","12-1"),(6,"Texas A&M","10-2"),
-                (7,"Alabaster","10-3"),(8,"San Jose State","10-4"),
-                (9,"Texas","11-2"),(10,"Georgia Tech","11-2"),
-                (11,"USF","10-2"),(12,"San Diego State","12-1"),
-            ]
-            st.markdown("**Byes (Seeds 1–4)**")
-            bye_cols = st.columns(2)
-            manual_teams = []
-            for idx, (seed, def_team, def_rec) in enumerate(MANUAL_SLOTS[:4]):
-                with bye_cols[idx % 2]:
-                    st.markdown(f"<div style='color:#4ade80;font-weight:800;font-size:0.8rem;'>#{seed} — BYE</div>", unsafe_allow_html=True)
-                    t = st.text_input("Team", value=def_team, key=f"manual_team_{seed}", label_visibility="collapsed")
-                    r = st.text_input("Record", value=def_rec, key=f"manual_rec_{seed}", label_visibility="collapsed")
-                    if t.strip():
-                        manual_teams.append({"seed": seed, "team": t.strip(), "record": r.strip()})
-
-            st.markdown("**First Round (Seeds 5–12)**")
-            fr_matchups = [(5,12),(6,11),(7,10),(8,9)]
-            slot_map = {s: (t, r) for s, t, r in MANUAL_SLOTS}
-            for seed_a, seed_b in fr_matchups:
-                mc1, mc2, mc3 = st.columns([5, 1, 5])
-                with mc1:
-                    def_a_t, def_a_r = slot_map[seed_a]
-                    st.markdown(f"<div style='color:#60a5fa;font-weight:700;font-size:0.78rem;'>#{seed_a}</div>", unsafe_allow_html=True)
-                    ta = st.text_input("Team", value=def_a_t, key=f"manual_team_{seed_a}", label_visibility="collapsed")
-                    ra = st.text_input("Record", value=def_a_r, key=f"manual_rec_{seed_a}", label_visibility="collapsed")
-                    if ta.strip(): manual_teams.append({"seed": seed_a, "team": ta.strip(), "record": ra.strip()})
-                mc2.markdown("<div style='text-align:center;padding-top:1.4rem;color:#6b7280;font-weight:700;'>vs</div>", unsafe_allow_html=True)
-                with mc3:
-                    def_b_t, def_b_r = slot_map[seed_b]
-                    st.markdown(f"<div style='color:#60a5fa;font-weight:700;font-size:0.78rem;'>#{seed_b}</div>", unsafe_allow_html=True)
-                    tb = st.text_input("Team", value=def_b_t, key=f"manual_team_{seed_b}", label_visibility="collapsed")
-                    rb = st.text_input("Record", value=def_b_r, key=f"manual_rec_{seed_b}", label_visibility="collapsed")
-                    if tb.strip(): manual_teams.append({"seed": seed_b, "team": tb.strip(), "record": rb.strip()})
-
-            use_manual = st.button("📋 Lock In Official Bracket", key="use_manual_bracket", type="primary")
-
-        # ── BRACKET PERSISTENCE (CSV-backed) ────────────────────────────────
-        # Reads/writes official_bracket.csv in the repo root.
-        # Survives server restarts. Keyed by CURRENT_YEAR — auto-clears next season.
-        _BRACKET_CSV = 'official_bracket.csv'
-
-        def load_saved_bracket(year):
-            try:
-                _b = pd.read_csv(_BRACKET_CSV)
-                _b = _b[_b['YEAR'] == year]
-                if len(_b) >= 8:
-                    return [{'seed': int(r['SEED']), 'team': str(r['TEAM']), 'record': str(r['RECORD'])}
-                            for _, r in _b.iterrows()]
-            except Exception:
-                pass
-            return None
-
-        def save_official_bracket(year, teams):
-            try:
-                # Load existing, drop this year, append new
-                try:
-                    _existing = pd.read_csv(_BRACKET_CSV)
-                    _existing = _existing[_existing['YEAR'] != year]
-                except Exception:
-                    _existing = pd.DataFrame(columns=['YEAR','SEED','TEAM','RECORD'])
-                _new_rows = pd.DataFrame([
-                    {'YEAR': year, 'SEED': t['seed'], 'TEAM': t['team'], 'RECORD': t['record']}
-                    for t in teams
-                ])
-                _out = pd.concat([_existing, _new_rows], ignore_index=True).sort_values(['YEAR','SEED'])
-                _out.to_csv(_BRACKET_CSV, index=False)
-                return True
-            except Exception as e:
-                st.warning(f"⚠️ Couldn't save bracket to CSV: {e}")
-                return False
-
         # ── BRACKET: auto-populate from CFPbracketresults.csv ───────────────
-        # No manual lock-in needed. If CFPbracketresults.csv has data for the
-        # current year, use it as the official bracket + resolve actual results.
-        # Otherwise show the projected bracket from rankings.
+        # Reads CFPbracketresults.csv for current year. No manual lock-in needed.
+        # Falls back to projected bracket if no current-year data exists.
         bracket_field = None
-        _cfp_bracket_source = None
         try:
             _cbr = pd.read_csv('CFPbracketresults.csv')
             _cbr_cy = _cbr[_cbr['YEAR'] == CURRENT_YEAR].copy()
             if not _cbr_cy.empty:
-                # Extract all unique teams from TEAM1/TEAM2 columns, strip rank prefixes
                 import re as _bre
+
+                def _is_real_team(s):
+                    """Return True if this looks like a real team name, not a placeholder."""
+                    s = str(s).strip()
+                    if not s or s.lower() in ('nan','none',''):
+                        return False
+                    if _bre.match(r'(?i)^(winner|loser|tbd|bye|sf\d|qf\d|r1)', s):
+                        return False
+                    return True
+
                 def _strip_rank(s):
                     s = str(s).strip()
-                    s = _bre.sub(r'^#?\d+\s+', '', s)
-                    if _bre.match(r'(?i)^(winner|loser|tbd|bye)', s):
-                        return None
-                    return s.strip() if s else None
+                    return _bre.sub(r'^#?\d+\s+', '', s).strip()
 
-                # Collect unique real teams from R1 rows (seeds 5-12 are in R1)
-                _r1 = _cbr_cy[_cbr_cy['ROUND'] == 'R1'].copy()
-                _bracket_teams = []
-                _seen = set()
-                for _, _br in _r1.iterrows():
-                    for _col in ['TEAM1', 'TEAM2']:
-                        _tn = _strip_rank(str(_br.get(_col, '')))
-                        if _tn and _tn.lower() not in _seen:
-                            _seen.add(_tn.lower())
-                            _seed = int(_br.get('SEED1', 0) or _br.get('SEED2', 0) or 0)
-                            _rec  = str(_br.get('RECORD1', '') or _br.get('RECORD2', '')).strip()
-                            _bracket_teams.append({'seed': _seed, 'team': _tn, 'record': _rec})
+                # Collect all unique real teams across all rows
+                _team_seeds = {}  # team_lower → (canonical_name, seed)
+                for _, _br in _cbr_cy.iterrows():
+                    for _tcol, _scol in [('TEAM1','SEED1'), ('TEAM2','SEED2')]:
+                        _tn = _strip_rank(str(_br.get(_tcol, '')))
+                        if not _is_real_team(_tn):
+                            continue
+                        _tk = _tn.lower()
+                        _sd = _br.get(_scol)
+                        try:
+                            _sd = int(float(_sd)) if pd.notna(_sd) and float(_sd) > 0 else None
+                        except (ValueError, TypeError):
+                            _sd = None
+                        if _tk not in _team_seeds or (_sd and not _team_seeds[_tk][1]):
+                            _team_seeds[_tk] = (_tn, _sd)
 
-                # Also add bye teams (seeds 1-4) from QF or NCG rows if not already found
-                for _rnd in ['QF', 'SF', 'NCG']:
-                    _rnd_rows = _cbr_cy[_cbr_cy['ROUND'] == _rnd]
-                    for _, _br in _rnd_rows.iterrows():
-                        for _col in ['TEAM1', 'TEAM2']:
-                            _tn = _strip_rank(str(_br.get(_col, '')))
-                            if _tn and _tn.lower() not in _seen:
-                                _seen.add(_tn.lower())
-                                _bracket_teams.append({'seed': 0, 'team': _tn, 'record': ''})
+                # Also collect records
+                _team_records = {}
+                for _, _br in _cbr_cy.iterrows():
+                    for _tcol, _rcol in [('TEAM1','RECORD1'), ('TEAM2','RECORD2')]:
+                        _tn = _strip_rank(str(_br.get(_tcol, '')))
+                        if not _is_real_team(_tn):
+                            continue
+                        _rec = str(_br.get(_rcol, '')).strip()
+                        if _rec and _rec.lower() not in ('nan','none','') and _tn.lower() not in _team_records:
+                            _team_records[_tn.lower()] = _rec
 
-                if len(_bracket_teams) >= 8:
-                    bracket_field = build_bracket_field_from_screenshot(_bracket_teams, cfp_board)
-                    _cfp_bracket_source = 'official'
+                if len(_team_seeds) >= 8:
+                    # Assign seeds: use stored seeds where available, fill gaps from cfp_board rank
+                    _board_rank_map = {}
+                    if not cfp_board.empty and 'Team' in cfp_board.columns and 'Rank' in cfp_board.columns:
+                        for _, _br2 in cfp_board.iterrows():
+                            _board_rank_map[str(_br2['Team']).strip().lower()] = float(_br2.get('Rank', 99))
+
+                    # Teams with known seeds
+                    _seeded = {k: v for k, v in _team_seeds.items() if v[1]}
+                    _unseeded = {k: v for k, v in _team_seeds.items() if not v[1]}
+
+                    # Assign seeds to unseeded teams based on cfp_board rank
+                    _used_seeds = {v[1] for v in _seeded.values()}
+                    _available_seeds = [s for s in range(1, 13) if s not in _used_seeds]
+                    _unseeded_sorted = sorted(
+                        _unseeded.items(),
+                        key=lambda x: _board_rank_map.get(x[0], 99)
+                    )
+                    for i, (k, (name, _)) in enumerate(_unseeded_sorted):
+                        if i < len(_available_seeds):
+                            _team_seeds[k] = (name, _available_seeds[i])
+
+                    # Build bracket_teams list
+                    _bracket_teams = [
+                        {
+                            'seed': v[1] or 99,
+                            'team': v[0],
+                            'record': _team_records.get(k, '')
+                        }
+                        for k, v in _team_seeds.items() if v[1]
+                    ]
+                    _bracket_teams.sort(key=lambda x: x['seed'])
+
+                    if len(_bracket_teams) >= 8:
+                        bracket_field = build_bracket_field_from_screenshot(_bracket_teams, cfp_board)
         except Exception:
             pass
 
