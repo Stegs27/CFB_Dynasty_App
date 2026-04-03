@@ -72,3 +72,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,off_explosive_index,off
 2042,16,Devin,Bowling Green,Florida State,L,38,41,100.0,Detonation Machine,100.0,0.0,10.0,Wet Paper Bag,16.79,10.0,True,False,False,False,False,False,True,False,True
 2042,16,Nick,Florida State,Bowling Green,W,41,38,91.17,Detonation Machine,85.51,25.8,0.0,Wet Paper Bag,14.75,-44.25,False,False,False,False,False,False,True,False,True
 2042,16,Noah,Texas Tech,Nebraska,W,38,20,100.0,Detonation Machine,100.0,0.0,25.74,Wet Paper Bag,19.53,25.48,True,False,False,False,False,False,False,False,False
+2042,17,Doug,Florida,Georgia Tech,L,35,38,81.46,Missile Battery,70.71,25.89,0.0,Wet Paper Bag,34.47,-37.8,False,False,False,False,False,False,True,True,True
+2042,17,Josh,USF,Nebraska,W,53,42,95.45,Detonation Machine,97.87,-2.71,14.08,Wet Paper Bag,49.39,-20.6,True,True,False,False,False,False,True,True,False
+2042,17,Mike,San Jose State,Ole Miss,W,36,13,73.48,Strike Force,91.16,-26.52,54.27,Leaky,59.68,26.07,True,False,False,False,False,False,False,False,False
+2042,17,Nick,Florida State,West Virginia,W,49,14,100.0,Detonation Machine,85.51,8.83,39.17,Wet Paper Bag,27.81,39.17,False,False,False,False,False,False,False,False,False
