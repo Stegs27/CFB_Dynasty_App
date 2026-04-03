@@ -136,18 +136,6 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,2,Hawai'i,UConn,34,17,,,,,1,0,0,0,FINAL,,National,full_schedule,,,
 2042,2,Miami University,Oklahoma,14,55,,,,,1,0,0,0,FINAL,,National,full_schedule,,,
 2042,2,Gate City,Boise State,10,34,,,,,1,0,0,0,FINAL,,National,full_schedule,,,
-2042,2,Eastern Michigan,Delaware,,,,,,,1,0,1,0,SCHEDULED,11:00 AM,,full_schedule,,,
-2042,2,USC,Boise State,,,,,,,1,0,1,0,SCHEDULED,3:00 PM,,full_schedule,,,
-2042,2,SMU,Oregon,,,,19,,,1,0,1,0,SCHEDULED,7:30 PM,,full_schedule,,,
-2042,2,Florida State,Notre Dame,,,5,4,,,1,0,1,0,SCHEDULED,8:00 PM,,full_schedule,,,
-2042,2,UCLA,Marshall,,,,,,,1,0,1,0,SCHEDULED,4:00 PM,,full_schedule,,,
-2042,2,Georgia,Tulane,,,,,,,1,0,1,0,SCHEDULED,8:00 PM,,full_schedule,,,
-2042,2,Georgia Tech,Hammond,,,6,3,,,1,0,1,0,SCHEDULED,4:00 PM,,full_schedule,,,
-2042,2,Ohio State,Texas,,,18,13,,,1,0,1,0,SCHEDULED,12:00 PM,,full_schedule,,,
-2042,2,USF,Texas Tech,,,8,1,Josh,Noah,1,0,1,0,SCHEDULED,7:30 PM,,full_schedule,,,
-2042,2,Death Valley,Bowling Green,,,7,2,,Devin,1,0,1,0,SCHEDULED,12:00 PM,,full_schedule,,,
-2042,2,Hawaii,NC State,,,,22,,,1,0,1,0,SCHEDULED,2:00 PM,,full_schedule,,,
-2042,2,Auburn,Kennesaw State,,,,,,,1,0,1,0,SCHEDULED,3:30 PM,,full_schedule,,,
 2042,2,FCS Southeast,Alabaster,63,10,,,,,1,0,0,0,FINAL,,Regional,full_schedule,,,
 2042,2,FCS Midwest,Kennesaw State,17,51,,,,,1,0,0,0,FINAL,,,full_schedule,,,
 2042,2,FCS Midwest,Appalachian State,49,6,,,,,1,0,0,0,FINAL,,Regional,full_schedule,,,
@@ -808,7 +796,6 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,13,Ole Miss,Missouri,42,13,18,,,,1,0,0,0,FINAL,3:00 PM,National,full_schedule,,,
 2042,13,Florida International,Louisiana Tech,55,21,,,,,1,0,0,0,FINAL,3:00 PM,National,full_schedule,,,
 2042,13,Arkansas,Clemson,24,28,,,,,1,0,0,0,FINAL,3:15 PM,National,full_schedule,,,
-2042,13,Akron,Miami University,6,34,,,,,1,0,0,0,FINAL,3:15 PM,National,full_schedule,,,
 2042,13,Arizona,Baylor,33,51,,,,,1,0,0,0,FINAL,3:30 PM,National,full_schedule,,,
 2042,13,Liberty,Washington State,27,35,,,,,1,0,0,0,FINAL,3:30 PM,National,full_schedule,,,
 2042,13,Panama City,BYU,3,20,24,13,,,1,0,0,0,FINAL,4:00 PM,National,full_schedule,,,
@@ -872,12 +859,10 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,14,Colorado,Oklahoma State,26,36,,17,,,1,0,0,0,FINAL,3:15 PM,National,full_schedule,,,
 2042,14,Maryland,Washington,21,47,,,,,1,0,0,0,FINAL,3:30 PM,National,full_schedule,,,
 2042,14,Minnesota,Wisconsin,18,36,,,,,1,0,0,0,FINAL,3:30 PM,Regional,full_schedule,,,
-2042,14,Death Valley,UNLV,45,10,5,,,,1,0,0,0,FINAL,3:30 PM,National,full_schedule,,,
 2042,14,Ball State,Kent State,25,33,,,,,1,0,0,0,FINAL,5:00 PM,National,full_schedule,,,
 2042,14,Delaware,Florida International,41,31,,,,,1,0,0,0,FINAL,5:00 PM,National,full_schedule,,,
 2042,14,East Carolina,Memphis,24,43,,,,,1,0,0,0,FINAL,5:45 PM,National,full_schedule,,,
 2042,14,Purdue,Iowa,53,41,,,,,1,0,0,0,FINAL,6:00 PM,National,full_schedule,,,
-2042,14,Miami,UCF,33,13,12,,,,1,0,0,0,FINAL,6:00 PM,National,full_schedule,,,
 2042,14,Western Kentucky,Middle Tennessee,7,38,,,,,1,0,0,0,FINAL,6:00 PM,Regional,full_schedule,,,
 2042,14,UMass,Miami University,31,45,,,,,1,0,0,0,FINAL,6:00 PM,National,full_schedule,,,
 2042,14,Missouri State,Kennesaw State,30,14,,,,,1,0,0,0,FINAL,6:45 PM,National,full_schedule,,,
@@ -915,7 +900,6 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,17,Arkansas,Western Michigan,37,10,,,,,0,0,1,0,FINAL,2:00 PM,,bowl_games,,,GameAbove Sports Bowl
 2042,17,North Carolina,Oklahoma,17,45,,,,,0,0,1,0,FINAL,3:30 PM,,bowl_games,,,Gasparilla Bowl
 2042,17,Mississippi State,Navy,3,43,,,,,0,0,1,0,FINAL,8:00 PM,,bowl_games,,,Hawaii Bowl
-2042,17,Pittsburgh,Fresno State,45,21,23,,,,0,0,1,0,FINAL,8:00 PM,,bowl_games,,,Holiday Bowl
 2042,17,UTEP,Arizona,10,49,,,,,0,0,1,0,FINAL,9:15 PM,,bowl_games,,,Independence Bowl
 2042,17,Duke,Houston,42,23,,,,,0,0,1,0,FINAL,9:00 PM,,bowl_games,,,LA Bowl
 2042,17,Louisiana Tech,Wyoming,31,73,,,,,0,0,1,0,FINAL,10:30 PM,,bowl_games,,,Las Vegas Bowl
@@ -941,15 +925,17 @@ YEAR,Week,Visitor,Home,Vis Score,Home Score,Visitor Rank,Home Rank,Vis_User,Home
 2042,17,Missouri State,Miami University,31,28,,,,,0,0,1,0,FINAL,12:00 PM,,bowl_games,,,Cure Bowl
 2042,17,Liberty,San Diego State,7,38,,24,,,0,0,1,0,FINAL,2:30 PM,,bowl_games,,,Famous Idaho Potato Bowl
 2042,17,Pittsburgh,Fresno State,45,21,23,,,,0,0,1,0,FINAL,,,bowl_games,,,Holiday Bowl
-2042,18,Eastern Michigan,Delaware,,,,,,,0,0,1,0,SCHEDULED,11:00 AM,,bowl_games,,,Bahamas Bowl
-2042,18,USC,Boise State,,,,,,,0,0,1,0,SCHEDULED,3:00 PM,,bowl_games,,,Citrus Bowl
-2042,18,SMU,Oregon,,,,19,,,0,0,1,0,SCHEDULED,7:30 PM,,bowl_games,,,Duke's Mayo Bowl
-2042,18,Florida State,Notre Dame,,,5,4,Nick,,0,0,1,0,SCHEDULED,8:00 PM,,bowl_games,,,Fiesta Bowl
-2042,18,UCLA,Marshall,,,,,,,0,0,1,0,SCHEDULED,4:00 PM,,bowl_games,,,First Responder Bowl
-2042,18,Georgia,Tulane,,,,,,,0,0,1,0,SCHEDULED,8:00 PM,,bowl_games,,,Gator Bowl
-2042,18,Georgia Tech,Hammond,,,6,3,,,0,0,1,0,SCHEDULED,4:00 PM,,bowl_games,,,Peach Bowl
-2042,18,Ohio State,Texas,,,18,13,,,0,0,1,0,SCHEDULED,12:00 PM,,bowl_games,,,Reliaquest Bowl
-2042,18,USF,Texas Tech,,,8,1,Josh,Noah,0,0,1,0,SCHEDULED,7:30 PM,,bowl_games,,,Rose Bowl
-2042,18,Death Valley,Bowling Green,,,7,2,,Devin,0,0,1,0,SCHEDULED,12:00 PM,,bowl_games,,,Sugar Bowl
-2042,18,Hawaii,NC State,,,,22,,,0,0,1,0,SCHEDULED,2:00 PM,,bowl_games,,,Sun Bowl
-2042,18,Auburn,Kennesaw State,,,,,,,0,0,1,0,SCHEDULED,3:30 PM,,bowl_games,,,Texas Bowl
+2042,18,Eastern Michigan,Delaware,41,0,,,,,0,0,1,0,FINAL,11:00 AM,,bowl_games,,,Bahamas Bowl
+2042,18,USC,Boise State,17,12,,,,,0,0,1,0,FINAL,3:00 PM,,bowl_games,,,Citrus Bowl
+2042,18,SMU,Oregon,39,41,,19,,,0,0,1,0,FINAL,7:30 PM,,bowl_games,,,Duke's Mayo Bowl
+2042,18,Florida State,Notre Dame,55,10,5,4,Nick,,0,0,1,0,FINAL,8:00 PM,,bowl_games,,,Fiesta Bowl
+2042,18,UCLA,Marshall,38,19,,,,,0,0,1,0,FINAL,4:00 PM,,bowl_games,,,First Responder Bowl
+2042,18,Georgia,Tulane,45,24,,,,,0,0,1,0,FINAL,8:00 PM,,bowl_games,,,Gator Bowl
+2042,18,Georgia Tech,Hammond,38,14,6,3,,,0,0,1,0,FINAL,4:00 PM,,bowl_games,,,Peach Bowl
+2042,18,Ohio State,Texas,51,49,18,13,,,0,0,1,0,FINAL,12:00 PM,,bowl_games,,,Reliaquest Bowl
+2042,18,USF,Texas Tech,46,43,8,1,Josh,Noah,0,0,1,0,FINAL,7:30 PM,,bowl_games,,,Rose Bowl
+2042,18,Death Valley,Bowling Green,20,55,7,2,,Devin,0,0,1,0,FINAL,12:00 PM,,bowl_games,,,Sugar Bowl
+2042,18,Hawaii,NC State,17,52,,22,,,0,0,1,0,FINAL,2:00 PM,,bowl_games,,,Sun Bowl
+2042,18,Auburn,Kennesaw State,38,27,,,,,0,0,1,0,FINAL,3:30 PM,,bowl_games,,,Texas Bowl
+2042,19,Georgia Tech,Bowling Green,,,6,2,,Devin,0,0,1,0,SCHEDULED,7:30 PM,,bowl_games,,,Cotton Bowl
+2042,19,Florida State,USF,,,5,8,Nick,Josh,0,0,1,0,SCHEDULED,7:30 PM,,bowl_games,,,Orange Bowl
