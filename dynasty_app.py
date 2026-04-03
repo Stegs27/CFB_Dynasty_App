@@ -19455,36 +19455,44 @@ with tabs[0]:
             # bw_style only applies when eliminated (grayscale); otherwise full color
             logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
 
+            # ── Ready/final flag ──────────────────────────────────────────────
+            _is_ready_or_final = (
+                _u_status == 'Ready' or
+                (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
+                bool(_manual_score_map.get(user, {}).get('user_score', 0))
+            )
+
             # ── Card background / border logic ────────────────────────────────
-            # Priority: eliminated → muted gray | CFP alive → dark gold | ready/final → team color | default → muted
-            if is_official and not is_eliminated and len(official_cfp_teams) > 0:
-                # Still alive in CFP: dark charcoal/black gradient with gold border
-                _card_bg     = "linear-gradient(135deg,#1a1208 0%,#0d0d0d 50%,#111111 100%)"
-                _card_border = "#fbbf24"
-                _card_glow   = card_glow  # gold glow already set above
-                _card_opacity = card_opacity
-                _content_filter = ""
-            elif _is_ready_or_final and not bw_style:
-                # Ready or game final: team color gradient
-                _card_bg     = f"linear-gradient(90deg,{tc}40 0%,{tc}18 25%,#1f2937 60%)"
-                _card_border = tc
-                _card_glow   = f"box-shadow:0 0 0 2px {tc}; "
-                _card_opacity = "1.0"
-                _content_filter = ""
-            elif bw_style:
-                # Eliminated: gray
-                _card_bg     = "linear-gradient(90deg,#1e293b 0%,#0f172a 100%)"
-                _card_border = "#4b5563"
-                _card_glow   = "border: 1px solid #4b5563;"
-                _card_opacity = card_opacity
+            # Priority order: eliminated (any source) → CFP alive → ready/final → not ready
+            # bw_style is set when team is eliminated (CFP or otherwise)
+            if bw_style:
+                # Eliminated — grayed out regardless of CFP status
+                _card_bg        = "linear-gradient(90deg,#0d1117 0%,#080d14 100%)"
+                _card_border    = "#374151"
+                _card_glow      = "border: 1px solid #37415155;"
+                _card_opacity   = card_opacity
                 _content_filter = "filter:grayscale(80%);"
+            elif is_official and not is_eliminated and len(official_cfp_teams) > 0:
+                # Still alive in CFP: dramatic near-black with gold border
+                _card_bg        = "linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)"
+                _card_border    = "#fbbf24"
+                _card_glow      = card_glow  # gold glow already set above
+                _card_opacity   = "1.0"
+                _content_filter = ""
+            elif _is_ready_or_final:
+                # Ready or game final: team color gradient on near-black base
+                _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
+                _card_border    = tc
+                _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
+                _card_opacity   = "1.0"
+                _content_filter = ""
             else:
-                # Not ready / unplayed: slightly muted dark but logo stays vibrant
-                _card_bg     = "linear-gradient(90deg,#1e293b 0%,#0f172a 100%)"
-                _card_border = "#334155"
-                _card_glow   = ""
-                _card_opacity = "0.72"
-                _content_filter = "filter:grayscale(40%);"
+                # Not ready / unplayed: near-black, logo stays vibrant
+                _card_bg        = "linear-gradient(90deg,#0f172a 0%,#080d14 100%)"
+                _card_border    = "#1e293b"
+                _card_glow      = ""
+                _card_opacity   = "0.78"
+                _content_filter = "filter:grayscale(35%);"
 
             card_html = (
                 f"<div style='display:flex; align-items:center; "
