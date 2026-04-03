@@ -11836,18 +11836,17 @@ def load_team_ratings(year=None):
 
 
 @st.cache_data(ttl=300)
-def compute_conf_standings_from_schedule(year=None, write_csv=True):
+def compute_conf_standings_from_schedule(year=None, write_csv=False):
     """
-    Derive conf_standings_{YEAR}.csv from schedule_{YEAR}.csv (or CPUscores fallback).
+    Derive conference standings from schedule_{YEAR}.csv + team_conferences.csv.
 
     Computes per-team: W, L, PF, PA, DIFF, MOV, HOME (W-L string), AWAY (W-L string),
     STK (signed int: +3=W3, -2=L2), CONF_W, CONF_L, and CONFERENCE (from
-    team_conferences.csv if available).
+    team_conferences.csv).
 
-    Returns a DataFrame in the same schema as conf_standings_{YEAR}.csv so all
-    existing callers (load_team_performance, Who's In, SOS, FPI) work unchanged.
-    Also writes the CSV to disk if write_csv=True so the watcher-imported file
-    is no longer strictly required.
+    Returns a DataFrame in the same schema as the old conf_standings_{YEAR}.csv so all
+    existing callers work unchanged. write_csv parameter retained for compatibility
+    but does NOT write a CSV — conf_standings CSVs are no longer used.
     """
     target_year = int(year) if year else CURRENT_YEAR
     df = load_scores_master(target_year)
@@ -11867,7 +11866,7 @@ def compute_conf_standings_from_schedule(year=None, write_csv=True):
     for col in ('Vis Score', 'Home Score'):
         completed[col] = pd.to_numeric(completed.get(col, 0), errors='coerce').fillna(0)
 
-    # Load conference map from team_conferences.csv
+    # Load conference map — team_conferences.csv is the authoritative source
     conf_map = {}
     try:
         _tc = pd.read_csv('team_conferences.csv')
@@ -11962,11 +11961,8 @@ def compute_conf_standings_from_schedule(year=None, write_csv=True):
         out['CONF_RANK'] = out.groupby('CONFERENCE').cumcount() + 1
         out = out.sort_values(['W', 'DIFF'], ascending=False).reset_index(drop=True)
 
-    if write_csv and not out.empty:
-        try:
-            out.to_csv(f'conf_standings_{target_year}.csv', index=False)
-        except Exception:
-            pass
+    # NOTE: write_csv parameter is intentionally ignored — conf_standings CSVs
+    # are no longer written. Standings are computed live from schedule + team_conferences.
 
     return out
 
@@ -12009,21 +12005,19 @@ def _load_team_conferences_csv():
 
 def load_team_performance(year=None):
     """
-    Load in-season performance stats from conf_standings_{year}.csv.
+    Load in-season performance stats computed from schedule_{year}.csv + team_conferences.csv.
     Returns dict: team → {PF, PA, DIFF, MOV, HOME_W, HOME_L, AWAY_W, AWAY_L, W, L, STK}
 
-    HOME/AWAY columns are W-L strings e.g. "7-2". DIFF and MOV pre-computed.
-    Handles multiple rows per team (weekly snapshots) by taking the latest week.
-    For 2042+ seasons always recomputes from schedule_{year}.csv so stale CSVs
-    never win over newly-imported games.
+    For 2042+ seasons always computes live from schedule files.
+    For historical seasons falls back to conf_standings_{year}.csv if present.
     """
     if year is None:
         year = CURRENT_YEAR
     try:
-        # For current-era seasons always recompute from schedule file if it exists.
+        # Always try to compute from schedule first for current-era seasons
         _sched_file = f'schedule_{int(year)}.csv'
         if int(year) >= 2042 and os.path.exists(_sched_file):
-            _fresh = compute_conf_standings_from_schedule(year=year, write_csv=True)
+            _fresh = compute_conf_standings_from_schedule(year=year, write_csv=False)
             if not _fresh.empty:
                 cs = _fresh
             else:
@@ -12093,10 +12087,9 @@ def load_team_performance(year=None):
     except Exception:
         # CSV missing or empty — derive from schedule_{YEAR}.csv on the fly
         try:
-            _sched_cs = compute_conf_standings_from_schedule(year=year, write_csv=True)
+            _sched_cs = compute_conf_standings_from_schedule(year=year, write_csv=False)
             if _sched_cs.empty:
                 return {}
-            # Recursively call self now that CSV was written
             return load_team_performance(year=year)
         except Exception:
             return {}
@@ -16650,21 +16643,18 @@ with tabs[3]:
                 for _c in ['Visitor Rank', 'Home Rank', 'Vis Score', 'Home Score']:
                     _cpu_sos[_c] = pd.to_numeric(_cpu_sos.get(_c, 0), errors='coerce')
 
-            # 3. OPPONENT W-L LOOKUP — from conf_standings for current year
+            # 3. OPPONENT W-L LOOKUP — computed from schedule + team_conferences
             _opp_record_map = {}  # team_name_lower → (W, L, win_pct)
             try:
-                _cs_opp = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
-                _cs_opp['TEAM'] = _cs_opp['TEAM'].astype(str).str.strip()
-                _cs_opp['W'] = pd.to_numeric(_cs_opp['W'], errors='coerce').fillna(0).astype(int)
-                _cs_opp['L'] = pd.to_numeric(_cs_opp['L'], errors='coerce').fillna(0).astype(int)
-                # If multiple rows per team (weekly snapshots), keep latest
-                if 'WEEK' in _cs_opp.columns:
-                    _cs_opp['WEEK'] = pd.to_numeric(_cs_opp['WEEK'], errors='coerce').fillna(0)
-                    _cs_opp = _cs_opp.sort_values('WEEK').drop_duplicates('TEAM', keep='last')
-                for _, _cr in _cs_opp.iterrows():
-                    _gp = int(_cr['W']) + int(_cr['L'])
-                    _wp = round(int(_cr['W']) / max(_gp, 1), 3)
-                    _opp_record_map[str(_cr['TEAM']).strip().lower()] = (int(_cr['W']), int(_cr['L']), _wp)
+                _cs_opp = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
+                if not _cs_opp.empty:
+                    _cs_opp['TEAM'] = _cs_opp['TEAM'].astype(str).str.strip()
+                    _cs_opp['W'] = pd.to_numeric(_cs_opp['W'], errors='coerce').fillna(0).astype(int)
+                    _cs_opp['L'] = pd.to_numeric(_cs_opp['L'], errors='coerce').fillna(0).astype(int)
+                    for _, _cr in _cs_opp.iterrows():
+                        _gp = int(_cr['W']) + int(_cr['L'])
+                        _wp = round(int(_cr['W']) / max(_gp, 1), 3)
+                        _opp_record_map[str(_cr['TEAM']).strip().lower()] = (int(_cr['W']), int(_cr['L']), _wp)
             except Exception:
                 pass
 
@@ -17100,25 +17090,12 @@ with tabs[3]:
 
             _conf_map_sched = {}
             try:
-                _sct_df = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
-                if _sct_df is not None and not _sct_df.empty and 'TEAM' in _sct_df.columns and 'CONFERENCE' in _sct_df.columns:
-                    _tmp = _sct_df[['TEAM','CONFERENCE']].dropna().copy()
-                    _tmp['TEAM'] = _tmp['TEAM'].astype(str).str.strip()
-                    _tmp['CONFERENCE'] = _tmp['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
-                    _conf_map_sched.update(dict(zip(_tmp['TEAM'], _tmp['CONFERENCE'])))
+                _tc_fpi = pd.read_csv('team_conferences.csv')
+                _tc_fpi['TEAM'] = _tc_fpi['TEAM'].astype(str).str.strip()
+                _tc_fpi['CONFERENCE'] = _tc_fpi['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
+                _conf_map_sched.update(dict(zip(_tc_fpi['TEAM'], _tc_fpi['CONFERENCE'])))
             except Exception:
                 pass
-
-            if not _conf_map_sched:
-                try:
-                    _fallback_conf = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
-                    if not _fallback_conf.empty and 'TEAM' in _fallback_conf.columns and 'CONFERENCE' in _fallback_conf.columns:
-                        _tmp = _fallback_conf[['TEAM','CONFERENCE']].dropna().copy()
-                        _tmp['TEAM'] = _tmp['TEAM'].astype(str).str.strip()
-                        _tmp['CONFERENCE'] = _tmp['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
-                        _conf_map_sched.update(dict(zip(_tmp['TEAM'], _tmp['CONFERENCE'])))
-                except Exception:
-                    pass
 
             _fpi_conf_df['CONFERENCE'] = _fpi_conf_df['Team'].map(_conf_map_sched)
             _fpi_conf_df = _fpi_conf_df.dropna(subset=['FPI', 'CONFERENCE']).copy()
@@ -17351,22 +17328,18 @@ with tabs[3]:
             _conf_groups  = {'SEC': {'Nick','Devin','Doug'}, 'B1G': {'Noah','Josh','Mike'}}
             _conf_rivals_users = _conf_groups.get(_scht_conf_name, set()) - {_scht_user}
 
-            # ── Pull real full conf record from conf_standings_2041.csv ───────
+            # ── Pull real full conf record from schedule + team_conferences ────
             _from_standings = False
             conf_w = conf_l = conf_ranked_w = 0
             avg_conf_rank = None
             _uvw_games = pd.DataFrame()
             _conf_st   = pd.DataFrame()
             try:
-                _conf_st = pd.read_csv(f'conf_standings_{CURRENT_YEAR}.csv')
-                _conf_st['TEAM'] = _conf_st['TEAM'].str.strip()
-                _conf_st['USER'] = _conf_st['USER'].fillna('')
+                _conf_st = compute_conf_standings_from_schedule(year=CURRENT_YEAR, write_csv=False)
+                _conf_st['TEAM'] = _conf_st['TEAM'].astype(str).str.strip()
+                _conf_st['USER'] = ''
                 if 'CONFERENCE' in _conf_st.columns:
                     _conf_st['CONFERENCE'] = _conf_st['CONFERENCE'].astype(str).apply(normalize_conf_name)
-                # Filter to current year only — file may contain multiple seasons
-                if 'YEAR' in _conf_st.columns:
-                    _conf_st['YEAR'] = pd.to_numeric(_conf_st['YEAR'], errors='coerce')
-                    _conf_st = _conf_st[_conf_st['YEAR'].fillna(-1).astype(int) == int(CURRENT_YEAR)].copy()
                 _team_row = _conf_st[_conf_st['TEAM'] == _scht_team_name]
                 if _team_row.empty:
                     raise ValueError("team not in standings")
@@ -17377,7 +17350,6 @@ with tabs[3]:
                     (_conf_st['CONFERENCE'] == _scht_conf_name)
                 ].copy()
                 # Rank comes from cfp_rankings_history.csv — authoritative source
-                # conf_standings no longer carries a RANK column
                 try:
                     _rh2 = pd.read_csv('cfp_rankings_history.csv')
                     _rh2['YEAR'] = pd.to_numeric(_rh2['YEAR'], errors='coerce')
@@ -17453,7 +17425,7 @@ with tabs[3]:
                 'B1G': "B1G — co-king of the dynasty. 9-game conf schedule.",
                 'ACC': "ACC — top-heavy, real teeth at the top.",
             }.get(_scht_conf_name, f"{_scht_conf_name}.")
-            src_note = f"Record from conf_standings_{CURRENT_YEAR}.csv." if _from_standings else f"⚠️ conf_standings_{CURRENT_YEAR}.csv not found — user-vs-user fallback only."
+            src_note = "Record computed from schedule + team_conferences." if _from_standings else "⚠️ Schedule data not found — user-vs-user fallback only."
             st.caption(f"📌 {conf_tier_note} {src_note} User-vs-user matchups shown individually.")
 
         else:
@@ -18703,27 +18675,10 @@ with tabs[0]:
                 if not _cy_bracket.empty:
                     t1 = _cy_bracket['TEAM1'].dropna().unique().tolist()
                     t2 = _cy_bracket['TEAM2'].dropna().unique().tolist()
-
-                    import re as _re
-                    def _clean_bracket_team(raw):
-                        s = str(raw).strip()
-                        # Strip leading rank like "#4 " or "#12 "
-                        s = _re.sub(r'^#\d+\s+', '', s)
-                        # Drop placeholder strings like "Winner of ...", "TBD", etc.
-                        if _re.match(r'(?i)^(winner|loser|tbd|bye)', s):
-                            return None
-                        return s.strip().lower() if s else None
-
-                    official_cfp_teams = [
-                        c for t in (t1 + t2)
-                        for c in [_clean_bracket_team(t)] if c
-                    ]
+                    official_cfp_teams = [str(t).strip().lower() for t in (t1 + t2)]
 
                     if 'LOSER' in _cy_bracket.columns:
-                        eliminated_teams = [
-                            c for t in _cy_bracket['LOSER'].dropna().unique().tolist()
-                            for c in [_clean_bracket_team(t)] if c
-                        ]
+                        eliminated_teams = [str(t).strip().lower() for t in _cy_bracket['LOSER'].dropna().unique().tolist()]
             else:
                 csv_error = "Bracket CSV file missing."
         except Exception as e:
@@ -23082,12 +23037,12 @@ with tabs[4]:
         cfp_board = build_cfp_bubble_board(cfp_rankings, model_2041)
 
                # ── 12-TEAM PLAYOFF LOGIC (5+7 MODEL) ───────────────────────────────
-        # 1. Load the standings to map teams to their conferences
+        # 1. Load the conference map from team_conferences.csv (authoritative source)
         try:
-            conf_df = pd.read_csv(f'conf_standings_{int(CURRENT_YEAR)}.csv')
-            if 'CONFERENCE' in conf_df.columns:
-                conf_df['CONFERENCE'] = conf_df['CONFERENCE'].astype(str).apply(normalize_conf_name)
-            conf_map = dict(zip(conf_df['TEAM'], conf_df['CONFERENCE']))
+            _tc_cfp = pd.read_csv('team_conferences.csv')
+            _tc_cfp['TEAM'] = _tc_cfp['TEAM'].astype(str).str.strip()
+            _tc_cfp['CONFERENCE'] = _tc_cfp['CONFERENCE'].astype(str).str.strip().apply(normalize_conf_name)
+            conf_map = dict(zip(_tc_cfp['TEAM'], _tc_cfp['CONFERENCE']))
         except Exception:
             conf_map = {}
             
@@ -24010,7 +23965,7 @@ with tabs[2]:
         }, 150);
         </script>
         """, height=0)
-    _ods_tabs = st.tabs(["🚪 Roster Attrition", "🥇 Recruiting Rankings"])
+    _ods_tabs = st.tabs(["🚪 Roster Attrition", "🥇 Recruiting Rankings", "💯 The 100"])
 with _ods_tabs[1]:
     # ── Year selector ─────────────────────────────────────────────────────
     try:
@@ -24707,6 +24662,170 @@ with _ods_tabs[1]:
     else:
         st.caption("No recruiting history columns were found in recruiting.csv.")
 
+# ── THE 100 ──────────────────────────────────────────────────────────
+with _ods_tabs[2]:
+    st.header("💯 The 100")
+    st.caption("Top 100 national recruiting prospects by year — track where they signed and how that pipeline converts to NFL draft picks and national titles.")
+
+    try:
+        _t100_df = pd.DataFrame()
+        if os.path.exists("the_100.csv"):
+            _t100_raw = pd.read_csv("the_100.csv")
+            if not _t100_raw.empty:
+                for _c in ["Year","RANK","RATING"]:
+                    if _c in _t100_raw.columns:
+                        _t100_raw[_c] = pd.to_numeric(_t100_raw[_c], errors="coerce")
+                # Add User column by mapping TAR to known user teams
+                _T100_TEAM_USER = {
+                    "San Jose State":"Mike","Bowling Green":"Devin","USF":"Josh",
+                    "Texas Tech":"Noah","Florida":"Doug","Florida State":"Nick",
+                }
+                if "TAR" in _t100_raw.columns:
+                    _t100_raw["User"] = _t100_raw["TAR"].map(lambda t: _T100_TEAM_USER.get(str(t).strip(),""))
+                _t100_df = _t100_raw.copy()
+
+        if _t100_df.empty:
+            st.info("No data yet. Push the_100.csv to populate The 100.")
+        else:
+            # Year selector — if no Year column, treat all rows as current year
+            if "Year" in _t100_df.columns:
+                _t100_years = sorted(_t100_df["Year"].dropna().astype(int).unique().tolist(), reverse=True)
+            else:
+                _t100_df["Year"] = CURRENT_YEAR
+                _t100_years = [CURRENT_YEAR]
+            _t100_sel_yr = st.selectbox("Season", _t100_years, index=0, key="t100_year_sel")
+
+            _yr_df = _t100_df[_t100_df["Year"].fillna(-1).astype(int) == int(_t100_sel_yr)].copy()
+            _yr_df = _yr_df.sort_values("RANK", ascending=True).reset_index(drop=True)
+
+            # Filter to top 100 by rank
+            _top100 = _yr_df[_yr_df["RANK"].notna() & (_yr_df["RANK"] <= 100)].copy()
+            _rest   = _yr_df[_yr_df["RANK"].isna() | (_yr_df["RANK"] > 100)].copy()
+
+            # Summary stats
+            _total_in_top100 = len(_top100)
+            _user_in_top100  = _top100[_top100["User"].astype(str).str.strip().ne("")]["User"].value_counts()
+            _five_stars       = int((_top100["RATING"] == 5).sum())
+            _four_stars       = int((_top100["RATING"] == 4).sum())
+
+            _stat_cols = st.columns(4)
+            _stat_cols[0].metric("Top 100 Commits", _total_in_top100)
+            _stat_cols[1].metric("5★ Prospects", _five_stars)
+            _stat_cols[2].metric("4★ Prospects", _four_stars)
+            _stat_cols[3].metric("User Programs", len(_user_in_top100))
+
+            st.markdown("---")
+
+            # User breakdown bar
+            if not _user_in_top100.empty:
+                _bar_parts = []
+                for _usr, _cnt in _user_in_top100.items():
+                    _uc = get_team_primary_color(USER_TEAMS.get(str(_usr).strip().title(), ""))
+                    _bar_parts.append(
+                        f"<span style='background:{_uc};color:#fff;font-size:0.7rem;font-weight:900;"
+                        f"padding:3px 8px;border-radius:3px;margin-right:4px;'>{_usr} {_cnt}</span>"
+                    )
+                st.markdown(
+                    "<div style='margin-bottom:14px;'>" + "".join(_bar_parts) + "</div>",
+                    unsafe_allow_html=True
+                )
+
+            # ── Rank cards ────────────────────────────────────────────────────
+            _POS_COLORS = {
+                "QB":"#f97316","HB":"#22c55e","RB":"#22c55e","FB":"#22c55e",
+                "WR":"#3b82f6","TE":"#a78bfa","LEDG":"#ef4444","REDG":"#ef4444",
+                "EDGE":"#ef4444","DT":"#94a3b8","IDL":"#94a3b8",
+                "MIKE":"#fbbf24","WILL":"#fbbf24","SAM":"#fbbf24","LB":"#fbbf24",
+                "CB":"#06b6d4","FS":"#8b5cf6","SS":"#8b5cf6","S":"#8b5cf6",
+                "LT":"#64748b","LG":"#64748b","C":"#64748b","RG":"#64748b","RT":"#64748b",
+                "K":"#475569","P":"#475569",
+            }
+
+            # Show in groups of 10 for readability
+            _display_df = _top100 if not _top100.empty else _yr_df.head(100)
+
+            for _chunk_start in range(0, min(100, len(_display_df)), 10):
+                _chunk = _display_df.iloc[_chunk_start:_chunk_start+10]
+                _range_label = f"#{_chunk_start+1}–#{min(_chunk_start+10, len(_display_df))}"
+                with st.expander(_range_label, expanded=(_chunk_start == 0)):
+                    for _, _pr in _chunk.iterrows():
+                        _rank   = int(_pr.get("RANK", 0)) if pd.notna(_pr.get("RANK")) else "—"
+                        _name   = str(_pr.get("NAME","")).strip()
+                        _pos    = str(_pr.get("POS","")).strip()
+                        _team   = str(_pr.get("TAR","")).strip()
+                        _user   = str(_pr.get("User","")).strip()
+                        _stars  = int(_pr.get("RATING",0)) if pd.notna(_pr.get("RATING")) else 0
+                        _state  = str(_pr.get("ST","")).strip()
+                        _cls    = str(_pr.get("CLASS","")).strip()
+                        _committed = _team not in ("", "nan", "not committed")
+
+                        _is_user_team = _user and _user not in ("","nan")
+                        _u_color      = get_team_primary_color(USER_TEAMS.get(_user.title(),"")) if _is_user_team else "#334155"
+                        _pc           = _POS_COLORS.get(_pos.upper(), "#64748b")
+                        _school_logo  = get_school_logo_src(_team) if _committed else None
+                        _logo_html    = f"<img src='{_school_logo}' style='width:26px;height:26px;object-fit:contain;flex-shrink:0;'/>" if _school_logo else "<span style='width:26px;display:inline-block;'></span>"
+                        _star_html    = "★" * _stars + "☆" * (5 - _stars)
+                        _star_col     = "#fbbf24" if _stars == 5 else ("#94a3b8" if _stars >= 4 else "#475569")
+                        _nat_rk       = int(_rank) if isinstance(_rank, int) else 0
+                        _rank_col     = "#fbbf24" if _nat_rk <= 10 else ("#94a3b8" if _nat_rk <= 25 else "#64748b")
+                        _bg           = f"background:linear-gradient(90deg,{_u_color}18 0%,#080f1a 35%);" if _is_user_team else "background:#080f1a;"
+                        _border       = f"border-left:3px solid {_u_color};" if _is_user_team else "border-left:3px solid #1e293b;"
+                        _team_display = _team if _committed else "<span style='color:#334155;font-style:italic;'>uncommitted</span>"
+
+                        st.markdown(
+                            f"<div style='display:flex;align-items:center;gap:8px;padding:6px 10px;"
+                            f"{_bg}{_border}border-radius:5px;margin-bottom:3px;'>"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;"
+                            f"color:{_rank_col};min-width:32px;text-align:center;flex-shrink:0;'>{_rank}</span>"
+                            f"{_logo_html}"
+                            f"<div style='flex:1;min-width:0;'>"
+                            f"<div style='color:#f1f5f9;font-weight:700;font-size:0.82rem;'>{html.escape(_name)}"
+                            f"{'<span style=\"background:'+_u_color+'33;color:'+_u_color+';font-size:0.58rem;font-weight:900;padding:1px 5px;border-radius:3px;margin-left:6px;\">'+html.escape(_user.upper())+'</span>' if _is_user_team else ''}"
+                            f"</div>"
+                            f"<div style='color:#64748b;font-size:0.65rem;'>{_state} · {_cls}</div>"
+                            f"</div>"
+                            f"<span style='background:{_pc}22;color:{_pc};font-size:0.65rem;font-weight:900;"
+                            f"padding:2px 6px;border-radius:3px;flex-shrink:0;'>{html.escape(_pos)}</span>"
+                            f"<span style='color:{_star_col};font-size:0.75rem;flex-shrink:0;'>{_star_html}</span>"
+                            f"<span style='color:{'#'+_u_color[1:] if _is_user_team else '475569'};font-size:0.68rem;"
+                            f"min-width:100px;text-align:right;flex-shrink:0;"
+                            f"{'font-weight:700;' if _is_user_team else ''}'>{_team_display}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
+
+            # ── Prospects ranked 101+ ────────────────────────────────────────
+            if not _rest.empty:
+                with st.expander(f"📋 Ranked 101+ ({len(_rest)} players)", expanded=False):
+                    st.caption("These prospects are committed to user programs but fall outside the top 100 nationally.")
+                    _rest_user = _rest[_rest["User"].astype(str).str.strip().ne("") & _rest["User"].astype(str).ne("nan")].copy()
+                    if _rest_user.empty:
+                        st.caption("No user-program commits outside top 100.")
+                    else:
+                        for _, _pr in _rest_user.iterrows():
+                            _rank  = int(_pr.get("RANK",0)) if pd.notna(_pr.get("RANK")) else "—"
+                            _name  = str(_pr.get("NAME","")).strip()
+                            _pos   = str(_pr.get("POS","")).strip()
+                            _team  = str(_pr.get("TAR","")).strip()
+                            _user  = str(_pr.get("User","")).strip()
+                            _stars = int(_pr.get("RATING",0)) if pd.notna(_pr.get("RATING")) else 0
+                            _u_color = get_team_primary_color(USER_TEAMS.get(_user.title(),""))
+                            _pc    = _POS_COLORS.get(_pos.upper(), "#64748b")
+                            st.markdown(
+                                f"<div style='display:flex;align-items:center;gap:8px;padding:4px 8px;"
+                                f"background:#080f1a;border-left:2px solid {_u_color};border-radius:4px;margin-bottom:2px;'>"
+                                f"<span style='color:#475569;font-size:0.75rem;min-width:44px;'>#{_rank}</span>"
+                                f"<span style='color:#94a3b8;font-size:0.78rem;flex:1;'>{html.escape(_name)}</span>"
+                                f"<span style='background:{_pc}22;color:{_pc};font-size:0.63rem;font-weight:700;padding:1px 5px;border-radius:3px;'>{html.escape(_pos)}</span>"
+                                f"<span style='color:{_u_color};font-size:0.68rem;font-weight:700;'>{html.escape(_team)}</span>"
+                                f"<span style='color:#fbbf24;font-size:0.65rem;'>{'★'*_stars}</span>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+
+    except Exception as _t100_err:
+        st.error(f"The 100 error: {_t100_err}")
+
     # --- DYNASTY YOUTUBE ---
 with tabs[7]:
     _yt_tabs = st.tabs(["▶️ Dynasty YouTube", "⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
@@ -25087,9 +25206,9 @@ with tabs[5]:
               </div>
             </div>""", unsafe_allow_html=True)
 
-# --- ALL-AMERICANS ---
+# --- 2041 ALL-AMERICANS ---
     st.markdown("---")
-    st.subheader(f"🏅 {sel_year} All-Americans")
+    st.subheader("🏅 2041 All-Americans")
 
     try:
         aa_df = pd.read_csv("all_americans.csv")
