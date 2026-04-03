@@ -18675,10 +18675,27 @@ with tabs[0]:
                 if not _cy_bracket.empty:
                     t1 = _cy_bracket['TEAM1'].dropna().unique().tolist()
                     t2 = _cy_bracket['TEAM2'].dropna().unique().tolist()
-                    official_cfp_teams = [str(t).strip().lower() for t in (t1 + t2)]
+
+                    import re as _re
+                    def _clean_bracket_team(raw):
+                        s = str(raw).strip()
+                        # Strip leading rank like "#4 " or "#12 "
+                        s = _re.sub(r'^#\d+\s+', '', s)
+                        # Drop placeholder strings like "Winner of ...", "TBD", etc.
+                        if _re.match(r'(?i)^(winner|loser|tbd|bye)', s):
+                            return None
+                        return s.strip().lower() if s else None
+
+                    official_cfp_teams = [
+                        c for t in (t1 + t2)
+                        for c in [_clean_bracket_team(t)] if c
+                    ]
 
                     if 'LOSER' in _cy_bracket.columns:
-                        eliminated_teams = [str(t).strip().lower() for t in _cy_bracket['LOSER'].dropna().unique().tolist()]
+                        eliminated_teams = [
+                            c for t in _cy_bracket['LOSER'].dropna().unique().tolist()
+                            for c in [_clean_bracket_team(t)] if c
+                        ]
             else:
                 csv_error = "Bracket CSV file missing."
         except Exception as e:
@@ -23965,7 +23982,7 @@ with tabs[2]:
         }, 150);
         </script>
         """, height=0)
-    _ods_tabs = st.tabs(["🚪 Roster Attrition", "🥇 Recruiting Rankings", "💯 The 100"])
+    _ods_tabs = st.tabs(["🚪 Roster Attrition", "🥇 Recruiting Rankings"])
 with _ods_tabs[1]:
     # ── Year selector ─────────────────────────────────────────────────────
     try:
@@ -24662,170 +24679,6 @@ with _ods_tabs[1]:
     else:
         st.caption("No recruiting history columns were found in recruiting.csv.")
 
-# ── THE 100 ──────────────────────────────────────────────────────────
-with _ods_tabs[2]:
-    st.header("💯 The 100")
-    st.caption("Top 100 national recruiting prospects by year — track where they signed and how that pipeline converts to NFL draft picks and national titles.")
-
-    try:
-        _t100_df = pd.DataFrame()
-        if os.path.exists("the_100.csv"):
-            _t100_raw = pd.read_csv("the_100.csv")
-            if not _t100_raw.empty:
-                for _c in ["Year","RANK","RATING"]:
-                    if _c in _t100_raw.columns:
-                        _t100_raw[_c] = pd.to_numeric(_t100_raw[_c], errors="coerce")
-                # Add User column by mapping TAR to known user teams
-                _T100_TEAM_USER = {
-                    "San Jose State":"Mike","Bowling Green":"Devin","USF":"Josh",
-                    "Texas Tech":"Noah","Florida":"Doug","Florida State":"Nick",
-                }
-                if "TAR" in _t100_raw.columns:
-                    _t100_raw["User"] = _t100_raw["TAR"].map(lambda t: _T100_TEAM_USER.get(str(t).strip(),""))
-                _t100_df = _t100_raw.copy()
-
-        if _t100_df.empty:
-            st.info("No data yet. Push the_100.csv to populate The 100.")
-        else:
-            # Year selector — if no Year column, treat all rows as current year
-            if "Year" in _t100_df.columns:
-                _t100_years = sorted(_t100_df["Year"].dropna().astype(int).unique().tolist(), reverse=True)
-            else:
-                _t100_df["Year"] = CURRENT_YEAR
-                _t100_years = [CURRENT_YEAR]
-            _t100_sel_yr = st.selectbox("Season", _t100_years, index=0, key="t100_year_sel")
-
-            _yr_df = _t100_df[_t100_df["Year"].fillna(-1).astype(int) == int(_t100_sel_yr)].copy()
-            _yr_df = _yr_df.sort_values("RANK", ascending=True).reset_index(drop=True)
-
-            # Filter to top 100 by rank
-            _top100 = _yr_df[_yr_df["RANK"].notna() & (_yr_df["RANK"] <= 100)].copy()
-            _rest   = _yr_df[_yr_df["RANK"].isna() | (_yr_df["RANK"] > 100)].copy()
-
-            # Summary stats
-            _total_in_top100 = len(_top100)
-            _user_in_top100  = _top100[_top100["User"].astype(str).str.strip().ne("")]["User"].value_counts()
-            _five_stars       = int((_top100["RATING"] == 5).sum())
-            _four_stars       = int((_top100["RATING"] == 4).sum())
-
-            _stat_cols = st.columns(4)
-            _stat_cols[0].metric("Top 100 Commits", _total_in_top100)
-            _stat_cols[1].metric("5★ Prospects", _five_stars)
-            _stat_cols[2].metric("4★ Prospects", _four_stars)
-            _stat_cols[3].metric("User Programs", len(_user_in_top100))
-
-            st.markdown("---")
-
-            # User breakdown bar
-            if not _user_in_top100.empty:
-                _bar_parts = []
-                for _usr, _cnt in _user_in_top100.items():
-                    _uc = get_team_primary_color(USER_TEAMS.get(str(_usr).strip().title(), ""))
-                    _bar_parts.append(
-                        f"<span style='background:{_uc};color:#fff;font-size:0.7rem;font-weight:900;"
-                        f"padding:3px 8px;border-radius:3px;margin-right:4px;'>{_usr} {_cnt}</span>"
-                    )
-                st.markdown(
-                    "<div style='margin-bottom:14px;'>" + "".join(_bar_parts) + "</div>",
-                    unsafe_allow_html=True
-                )
-
-            # ── Rank cards ────────────────────────────────────────────────────
-            _POS_COLORS = {
-                "QB":"#f97316","HB":"#22c55e","RB":"#22c55e","FB":"#22c55e",
-                "WR":"#3b82f6","TE":"#a78bfa","LEDG":"#ef4444","REDG":"#ef4444",
-                "EDGE":"#ef4444","DT":"#94a3b8","IDL":"#94a3b8",
-                "MIKE":"#fbbf24","WILL":"#fbbf24","SAM":"#fbbf24","LB":"#fbbf24",
-                "CB":"#06b6d4","FS":"#8b5cf6","SS":"#8b5cf6","S":"#8b5cf6",
-                "LT":"#64748b","LG":"#64748b","C":"#64748b","RG":"#64748b","RT":"#64748b",
-                "K":"#475569","P":"#475569",
-            }
-
-            # Show in groups of 10 for readability
-            _display_df = _top100 if not _top100.empty else _yr_df.head(100)
-
-            for _chunk_start in range(0, min(100, len(_display_df)), 10):
-                _chunk = _display_df.iloc[_chunk_start:_chunk_start+10]
-                _range_label = f"#{_chunk_start+1}–#{min(_chunk_start+10, len(_display_df))}"
-                with st.expander(_range_label, expanded=(_chunk_start == 0)):
-                    for _, _pr in _chunk.iterrows():
-                        _rank   = int(_pr.get("RANK", 0)) if pd.notna(_pr.get("RANK")) else "—"
-                        _name   = str(_pr.get("NAME","")).strip()
-                        _pos    = str(_pr.get("POS","")).strip()
-                        _team   = str(_pr.get("TAR","")).strip()
-                        _user   = str(_pr.get("User","")).strip()
-                        _stars  = int(_pr.get("RATING",0)) if pd.notna(_pr.get("RATING")) else 0
-                        _state  = str(_pr.get("ST","")).strip()
-                        _cls    = str(_pr.get("CLASS","")).strip()
-                        _committed = _team not in ("", "nan", "not committed")
-
-                        _is_user_team = _user and _user not in ("","nan")
-                        _u_color      = get_team_primary_color(USER_TEAMS.get(_user.title(),"")) if _is_user_team else "#334155"
-                        _pc           = _POS_COLORS.get(_pos.upper(), "#64748b")
-                        _school_logo  = get_school_logo_src(_team) if _committed else None
-                        _logo_html    = f"<img src='{_school_logo}' style='width:26px;height:26px;object-fit:contain;flex-shrink:0;'/>" if _school_logo else "<span style='width:26px;display:inline-block;'></span>"
-                        _star_html    = "★" * _stars + "☆" * (5 - _stars)
-                        _star_col     = "#fbbf24" if _stars == 5 else ("#94a3b8" if _stars >= 4 else "#475569")
-                        _nat_rk       = int(_rank) if isinstance(_rank, int) else 0
-                        _rank_col     = "#fbbf24" if _nat_rk <= 10 else ("#94a3b8" if _nat_rk <= 25 else "#64748b")
-                        _bg           = f"background:linear-gradient(90deg,{_u_color}18 0%,#080f1a 35%);" if _is_user_team else "background:#080f1a;"
-                        _border       = f"border-left:3px solid {_u_color};" if _is_user_team else "border-left:3px solid #1e293b;"
-                        _team_display = _team if _committed else "<span style='color:#334155;font-style:italic;'>uncommitted</span>"
-
-                        st.markdown(
-                            f"<div style='display:flex;align-items:center;gap:8px;padding:6px 10px;"
-                            f"{_bg}{_border}border-radius:5px;margin-bottom:3px;'>"
-                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;"
-                            f"color:{_rank_col};min-width:32px;text-align:center;flex-shrink:0;'>{_rank}</span>"
-                            f"{_logo_html}"
-                            f"<div style='flex:1;min-width:0;'>"
-                            f"<div style='color:#f1f5f9;font-weight:700;font-size:0.82rem;'>{html.escape(_name)}"
-                            f"{'<span style=\"background:'+_u_color+'33;color:'+_u_color+';font-size:0.58rem;font-weight:900;padding:1px 5px;border-radius:3px;margin-left:6px;\">'+html.escape(_user.upper())+'</span>' if _is_user_team else ''}"
-                            f"</div>"
-                            f"<div style='color:#64748b;font-size:0.65rem;'>{_state} · {_cls}</div>"
-                            f"</div>"
-                            f"<span style='background:{_pc}22;color:{_pc};font-size:0.65rem;font-weight:900;"
-                            f"padding:2px 6px;border-radius:3px;flex-shrink:0;'>{html.escape(_pos)}</span>"
-                            f"<span style='color:{_star_col};font-size:0.75rem;flex-shrink:0;'>{_star_html}</span>"
-                            f"<span style='color:{'#'+_u_color[1:] if _is_user_team else '475569'};font-size:0.68rem;"
-                            f"min-width:100px;text-align:right;flex-shrink:0;"
-                            f"{'font-weight:700;' if _is_user_team else ''}'>{_team_display}</span>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-
-            # ── Prospects ranked 101+ ────────────────────────────────────────
-            if not _rest.empty:
-                with st.expander(f"📋 Ranked 101+ ({len(_rest)} players)", expanded=False):
-                    st.caption("These prospects are committed to user programs but fall outside the top 100 nationally.")
-                    _rest_user = _rest[_rest["User"].astype(str).str.strip().ne("") & _rest["User"].astype(str).ne("nan")].copy()
-                    if _rest_user.empty:
-                        st.caption("No user-program commits outside top 100.")
-                    else:
-                        for _, _pr in _rest_user.iterrows():
-                            _rank  = int(_pr.get("RANK",0)) if pd.notna(_pr.get("RANK")) else "—"
-                            _name  = str(_pr.get("NAME","")).strip()
-                            _pos   = str(_pr.get("POS","")).strip()
-                            _team  = str(_pr.get("TAR","")).strip()
-                            _user  = str(_pr.get("User","")).strip()
-                            _stars = int(_pr.get("RATING",0)) if pd.notna(_pr.get("RATING")) else 0
-                            _u_color = get_team_primary_color(USER_TEAMS.get(_user.title(),""))
-                            _pc    = _POS_COLORS.get(_pos.upper(), "#64748b")
-                            st.markdown(
-                                f"<div style='display:flex;align-items:center;gap:8px;padding:4px 8px;"
-                                f"background:#080f1a;border-left:2px solid {_u_color};border-radius:4px;margin-bottom:2px;'>"
-                                f"<span style='color:#475569;font-size:0.75rem;min-width:44px;'>#{_rank}</span>"
-                                f"<span style='color:#94a3b8;font-size:0.78rem;flex:1;'>{html.escape(_name)}</span>"
-                                f"<span style='background:{_pc}22;color:{_pc};font-size:0.63rem;font-weight:700;padding:1px 5px;border-radius:3px;'>{html.escape(_pos)}</span>"
-                                f"<span style='color:{_u_color};font-size:0.68rem;font-weight:700;'>{html.escape(_team)}</span>"
-                                f"<span style='color:#fbbf24;font-size:0.65rem;'>{'★'*_stars}</span>"
-                                f"</div>",
-                                unsafe_allow_html=True
-                            )
-
-    except Exception as _t100_err:
-        st.error(f"The 100 error: {_t100_err}")
-
     # --- DYNASTY YOUTUBE ---
 with tabs[7]:
     _yt_tabs = st.tabs(["▶️ Dynasty YouTube", "⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
@@ -25206,9 +25059,9 @@ with tabs[5]:
               </div>
             </div>""", unsafe_allow_html=True)
 
-# --- 2041 ALL-AMERICANS ---
+# --- ALL-AMERICANS ---
     st.markdown("---")
-    st.subheader("🏅 2041 All-Americans")
+    st.subheader(f"🏅 {sel_year} All-Americans")
 
     try:
         aa_df = pd.read_csv("all_americans.csv")
