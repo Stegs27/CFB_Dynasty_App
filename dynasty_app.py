@@ -19047,32 +19047,34 @@ with tabs[0]:
             except Exception:
                 pass
 
-            if _is_ready:
-                # Ready/final — team color glow, always wins regardless of CFP status
-                _sq_bg       = f'linear-gradient(135deg,{_tc_raw}28 0%,#0a0d14 100%)'
-                _sq_bdr      = _tc_raw
-                _glow        = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
-                _lbl_col     = _tc_raw
-                _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
-                _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
-            elif _g_official and not _g_eliminated and len(official_cfp_teams) > 0:
-                # Still alive in CFP, not ready yet — near-black with gold border and glow
+            _cfp_alive_g  = _g_official and not _g_eliminated and len(official_cfp_teams) > 0
+
+            if _cfp_alive_g:
+                # CFP team still alive — gold border always; logo vibrant if ready, gray if not
                 _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
                 _sq_bdr      = '#fbbf24'
                 _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
                 _lbl_col     = '#fbbf24'
-                _logo_filter = 'grayscale(100%) opacity(0.45)'
-                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
+                _logo_filter = 'drop-shadow(0 0 5px rgba(251,191,36,0.7))' if _is_ready else 'grayscale(100%) opacity(0.45)'
+                _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
             elif _g_eliminated:
-                # Eliminated from CFP, not ready — gray
+                # Eliminated — gray
                 _sq_bg       = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
                 _sq_bdr      = '#374151'
                 _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.5);'
                 _lbl_col     = '#4b5563'
                 _logo_filter = 'grayscale(100%) opacity(0.35)'
                 _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'></span>"
+            elif _is_ready:
+                # Ready/final non-CFP — team color glow
+                _sq_bg       = f'linear-gradient(135deg,{_tc_raw}28 0%,#0a0d14 100%)'
+                _sq_bdr      = _tc_raw
+                _glow        = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col     = _tc_raw
+                _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
+                _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
             else:
-                # Not set yet — dark, logo stays visible
+                # Not set yet
                 _sq_bg       = 'linear-gradient(135deg,#0f172a 0%,#080d14 100%)'
                 _sq_bdr      = '#1e293b'
                 _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.4);'
@@ -19501,49 +19503,45 @@ with tabs[0]:
                 bool(_manual_score_map.get(user, {}).get('user_score', 0))
             )
 
-            # ── Logo — grayscale only when not ready (CFP or otherwise) ─────────
-            # bw_style (eliminated) → full grayscale always
-            # CFP alive but not ready → grayscale until they lock in
-            # Ready/final → always full color regardless of CFP status
+            # ── Logo styling ──────────────────────────────────────────────────
             if bw_style:
-                _logo_style = bw_style
-            elif not _is_ready_or_final and is_official and not is_eliminated and len(official_cfp_teams) > 0:
-                _logo_style = 'filter:grayscale(100%) opacity(0.45);'
+                _logo_style = bw_style  # eliminated: full grayscale
+            elif is_official and not is_eliminated and len(official_cfp_teams) > 0 and not _is_ready_or_final:
+                _logo_style = 'filter:grayscale(100%) opacity(0.45);'  # CFP alive, not ready
             else:
-                _logo_style = ''
+                _logo_style = ''  # full color (ready, final, or non-CFP)
             logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{_logo_style}'/>" if logo_uri else "🏈 "
 
             # ── Card background / border logic ────────────────────────────────
-            # Priority: ready always wins → CFP alive → eliminated → not ready
-            if _is_ready_or_final:
-                if is_official and not is_eliminated and len(official_cfp_teams) > 0:
-                    # Ready AND still in CFP: team color on near-black (CFP gold is for waiting state)
-                    _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
-                    _card_border    = tc
-                    _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
-                else:
-                    # Ready/final: team color on near-black base
-                    _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
-                    _card_border    = tc
-                    _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
-                _card_opacity   = "1.0"
-                _content_filter = ""
-            elif is_official and not is_eliminated and len(official_cfp_teams) > 0:
-                # Still alive in CFP, not ready: near-black with gold border + glow
+            # CFP alive + ready/final → gold border, black bg (dramatic playoff feel)
+            # CFP alive + not ready  → gold border, black bg (waiting state)
+            # Eliminated             → gray
+            # Ready/final (non-CFP)  → team color
+            # Not ready              → near-black muted
+            _cfp_alive = is_official and not is_eliminated and len(official_cfp_teams) > 0
+            if _cfp_alive:
+                # Always gold + black for CFP teams regardless of ready state
                 _card_bg        = "linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)"
                 _card_border    = "#fbbf24"
                 _card_glow      = card_glow
                 _card_opacity   = "1.0"
                 _content_filter = ""
             elif bw_style:
-                # Eliminated, not ready — grayed out
+                # Eliminated — grayed out
                 _card_bg        = "linear-gradient(90deg,#0d1117 0%,#080d14 100%)"
                 _card_border    = "#374151"
                 _card_glow      = "border: 1px solid #37415155;"
                 _card_opacity   = card_opacity
                 _content_filter = "filter:grayscale(80%);"
+            elif _is_ready_or_final:
+                # Ready/final non-CFP: team color on near-black
+                _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
+                _card_border    = tc
+                _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
+                _card_opacity   = "1.0"
+                _content_filter = ""
             else:
-                # Not ready / unplayed: near-black, logo stays vibrant
+                # Not ready / unplayed
                 _card_bg        = "linear-gradient(90deg,#0f172a 0%,#080d14 100%)"
                 _card_border    = "#1e293b"
                 _card_glow      = ""
@@ -23613,27 +23611,60 @@ with tabs[4]:
                 st.warning(f"⚠️ Couldn't save bracket to CSV: {e}")
                 return False
 
-        if use_manual and len(manual_teams) >= 8:
-            if save_official_bracket(CURRENT_YEAR, manual_teams):
-                st.session_state[f"official_bracket_{CURRENT_YEAR}"] = manual_teams
-
-        # Try session_state first (fast), fall back to CSV (survives restarts)
-        _saved_teams = st.session_state.get(f"official_bracket_{CURRENT_YEAR}")
-        if not _saved_teams:
-            _saved_teams = load_saved_bracket(CURRENT_YEAR)
-            if _saved_teams:
-                st.session_state[f"official_bracket_{CURRENT_YEAR}"] = _saved_teams
-
+        # ── BRACKET: auto-populate from CFPbracketresults.csv ───────────────
+        # No manual lock-in needed. If CFPbracketresults.csv has data for the
+        # current year, use it as the official bracket + resolve actual results.
+        # Otherwise show the projected bracket from rankings.
         bracket_field = None
-        if _saved_teams:
-            bracket_field = build_bracket_field_from_screenshot(_saved_teams, cfp_board)
+        _cfp_bracket_source = None
+        try:
+            _cbr = pd.read_csv('CFPbracketresults.csv')
+            _cbr_cy = _cbr[_cbr['YEAR'] == CURRENT_YEAR].copy()
+            if not _cbr_cy.empty:
+                # Extract all unique teams from TEAM1/TEAM2 columns, strip rank prefixes
+                import re as _bre
+                def _strip_rank(s):
+                    s = str(s).strip()
+                    s = _bre.sub(r'^#?\d+\s+', '', s)
+                    if _bre.match(r'(?i)^(winner|loser|tbd|bye)', s):
+                        return None
+                    return s.strip() if s else None
+
+                # Collect unique real teams from R1 rows (seeds 5-12 are in R1)
+                _r1 = _cbr_cy[_cbr_cy['ROUND'] == 'R1'].copy()
+                _bracket_teams = []
+                _seen = set()
+                for _, _br in _r1.iterrows():
+                    for _col in ['TEAM1', 'TEAM2']:
+                        _tn = _strip_rank(str(_br.get(_col, '')))
+                        if _tn and _tn.lower() not in _seen:
+                            _seen.add(_tn.lower())
+                            _seed = int(_br.get('SEED1', 0) or _br.get('SEED2', 0) or 0)
+                            _rec  = str(_br.get('RECORD1', '') or _br.get('RECORD2', '')).strip()
+                            _bracket_teams.append({'seed': _seed, 'team': _tn, 'record': _rec})
+
+                # Also add bye teams (seeds 1-4) from QF or NCG rows if not already found
+                for _rnd in ['QF', 'SF', 'NCG']:
+                    _rnd_rows = _cbr_cy[_cbr_cy['ROUND'] == _rnd]
+                    for _, _br in _rnd_rows.iterrows():
+                        for _col in ['TEAM1', 'TEAM2']:
+                            _tn = _strip_rank(str(_br.get(_col, '')))
+                            if _tn and _tn.lower() not in _seen:
+                                _seen.add(_tn.lower())
+                                _bracket_teams.append({'seed': 0, 'team': _tn, 'record': ''})
+
+                if len(_bracket_teams) >= 8:
+                    bracket_field = build_bracket_field_from_screenshot(_bracket_teams, cfp_board)
+                    _cfp_bracket_source = 'official'
+        except Exception:
+            pass
 
         if bracket_field is not None and not bracket_field.empty:
             actual_bracket = resolve_playoff_bracket_results(bracket_field, CURRENT_YEAR)
-            st.success("📋 Showing **official bracket** — saved to repo. Persists across sessions. Re-enter above to update.")
+            st.success("📋 Showing **official bracket** — sourced from CFPbracketresults.csv.")
             render_playoff_bracket(bracket_field, actual_results=actual_bracket)
         else:
-            st.caption("📊 Showing **projected bracket** — enter the official field above once the CFP announces.")
+            st.caption("📊 Showing **projected bracket** — updates automatically once CFPbracketresults.csv is pushed for this season.")
             render_playoff_bracket(projected_field)
 
         st.subheader('🌀 CFP Chaos Simulator')
