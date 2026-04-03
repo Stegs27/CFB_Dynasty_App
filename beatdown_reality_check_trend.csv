@@ -74,5 +74,5 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2042,16,Noah,Texas Tech,Nebraska,W,38,20,18.0,34.27,-16.27,4.15,1.0,0.7316,100.0,Score Lied for Them,91.32,26.05,False,True,False,True,False
 2042,17,Doug,Florida,Georgia Tech,L,35,38,-3.0,-11.34,8.34,-3.07,0.7621,0.8954,37.36,We Got Away With One,61.53,-10.7,False,False,False,False,False
 2042,17,Josh,USF,Nebraska,W,53,42,11.0,14.77,-3.77,3.68,0.8867,0.6771,72.2,Score Told the Truth,80.83,1.91,False,False,False,False,False
-2042,17,Mike,San Jose State,Ole Miss,W,36,13,23.0,16.4,6.6,2.3,0.7599,0.7223,86.97,Score Told the Truth,94.21,-8.7,False,False,True,False,False
+2042,17,Mike,San Jose State,Ole Miss,W,36,13,23.0,15.78,7.22,1.68,0.7386,0.779,86.97,We Got Away With One,94.21,-8.7,False,False,True,False,False
 2042,17,Nick,Florida State,West Virginia,W,49,14,35.0,5.62,29.38,0.53,0.8161,1.0,86.04,Score Lied for Us,61.94,38.19,True,False,True,False,False
