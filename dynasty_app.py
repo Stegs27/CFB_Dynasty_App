@@ -19015,7 +19015,6 @@ with tabs[0]:
 
         # ── QUICK-GLANCE STATUS GRID ─────────────────────────────────────────
         # 6 squares (2 rows × 3 cols), one per user team in power_board order.
-        # Green = READY or FINAL score recorded. Red = NOT SET / no status.
         _grid_parts = []
         for _, _gr in power_board.iterrows():
             _gt   = str(_gr.get('TEAM', '')).strip()
@@ -19033,6 +19032,11 @@ with tabs[0]:
             )
             _is_ready = _gs == 'Ready' or _has_score
 
+            # CFP status for this team
+            _gt_clean     = _gt.strip().lower()
+            _g_official   = _gt_clean in official_cfp_teams
+            _g_eliminated = _gt_clean in eliminated_teams
+
             # Team color from TEAM_VISUALS
             _tc_raw = get_team_primary_color(_gt)
             try:
@@ -19043,22 +19047,38 @@ with tabs[0]:
             except Exception:
                 pass
 
-            if _is_ready:
-                # Bright team color, glowing border, full saturation
-                _sq_bg  = f'linear-gradient(135deg,{_tc_raw}28 0%,#0f172a 100%)'
-                _sq_bdr = _tc_raw
-                _glow   = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
-                _lbl_col = _tc_raw
+            if _g_eliminated:
+                # Eliminated from CFP — gray
+                _sq_bg       = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
+                _sq_bdr      = '#374151'
+                _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col     = '#4b5563'
+                _logo_filter = 'grayscale(100%) opacity(0.35)'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'></span>"
+            elif _g_official and len(official_cfp_teams) > 0:
+                # Still alive in CFP — near-black with gold border and glow
+                _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
+                _sq_bdr      = '#fbbf24'
+                _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
+                _lbl_col     = '#fbbf24'
+                _logo_filter = 'drop-shadow(0 0 5px rgba(251,191,36,0.7))'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
+            elif _is_ready:
+                # Ready/final — team color glow
+                _sq_bg       = f'linear-gradient(135deg,{_tc_raw}28 0%,#0a0d14 100%)'
+                _sq_bdr      = _tc_raw
+                _glow        = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col     = _tc_raw
                 _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
-                _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
+                _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
             else:
-                # Muted gray — not set yet
-                _sq_bg  = 'linear-gradient(135deg,#1e293b 0%,#0f172a 100%)'
-                _sq_bdr = '#334155'
-                _glow   = 'box-shadow:0 2px 6px rgba(0,0,0,.4);'
-                _lbl_col = '#475569'
-                _logo_filter = 'grayscale(80%) opacity(0.45)'
-                _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:#334155;display:inline-block;margin-bottom:2px;'></span>"
+                # Not set yet — dark, logo stays visible
+                _sq_bg       = 'linear-gradient(135deg,#0f172a 0%,#080d14 100%)'
+                _sq_bdr      = '#1e293b'
+                _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.4);'
+                _lbl_col     = '#475569'
+                _logo_filter = 'opacity(0.6)'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#334155;display:inline-block;margin-bottom:2px;'></span>"
 
             _gl_uri  = image_file_to_data_uri(get_logo_source(_gt))
             _gl_img  = (f"<img src='{_gl_uri}' style='width:44px;height:44px;"
