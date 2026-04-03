@@ -18696,6 +18696,28 @@ with tabs[0]:
                             c for t in _cy_bracket['LOSER'].dropna().unique().tolist()
                             for c in [_clean_bracket_team(t)] if c
                         ]
+
+                    # Override: any team that appears in a later round is NOT eliminated.
+                    # The bracket CSV can have stale LOSER data from earlier rounds that
+                    # contradict advancement — later-round appearance always wins.
+                    _round_order = {'R1': 1, 'QF': 2, 'SF': 3, 'NCG': 4}
+                    _team_max_round = {}  # team_lower → max round number they appear in
+                    for _, _br in _cy_bracket.iterrows():
+                        _rn = _round_order.get(str(_br.get('ROUND','')).strip(), 0)
+                        for _col in ['TEAM1', 'TEAM2']:
+                            _tn = _clean_bracket_team(str(_br.get(_col, '')))
+                            if _tn:
+                                _team_max_round[_tn] = max(_team_max_round.get(_tn, 0), _rn)
+                    # Compute which round each eliminated team was last active in
+                    eliminated_teams = [
+                        t for t in eliminated_teams
+                        if not any(
+                            _team_max_round.get(t, 0) > _round_order.get(str(_er.get('ROUND','')).strip(), 0)
+                            for _, _er in _cy_bracket[
+                                _cy_bracket['LOSER'].astype(str).str.strip().str.lower() == t
+                            ].iterrows()
+                        )
+                    ]
             else:
                 csv_error = "Bracket CSV file missing."
         except Exception as e:
