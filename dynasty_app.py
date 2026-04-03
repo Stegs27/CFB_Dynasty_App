@@ -19049,22 +19049,22 @@ with tabs[0]:
 
             _cfp_alive_g  = _g_official and not _g_eliminated and len(official_cfp_teams) > 0
 
-            if _is_ready:
-                # Ready/final — always team color regardless of CFP or eliminated status
+            if _cfp_alive_g:
+                # CFP alive — gold always. Logo vibrant if ready, grayscale if not.
+                _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
+                _sq_bdr      = '#fbbf24'
+                _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
+                _lbl_col     = '#fbbf24'
+                _logo_filter = 'drop-shadow(0 0 5px rgba(251,191,36,0.7))' if _is_ready else 'grayscale(100%) opacity(0.45)'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
+            elif _is_ready:
+                # Ready/final — team color (covers eliminated + ready, and non-CFP + ready)
                 _sq_bg       = f'linear-gradient(135deg,{_tc_raw}28 0%,#0a0d14 100%)'
                 _sq_bdr      = _tc_raw
                 _glow        = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
                 _lbl_col     = _tc_raw
                 _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
                 _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
-            elif _cfp_alive_g:
-                # CFP alive, not ready — gold border, grayscale logo
-                _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
-                _sq_bdr      = '#fbbf24'
-                _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
-                _lbl_col     = '#fbbf24'
-                _logo_filter = 'grayscale(100%) opacity(0.45)'
-                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
             elif _g_eliminated:
                 # Eliminated, not ready — gray
                 _sq_bg       = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
@@ -19496,12 +19496,13 @@ with tabs[0]:
             _nat_natty_color = _odds_tier_color(live_natty)
             _nat_cfp_color   = _odds_tier_color(live_cfp)
 
-            # ── Ready/final flag ──────────────────────────────────────────────
+            # ── Ready/final flag + CFP alive flag — both defined before use ─────
             _is_ready_or_final = (
                 _u_status == 'Ready' or
                 (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
                 bool(_manual_score_map.get(user, {}).get('user_score', 0))
             )
+            _cfp_alive = is_official and not is_eliminated and len(official_cfp_teams) > 0
 
             # ── Logo styling ──────────────────────────────────────────────────
             if bw_style and not _is_ready_or_final:
@@ -19513,8 +19514,7 @@ with tabs[0]:
             logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{_logo_style}'/>" if logo_uri else "🏈 "
 
             # ── Card background / border logic ────────────────────────────────
-            # Priority: ready always wins → CFP alive → eliminated → not ready
-            _cfp_alive = is_official and not is_eliminated and len(official_cfp_teams) > 0
+            # CFP alive → gold always | ready (non-CFP) → team color | eliminated → gray | else → dark
             if _is_ready_or_final:
                 if _cfp_alive:
                     # Ready + CFP alive: keep gold border, black bg, full logo
