@@ -19061,7 +19061,7 @@ with tabs[0]:
                 _sq_bdr      = '#fbbf24'
                 _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
                 _lbl_col     = '#fbbf24'
-                _logo_filter = 'drop-shadow(0 0 5px rgba(251,191,36,0.7))'
+                _logo_filter = 'grayscale(100%) opacity(0.45)'
                 _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
             elif _g_eliminated:
                 # Eliminated from CFP, not ready — gray
@@ -19494,8 +19494,17 @@ with tabs[0]:
             _nat_natty_color = _odds_tier_color(live_natty)
             _nat_cfp_color   = _odds_tier_color(live_cfp)
 
-            # ── Logo — always vibrant regardless of game status ───────────────
-            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
+            # ── Logo — grayscale only when not ready (CFP or otherwise) ─────────
+            # bw_style (eliminated) → full grayscale always
+            # CFP alive but not ready → grayscale until they lock in
+            # Ready/final → always full color regardless of CFP status
+            if bw_style:
+                _logo_style = bw_style
+            elif not _is_ready_or_final and is_official and not is_eliminated and len(official_cfp_teams) > 0:
+                _logo_style = 'filter:grayscale(100%) opacity(0.45);'
+            else:
+                _logo_style = ''
+            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{_logo_style}'/>" if logo_uri else "🏈 "
 
             # ── Ready/final flag ──────────────────────────────────────────────
             _is_ready_or_final = (
