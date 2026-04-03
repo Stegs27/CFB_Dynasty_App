@@ -18703,10 +18703,27 @@ with tabs[0]:
                 if not _cy_bracket.empty:
                     t1 = _cy_bracket['TEAM1'].dropna().unique().tolist()
                     t2 = _cy_bracket['TEAM2'].dropna().unique().tolist()
-                    official_cfp_teams = [str(t).strip().lower() for t in (t1 + t2)]
+
+                    import re as _re
+                    def _clean_bracket_team(raw):
+                        s = str(raw).strip()
+                        # Strip leading rank like "#4 " or "#12 "
+                        s = _re.sub(r'^#\d+\s+', '', s)
+                        # Drop placeholder strings like "Winner of ...", "TBD", etc.
+                        if _re.match(r'(?i)^(winner|loser|tbd|bye)', s):
+                            return None
+                        return s.strip().lower() if s else None
+
+                    official_cfp_teams = [
+                        c for t in (t1 + t2)
+                        for c in [_clean_bracket_team(t)] if c
+                    ]
 
                     if 'LOSER' in _cy_bracket.columns:
-                        eliminated_teams = [str(t).strip().lower() for t in _cy_bracket['LOSER'].dropna().unique().tolist()]
+                        eliminated_teams = [
+                            c for t in _cy_bracket['LOSER'].dropna().unique().tolist()
+                            for c in [_clean_bracket_team(t)] if c
+                        ]
             else:
                 csv_error = "Bracket CSV file missing."
         except Exception as e:
