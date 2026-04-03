@@ -1,32 +1,286 @@
 Team,Alias
+Air Force,afa
+Air Force,air force
+Akron,akrn
+Akron,akron
+Alabama,alabama
+Alabama,bama
+Alabaster,alabaster
+Alabaster,ua
+Appalachian State,app
+Appalachian State,appalachian state
+Arizona,arizona
+Arizona,zona
+Arizona State,arizona state
+Arizona State,asu
+Arkansas,ark
+Arkansas,arkansas
+Arkansas State,arkansas state
+Arkansas State,arst
+Army,army
+Auburn,aub
+Auburn,auburn
+Auburn,auburn tigers
+BYU,byu
+Ball State,bal
+Ball State,ball
+Ball State,ball state
+Baylor,bay
+Baylor,baylor
+Boise State,boi
+Boise State,boise state
+Boise State,boise state broncos
+Boston College,bc
+Boston College,boston college
+Bowling Green,bgsu
+Bowling Green,bgsu falcons
+Bowling Green,bowling green
+Bowling Green,bowling green falcons
+Bowling Green,bowling green state
+California,cal
+Central Michigan,cmu
+Charlotte,charlotte
+Charlotte,clt
+Cincinnati,cin
+Cincinnati,cincinnati
+Clemson,clem
+Clemson,clemson
+Coastal Carolina,ccar
+Coastal Carolina,coastal carolina
+Colorado,colorado
+Colorado,cu
+Colorado State,colorado state
+Colorado State,csu
+Death Valley,death valley
+Death Valley,dvd
+Delaware,del
+Delaware,delaware
+Delaware,delaware blue hens
+Duke,duke
+Duke,duke blue devils
+East Carolina,east carolina
+East Carolina,ecu
+Eastern Michigan,e michigan
+Eastern Michigan,e. michigan
+Eastern Michigan,eastern michigan
+Eastern Michigan,eastern michigan eagles
+Eastern Michigan,emu
 Florida,florida
 Florida,florida gators
+Florida,uf
+Florida International,fiu
+Florida International,florida international
 Florida State,florida state
 Florida State,florida state seminoles
 Florida State,fsu
-Texas Tech,texas tech
-Texas Tech,texas tech red raiders
-USF,usf
-USF,south florida
-USF,south florida bulls
-South Florida,usf
-South Florida,south florida
-South Florida,south florida bulls
+Fresno State,fres
+Fresno State,fresno state
+Gate City,gate city
+Gate City,gcu
+Georgia,georgia
+Georgia,georgia bulldogs
+Georgia,uga
+Georgia Southern,gaso
+Georgia Southern,georgia southern
+Georgia State,gast
+Georgia State,georgia state
+Georgia Tech,georgia tech yellow jackets
+Georgia Tech,gt
+Hammond,hammond
+Hammond,hu
+Hawai'i,haw
+Hawai'i,hawai'i
+Hawai'i,hawai'i rainbow warriors
+Hawai'i,hawaii
+Houston,hou
+Houston,houston
+Illinois,ill
+Indiana,ind
+Iowa,iowa
+Iowa State,iowa state
+Iowa State,isu
+Jacksonville State,jacksonville state
+Jacksonville State,jax state
+Jacksonville State,jxst
+James Madison,james madison
+James Madison,jmu
+Kansas,ku
+Kansas State,ksu
+Kennesaw State,kenn
+Kennesaw State,kennesaw state
+Kennesaw State,kennesaw state owls
+Kent State,kent
+Kent State,kent state
+Kentucky,kentucky
+Kentucky,uk
+LSU,lsu
+Liberty,lib
+Liberty,liberty
+Louisiana,louisiana
+Louisiana,ul
+Louisiana Tech,louisiana tech
+Louisiana Tech,ltu
+Louisville,lou
+Louisville,louisville
+Marshall,marshall
+Marshall,marshall thundering herd
+Marshall,mrsh
+Marshall,mrshl
+Maryland,maryland
+Maryland,terps
+Memphis,mem
+Memphis,memphis
+Miami,mia
+Miami,miami
+Miami University,m-oh
+Miami University,miami university
+Michigan,mich
+Michigan State,msu
+Middle Tennessee,middle tennessee
+Middle Tennessee,mtsu
+Minnesota,minn
+Minnesota,minnesota
+Mississippi State,mississippi st
+Mississippi State,mississippi state
+Mississippi State,msst
+Missouri,missouri
+Missouri,mizz
+Missouri State,missouri state
+Missouri State,mist
+NC State,nc state
+NC State,ncst
+NC State,ncsu
+NC State,north carolina state
+Navy,navy
+Nebraska,neb
+Nebraska,nebraska
+New Mexico State,new mexico state
+New Mexico State,nmsu
+North Carolina,north carolina
+North Carolina,unc
+North Texas,north texas
+North Texas,unt
+Northwestern,northwestern
+Northwestern,nw
+Notre Dame,fighting irish
+Notre Dame,nd
+Notre Dame,notre dame
+Ohio,ohio
+Ohio State,ohio state
+Ohio State,ohio state buckeyes
+Ohio State,osu
+Oklahoma,okla
+Oklahoma,oklahoma
+Oklahoma State,oklahoma st
+Oklahoma State,oklahoma state
+Oklahoma State,oklahoma state cowboys
+Oklahoma State,okst
+Old Dominion,odu
+Old Dominion,old dominion
+Ole Miss,miss
+Ole Miss,ole miss
+Oregon,ore
+Oregon,oregon
+Oregon,oregon ducks
+Oregon State,oregon state
+Oregon State,orst
+Panama City,panama city
+Panama City,pcity
+Penn State,penn state
+Penn State,psu
+Pittsburgh,pitt
+Pittsburgh,pittsburgh
+Purdue,pur
+Purdue,purdue
+Rapid City,rapid city
+Rapid City,rcu
+Rice,rice
+Rutgers,ru
+Rutgers,rutgers
+SMU,smu
+SMU,smu mustangs
+Sam Houston,shsu
+San Diego State,san diego st
+San Diego State,san diego state
+San Diego State,sdsu
 San Jose State,san jose state
 San Jose State,san jose state spartans
 San Jose State,sjsu
-Bowling Green,bowling green
-Bowling Green,bowling green falcons
-Rapid City,rapid city
-Panama City,panama city
-Hammond,hammond
-Alabaster,alabaster
-Death Valley,death valley
-Gate City,gate city
-Oklahoma State,oklahoma state
-Oklahoma State,oklahoma state cowboys
-Oklahoma State,oklahoma st
+South Alabama,usa
+South Carolina,sc
+South Carolina,scar
 South Carolina,south carolina
 South Carolina,south carolina gamecocks
-South Carolina,scar
-South Carolina,sc
+South Florida,south florida
+South Florida,south florida bulls
+South Florida,usf
+Southern Mississippi,southern miss
+Southern Mississippi,southern mississippi
+Southern Mississippi,usm
+Stanford,stan
+Stanford,stanford
+Syracuse,cuse
+Syracuse,syracuse
+TCU,tcu
+Temple,tem
+Temple,temple
+Tennessee,tenn
+Texas,tex
+Texas,texas
+Texas,texas longhorns
+Texas,ut
+Texas A&M,tamu
+Texas A&M,texas a&m
+Texas State,txst
+Texas Tech,texas tech
+Texas Tech,texas tech red raiders
+Texas Tech,ttu
+Toledo,tol
+Toledo,toledo
+Troy,troy
+Tulane,tul
+Tulane,tulane
+Tulsa,tlsa
+Tulsa,tulsa
+UCF,ucf
+UCLA,ucla
+UCLA,ucla bruins
+UConn,conn
+UConn,uconn
+UL Monroe,ul monroe
+UL Monroe,ulm
+UMass,mass
+UMass,umass
+UNLV,unlv
+USC,usc
+USC,usc trojans
+USF,south florida
+USF,south florida bulls
+USF,usf
+UTEP,utep
+UTSA,utsa
+Utah,utah
+Utah State,usu
+Utah State,utah state
+Vanderbilt,vand
+Virginia,uva
+Virginia Tech,virginia tech
+Virginia Tech,vt
+Wake Forest,wake
+Wake Forest,wake forest
+Washington,wash
+Washington,washington
+Washington State,washington st
+Washington State,washington state
+Washington State,wsu
+West Virginia,west virginia
+West Virginia,wvu
+Western Kentucky,w. kentucky
+Western Kentucky,western kentucky
+Western Kentucky,wku
+Western Michigan,western michigan
+Western Michigan,wmu
+Wisconsin,wisc
+Wisconsin,wisconsin
+Wyoming,wyo
+Wyoming,wyoming
