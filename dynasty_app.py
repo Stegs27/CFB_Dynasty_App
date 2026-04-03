@@ -19136,8 +19136,8 @@ with tabs[0]:
                         card_opacity = "0.8" if is_defending_champ else "0.7"
                         live_natty, live_cfp = 0.0, 100.0
                     else:
-                        card_glow = "box-shadow: 0px 0px 15px rgba(5, 150, 105, 0.4); border: 1px solid #059669;"
-                        official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#059669;color:white;border:1px solid #059669;'>🔒 OFFICIAL FIELD</span>"
+                        card_glow = "box-shadow: 0px 0px 18px rgba(251,191,36,0.4); border: 1px solid #fbbf2466;"
+                        official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#fbbf24;color:#78350f;border:1px solid #d97706;'>🔒 OFFICIAL FIELD</span>"
                         live_cfp, card_opacity = 100.0, "1.0"
                 else:
                     official_badge = f"<span style='display:inline-block;margin-left:10px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:900;background:#dc2626;color:white;border:1px solid #dc2626;'>❌ OUT</span>"
@@ -19451,24 +19451,49 @@ with tabs[0]:
             _nat_natty_color = _odds_tier_color(live_natty)
             _nat_cfp_color   = _odds_tier_color(live_cfp)
 
-            # Team color outline when READY/FINAL, green outline otherwise
-            _is_ready_or_final = (
-                _u_status == 'Ready' or
-                (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
-                bool(_manual_score_map.get(user, {}).get('user_score', 0))
-            )
-            _logo_not_ready_style = '' if _is_ready_or_final else 'filter:grayscale(70%) opacity(0.45);'
-            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style or _logo_not_ready_style}'/>" if logo_uri else "🏈 "
-            _ready_outline = f"box-shadow:0 0 0 2px {tc}; " if _is_ready_or_final and not bw_style else ""
+            # ── Logo — always vibrant regardless of game status ───────────────
+            # bw_style only applies when eliminated (grayscale); otherwise full color
+            logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
+
+            # ── Card background / border logic ────────────────────────────────
+            # Priority: eliminated → muted gray | CFP alive → dark gold | ready/final → team color | default → muted
+            if is_official and not is_eliminated and len(official_cfp_teams) > 0:
+                # Still alive in CFP: dark charcoal/black gradient with gold border
+                _card_bg     = "linear-gradient(135deg,#1a1208 0%,#0d0d0d 50%,#111111 100%)"
+                _card_border = "#fbbf24"
+                _card_glow   = card_glow  # gold glow already set above
+                _card_opacity = card_opacity
+                _content_filter = ""
+            elif _is_ready_or_final and not bw_style:
+                # Ready or game final: team color gradient
+                _card_bg     = f"linear-gradient(90deg,{tc}40 0%,{tc}18 25%,#1f2937 60%)"
+                _card_border = tc
+                _card_glow   = f"box-shadow:0 0 0 2px {tc}; "
+                _card_opacity = "1.0"
+                _content_filter = ""
+            elif bw_style:
+                # Eliminated: gray
+                _card_bg     = "linear-gradient(90deg,#1e293b 0%,#0f172a 100%)"
+                _card_border = "#4b5563"
+                _card_glow   = "border: 1px solid #4b5563;"
+                _card_opacity = card_opacity
+                _content_filter = "filter:grayscale(80%);"
+            else:
+                # Not ready / unplayed: slightly muted dark but logo stays vibrant
+                _card_bg     = "linear-gradient(90deg,#1e293b 0%,#0f172a 100%)"
+                _card_border = "#334155"
+                _card_glow   = ""
+                _card_opacity = "0.72"
+                _content_filter = "filter:grayscale(40%);"
 
             card_html = (
                 f"<div style='display:flex; align-items:center; "
-                f"background:{'linear-gradient(90deg,'+tc+'40 0%,'+tc+'18 25%,#1f2937 60%)' if _is_ready_or_final else 'linear-gradient(90deg,#1e293b 0%,#0f172a 100%)'}; "
-                f"border-left:5px solid {tc if _is_ready_or_final else '#334155'}; {card_glow}{_ready_outline} opacity:{'1.0' if _is_ready_or_final else '0.52'}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
+                f"background:{_card_bg}; "
+                f"border-left:5px solid {_card_border}; {_card_glow} opacity:{_card_opacity}; border-radius:10px; padding:10px 14px; margin-bottom:4px; gap:12px; flex-wrap:wrap;'>"
                 f"{_rank_circle}"
                 f"{logo_html}"
-                f"<div style='flex:1; min-width:200px; {bw_style or ("" if _is_ready_or_final else "filter:grayscale(60%);")}'>"
-                f"<span style='font-size:1.05rem; font-weight:800; color:{tc if (_is_ready_or_final and not bw_style) else "#6b7280"};'>{html.escape(team)}</span> "
+                f"<div style='flex:1; min-width:200px; {_content_filter}'>"
+                f"<span style='font-size:1.05rem; font-weight:800; color:{tc if not bw_style else '#6b7280'};'>{html.escape(team)}</span> "
                 f"<span style='color:#9ca3af; font-size:0.82rem;'>({html.escape(user)})</span>"
                 f"<div style='margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;'>{_tier_chips} {official_badge}</div>"
                 f"{_game_strip}"
