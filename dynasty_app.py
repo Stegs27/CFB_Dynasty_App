@@ -19047,30 +19047,30 @@ with tabs[0]:
             except Exception:
                 pass
 
-            if _g_eliminated:
-                # Eliminated from CFP — gray
-                _sq_bg       = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
-                _sq_bdr      = '#374151'
-                _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.5);'
-                _lbl_col     = '#4b5563'
-                _logo_filter = 'grayscale(100%) opacity(0.35)'
-                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'></span>"
-            elif _g_official and len(official_cfp_teams) > 0:
-                # Still alive in CFP — near-black with gold border and glow
-                _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
-                _sq_bdr      = '#fbbf24'
-                _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
-                _lbl_col     = '#fbbf24'
-                _logo_filter = 'drop-shadow(0 0 5px rgba(251,191,36,0.7))'
-                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
-            elif _is_ready:
-                # Ready/final — team color glow
+            if _is_ready:
+                # Ready/final — team color glow, always wins regardless of CFP status
                 _sq_bg       = f'linear-gradient(135deg,{_tc_raw}28 0%,#0a0d14 100%)'
                 _sq_bdr      = _tc_raw
                 _glow        = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
                 _lbl_col     = _tc_raw
                 _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
                 _status_dot  = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
+            elif _g_official and not _g_eliminated and len(official_cfp_teams) > 0:
+                # Still alive in CFP, not ready yet — near-black with gold border and glow
+                _sq_bg       = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
+                _sq_bdr      = '#fbbf24'
+                _glow        = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
+                _lbl_col     = '#fbbf24'
+                _logo_filter = 'drop-shadow(0 0 5px rgba(251,191,36,0.7))'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
+            elif _g_eliminated:
+                # Eliminated from CFP, not ready — gray
+                _sq_bg       = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
+                _sq_bdr      = '#374151'
+                _glow        = 'box-shadow:0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col     = '#4b5563'
+                _logo_filter = 'grayscale(100%) opacity(0.35)'
+                _status_dot  = "<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'></span>"
             else:
                 # Not set yet — dark, logo stays visible
                 _sq_bg       = 'linear-gradient(135deg,#0f172a 0%,#080d14 100%)'
@@ -19505,28 +19505,34 @@ with tabs[0]:
             )
 
             # ── Card background / border logic ────────────────────────────────
-            # Priority: eliminated first (bw_style) → CFP alive → ready/final → not ready
-            if bw_style:
-                # Eliminated (CFP or otherwise) — grayed out
-                _card_bg        = "linear-gradient(90deg,#0d1117 0%,#080d14 100%)"
-                _card_border    = "#374151"
-                _card_glow      = "border: 1px solid #37415155;"
-                _card_opacity   = card_opacity
-                _content_filter = "filter:grayscale(80%);"
+            # Priority: ready always wins → CFP alive → eliminated → not ready
+            if _is_ready_or_final:
+                if is_official and not is_eliminated and len(official_cfp_teams) > 0:
+                    # Ready AND still in CFP: team color on near-black (CFP gold is for waiting state)
+                    _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
+                    _card_border    = tc
+                    _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
+                else:
+                    # Ready/final: team color on near-black base
+                    _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
+                    _card_border    = tc
+                    _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
+                _card_opacity   = "1.0"
+                _content_filter = ""
             elif is_official and not is_eliminated and len(official_cfp_teams) > 0:
-                # Still alive in CFP: near-black with gold border + glow
+                # Still alive in CFP, not ready: near-black with gold border + glow
                 _card_bg        = "linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)"
                 _card_border    = "#fbbf24"
                 _card_glow      = card_glow
                 _card_opacity   = "1.0"
                 _content_filter = ""
-            elif _is_ready_or_final:
-                # Ready or game final: team color on near-black base
-                _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
-                _card_border    = tc
-                _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
-                _card_opacity   = "1.0"
-                _content_filter = ""
+            elif bw_style:
+                # Eliminated, not ready — grayed out
+                _card_bg        = "linear-gradient(90deg,#0d1117 0%,#080d14 100%)"
+                _card_border    = "#374151"
+                _card_glow      = "border: 1px solid #37415155;"
+                _card_opacity   = card_opacity
+                _content_filter = "filter:grayscale(80%);"
             else:
                 # Not ready / unplayed: near-black, logo stays vibrant
                 _card_bg        = "linear-gradient(90deg,#0f172a 0%,#080d14 100%)"
@@ -25250,6 +25256,128 @@ with tabs[5]:
                         "User": st.column_config.TextColumn("User", width="small"),
                     }
                 )
+
+    # --- HIGHEST RATED GAMES ---
+    st.markdown("---")
+    st.subheader(f"📺 Highest Rated Games of {sel_year}")
+    st.caption("Viewership formula based on matchup stakes, rankings, rivalry, margin, and game context.")
+
+    try:
+        _rc_scores_df = load_scores_master(sel_year)
+        _rc_scores_df["YEAR"] = pd.to_numeric(_rc_scores_df["YEAR"], errors="coerce")
+        _rc_scores_df["Week"] = pd.to_numeric(_rc_scores_df["Week"], errors="coerce")
+        _rc_scores_df["Vis Score"] = pd.to_numeric(_rc_scores_df["Vis Score"], errors="coerce")
+        _rc_scores_df["Home Score"] = pd.to_numeric(_rc_scores_df["Home Score"], errors="coerce")
+        _rc_scores_df["Visitor Rank"] = pd.to_numeric(_rc_scores_df["Visitor Rank"], errors="coerce")
+        _rc_scores_df["Home Rank"] = pd.to_numeric(_rc_scores_df["Home Rank"], errors="coerce")
+
+        # Use CFP ranking snapshots if available
+        if _GLOBAL_WEEK_RANK_LOOKUP:
+            _rc_scores_df["Visitor Rank Snapshot"] = _rc_scores_df.apply(
+                lambda r: get_rank_at_week(r.get("Visitor",""), r.get("Week",0), r.get("YEAR", sel_year)), axis=1)
+            _rc_scores_df["Home Rank Snapshot"] = _rc_scores_df.apply(
+                lambda r: get_rank_at_week(r.get("Home",""), r.get("Week",0), r.get("YEAR", sel_year)), axis=1)
+        else:
+            _rc_scores_df["Visitor Rank Snapshot"] = _rc_scores_df["Visitor Rank"]
+            _rc_scores_df["Home Rank Snapshot"] = _rc_scores_df["Home Rank"]
+
+        _rc_cy = _rc_scores_df[
+            (_rc_scores_df["YEAR"] == sel_year) &
+            (_rc_scores_df["Status"].astype(str).str.upper() == "FINAL")
+        ].dropna(subset=["Vis Score","Home Score"]).copy()
+
+        _rc_cy["Vis_User"] = _rc_cy["Vis_User"].astype(str).str.strip().str.title()
+        _rc_cy["Home_User"] = _rc_cy["Home_User"].astype(str).str.strip().str.title()
+
+        _rc_tv_rows = []
+        for _, _rrow in _rc_cy.iterrows():
+            try:
+                _vs = float(_rrow["Vis Score"]); _hs = float(_rrow["Home Score"])
+                _vr = float(_rrow["Visitor Rank Snapshot"]) if not pd.isna(_rrow.get("Visitor Rank Snapshot")) else 99
+                _hr = float(_rrow["Home Rank Snapshot"]) if not pd.isna(_rrow.get("Home Rank Snapshot")) else 99
+                _margin = abs(_vs - _hs); _total = _vs + _hs
+                _vu = str(_rrow.get("Vis_User","")).strip(); _hu = str(_rrow.get("Home_User","")).strip()
+                _is_user = (_vu in USER_TEAMS) or (_hu in USER_TEAMS)
+                _is_h2h  = (_vu in USER_TEAMS) and (_hu in USER_TEAMS)
+                _wk = float(_rrow.get("Week",0) or 0)
+                _is_playoff   = _wk >= 16
+                _is_conf_champ = str(_rrow.get("Conf Title","0")).strip() in ("1","Yes","yes")
+                _is_natty      = str(_rrow.get("Natty Game","0")).strip().upper() in ("1","YES")
+                _top_rank = min(_vr,_hr); _both = _vr<=25 and _hr<=25
+                _base = 2.0
+                if _top_rank<=5:   _base+=6.5
+                elif _top_rank<=10: _base+=4.5
+                elif _top_rank<=15: _base+=2.8
+                elif _top_rank<=25: _base+=1.5
+                if _both: _base+=2.5
+                if _margin<=3: _base+=3.5
+                elif _margin<=7: _base+=2.0
+                elif _margin<=14: _base+=0.8
+                if _is_user: _base+=1.5
+                if _is_h2h:  _base+=2.0
+                if _is_conf_champ: _base+=2.0
+                if _is_playoff:    _base+=3.0
+                if _is_natty:      _base+=5.0
+                if _total>=80: _base+=1.5
+                elif _total>=60: _base+=0.8
+                _rc_tv_rows.append({
+                    "rating": round(_base, 2),
+                    "Visitor": str(_rrow.get("Visitor","")), "Home": str(_rrow.get("Home","")),
+                    "Vis Score": int(_vs), "Home Score": int(_hs),
+                    "Visitor Rank": int(_vr) if _vr<99 else None,
+                    "Home Rank": int(_hr) if _hr<99 else None,
+                    "Week": int(_wk), "Vis_User": _vu, "Home_User": _hu,
+                    "Conf Title": _rrow.get("Conf Title",0),
+                    "Natty Game": _rrow.get("Natty Game",0),
+                })
+            except Exception:
+                pass
+
+        if _rc_tv_rows:
+            _rc_top = sorted(_rc_tv_rows, key=lambda x: x["rating"], reverse=True)[:10]
+            for _ri, _rg in enumerate(_rc_top, 1):
+                _rvis = _rg["Visitor"]; _rhom = _rg["Home"]
+                _rvs  = _rg["Vis Score"]; _rhs = _rg["Home Score"]
+                _rvr  = f"#{_rg['Visitor Rank']} " if _rg["Visitor Rank"] else ""
+                _rhr  = f"#{_rg['Home Rank']} " if _rg["Home Rank"] else ""
+                _winner = _rvis if _rvs > _rhs else _rhom
+                _rvu  = _rg["Vis_User"]; _rhu  = _rg["Home_User"]
+                _rv_color = get_team_primary_color(_rvis) if _rvu in USER_TEAMS else "#94a3b8"
+                _rh_color = get_team_primary_color(_rhom) if _rhu in USER_TEAMS else "#94a3b8"
+                _r_rating = _rg["rating"]
+                _wk_lbl = "Conf Champ" if str(_rg.get("Conf Title","0")) in ("1","1.0") else \
+                          ("Natty" if str(_rg.get("Natty Game","0")) in ("1","1.0") else f"Wk {_rg['Week']}")
+                _ri_col = "#fbbf24" if _ri==1 else ("#9ca3af" if _ri==2 else ("#b45309" if _ri==3 else "#475569"))
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:10px;padding:8px 12px;"
+                    f"background:linear-gradient(90deg,#0d1117 0%,#080d14 100%);"
+                    f"border-left:3px solid {_ri_col};border-radius:6px;margin-bottom:4px;'>"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:{_ri_col};"
+                    f"min-width:28px;text-align:center;'>{_ri}</span>"
+                    f"<div style='flex:1;min-width:0;'>"
+                    f"<div style='font-size:0.85rem;font-weight:800;color:#f1f5f9;'>"
+                    f"<span style='color:{_rv_color};'>{html.escape(_rvr+_rvis)}</span>"
+                    f"<span style='color:#475569;font-weight:400;'> vs </span>"
+                    f"<span style='color:{_rh_color};'>{html.escape(_rhr+_rhom)}</span>"
+                    f"</div>"
+                    f"<div style='font-size:0.72rem;color:#64748b;'>{_wk_lbl}</div>"
+                    f"</div>"
+                    f"<span style='font-family:Barlow Condensed,sans-serif;font-weight:900;"
+                    f"font-size:1.1rem;color:#f1f5f9;'>"
+                    f"{'<span style=\"color:#4ade80;\">' if _rvs>_rhs else ''}{_rvs}"
+                    f"{'</span>' if _rvs>_rhs else ''}"
+                    f"<span style='color:#475569;'> – </span>"
+                    f"{'<span style=\"color:#4ade80;\">' if _rhs>_rvs else ''}{_rhs}"
+                    f"{'</span>' if _rhs>_rvs else ''}</span>"
+                    f"<span style='font-size:0.78rem;color:#fbbf24;font-weight:700;margin-left:8px;'>"
+                    f"📺 {_r_rating:.1f}M</span>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+        else:
+            st.caption(f"No completed games found for {sel_year}.")
+    except Exception as _rc_tv_err:
+        st.caption(f"Could not load game ratings: {_rc_tv_err}")
 
     # --- TEAM OVERVIEW ---
 
