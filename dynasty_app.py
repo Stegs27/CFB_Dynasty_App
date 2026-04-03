@@ -18992,7 +18992,6 @@ with tabs[0]:
 
         # ── QUICK-GLANCE STATUS GRID ─────────────────────────────────────────
         # 6 squares (2 rows × 3 cols), one per user team in power_board order.
-        # Green = READY or FINAL score recorded. Red = NOT SET / no status.
         _grid_parts = []
         for _, _gr in power_board.iterrows():
             _gt   = str(_gr.get('TEAM', '')).strip()
@@ -19010,6 +19009,11 @@ with tabs[0]:
             )
             _is_ready = _gs == 'Ready' or _has_score
 
+            # CFP status for this team
+            _gt_clean    = _gt.strip().lower()
+            _g_official  = _gt_clean in official_cfp_teams
+            _g_eliminated = _gt_clean in eliminated_teams
+
             # Team color from TEAM_VISUALS
             _tc_raw = get_team_primary_color(_gt)
             try:
@@ -19020,21 +19024,37 @@ with tabs[0]:
             except Exception:
                 pass
 
-            if _is_ready:
-                # Bright team color, glowing border, full saturation
-                _sq_bg  = f'linear-gradient(135deg,{_tc_raw}28 0%,#0f172a 100%)'
-                _sq_bdr = _tc_raw
-                _glow   = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
-                _lbl_col = _tc_raw
-                _logo_filter = 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
+            if _g_eliminated:
+                # Eliminated from CFP — gray, crossed out feel
+                _sq_bg      = 'linear-gradient(135deg,#0d1117 0%,#080d14 100%)'
+                _sq_bdr     = '#374151'
+                _glow       = 'box-shadow:0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col    = '#4b5563'
+                _logo_filter= 'grayscale(100%) opacity(0.35)'
+                _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'>❌</span>"
+            elif _g_official and len(official_cfp_teams) > 0:
+                # Still alive in CFP — near-black with gold border and glow
+                _sq_bg      = 'linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)'
+                _sq_bdr     = '#fbbf24'
+                _glow       = 'box-shadow:0 0 16px rgba(251,191,36,0.5),0 2px 6px rgba(0,0,0,.6);'
+                _lbl_col    = '#fbbf24'
+                _logo_filter= 'drop-shadow(0 0 5px rgba(251,191,36,0.7))'
+                _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:#fbbf24;box-shadow:0 0 6px #fbbf24;display:inline-block;margin-bottom:2px;'></span>"
+            elif _is_ready:
+                # Ready/final — team color glow
+                _sq_bg      = f'linear-gradient(135deg,{_tc_raw}28 0%,#0a0d14 100%)'
+                _sq_bdr     = _tc_raw
+                _glow       = f'box-shadow:0 0 14px {_tc_raw}88,0 2px 6px rgba(0,0,0,.5);'
+                _lbl_col    = _tc_raw
+                _logo_filter= 'drop-shadow(0 0 4px ' + _tc_raw + '88)'
                 _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:{_tc_raw};box-shadow:0 0 6px {_tc_raw};display:inline-block;margin-bottom:2px;'></span>"
             else:
-                # Muted gray — not set yet
-                _sq_bg  = 'linear-gradient(135deg,#1e293b 0%,#0f172a 100%)'
-                _sq_bdr = '#334155'
-                _glow   = 'box-shadow:0 2px 6px rgba(0,0,0,.4);'
-                _lbl_col = '#475569'
-                _logo_filter = 'grayscale(80%) opacity(0.45)'
+                # Not set yet — dark, logo still visible
+                _sq_bg      = 'linear-gradient(135deg,#0f172a 0%,#080d14 100%)'
+                _sq_bdr     = '#1e293b'
+                _glow       = 'box-shadow:0 2px 6px rgba(0,0,0,.4);'
+                _lbl_col    = '#475569'
+                _logo_filter= 'opacity(0.6)'
                 _status_dot = f"<span style='width:7px;height:7px;border-radius:50%;background:#334155;display:inline-block;margin-bottom:2px;'></span>"
 
             _gl_uri  = image_file_to_data_uri(get_logo_source(_gt))
@@ -19455,44 +19475,36 @@ with tabs[0]:
             # bw_style only applies when eliminated (grayscale); otherwise full color
             logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{bw_style}'/>" if logo_uri else "🏈 "
 
-            # ── Ready/final flag ──────────────────────────────────────────────
-            _is_ready_or_final = (
-                _u_status == 'Ready' or
-                (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
-                bool(_manual_score_map.get(user, {}).get('user_score', 0))
-            )
-
             # ── Card background / border logic ────────────────────────────────
-            # Priority order: eliminated (any source) → CFP alive → ready/final → not ready
-            # bw_style is set when team is eliminated (CFP or otherwise)
-            if bw_style:
-                # Eliminated — grayed out regardless of CFP status
-                _card_bg        = "linear-gradient(90deg,#0d1117 0%,#080d14 100%)"
-                _card_border    = "#374151"
-                _card_glow      = "border: 1px solid #37415155;"
-                _card_opacity   = card_opacity
+            # Priority: eliminated → muted gray | CFP alive → dark gold | ready/final → team color | default → muted
+            if is_official and not is_eliminated and len(official_cfp_teams) > 0:
+                # Still alive in CFP: dark charcoal/black gradient with gold border
+                _card_bg     = "linear-gradient(135deg,#1a1208 0%,#0d0d0d 50%,#111111 100%)"
+                _card_border = "#fbbf24"
+                _card_glow   = card_glow  # gold glow already set above
+                _card_opacity = card_opacity
+                _content_filter = ""
+            elif _is_ready_or_final and not bw_style:
+                # Ready or game final: team color gradient
+                _card_bg     = f"linear-gradient(90deg,{tc}40 0%,{tc}18 25%,#1f2937 60%)"
+                _card_border = tc
+                _card_glow   = f"box-shadow:0 0 0 2px {tc}; "
+                _card_opacity = "1.0"
+                _content_filter = ""
+            elif bw_style:
+                # Eliminated: gray
+                _card_bg     = "linear-gradient(90deg,#1e293b 0%,#0f172a 100%)"
+                _card_border = "#4b5563"
+                _card_glow   = "border: 1px solid #4b5563;"
+                _card_opacity = card_opacity
                 _content_filter = "filter:grayscale(80%);"
-            elif is_official and not is_eliminated and len(official_cfp_teams) > 0:
-                # Still alive in CFP: dramatic near-black with gold border
-                _card_bg        = "linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)"
-                _card_border    = "#fbbf24"
-                _card_glow      = card_glow  # gold glow already set above
-                _card_opacity   = "1.0"
-                _content_filter = ""
-            elif _is_ready_or_final:
-                # Ready or game final: team color gradient on near-black base
-                _card_bg        = f"linear-gradient(90deg,{tc}38 0%,{tc}14 28%,#0d1117 65%)"
-                _card_border    = tc
-                _card_glow      = f"box-shadow:0 0 0 2px {tc}55; "
-                _card_opacity   = "1.0"
-                _content_filter = ""
             else:
-                # Not ready / unplayed: near-black, logo stays vibrant
-                _card_bg        = "linear-gradient(90deg,#0f172a 0%,#080d14 100%)"
-                _card_border    = "#1e293b"
-                _card_glow      = ""
-                _card_opacity   = "0.78"
-                _content_filter = "filter:grayscale(35%);"
+                # Not ready / unplayed: slightly muted dark but logo stays vibrant
+                _card_bg     = "linear-gradient(90deg,#1e293b 0%,#0f172a 100%)"
+                _card_border = "#334155"
+                _card_glow   = ""
+                _card_opacity = "0.72"
+                _content_filter = "filter:grayscale(40%);"
 
             card_html = (
                 f"<div style='display:flex; align-items:center; "
