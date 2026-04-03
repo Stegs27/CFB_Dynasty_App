@@ -19494,6 +19494,13 @@ with tabs[0]:
             _nat_natty_color = _odds_tier_color(live_natty)
             _nat_cfp_color   = _odds_tier_color(live_cfp)
 
+            # ── Ready/final flag ──────────────────────────────────────────────
+            _is_ready_or_final = (
+                _u_status == 'Ready' or
+                (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
+                bool(_manual_score_map.get(user, {}).get('user_score', 0))
+            )
+
             # ── Logo — grayscale only when not ready (CFP or otherwise) ─────────
             # bw_style (eliminated) → full grayscale always
             # CFP alive but not ready → grayscale until they lock in
@@ -19505,13 +19512,6 @@ with tabs[0]:
             else:
                 _logo_style = ''
             logo_html = f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;vertical-align:middle;margin-right:8px;{_logo_style}'/>" if logo_uri else "🏈 "
-
-            # ── Ready/final flag ──────────────────────────────────────────────
-            _is_ready_or_final = (
-                _u_status == 'Ready' or
-                (isinstance(_u_matchup, dict) and _u_matchup.get('score')) or
-                bool(_manual_score_map.get(user, {}).get('user_score', 0))
-            )
 
             # ── Card background / border logic ────────────────────────────────
             # Priority: ready always wins → CFP alive → eliminated → not ready
