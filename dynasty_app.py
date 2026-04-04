@@ -14552,12 +14552,27 @@ if data:
     ratings = data['ratings']
 
     model_2041 = build_2041_model_table(r_2041, stats, rec)
+
+    def _safe_col(df, col, default=0):
+        """Return df[col] as a clean float Series even if col is duplicated or missing."""
+        if col not in df.columns:
+            return pd.Series([default] * len(df), index=df.index, dtype=float)
+        val = df[col]
+        if isinstance(val, pd.DataFrame):
+            val = val.iloc[:, 0]
+        return pd.to_numeric(val, errors='coerce').fillna(default)
+
+    def _dedup(df):
+        return df.loc[:, ~df.columns.duplicated()].copy()
+
+    model_2041 = _dedup(model_2041)
+
     # Recompute the visible QB tier straight from the latest source file so cache/file drift doesn't screw us.
     if 'QB Tier' in model_2041.columns:
         model_2041 = model_2041.drop(columns=['QB Tier'])
     qb_source = r_2041[['USER', 'TEAM']].copy()
     qb_source['QB Tier'] = r_2041.apply(qb_label, axis=1)
-    model_2041 = model_2041.merge(qb_source, on=['USER', 'TEAM'], how='left')
+    model_2041 = _dedup(model_2041.merge(qb_source, on=['USER', 'TEAM'], how='left'))
 
     # ── Enrich model_2041 with QB profile CSV data ─────────────────────────────
     try:
@@ -14583,8 +14598,8 @@ if data:
             'Height': 'QB_Height', 'Weight': 'QB_Weight', 'Hometown': 'QB_Hometown',
             'Pipeline': 'QB_Pipeline', 'Mentals': 'QB_Mentals', 'Physicals': 'QB_Physicals',
         })
-        model_2041 = model_2041.merge(_qb_enrich.rename(columns={'User': 'USER'}),
-                                      on='USER', how='left')
+        model_2041 = _dedup(model_2041.merge(_qb_enrich.rename(columns={'User': 'USER'}),
+                                      on='USER', how='left'))
     except Exception:
         pass
 
@@ -14593,7 +14608,7 @@ if data:
         _qb_rank_enrich['User'] = _qb_rank_enrich['User'].astype(str).str.strip().str.title()
         _qb_rank_enrich = _qb_rank_enrich[['User', 'Rank']].rename(
             columns={'User': 'USER', 'Rank': 'QB_Dynasty_Rank'})
-        model_2041 = model_2041.merge(_qb_rank_enrich, on='USER', how='left')
+        model_2041 = _dedup(model_2041.merge(_qb_rank_enrich, on='USER', how='left'))
     except Exception:
         pass
 
@@ -14654,14 +14669,14 @@ if data:
                 'Off Speed (90+ speed)', 'Def Speed (90+ speed)',
                 'Monsters', 'Quick Hogs',
             ] if c in model_2041.columns]
-            model_2041 = model_2041.drop(columns=_drop_spd, errors='ignore').merge(
+            model_2041 = _dedup(model_2041.drop(columns=_drop_spd, errors='ignore').merge(
                 _spd_df, on='TEAM', how='left'
-            )
+            ))
             for _sc in ['Team Speed (90+ Speed Guys)', 'Quad 90 (90+ SPD, ACC, AGI & COD)',
                         'Generational (96+ speed or 96+ Acceleration)',
                         'Off Speed (90+ speed)', 'Def Speed (90+ speed)',
                         'Monsters', 'Quick Hogs']:
-                model_2041[_sc] = pd.to_numeric(model_2041[_sc], errors='coerce').fillna(0)
+                model_2041[_sc] = _safe_col(model_2041, _sc, 0)
 
             # Alias: Quad 90 guys are also called Cheat Codes
             model_2041['Cheat Codes'] = model_2041['Quad 90 (90+ SPD, ACC, AGI & COD)']
@@ -14713,9 +14728,9 @@ if data:
             _drop_ss = [c for c in ['Current Record Wins','Current Record Losses',
                                     'Combined Opponent Wins','Combined Opponent Losses']
                         if c in model_2041.columns]
-            model_2041 = model_2041.drop(columns=_drop_ss, errors='ignore').merge(
+            model_2041 = _dedup(model_2041.drop(columns=_drop_ss, errors='ignore').merge(
                 _season_stat_df, on='TEAM', how='left'
-            )
+            ))
     except Exception:
         pass
 
@@ -14740,7 +14755,7 @@ if data:
             )
             if 'Current CFP Ranking' in model_2041.columns:
                 model_2041 = model_2041.drop(columns=['Current CFP Ranking'])
-            model_2041 = model_2041.merge(_cfp_snap, on='TEAM', how='left')
+            model_2041 = _dedup(model_2041.merge(_cfp_snap, on='TEAM', how='left'))
     except Exception:
         pass
 
@@ -14767,30 +14782,26 @@ if data:
     current_user_games = get_current_user_games(model_2041)
 
     # ── Build cfp_board early so Power Rankings can use real CFP Make % ───────
-    # Deduplicate model_2041 columns before any CFP work — merges can leave duplicates
-    model_2041 = model_2041.loc[:, ~model_2041.columns.duplicated()].copy()
+    model_2041 = _dedup(model_2041)
     try:
         _cfp_rankings_early = get_cfp_rankings_snapshot()
         _cfp_board_early = build_cfp_bubble_board(_cfp_rankings_early, model_2041)
-        # Merge CFP Make % back into model_2041 for user teams
         if not _cfp_board_early.empty and 'CFP Make %' in _cfp_board_early.columns:
             _cfp_lookup = _cfp_board_early[['Team','CFP Make %']].copy()
             _cfp_lookup = _cfp_lookup.rename(columns={'Team': 'TEAM'})
             if 'CFP Make %' in model_2041.columns:
                 model_2041 = model_2041.drop(columns=['CFP Make %'])
-            model_2041 = model_2041.merge(_cfp_lookup, on='TEAM', how='left')
-            model_2041 = model_2041.loc[:, ~model_2041.columns.duplicated()].copy()
-            _cfp_odds_s = pd.to_numeric(model_2041['CFP Odds'], errors='coerce').fillna(42) if 'CFP Odds' in model_2041.columns else 42
-            model_2041['CFP Make %'] = pd.to_numeric(model_2041['CFP Make %'], errors='coerce').fillna(_cfp_odds_s)
+            model_2041 = _dedup(model_2041.merge(_cfp_lookup, on='TEAM', how='left'))
+            model_2041['CFP Make %'] = _safe_col(model_2041, 'CFP Make %', default=0).fillna(_safe_col(model_2041, 'CFP Odds', 42))
         else:
             _cfp_board_early = pd.DataFrame()
             if 'CFP Make %' not in model_2041.columns:
-                model_2041['CFP Make %'] = pd.to_numeric(model_2041['CFP Odds'], errors='coerce').fillna(42) if 'CFP Odds' in model_2041.columns else 42
+                model_2041['CFP Make %'] = _safe_col(model_2041, 'CFP Odds', 42)
     except Exception:
-        model_2041 = model_2041.loc[:, ~model_2041.columns.duplicated()].copy()
         _cfp_board_early = pd.DataFrame()
+        model_2041 = _dedup(model_2041)
         if 'CFP Make %' not in model_2041.columns:
-            model_2041['CFP Make %'] = pd.to_numeric(model_2041['CFP Odds'], errors='coerce').fillna(42) if 'CFP Odds' in model_2041.columns else 42
+            model_2041['CFP Make %'] = _safe_col(model_2041, 'CFP Odds', 42)
 
     # ── Merge committee-model odds into model_2041 for LIVE columns ──────────
     # Uses _cfp_board_early (CFP Make % + Bye % from rank+schedule model).
@@ -14821,9 +14832,9 @@ if data:
                 _comm_nat_rows.append({'TEAM': _mt, 'Natty Odds': _natty_m, 'CFP Odds': _cfp_odds_m})
             _comm_nat_df = pd.DataFrame(_comm_nat_rows)
             _drop_nat = [c for c in ['Natty Odds', 'CFP Odds'] if c in model_2041.columns]
-            model_2041 = model_2041.drop(columns=_drop_nat, errors='ignore').merge(
+            model_2041 = _dedup(model_2041.drop(columns=_drop_nat, errors='ignore').merge(
                 _comm_nat_df, on='TEAM', how='left'
-            )
+            ))
     except Exception:
         pass
 
@@ -25562,7 +25573,7 @@ with tabs[5]:
         if not _ratings:
             ovr_col = next((c for c in model_2041.columns if 'OVR' in str(c).upper() or 'OVERALL' in str(c).upper()), None)
             team_col = next((c for c in model_2041.columns if 'TEAM' in str(c).upper()), 'TEAM')
-            _ratings = dict(zip(model_2041[team_col].str.strip(), pd.to_numeric(model_2041[ovr_col], errors='coerce').fillna(0))) if ovr_col else {}
+            _ratings = dict(zip(_safe_col(model_2041, team_col, '').astype(str).str.strip(), _safe_col(model_2041, ovr_col, 0))) if ovr_col else {}
         
         heisman_all = pd.read_csv('Heisman_Finalists.csv')
         heisman_all = heisman_all[heisman_all['YEAR'].astype(int) == sel_year].copy()
