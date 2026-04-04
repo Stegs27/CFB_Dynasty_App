@@ -4574,11 +4574,9 @@ def simulate_nfl_trades(season_year, week_num, rosters_df, season_target=4):
 def advance_dynasty_and_nfl_week():
     """
     Combined CFB + NFL week advance.
-    - Reads dynasty_state.csv → increments CurrentWeek
-    - Maps CFB week to NFL week (1:1 alignment, NFL starts week 1 same as CFB)
-    - If NFL week <= 18: sims NFL week games
-    - If NFL week > 18 and reg season done: triggers playoffs
-    - Writes dynasty_state.csv + nfl_universe_settings.csv
+    - Advances CFB week in dynasty_state.csv
+    - REVEALS pre-computed NFL results for the matching week from nfl_weekly_scores.csv
+    - No NFL sim happens here — run Sim Full NFL Season first to pre-compute everything
     Returns (cfb_week_new, nfl_week_new, nfl_summary, games_df)
     """
     import traceback as _tb
@@ -4600,65 +4598,54 @@ def advance_dynasty_and_nfl_week():
     except Exception as e:
         cfb_week_new = CURRENT_WEEK_NUMBER + 1
 
-    # ── NFL advance ──────────────────────────────────────────────────────────
-    nfl_week_old = get_current_nfl_week()
+    # ── NFL reveal ───────────────────────────────────────────────────────────
     nfl_season   = get_current_nfl_season()
-
-    # NFL week mirrors CFB week directly (1:1)
-    # NFL doesn't start until CFB week 1, so NFL week = CFB week
-    nfl_week_new = cfb_week_new
-
-    games_df   = pd.DataFrame()
-    nfl_summary = ""
+    nfl_week_new = cfb_week_new  # 1:1 alignment
+    games_df     = pd.DataFrame()
+    nfl_summary  = ""
 
     try:
-        # Build team strengths once
-        universe      = load_nfl_universe_data()
-        current_rosters = universe.get("nfl_current_rosters", pd.DataFrame())
-        season_rosters = current_rosters[
-            pd.to_numeric(current_rosters.get("Season", pd.Series(dtype=float)),
-                          errors="coerce").fillna(0).astype(int) == int(nfl_season)
-        ].copy() if not current_rosters.empty else pd.DataFrame()
-        if season_rosters.empty and not current_rosters.empty:
-            season_rosters = current_rosters.copy()
-
-        if season_rosters.empty:
-            nfl_summary = "⚠️ NFL rosters not built yet — build rosters first, then use Advance Week."
-        elif nfl_week_new <= 18:
-            # Regular season week
-            games_df, nfl_summary = simulate_nfl_week(
-                week_num=nfl_week_new,
-                season_year=nfl_season,
-                team_strength_df=build_nfl_team_strengths(season_rosters)
-            )
-            save_nfl_week(nfl_week_new)
-            # ── Try to fire a trade this week ─────────────────────────────
-            try:
-                trades_fired = simulate_nfl_trades(
-                    season_year=nfl_season,
-                    week_num=nfl_week_new,
-                    rosters_df=season_rosters,
-                    season_target=4
-                )
-                if trades_fired:
-                    nfl_summary += f" | 🔄 TRADE: {trades_fired[0]['Headline']}"
-            except Exception:
-                pass
-        elif nfl_week_new == 19:
-            # Trigger playoffs
-            sim_result, sim_msg = simulate_nfl_playoffs_phase(season_year=nfl_season)
-            nfl_summary = f"🏆 NFL Playoffs simmed! {sim_msg}"
-            save_nfl_week(nfl_week_new)
+        if not os.path.exists("nfl_weekly_scores.csv"):
+            nfl_summary = "⚠️ NFL season not yet simmed — hit Sim Full NFL Season to pre-compute everything."
         else:
-            nfl_summary = f"NFL Season {nfl_season} complete. Use Sim Playoffs or advance to offseason."
-    except Exception as e:
-        nfl_summary = f"NFL sim error: {e}"
+            ws = pd.read_csv("nfl_weekly_scores.csv")
+            ws["Season"] = pd.to_numeric(ws["Season"], errors="coerce")
+            ws["Week"]   = pd.to_numeric(ws["Week"],   errors="coerce")
+            season_ws = ws[ws["Season"].fillna(-1).astype(int) == int(nfl_season)]
 
-    # ── Auto-sync coach_records.csv + UserDraftPicks.csv from CPUscores_MASTER ──
+            if season_ws.empty:
+                nfl_summary = "⚠️ No NFL data for this season — run Sim Full NFL Season first."
+            elif nfl_week_new <= 18:
+                week_games = season_ws[season_ws["Week"].fillna(-1).astype(int) == nfl_week_new].copy()
+                if week_games.empty:
+                    nfl_summary = f"NFL Week {nfl_week_new}: no pre-computed data — run Sim Full NFL Season."
+                else:
+                    games_df = week_games
+                    wins_summary = week_games.apply(
+                        lambda r: f"{r['WinTeam']} def. {r['LoseTeam']} {max(int(r.get('HomeScore',0)), int(r.get('AwayScore',0)))}-{min(int(r.get('HomeScore',0)), int(r.get('AwayScore',0)))}",
+                        axis=1
+                    ).tolist()
+                    nfl_summary = f"🏈 NFL Week {nfl_week_new} results: {len(games_df)} games. Top result: {wins_summary[0] if wins_summary else '—'}"
+                    save_nfl_week(nfl_week_new)
+            else:
+                # Weeks 19+ — season is complete, Super Bowl already in the data
+                sb_champ = ""
+                if os.path.exists("nfl_super_bowl_history.csv"):
+                    sb = pd.read_csv("nfl_super_bowl_history.csv")
+                    if "Season" in sb.columns:
+                        sb["Season"] = pd.to_numeric(sb["Season"], errors="coerce")
+                        sb_row = sb[sb["Season"].fillna(-1).astype(int) == int(nfl_season - 1)]
+                        if not sb_row.empty:
+                            sb_champ = sb_row.iloc[0].get("Champion", "")
+                nfl_summary = f"🏆 NFL {nfl_season - 1} season complete — {sb_champ} are champions. Check the NFL tab for full results." if sb_champ else f"NFL Season {nfl_season - 1} complete. See NFL tab."
+    except Exception as e:
+        nfl_summary = f"NFL reveal error: {e}"
+
+    # ── Auto-sync coach_records from CPUscores_MASTER ────────────────────────
     try:
         sync_derived_stats()
     except Exception:
-        pass  # Never block week advance on a sync failure
+        pass
 
     return cfb_week_new, nfl_week_new, nfl_summary, games_df
 
@@ -5954,7 +5941,294 @@ def build_nfl_current_roster_for_season(season_year, nfl_roster_df, nfl_draft_hi
     return season_df
 
 
-def simulate_nfl_regular_season_phase(season_year=None):
+def is_nfl_season_simmed(season_year):
+    """True if all 18 regular season weeks + playoffs exist for this season."""
+    try:
+        if not os.path.exists("nfl_weekly_scores.csv"):
+            return False
+        ws = pd.read_csv("nfl_weekly_scores.csv")
+        ws["Season"] = pd.to_numeric(ws["Season"], errors="coerce")
+        ws["Week"]   = pd.to_numeric(ws["Week"],   errors="coerce")
+        season_ws = ws[ws["Season"].fillna(-1).astype(int) == int(season_year)]
+        weeks_present = set(season_ws["Week"].dropna().astype(int).tolist())
+        if not all(w in weeks_present for w in range(1, 19)):
+            return False
+        if not os.path.exists("nfl_playoff_history.csv"):
+            return False
+        ph = pd.read_csv("nfl_playoff_history.csv")
+        if "Season" not in ph.columns:
+            return False
+        ph["Season"] = pd.to_numeric(ph["Season"], errors="coerce")
+        return not ph[ph["Season"].fillna(-1).astype(int) == int(season_year)].empty
+    except Exception:
+        return False
+
+
+def simulate_full_nfl_season(season_year=None):
+    """
+    One-shot full NFL season sim:
+      1. Builds rosters + team strengths
+      2. Simulates all 18 regular season weeks (writes nfl_weekly_scores.csv week by week)
+      3. Runs playoffs + Super Bowl
+      4. Runs player history + awards
+      5. Generates story events for all weeks + end-of-season awards
+      6. Advances CurrentNFLSeason to next year
+
+    The advance_dynasty_and_nfl_week function then REVEALS pre-computed weekly
+    results as CFB weeks tick by — no more per-week sim in the advance.
+    """
+    universe       = load_nfl_universe_data()
+    nfl_roster     = universe["nfl_roster"]
+    cfb_roster     = universe["cfb_roster"]
+    nfl_draft_hist = universe["nfl_draft_hist"]
+    nfl_player_hist = universe["nfl_player_hist"]
+    nfl_super_bowl = universe["nfl_super_bowl"]
+    nfl_story      = universe["nfl_story"]
+
+    if season_year is None:
+        season_year = get_current_nfl_season()
+    season_year = int(season_year)
+
+    # ── Build roster + team strengths ────────────────────────────────────────
+    nfl_current_roster = build_nfl_current_roster_for_season(
+        season_year=season_year,
+        nfl_roster_df=nfl_roster,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_player_hist_df=nfl_player_hist,
+        existing_current_rosters_df=universe.get("nfl_current_rosters")
+    )
+    nfl_current_roster.to_csv("nfl_current_rosters.csv", index=False)
+
+    team_strength_df = build_nfl_team_strengths(nfl_current_roster)
+    if team_strength_df.empty:
+        return None, "NFL roster data is missing — build rosters first, then Sim Full Season."
+
+    # ── Clear this season's existing weekly scores so we start clean ─────────
+    if os.path.exists("nfl_weekly_scores.csv"):
+        _ws = pd.read_csv("nfl_weekly_scores.csv")
+        _ws["Season"] = pd.to_numeric(_ws["Season"], errors="coerce")
+        _ws = _ws[_ws["Season"].fillna(-1).astype(int) != season_year].copy()
+        _ws.to_csv("nfl_weekly_scores.csv", index=False)
+
+    # Also clear story events for this season's WeeklyHighlight/Trade types
+    if os.path.exists("nfl_story_events.csv"):
+        _se = pd.read_csv("nfl_story_events.csv")
+        if "Season" in _se.columns:
+            _se["Season"] = pd.to_numeric(_se["Season"], errors="coerce")
+            _se = _se[~(
+                (_se["Season"].fillna(-1).astype(int) == season_year) &
+                (_se["EventType"].astype(str).isin(["WeeklyHighlight", "Trade", "SeasonOutcome", "SuperBowl", "Award", "Retirement"]))
+            )].copy()
+            _se.to_csv("nfl_story_events.csv", index=False)
+
+    # ── Sim all 18 regular season weeks ──────────────────────────────────────
+    for week in range(1, 19):
+        simulate_nfl_week(
+            week_num=week,
+            season_year=season_year,
+            team_strength_df=team_strength_df
+        )
+        # Simulate a trade on some weeks (weeks 4–12)
+        if 4 <= week <= 12:
+            try:
+                season_rosters = nfl_current_roster[
+                    pd.to_numeric(nfl_current_roster.get("Season", pd.Series(dtype=float)),
+                                  errors="coerce").fillna(0).astype(int) == season_year
+                ].copy()
+                simulate_nfl_trades(
+                    season_year=season_year,
+                    week_num=week,
+                    rosters_df=season_rosters if not season_rosters.empty else nfl_current_roster,
+                    season_target=4
+                )
+            except Exception:
+                pass
+
+    # ── Standings from all 18 weeks ───────────────────────────────────────────
+    _update_nfl_standings_from_weekly(season_year, team_strength_df)
+
+    # ── Player season sim ─────────────────────────────────────────────────────
+    player_hist_combined = simulate_nfl_player_season(
+        season_year=season_year,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_roster_df=nfl_roster,
+        existing_player_hist_df=nfl_player_hist
+    )
+
+    # Merge base roster players
+    base_roster_rows = simulate_base_nfl_roster_season_rows(
+        season_year=season_year,
+        nfl_current_rosters_df=nfl_current_roster,
+        existing_player_hist_df=player_hist_combined
+    )
+    if base_roster_rows is not None and not base_roster_rows.empty:
+        existing_nonseason = player_hist_combined.copy()
+        if "Season" in existing_nonseason.columns:
+            existing_nonseason["Season"] = pd.to_numeric(existing_nonseason["Season"], errors="coerce")
+            existing_nonseason = existing_nonseason[
+                existing_nonseason["Season"].fillna(-1).astype(int) != season_year
+            ].copy()
+        season_dyn_rows = player_hist_combined[
+            pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year
+        ].copy()
+        season_combined = pd.concat([season_dyn_rows, base_roster_rows], ignore_index=True)
+        if "PlayerID" in season_combined.columns:
+            season_combined = season_combined.drop_duplicates(subset=["PlayerID"], keep="first").copy()
+        player_hist_combined = pd.concat([existing_nonseason, season_combined], ignore_index=True)
+        for col in NFL_PLAYER_HISTORY_COLS:
+            if col not in player_hist_combined.columns:
+                player_hist_combined[col] = pd.NA
+        player_hist_combined = player_hist_combined[NFL_PLAYER_HISTORY_COLS].copy()
+        player_hist_combined.to_csv("nfl_player_history.csv", index=False)
+
+    # ── Playoffs ─────────────────────────────────────────────────────────────
+    standings_hist = pd.read_csv("nfl_standings_history.csv") if os.path.exists("nfl_standings_history.csv") else pd.DataFrame()
+    if "Season" in standings_hist.columns:
+        standings_hist["Season"] = pd.to_numeric(standings_hist["Season"], errors="coerce")
+    standings_df = standings_hist[
+        standings_hist["Season"].fillna(-1).astype(int) == season_year
+    ].copy() if not standings_hist.empty else pd.DataFrame()
+
+    champion, runner_up, score, playoff_log = simulate_nfl_playoffs(standings_df, season_year)
+    if champion is None:
+        champion, runner_up, score = "TBD", "TBD", "TBD"
+        playoff_log = pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+
+    # Write playoff history
+    existing_playoff = universe["nfl_playoff_hist"].copy() if universe["nfl_playoff_hist"] is not None else pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+    if not existing_playoff.empty and "Season" in existing_playoff.columns:
+        existing_playoff["Season"] = pd.to_numeric(existing_playoff["Season"], errors="coerce")
+        existing_playoff = existing_playoff[existing_playoff["Season"].fillna(-1).astype(int) != season_year].copy()
+    playoff_log_clean = playoff_log.copy() if playoff_log is not None else pd.DataFrame(columns=NFL_PLAYOFF_HISTORY_COLS)
+    for col in NFL_PLAYOFF_HISTORY_COLS:
+        if col not in playoff_log_clean.columns:
+            playoff_log_clean[col] = pd.NA
+    pd.concat([existing_playoff, playoff_log_clean[NFL_PLAYOFF_HISTORY_COLS]], ignore_index=True).to_csv("nfl_playoff_history.csv", index=False)
+
+    # ── Awards ────────────────────────────────────────────────────────────────
+    season_player_df = player_hist_combined[
+        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year
+    ].copy() if not player_hist_combined.empty else pd.DataFrame()
+
+    awards_hist = simulate_nfl_awards(
+        season_year=season_year,
+        season_player_df=season_player_df,
+        existing_awards_df=universe["nfl_awards_hist"]
+    )
+
+    # ── Super Bowl ────────────────────────────────────────────────────────────
+    mvp_name, mvp_team = choose_super_bowl_mvp(champion, season_player_df.copy())
+    sb_headline = f"{champion} defeat {runner_up} to win the Super Bowl"
+    sb_moment, sb_used = generate_super_bowl_signature_moment(
+        champion=champion, runner_up=runner_up, score=score,
+        season_player_df=season_player_df, nfl_draft_hist_df=nfl_draft_hist
+    )
+    sb_user_note = generate_super_bowl_user_alumni_note(
+        champion=champion, runner_up=runner_up,
+        season_player_df=season_player_df, nfl_draft_hist_df=nfl_draft_hist,
+        already_used_player=sb_used
+    )
+    new_sb_row = pd.DataFrame([{
+        "Season": season_year, "Champion": champion, "RunnerUp": runner_up,
+        "Score": score, "MVP": mvp_name, "MVPTeam": mvp_team,
+        "Headline": sb_headline, "GameMoment": sb_moment, "UserAlumniNote": sb_user_note
+    }])
+    existing_sb = nfl_super_bowl.copy() if nfl_super_bowl is not None else pd.DataFrame(columns=NFL_SUPER_BOWL_HISTORY_COLS)
+    if not existing_sb.empty and "Season" in existing_sb.columns:
+        existing_sb["Season"] = pd.to_numeric(existing_sb["Season"], errors="coerce")
+        existing_sb = existing_sb[existing_sb["Season"].fillna(-1).astype(int) != season_year].copy()
+    sb_combined = pd.concat([existing_sb, new_sb_row], ignore_index=True)
+    for col in NFL_SUPER_BOWL_HISTORY_COLS:
+        if col not in sb_combined.columns:
+            sb_combined[col] = pd.NA
+    sb_combined[NFL_SUPER_BOWL_HISTORY_COLS].to_csv("nfl_super_bowl_history.csv", index=False)
+
+    # ── End-of-season story events ────────────────────────────────────────────
+    season_story_rows = []
+    if not season_player_df.empty:
+        for _, r in season_player_df.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(3).iterrows():
+            season_story_rows.append({
+                "Season": season_year, "Week": 21,
+                "PlayerID": r.get("PlayerID", ""), "Player": r.get("Player", ""),
+                "NFLTeam": r.get("NFLTeam", ""), "EventType": "SeasonOutcome",
+                "Headline": f"{r.get('Player','')} makes noise in year {max(1, season_year - int(get_latest_completed_draft_year() or season_year) + 1)}",
+                "Description": f"{r.get('NFLTeam','')} {r.get('Pos','')} posted {r.get('StatLine','')}. Role: {r.get('Role','')}.",
+                "ImpactScore": int(min(99, max(55, safe_num(r.get("CareerValue", 60), 60))))
+            })
+        for _, r in season_player_df[season_player_df["Status"].astype(str) == "Retired"].head(6).iterrows():
+            season_story_rows.append({
+                "Season": season_year, "Week": 24,
+                "PlayerID": r.get("PlayerID", ""), "Player": r.get("Player", ""),
+                "NFLTeam": r.get("NFLTeam", ""), "EventType": "Retirement",
+                "Headline": f"{r.get('Player','')} calls it a career",
+                "Description": f"{r.get('NFLTeam','')} {r.get('Pos','')} retires after the {season_year} season.",
+                "ImpactScore": 80
+            })
+
+    season_awards_rows = awards_hist[
+        pd.to_numeric(awards_hist["Season"], errors="coerce").fillna(-1).astype(int) == season_year
+    ].copy() if not awards_hist.empty else pd.DataFrame()
+    for _, r in season_awards_rows[season_awards_rows.get("Result", pd.Series(dtype=str)).astype(str) == "Winner"].iterrows():
+        season_story_rows.append({
+            "Season": season_year, "Week": 23,
+            "PlayerID": r.get("PlayerID", ""), "Player": r.get("Player", ""),
+            "NFLTeam": r.get("NFLTeam", ""), "EventType": "Award",
+            "Headline": f"{r.get('Player','')} wins {r.get('Award','')}",
+            "Description": f"{r.get('NFLTeam','')} {r.get('Pos','')} earned {r.get('Award','')}. {r.get('Notes','')}",
+            "ImpactScore": 92
+        })
+    season_story_rows.append({
+        "Season": season_year, "Week": 22,
+        "PlayerID": "", "Player": mvp_name, "NFLTeam": champion,
+        "EventType": "SuperBowl", "Headline": sb_headline,
+        "Description": f"{champion} beat {runner_up}. Super Bowl MVP: {mvp_name}. Final score: {score}.",
+        "ImpactScore": 99
+    })
+
+    existing_story = nfl_story.copy() if nfl_story is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+    story_combined = pd.concat([existing_story, pd.DataFrame(season_story_rows)], ignore_index=True)
+    for col in NFL_STORY_EVENTS_COLS:
+        if col not in story_combined.columns:
+            story_combined[col] = pd.NA
+    story_combined[NFL_STORY_EVENTS_COLS].to_csv("nfl_story_events.csv", index=False)
+
+    # ── Next-season roster + advance settings ─────────────────────────────────
+    next_roster = build_nfl_current_roster_for_season(
+        season_year=season_year + 1,
+        nfl_roster_df=nfl_roster,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_player_hist_df=player_hist_combined,
+        existing_current_rosters_df=universe.get("nfl_current_rosters")
+    )
+    next_roster = run_nfl_offseason_roster_maintenance(
+        season_year=season_year + 1,
+        current_roster_df=next_roster,
+        cfb_roster_df=cfb_roster,
+        nfl_draft_hist_df=nfl_draft_hist
+    )
+
+    # Reset NFL week to 0 so reveals start at week 1 as CFB advances
+    save_nfl_week(0)
+    save_nfl_universe_settings(
+        current_season=season_year + 1,
+        last_draft_year=get_latest_completed_draft_year(),
+        last_super_bowl_season=season_year
+    )
+
+    total_games = 18 * 16  # ~256 regular season games
+    return {
+        "season_year": season_year,
+        "champion": champion,
+        "runner_up": runner_up,
+        "score": score,
+    }, (
+        f"🏈 {season_year} NFL season fully simmed! "
+        f"{champion} defeat {runner_up} to win the Super Bowl. "
+        f"All 18 weeks + playoffs written. Results will reveal week-by-week as CFB advances."
+    )
+
+
+
     """
     Phase 1 of the two-phase sim.
     Runs: roster build → team strengths → regular season standings → player stats.
@@ -30808,20 +31082,19 @@ with tabs[1]:
                             st.error(f"NFL draft rerun error: {type(e).__name__}: {e}")
                             st.code(traceback.format_exc())
 
-            # ── Sim phase state detection ─────────────────────────────────────
-            _nfl_sim_year = get_current_nfl_season()
-            _reg_season_done = False
-            _playoffs_done   = False
+            # ── Season sim state ──────────────────────────────────────────────
+            _nfl_sim_year    = get_current_nfl_season()
+            _season_simmed   = is_nfl_season_simmed(_nfl_sim_year)
             _weeks_complete  = 0
+            _playoffs_done   = False
+            _current_reveal_week = get_current_nfl_week()
             try:
-                # Regular season is done only when 18 weeks of games exist for this season
                 if os.path.exists("nfl_weekly_scores.csv"):
                     _ws = pd.read_csv("nfl_weekly_scores.csv")
                     _ws["Season"] = pd.to_numeric(_ws.get("Season"), errors="coerce")
                     _ws["Week"]   = pd.to_numeric(_ws.get("Week"),   errors="coerce")
                     _szn_ws = _ws[_ws["Season"].fillna(-1).astype(int) == int(_nfl_sim_year)]
                     _weeks_complete = _szn_ws["Week"].dropna().astype(int).nunique()
-                    _reg_season_done = _weeks_complete >= 18
                 if os.path.exists("nfl_super_bowl_history.csv"):
                     _sbh = pd.read_csv("nfl_super_bowl_history.csv")
                     _sbh["Season"] = pd.to_numeric(_sbh.get("Season"), errors="coerce")
@@ -30829,47 +31102,70 @@ with tabs[1]:
             except Exception:
                 pass
 
-            # ── Phase status banner ────────────────────────────────────────────
-            if not _reg_season_done and not _playoffs_done:
-                if _weeks_complete > 0:
-                    _phase_msg = f"**{_nfl_sim_year} season in progress** — {_weeks_complete}/18 weeks complete. Keep advancing."
-                    _phase_color = "#60a5fa"
-                else:
-                    _phase_msg = f"**{_nfl_sim_year} season not yet started.** Build rosters, then start advancing weeks."
-                    _phase_color = "#fbbf24"
-            elif _reg_season_done and not _playoffs_done:
-                _phase_msg = f"**{_nfl_sim_year} regular season complete** (18 weeks). Download files, push to repo, then sim the playoffs."
+            # Status banner
+            if _season_simmed:
+                _phase_msg   = f"**{_nfl_sim_year} fully simmed** — all 18 weeks + playoffs + awards ready. Revealing week {_current_reveal_week}/18 as CFB advances."
                 _phase_color = "#4ade80"
+            elif _weeks_complete > 0:
+                _phase_msg   = f"**{_nfl_sim_year} partially simmed** ({_weeks_complete}/18 weeks). Re-run Sim Full NFL Season to complete."
+                _phase_color = "#fbbf24"
             else:
-                _phase_msg = f"**{_nfl_sim_year} fully complete** (standings + playoffs). Settings advanced to {_nfl_sim_year + 1}."
-                _phase_color = "#60a5fa"
+                _phase_msg   = f"**{_nfl_sim_year} not yet simmed.** Hit Sim Full NFL Season before advancing weeks."
+                _phase_color = "#f87171"
 
-            st.markdown(f"<div style='background:rgba(255,255,255,0.04);border-left:4px solid {_phase_color};border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:0.88rem;color:{_phase_color};'>{_phase_msg}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='background:rgba(255,255,255,0.04);border-left:4px solid {_phase_color};"
+                f"border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:0.88rem;"
+                f"color:{_phase_color};'>{_phase_msg}</div>",
+                unsafe_allow_html=True
+            )
 
-            # ── Weekly NFL state ──────────────────────────────────────────────
-            _nfl_current_week = get_current_nfl_week()
-            _nfl_reg_season_weeks = 18
+            # ── MAIN: Sim Full NFL Season ─────────────────────────────────────
+            st.markdown("---")
+            _sim_col_l, _sim_col_c, _sim_col_r = st.columns([1, 2, 1])
+            with _sim_col_c:
+                _full_label = "✅ Re-Sim Full NFL Season" if _season_simmed else "🏈 Sim Full NFL Season"
+                _full_help  = (
+                    "Sims all 18 regular season weeks + playoffs + Super Bowl + player history "
+                    "+ awards in one shot. All CSVs written upfront. Results reveal week-by-week "
+                    "as CFB weeks advance — no per-week sim needed."
+                )
+                if st.button(_full_label, use_container_width=True, key="sim_full_nfl_btn",
+                             type="primary", help=_full_help):
+                    try:
+                        with st.spinner(f"Simming full {_nfl_sim_year} NFL season (18 wks + playoffs + awards)..."):
+                            _full_result, _full_msg = simulate_full_nfl_season(season_year=_nfl_sim_year)
+                        if _full_result is None:
+                            st.warning(_full_msg)
+                        else:
+                            st.success(_full_msg)
+                            st.cache_data.clear()
+                            st.rerun()
+                    except Exception as _fe:
+                        import traceback as _ftb
+                        st.error(f"Full season sim error: {type(_fe).__name__}: {_fe}")
+                        st.code(_ftb.format_exc())
 
-            # ── COMBINED ADVANCE BUTTON ───────────────────────────────────────
+            # ── ADVANCE button (reveals pre-computed week) ────────────────────
             st.markdown("---")
             _adv_col_l, _adv_col_c, _adv_col_r = st.columns([1, 2, 1])
             with _adv_col_c:
-                _next_cfb = CURRENT_WEEK_NUMBER + 1
-                _next_nfl = _nfl_current_week + 1
-                _adv_label = f"⚡ Advance to CFB Week {_next_cfb}  ·  NFL Week {_next_nfl}"
-                _adv_help  = ("Advances the CFB dynasty week forward by 1 and sims the "
-                              "corresponding NFL week. For weeks 1-18 this sims NFL regular season. "
-                              "Week 19 triggers NFL playoffs automatically.")
+                _next_cfb    = CURRENT_WEEK_NUMBER + 1
+                _next_nfl    = _current_reveal_week + 1
+                _adv_label   = f"⚡ Advance to CFB Week {_next_cfb}  ·  Reveal NFL Week {_next_nfl}"
+                _adv_disabled = not _season_simmed and _weeks_complete == 0
+                _adv_help    = "Advances CFB week and reveals the pre-computed NFL results for that week." if _season_simmed else "Run Sim Full NFL Season first."
                 if st.button(_adv_label, use_container_width=True, key="advance_combined_btn",
-                             type="primary", help=_adv_help):
+                             type="primary" if _season_simmed else "secondary",
+                             help=_adv_help, disabled=_adv_disabled):
                     try:
-                        with st.spinner(f"Advancing to CFB Week {_next_cfb} · NFL Week {_next_nfl}..."):
+                        with st.spinner(f"Advancing to CFB Week {_next_cfb}..."):
                             _adv_cfb, _adv_nfl, _adv_nfl_msg, _adv_games = advance_dynasty_and_nfl_week()
-                        st.success(f"✅ CFB → Week {_adv_cfb} · NFL → Week {_adv_nfl}")
+                        st.success(f"✅ CFB → Week {_adv_cfb} · NFL Week {_adv_nfl} revealed")
                         if _adv_nfl_msg:
                             st.info(_adv_nfl_msg)
                         if not _adv_games.empty:
-                            with st.expander(f"📋 NFL Week {_adv_nfl} Results ({len(_adv_games)} games)", expanded=False):
+                            with st.expander(f"📋 NFL Week {_adv_nfl} Results ({len(_adv_games)} games)", expanded=True):
                                 for _, _gr in _adv_games.iterrows():
                                     _wt = str(_gr.get("WinTeam",""))
                                     _hs = int(_gr.get("HomeScore",0))
@@ -30892,142 +31188,40 @@ with tabs[1]:
                         st.error(f"Advance error: {_adv_e}")
                         st.code(_adv_tb.format_exc())
 
-            # Current week status
             st.caption(
-                f"CFB: Week {CURRENT_WEEK_NUMBER} · NFL: Week {_nfl_current_week} of {_nfl_reg_season_weeks} "
-                f"({'Reg Season' if _nfl_current_week <= _nfl_reg_season_weeks else 'Postseason'})"
+                f"CFB: Week {CURRENT_WEEK_NUMBER} · NFL Week {_current_reveal_week} revealed "
+                f"({'Season not simmed yet' if not _season_simmed and _weeks_complete == 0 else f'{_weeks_complete}/18 wks simmed'})"
             )
 
-            # ── NFL-ONLY advance (catch-up button) ────────────────────────────
-            st.markdown(
-                "<div style='font-size:0.72rem;color:#475569;font-weight:700;letter-spacing:.08em;"
-                "text-transform:uppercase;margin:6px 0 4px;'>NFL Only — Catch Up Without Moving CFB Week</div>",
-                unsafe_allow_html=True
-            )
-            _nfl_only_col_l, _nfl_only_col_c, _nfl_only_col_r = st.columns([1, 2, 1])
-            with _nfl_only_col_c:
-                _next_nfl_only = _nfl_current_week + 1
-                if _next_nfl_only <= 18:
-                    _nfl_only_label = f"🏈 Advance NFL Only → Week {_next_nfl_only}"
-                elif _next_nfl_only == 19:
-                    _nfl_only_label = "🏆 Sim NFL Playoffs (NFL Only)"
-                else:
-                    _nfl_only_label = f"NFL Season Complete (Week {_nfl_current_week})"
-                    
-                _nfl_only_disabled = _nfl_current_week >= 19
-                if st.button(_nfl_only_label, use_container_width=True, key="advance_nfl_only_btn",
-                             disabled=_nfl_only_disabled):
-                    try:
-                        with st.spinner(f"Simming NFL Week {_next_nfl_only}..."):
-                            _nfl_season_only = get_current_nfl_season()
-                            if _next_nfl_only <= 18:
-                                _universe_only = load_nfl_universe_data()
-                                _rosters_only  = _universe_only.get("nfl_current_rosters", pd.DataFrame())
-                                _sr_only = _rosters_only[
-                                    pd.to_numeric(_rosters_only.get("Season", pd.Series(dtype=float)),
-                                                  errors="coerce").fillna(0).astype(int) == int(_nfl_season_only)
-                                ].copy() if not _rosters_only.empty else pd.DataFrame()
-                                if _sr_only.empty and not _rosters_only.empty:
-                                    _sr_only = _rosters_only.copy()
-                                if _sr_only.empty:
-                                    st.warning("Build NFL rosters first before advancing NFL weeks.")
-                                else:
-                                    _ts_only = build_nfl_team_strengths(_sr_only)
-                                    _games_only, _msg_only = simulate_nfl_week(
-                                        week_num=_next_nfl_only,
-                                        season_year=_nfl_season_only,
-                                        team_strength_df=_ts_only
-                                    )
-                                    save_nfl_week(_next_nfl_only)
-                                    st.success(f"✅ NFL Week {_next_nfl_only} simmed. {_msg_only}")
-                                    if not _games_only.empty:
-                                        with st.expander(f"📋 NFL Week {_next_nfl_only} Results ({len(_games_only)} games)", expanded=False):
-                                            for _, _gonly in _games_only.iterrows():
-                                                _wt  = str(_gonly.get("WinTeam",""))
-                                                _lt  = str(_gonly.get("AwayTeam","") if _wt == str(_gonly.get("HomeTeam","")) else _gonly.get("HomeTeam",""))
-                                                _hs  = int(_gonly.get("HomeScore",0))
-                                                _as  = int(_gonly.get("AwayScore",0))
-                                                _iw  = _wt == str(_gonly.get("HomeTeam",""))
-                                                _ws  = _hs if _iw else _as
-                                                _ls  = _as if _iw else _hs
-                                                st.markdown(
-                                                    f"<div style='font-size:0.8rem;padding:2px 0;color:#d1d5db;'>"
-                                                    f"<strong style='color:#4ade80;'>{_wt}</strong> def. {_lt} "
-                                                    f"<strong>{_ws}–{_ls}</strong></div>",
-                                                    unsafe_allow_html=True
-                                                )
-                                    st.rerun()
-                            elif _next_nfl_only == 19:
-                                _sim_r, _sim_m = simulate_nfl_playoffs_phase(season_year=_nfl_season_only)
-                                save_nfl_week(19)
-                                st.success(f"🏆 NFL Playoffs complete! {_sim_m}")
-                                st.rerun()
-                    except Exception as _nfl_e:
-                        import traceback as _nfl_tb
-                        st.error(f"NFL advance error: {_nfl_e}")
-                        st.code(_nfl_tb.format_exc())
-
+            # ── Backfill (for 2042 or past seasons with blank player history) ──
             st.markdown("---")
-
-            # ── Two-phase sim buttons (legacy / full-season override) ──────────
-            st.markdown("<div style='font-size:0.75rem;color:#475569;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;'>Full-Season Override (skips weekly)</div>", unsafe_allow_html=True)
-            sim_l, sim_c, sim_r = st.columns([1, 1.4, 1])
-
-            with sim_c:
-                # Phase 1 — Regular Season
-                _btn1_label = "✅ Reg Season Done — Re-sim?" if _reg_season_done else "🏈 Sim Regular Season"
-                if st.button(_btn1_label, use_container_width=True, key="sim_reg_season_btn"):
-                    try:
-                        with st.spinner(f"Simming {_nfl_sim_year} regular season..."):
-                            sim_result, sim_msg = simulate_nfl_regular_season_phase()
-                        if sim_result is None:
-                            st.warning(sim_msg)
-                        else:
-                            st.success(sim_msg)
-                            st.rerun()
-                    except Exception as e:
-                        import traceback
-                        st.error(f"Regular season sim error: {type(e).__name__}: {e}")
-                        st.code(traceback.format_exc())
-
-                # Phase 2 — Playoffs (only enabled after reg season)
-                if _reg_season_done and not _playoffs_done:
-                    if st.button("🏆 Sim Playoffs + Super Bowl", use_container_width=True, key="sim_playoffs_btn", type="primary"):
-                        try:
-                            with st.spinner(f"Simming {_nfl_sim_year} playoffs..."):
-                                sim_result, sim_msg = simulate_nfl_playoffs_phase()
-                            if sim_result is None:
-                                st.warning(sim_msg)
-                            else:
-                                st.success(sim_msg)
-                                st.rerun()
-                        except Exception as e:
-                            import traceback
-                            st.error(f"Playoffs sim error: {type(e).__name__}: {e}")
-                            st.code(traceback.format_exc())
-                elif not _reg_season_done:
-                    st.button("🏆 Sim Playoffs + Super Bowl", use_container_width=True, key="sim_playoffs_btn_disabled", disabled=True, help="Sim regular season first")
-
-                # Backfill — shown when playoffs are done but player history is empty
-                st.markdown("---")
-                _ph_empty = not os.path.exists("nfl_player_history.csv") or pd.read_csv("nfl_player_history.csv").empty if os.path.exists("nfl_player_history.csv") else True
-                if _ph_empty and _playoffs_done:
-                    st.warning("⚠️ Player history and awards are empty — the weekly advance skips the player sim. Use Backfill to generate them now.")
-                _backfill_year = _nfl_sim_year - 1 if _playoffs_done else _nfl_sim_year
-                if st.button(f"🔁 Backfill Player Stats + Awards ({_backfill_year})", use_container_width=True, key="backfill_stats_btn", help="Generates nfl_player_history.csv and nfl_awards_history.csv for a completed season. Use this after weekly advance or if those files are blank."):
-                    try:
-                        with st.spinner(f"Generating player stats for {_backfill_year}..."):
-                            bf_result, bf_msg = backfill_nfl_player_stats(season_year=_backfill_year)
-                        if bf_result is None:
-                            st.warning(bf_msg)
-                        else:
-                            st.success(bf_msg)
-                            st.cache_data.clear()
-                            st.rerun()
-                    except Exception as e:
-                        import traceback
-                        st.error(f"Backfill error: {type(e).__name__}: {e}")
-                        st.code(traceback.format_exc())
+            _ph_empty = True
+            try:
+                if os.path.exists("nfl_player_history.csv"):
+                    _ph_empty = pd.read_csv("nfl_player_history.csv").empty
+            except Exception:
+                pass
+            if _ph_empty:
+                st.warning("⚠️ Player history is empty. Run Sim Full NFL Season (recommended) or use Backfill below.")
+            _backfill_year = _nfl_sim_year - 1 if _playoffs_done else _nfl_sim_year
+            if st.button(
+                f"🔁 Backfill Player Stats + Awards ({_backfill_year})",
+                use_container_width=True, key="backfill_stats_btn",
+                help="Use when player history/awards are blank for a season that already completed (e.g. 2042 via weekly advance)."
+            ):
+                try:
+                    with st.spinner(f"Generating player stats for {_backfill_year}..."):
+                        bf_result, bf_msg = backfill_nfl_player_stats(season_year=_backfill_year)
+                    if bf_result is None:
+                        st.warning(bf_msg)
+                    else:
+                        st.success(bf_msg)
+                        st.cache_data.clear()
+                        st.rerun()
+                except Exception as e:
+                    import traceback
+                    st.error(f"Backfill error: {type(e).__name__}: {e}")
+                    st.code(traceback.format_exc())
 
             # ── CSV file status panel ──────────────────────────────────────────
             st.markdown("---")
