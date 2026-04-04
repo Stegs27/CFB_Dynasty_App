@@ -10527,6 +10527,20 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
 
     df['Preseason PI'] = df.apply(preseason_power_index, axis=1)
 
+    # Force all numeric columns to float64 to avoid pyarrow-backed Series arithmetic errors
+    _numeric_cols = [
+        'Preseason PI', 'OVERALL', 'OFFENSE', 'DEFENSE',
+        'Team Speed (90+ Speed Guys)', 'Off Speed (90+ speed)', 'Def Speed (90+ speed)',
+        'Quad 90 (90+ SPD, ACC, AGI & COD)', 'Generational (96+ speed or 96+ Acceleration)',
+        'Recruit Score', 'Career Win %', 'Current Win %', 'SOS', 'Resume Score',
+        'Opponent Win %', 'Opponent Games', 'Ranked Teams Faced', 'Top 10 Teams Faced',
+        'Preseason Natty Odds', 'Power Index', 'CFP Wins', 'CFP Losses',
+        'Current CFP Ranking', 'Improvement', 'Preseason CFP %',
+    ]
+    for _nc in _numeric_cols:
+        if _nc in df.columns:
+            df[_nc] = pd.to_numeric(df[_nc], errors='coerce').fillna(0).astype(float)
+
     _pre_cfp_raw = (
         df['Preseason PI'] * 0.66
         + df['OVERALL'] * 1.35
@@ -10538,8 +10552,8 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Recruit Score'] * 0.46
         + df['Career Win %'] * 0.18
         + df['SOS'] * 0.58
-        + df.apply(qb_cfp_bonus, axis=1)
-        + df['CONFERENCE'].apply(conf_bonus)
+        + df.apply(qb_cfp_bonus, axis=1).astype(float)
+        + df['CONFERENCE'].apply(conf_bonus).astype(float)
     )
     _pre_cfp_min = _pre_cfp_raw.min()
     _pre_cfp_spread = max(1, _pre_cfp_raw.max() - _pre_cfp_min)
@@ -10619,8 +10633,8 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         + df['Current Win %'] * 0.70
         + df['SOS'] * 0.58
         + df['Resume Score'] * 0.42
-        + df['Current CFP Ranking'].apply(cfp_rank_bonus) * 1.95
-        + df.apply(qb_cfp_bonus, axis=1)
+        + df['Current CFP Ranking'].apply(cfp_rank_bonus).astype(float) * 1.95
+        + df.apply(qb_cfp_bonus, axis=1).astype(float)
         # Natties/NattyApps removed — consistent with Power Index & Natty Odds fix
     )
     cfp_min = cfp_raw.min()
@@ -10643,8 +10657,8 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         - df['Generational (96+ speed or 96+ Acceleration)'] * 3.0
         - df['SOS'] * 0.18
         - df['Current Win %'] * 0.10
-        - df['Current CFP Ranking'].apply(cfp_rank_bonus) * 0.25
-        - df.apply(qb_cfp_bonus, axis=1) * 0.4
+        - df['Current CFP Ranking'].apply(cfp_rank_bonus).astype(float) * 0.25
+        - df.apply(qb_cfp_bonus, axis=1).astype(float) * 0.4
     ).round(0).astype(int)
     df['Collapse Risk'] = df['Collapse Risk'].clip(lower=8, upper=72)
 
