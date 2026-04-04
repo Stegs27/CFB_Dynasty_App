@@ -14774,14 +14774,27 @@ if data:
         if not _cfp_board_early.empty and 'CFP Make %' in _cfp_board_early.columns:
             _cfp_lookup = _cfp_board_early[['Team','CFP Make %']].copy()
             _cfp_lookup = _cfp_lookup.rename(columns={'Team': 'TEAM'})
+            # Drop any existing CFP Make % before merge to avoid duplicate columns
+            if 'CFP Make %' in model_2041.columns:
+                model_2041 = model_2041.drop(columns=['CFP Make %'])
             model_2041 = model_2041.merge(_cfp_lookup, on='TEAM', how='left')
+            # Deduplicate columns in case merge produced duplicates anyway
+            model_2041 = model_2041.loc[:, ~model_2041.columns.duplicated()].copy()
             # Fill non-matched teams with CFP Odds as fallback
+            _cfp_odds_col = pd.to_numeric(model_2041.get('CFP Odds', pd.Series([42]*len(model_2041))), errors='coerce').fillna(42)
+            model_2041['CFP Make %'] = pd.to_numeric(model_2041['CFP Make %'], errors='coerce').fillna(_cfp_odds_col)
+        else:
+            _cfp_board_early = pd.DataFrame()
+            _cfp_odds_fallback = pd.to_numeric(model_2041['CFP Odds'], errors='coerce').fillna(42) if 'CFP Odds' in model_2041.columns else 42
             if 'CFP Make %' not in model_2041.columns:
-                model_2041['CFP Make %'] = model_2041['CFP Odds']
-            else:
-                model_2041['CFP Make %'] = model_2041['CFP Make %'].fillna(model_2041['CFP Odds'])
+                model_2041['CFP Make %'] = _cfp_odds_fallback
     except Exception:
-        model_2041['CFP Make %'] = model_2041.get('CFP Odds', 42)
+        # Nuke any bad/duplicate CFP Make % state and fall back to CFP Odds
+        if model_2041.columns.tolist().count('CFP Make %') > 0:
+            model_2041 = model_2041.loc[:, ~model_2041.columns.duplicated()].copy()
+        _cfp_board_early = pd.DataFrame()
+        if 'CFP Make %' not in model_2041.columns:
+            model_2041['CFP Make %'] = pd.to_numeric(model_2041['CFP Odds'], errors='coerce').fillna(42) if 'CFP Odds' in model_2041.columns else 42
 
     # ── Merge committee-model odds into model_2041 for LIVE columns ──────────
     # Uses _cfp_board_early (CFP Make % + Bye % from rank+schedule model).
