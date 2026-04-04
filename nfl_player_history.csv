@@ -1,1 +1,225 @@
-Season,PlayerID,Player,NFLTeam,Pos,PosBucket,Age,Role,OverallStart,OverallEnd,Games,Starts,StatLine,ProBowl,AllPro,MVPVotes,SuperBowlWin,SuperBowlAppear,CareerValue,Status
+Season,PlayerID,Player,NFLTeam,Pos,PosBucket,Age,Role,OverallStart,OverallEnd,PeakOVR,ProOutcome,DevelopmentCurve,Games,Starts,StatLine,ProBowl,AllPro,MVPVotes,SuperBowlWin,SuperBowlAppear,CareerValue,Status
+2042,2042_nebraska_bhawkinson_ledg,B.Hawkinson,Bears,LEDG,EDGE,23,Starter,82,87,93,Superstar,Fast Rise,17,17,"93 tackles, 3 sacks",No,No,0,No,No,63.9,Active
+2042,2042_usc_ewood_redg,E.Wood,Jets,REDG,EDGE,23,Starter,82,87,94,Superstar,Fast Rise,14,16,"71 tackles, 5 sacks",No,No,0,No,No,62.6,Active
+2042,2042_nebraska_mgannon_c,M.Gannon,Giants,C,OL,23,Depth,86,80,80,Bust,Flat,16,2,"16 games, 2 starts",No,No,0,No,No,42,Active
+2042,2042_baylor_pegbule_wr,P.Egbule,Patriots,WR,WR,23,Depth,84,84,84,Bust,Flat,12,0,"1239 rec yds, 7 rec TD",No,No,0,No,No,41.3,Active
+2042,2042_duke_ccarlyle_qb,C.Carlyle,Cardinals,QB,QB,23,Starter,84,89,97,Superstar,Fast Rise,11,11,"3541 pass yds, 20 pass TD",No,No,0,No,No,57.3,Active
+2042,2042_wyoming_mhuber_qb,M.Huber,Commanders,QB,QB,23,Starter,82,87,90,Superstar,Fast Rise,13,13,"4052 pass yds, 25 pass TD",No,No,0,No,No,58.9,Active
+2042,2042_miami_ljordan_redg,L.Jordan,Titans,REDG,EDGE,23,Starter,82,88,90,Superstar,Fast Rise,11,17,"74 tackles, 5 sacks",No,No,0,No,No,64.3,Active
+2042,2042_miami_jlamp_dt,J.Lamp,Falcons,DT,IDL,23,Starter,83,88,96,Superstar,Fast Rise,13,16,"61 tackles, 4 sacks",No,No,0,No,No,63.1,Active
+2042,2042_clemson_jrusso_qb,J.Russo,Steelers,QB,QB,23,Starter,82,87,95,Superstar,Fast Rise,12,13,"3963 pass yds, 22 pass TD",No,No,0,No,No,58.9,Active
+2042,2042_pennstate_qeverett_rg,Q.Everett,Seahawks,RG,OL,23,Starter,83,87,94,Superstar,Fast Rise,11,15,"11 games, 15 starts",No,No,0,No,No,61.4,Active
+2042,2042_nebraska_mbaggs_wr,M.Baggs,Raiders,WR,WR,23,Starter,84,91,94,Superstar,Fast Rise,16,11,"1378 rec yds, 8 rec TD",Yes,No,0,No,No,66.2,Active
+2042,2042_washingtonstate_csantiago_qb,C.Santiago,Saints,QB,QB,23,Starter,82,89,92,Superstar,Fast Rise,16,12,"3577 pass yds, 17 pass TD",No,No,0,No,No,58.6,Active
+2042,2042_minnesota_sharvey_qb,S.Harvey,Broncos,QB,QB,23,Rotation,82,84,84,Developmental,Slow Burn,17,9,"3668 pass yds, 21 pass TD",No,No,0,No,No,52.6,Active
+2042,2042_miami_dbercovici_lg,D.Bercovici,Vikings,LG,OL,23,Starter,83,89,93,Superstar,Fast Rise,11,14,"11 games, 14 starts",No,No,0,No,No,61.1,Active
+2042,2042_miami_kcordero_ledg,K.Cordero,Colts,LEDG,EDGE,23,Starter,84,91,97,Superstar,Fast Rise,15,15,"66 tackles, 3 sacks",No,No,0,No,No,63.2,Active
+2042,2042_michigan_zmcnown_will,Z.McNown,Bengals,WILL,LB,23,Starter,84,91,96,Superstar,Fast Rise,16,12,"84 tackles, 6 sacks",Yes,No,0,No,No,67.5,Active
+2042,2042_pennstate_adennis_redg,A.Dennis,Cowboys,REDG,EDGE,23,Depth,84,79,79,Bust,Flat,12,2,"63 tackles, 2 sacks",No,No,0,No,No,41.6,Active
+2042,2042_alabaster_bsummer_rg,B.Summer,Browns,RG,OL,23,Starter,83,90,96,Superstar,Fast Rise,14,8,"14 games, 8 starts",Yes,No,0,No,No,62,Active
+2042,2042_maryland_bdyson_mike,B.Dyson,Rams,MIKE,LB,23,Starter,84,92,96,Superstar,Fast Rise,17,15,"92 tackles, 5 sacks",No,No,0,No,No,63.6,Active
+2042,2042_olemiss_ionwuasor_ledg,I.Onwuasor,Dolphins,LEDG,EDGE,23,Rotation,84,87,87,Developmental,Slow Burn,12,1,"69 tackles, 2 sacks",No,No,0,No,No,43.9,Active
+2042,2042_pennstate_ecominsky_will,E.Cominsky,Panthers,WILL,LB,23,Starter,84,91,93,Superstar,Fast Rise,13,8,"78 tackles, 4 sacks",No,No,0,No,No,54.5,Active
+2042,2042_oklahoma_klobato_will,K.Lobato,Chiefs,WILL,LB,23,Starter,84,91,93,Superstar,Fast Rise,16,9,"83 tackles, 3 sacks",No,No,0,No,No,55.7,Active
+2042,2042_oklahoma_jcutrera_mike,J.Cutrera,Buccaneers,MIKE,LB,23,Starter,84,89,95,Superstar,Fast Rise,13,9,"56 tackles, 7 sacks",No,No,0,No,No,54.8,Active
+2042,2042_rapidcity_equinton_dt,E.Quinton,Packers,DT,IDL,23,Starter,82,88,95,Superstar,Fast Rise,11,14,"55 tackles, 4 sacks",No,No,0,No,No,60.6,Active
+2042,2042_nebraska_dnicholson_lg,D.Nicholson,Texans,LG,OL,23,Starter,81,88,92,Superstar,Fast Rise,11,13,"11 games, 13 starts",No,No,0,No,No,59.4,Active
+2042,2042_texastech_bhenery_hb,B. Henery,Jaguars,HB,RB,23,Starter,84,91,92,Superstar,Fast Rise,16,14,"1059 rush yds, 9 rush TD",Yes,No,0,No,No,70,Active
+2042,2042_ncstate_rstoudemire_hb,R.Stoudemire,Chargers,HB,RB,23,Starter,84,90,94,Superstar,Fast Rise,16,15,"1291 rush yds, 8 rush TD",Yes,No,0,No,No,70.8,Active
+2042,2042_tcu_tdemar_mike,T.DeMar,Eagles,MIKE,LB,23,Starter,84,90,94,Superstar,Fast Rise,13,14,"74 tackles, 8 sacks",No,No,0,No,No,61.5,Active
+2042,2042_rapidcity_jdavis_hb,J.Davis,Bills,HB,RB,23,Rotation,84,84,84,Developmental,Slow Burn,15,9,"1133 rush yds, 10 rush TD",No,No,0,No,No,52.6,Active
+2042,2042_notredame_zjoe_mike,Z.Joe,Lions,MIKE,LB,23,Starter,81,86,94,Superstar,Fast Rise,15,17,"76 tackles, 5 sacks",No,No,0,No,No,63.5,Active
+2042,2042_miami_spullard_te,S.Pullard,Ravens,TE,TE,23,Starter,84,90,92,Superstar,Fast Rise,13,12,"870 rec yds, 5 rec TD",Yes,No,0,No,No,67,Active
+2042,2042_ucla_tgales_te,T.Gales,49ers,TE,TE,23,Starter,84,89,92,Star,Fast Rise,16,15,"930 rec yds, 4 rec TD",No,No,0,No,No,62.3,Active
+2042,2042_eastcarolina_pbrink_wr,P.Brink,49ers,WR,WR,23,Depth,83,80,80,Bust,Flat,13,0,"1368 rec yds, 10 rec TD",No,No,0,No,No,39.5,Active
+2042,2042_michigan_rwalters_redg,R.Walters,Bears,REDG,EDGE,23,Starter,84,89,91,Star,Fast Rise,11,12,"60 tackles, 4 sacks",No,No,0,No,No,58.6,Active
+2042,2042_michigan_rmangold_mike,R.Mangold,Bengals,MIKE,LB,23,Starter,82,87,92,Superstar,Fast Rise,15,16,"85 tackles, 7 sacks",No,No,0,No,No,62.6,Active
+2042,2042_oklahomastate_nmancuso_wr,N.Mancuso,Bills,WR,WR,23,Rotation,80,80,80,Developmental,Slow Burn,11,7,"1409 rec yds, 7 rec TD",No,No,0,No,No,48.2,Active
+2042,2042_washington_mhughes_qb,M.Hughes,Broncos,QB,QB,23,Starter,82,88,89,Star,Fast Rise,13,13,"3979 pass yds, 22 pass TD",No,No,0,No,No,59.4,Active
+2042,2042_ohiostate_kcurrie_wr,K.Currie,Browns,WR,WR,23,Rotation,83,83,83,Developmental,Slow Burn,16,8,"1405 rec yds, 10 rec TD",No,No,0,No,No,50.9,Active
+2042,2042_pennstate_jboiman_redg,J.Boiman,Buccaneers,REDG,EDGE,23,Starter,80,85,88,Star,Fast Rise,13,17,"66 tackles, 2 sacks",No,No,0,No,No,63,Active
+2042,2042_texas_djaimes_qb,D.Jaimes,Cardinals,QB,QB,23,Depth,82,81,81,Bust,Flat,12,0,"3031 pass yds, 14 pass TD",No,No,0,No,No,40,Active
+2042,2042_auburn_rrobinson_wr,R.Robinson,Chargers,WR,WR,23,Rotation,83,83,83,Developmental,Slow Burn,14,1,"1424 rec yds, 7 rec TD",No,No,0,No,No,42.1,Active
+2042,2042_texas_eboyko_wr,E.Boyko,Chiefs,WR,WR,23,Starter,81,85,87,Star,Fast Rise,15,9,"1314 rec yds, 7 rec TD",No,No,0,No,No,53,Active
+2042,2042_pennstate_dwitherspoon_cb,D.Witherspoon,Colts,CB,CB,23,Rotation,82,84,84,Developmental,Slow Burn,14,3,"54 tackles, 0 INT",No,No,0,No,No,45.1,Active
+2042,2042_sandiegostate_lclarke_wr,L.Clarke,Commanders,WR,WR,23,Starter,81,85,90,Star,Fast Rise,15,16,"1554 rec yds, 10 rec TD",No,No,0,No,No,61.8,Active
+2042,2042_ncstate_ipena_cb,I.Pena,Cowboys,CB,CB,23,Starter,84,89,91,Star,Fast Rise,16,11,"56 tackles, 1 INT",No,No,0,No,No,57.3,Active
+2042,2042_miami_gharris_lg,G.Harris,Dolphins,LG,OL,23,Starter,80,86,86,Star,Fast Rise,14,11,"14 games, 11 starts",No,No,0,No,No,56,Active
+2042,2042_oregon_sjennings_wr,S.Jennings,Eagles,WR,WR,23,Starter,81,88,91,Superstar,Fast Rise,17,11,"1400 rec yds, 9 rec TD",No,No,0,No,No,56.9,Active
+2042,2042_tennessee_emoncrief_cb,E.Moncrief,Falcons,CB,CB,23,Rotation,82,85,85,Developmental,Slow Burn,11,4,"45 tackles, 1 INT",No,No,0,No,No,46.8,Active
+2042,2042_alabaster_rdoucet_will,R.Doucet,Giants,WILL,LB,23,Starter,80,86,89,Superstar,Fast Rise,11,11,"58 tackles, 2 sacks",No,No,0,No,No,56,Active
+2042,2042_georgia_twillis_lt,T.Willis,Jaguars,LT,OL,23,Rotation,80,81,81,Developmental,Slow Burn,11,5,"11 games, 5 starts",No,No,0,No,No,46.2,Active
+2042,2042_panamacity_jcorker_redg,J.Corker,Jets,REDG,EDGE,23,Starter,82,87,90,Star,Fast Rise,14,14,"71 tackles, 3 sacks",No,No,0,No,No,60.1,Active
+2042,2042_texasam_mraines_c,M.Raines,Lions,C,OL,23,Starter,82,87,90,Superstar,Fast Rise,17,13,"17 games, 13 starts",No,No,0,No,No,58.9,Active
+2042,2042_usc_sgastineau_rt,S.Gastineau,Packers,RT,OL,23,Starter,81,85,90,Star,Fast Rise,16,10,"16 games, 10 starts",No,No,0,No,No,54.2,Active
+2042,2042_texas_jfayad_sam,J.Fayad,Panthers,SAM,LB,23,Rotation,80,83,83,Developmental,Slow Burn,15,7,"73 tackles, 2 sacks",No,No,0,No,No,49.6,Active
+2042,2042_oklahoma_judeze_sam,J.Udeze,Patriots,SAM,LB,23,Starter,82,88,95,Superstar,Fast Rise,15,12,"77 tackles, 6 sacks",No,No,0,No,No,58.1,Active
+2042,2042_wisconsin_dhocker_will,D.Hocker,Raiders,WILL,LB,23,Rotation,82,83,83,Developmental,Slow Burn,15,5,"53 tackles, 6 sacks",No,No,0,No,No,47.1,Active
+2042,2042_ohiostate_qtrinidad_mike,Q.Trinidad,Rams,MIKE,LB,23,Starter,82,87,91,Star,Fast Rise,12,10,"72 tackles, 6 sacks",No,No,0,No,No,55.1,Active
+2042,2042_wyoming_dirving_rg,D.Irving,Ravens,RG,OL,23,Starter,82,87,89,Star,Fast Rise,15,10,"15 games, 10 starts",No,No,0,No,No,55.1,Active
+2042,2042_texas_psnow_hb,P.Snow,Saints,HB,RB,23,Starter,84,89,97,Superstar,Fast Rise,14,8,"999 rush yds, 8 rush TD",No,No,0,No,No,53.6,Active
+2042,2042_florida_kmccallister_hb,K. McCallister,Seahawks,HB,RB,23,Starter,80,85,88,Superstar,Fast Rise,12,17,"1142 rush yds, 7 rush TD",No,No,0,No,No,63,Active
+2042,2042_washington_jschubert_sam,J.Schubert,Steelers,SAM,LB,23,Starter,82,87,94,Superstar,Fast Rise,15,15,"87 tackles, 3 sacks",No,No,0,No,No,61.4,Active
+2042,2042_alabaster_rbarksdale_hb,R.Barksdale,Texans,HB,RB,23,Starter,82,87,94,Superstar,Fast Rise,13,14,"1088 rush yds, 7 rush TD",No,No,0,No,No,60.1,Active
+2042,2042_usc_dmeyers_hb,D.Meyers,Titans,HB,RB,23,Depth,83,81,81,Bust,Flat,12,2,"1064 rush yds, 7 rush TD",No,No,0,No,No,42.5,Active
+2042,2042_rapidcity_npope_te,N.Pope,Vikings,TE,TE,23,Starter,82,86,92,Star,Fast Rise,16,11,"962 rec yds, 6 rec TD",No,No,0,No,No,56,Active
+2042,2042_alabama_cwenning_rg,C.Wenning,49ers,RG,OL,23,Rotation,82,82,82,Developmental,Slow Burn,11,5,"11 games, 5 starts",No,No,0,No,No,46.6,Active
+2042,2042_miami_lsong_wr,L.Song,Bears,WR,WR,23,Rotation,82,82,82,Developmental,Slow Burn,16,6,"1275 rec yds, 8 rec TD",No,No,0,No,No,47.9,Active
+2042,2042_texas_gpuente_sam,G.Puente,Bengals,SAM,LB,23,Starter,80,85,92,Superstar,Fast Rise,14,9,"75 tackles, 5 sacks",No,No,0,No,No,53,Active
+2042,2042_lsu_gfine_wr,G.Fine,Bills,WR,WR,23,Starter,80,84,87,Impact Starter,Steady Rise,13,12,"1256 rec yds, 7 rec TD",No,No,0,No,No,56.3,Active
+2042,2042_notredame_ekelemete_qb,E.Kelemete,Broncos,QB,QB,23,Rotation,81,82,82,Developmental,Slow Burn,17,4,"3418 pass yds, 19 pass TD",No,No,0,No,No,45.4,Active
+2042,2042_alabaster_bcota_wr,B.Cota,Browns,WR,WR,23,Starter,82,88,91,Superstar,Fast Rise,12,13,"1464 rec yds, 11 rec TD",No,No,0,No,No,59.4,Active
+2042,2042_michigan_amagee_mike,A.Magee,Buccaneers,MIKE,LB,23,Starter,78,84,88,Superstar,Fast Rise,12,9,"62 tackles, 5 sacks",No,No,0,No,No,52.6,Active
+2042,2042_michigan_ehocker_lg,E.Hocker,Cardinals,LG,OL,23,Starter,80,84,89,Star,Fast Rise,14,12,"14 games, 12 starts",No,No,0,No,No,56.3,Active
+2042,2042_oklahoma_aekiyor_cb,A.Ekiyor,Chargers,CB,CB,23,Starter,82,87,95,Superstar,Fast Rise,13,10,"58 tackles, 1 INT",No,No,0,No,No,55.1,Active
+2042,2042_southernmississippi_jmadu_wr,J.Madu,Chiefs,WR,WR,23,Starter,82,88,90,Superstar,Fast Rise,12,10,"1536 rec yds, 8 rec TD",No,No,0,No,No,55.6,Active
+2042,2042_ncstate_scantrell_mike,S.Cantrell,Colts,MIKE,LB,23,Starter,80,86,90,Star,Fast Rise,14,17,"70 tackles, 4 sacks",No,No,0,No,No,63.5,Active
+2042,2042_usc_ndennison_ledg,N.Dennison,Commanders,LEDG,EDGE,23,Starter,82,87,87,Impact Starter,Steady Rise,15,11,"68 tackles, 4 sacks",No,No,0,No,No,56.4,Active
+2042,2042_usc_kshead_cb,K.Shead,Cowboys,CB,CB,23,Starter,80,84,87,Impact Starter,Steady Rise,15,8,"61 tackles, 0 INT",No,No,0,No,No,51.3,Active
+2042,2042_byu_tmueller_lg,T.Mueller,Dolphins,LG,OL,23,Starter,80,84,85,Impact Starter,Steady Rise,17,16,"17 games, 16 starts",No,No,0,No,No,61.3,Active
+2042,2042_byu_jmesa_rg,J.Mesa,Eagles,RG,OL,23,Starter,78,82,88,Star,Fast Rise,16,9,"16 games, 9 starts",No,No,0,No,No,51.6,Active
+2042,2042_smu_akeke_dt,A.Keke,Falcons,DT,IDL,23,Starter,80,84,86,Star,Fast Rise,11,17,"74 tackles, 4 sacks",No,No,0,No,No,62.6,Active
+2042,2042_wisconsin_dhitchcock_cb,D.Hitchcock,Giants,CB,CB,23,Starter,82,84,87,Impact Starter,Steady Rise,14,16,"72 tackles, 3 INT",No,No,0,No,No,61.3,Active
+2042,2042_alabama_kclaiborne_rg,K.Claiborne,Jaguars,RG,OL,23,Rotation,80,82,82,Developmental,Slow Burn,13,2,"13 games, 2 starts",No,No,0,No,No,42.9,Active
+2042,2042_georgiatech_ragude_cb,R.Agude,Jets,CB,CB,23,Starter,82,88,90,Star,Fast Rise,13,13,"51 tackles, 3 INT",No,No,0,No,No,59.4,Active
+2042,2042_northtexas_ckush_will,C.Kush,Lions,WILL,LB,23,Starter,78,83,90,Superstar,Fast Rise,11,9,"68 tackles, 4 sacks",No,No,0,No,No,52.1,Active
+2042,2042_bowlinggreen_zkolodziej_dt,Z. Kolodziej,Packers,DT,IDL,23,Starter,80,84,86,Star,Fast Rise,17,13,"81 tackles, 6 sacks",No,No,0,No,No,57.6,Active
+2042,2042_tcu_dpeace_mike,D.Peace,Panthers,MIKE,LB,23,Starter,78,84,86,Star,Fast Rise,12,17,"75 tackles, 1 sacks",No,No,0,No,No,62.6,Active
+2042,2042_alabaster_jcameron_wr,J.Cameron,Patriots,WR,WR,23,Starter,80,85,88,Star,Fast Rise,15,8,"1380 rec yds, 7 rec TD",No,No,0,No,No,51.8,Active
+2042,2042_oklahoma_rcastro_will,R.Castro,Raiders,WILL,LB,23,Starter,80,84,86,Star,Fast Rise,11,9,"71 tackles, 6 sacks",No,No,0,No,No,52.6,Active
+2042,2042_lsu_elicata_will,E.Licata,Rams,WILL,LB,23,Starter,78,83,85,Star,Fast Rise,14,9,"60 tackles, 1 sacks",No,No,0,No,No,52.1,Active
+2042,2042_clemson_epayne_c,E.Payne,Ravens,C,OL,23,Starter,80,83,87,Impact Starter,Steady Rise,15,10,"15 games, 10 starts",No,No,0,No,No,53.4,Active
+2042,2042_smu_tdecicco_lt,T.DeCicco,Saints,LT,OL,23,Starter,78,80,83,Impact Starter,Steady Rise,11,13,"11 games, 13 starts",No,No,0,No,No,55.8,Active
+2042,2042_georgia_sdennis_ss,S.Dennis,Seahawks,SS,S,23,Depth,80,76,76,Bust,Flat,13,2,"41 tackles, 0 INT",No,No,0,No,No,40.2,Active
+2042,2042_panamacity_jclear_sam,J.Clear,Steelers,SAM,LB,23,Starter,78,85,89,Superstar,Fast Rise,13,14,"63 tackles, 3 sacks",No,No,0,No,No,59.2,Active
+2042,2042_tcu_wstewart_will,W.Stewart,Texans,WILL,LB,23,Starter,80,86,89,Star,Fast Rise,11,13,"54 tackles, 7 sacks",No,No,0,No,No,58.5,Active
+2042,2042_virginiatech_thoppes_hb,T.Hoppes,Titans,HB,RB,23,Starter,82,87,89,Star,Fast Rise,16,14,"1013 rush yds, 10 rush TD",No,No,0,No,No,60.1,Active
+2042,2042_oklahoma_dmartini_ss,D.Martini,Vikings,SS,S,23,Starter,82,86,89,Star,Fast Rise,16,11,"69 tackles, 4 INT",No,No,0,No,No,56,Active
+2042,2042_arizonastate_dlevine_wr,D.Levine,49ers,WR,WR,23,Depth,78,73,73,Bust,Flat,15,3,"1378 rec yds, 10 rec TD",No,No,0,No,No,40.1,Active
+2042,2042_oklahomastate_jsims_redg,J.Sims,Bears,REDG,EDGE,23,Depth,80,79,79,Bust,Flat,11,4,"58 tackles, 2 sacks",No,No,0,No,No,44.1,Active
+2042,2042_northcarolina_ngarnes_lt,N.Garnes,Bengals,LT,OL,23,Starter,78,83,87,Star,Fast Rise,13,17,"13 games, 17 starts",No,No,0,No,No,62.1,Active
+2042,2042_kentucky_lbrown_wr,L.Brown,Bills,WR,WR,23,Rotation,80,81,81,Developmental,Slow Burn,14,9,"1504 rec yds, 10 rec TD",No,No,0,No,No,51.2,Active
+2042,2042_michigan_lcarnegie_qb,L.Carnegie,Broncos,QB,QB,23,Rotation,76,76,76,Developmental,Slow Burn,14,9,"3525 pass yds, 22 pass TD",No,No,0,No,No,49,Active
+2042,2042_easternmichigan_sha_wr,S.Ha,Browns,WR,WR,23,Starter,78,83,89,Superstar,Fast Rise,11,17,"1283 rec yds, 10 rec TD",No,No,0,No,No,62.1,Active
+2042,2042_usc_cboykin_redg,C.Boykin,Buccaneers,REDG,EDGE,23,Depth,77,76,76,Bust,Flat,17,3,"81 tackles, 2 sacks",No,No,0,No,No,41.5,Active
+2042,2042_olemiss_koluokun_cb,K.Oluokun,Cardinals,CB,CB,23,Rotation,76,78,78,Developmental,Slow Burn,14,9,"48 tackles, 0 INT",No,No,0,No,No,49.9,Active
+2042,2042_oklahoma_aodrick_redg,A.Odrick,Chargers,REDG,EDGE,23,Starter,78,83,86,Star,Fast Rise,12,14,"56 tackles, 6 sacks",No,No,0,No,No,58.4,Active
+2042,2042_wisconsin_tkahn_wr,T.Kahn,Chiefs,WR,WR,23,Starter,78,82,86,Star,Fast Rise,11,14,"1453 rec yds, 11 rec TD",No,No,0,No,No,57.9,Active
+2042,2042_arizonastate_trichey_mike,T.Richey,Colts,MIKE,LB,23,Depth,76,71,71,Bust,Flat,17,0,"73 tackles, 0 sacks",No,No,0,No,No,35.5,Active
+2042,2042_alabama_mawasom_rt,M.Awasom,Commanders,RT,OL,23,Starter,78,83,85,Star,Fast Rise,12,10,"12 games, 10 starts",No,No,0,No,No,53.4,Active
+2042,2042_alabaster_egruttadauria_redg,E.Gruttadauria,Cowboys,REDG,EDGE,23,Rotation,78,79,79,Developmental,Slow Burn,15,4,"76 tackles, 0 sacks",No,No,0,No,No,44.1,Active
+2042,2042_usc_opotts_lt,O.Potts,Dolphins,LT,OL,23,Depth,76,70,70,Bust,Flat,15,2,"15 games, 2 starts",No,No,0,No,No,37.5,Active
+2042,2042_michigan_wcrumpler_c,W.Crumpler,Eagles,C,OL,23,Depth,78,76,76,Bust,Flat,13,4,"13 games, 4 starts",No,No,0,No,No,42.7,Active
+2042,2042_alabaster_dnewcomb_dt,D.Newcomb,Falcons,DT,IDL,23,Starter,80,84,85,Impact Starter,Steady Rise,12,9,"57 tackles, 2 sacks",No,No,0,No,No,52.6,Active
+2042,2042_oklahoma_jwhiting_cb,J.Whiting,Giants,CB,CB,23,Rotation,78,81,81,Developmental,Slow Burn,15,8,"71 tackles, 1 INT",No,No,0,No,No,50,Active
+2042,2042_alabaster_btiffin_dt,B.Tiffin,Jaguars,DT,IDL,23,Starter,80,85,89,Star,Fast Rise,15,11,"79 tackles, 4 sacks",No,No,0,No,No,55.5,Active
+2042,2042_notredame_jshipp_redg,J.Shipp,Jets,REDG,EDGE,23,Rotation,76,78,79,Developmental,Slow Burn,14,7,"78 tackles, 3 sacks",No,No,0,No,No,47.4,Active
+2042,2042_miami_dhoward_rt,D.Howard,Lions,RT,OL,23,Starter,76,79,81,Impact Starter,Steady Rise,15,9,"15 games, 9 starts",No,No,0,No,No,50.3,Active
+2042,2042_westvirginia_jarcuri_wr,J.Arcuri,Packers,WR,WR,23,Starter,78,82,85,Star,Fast Rise,14,11,"1515 rec yds, 10 rec TD",No,No,0,No,No,54.1,Active
+2042,2042_tcu_bpeters_sam,B.Peters,Panthers,SAM,LB,23,Rotation,80,81,83,Developmental,Slow Burn,12,5,"71 tackles, 5 sacks",No,No,0,No,No,46.2,Active
+2042,2042_oregon_cpopek_wr,C.Popek,Patriots,WR,WR,23,Starter,76,81,83,Star,Fast Rise,15,11,"1347 rec yds, 9 rec TD",No,No,0,No,No,53.7,Active
+2042,2042_pennstate_bhagg_lg,B.Hagg,Raiders,LG,OL,23,Starter,80,85,90,Star,Fast Rise,16,14,"16 games, 14 starts",No,No,0,No,No,59.2,Active
+2042,2042_notredame_jingram_rg,J.Ingram,Rams,RG,OL,23,Depth,78,78,78,Bust,Flat,17,3,"17 games, 3 starts",No,No,0,No,No,42.4,Active
+2042,2042_floridastate_pday_fs,P. Day,Ravens,FS,S,23,Starter,78,83,88,Star,Fast Rise,12,13,"55 tackles, 1 INT",No,No,0,No,No,57.1,Active
+2042,2042_smu_godeyingbo_rg,G.Odeyingbo,Saints,RG,OL,23,Starter,80,85,86,Star,Fast Rise,14,10,"14 games, 10 starts",No,No,0,No,No,54.2,Active
+2042,2042_clemson_dduarte_hb,D.Duarte,Seahawks,HB,RB,23,Starter,78,83,87,Star,Fast Rise,12,9,"1201 rush yds, 11 rush TD",No,No,0,No,No,52.1,Active
+2042,2042_rutgers_sarmah_will,S.Armah,Steelers,WILL,LB,23,Starter,78,82,82,Impact Starter,Steady Rise,11,11,"52 tackles, 6 sacks",No,No,0,No,No,54.1,Active
+2042,2042_houston_mmerriman_hb,M.Merriman,Texans,HB,RB,23,Starter,78,83,85,Impact Starter,Steady Rise,12,15,"935 rush yds, 7 rush TD",No,No,0,No,No,59.6,Active
+2042,2042_rapidcity_bmerriman_te,B.Merriman,Titans,TE,TE,23,Starter,81,84,85,Impact Starter,Steady Rise,12,10,"946 rec yds, 5 rec TD",No,No,0,No,No,53.8,Active
+2042,2042_oklahomastate_mbrown_hb,M.Brown,Vikings,HB,RB,23,Starter,78,83,85,Star,Fast Rise,16,16,"1173 rush yds, 9 rush TD",No,No,0,No,No,60.9,Active
+2042,2042_hammond_dholliday_wr,D.Holliday,49ers,WR,WR,23,Starter,78,82,83,Impact Starter,Steady Rise,14,15,"1323 rec yds, 10 rec TD",No,No,0,No,No,59.1,Active
+2042,2042_arizona_jknight_ledg,J.Knight,Bears,LEDG,EDGE,23,Rotation,78,79,79,Developmental,Slow Burn,14,4,"59 tackles, 2 sacks",No,No,0,No,No,44.1,Active
+2042,2042_washington_fsanders_cb,F.Sanders,Bengals,CB,CB,23,Starter,80,83,84,Impact Starter,Steady Rise,15,9,"58 tackles, 0 INT",No,No,0,No,No,52.1,Active
+2042,2042_ohiostate_mbody_wr,M.Body,Bills,WR,WR,23,Rotation,80,80,80,Developmental,Slow Burn,11,4,"1289 rec yds, 6 rec TD",No,No,0,No,No,44.5,Active
+2042,2042_kansasstate_tfrancisco_qb,T.Francisco,Broncos,QB,QB,23,Starter,77,83,87,Star,Fast Rise,11,13,"3447 pass yds, 17 pass TD",No,No,0,No,No,57.1,Active
+2042,2042_tennessee_mbrockel_wr,M.Brockel,Browns,WR,WR,23,Starter,76,79,81,Impact Starter,Steady Rise,16,16,"1333 rec yds, 7 rec TD",No,No,0,No,No,59.1,Active
+2042,2042_lsu_bburnette_redg,B.Burnette,Buccaneers,REDG,EDGE,23,Starter,75,80,81,Impact Starter,Steady Rise,14,11,"83 tackles, 0 sacks",No,No,0,No,No,53.2,Active
+2042,2042_lsu_ccapps_qb,C.Capps,Cardinals,QB,QB,23,Starter,75,80,84,Star,Fast Rise,11,8,"3422 pass yds, 22 pass TD",No,No,0,No,No,49.5,Active
+2042,2042_alabama_tcreer_lg,T.Creer,Chargers,LG,OL,23,Starter,78,82,82,Impact Starter,Steady Rise,12,14,"12 games, 14 starts",No,No,0,No,No,57.9,Active
+2042,2042_smu_tpool_wr,T.Pool,Chiefs,WR,WR,23,Starter,80,83,84,Impact Starter,Steady Rise,14,16,"1357 rec yds, 7 rec TD",No,No,0,No,No,60.9,Active
+2042,2042_alabaster_tgardiner_will,T.Gardiner,Colts,WILL,LB,23,Starter,78,83,84,Star,Fast Rise,15,11,"87 tackles, 5 sacks",No,No,0,No,No,54.6,Active
+2042,2042_oklahoma_jriddick_lt,J.Riddick,Commanders,LT,OL,23,Starter,76,80,81,Impact Starter,Steady Rise,13,9,"13 games, 9 starts",No,No,0,No,No,50.8,Active
+2042,2042_maryland_jkellum_cb,J.Kellum,Cowboys,CB,CB,23,Rotation,76,76,76,Developmental,Slow Burn,15,8,"71 tackles, 3 INT",No,No,0,No,No,47.7,Active
+2042,2042_texas_jhernandez_lg,J.Hernandez,Dolphins,LG,OL,23,Rotation,76,78,79,Steady Starter,Normal,12,3,"12 games, 3 starts",No,No,0,No,No,42.4,Active
+2042,2042_usc_djudd_wr,D.Judd,Eagles,WR,WR,23,Rotation,78,80,81,Steady Starter,Normal,13,4,"1433 rec yds, 8 rec TD",No,No,0,No,No,44.5,Active
+2042,2042_rapidcity_khood_cb,K.Hood,Falcons,CB,CB,23,Depth,80,74,74,Bust,Flat,16,0,"48 tackles, 2 INT",No,No,0,No,No,36.8,Active
+2042,2042_georgiatech_jpetty_will,J.Petty,Giants,WILL,LB,23,Starter,78,82,83,Impact Starter,Steady Rise,16,8,"82 tackles, 4 sacks",No,No,0,No,No,50.4,Active
+2042,2042_iowa_gturpin_rt,G.Turpin,Jaguars,RT,OL,23,Starter,78,82,83,Impact Starter,Steady Rise,15,8,"15 games, 8 starts",No,No,0,No,No,50.4,Active
+2042,2042_missouristate_tmeeks_will,T.Meeks,Jets,WILL,LB,23,Depth,74,71,71,Bust,Flat,14,2,"73 tackles, 0 sacks",No,No,0,No,No,38,Active
+2042,2042_sandiegostate_jflanagan_wr,J.Flanagan,Lions,WR,WR,23,Rotation,78,80,81,Developmental,Slow Burn,13,2,"1306 rec yds, 10 rec TD",No,No,0,No,No,42,Active
+2042,2042_florida_ijohn_hb,I. John,Packers,HB,RB,23,Starter,78,82,85,Impact Starter,Steady Rise,14,8,"1062 rush yds, 8 rush TD",No,No,0,No,No,50.4,Active
+2042,2042_stanford_jhemphill_mike,J.Hemphill,Panthers,MIKE,LB,23,Rotation,78,79,79,Developmental,Slow Burn,16,4,"72 tackles, 0 sacks",No,No,0,No,No,44.1,Active
+2042,2042_ucf_apaul_will,A.Paul,Patriots,WILL,LB,23,Starter,74,77,81,Impact Starter,Steady Rise,12,15,"69 tackles, 1 sacks",No,No,0,No,No,56.9,Active
+2042,2042_missouri_dlowell_will,D.Lowell,Raiders,WILL,LB,23,Depth,78,73,73,Bust,Flat,11,0,"62 tackles, 0 sacks",No,No,0,No,No,36.4,Active
+2042,2042_panamacity_lworkman_c,L.Workman,Rams,C,OL,23,Starter,76,80,80,Impact Starter,Steady Rise,13,9,"13 games, 9 starts",No,No,0,No,No,50.8,Active
+2042,2042_smu_aalabi_lt,A.Alabi,Ravens,LT,OL,23,Depth,76,72,72,Bust,Flat,17,0,"17 games, 0 starts",No,No,0,No,No,35.9,Active
+2042,2042_notredame_fefaw_hb,F.Efaw,Saints,HB,RB,23,Starter,78,82,90,Superstar,Fast Rise,11,17,"988 rush yds, 6 rush TD",No,No,0,No,No,61.6,Active
+2042,2042_usc_mwoods_lg,M.Woods,Seahawks,LG,OL,23,Depth,76,74,74,Bust,Flat,13,2,"13 games, 2 starts",No,No,0,No,No,39.3,Active
+2042,2042_rice_afinley_mike,A.Finley,Steelers,MIKE,LB,23,Depth,78,75,75,Bust,Flat,12,3,"47 tackles, 4 sacks",No,No,0,No,No,41,Active
+2042,2042_texasam_acabral_hb,A.Cabral,Texans,HB,RB,23,Starter,80,83,86,Impact Starter,Steady Rise,14,12,"1043 rush yds, 8 rush TD",No,No,0,No,No,55.9,Active
+2042,2042_clemson_tgoff_te,T.Goff,Titans,TE,TE,23,Starter,79,83,89,Star,Fast Rise,13,14,"841 rec yds, 5 rec TD",No,No,0,No,No,58.4,Active
+2042,2042_floridastate_jsturm_hb,J. Sturm,Vikings,HB,RB,23,Starter,78,81,85,Star,Fast Rise,13,9,"1080 rush yds, 7 rush TD",No,No,0,No,No,51.2,Active
+2042,2042_bowlinggreen_swragge_redg,S. Wragge,49ers,REDG,EDGE,23,Rotation,76,77,79,Developmental,Slow Burn,11,9,"73 tackles, 2 sacks",No,No,0,No,No,49.4,Active
+2042,2042_pennstate_mkeiaho_wr,M.Keiaho,Bears,WR,WR,23,Depth,76,75,75,Bust,Flat,15,0,"1214 rec yds, 6 rec TD",No,No,0,No,No,37.2,Active
+2042,2042_miami_cknowles_rg,C.Knowles,Bengals,RG,OL,23,Rotation,74,76,76,Developmental,Slow Burn,14,4,"14 games, 4 starts",No,No,0,No,No,42.7,Active
+2042,2042_northcarolina_sdora_cb,S.Dora,Bills,CB,CB,23,Rotation,76,77,77,Developmental,Slow Burn,12,3,"53 tackles, 0 INT",No,No,0,No,No,41.9,Active
+2042,2042_washington_rbartow_qb,R.Bartow,Broncos,QB,QB,23,Starter,75,79,79,Impact Starter,Steady Rise,12,15,"3455 pass yds, 23 pass TD",No,No,0,No,No,57.8,Active
+2042,2042_floridastate_jfeesago_wr,J. Fe'esago,Browns,WR,WR,23,Starter,78,82,84,Impact Starter,Steady Rise,14,17,"1493 rec yds, 8 rec TD",No,No,0,No,No,61.6,Active
+2042,2042_alabaster_ddelarosa_cb,D.De La Rosa,Buccaneers,CB,CB,23,Starter,76,80,81,Impact Starter,Steady Rise,11,15,"53 tackles, 4 INT",No,No,0,No,No,58.2,Active
+2042,2042_westvirginia_tsatele_qb,T.Satele,Cardinals,QB,QB,23,Rotation,77,78,79,Developmental,Slow Burn,12,3,"2928 pass yds, 20 pass TD",No,No,0,No,No,42.4,Active
+2042,2042_panamacity_acisco_cb,A.Cisco,Chargers,CB,CB,23,Starter,74,78,80,Star,Fast Rise,15,10,"61 tackles, 3 INT",No,No,0,No,No,51.1,Active
+2042,2042_georgia_fnicks_wr,F.Nicks,Chiefs,WR,WR,23,Rotation,78,79,80,Developmental,Slow Burn,14,9,"1377 rec yds, 11 rec TD",No,No,0,No,No,50.3,Active
+2042,2042_miami_rfreeman_wr,R.Freeman,Colts,WR,WR,23,Depth,76,73,73,Bust,Flat,14,1,"1139 rec yds, 5 rec TD",No,No,0,No,No,37.6,Active
+2042,2042_michigan_deby_cb,D.Eby,Commanders,CB,CB,23,Starter,76,79,84,Star,Fast Rise,15,11,"67 tackles, 1 INT",No,No,0,No,No,52.8,Active
+2042,2042_tcu_gyancey_ledg,G.Yancey,Cowboys,LEDG,EDGE,23,Rotation,78,81,81,Steady Starter,Normal,15,8,"57 tackles, 2 sacks",No,No,0,No,No,50,Active
+2042,2042_clemson_mparms_lg,M.Parms,Dolphins,LG,OL,23,Rotation,76,79,81,Steady Starter,Normal,13,9,"13 games, 9 starts",No,No,0,No,No,50.3,Active
+2042,2042_baylor_oteamer_wr,O.Teamer,Eagles,WR,WR,23,Starter,78,80,84,Impact Starter,Steady Rise,17,9,"1365 rec yds, 11 rec TD",No,No,0,No,No,50.8,Active
+2042,2042_smu_bwolf_wr,B.Wolf,Falcons,WR,WR,23,Starter,76,79,80,Impact Starter,Steady Rise,13,11,"1425 rec yds, 8 rec TD",No,No,0,No,No,52.8,Active
+2042,2042_panamacity_kcahill_cb,K.Cahill,Giants,CB,CB,23,Depth,76,75,76,Bust,Flat,13,0,"38 tackles, 3 INT",No,No,0,No,No,37.2,Active
+2042,2042_ohiostate_ttabor_wr,T.Tabor,Jaguars,WR,WR,23,Rotation,76,79,79,Steady Starter,Normal,11,9,"1074 rec yds, 8 rec TD",No,No,0,No,No,50.3,Active
+2042,2042_rapidcity_lrodenhauser_redg,L.Rodenhauser,Jets,REDG,EDGE,23,Starter,76,80,82,Impact Starter,Steady Rise,14,12,"68 tackles, 5 sacks",No,No,0,No,No,54.5,Active
+2042,2042_hammond_spriester_rt,S.Priester,Lions,RT,OL,23,Rotation,74,76,76,Developmental,Slow Burn,16,2,"16 games, 2 starts",No,No,0,No,No,40.2,Active
+2042,2042_ncstate_jwade_redg,J.Wade,Packers,REDG,EDGE,23,Starter,77,81,82,Impact Starter,Steady Rise,14,9,"73 tackles, 1 sacks",No,No,0,No,No,51.2,Active
+2042,2042_texasam_cdinapoli_will,C.DiNapoli,Panthers,WILL,LB,23,Rotation,74,76,78,Steady Starter,Normal,13,7,"65 tackles, 0 sacks",No,No,0,No,No,46.5,Active
+2042,2042_rapidcity_ctrimble_ledg,C.Trimble,Patriots,LEDG,EDGE,23,Rotation,77,77,80,Developmental,Slow Burn,14,7,"73 tackles, 0 sacks",No,No,0,No,No,46.9,Active
+2042,2042_wyoming_tstromberg_ss,T.Stromberg,Raiders,SS,S,23,Depth,78,76,76,Bust,Flat,14,1,"53 tackles, 0 INT",No,No,0,No,No,39,Active
+2042,2042_alabama_sevensen_mike,S.Evensen,Rams,MIKE,LB,23,Starter,76,82,85,Star,Fast Rise,13,12,"56 tackles, 6 sacks",No,No,0,No,No,55.4,Active
+2042,2042_byu_djanovich_redg,D.Janovich,Ravens,REDG,EDGE,23,Starter,75,78,81,Impact Starter,Steady Rise,14,17,"80 tackles, 0 sacks",No,No,0,No,No,59.9,Active
+2042,2042_maryland_ejewel_hb,E.Jewel,Saints,HB,RB,23,Rotation,76,77,79,Developmental,Slow Burn,12,3,"1003 rush yds, 8 rush TD",No,No,0,No,No,41.9,Active
+2042,2042_baylor_asimonson_hb,A.Simonson,Seahawks,HB,RB,23,Depth,78,78,78,Bust,Flat,14,4,"935 rush yds, 9 rush TD",No,No,0,No,No,43.6,Active
+2042,2042_usc_mcamarda_hb,M.Camarda,Steelers,HB,RB,23,Starter,76,81,82,Star,Fast Rise,11,9,"998 rush yds, 7 rush TD",No,No,0,No,No,51.2,Active
+2042,2042_nebraska_djeanpierre_fs,D.Jean-Pierre,Texans,FS,S,23,Rotation,78,79,80,Developmental,Slow Burn,13,8,"54 tackles, 1 INT",No,No,0,No,No,49.1,Active
+2042,2042_notredame_mtrapasso_te,M.Trapasso,Titans,TE,TE,23,Starter,78,82,84,Impact Starter,Steady Rise,15,9,"931 rec yds, 5 rec TD",No,No,0,No,No,51.6,Active
+2042,2042_wakeforest_dskaggs_te,D.Skaggs,Vikings,TE,TE,23,Starter,76,79,81,Impact Starter,Steady Rise,15,9,"834 rec yds, 4 rec TD",No,No,0,No,No,50.3,Active
+2042,2042_stanford_tmumphrey_wr,T.Mumphrey,49ers,WR,WR,23,Starter,76,79,82,Impact Starter,Steady Rise,12,16,"1426 rec yds, 10 rec TD",No,No,0,No,No,59.1,Active
+2042,2042_olemiss_juwaezuoke_ledg,J.Uwaezuoke,Bears,LEDG,EDGE,23,Starter,74,76,78,Impact Starter,Steady Rise,12,13,"61 tackles, 1 sacks",No,No,0,No,No,54,Active
+2042,2042_westernmichigan_thubert_sam,T.Hubert,Bengals,SAM,LB,23,Starter,76,79,80,Impact Starter,Steady Rise,14,15,"67 tackles, 2 sacks",No,No,0,No,No,57.8,Active
+2042,2042_pittsburgh_tivy_wr,T.Ivy,Bills,WR,WR,23,Rotation,74,74,74,Developmental,Slow Burn,16,1,"1436 rec yds, 7 rec TD",No,No,0,No,No,38.1,Active
+2042,2042_oregon_qbabcock_cb,Q.Babcock,Broncos,CB,CB,23,Starter,74,78,79,Impact Starter,Steady Rise,13,14,"61 tackles, 2 INT",No,No,0,No,No,56.1,Active
+2042,2042_georgiatech_sbello_wr,S.Bello,Browns,WR,WR,23,Rotation,76,77,77,Developmental,Slow Burn,13,5,"1416 rec yds, 7 rec TD",No,No,0,No,No,44.4,Active
+2042,2042_hammond_mduvall_redg,M.DuVall,Buccaneers,REDG,EDGE,23,Starter,74,77,80,Impact Starter,Steady Rise,16,9,"77 tackles, 2 sacks",No,No,0,No,No,49.4,Active
+2042,2042_pennstate_ddraughn_cb,D.Draughn,Cardinals,CB,CB,23,Depth,74,72,72,Bust,Flat,15,1,"45 tackles, 0 INT",No,No,0,No,No,37.1,Active
+2042,2042_olemiss_mbrown_cb,M.Brown,Chargers,CB,CB,23,Depth,76,72,72,Bust,Flat,11,4,"52 tackles, 1 INT",No,No,0,No,No,40.9,Active
+2042,2042_alabama_mcheeseman_fs,M.Cheeseman,Chiefs,FS,S,23,Depth,76,71,71,Bust,Flat,16,3,"66 tackles, 3 INT",No,No,0,No,No,39.2,Active
+2042,2042_alabaster_tdavis_cb,T.Davis,Colts,CB,CB,23,Rotation,74,76,76,Developmental,Slow Burn,15,4,"66 tackles, 0 INT",No,No,0,No,No,42.7,Active
+2042,2042_maryland_mspitz_redg,M.Spitz,Commanders,REDG,EDGE,23,Depth,75,73,73,Bust,Flat,11,1,"59 tackles, 1 sacks",No,No,0,No,No,37.6,Active
+2042,2042_ncstate_jgolden_mike,J.Golden,Cowboys,MIKE,LB,23,Rotation,76,78,79,Steady Starter,Normal,14,2,"55 tackles, 1 sacks",No,No,0,No,No,41.1,Active
+2042,2042_floridastate_dbickley_cb,D. Bickley,Dolphins,CB,CB,23,Depth,74,70,70,Bust,Flat,17,4,"49 tackles, 0 INT",No,No,0,No,No,40,Active
+2042,2042_pennstate_dantwine_fs,D.Antwine,Eagles,FS,S,23,Rotation,76,78,79,Developmental,Slow Burn,15,6,"56 tackles, 0 INT",No,No,0,No,No,46.1,Active
+2042,2042_appalachianstate_treiff_dt,T.Reiff,Falcons,DT,IDL,23,Starter,76,78,80,Impact Starter,Steady Rise,11,11,"73 tackles, 0 sacks",No,No,0,No,No,52.4,Active
+2042,2042_lsu_fyeboah_mike,F.Yeboah,Giants,MIKE,LB,23,Starter,76,80,83,Impact Starter,Steady Rise,11,9,"65 tackles, 1 sacks",No,No,0,No,No,50.8,Active
+2042,2042_texastech_dgraves_wr,D. Graves,Jaguars,WR,WR,23,Starter,74,78,80,Impact Starter,Steady Rise,11,8,"1146 rec yds, 6 rec TD",No,No,0,No,No,48.6,Active
+2042,2042_usf_temery_fs,T. Emery,Jets,FS,S,23,Rotation,74,75,75,Developmental,Slow Burn,16,9,"74 tackles, 2 INT",No,No,0,No,No,48.5,Active
+2042,2042_washington_cabraham_dt,C.Abraham,Lions,DT,IDL,23,Starter,76,79,80,Impact Starter,Steady Rise,16,17,"94 tackles, 1 sacks",No,No,0,No,No,60.3,Active
+2042,2042_hammond_eturner_fs,E.Turner,Packers,FS,S,23,Starter,78,81,84,Impact Starter,Steady Rise,16,8,"53 tackles, 0 INT",No,No,0,No,No,50,Active
+2042,2042_panamacity_fiverson_mike,F.Iverson,Panthers,MIKE,LB,23,Rotation,76,78,78,Developmental,Slow Burn,11,3,"46 tackles, 0 sacks",No,No,0,No,No,42.4,Active
+2042,2042_florida_mmoody_sam,M. Moody,Patriots,SAM,LB,23,Rotation,72,73,73,Developmental,Slow Burn,17,3,"61 tackles, 0 sacks",No,No,0,No,No,40.1,Active
+2042,2042_tcu_acalcaterra_hb,A.Calcaterra,Raiders,HB,RB,23,Depth,76,72,72,Bust,Flat,12,1,"1102 rush yds, 7 rush TD",No,No,0,No,No,37.1,Active
+2042,2042_nebraska_skoenig_te,S.Koenig,Rams,TE,TE,23,Starter,77,81,82,Impact Starter,Steady Rise,17,10,"1053 rec yds, 6 rec TD",No,No,0,No,No,52.5,Active
+2042,2042_stanford_jhead_hb,J.Head,Ravens,HB,RB,23,Depth,76,75,75,Bust,Flat,16,1,"1138 rush yds, 10 rush TD",No,No,0,No,No,38.5,Active
+2042,2042_kentucky_wholyfield_hb,W.Holyfield,Saints,HB,RB,23,Rotation,76,78,81,Steady Starter,Normal,17,5,"1064 rush yds, 9 rush TD",No,No,0,No,No,44.9,Active
+2042,2042_texastech_nmccullough_te,N. McCullough,Seahawks,TE,TE,23,Rotation,71,74,74,Steady Starter,Normal,12,4,"920 rec yds, 4 rec TD",No,No,0,No,No,41.8,Active
+2042,2042_usf_rhitchens_te,R. Hitchens,Steelers,TE,TE,23,Starter,77,80,82,Impact Starter,Steady Rise,11,13,"763 rec yds, 4 rec TD",No,No,0,No,No,55.8,Active
+2042,2042_rutgers_dsimms_p,D.Simms,Texans,P,P,23,Rotation,75,77,77,Steady Starter,Normal,15,3,"15 games, 3 starts",No,No,0,No,No,41.9,Active
+2042,2042_tennessee_mholley_te,M.Holley,Titans,TE,TE,23,Rotation,75,78,78,Steady Starter,Normal,11,7,"875 rec yds, 6 rec TD",No,No,0,No,No,47.4,Active
+2042,2042_ucla_rmckee_p,R.McKee,Vikings,P,P,23,Rotation,75,77,77,Steady Starter,Normal,16,5,"16 games, 5 starts",No,No,0,No,No,44.4,Active
