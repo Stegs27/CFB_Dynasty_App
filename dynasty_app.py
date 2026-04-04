@@ -6047,7 +6047,7 @@ def simulate_full_nfl_season(season_year=None):
     # ── Standings from all 18 weeks ───────────────────────────────────────────
     _update_nfl_standings_from_weekly(season_year, team_strength_df)
 
-    # ── Player season sim ─────────────────────────────────────────────────────
+    # ── Player season sim — dynasty picks ────────────────────────────────────
     player_hist_combined = simulate_nfl_player_season(
         season_year=season_year,
         nfl_draft_hist_df=nfl_draft_hist,
@@ -6055,7 +6055,7 @@ def simulate_full_nfl_season(season_year=None):
         existing_player_hist_df=nfl_player_hist
     )
 
-    # Merge base roster players
+    # Merge base roster players already handled by simulate_base_nfl_roster_season_rows
     base_roster_rows = simulate_base_nfl_roster_season_rows(
         season_year=season_year,
         nfl_current_rosters_df=nfl_current_roster,
@@ -6080,6 +6080,133 @@ def simulate_full_nfl_season(season_year=None):
                 player_hist_combined[col] = pd.NA
         player_hist_combined = player_hist_combined[NFL_PLAYER_HISTORY_COLS].copy()
         player_hist_combined.to_csv("nfl_player_history.csv", index=False)
+
+    # ── Full roster veteran pass — covers ALL NFL players, not just dynasty picks ─
+    # simulate_nfl_player_season only processes players from nfl_draft_history.csv.
+    # This pass generates season stats for every player in NFLroster26_MASTER.csv
+    # who isn't already covered, so awards/storylines draw from the full 32-team universe.
+    if not nfl_roster.empty:
+        _already_ids = set()
+        if not player_hist_combined.empty and "PlayerID" in player_hist_combined.columns:
+            _szn_ph = player_hist_combined[
+                pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year
+            ]
+            _already_ids = set(_szn_ph["PlayerID"].astype(str).str.strip().tolist())
+
+        _vet_rows = []
+        for _, _vr in nfl_roster.iterrows():
+            _vteam = str(_vr.get("Team", "")).strip()
+            _vname = str(_vr.get("Name", _vr.get("Player", ""))).strip()
+            _vpos  = str(_vr.get("Pos", "")).strip()
+            if not _vteam or not _vname:
+                continue
+            _vovr   = int(safe_num(_vr.get("OVR", 72), 72))
+            _vage   = int(safe_num(_vr.get("Age", 27), 27))
+            _vbkt   = clean_bucket(_vpos)
+            _vpid   = f"BASE::{normalize_key(_vteam)}::{normalize_key(_vname)}::{normalize_key(_vpos)}"
+            if _vpid in _already_ids:
+                continue  # dynasty pick or already processed
+
+            # Age-based progression delta
+            if _vage <= 24:   _vdelta = random.uniform(0.0, 2.0)
+            elif _vage <= 28: _vdelta = random.uniform(-0.5, 1.2)
+            elif _vage <= 31: _vdelta = random.uniform(-1.2, 0.5)
+            elif _vage <= 34: _vdelta = random.uniform(-2.0, 0.2)
+            else:             _vdelta = random.uniform(-3.0, -0.4)
+            _vovr_end = int(max(60, min(99, round(_vovr + _vdelta))))
+
+            if _vbkt == "QB":
+                _vrole   = "Starter" if _vovr_end >= 74 else "Backup"
+                _vstarts = random.randint(10, 17) if _vrole == "Starter" else random.randint(0, 4)
+                _vgames  = max(_vstarts, random.randint(11, 17))
+                _vstat   = f"{int(250+_vovr_end*30+_vstarts*50+random.randint(-250,300))} pass yds, {max(1,int((_vovr_end-60)/12)+random.randint(-2,4))} pass TD"
+                _vmvp    = random.randint(1,10) if _vovr_end >= 90 and _vstarts >= 12 and random.random() < 0.18 else 0
+            elif _vbkt == "RB":
+                _vrole   = "Starter" if _vovr_end >= 76 else "Rotation"
+                _vstarts = random.randint(6, 16) if _vrole == "Starter" else random.randint(0, 6)
+                _vgames  = random.randint(11, 17)
+                _vstat   = f"{int(100+_vovr_end*9+_vgames*12+random.randint(-120,180))} rush yds, {max(0,int((_vovr_end-60)/14)+random.randint(-1,3))} rush TD"
+                _vmvp    = 0
+            elif _vbkt in {"WR", "TE"}:
+                _vrole   = "Starter" if _vovr_end >= 76 else "Rotation"
+                _vstarts = random.randint(5, 16) if _vrole == "Starter" else random.randint(0, 6)
+                _vgames  = random.randint(11, 17)
+                _vstat   = f"{int(120+_vovr_end*10+_vgames*14+random.randint(-130,210))} rec yds, {max(0,int((_vovr_end-60)/17)+random.randint(-1,3))} rec TD"
+                _vmvp    = 0
+            elif _vbkt in {"EDGE", "IDL", "LB"}:
+                _vrole   = "Starter" if _vovr_end >= 75 else "Rotation"
+                _vstarts = random.randint(5, 17) if _vrole == "Starter" else random.randint(0, 5)
+                _vgames  = random.randint(11, 17)
+                _vstat   = f"{int(18+_vgames*2.2+_vstarts*1.1+random.randint(-8,14))} tackles, {max(0,int((_vovr_end-70)/4)+random.randint(-2,3))} sacks"
+                _vmvp    = 0
+            elif _vbkt in {"CB", "S"}:
+                _vrole   = "Starter" if _vovr_end >= 75 else "Rotation"
+                _vstarts = random.randint(5, 17) if _vrole == "Starter" else random.randint(0, 5)
+                _vgames  = random.randint(11, 17)
+                _vstat   = f"{int(18+_vgames*2.0+_vstarts+random.randint(-8,14))} tackles, {max(0,int((_vovr_end-72)/7)+random.randint(-1,3))} INT"
+                _vmvp    = 0
+            else:
+                _vrole   = "Depth"
+                _vstarts = random.randint(0, 4)
+                _vgames  = random.randint(8, 17)
+                _vstat   = f"{_vgames} games, {_vstarts} starts"
+                _vmvp    = 0
+
+            _vprobowl = "Yes" if _vovr_end >= 89 and random.random() < 0.35 else "No"
+            _vallpro  = "Yes" if _vovr_end >= 92 and random.random() < 0.16 else "No"
+            _vcv = round(_vovr_end*0.42 + _vstarts*1.20 + (8 if _vprobowl=="Yes" else 0) + (10 if _vallpro=="Yes" else 0) + (_vmvp*1.5), 1)
+
+            _vstatus = "Active"
+            if should_retire_nfl_player(_vage, _vovr_end, "Base NFL Veteran", _vbkt):
+                _vstatus = "Retired"
+            elif _vage >= 34 and _vovr_end <= 68 and random.random() < 0.35:
+                _vstatus = "Out of League"
+            elif _vage >= 32 and random.random() < 0.20:
+                _vstatus = "Declining"
+
+            _vet_rows.append({
+                "Season":          season_year,
+                "PlayerID":        _vpid,
+                "Player":          _vname,
+                "NFLTeam":         _vteam,
+                "Pos":             _vpos,
+                "PosBucket":       _vbkt,
+                "Age":             _vage,
+                "Role":            _vrole,
+                "OverallStart":    _vovr,
+                "OverallEnd":      _vovr_end,
+                "PeakOVR":         max(_vovr, _vovr_end),
+                "ProOutcome":      "Base NFL Veteran",
+                "DevelopmentCurve":"Normal",
+                "Games":           _vgames,
+                "Starts":          _vstarts,
+                "StatLine":        _vstat,
+                "ProBowl":         _vprobowl,
+                "AllPro":          _vallpro,
+                "MVPVotes":        int(_vmvp),
+                "SuperBowlWin":    "No",
+                "SuperBowlAppear": "No",
+                "CareerValue":     _vcv,
+                "Status":          _vstatus,
+            })
+
+        if _vet_rows:
+            _vet_df = pd.DataFrame(_vet_rows, columns=NFL_PLAYER_HISTORY_COLS)
+            _prev_nonszn = player_hist_combined[
+                pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) != season_year
+            ].copy() if not player_hist_combined.empty else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
+            _szn_existing = player_hist_combined[
+                pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year
+            ].copy() if not player_hist_combined.empty else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
+            _szn_combined = pd.concat([_szn_existing, _vet_df], ignore_index=True)
+            if "PlayerID" in _szn_combined.columns:
+                _szn_combined = _szn_combined.drop_duplicates(subset=["PlayerID"], keep="first").copy()
+            player_hist_combined = pd.concat([_prev_nonszn, _szn_combined], ignore_index=True)
+            for _c in NFL_PLAYER_HISTORY_COLS:
+                if _c not in player_hist_combined.columns:
+                    player_hist_combined[_c] = pd.NA
+            player_hist_combined = player_hist_combined[NFL_PLAYER_HISTORY_COLS].copy()
+            player_hist_combined.to_csv("nfl_player_history.csv", index=False)
 
     # ── Playoffs ─────────────────────────────────────────────────────────────
     standings_hist = pd.read_csv("nfl_standings_history.csv") if os.path.exists("nfl_standings_history.csv") else pd.DataFrame()
