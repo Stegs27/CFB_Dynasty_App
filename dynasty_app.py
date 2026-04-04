@@ -1496,7 +1496,7 @@ def generate_story_tag(pos_bucket, career_tier, round_num):
 
 @st.cache_data(ttl=300)
 def load_nfl_universe_data():
-    ensure_csv_exists("cfb_user_draft_results.csv", CFB_USER_DRAFT_RESULTS_COLS)
+    ensure_csv_exists("cfb_draft_results.csv", CFB_USER_DRAFT_RESULTS_COLS)
     ensure_csv_exists("nfl_draft_history.csv", NFL_DRAFT_HISTORY_COLS)
     ensure_csv_exists("nfl_player_history.csv", NFL_PLAYER_HISTORY_COLS)
     ensure_csv_exists("nfl_super_bowl_history.csv", NFL_SUPER_BOWL_HISTORY_COLS)
@@ -1516,7 +1516,7 @@ def load_nfl_universe_data():
 
     nfl_roster = pd.read_csv("NFLroster26_MASTER.csv") if os.path.exists("NFLroster26_MASTER.csv") else pd.DataFrame()
     cfb_roster = pd.read_csv("cfb26_rosters_full.csv") if os.path.exists("cfb26_rosters_full.csv") else pd.DataFrame()
-    cfb_draft = pd.read_csv("cfb_user_draft_results.csv")
+    cfb_draft = pd.read_csv("cfb_draft_results.csv")
 
     nfl_draft_hist = pd.read_csv("nfl_draft_history.csv")
     for col in NFL_DRAFT_HISTORY_COLS:
@@ -1902,14 +1902,14 @@ def enrich_user_draft_results(cfb_draft_df, cfb_roster_df, nfl_roster_df):
 
 def get_newest_unprocessed_draft_class(cfb_draft_df, nfl_draft_hist_df):
     if cfb_draft_df is None or cfb_draft_df.empty:
-        return pd.DataFrame(), None, "No rows found in cfb_user_draft_results.csv."
+        return pd.DataFrame(), None, "No rows found in cfb_draft_results.csv."
 
     work = cfb_draft_df.copy()
     work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
     work = work.dropna(subset=["DraftYear"]).copy()
 
     if work.empty:
-        return pd.DataFrame(), None, "No valid DraftYear values found in cfb_user_draft_results.csv."
+        return pd.DataFrame(), None, "No valid DraftYear values found in cfb_draft_results.csv."
 
     work["DraftYear"] = work["DraftYear"].astype(int)
     newest_year = int(work["DraftYear"].max())
@@ -2388,14 +2388,14 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     existing_hist = universe["nfl_draft_hist"]
 
     if cfb_draft is None or cfb_draft.empty:
-        return existing_hist, None, "No rows found in cfb_user_draft_results.csv."
+        return existing_hist, None, "No rows found in cfb_draft_results.csv."
 
     work = cfb_draft.copy()
     work["DraftYear"] = pd.to_numeric(work["DraftYear"], errors="coerce")
     work = work.dropna(subset=["DraftYear"]).copy()
 
     if work.empty:
-        return existing_hist, None, "No valid DraftYear values found."
+        return existing_hist, None, "No valid DraftYear values found in cfb_draft_results.csv."
 
     work["DraftYear"] = work["DraftYear"].astype(int)
     newest_year = int(work["DraftYear"].max())
@@ -2412,65 +2412,32 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
         if newest_year in existing_years:
             return existing_hist, newest_year, f"Draft class {newest_year} is already locked in."
 
-    user_class = work[work["DraftYear"] == newest_year].copy()
-    user_class["DraftSource"] = "user_results"
-    user_class["TrackStoryline"] = "Yes"
+    # Single source: cfb_draft_results.csv has BOTH user and CPU players.
+    # User picks have CollegeUser populated; CPU picks have it blank.
+    full_class = work[work["DraftYear"] == newest_year].copy()
 
     for col in ["Player", "CollegeTeam", "Pos", "Class"]:
-        if col in user_class.columns:
-            user_class[col] = user_class[col].fillna("").astype(str).str.strip()
+        if col in full_class.columns:
+            full_class[col] = full_class[col].fillna("").astype(str).str.strip()
 
-    user_class["CollegeUser"] = (
-        user_class.get("CollegeUser", "")
-        .fillna("")
-        .astype(str)
-        .replace("nan", "")
-        .str.strip()
+    full_class["CollegeUser"] = (
+        full_class.get("CollegeUser", "")
+        .fillna("").astype(str).replace("nan", "").str.strip()
     )
 
-    user_class["DraftRound"] = pd.to_numeric(
-        user_class.get("DraftRound"), errors="coerce"
+    full_class["DraftRound"] = pd.to_numeric(
+        full_class.get("DraftRound"), errors="coerce"
     ).fillna(7).astype(int)
 
-    user_class["OVR"] = pd.to_numeric(
-        user_class.get("OVR"), errors="coerce"
+    full_class["OVR"] = pd.to_numeric(
+        full_class.get("OVR"), errors="coerce"
     ).fillna(0)
 
-    try:
-        cpu_pool = pd.read_csv("cpu_draft_pool.csv")
-    except Exception:
-        cpu_pool = pd.DataFrame()
+    is_user = full_class["CollegeUser"].str.strip() != ""
+    full_class["DraftSource"] = is_user.map({True: "user_results", False: "cpu_pool"})
+    full_class["TrackStoryline"] = is_user.map({True: "Yes", False: "No"})
 
-    if not cpu_pool.empty:
-        cpu_pool["DraftYear"] = pd.to_numeric(cpu_pool.get("DraftYear"), errors="coerce")
-        cpu_pool = cpu_pool[
-            cpu_pool["DraftYear"].fillna(-1).astype(int) == int(newest_year)
-        ].copy()
-
-        for col in ["Player", "CollegeTeam", "Pos", "Class"]:
-            if col in cpu_pool.columns:
-                cpu_pool[col] = cpu_pool[col].fillna("").astype(str).str.strip()
-
-        cpu_pool["CollegeUser"] = ""
-
-        cpu_pool["DraftRound"] = pd.to_numeric(
-            cpu_pool.get("DraftRound"), errors="coerce"
-        ).fillna(7).astype(int)
-
-        cpu_pool["OVR"] = pd.to_numeric(
-            cpu_pool.get("OVR"), errors="coerce"
-        ).fillna(0)
-
-        cpu_pool["DraftSource"] = "cpu_pool"
-        cpu_pool["TrackStoryline"] = "No"
-    else:
-        cpu_pool = pd.DataFrame(columns=list(user_class.columns) + ["DraftSource", "TrackStoryline"])
-
-    combined_new_class = pd.concat(
-        [user_class, cpu_pool],
-        ignore_index=True,
-        sort=False
-    )
+    combined_new_class = full_class.copy()
 
     if combined_new_class.empty:
         return existing_hist, newest_year, f"No draft rows found for class {newest_year}."
@@ -2803,6 +2770,53 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
 
     generated_new = pd.DataFrame(assigned_round_rows + later_assigned)
 
+    # ── Round overflow: players from cfb_draft_results that didn't get a slot ──
+    # If a round had more players than capacity, the extras slide to the next round.
+    if not generated_new.empty and "PlayerID" in generated_new.columns:
+        placed_ids = set(generated_new["PlayerID"].astype(str).tolist())
+    else:
+        placed_ids = set()
+
+    overflow_candidates = []
+    if "PlayerID" in combined_new_class.columns:
+        all_enriched = enrich_user_draft_results(combined_new_class.copy(), cfb_roster, nfl_roster)
+        if not all_enriched.empty:
+            for _, ov in all_enriched.iterrows():
+                if str(ov.get("PlayerID", "")) not in placed_ids:
+                    overflow_candidates.append(ov)
+
+    if overflow_candidates:
+        ov_df = pd.DataFrame(overflow_candidates)
+        ov_df = ov_df.sort_values(
+            ["DraftRoundCanon", "OVR", "DraftValueScore"],
+            ascending=[True, False, False]
+        ).reset_index(drop=True)
+
+        nfl_team_list = sorted(nfl_roster["Team"].dropna().astype(str).unique().tolist()) if not nfl_roster.empty else round1_order.copy()
+        ov_pick = (ROUND_END.get(7, 262) + 1)  # start after round 7's last pick
+        ov_available = nfl_team_list.copy()
+
+        for _, ov_row in ov_df.iterrows():
+            if str(ov_row.get("PlayerID", "")) in placed_ids:
+                continue
+            drafting_team = ov_available[0] if ov_available else nfl_team_list[0]
+            row = ov_row.copy()
+            row["GeneratedNFLTeam"] = drafting_team
+            row["GeneratedOverallPick"] = ov_pick
+            row["GeneratedRoundPick"] = 1
+            row["OriginalPick"] = ov_pick
+            row["WasTrade"] = "No"
+            row["TradeNote"] = "overflow"
+            later_assigned.append(row)
+            placed_ids.add(str(row["PlayerID"]))
+            ov_pick += 1
+            if drafting_team in ov_available:
+                ov_available.remove(drafting_team)
+            if not ov_available:
+                ov_available = nfl_team_list.copy()
+
+        generated_new = pd.DataFrame(assigned_round_rows + later_assigned)
+
     generated_new = generated_new.sort_values(
         ["DraftYear", "GeneratedOverallPick", "Player"],
         ascending=[True, True, True]
@@ -2840,7 +2854,61 @@ def refresh_nfl_draft_history(live_mode=False, speed_mode="Broadcast", force_lat
     return combined, newest_year, f"Draft class {newest_year} has been officially added to NFL history."
 
 
-def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
+def backfill_nfl_player_stats(season_year=None):
+    """
+    Retroactively generate nfl_player_history.csv and nfl_awards_history.csv
+    for a completed season. Use this when the playoffs/Super Bowl ran via
+    weekly advance (which skips Phase 1) and player stats were never written.
+    """
+    universe = load_nfl_universe_data()
+    nfl_draft_hist = universe["nfl_draft_hist"]
+    nfl_roster = universe["nfl_roster"]
+    nfl_player_hist = universe["nfl_player_hist"]
+    nfl_awards_hist = universe["nfl_awards_hist"]
+
+    if season_year is None:
+        # Default to the season that was just completed (current - 1)
+        season_year = get_current_nfl_season() - 1
+    season_year = int(season_year)
+
+    if nfl_draft_hist is None or nfl_draft_hist.empty:
+        return None, f"No NFL draft history found. Run the Draft Refresh first, then backfill."
+
+    # Build player history for this season
+    player_hist = simulate_nfl_player_season(
+        season_year=season_year,
+        nfl_draft_hist_df=nfl_draft_hist,
+        nfl_roster_df=nfl_roster,
+        existing_player_hist_df=nfl_player_hist
+    )
+
+    if player_hist is None or player_hist.empty:
+        return None, f"Could not generate player stats for {season_year}. Check that nfl_draft_history.csv has entries with DraftYear <= {season_year}."
+
+    season_player_df = player_hist[
+        pd.to_numeric(player_hist["Season"], errors="coerce").fillna(-1).astype(int) == season_year
+    ].copy()
+
+    if season_player_df.empty:
+        return None, f"Player sim ran but produced no rows for season {season_year}."
+
+    # Generate awards
+    awards_hist = simulate_nfl_awards(
+        season_year=season_year,
+        season_player_df=season_player_df,
+        existing_awards_df=nfl_awards_hist
+    )
+
+    n_players = len(season_player_df)
+    n_awards = len(awards_hist[pd.to_numeric(awards_hist["Season"], errors="coerce").fillna(-1).astype(int) == season_year]) if not awards_hist.empty else 0
+
+    return {
+        "season_year": season_year,
+        "player_rows": n_players,
+        "award_rows": n_awards,
+    }, f"✅ Backfilled {season_year}: {n_players} player seasons + {n_awards} awards generated."
+
+
     if draft_class_df is None or draft_class_df.empty:
         return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
 
@@ -5127,12 +5195,11 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
 
     new_df = pd.DataFrame(rows, columns=NFL_PLAYER_HISTORY_COLS)
 
-    # Guard: if we produced no new rows, don't overwrite a previously populated file
     if new_df.empty:
         import logging as _log
         _log.warning(
-            f"simulate_nfl_player_season: no rows generated for {season_year} "
-            f"(nfl_draft_history has {len(eligible_players)} eligible players). "
+            f"simulate_nfl_player_season: no rows for {season_year} "
+            f"(eligible from draft history: {len(eligible_players)}). "
             f"Returning existing history without overwriting nfl_player_history.csv."
         )
         return existing_player_hist_df if existing_player_hist_df is not None else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
@@ -5258,10 +5325,11 @@ def build_udfa_pool_for_season(season_year, cfb_roster_df, nfl_draft_hist_df):
     udfa_frames = []
 
     # ------------------------------------------------------------
-    # SOURCE 1: cpu_draft_pool.csv players from previous class who were not drafted
+    # SOURCE 1: cfb_draft_results.csv players from previous class who were not drafted
+    # (previously cpu_draft_pool.csv — now using the unified draft file)
     # ------------------------------------------------------------
     try:
-        cpu_pool = pd.read_csv("cpu_draft_pool.csv")
+        cpu_pool = pd.read_csv("cfb_draft_results.csv")
     except Exception:
         cpu_pool = pd.DataFrame()
 
@@ -6004,26 +6072,22 @@ def simulate_nfl_playoffs_phase(season_year=None):
     # Load player history Phase 1 wrote — read directly from disk, bypassing cache
     player_hist_combined = pd.read_csv("nfl_player_history.csv") if os.path.exists("nfl_player_history.csv") else nfl_player_hist.copy()
 
-    # Self-heal: if player history has no rows for this season, Phase 1 either didn't run
-    # or nfl_draft_history.csv was empty when it did. Rebuild inline now so awards,
-    # retirements, aging, and UDFA fills all have data to work with.
-    _season_rows_check = pd.DataFrame()
+    # Self-heal: weekly advance skips Phase 1, so player history may be empty.
+    # Rebuild inline now so awards, retirements, aging, and UDFA fills have data.
+    _season_check = pd.DataFrame()
     if not player_hist_combined.empty and "Season" in player_hist_combined.columns:
-        _season_rows_check = player_hist_combined[
+        _season_check = player_hist_combined[
             pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year
         ]
-    if _season_rows_check.empty:
+    if _season_check.empty:
         import logging as _log
-        _log.warning(f"simulate_nfl_playoffs_phase: no player history for {season_year} — rebuilding inline from draft history.")
+        _log.warning(f"simulate_nfl_playoffs_phase: no player history for {season_year} — rebuilding inline.")
         player_hist_combined = simulate_nfl_player_season(
             season_year=season_year,
             nfl_draft_hist_df=nfl_draft_hist,
             nfl_roster_df=nfl_roster,
             existing_player_hist_df=player_hist_combined if not player_hist_combined.empty else nfl_player_hist
         )
-        if player_hist_combined.empty or "Season" not in player_hist_combined.columns:
-            _log.warning("  Draft history appears empty — player stats, awards, retirements will be skipped.")
-
 
     champion, runner_up, score, playoff_log = simulate_nfl_playoffs(standings_df, season_year)
     if champion is None:
@@ -6213,10 +6277,10 @@ def simulate_nfl_season(season_year=None):
         _ph_disk = pd.read_csv("nfl_player_history.csv")
         if not _ph_disk.empty and "Season" in _ph_disk.columns:
             _ph_disk["Season"] = pd.to_numeric(_ph_disk["Season"], errors="coerce")
-            _season_from_disk = _ph_disk[_ph_disk["Season"].fillna(-1).astype(int) == int(season_year)].copy()
-            if not _season_from_disk.empty:
-                season_player_df = _season_from_disk
-                player_hist_combined = _ph_disk  # keep in sync
+            _from_disk = _ph_disk[_ph_disk["Season"].fillna(-1).astype(int) == int(season_year)].copy()
+            if not _from_disk.empty:
+                season_player_df = _from_disk
+                player_hist_combined = _ph_disk
 
     awards_hist = simulate_nfl_awards(
         season_year=season_year,
@@ -6587,9 +6651,8 @@ def simulate_nfl_awards(season_year, season_player_df, existing_awards_df=None):
     if season_player_df is None or season_player_df.empty:
         import logging as _log
         _log.warning(
-            f"simulate_nfl_awards: season_player_df empty for {season_year}. "
-            f"This usually means nfl_player_history.csv was not populated before playoffs ran. "
-            f"Check that nfl_draft_history.csv has entries and the player sim ran successfully."
+            f"simulate_nfl_awards: no player data for {season_year}. "
+            f"Run Draft Refresh → then Backfill Player Stats, or re-run the full season sim."
         )
         combined = existing_awards_df.copy()
         combined.to_csv("nfl_awards_history.csv", index=False)
@@ -22884,15 +22947,15 @@ with tabs[0]:
             return round(ovr*0.80 + (spd+acc+agi+cod)/4*0.12 + awr*0.10 + _MOCK_POS_BONUS.get(bkt, 5.0), 2)
 
         try:
-            # ── 1. CPU draft pool prospects ───────────────────────────────
+            # ── 1. Draft prospects from cfb_draft_results.csv (unified source) ──
             _mock_cpu = pd.DataFrame()
             _mock_cpu_status = ''
             try:
-                _mock_cpu = pd.read_csv('cpu_draft_pool.csv')
+                _mock_cpu = pd.read_csv('cfb_draft_results.csv')
                 _all_years = sorted(_mock_cpu['DraftYear'].dropna().astype(int).unique().tolist())
                 _mock_cpu['DraftYear'] = pd.to_numeric(_mock_cpu.get('DraftYear'), errors='coerce')
                 _mock_cpu = _mock_cpu[_mock_cpu['DraftYear'].fillna(-1).astype(int) == int(CURRENT_YEAR + 1)].copy()
-                _mock_cpu_status = f"cpu_draft_pool.csv found — years in file: {_all_years} — filtering for {CURRENT_YEAR + 1} → {len(_mock_cpu)} rows"
+                _mock_cpu_status = f"cfb_draft_results.csv found — years in file: {_all_years} — filtering for {CURRENT_YEAR + 1} → {len(_mock_cpu)} rows"
                 for _c in ['OVR','SPD','ACC','AGI','COD','AWR']:
                     _mock_cpu[_c] = pd.to_numeric(_mock_cpu.get(_c, 75), errors='coerce').fillna(75)
                 if 'PosBucket' not in _mock_cpu.columns:
@@ -22902,16 +22965,17 @@ with tabs[0]:
                         or (_mock_cpu['DraftValueScore'].fillna(0) == 0).all()):
                     _mock_cpu['DraftValueScore'] = _mock_cpu.apply(_mock_dvs, axis=1)
                 else:
-                    # Fill any individual NaN rows (e.g. newly appended players not yet prepped)
                     _nan_mask = _mock_cpu['DraftValueScore'].isna()
                     if _nan_mask.any():
                         _mock_cpu.loc[_nan_mask, 'DraftValueScore'] = _mock_cpu[_nan_mask].apply(_mock_dvs, axis=1)
-                _mock_cpu['Source'] = 'CPU'
+                _mock_cpu['Source'] = _mock_cpu['CollegeUser'].fillna('').astype(str).str.strip().map(
+                    lambda u: 'User' if u else 'CPU'
+                )
                 _mock_cpu = _mock_cpu.rename(columns={'Player':'Name','CollegeTeam':'Team'})
             except FileNotFoundError:
-                _mock_cpu_status = "cpu_draft_pool.csv not found in repo — push the file as cpu_draft_pool.csv"
+                _mock_cpu_status = "cfb_draft_results.csv not found in repo — push the file as cfb_draft_results.csv"
             except Exception as _cpu_e:
-                _mock_cpu_status = f"cpu_draft_pool.csv error: {_cpu_e}"
+                _mock_cpu_status = f"cfb_draft_results.csv error: {_cpu_e}"
 
             # ── 2. User roster eligible prospects ─────────────────────────
             _mock_roster = pd.DataFrame()
@@ -22962,7 +23026,7 @@ with tabs[0]:
                 _parts.append(_mock_roster[[c for c in _keep_cols if c in _mock_roster.columns]].copy())
 
             if not _parts:
-                st.info(f"No draft prospects found for {CURRENT_YEAR + 1}. Push cpu_draft_pool.csv or cfb26_rosters_full.csv.")
+                st.info(f"No draft prospects found for {CURRENT_YEAR + 1}. Push cfb_draft_results.csv.")
                 st.caption(f"🔍 CPU pool: {_mock_cpu_status}")
                 st.caption(f"🔍 User rosters: {_mock_roster_status}")
             else:
@@ -23147,7 +23211,7 @@ with tabs[0]:
                 st.caption(f"🔍 Round 1 breakdown: {_cpu_in_r1} CPU picks / {_user_in_r1} user picks — Top CPU score: {_top_cpu_score:.1f} | Top user score: {_top_user_score:.1f}")
 
         except FileNotFoundError:
-            st.info("Push cpu_draft_pool.csv or cfb26_rosters_full.csv to generate the mock draft board.")
+            st.info("Push cfb_draft_results.csv to generate the mock draft board.")
         except Exception as _mock_err:
             st.error(f"Mock draft error: {_mock_err}")
 
@@ -28777,7 +28841,7 @@ with tabs[1]:
             )
 
             if nfl_draft_hist.empty:
-                st.info("No NFL draft universe data yet. Fill cfb_user_draft_results.csv, then click Regenerate.")
+                st.info("No NFL draft universe data yet. Fill cfb_draft_results.csv, then click Regenerate.")
             else:
                 years = sorted(nfl_draft_hist["DraftYear"].dropna().unique().tolist())
 
@@ -30944,6 +31008,27 @@ with tabs[1]:
                 elif not _reg_season_done:
                     st.button("🏆 Sim Playoffs + Super Bowl", use_container_width=True, key="sim_playoffs_btn_disabled", disabled=True, help="Sim regular season first")
 
+                # Backfill — shown when playoffs are done but player history is empty
+                st.markdown("---")
+                _ph_empty = not os.path.exists("nfl_player_history.csv") or pd.read_csv("nfl_player_history.csv").empty if os.path.exists("nfl_player_history.csv") else True
+                if _ph_empty and _playoffs_done:
+                    st.warning("⚠️ Player history and awards are empty — the weekly advance skips the player sim. Use Backfill to generate them now.")
+                _backfill_year = _nfl_sim_year - 1 if _playoffs_done else _nfl_sim_year
+                if st.button(f"🔁 Backfill Player Stats + Awards ({_backfill_year})", use_container_width=True, key="backfill_stats_btn", help="Generates nfl_player_history.csv and nfl_awards_history.csv for a completed season. Use this after weekly advance or if those files are blank."):
+                    try:
+                        with st.spinner(f"Generating player stats for {_backfill_year}..."):
+                            bf_result, bf_msg = backfill_nfl_player_stats(season_year=_backfill_year)
+                        if bf_result is None:
+                            st.warning(bf_msg)
+                        else:
+                            st.success(bf_msg)
+                            st.cache_data.clear()
+                            st.rerun()
+                    except Exception as e:
+                        import traceback
+                        st.error(f"Backfill error: {type(e).__name__}: {e}")
+                        st.code(traceback.format_exc())
+
             # ── CSV file status panel ──────────────────────────────────────────
             st.markdown("---")
             st.markdown("#### 📂 NFL Universe File Status")
@@ -30961,7 +31046,7 @@ with tabs[1]:
                 ("nfl_schedule.csv",             "Season Schedule",  "Auto-generated on first Advance"),
                 ("nfl_draft_history.csv",        "Draft History",    "Generated after NFL Draft"),
                 ("nfl_universe_settings.csv",    "Universe Settings","Advanced after Sim Playoffs"),
-                ("cfb_user_draft_results.csv",   "CFB Draft Input",  "Your upload — needed before draft sim"),
+                ("cfb_draft_results.csv",        "CFB Draft Input",  "Your upload — all teams, all rounds"),
             ]
 
             _file_rows = []
@@ -31265,7 +31350,7 @@ with tabs[1]:
                 ("nfl_playoff_history.csv",      "Playoff Bracket",   "⬇️ Push after Sim Playoffs"),
                 ("nfl_super_bowl_history.csv",   "Super Bowl",        "⬇️ Push after Sim Playoffs"),
                 ("nfl_awards_history.csv",       "Awards",            "⬇️ Push after Sim Playoffs"),
-                ("cfb_user_draft_results.csv",   "CFB Draft Input",   "⬆️ Upload before NFL Draft sim"),
+                ("cfb_draft_results.csv",        "CFB Draft Input",   "⬆️ Upload before NFL Draft sim"),
             ]
             _dl_keys = [
                 "dl_weekly_scores", "dl_standings", "dl_settings_indiv",
@@ -31377,7 +31462,7 @@ with _ods_tabs[0]:
         )
 
         user_draft_results = safe_read_csv(
-            'cfb_user_draft_results.csv',
+            'cfb_draft_results.csv',
             ['DraftYear', 'Player', 'CollegeTeam', 'CollegeUser', 'Pos', 'Class', 'OVR', 'DraftRound']
         )
 
