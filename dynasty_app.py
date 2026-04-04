@@ -479,29 +479,29 @@ def generate_super_bowl_user_alumni_note(champion, runner_up, season_player_df, 
     team = clean_display(r.get("NFLTeam", ""), "")
     stat = generate_super_bowl_game_statline(r)
     school = clean_display(meta.get("CollegeTeam", ""), "")
-    user = clean_display(meta.get("CollegeUser", ""), "")
 
     pos_bucket = clean_display(r.get("PosBucket", clean_bucket(r.get("Pos", ""))), "")
+    school_tag = f"Former {school} standout" if school else "A dynasty alumnus"
 
     if pos_bucket == "QB":
         options = [
-            f"User alumni note: {player} ({school}, {user}) also had a major hand in the game for {team}, finishing with {stat}.",
-            f"User alumni note: {player} ({school}, {user}) also helped drive the offense for {team} with {stat}.",
+            f"{school_tag} {player} also had a major hand in the game for {team}, finishing with {stat}.",
+            f"{school_tag} {player} helped drive the offense for {team} with {stat}.",
         ]
     elif pos_bucket in {"RB", "WR", "TE"}:
         options = [
-            f"User alumni note: {player} ({school}, {user}) also produced in the Super Bowl for {team} with {stat}.",
-            f"User alumni note: {player} ({school}, {user}) also contributed key offense for {team}, posting {stat}.",
+            f"{school_tag} {player} also produced in the Super Bowl for {team} with {stat}.",
+            f"{school_tag} {player} contributed key offense for {team}, posting {stat}.",
         ]
     elif pos_bucket in {"EDGE", "IDL", "LB", "CB", "S"}:
         options = [
-            f"User alumni note: {player} ({school}, {user}) also showed up defensively for {team}, posting {stat}.",
-            f"User alumni note: {player} ({school}, {user}) also made his presence felt on defense for {team} with {stat}.",
+            f"{school_tag} {player} also showed up defensively for {team}, posting {stat}.",
+            f"{school_tag} {player} made his presence felt on defense for {team} with {stat}.",
         ]
     else:
         options = [
-            f"User alumni note: {player} ({school}, {user}) also contributed for {team} with {stat}.",
-            f"User alumni note: {player} ({school}, {user}) also played a part in the Super Bowl for {team}, finishing with {stat}.",
+            f"{school_tag} {player} also contributed for {team} with {stat}.",
+            f"{school_tag} {player} played a part in the Super Bowl for {team}, finishing with {stat}.",
         ]
 
     return random.choice(options)
@@ -5127,6 +5127,16 @@ def simulate_nfl_player_season(season_year, nfl_draft_hist_df=None, nfl_roster_d
 
     new_df = pd.DataFrame(rows, columns=NFL_PLAYER_HISTORY_COLS)
 
+    # Guard: if we produced no new rows, don't overwrite a previously populated file
+    if new_df.empty:
+        import logging as _log
+        _log.warning(
+            f"simulate_nfl_player_season: no rows generated for {season_year} "
+            f"(nfl_draft_history has {len(eligible_players)} eligible players). "
+            f"Returning existing history without overwriting nfl_player_history.csv."
+        )
+        return existing_player_hist_df if existing_player_hist_df is not None else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
+
     existing_clean = existing_player_hist_df.copy() if existing_player_hist_df is not None else pd.DataFrame(columns=NFL_PLAYER_HISTORY_COLS)
     if not existing_clean.empty and "Season" in existing_clean.columns:
         existing_clean["Season"] = pd.to_numeric(existing_clean["Season"], errors="coerce")
@@ -5991,8 +6001,29 @@ def simulate_nfl_playoffs_phase(season_year=None):
     if standings_df.empty:
         return None, f"No {season_year} standings found — run the regular season sim first."
 
-    # Load player history Phase 1 wrote
-    player_hist_combined = pd.read_csv("nfl_player_history.csv") if os.path.exists("nfl_player_history.csv") else nfl_player_hist
+    # Load player history Phase 1 wrote — read directly from disk, bypassing cache
+    player_hist_combined = pd.read_csv("nfl_player_history.csv") if os.path.exists("nfl_player_history.csv") else nfl_player_hist.copy()
+
+    # Self-heal: if player history has no rows for this season, Phase 1 either didn't run
+    # or nfl_draft_history.csv was empty when it did. Rebuild inline now so awards,
+    # retirements, aging, and UDFA fills all have data to work with.
+    _season_rows_check = pd.DataFrame()
+    if not player_hist_combined.empty and "Season" in player_hist_combined.columns:
+        _season_rows_check = player_hist_combined[
+            pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == season_year
+        ]
+    if _season_rows_check.empty:
+        import logging as _log
+        _log.warning(f"simulate_nfl_playoffs_phase: no player history for {season_year} — rebuilding inline from draft history.")
+        player_hist_combined = simulate_nfl_player_season(
+            season_year=season_year,
+            nfl_draft_hist_df=nfl_draft_hist,
+            nfl_roster_df=nfl_roster,
+            existing_player_hist_df=player_hist_combined if not player_hist_combined.empty else nfl_player_hist
+        )
+        if player_hist_combined.empty or "Season" not in player_hist_combined.columns:
+            _log.warning("  Draft history appears empty — player stats, awards, retirements will be skipped.")
+
 
     champion, runner_up, score, playoff_log = simulate_nfl_playoffs(standings_df, season_year)
     if champion is None:
@@ -6177,18 +6208,24 @@ def simulate_nfl_season(season_year=None):
         pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
     ].copy()
 
+    # Fallback: re-read from disk if in-memory has no rows for this season
+    if season_player_df.empty and os.path.exists("nfl_player_history.csv"):
+        _ph_disk = pd.read_csv("nfl_player_history.csv")
+        if not _ph_disk.empty and "Season" in _ph_disk.columns:
+            _ph_disk["Season"] = pd.to_numeric(_ph_disk["Season"], errors="coerce")
+            _season_from_disk = _ph_disk[_ph_disk["Season"].fillna(-1).astype(int) == int(season_year)].copy()
+            if not _season_from_disk.empty:
+                season_player_df = _season_from_disk
+                player_hist_combined = _ph_disk  # keep in sync
+
     awards_hist = simulate_nfl_awards(
         season_year=season_year,
         season_player_df=season_player_df,
         existing_awards_df=universe["nfl_awards_hist"]
     )
 
-
     season_story_rows = []
 
-    season_player_df = player_hist_combined[
-        pd.to_numeric(player_hist_combined["Season"], errors="coerce").fillna(-1).astype(int) == int(season_year)
-    ].copy()
     if not season_player_df.empty:
         breakout_df = season_player_df.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False]).head(3)
         for _, r in breakout_df.iterrows():
@@ -6548,6 +6585,12 @@ def simulate_nfl_awards(season_year, season_player_df, existing_awards_df=None):
         ].copy()
 
     if season_player_df is None or season_player_df.empty:
+        import logging as _log
+        _log.warning(
+            f"simulate_nfl_awards: season_player_df empty for {season_year}. "
+            f"This usually means nfl_player_history.csv was not populated before playoffs ran. "
+            f"Check that nfl_draft_history.csv has entries and the player sim ran successfully."
+        )
         combined = existing_awards_df.copy()
         combined.to_csv("nfl_awards_history.csv", index=False)
         return combined
@@ -17325,7 +17368,7 @@ with tabs[3]:
             _scht_conf_name = _speed_map.get(_scht_user, {}).get('conf', '—')
             _scht_team_name = USER_TEAMS.get(_scht_user, '')
             conf_str      = CONF_STRENGTH.get(_scht_conf_name, 0)
-            _conf_groups  = {'SEC': {'Nick','Devin','Doug'}, 'B1G': {'Noah','Josh','Mike'}}
+            _conf_groups  = {'SEC': {'Nick','Devin','Josh'}, 'B1G': {'Noah','Doug','Mike'}}
             _conf_rivals_users = _conf_groups.get(_scht_conf_name, set()) - {_scht_user}
 
             # ── Pull real full conf record from schedule + team_conferences ────
