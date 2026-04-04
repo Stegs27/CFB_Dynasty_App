@@ -12109,7 +12109,12 @@ def build_recruiting_board(rec_df, model_df, anchor_year=None):
         row['Recruiting Blurb'] = _recruit_blurb(row)
         rows.append(row)
 
-    out = pd.DataFrame(rows).sort_values(['Heat Index', 'Pipeline Score', 'Speed Recruiter Index'], ascending=False).reset_index(drop=True)
+    if not rows:
+        return pd.DataFrame()
+
+    out = pd.DataFrame(rows)
+    sort_cols = [c for c in ['Heat Index', 'Pipeline Score', 'Speed Recruiter Index'] if c in out.columns]
+    out = out.sort_values(sort_cols, ascending=False).reset_index(drop=True) if sort_cols else out.reset_index(drop=True)
     if not out.empty:
         out['Rank'] = np.arange(1, len(out) + 1)
     return out
