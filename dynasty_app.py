@@ -10225,9 +10225,9 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
     df['Ranked Teams Faced'] = ranked_counts.apply(lambda x: x[0])
     df['Top 10 Teams Faced'] = ranked_counts.apply(lambda x: x[1])
     max_ranked = max(1.0, float(df['Ranked Teams Faced'].max()))
-    max_top10 = max(1.0, float(df['Top 10 Teams Faced'].max()))
-    ranked_pct = (df['Ranked Teams Faced'] / max_ranked) * 100
-    top10_pct = (df['Top 10 Teams Faced'] / max_top10) * 100
+    max_top10  = max(1.0, float(df['Top 10 Teams Faced'].max()))
+    ranked_pct = (pd.to_numeric(df['Ranked Teams Faced'], errors='coerce').fillna(0) / max_ranked) * 100
+    top10_pct  = (pd.to_numeric(df['Top 10 Teams Faced'],  errors='coerce').fillna(0) / max_top10)  * 100
     df['SOS'] = (
         df['Opponent Win %'] * 0.56
         + opp_volume_pct * 0.14
