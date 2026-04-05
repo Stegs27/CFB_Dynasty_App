@@ -14898,9 +14898,19 @@ except Exception:
 
 def get_header_logo(team_name):
     try:
+        # Try CFB logo first (college teams)
         path = get_logo_source(team_name)
         uri = image_file_to_data_uri(path)
         if uri: return uri
+        # Try NFL slug map (e.g. "Baltimore Ravens" → "ravens")
+        nfl_slug = get_nfl_logo_slug(team_name)
+        if nfl_slug:
+            nfl_path = get_nfl_logo_path(team_name)
+            if nfl_path:
+                nfl_uri = image_file_to_data_uri(nfl_path)
+                if nfl_uri: return nfl_uri
+            return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{nfl_slug}.png"
+        # Fall back to TEAM_VISUALS slug or normalize_key
         slug = TEAM_VISUALS.get(team_name, {}).get('slug', normalize_key(team_name))
         return f"https://raw.githubusercontent.com/j99p/ispn_2041/main/logos/{slug}.png"
     except Exception:
