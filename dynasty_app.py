@@ -4858,18 +4858,39 @@ def simulate_nfl_playoffs(standings_df, season_year):
 
 
 def choose_super_bowl_mvp(champion, player_season_rows):
-    if player_season_rows is None or player_season_rows.empty:
-        return "Team MVP", champion
+    # Try player history first (dynasty picks + veteran sims)
+    if player_season_rows is not None and not player_season_rows.empty:
+        team_df = player_season_rows[player_season_rows["NFLTeam"].astype(str) == str(champion)].copy()
+        if not team_df.empty:
+            team_df["CareerValue"] = pd.to_numeric(team_df["CareerValue"], errors="coerce").fillna(0)
+            team_df["OverallEnd"]  = pd.to_numeric(team_df["OverallEnd"],  errors="coerce").fillna(0)
+            # Prefer skill positions for MVP narrative
+            skill = team_df[team_df["PosBucket"].astype(str).isin({"QB", "RB", "WR", "TE"})]
+            pool = skill if not skill.empty else team_df
+            pool = pool.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False])
+            player_name = str(pool.iloc[0].get("Player", "")).strip()
+            if player_name and player_name.lower() not in ("", "nan", "none"):
+                return player_name, champion
 
-    team_df = player_season_rows[player_season_rows["NFLTeam"].astype(str) == str(champion)].copy()
-    if team_df.empty:
-        return "Team MVP", champion
+    # Fallback: pull best player from NFLroster26_MASTER.csv for the champion team
+    try:
+        roster = pd.read_csv("NFLroster26_MASTER.csv") if os.path.exists("NFLroster26_MASTER.csv") else pd.DataFrame()
+        if not roster.empty:
+            champ_roster = roster[roster["Team"].astype(str).str.strip() == str(champion)].copy()
+            if not champ_roster.empty:
+                champ_roster["OVR"] = pd.to_numeric(champ_roster["OVR"], errors="coerce").fillna(0)
+                skill_pos = champ_roster[champ_roster["Pos"].astype(str).str.strip().isin(
+                    {"QB", "HB", "WR", "TE", "RB"}
+                )]
+                pool = skill_pos if not skill_pos.empty else champ_roster
+                pool = pool.sort_values("OVR", ascending=False)
+                player_name = str(pool.iloc[0].get("Name", pool.iloc[0].get("Player", ""))).strip()
+                if player_name and player_name.lower() not in ("", "nan", "none"):
+                    return player_name, champion
+    except Exception:
+        pass
 
-    team_df["CareerValue"] = pd.to_numeric(team_df["CareerValue"], errors="coerce").fillna(0)
-    team_df = team_df.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False])
-
-    top = team_df.iloc[0]
-    return str(top.get("Player", "Team MVP")), champion
+    return f"{champion} MVP", champion
 
 def calc_nfl_progression_delta(age, years_pro, rookie_role, career_tier, pro_outcome, development_curve):
     age = int(safe_num(age, 23))
@@ -7236,7 +7257,75 @@ def simulate_nfl_awards(season_year, season_player_df, existing_awards_df=None):
     combined.to_csv("nfl_awards_history.csv", index=False)
     return combined            
 
-# 🚨 STREAMLIT RULE: You can only have ONE set_page_config, and it MUST be first! 🚨
+def seed_story_events_from_draft_class(draft_class_df, existing_story_df=None):
+    """Seed nfl_story_events.csv with draft-day story events for a new class."""
+    if draft_class_df is None or draft_class_df.empty:
+        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    src = draft_class_df.copy()
+    if "TrackStoryline" not in src.columns:
+        src["TrackStoryline"] = "Yes"
+
+    tracked = src[src["TrackStoryline"].astype(str).str.upper() == "YES"].copy()
+    if tracked.empty:
+        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    story_rows = []
+    for _, r in tracked.iterrows():
+        draft_year = int(safe_num(r.get("DraftYear", 0), 0))
+        player     = str(r.get("Player", "")).strip()
+        nfl_team   = str(r.get("GeneratedNFLTeam", "")).strip()
+        pos        = str(r.get("Pos", "")).strip()
+        round_num  = int(safe_num(r.get("DraftRoundCanon", r.get("DraftRound", 7)), 7))
+        ovr        = int(safe_num(r.get("OVR", 75), 75))
+        college    = str(r.get("CollegeTeam", "")).strip()
+        player_id  = str(r.get("PlayerID", "")).strip()
+
+        if not player or not nfl_team:
+            continue
+
+        round_label = {1: "1st", 2: "2nd", 3: "3rd"}.get(round_num, f"{round_num}th")
+        if round_num == 1:
+            headline = f"{player} goes {round_label} round to {nfl_team}"
+            description = f"{college} {pos} {player} (OVR {ovr}) selected in the {round_label} round by {nfl_team}."
+            impact = 88
+        elif round_num <= 3:
+            headline = f"{player} lands with {nfl_team} in {round_label} round"
+            description = f"{college} {pos} {player} (OVR {ovr}) drafted {round_label} round by {nfl_team}."
+            impact = 75
+        else:
+            headline = f"{player} joins {nfl_team} as a {round_label}-round pick"
+            description = f"{college} {pos} {player} selected by {nfl_team} in round {round_num}."
+            impact = 60
+
+        story_rows.append({
+            "Season":      draft_year,
+            "Week":        0,
+            "PlayerID":    player_id,
+            "Player":      player,
+            "NFLTeam":     nfl_team,
+            "EventType":   "DraftPick",
+            "Headline":    headline,
+            "Description": description,
+            "ImpactScore": impact,
+        })
+
+    if not story_rows:
+        return existing_story_df if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    new_df = pd.DataFrame(story_rows, columns=NFL_STORY_EVENTS_COLS)
+    base = existing_story_df.copy() if existing_story_df is not None else pd.DataFrame(columns=NFL_STORY_EVENTS_COLS)
+
+    combined = pd.concat([base, new_df], ignore_index=True)
+    for col in NFL_STORY_EVENTS_COLS:
+        if col not in combined.columns:
+            combined[col] = pd.NA
+    combined = combined[NFL_STORY_EVENTS_COLS].copy()
+    combined.to_csv("nfl_story_events.csv", index=False)
+    return combined
+
+
+
 st.set_page_config(
     page_title="ISPN College Football Gameday",
     page_icon="https://media.licdn.com/dms/image/sync/v2/D5627AQF8Fr9Tf4XYPQ/articleshare-shrink_800/articleshare-shrink_800/0/1719872318020?e=2147483647&v=beta&t=U2U9JE3vLoVeupd5tqDMceMxmhMeu0G47py4I5IUZ8o",
@@ -31190,6 +31279,8 @@ with tabs[1]:
             st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
             if latest_input_draft_year:
                 st.info(f"📋 **{latest_input_draft_year} draft class ready** in cfb_draft_results.csv ({len(cfb_draft[pd.to_numeric(cfb_draft['DraftYear'], errors='coerce').fillna(-1).astype(int) == latest_input_draft_year])} players). Hit **Lock Official Draft ({latest_input_draft_year})** to process it → then Build Rosters → then Sim Full NFL Season.")
+            else:
+                st.warning("⚠️ **cfb_draft_results.csv is empty or missing.** Push the file with your draft class to GitHub first — the app auto-created an empty version. Until it's pushed, Lock Official Draft has no data to process.")
 
             b1, b2, b3 = st.columns(3)
 
