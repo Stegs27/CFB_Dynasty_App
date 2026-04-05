@@ -29066,6 +29066,14 @@ with tabs[1]:
             "🏟️ NFL Teams",
         ])
 
+        # ── Reveal gate — hide current simmed season until week 19 revealed ──
+        # After simulate_full_nfl_season, CurrentNFLSeason advances by 1.
+        # The season that was just simmed = current_season - 1.
+        _gate_current_season  = get_current_nfl_season()
+        _gate_last_simmed     = _gate_current_season - 1   # e.g. 2043 after sim
+        _gate_revealed_week   = get_current_nfl_week()
+        _gate_season_revealed = int(_gate_revealed_week) >= 19  # playoffs complete
+
         # ── Big NFL logo banner ───────────────────────────────────────────────
         _nfl_banner_logo = get_nfl_logo_src("") or ""
         if os.path.exists("_NFL_logo.png"):
@@ -29756,10 +29764,6 @@ with tabs[1]:
         with nfl_tabs[2]:
             st.subheader("🏁 NFL Season Recap")
 
-            _recap_nfl_season  = get_current_nfl_season()
-            _recap_reveal_week = get_current_nfl_week()
-            _recap_season_done = int(_recap_reveal_week) >= 19
-
             if nfl_standings_hist.empty and nfl_super_bowl.empty:
                 st.info("No NFL season has been simulated yet.")
             else:
@@ -29775,9 +29779,9 @@ with tabs[1]:
                         pd.to_numeric(nfl_super_bowl["Season"], errors="coerce").dropna().astype(int).tolist()
                     )
 
-                # Hide the current NFL season until playoffs are revealed (week 19)
-                if not _recap_season_done:
-                    available_seasons.discard(int(_recap_nfl_season))
+                # Hide the most recently simmed season until week 19 is revealed
+                if not _gate_season_revealed:
+                    available_seasons.discard(_gate_last_simmed)
 
                 available_seasons = sorted(list(available_seasons))
                 if not available_seasons:
@@ -30032,23 +30036,15 @@ with tabs[1]:
         with nfl_tabs[3]:
             st.subheader("🏅 NFL Awards")
 
-            _awards_nfl_season  = get_current_nfl_season()
-            _awards_reveal_week = get_current_nfl_week()
-            _awards_season_done = int(_awards_reveal_week) >= 19
-
             if nfl_awards_hist.empty:
                 st.info("No NFL awards have been generated yet.")
             else:
                 award_seasons = sorted(
                     pd.to_numeric(nfl_awards_hist["Season"], errors="coerce")
-                    .dropna()
-                    .astype(int)
-                    .unique()
-                    .tolist()
+                    .dropna().astype(int).unique().tolist()
                 )
-                # Hide current season until playoffs revealed
-                if not _awards_season_done:
-                    award_seasons = [s for s in award_seasons if s != int(_awards_nfl_season)]
+                if not _gate_season_revealed:
+                    award_seasons = [s for s in award_seasons if s != _gate_last_simmed]
 
                 if not award_seasons:
                     st.info("No NFL awards have been generated yet.")
@@ -30200,8 +30196,6 @@ with tabs[1]:
         with nfl_tabs[4]:
             st.subheader("🧾 NFL Offseason Recap")
 
-            offseason_season = get_current_nfl_season()
-
             if nfl_current_rosters is None or nfl_current_rosters.empty:
                 st.info("No offseason roster data is available yet.")
             else:
@@ -30211,6 +30205,9 @@ with tabs[1]:
                     available_roster_seasons = sorted(
                         offseason_roster["Season"].dropna().astype(int).unique().tolist()
                     )
+                    # Hide the season that just completed until week 19 revealed
+                    if not _gate_season_revealed:
+                        available_roster_seasons = [s for s in available_roster_seasons if s != _gate_last_simmed]
                 else:
                     available_roster_seasons = []
 
@@ -30647,7 +30644,12 @@ with tabs[1]:
             if nfl_super_bowl.empty:
                 st.info("No fictional Super Bowl history entered yet.")
             else:
-                sb = nfl_super_bowl.copy().sort_values("Season", ascending=False)
+                sb = nfl_super_bowl.copy()
+                sb["Season"] = pd.to_numeric(sb["Season"], errors="coerce")
+                # Hide the season that just completed until week 19 revealed
+                if not _gate_season_revealed:
+                    sb = sb[sb["Season"].fillna(-1).astype(int) != _gate_last_simmed].copy()
+                sb = sb.sort_values("Season", ascending=False)
                 sb.insert(1, "Champion Logo", sb["Champion"].map(get_nfl_logo_src))
                 sb.insert(3, "RunnerUp Logo", sb["RunnerUp"].map(get_nfl_logo_src))
 
@@ -30780,6 +30782,9 @@ with tabs[1]:
                 story_df = nfl_story.copy()
                 story_df["Season"] = pd.to_numeric(story_df["Season"], errors="coerce").fillna(0)
                 story_df["Week"]   = pd.to_numeric(story_df["Week"],   errors="coerce").fillna(0)
+                # Hide events from the season that just completed until week 19 revealed
+                if not _gate_season_revealed:
+                    story_df = story_df[story_df["Season"].astype(int) != _gate_last_simmed].copy()
                 story_df = story_df.sort_values(
                     ["Season", "Week", "ImpactScore"],
                     ascending=[False, False, False]
