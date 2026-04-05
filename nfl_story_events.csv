@@ -82,3 +82,18 @@ Season,Week,PlayerID,Player,NFLTeam,EventType,Headline,Description,ImpactScore
 2042,18,,,New York Giants,Upset,UPSET ALERT — New York Giants Knocks Off Detroit Lions in Week 18,Nobody saw this coming. New York Giants walked into Week 18 as the underdog and walked out with a 36-33 win over Detroit Lions. The league just got a little more interesting.,7
 2042,18,,,Buffalo Bills,FanFaveSpotlight,Orchard Park Chaos — Week 18 (L 31-13 vs Bengals),"The elements, the crowd, the vibes — Buffalo delivered must-see football again.",4
 2042,22,,Team MVP,Baltimore Ravens,SuperBowl,Baltimore Ravens defeat Dallas Cowboys to win the Super Bowl,Baltimore Ravens beat Dallas Cowboys. Super Bowl MVP: Team MVP. Final score: 22-21.,99
+2043,21,2042_oklahoma_judeze_sam,J.Udeze,Patriots,SeasonOutcome,J.Udeze makes noise in year 1,"Patriots SAM posted 66 tackles, 6 sacks. Role: Starter.",84
+2043,21,2042_rapidcity_equinton_dt,E.Quinton,Packers,SeasonOutcome,E.Quinton makes noise in year 1,"Packers DT posted 85 tackles, 8 sacks. Role: Starter.",78
+2043,21,BASE::bills::joshallen::qb,Josh Allen,Bills,SeasonOutcome,Josh Allen makes noise in year 1,"Bills QB posted 3940 pass yds, 21 pass TD. Role: Starter.",77
+2043,24,BASE::steelers::cheyward::dt,C. Heyward,Steelers,Retirement,C. Heyward calls it a career,Steelers DT retires after the 2043 season.,80
+2043,24,BASE::steelers::cboswell::k,C. Boswell,Steelers,Retirement,C. Boswell calls it a career,Steelers K retires after the 2043 season.,80
+2043,24,BASE::steelers::arodgers::qb,A. Rodgers,Steelers,Retirement,A. Rodgers calls it a career,Steelers QB retires after the 2043 season.,80
+2043,24,BASE::steelers::athielen::wr,A. Thielen,Steelers,Retirement,A. Thielen calls it a career,Steelers WR retires after the 2043 season.,80
+2043,24,BASE::vikings::harrisonsmith::fs,Harrison Smith,Vikings,Retirement,Harrison Smith calls it a career,Vikings FS retires after the 2043 season.,80
+2043,24,BASE::vikings::andrewdepaola::ls,Andrew DePaola,Vikings,Retirement,Andrew DePaola calls it a career,Vikings LS retires after the 2043 season.,80
+2043,23,BASE::bills::joshallen::qb,Josh Allen,Bills,Award,Josh Allen wins NFL MVP,"Bills QB earned NFL MVP. 3940 pass yds, 21 pass TD",92
+2043,23,BASE::bills::joshallen::qb,Josh Allen,Bills,Award,Josh Allen wins Offensive Player of the Year,"Bills QB earned Offensive Player of the Year. 3940 pass yds, 21 pass TD",92
+2043,23,2042_oklahoma_judeze_sam,J.Udeze,Patriots,Award,J.Udeze wins Defensive Player of the Year,"Patriots SAM earned Defensive Player of the Year. 66 tackles, 6 sacks",92
+2043,23,BASE::raiders::bbowers::te,B. Bowers,Raiders,Award,B. Bowers wins Offensive Rookie of the Year,"Raiders TE earned Offensive Rookie of the Year. 1334 rec yds, 9 rec TD",92
+2043,23,2043_wyoming_fmcdonnell_cb,F. McDonnell,Saints,Award,F. McDonnell wins Defensive Rookie of the Year,"Saints CB earned Defensive Rookie of the Year. 46 tackles, 3 INT",92
+2043,22,,New Orleans Saints MVP,New Orleans Saints,SuperBowl,New Orleans Saints defeat Baltimore Ravens to win the Super Bowl,New Orleans Saints beat Baltimore Ravens. Super Bowl MVP: New Orleans Saints MVP. Final score: 19-10.,99
