@@ -19107,8 +19107,14 @@ with tabs[0]:
         except Exception:
             pass
 
-        # Week label — bowl weeks use round names
-        if _dn_is_bowl or _dn_week >= 16:
+        # Week label — offseason, bowl weeks, or regular season
+        # Offseason = CFP rankings are from a prior year (new season hasn't started yet)
+        # This works correctly for week 0 of a new season too — once week 0 rankings
+        # are imported, _dn_year will match CURRENT_YEAR and show "Week 0".
+        _is_offseason = (_dn_year < CURRENT_YEAR) and not _dn_is_bowl
+        if _is_offseason:
+            _wk_label = 'OFFSEASON'
+        elif _dn_is_bowl or _dn_week >= 16:
             _bowl_names = {16: 'Bowl Season', 17: 'CFP First Round', 18: 'CFP Quarterfinals',
                            19: 'CFP Semifinals', 20: 'CFP Championship', 21: 'CFP Championship'}
             _wk_label = _bowl_names.get(_dn_week, f'Bowl Season')
