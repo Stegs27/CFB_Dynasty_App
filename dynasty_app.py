@@ -31188,11 +31188,17 @@ with tabs[1]:
                     st.success("Draft audio enabled for this session.")
 
             st.caption("If Chrome blocks sound, click Enable Draft Audio once before running or replaying the draft.")
+            if latest_input_draft_year:
+                st.info(f"📋 **{latest_input_draft_year} draft class ready** in cfb_draft_results.csv ({len(cfb_draft[pd.to_numeric(cfb_draft['DraftYear'], errors='coerce').fillna(-1).astype(int) == latest_input_draft_year])} players). Hit **Lock Official Draft ({latest_input_draft_year})** to process it → then Build Rosters → then Sim Full NFL Season.")
 
             b1, b2, b3 = st.columns(3)
 
+            # Show which class each button acts on
+            _input_yr_label  = f" ({latest_input_draft_year})"  if latest_input_draft_year else ""
+            _saved_yr_label  = f" ({latest_saved_draft_year})"  if latest_saved_draft_year else ""
+
             with b1:
-                if st.button("💾 Lock Official Draft", use_container_width=True, key="lock_official_nfl_draft_btn_commish"):
+                if st.button(f"💾 Lock Official Draft{_input_yr_label}", use_container_width=True, key="lock_official_nfl_draft_btn_commish"):
                     try:
                         nfl_draft_hist, processed_year, status_msg = refresh_nfl_draft_history(
                             live_mode=False,
@@ -31225,7 +31231,7 @@ with tabs[1]:
                         st.error(f"NFL draft error: {type(e).__name__}: {e}")
 
             with b2:
-                if st.button("▶️ Replay Saved Draft", use_container_width=True, key="replay_saved_nfl_draft_commish"):
+                if st.button(f"▶️ Replay Saved Draft{_saved_yr_label}", use_container_width=True, key="replay_saved_nfl_draft_commish"):
                     if latest_saved_draft_year is None:
                         st.warning("No saved draft exists yet.")
                     else:
@@ -31291,7 +31297,7 @@ with tabs[1]:
                 _phase_msg   = f"**{_nfl_sim_year} partially simmed** ({_weeks_complete}/18 weeks). Re-run Sim Full NFL Season to complete."
                 _phase_color = "#fbbf24"
             else:
-                _phase_msg   = f"**{_nfl_sim_year} not yet simmed.** Hit Sim Full NFL Season before advancing weeks."
+                _phase_msg   = f"**{_nfl_sim_year} not yet simmed.** Complete the NFL Draft → Build Rosters → then hit Sim Full NFL Season."
                 _phase_color = "#f87171"
 
             st.markdown(
