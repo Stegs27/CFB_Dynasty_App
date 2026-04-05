@@ -19108,10 +19108,9 @@ with tabs[0]:
             pass
 
         # Week label — offseason, bowl weeks, or regular season
-        # Offseason = CFP rankings are from a prior year (new season hasn't started yet)
-        # This works correctly for week 0 of a new season too — once week 0 rankings
-        # are imported, _dn_year will match CURRENT_YEAR and show "Week 0".
-        _is_offseason = (_dn_year < CURRENT_YEAR) and not _dn_is_bowl
+        # Offseason sentinel: any week >= 25 (CFB season never exceeds ~21 weeks)
+        # Set dynasty_state week to 30 during the offseason.
+        _is_offseason = CURRENT_WEEK_NUMBER >= 25
         if _is_offseason:
             _wk_label = 'OFFSEASON'
         elif _dn_is_bowl or _dn_week >= 16:
