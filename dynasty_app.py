@@ -4860,25 +4860,34 @@ def simulate_nfl_playoffs(standings_df, season_year):
 
 
 def choose_super_bowl_mvp(champion, player_season_rows):
-    # Try player history first (dynasty picks + veteran sims)
+    """Pick the Super Bowl MVP — tries player history first, falls back to base roster."""
+    _champ_norm = str(champion).strip().lower()
+
+    # Try player history (dynasty picks + veteran sims) with case-insensitive match
     if player_season_rows is not None and not player_season_rows.empty:
-        team_df = player_season_rows[player_season_rows["NFLTeam"].astype(str) == str(champion)].copy()
+        team_df = player_season_rows[
+            player_season_rows["NFLTeam"].astype(str).str.strip().str.lower() == _champ_norm
+        ].copy()
         if not team_df.empty:
             team_df["CareerValue"] = pd.to_numeric(team_df["CareerValue"], errors="coerce").fillna(0)
             team_df["OverallEnd"]  = pd.to_numeric(team_df["OverallEnd"],  errors="coerce").fillna(0)
-            # Prefer skill positions for MVP narrative
             skill = team_df[team_df["PosBucket"].astype(str).isin({"QB", "RB", "WR", "TE"})]
-            pool = skill if not skill.empty else team_df
-            pool = pool.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False])
-            player_name = str(pool.iloc[0].get("Player", "")).strip()
-            if player_name and player_name.lower() not in ("", "nan", "none"):
-                return player_name, champion
+            pool  = skill if not skill.empty else team_df
+            pool  = pool.sort_values(["CareerValue", "OverallEnd"], ascending=[False, False])
+            name  = str(pool.iloc[0].get("Player", "")).strip()
+            if name and name.lower() not in ("", "nan", "none"):
+                return name, champion
 
-    # Fallback: pull best player from NFLroster26_MASTER.csv for the champion team
+    # Fallback: pull best skill player from NFLroster26_MASTER.csv
     try:
         roster = pd.read_csv("NFLroster26_MASTER.csv") if os.path.exists("NFLroster26_MASTER.csv") else pd.DataFrame()
         if not roster.empty:
-            champ_roster = roster[roster["Team"].astype(str).str.strip() == str(champion)].copy()
+            roster["_tnorm"] = roster["Team"].astype(str).str.strip().str.lower()
+            champ_roster = roster[roster["_tnorm"] == _champ_norm].copy()
+            if champ_roster.empty:
+                # Partial match on last word (e.g. "Saints" from "New Orleans Saints")
+                _last = _champ_norm.split()[-1]
+                champ_roster = roster[roster["_tnorm"].str.contains(_last, na=False)].copy()
             if not champ_roster.empty:
                 champ_roster["OVR"] = pd.to_numeric(champ_roster["OVR"], errors="coerce").fillna(0)
                 skill_pos = champ_roster[champ_roster["Pos"].astype(str).str.strip().isin(
@@ -4886,13 +4895,15 @@ def choose_super_bowl_mvp(champion, player_season_rows):
                 )]
                 pool = skill_pos if not skill_pos.empty else champ_roster
                 pool = pool.sort_values("OVR", ascending=False)
-                player_name = str(pool.iloc[0].get("Name", pool.iloc[0].get("Player", ""))).strip()
-                if player_name and player_name.lower() not in ("", "nan", "none"):
-                    return player_name, champion
+                name_col = next((c for c in ["Name", "Player", "FullName"] if c in pool.columns), None)
+                if name_col:
+                    name = str(pool.iloc[0][name_col]).strip()
+                    if name and name.lower() not in ("", "nan", "none"):
+                        return name, champion
     except Exception:
         pass
 
-    return f"{champion} MVP", champion
+    return "Super Bowl MVP", champion
 
 def calc_nfl_progression_delta(age, years_pro, rookie_role, career_tier, pro_outcome, development_curve):
     age = int(safe_num(age, 23))
@@ -15039,13 +15050,17 @@ def _build_gs_ticker_lookup(current_year):
 
 
 @st.cache_data(ttl=300)
-def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
+def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup, nfl_revealed_week=0):
     """Build all ticker headlines. Cached 5 min — avoids ~13 CSV reads per rerun."""
     # Shadow module-level constants so the body runs unchanged
     CURRENT_YEAR = year
     CURRENT_WEEK_NUMBER = week
     IS_BOWL_WEEK = is_bowl_week
     _gs_ticker_lookup = _gs_lookup
+
+    # NFL season-end content (Super Bowl, awards, retirements) only reveals
+    # after week 19 has been advanced — same trigger as playoffs completing.
+    _nfl_season_revealed = int(nfl_revealed_week) >= 19
 
     _all_headlines = []
 
@@ -15928,7 +15943,9 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
         pass
 
     # ── 8. NFL UNIVERSE HONORS / SUPER BOWL ──────────────────────────────
-    try:
+    # Only show once week 19 has been revealed (playoffs complete)
+    if _nfl_season_revealed:
+      try:
         # Super Bowl result
         if os.path.exists('nfl_super_bowl_history.csv'):
             _sb_df = pd.read_csv('nfl_super_bowl_history.csv')
@@ -16032,8 +16049,9 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                             'blurb': _blurb,
                             'logo_html': _lh,
                         })
-    except Exception:
-        pass
+      except Exception:
+          pass
+    # end _nfl_season_revealed gate
 
     # ── LEAGUE-WIDE UPSET ALERTS & HOT PROGRAMS ──────────────────────────
     try:
@@ -16114,9 +16132,16 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
             _nfl_stories = pd.read_csv("nfl_story_events.csv")
             _nfl_stories["Season"] = pd.to_numeric(_nfl_stories["Season"], errors="coerce").fillna(0)
             _nfl_stories["Week"]   = pd.to_numeric(_nfl_stories["Week"],   errors="coerce").fillna(0)
-            # Most recent week's events only
-            _max_nfl_week = _nfl_stories["Week"].max()
-            _nfl_stories = _nfl_stories[_nfl_stories["Week"] == _max_nfl_week].copy()
+
+            # Only show events up to the currently revealed NFL week.
+            # End-of-season events (Awards/SuperBowl/Retirement, weeks 21-24)
+            # stay hidden until week 19 is revealed.
+            _story_week_cap = int(nfl_revealed_week) if not _nfl_season_revealed else 99
+            _nfl_stories = _nfl_stories[_nfl_stories["Week"] <= _story_week_cap].copy()
+
+            if not _nfl_stories.empty:
+                _max_nfl_week = _nfl_stories["Week"].max()
+                _nfl_stories = _nfl_stories[_nfl_stories["Week"] == _max_nfl_week].copy()
             _nfl_stories = _nfl_stories.sort_values("ImpactScore", ascending=False).head(6)
 
             _NFL_BADGE_COLORS = {
@@ -16211,6 +16236,7 @@ _all_headlines = _build_ticker_headlines(
     week=CURRENT_WEEK_NUMBER,
     is_bowl_week=IS_BOWL_WEEK,
     _gs_lookup=_gs_ticker_lookup,
+    nfl_revealed_week=get_current_nfl_week(),
 )
 # Sort highest priority first
 _all_headlines.sort(key=lambda h: h['priority'], reverse=True)
@@ -29730,6 +29756,10 @@ with tabs[1]:
         with nfl_tabs[2]:
             st.subheader("🏁 NFL Season Recap")
 
+            _recap_nfl_season  = get_current_nfl_season()
+            _recap_reveal_week = get_current_nfl_week()
+            _recap_season_done = int(_recap_reveal_week) >= 19
+
             if nfl_standings_hist.empty and nfl_super_bowl.empty:
                 st.info("No NFL season has been simulated yet.")
             else:
@@ -29744,6 +29774,10 @@ with tabs[1]:
                     available_seasons.update(
                         pd.to_numeric(nfl_super_bowl["Season"], errors="coerce").dropna().astype(int).tolist()
                     )
+
+                # Hide the current NFL season until playoffs are revealed (week 19)
+                if not _recap_season_done:
+                    available_seasons.discard(int(_recap_nfl_season))
 
                 available_seasons = sorted(list(available_seasons))
                 if not available_seasons:
@@ -29998,6 +30032,10 @@ with tabs[1]:
         with nfl_tabs[3]:
             st.subheader("🏅 NFL Awards")
 
+            _awards_nfl_season  = get_current_nfl_season()
+            _awards_reveal_week = get_current_nfl_week()
+            _awards_season_done = int(_awards_reveal_week) >= 19
+
             if nfl_awards_hist.empty:
                 st.info("No NFL awards have been generated yet.")
             else:
@@ -30008,6 +30046,9 @@ with tabs[1]:
                     .unique()
                     .tolist()
                 )
+                # Hide current season until playoffs revealed
+                if not _awards_season_done:
+                    award_seasons = [s for s in award_seasons if s != int(_awards_nfl_season)]
 
                 if not award_seasons:
                     st.info("No NFL awards have been generated yet.")
