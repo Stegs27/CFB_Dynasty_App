@@ -16606,6 +16606,47 @@ with tabs[3]:
         else:
             _sf_df = _sf_df.copy()
 
+            # Filter to user teams only
+            _user_team_vals = list(USER_TEAMS.values()) if 'USER_TEAMS' in globals() else []
+            if _user_team_vals and 'TEAM' in _sf_df.columns:
+                _sf_df = _sf_df[_sf_df['TEAM'].astype(str).str.strip().isin(_user_team_vals)].copy()
+
+            # Re-derive speed counts from cfb_136_top30_rosters_{YEAR}.csv for accuracy
+            try:
+                _sf_ros_file = f'cfb_136_top30_rosters_{CURRENT_YEAR}.csv'
+                if os.path.exists(_sf_ros_file):
+                    _sf_ros = pd.read_csv(_sf_ros_file)
+                    _sf_ros['TEAM'] = _sf_ros['TEAM'].astype(str).str.strip()
+                    for _c in ('SPD','ACC','AGI','COD','STR','OVR'):
+                        if _c in _sf_ros.columns:
+                            _sf_ros[_c] = pd.to_numeric(_sf_ros[_c], errors='coerce').fillna(0)
+                    _sf_ros['POS_U'] = _sf_ros['POS'].astype(str).str.upper().str.strip() if 'POS' in _sf_ros.columns else ''
+                    _off_pos = {'QB','HB','WR','TE','LT','LG','C','RG','RT'}
+                    _def_pos = {'CB','FS','SS','MLB','OLB','DE','DT','LEDG','REDG','SAM','MIKE','WILL','ILB','LB'}
+                    _front7  = {'DE','DT','LEDG','REDG','SAM','MIKE','WILL','MLB','ILB','OLB','LB'}
+                    _ol_pos  = {'LT','LG','C','RG','RT'}
+                    _spd_rows = []
+                    for _team, _grp in _sf_ros.groupby('TEAM'):
+                        _spd_rows.append({
+                            'TEAM': _team,
+                            'Team Speed (90+ Speed Guys)':                    int((_grp['SPD'] >= 90).sum()),
+                            'Quad 90 (90+ SPD, ACC, AGI & COD)':              int(((_grp['SPD']>=90)&(_grp['ACC']>=90)&(_grp['AGI']>=90)&(_grp['COD']>=90)).sum()),
+                            'Generational (96+ speed or 96+ Acceleration)':   int(((_grp['SPD']>=96)|(_grp['ACC']>=96)).sum()),
+                            'Off Speed (90+ speed)':                           int(((_grp['SPD']>=90)&(_grp['POS_U'].isin(_off_pos))).sum()),
+                            'Def Speed (90+ speed)':                           int(((_grp['SPD']>=90)&(_grp['POS_U'].isin(_def_pos))).sum()),
+                            'Monsters':                                         int((_grp['POS_U'].isin(_front7) & (((_grp['ACC']>=90)&(_grp['SPD']>=84))|((_grp['SPD']>=90)&(_grp['ACC']>=84)))).sum()),
+                            'Quick Hogs':                                       int((_grp['POS_U'].isin(_ol_pos) & (_grp['AGI']>=85) & (_grp['STR']>=90)).sum()),
+                        })
+                    _spd_ros_df = pd.DataFrame(_spd_rows)
+                    if not _spd_ros_df.empty:
+                        _drop_spd = [c for c in ['Team Speed (90+ Speed Guys)','Quad 90 (90+ SPD, ACC, AGI & COD)',
+                                                  'Generational (96+ speed or 96+ Acceleration)','Off Speed (90+ speed)',
+                                                  'Def Speed (90+ speed)','Monsters','Quick Hogs','Cheat Codes'] if c in _sf_df.columns]
+                        _sf_df = _sf_df.drop(columns=_drop_spd, errors='ignore').merge(_spd_ros_df, on='TEAM', how='left')
+                        _sf_df['Cheat Codes'] = _sf_df['Quad 90 (90+ SPD, ACC, AGI & COD)'].fillna(0)
+            except Exception:
+                pass
+
             _required_defaults = {
                 'USER': '',
                 'TEAM': '',
@@ -19555,66 +19596,52 @@ with tabs[0]:
         # ── Week game lookup — read raw CSV to include unplayed games ─────
         _user_matchup = {}
         _week_has_games = False
+        _matchup_debug = ''
         try:
-            # Read the schedule directly — don't rely on load_scores_master
-            # which can silently return empty when run inside Streamlit's caching context.
             _sched_file = f'schedule_{CURRENT_YEAR}.csv'
             _sched_fallback = 'CPUscores_MASTER.csv'
 
             if os.path.exists(_sched_file):
-                _raw_sched = pd.read_csv(_sched_file)
+                _raw_sched = pd.read_csv(_sched_file, dtype={'YEAR': str, 'Week': str})
             elif os.path.exists(_sched_fallback):
-                _raw_sched = pd.read_csv(_sched_fallback)
+                _raw_sched = pd.read_csv(_sched_fallback, dtype={'YEAR': str, 'Week': str})
             else:
                 _raw_sched = pd.DataFrame()
+                _matchup_debug = f'No schedule file found: {_sched_file}'
 
             if not _raw_sched.empty:
-                # Normalize column names
                 _raw_sched.columns = [str(c).strip() for c in _raw_sched.columns]
-
-                # Coerce YEAR and Week
-                for _yc in ('YEAR', 'Year'):
-                    if _yc in _raw_sched.columns:
-                        _raw_sched[_yc] = pd.to_numeric(_raw_sched[_yc], errors='coerce')
-                        break
-                _yr_col = 'YEAR' if 'YEAR' in _raw_sched.columns else ('Year' if 'Year' in _raw_sched.columns else None)
+                _yr_col = next((c for c in ('YEAR', 'Year') if c in _raw_sched.columns), None)
                 _wk_col = next((c for c in ('Week', 'WEEK', 'week') if c in _raw_sched.columns), None)
-                if _wk_col:
-                    _raw_sched[_wk_col] = pd.to_numeric(_raw_sched[_wk_col], errors='coerce')
 
-                # Normalize team name columns (strip rank prefix like "2 Panama City")
+                # Convert to plain Python int strings for comparison
+                _yr_match = str(int(_gs_year))
+                _wk_match = str(int(_gs_week))
+
+                yr_ok = _raw_sched[_yr_col].astype(str).str.strip().str.split('.').str[0] == _yr_match if _yr_col else pd.Series([True]*len(_raw_sched), index=_raw_sched.index)
+                wk_ok = _raw_sched[_wk_col].astype(str).str.strip().str.split('.').str[0] == _wk_match if _wk_col else pd.Series([True]*len(_raw_sched), index=_raw_sched.index)
+                _sc_gs = _raw_sched[yr_ok & wk_ok].copy()
+                _week_has_games = not _sc_gs.empty
+                _matchup_debug = f'file={_sched_file} yr={_yr_match} wk={_wk_match} rows={len(_sc_gs)}'
+
                 import re as _re_sched
                 for _tc in ('Visitor', 'Home'):
-                    if _tc in _raw_sched.columns:
-                        _raw_sched[_tc] = _raw_sched[_tc].astype(str).apply(
-                            lambda t: _re_sched.sub(r'^\d+\s+', '', t.strip())
-                        )
+                    if _tc in _sc_gs.columns:
+                        _sc_gs[_tc] = _sc_gs[_tc].astype(str).apply(lambda t: _re_sched.sub(r'^\d+\s+', '', t.strip()))
 
-                # Filter to current year + week
-                _mask = pd.Series([True] * len(_raw_sched), index=_raw_sched.index)
-                if _yr_col:
-                    _mask &= (_raw_sched[_yr_col].fillna(-1).astype(int) == int(_gs_year))
-                if _wk_col:
-                    _mask &= (_raw_sched[_wk_col].fillna(-1).astype(int) == int(_gs_week))
-                _sc_gs = _raw_sched[_mask].copy()
-                _week_has_games = not _sc_gs.empty
-
-                # Build case-insensitive team lookup
                 _vis_col = next((c for c in ('Visitor', 'VISITOR') if c in _sc_gs.columns), None)
                 _hom_col = next((c for c in ('Home', 'HOME') if c in _sc_gs.columns), None)
                 _vsc_col = next((c for c in ('Vis Score', 'Vis_Score', 'V_Score', 'V_Pts') if c in _sc_gs.columns), None)
                 _hsc_col = next((c for c in ('Home Score', 'Home_Score', 'H_Score', 'H_Pts') if c in _sc_gs.columns), None)
 
-                if _vis_col:
-                    _sc_gs['_VisL'] = _sc_gs[_vis_col].astype(str).str.strip().str.lower()
-                if _hom_col:
-                    _sc_gs['_HomL'] = _sc_gs[_hom_col].astype(str).str.strip().str.lower()
+                if _vis_col: _sc_gs['_VisL'] = _sc_gs[_vis_col].astype(str).str.strip().str.lower()
+                if _hom_col: _sc_gs['_HomL'] = _sc_gs[_hom_col].astype(str).str.strip().str.lower()
 
                 for _gu in list(USER_TEAMS.keys()):
                     _gteam  = USER_TEAMS.get(_gu, '')
                     _gteamL = _gteam.lower()
-                    _v_row  = _sc_gs[_sc_gs.get('_VisL', pd.Series(dtype=str)) == _gteamL] if '_VisL' in _sc_gs.columns else pd.DataFrame()
-                    _h_row  = _sc_gs[_sc_gs.get('_HomL', pd.Series(dtype=str)) == _gteamL] if '_HomL' in _sc_gs.columns else pd.DataFrame()
+                    _v_row  = _sc_gs[_sc_gs['_VisL'] == _gteamL] if '_VisL' in _sc_gs.columns else pd.DataFrame()
+                    _h_row  = _sc_gs[_sc_gs['_HomL'] == _gteamL] if '_HomL' in _sc_gs.columns else pd.DataFrame()
 
                     if not _v_row.empty:
                         _gr  = _v_row.iloc[0]
@@ -19638,8 +19665,12 @@ with tabs[0]:
                             _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': True}
                     else:
                         _user_matchup[_gu] = 'BYE' if _week_has_games else 'UNSCHEDULED'
-        except Exception:
-            pass
+        except Exception as _matchup_exc:
+            _matchup_debug = f'EXCEPTION: {type(_matchup_exc).__name__}: {_matchup_exc}'
+
+        # Temporarily surface debug info — remove after schedule lookup confirmed working
+        if not _user_matchup or all(v in ('BYE','UNSCHEDULED') for v in _user_matchup.values()):
+            st.caption(f"🔧 Schedule debug: {_matchup_debug} | week={_gs_week} year={_gs_year} | matchup_keys={list(_user_matchup.keys())}")
 
         # ── Commissioner-set game status ──────────────────────────────────
         _game_status_map = {}
