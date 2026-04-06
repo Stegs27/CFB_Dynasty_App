@@ -76,3 +76,18 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,off_explosive_index,off
 2042,17,Josh,USF,Nebraska,W,53,42,95.45,Detonation Machine,97.87,-2.71,14.08,Wet Paper Bag,49.39,-20.6,True,True,False,False,False,False,True,True,False
 2042,17,Mike,San Jose State,Ole Miss,W,36,13,73.48,Strike Force,91.16,-26.52,54.27,Leaky,59.68,26.07,True,False,False,False,False,False,False,False,False
 2042,17,Nick,Florida State,West Virginia,W,49,14,100.0,Detonation Machine,85.51,8.83,39.17,Wet Paper Bag,27.81,39.17,False,False,False,False,False,False,False,False,False
+2042,18,Devin,Bowling Green,Death Valley,W,55,20,100.0,Detonation Machine,100.0,0.0,38.74,Wet Paper Bag,16.25,28.74,False,True,True,False,False,False,False,False,False
+2042,18,Josh,USF,Texas Tech,W,46,43,99.74,Detonation Machine,97.78,4.29,0.0,Wet Paper Bag,16.25,-14.08,False,False,False,False,False,False,True,True,True
+2042,18,Nick,Florida State,Notre Dame,W,55,10,100.0,Detonation Machine,97.06,0.0,56.36,Bend Don’t Break,31.84,17.19,False,False,True,False,False,False,False,False,False
+2042,18,Noah,Texas Tech,USF,L,43,46,100.0,Detonation Machine,100.0,0.0,0.0,Wet Paper Bag,8.67,-25.74,True,True,True,False,False,False,True,False,False
+2042,19,Devin,Bowling Green,Georgia Tech,W,45,35,100.0,Detonation Machine,100.0,0.0,0.0,Wet Paper Bag,16.25,-38.74,False,False,True,False,False,False,True,True,True
+2042,19,Devin,Bowling Green,USF,W,35,21,93.74,Detonation Machine,97.91,-6.26,27.74,Wet Paper Bag,22.16,27.74,True,False,False,False,False,False,False,False,False
+2042,19,Josh,USF,Florida State,W,43,31,85.45,Detonation Machine,93.55,-14.29,36.32,Wet Paper Bag,16.8,36.32,True,False,False,False,False,False,True,True,False
+2042,19,Josh,USF,Bowling Green,L,21,35,70.68,Strike Force,85.29,-14.77,5.81,Wet Paper Bag,14.04,-30.51,False,False,False,False,False,False,True,True,False
+2042,19,Nick,Florida State,USF,L,31,43,66.57,Strike Force,88.86,-33.43,14.53,Wet Paper Bag,36.69,-41.83,False,True,False,False,False,False,True,False,False
+2043,1,Devin,Bowling Green,Georgia Tech,W,49,17,100.0,Detonation Machine,97.91,6.26,46.79,Leaky,24.84,19.05,False,False,True,False,False,False,False,False,False
+2043,1,Doug,Florida,Rapid City,W,31,21,86.29,Detonation Machine,74.44,4.83,25.02,Wet Paper Bag,20.94,25.02,False,False,False,False,False,False,False,False,True
+2043,1,Josh,USF,NC State,W,42,35,90.84,Detonation Machine,82.32,20.16,12.56,Wet Paper Bag,18.23,6.75,True,False,False,False,False,False,True,True,False
+2043,1,Mike,San Jose State,Death Valley,W,84,26,100.0,Detonation Machine,91.16,26.52,42.71,Wet Paper Bag,41.73,-11.56,True,True,True,False,False,False,False,False,False
+2043,1,Nick,Florida State,Penn State,W,56,13,100.0,Detonation Machine,88.86,33.43,70.99,Vice Grip,47.29,56.46,False,True,False,False,False,False,False,False,False
+2043,1,Noah,Texas Tech,Iowa,W,91,45,100.0,Detonation Machine,100.0,0.0,0.0,Wet Paper Bag,8.58,0.0,True,True,True,False,False,False,True,True,False

@@ -51,28 +51,43 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2042,9,Noah,Texas Tech,Ohio State,W,49,35,14.0,14.5,-0.5,0.18,1.0,0.7275,79.09,Score Told the Truth,77.94,24.37,False,False,False,False,False
 2042,10,Devin,Bowling Green,Georgia,W,42,17,25.0,25.67,-0.67,0.35,1.0,0.7065,100.0,Score Told the Truth,78.85,37.7,False,False,False,False,False
 2042,10,Doug,Florida,Iowa,W,42,3,39.0,35.0,4.0,1.37,0.7329,0.3115,100.0,Score Told the Truth,83.08,19.51,False,False,False,False,False
-2042,10,Josh,USF,Texas Tech,L,21,42,-21.0,-35.0,14.0,-2.68,0.915,1.0,0.0,Score Lied for Us,66.67,-100.0,True,False,False,False,True
+2042,10,Josh,USF,Texas Tech,L,21,42,-21.0,-35.0,14.0,-2.0,0.5,0.5,0.0,Score Lied for Us,66.67,-100.0,True,False,False,False,True
 2042,10,Mike,San Jose State,Michigan,W,30,27,3.0,6.44,-3.44,1.25,0.6396,0.7332,56.89,Score Told the Truth,37.02,47.99,False,False,False,False,False
 2042,10,Nick,Florida State,Ole Miss,W,56,17,39.0,14.18,24.82,0.38,0.7123,0.915,100.0,Score Lied for Us,84.39,0.0,True,False,True,False,False
-2042,10,Noah,Texas Tech,USF,W,42,21,21.0,35.0,-14.0,2.68,1.0,0.915,100.0,Score Lied for Them,77.94,20.91,False,True,False,True,False
+2042,10,Noah,Texas Tech,USF,W,42,21,21.0,35.0,-14.0,2.0,0.5,0.5,100.0,Score Lied for Them,77.94,20.91,False,True,False,True,False
 2042,11,Doug,Florida,LSU,W,48,17,31.0,8.65,22.35,-3.17,0.7778,0.9244,91.16,Score Lied for Us,90.55,-8.84,True,False,True,False,False
-2042,11,Josh,USF,Minnesota,W,49,10,39.0,35.0,4.0,6.09,0.8489,0.3379,100.0,Score Told the Truth,66.67,100.0,False,False,False,False,False
+2042,11,Josh,USF,Minnesota,W,49,10,39.0,35.0,4.0,6.62,0.915,0.3379,100.0,Score Told the Truth,66.67,100.0,False,False,False,False,False
 2042,11,Mike,San Jose State,Wisconsin,W,66,9,57.0,35.0,22.0,-0.21,0.6619,0.4379,100.0,Score Lied for Us,55.26,43.11,True,False,True,False,False
 2042,11,Noah,Texas Tech,Iowa,W,63,21,42.0,35.0,7.0,8.14,1.0,0.2319,100.0,We Got Away With One,93.03,0.0,False,False,True,False,False
 2042,12,Doug,Florida,Wyoming,W,34,21,13.0,35.0,-22.0,3.3,0.8076,0.6457,99.18,Score Lied for Them,96.78,8.02,False,True,False,True,False
 2042,12,Nick,Florida State,Kentucky,W,77,31,46.0,35.0,11.0,3.43,0.8387,0.1604,100.0,We Got Away With One,100.0,0.0,True,False,True,False,False
 2042,12,Noah,Texas Tech,Wisconsin,W,59,54,5.0,19.55,-14.55,3.13,1.0,0.3587,73.95,Score Lied for Them,91.32,-26.05,False,True,False,True,False
 2042,13,Devin,Bowling Green,Florida State,W,38,35,3.0,7.62,-4.62,-0.91,1.0,0.864,63.13,Score Told the Truth,75.14,-36.87,False,False,False,False,False
-2042,13,Josh,USF,Maryland,W,90,10,80.0,35.0,45.0,4.09,0.864,0.1023,100.0,Score Lied for Us,66.67,0.0,True,False,True,False,False
+2042,13,Josh,USF,Maryland,W,90,10,80.0,35.0,45.0,4.58,0.9244,0.1023,100.0,Score Lied for Us,66.67,0.0,True,False,True,False,False
 2042,13,Nick,Florida State,Bowling Green,L,35,38,-3.0,-7.62,4.62,0.91,0.864,1.0,36.87,Score Told the Truth,78.96,-63.13,False,False,False,False,False
 2042,14,Doug,Florida,Florida State,L,24,28,-4.0,-1.09,-2.91,-1.9,0.8196,0.8069,48.06,Score Told the Truth,79.47,-51.12,False,False,False,False,False
-2042,14,Josh,USF,Penn State,W,52,35,17.0,9.29,7.71,4.04,0.8764,0.621,70.29,We Got Away With One,90.1,-29.71,False,False,True,False,False
+2042,14,Josh,USF,Penn State,W,52,35,17.0,9.74,7.26,4.49,0.932,0.621,70.29,We Got Away With One,90.1,-29.71,False,False,True,False,False
 2042,14,Mike,San Jose State,Michigan State,W,50,33,17.0,26.8,-9.8,-0.56,0.7176,0.5371,95.67,Should've Beat Their Ass,84.19,-4.33,False,False,False,True,False
 2042,14,Nick,Florida State,Florida,W,28,24,4.0,1.09,2.91,1.9,0.8069,0.8196,51.94,Score Told the Truth,62.94,15.07,False,False,False,False,False
 2042,16,Devin,Bowling Green,Florida State,L,38,41,-3.0,6.78,-9.78,3.5,1.0,0.8122,52.15,Should've Beat Their Ass,71.76,-10.98,False,False,False,False,False
 2042,16,Nick,Florida State,Bowling Green,W,41,38,3.0,-6.78,9.78,-3.5,0.8122,1.0,47.85,We Got Away With One,45.55,-4.09,False,False,True,False,False
 2042,16,Noah,Texas Tech,Nebraska,W,38,20,18.0,34.27,-16.27,4.15,1.0,0.7316,100.0,Score Lied for Them,91.32,26.05,False,True,False,True,False
 2042,17,Doug,Florida,Georgia Tech,L,35,38,-3.0,-11.34,8.34,-3.07,0.7621,0.8954,37.36,We Got Away With One,61.53,-10.7,False,False,False,False,False
-2042,17,Josh,USF,Nebraska,W,53,42,11.0,14.77,-3.77,3.68,0.8867,0.6771,72.2,Score Told the Truth,80.83,1.91,False,False,False,False,False
+2042,17,Josh,USF,Nebraska,W,53,42,11.0,15.18,-4.18,4.09,0.9382,0.6771,72.2,Score Told the Truth,80.83,1.91,False,False,False,False,False
 2042,17,Mike,San Jose State,Ole Miss,W,36,13,23.0,15.78,7.22,1.68,0.7386,0.779,86.97,We Got Away With One,94.21,-8.7,False,False,True,False,False
 2042,17,Nick,Florida State,West Virginia,W,49,14,35.0,5.62,29.38,0.53,0.8161,1.0,86.04,Score Lied for Us,61.94,38.19,True,False,True,False,False
+2042,18,Devin,Bowling Green,Death Valley,W,55,20,35.0,35.0,0.0,5.73,0.9477,0.482,100.0,Score Told the Truth,71.76,47.85,False,False,False,False,False
+2042,18,Josh,USF,Texas Tech,W,46,43,3.0,-2.51,5.51,-2.45,0.9433,1.0,52.81,Score Told the Truth,65.1,-19.39,False,False,False,False,False
+2042,18,Nick,Florida State,Notre Dame,W,55,10,45.0,33.04,11.96,-2.85,0.8369,0.9433,100.0,We Got Away With One,77.96,13.96,True,False,True,False,False
+2042,18,Noah,Texas Tech,USF,L,43,46,-3.0,2.51,-5.51,2.45,1.0,0.9433,47.19,Score Told the Truth,73.71,-52.81,False,False,False,False,False
+2042,19,Devin,Bowling Green,Georgia Tech,W,45,35,10.0,12.71,-2.71,2.34,0.9514,0.9093,70.4,Score Told the Truth,74.18,-29.6,False,False,False,False,False
+2042,19,Devin,Bowling Green,USF,W,35,21,14.0,0.25,13.75,-2.0,0.5,0.5,65.27,We Got Away With One,78.56,-5.13,True,False,True,False,False
+2042,19,Josh,USF,Florida State,W,43,31,12.0,11.46,0.54,2.7,0.9477,0.8599,71.22,Score Told the Truth,65.41,18.41,False,False,False,False,False
+2042,19,Josh,USF,Bowling Green,L,21,35,-14.0,-0.25,-13.75,2.0,0.5,0.5,34.73,Should've Beat Their Ass,52.92,-36.49,False,True,False,False,True
+2042,19,Nick,Florida State,USF,L,31,43,-12.0,-11.46,-0.54,-2.7,0.8599,0.9477,28.78,Score Told the Truth,71.61,-71.22,False,False,False,False,True
+2043,1,Devin,Bowling Green,Georgia Tech,W,49,17,32.0,31.44,0.56,-2.0,0.5,0.5,100.0,Score Told the Truth,78.56,34.73,False,False,False,False,False
+2043,1,Doug,Florida,Rapid City,W,31,21,10.0,14.72,-4.72,-2.0,0.5,0.5,78.12,Score Told the Truth,54.51,40.76,False,False,False,False,False
+2043,1,Josh,USF,NC State,W,42,35,7.0,3.5,3.5,2.0,0.5,0.5,58.22,Score Told the Truth,54.72,23.49,False,False,False,False,False
+2043,1,Mike,San Jose State,Death Valley,W,84,26,58.0,35.0,23.0,2.0,0.5,0.5,100.0,Score Lied for Us,94.21,13.03,True,False,True,False,False
+2043,1,Nick,Florida State,Penn State,W,56,13,43.0,35.0,8.0,2.0,0.5,0.5,100.0,We Got Away With One,76.26,71.22,False,False,True,False,False
+2043,1,Noah,Texas Tech,Iowa,W,91,45,46.0,35.0,11.0,2.0,0.5,0.5,100.0,We Got Away With One,82.4,52.81,True,False,True,False,False
