@@ -18,5 +18,8 @@ Year,Week,User,Team,Player,Pos,OVR,Injury,WeeksOut,Status,IsStarter
 2042,10,Mike,San Jose State,E. Quincy,SS,82,Torn Pectoral,36,Out,Yes
 2042,11,Doug,Florida,L. Muma,HB,76,Torn Labrum,4,Out,No
 2042,12,Devin,Bowling Green,Kareem Alston,HB,95,Broken Collarbone,7,Out,Yes
-2043,2,Josh,USF,J.Abdesmad,LT,84,Fractured Shoulder Blade,19,,Yes
-2043,2,Mike,San Jose State,A. Costanzo,SAM,85,Broken Collarbone,6,,Yes
+2043,2,Josh,USF,J.Abdesmad,LT,84,Fractured Shoulder Blade,19,Out,Yes
+2043,2,Mike,San Jose State,A. Costanzo,SAM,85,Broken Collarbone,6,Out,Yes
+2043,3,Mike,San Jose State,E. Quincy,SS,84,Broken Fibula,27,Out,Yes
+2043,3,Josh,USF,K. McCleod,MIKE,75,Dislocated Hip,13,Out,No
+2043,3,Nick,Florida State,M. Mbu,HB,86,Ruptured Disk,7,Out,Yes
