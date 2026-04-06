@@ -9581,102 +9581,204 @@ def load_data(current_year=CURRENT_YEAR):
         h2h_heat = pd.DataFrame(h2h_numeric, index=all_users, columns=all_users)
         rivalry_df = pd.DataFrame(rivalry_rows).sort_values(['Rivalry Score', 'Games'], ascending=[False, False]) if rivalry_rows else pd.DataFrame()
 
-        # Ratings prep
-        r_2041 = ratings[ratings['YEAR'] == current_year].copy()
-        r_2040 = ratings[ratings['YEAR'] == current_year - 1].copy()
+        # ── Ratings prep — build r_2041 from new CSV sources ────────────────
+        # Source priority (2042+):
+        #   OVERALL/OFFENSE/DEFENSE  → team_ratings_{YEAR}.csv  (OVR/OFF/DEF)
+        #   Speed counts / QB OVR    → cfb_136_top30_rosters_{YEAR}.csv
+        #   BCR_Val                  → bluechip_ratio_{YEAR}.csv
+        #   CONFERENCE / USER        → team_conferences.csv
+        #   Improvement              → delta vs team_ratings_{YEAR-1}.csv
+        # Falls back to TeamRatingsHistory.csv for pre-2042 seasons or missing files.
 
-        # ── Bootstrap r_2041 from team_ratings_{YEAR}.csv when TeamRatingsHistory ──
-        # has no current-year data yet (start of new season before manual import).
-        if r_2041.empty:
-            _tr_file = f'team_ratings_{current_year}.csv'
-            _tc_file = 'team_conferences.csv'
-            try:
-                _tr = pd.read_csv(_tr_file) if os.path.exists(_tr_file) else pd.DataFrame()
-                _tc = pd.read_csv(_tc_file) if os.path.exists(_tc_file) else pd.DataFrame()
-                if not _tr.empty:
-                    _tr['TEAM'] = _tr['TEAM'].astype(str).str.strip()
-                    _tr['YEAR'] = current_year
-                    # Map OVR/OFF/DEF to the OVERALL/OFFENSE/DEFENSE columns the model expects
-                    _tr['OVERALL'] = pd.to_numeric(_tr.get('OVR', _tr.get('OVERALL', 82)), errors='coerce').fillna(82)
-                    _tr['OFFENSE'] = pd.to_numeric(_tr.get('OFF', _tr.get('OFFENSE', 82)), errors='coerce').fillna(82)
-                    _tr['DEFENSE'] = pd.to_numeric(_tr.get('DEF', _tr.get('DEFENSE', 82)), errors='coerce').fillna(82)
-                    # Required columns with sensible defaults
-                    _tr['USER'] = ''
-                    _tr['CONFERENCE'] = ''
-                    _tr['BCR_Val'] = 0
-                    _tr['QB OVR'] = 80
-                    _tr['Blue Chip Ratio (4 & 5 star recruit ratio on roster)'] = '0%'
-                    _tr['QB is Elite (90+)'] = 'No'
-                    _tr['QB is Leader (85+)'] = 'No'
-                    _tr['QB is Average Joe (between 80 and 84)'] = 'No'
-                    _tr['Qb is Ass (under 80)'] = 'No'
-                    _tr['Star Skill Guy is Generational Speed?'] = 'No'
-                    _tr['Quad 90 (90+ SPD, ACC, AGI & COD)'] = 0
-                    _tr['Team Speed (90+ Speed Guys)'] = 0
-                    _tr['Generational (96+ speed or 96+ Acceleration)'] = 0
-                    _tr['Off Speed (90+ speed)'] = 0
-                    _tr['Def Speed (90+ speed)'] = 0
-                    # Merge conference from team_conferences.csv
-                    if not _tc.empty and 'TEAM' in _tc.columns and 'CONFERENCE' in _tc.columns:
-                        _tc['TEAM'] = _tc['TEAM'].astype(str).str.strip()
-                        _tc_map = dict(zip(_tc['TEAM'], _tc['CONFERENCE']))
-                        _tr['CONFERENCE'] = _tr['TEAM'].map(lambda t: _tc_map.get(t, ''))
-                        # Set USER from team_conferences USER column if present
-                        if 'USER' in _tc.columns:
-                            _tc_user_map = dict(zip(_tc['TEAM'], _tc['USER'].fillna('')))
-                            _tr['USER'] = _tr['TEAM'].map(lambda t: str(_tc_user_map.get(t, '')).strip())
-                    r_2041 = _tr.copy()
-                    log.info(f"Bootstrapped r_2041 for {current_year} from {_tr_file} ({len(r_2041)} teams)")
-            except Exception as _boot_e:
-                log.warning(f"Could not bootstrap r_2041 from team_ratings_{current_year}.csv: {_boot_e}")
+        def _build_r2041_from_sources(year):
+            _tr_file  = f'team_ratings_{year}.csv'
+            _ros_file = f'cfb_136_top30_rosters_{year}.csv'
+            _bcr_file = f'bluechip_ratio_{year}.csv'
+            _tc_file  = 'team_conferences.csv'
+            _tr_prev  = f'team_ratings_{year - 1}.csv'
+
+            # ── Team ratings base ─────────────────────────────────────────────
+            if not os.path.exists(_tr_file):
+                return pd.DataFrame()
+            _tr = pd.read_csv(_tr_file)
+            if _tr.empty:
+                return pd.DataFrame()
+            _tr['TEAM'] = _tr['TEAM'].astype(str).str.strip()
+            _tr['YEAR'] = int(year)
+            _tr['OVERALL'] = pd.to_numeric(_tr.get('OVR', _tr.get('OVERALL', 82)), errors='coerce').fillna(82).astype(int)
+            _tr['OFFENSE'] = pd.to_numeric(_tr.get('OFF', _tr.get('OFFENSE', 82)), errors='coerce').fillna(82).astype(int)
+            _tr['DEFENSE'] = pd.to_numeric(_tr.get('DEF', _tr.get('DEFENSE', 82)), errors='coerce').fillna(82).astype(int)
+
+            # ── Conference + User ─────────────────────────────────────────────
+            _tr['USER'] = ''
+            _tr['CONFERENCE'] = ''
+            if os.path.exists(_tc_file):
+                _tc = pd.read_csv(_tc_file)
+                _tc['TEAM'] = _tc['TEAM'].astype(str).str.strip()
+                if 'CONFERENCE' in _tc.columns:
+                    _tc_conf = dict(zip(_tc['TEAM'], _tc['CONFERENCE'].fillna('')))
+                    _tr['CONFERENCE'] = _tr['TEAM'].map(lambda t: _tc_conf.get(t, ''))
+                if 'USER' in _tc.columns:
+                    _tc_user = dict(zip(_tc['TEAM'], _tc['USER'].fillna('')))
+                    _tr['USER'] = _tr['TEAM'].map(lambda t: str(_tc_user.get(t, '')).strip())
+
+            # ── BCR ───────────────────────────────────────────────────────────
+            _tr['BCR_Val'] = 0.0
+            if os.path.exists(_bcr_file):
+                try:
+                    _bcr = pd.read_csv(_bcr_file)
+                    _bcr['TEAM'] = _bcr['TEAM'].astype(str).str.strip()
+                    _bcr_col = next((c for c in _bcr.columns if 'BCR' in c.upper() or 'BLUE' in c.upper() or 'RATIO' in c.upper()), None)
+                    if _bcr_col:
+                        _bcr['_bcr_val'] = pd.to_numeric(
+                            _bcr[_bcr_col].astype(str).str.replace('%', '', regex=False),
+                            errors='coerce'
+                        ).fillna(0)
+                        _bcr_map = dict(zip(_bcr['TEAM'], _bcr['_bcr_val']))
+                        _tr['BCR_Val'] = _tr['TEAM'].map(lambda t: _bcr_map.get(t, 0.0))
+                except Exception:
+                    pass
+
+            # ── Speed counts from roster ──────────────────────────────────────
+            _speed_cols = {
+                'Team Speed (90+ Speed Guys)': 0,
+                'Quad 90 (90+ SPD, ACC, AGI & COD)': 0,
+                'Generational (96+ speed or 96+ Acceleration)': 0,
+                'Off Speed (90+ speed)': 0,
+                'Def Speed (90+ speed)': 0,
+                'Monsters': 0,
+                'Quick Hogs': 0,
+                'QB OVR': 80,
+            }
+            for _sc, _def in _speed_cols.items():
+                _tr[_sc] = _def
+
+            if os.path.exists(_ros_file):
+                try:
+                    _ros = pd.read_csv(_ros_file)
+                    _ros['TEAM'] = _ros['TEAM'].astype(str).str.strip()
+                    for _c in ('SPD','ACC','AGI','COD','OVR','STR','PRC','TAK'):
+                        if _c in _ros.columns:
+                            _ros[_c] = pd.to_numeric(_ros[_c], errors='coerce').fillna(0)
+                    _ros['POS_U'] = _ros['POS'].astype(str).str.upper().str.strip()
+
+                    _off_pos = {'QB','HB','WR','TE','LT','LG','C','RG','RT'}
+                    _def_pos = {'CB','FS','SS','MLB','OLB','DE','DT','LEDG','REDG','SAM','MIKE','WILL','ILB','OLB','LB'}
+                    _front7  = {'DE','DT','LEDG','REDG','SAM','MIKE','WILL','MLB','ILB','OLB','LB'}
+                    _ol_pos  = {'LT','LG','C','RG','RT'}
+
+                    for team, grp in _ros.groupby('TEAM'):
+                        _spd_counts = {
+                            'Team Speed (90+ Speed Guys)':          int((grp['SPD'] >= 90).sum()),
+                            'Quad 90 (90+ SPD, ACC, AGI & COD)':   int(((grp['SPD']>=90)&(grp['ACC']>=90)&(grp['AGI']>=90)&(grp['COD']>=90)).sum()),
+                            'Generational (96+ speed or 96+ Acceleration)': int(((grp['SPD']>=96)|(grp['ACC']>=96)).sum()),
+                            'Off Speed (90+ speed)':                int(((grp['SPD']>=90)&(grp['POS_U'].isin(_off_pos))).sum()),
+                            'Def Speed (90+ speed)':                int(((grp['SPD']>=90)&(grp['POS_U'].isin(_def_pos))).sum()),
+                            'Monsters':                             int((grp['POS_U'].isin(_front7) & (((grp['ACC']>=90)&(grp['SPD']>=84))|((grp['SPD']>=90)&(grp['ACC']>=84)))).sum()),
+                            'Quick Hogs':                           int((grp['POS_U'].isin(_ol_pos) & (grp['AGI']>=85) & (grp['STR']>=90)).sum()),
+                        }
+                        # Best QB OVR on roster
+                        _qbs = grp[grp['POS_U'] == 'QB']
+                        _qb_ovr = int(_qbs['OVR'].max()) if not _qbs.empty else 80
+
+                        _mask = _tr['TEAM'] == team
+                        for _col, _val in _spd_counts.items():
+                            _tr.loc[_mask, _col] = _val
+                        _tr.loc[_mask, 'QB OVR'] = _qb_ovr
+                except Exception:
+                    pass
+
+            # ── QB tier flag columns (derived from QB OVR) ────────────────────
+            def _qb_tier_flags(ovr):
+                ovr = float(ovr)
+                return {
+                    'QB is Elite (90+)':                    'Yes' if ovr >= 90 else 'No',
+                    'QB is Leader (85+)':                   'Yes' if 85 <= ovr < 90 else 'No',
+                    'QB is Average Joe (between 80 and 84)':'Yes' if 80 <= ovr < 85 else 'No',
+                    'Qb is Ass (under 80)':                 'Yes' if ovr < 80 else 'No',
+                }
+            _qb_flags = _tr['QB OVR'].apply(lambda o: pd.Series(_qb_tier_flags(o)))
+            for _fc in _qb_flags.columns:
+                _tr[_fc] = _qb_flags[_fc]
+            _tr['Star Skill Guy is Generational Speed?'] = 'No'
+
+            # ── Improvement vs prior year ─────────────────────────────────────
+            _tr['Improvement'] = 0
+            if os.path.exists(_tr_prev):
+                try:
+                    _prev = pd.read_csv(_tr_prev)
+                    _prev['TEAM'] = _prev['TEAM'].astype(str).str.strip()
+                    _prev['OVERALL'] = pd.to_numeric(_prev.get('OVR', _prev.get('OVERALL', 82)), errors='coerce').fillna(82)
+                    _prev_map = dict(zip(_prev['TEAM'], _prev['OVERALL']))
+                    _tr['Improvement'] = _tr.apply(
+                        lambda row: int(row['OVERALL'] - _prev_map.get(row['TEAM'], row['OVERALL'])),
+                        axis=1
+                    )
+                except Exception:
+                    pass
+
+            return _tr
+
+        # Build r_2041 — prefer new sources, fall back to TeamRatingsHistory
+        _new_r = _build_r2041_from_sources(current_year)
+        if not _new_r.empty:
+            r_2041 = _new_r
+            # r_2040 from prior year new sources for consistency
+            _new_r0 = _build_r2041_from_sources(current_year - 1)
+            r_2040 = _new_r0 if not _new_r0.empty else ratings[ratings['YEAR'] == current_year - 1].copy()
+        else:
+            # Legacy fallback: TeamRatingsHistory.csv
+            r_2041 = ratings[ratings['YEAR'] == current_year].copy()
+            r_2040 = ratings[ratings['YEAR'] == current_year - 1].copy()
+
         r_2041['USER'] = safe_title_series(r_2041['USER'])
-        r_2040['USER'] = safe_title_series(r_2040['USER'])
+        r_2040['USER'] = safe_title_series(r_2040['USER']) if not r_2040.empty else r_2040
         r_2041['TEAM'] = r_2041['TEAM'].astype(str).str.strip()
-        r_2040['TEAM'] = r_2040['TEAM'].astype(str).str.strip()
+        if not r_2040.empty:
+            r_2040['TEAM'] = r_2040['TEAM'].astype(str).str.strip()
 
         bcr_col = 'Blue Chip Ratio (4 & 5 star recruit ratio on roster)'
         if bcr_col in r_2041.columns:
             r_2041['BCR_Val'] = pd.to_numeric(r_2041[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
         elif 'BCR_Val' not in r_2041.columns:
             r_2041['BCR_Val'] = 0
-        if bcr_col in r_2040.columns:
-            r_2040['BCR_Val'] = pd.to_numeric(r_2040[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
-        elif 'BCR_Val' not in r_2040.columns:
-            r_2040['BCR_Val'] = 0
+        if not r_2040.empty:
+            if bcr_col in r_2040.columns:
+                r_2040['BCR_Val'] = pd.to_numeric(r_2040[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
+            elif 'BCR_Val' not in r_2040.columns:
+                r_2040['BCR_Val'] = 0
 
         yes_no_cols = [
-            'QB is Elite (90+)',
-            'QB is Leader (85+)',
-            'QB is Average Joe (between 80 and 84)',
-            'Qb is Ass (under 80)',
+            'QB is Elite (90+)', 'QB is Leader (85+)',
+            'QB is Average Joe (between 80 and 84)', 'Qb is Ass (under 80)',
             'Star Skill Guy is Generational Speed?'
         ]
         r_2041 = normalize_yes_no_columns(r_2041, [c for c in yes_no_cols if c in r_2041.columns])
-        r_2040 = normalize_yes_no_columns(r_2040, [c for c in yes_no_cols if c in r_2040.columns])
+        if not r_2040.empty:
+            r_2040 = normalize_yes_no_columns(r_2040, [c for c in yes_no_cols if c in r_2040.columns])
 
-        # Rename legacy column name from TeamRatingsHistory.csv before any processing
+        # Legacy column rename
         _gb_old = 'Game Breakers (90+ Speed & 90+ Acceleration)'
         _gb_new = 'Quad 90 (90+ SPD, ACC, AGI & COD)'
         if _gb_old in r_2041.columns:
             r_2041 = r_2041.rename(columns={_gb_old: _gb_new})
-        if _gb_old in r_2040.columns:
+        if not r_2040.empty and _gb_old in r_2040.columns:
             r_2040 = r_2040.rename(columns={_gb_old: _gb_new})
 
-        for num_col in [
-            'OVERALL', 'OFFENSE', 'DEFENSE', 'QB OVR'
-        ]:
+        for num_col in ['OVERALL', 'OFFENSE', 'DEFENSE', 'QB OVR']:
             if num_col in r_2041.columns:
                 r_2041[num_col] = pd.to_numeric(r_2041[num_col], errors='coerce')
-            if num_col in r_2040.columns:
+            if not r_2040.empty and num_col in r_2040.columns:
                 r_2040[num_col] = pd.to_numeric(r_2040[num_col], errors='coerce')
 
         def get_improvement(row):
             if r_2040.empty or 'OVERALL' not in r_2040.columns:
-                return 0
+                return int(r_2041.loc[r_2041['TEAM']==row['TEAM'], 'Improvement'].values[0]) if 'Improvement' in r_2041.columns and not r_2041[r_2041['TEAM']==row['TEAM']].empty else 0
             prev = r_2040[r_2040['TEAM'].str.lower() == str(row['TEAM']).strip().lower()]
             return int(row['OVERALL'] - prev['OVERALL'].values[0]) if not prev.empty else 0
 
-        r_2041['Improvement'] = r_2041.apply(get_improvement, axis=1)
+        if 'Improvement' not in r_2041.columns:
+            r_2041['Improvement'] = r_2041.apply(get_improvement, axis=1)
 
         meta = {
             'yr': yr_key,
