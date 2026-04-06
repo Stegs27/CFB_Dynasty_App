@@ -9584,14 +9584,65 @@ def load_data(current_year=CURRENT_YEAR):
         # Ratings prep
         r_2041 = ratings[ratings['YEAR'] == current_year].copy()
         r_2040 = ratings[ratings['YEAR'] == current_year - 1].copy()
+
+        # ── Bootstrap r_2041 from team_ratings_{YEAR}.csv when TeamRatingsHistory ──
+        # has no current-year data yet (start of new season before manual import).
+        if r_2041.empty:
+            _tr_file = f'team_ratings_{current_year}.csv'
+            _tc_file = 'team_conferences.csv'
+            try:
+                _tr = pd.read_csv(_tr_file) if os.path.exists(_tr_file) else pd.DataFrame()
+                _tc = pd.read_csv(_tc_file) if os.path.exists(_tc_file) else pd.DataFrame()
+                if not _tr.empty:
+                    _tr['TEAM'] = _tr['TEAM'].astype(str).str.strip()
+                    _tr['YEAR'] = current_year
+                    # Map OVR/OFF/DEF to the OVERALL/OFFENSE/DEFENSE columns the model expects
+                    _tr['OVERALL'] = pd.to_numeric(_tr.get('OVR', _tr.get('OVERALL', 82)), errors='coerce').fillna(82)
+                    _tr['OFFENSE'] = pd.to_numeric(_tr.get('OFF', _tr.get('OFFENSE', 82)), errors='coerce').fillna(82)
+                    _tr['DEFENSE'] = pd.to_numeric(_tr.get('DEF', _tr.get('DEFENSE', 82)), errors='coerce').fillna(82)
+                    # Required columns with sensible defaults
+                    _tr['USER'] = ''
+                    _tr['CONFERENCE'] = ''
+                    _tr['BCR_Val'] = 0
+                    _tr['QB OVR'] = 80
+                    _tr['Blue Chip Ratio (4 & 5 star recruit ratio on roster)'] = '0%'
+                    _tr['QB is Elite (90+)'] = 'No'
+                    _tr['QB is Leader (85+)'] = 'No'
+                    _tr['QB is Average Joe (between 80 and 84)'] = 'No'
+                    _tr['Qb is Ass (under 80)'] = 'No'
+                    _tr['Star Skill Guy is Generational Speed?'] = 'No'
+                    _tr['Quad 90 (90+ SPD, ACC, AGI & COD)'] = 0
+                    _tr['Team Speed (90+ Speed Guys)'] = 0
+                    _tr['Generational (96+ speed or 96+ Acceleration)'] = 0
+                    _tr['Off Speed (90+ speed)'] = 0
+                    _tr['Def Speed (90+ speed)'] = 0
+                    # Merge conference from team_conferences.csv
+                    if not _tc.empty and 'TEAM' in _tc.columns and 'CONFERENCE' in _tc.columns:
+                        _tc['TEAM'] = _tc['TEAM'].astype(str).str.strip()
+                        _tc_map = dict(zip(_tc['TEAM'], _tc['CONFERENCE']))
+                        _tr['CONFERENCE'] = _tr['TEAM'].map(lambda t: _tc_map.get(t, ''))
+                        # Set USER from team_conferences USER column if present
+                        if 'USER' in _tc.columns:
+                            _tc_user_map = dict(zip(_tc['TEAM'], _tc['USER'].fillna('')))
+                            _tr['USER'] = _tr['TEAM'].map(lambda t: str(_tc_user_map.get(t, '')).strip())
+                    r_2041 = _tr.copy()
+                    log.info(f"Bootstrapped r_2041 for {current_year} from {_tr_file} ({len(r_2041)} teams)")
+            except Exception as _boot_e:
+                log.warning(f"Could not bootstrap r_2041 from team_ratings_{current_year}.csv: {_boot_e}")
         r_2041['USER'] = safe_title_series(r_2041['USER'])
         r_2040['USER'] = safe_title_series(r_2040['USER'])
         r_2041['TEAM'] = r_2041['TEAM'].astype(str).str.strip()
         r_2040['TEAM'] = r_2040['TEAM'].astype(str).str.strip()
 
         bcr_col = 'Blue Chip Ratio (4 & 5 star recruit ratio on roster)'
-        r_2041['BCR_Val'] = pd.to_numeric(r_2041[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
-        r_2040['BCR_Val'] = pd.to_numeric(r_2040[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
+        if bcr_col in r_2041.columns:
+            r_2041['BCR_Val'] = pd.to_numeric(r_2041[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
+        elif 'BCR_Val' not in r_2041.columns:
+            r_2041['BCR_Val'] = 0
+        if bcr_col in r_2040.columns:
+            r_2040['BCR_Val'] = pd.to_numeric(r_2040[bcr_col].astype(str).str.replace('%', '', regex=False), errors='coerce').fillna(0)
+        elif 'BCR_Val' not in r_2040.columns:
+            r_2040['BCR_Val'] = 0
 
         yes_no_cols = [
             'QB is Elite (90+)',
@@ -9600,8 +9651,8 @@ def load_data(current_year=CURRENT_YEAR):
             'Qb is Ass (under 80)',
             'Star Skill Guy is Generational Speed?'
         ]
-        r_2041 = normalize_yes_no_columns(r_2041, yes_no_cols)
-        r_2040 = normalize_yes_no_columns(r_2040, yes_no_cols)
+        r_2041 = normalize_yes_no_columns(r_2041, [c for c in yes_no_cols if c in r_2041.columns])
+        r_2040 = normalize_yes_no_columns(r_2040, [c for c in yes_no_cols if c in r_2040.columns])
 
         # Rename legacy column name from TeamRatingsHistory.csv before any processing
         _gb_old = 'Game Breakers (90+ Speed & 90+ Acceleration)'
@@ -9620,6 +9671,8 @@ def load_data(current_year=CURRENT_YEAR):
                 r_2040[num_col] = pd.to_numeric(r_2040[num_col], errors='coerce')
 
         def get_improvement(row):
+            if r_2040.empty or 'OVERALL' not in r_2040.columns:
+                return 0
             prev = r_2040[r_2040['TEAM'].str.lower() == str(row['TEAM']).strip().lower()]
             return int(row['OVERALL'] - prev['OVERALL'].values[0]) if not prev.empty else 0
 
@@ -30580,10 +30633,26 @@ with tabs[1]:
         with nfl_tabs[7]:
             st.subheader("🏆 Super Bowl History")
 
-            if nfl_super_bowl.empty:
-                st.info("No fictional Super Bowl history entered yet.")
+            _sb_hist_revealed = get_current_nfl_week()
+            _sb_hist_season   = get_current_nfl_season()
+            # Filter to only revealed seasons
+            _sb_display = pd.DataFrame()
+            if not nfl_super_bowl.empty and "Season" in nfl_super_bowl.columns:
+                _sb_tmp = nfl_super_bowl.copy()
+                _sb_tmp["Season"] = pd.to_numeric(_sb_tmp["Season"], errors="coerce")
+                _sb_display = _sb_tmp[
+                    (_sb_tmp["Season"].fillna(-1).astype(int) < _sb_hist_season - 1) |
+                    ((_sb_tmp["Season"].fillna(-1).astype(int) == _sb_hist_season - 1) & (_sb_hist_revealed >= 19))
+                ].copy()
+
+            if _sb_display.empty:
+                _sb_not_revealed_yet = (_sb_hist_revealed < 19) and not nfl_super_bowl.empty
+                if _sb_not_revealed_yet:
+                    st.info(f"Super Bowl results for NFL {_sb_hist_season - 1} will be revealed once the full season is advanced (week 19).")
+                else:
+                    st.info("No Super Bowl history yet.")
             else:
-                sb = nfl_super_bowl.copy().sort_values("Season", ascending=False)
+                sb = _sb_display.sort_values("Season", ascending=False)
                 sb.insert(1, "Champion Logo", sb["Champion"].map(get_nfl_logo_src))
                 sb.insert(3, "RunnerUp Logo", sb["RunnerUp"].map(get_nfl_logo_src))
 
@@ -30619,7 +30688,10 @@ with tabs[1]:
         with nfl_tabs[8]:
             st.subheader("📰 Storylines")
 
-            # ── Trade History ─────────────────────────────────────────────────
+            _sl_revealed_week  = get_current_nfl_week()
+            _sl_nfl_season     = get_current_nfl_season()
+
+            # Filter trade history to revealed weeks only
             if os.path.exists("nfl_trade_history.csv"):
                 try:
                     _th_df = pd.read_csv("nfl_trade_history.csv")
@@ -30627,7 +30699,8 @@ with tabs[1]:
                         _th_df["Season"] = pd.to_numeric(_th_df["Season"], errors="coerce")
                         _th_df["Week"]   = pd.to_numeric(_th_df["Week"],   errors="coerce")
                         _th_current = _th_df[
-                            _th_df["Season"].fillna(-1).astype(int) == int(get_current_nfl_season())
+                            (_th_df["Season"].fillna(-1).astype(int) == int(_sl_nfl_season)) &
+                            (_th_df["Week"].fillna(99).astype(int) <= _sl_revealed_week)
                         ].sort_values("Week", ascending=False).copy()
 
                         if not _th_current.empty:
@@ -30716,6 +30789,16 @@ with tabs[1]:
                 story_df = nfl_story.copy()
                 story_df["Season"] = pd.to_numeric(story_df["Season"], errors="coerce").fillna(0)
                 story_df["Week"]   = pd.to_numeric(story_df["Week"],   errors="coerce").fillna(0)
+                # Only show events from fully-revealed weeks
+                # Historical seasons (< current-1) always visible
+                # Current season (nfl_season-1): only up to revealed week
+                story_df = story_df[
+                    (story_df["Season"].astype(int) < _sl_nfl_season - 1) |
+                    (
+                        (story_df["Season"].astype(int) == _sl_nfl_season - 1) &
+                        (story_df["Week"].astype(int) <= _sl_revealed_week)
+                    )
+                ].copy()
                 story_df = story_df.sort_values(
                     ["Season", "Week", "ImpactScore"],
                     ascending=[False, False, False]
