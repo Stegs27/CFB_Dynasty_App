@@ -592,6 +592,14 @@ def render_highest_rated_games(data: dict) -> None:
     home_r = rankings.rename(columns={"Team": "HomeTeam", "Rank": "HomeRank"})
     away_r = rankings.rename(columns={"Team": "AwayTeam", "Rank": "AwayRank"})
     games = schedule.merge(home_r, on="HomeTeam", how="left").merge(away_r, on="AwayTeam", how="left")
+
+    if "HomeRank" not in games.columns:
+        games["HomeRank"] = pd.NA
+    if "AwayRank" not in games.columns:
+        games["AwayRank"] = pd.NA
+
+    games["HomeRank"] = pd.to_numeric(games["HomeRank"], errors="coerce")
+    games["AwayRank"] = pd.to_numeric(games["AwayRank"], errors="coerce")
     games["RankScore"] = (26 - games["HomeRank"].fillna(26)) + (26 - games["AwayRank"].fillna(26))
     if not summaries.empty:
         keep_cols = [c for c in ["Year", "Week", "HomeTeam", "AwayTeam", "Summary"] if c in summaries.columns]
