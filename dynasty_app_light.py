@@ -15,57 +15,7 @@ st.set_page_config(page_title="CFB Dynasty Lite", layout="wide")
 MANUAL_YEAR = 2043
 MANUAL_WEEK = 2
 
-# ------------------------------------------------------------
-# FILE MAP
-# ------------------------------------------------------------
-def build_file_map(year: int, week: int) -> dict[str, str]:
-    return {
-        "schedule": f"schedule_{year}.csv",
-        "game_summaries": "game_summaries.csv",
-        "bluechip": f"bluechip_ratio_{year}.csv",
-        "cfp_rankings": "cfp_rankings_history.csv",
-        "fpi": resolve_metric_file("fpi_ratings", year, week),
-        "ms_plus": resolve_metric_file("ms_plus", year, week),
-        "team_conferences": "team_conferences.csv",
-        "team_ratings": f"team_ratings_{year}.csv",
-        "user_teams": "user_teams.csv",
-        "week_game_status": "week_game_status.csv",
-        "week_manual_scores": "week_manual_scores.csv",
-        "team_visuals": "team_visuals.csv",
-        "team_aliases": "team_aliases.csv",
-        "cfp_bracket": "CFPbracketresults.csv",
-        "injury_bulletin": "injury_bulletin.csv",
-    }
-
 LOGO_DIRS = ["logos", "./logos"]
-
-
-def resolve_metric_file(prefix: str, year: int, week: int) -> str:
-    """
-    Prefer the requested week file. If it does not exist yet, fall back to the
-    most recent prior week file for that season.
-    """
-    exact = f"{prefix}_{year}_wk{week}.csv"
-    if os.path.exists(exact):
-        return exact
-
-    candidates: list[tuple[int, str]] = []
-    for p in Path(".").glob(f"{prefix}_{year}_wk*.csv"):
-        stem = p.stem
-        marker = f"{year}_wk"
-        if marker in stem:
-            maybe = stem.split(marker, 1)[1]
-            if maybe.isdigit():
-                candidates.append((int(maybe), str(p)))
-    if not candidates:
-        return exact
-
-    candidates.sort()
-    prior = [c for c in candidates if c[0] <= week]
-    if prior:
-        return prior[-1][1]
-    return candidates[-1][1]
-
 
 # ------------------------------------------------------------
 # BASIC HELPERS
@@ -104,6 +54,44 @@ def infer_week_from_repo(year: int, default_week: int) -> int:
                     candidates.append(int(maybe))
     return max(candidates) if candidates else default_week
 
+def build_base_file_map(year: int) -> dict[str, str]:
+    return {
+        "schedule": f"schedule_{year}.csv",
+        "game_summaries": "game_summaries.csv",
+        "bluechip": f"bluechip_ratio_{year}.csv",
+        "cfp_rankings": "cfp_rankings_history.csv",
+        "team_conferences": "team_conferences.csv",
+        "team_ratings": f"team_ratings_{year}.csv",
+        "user_teams": "user_teams.csv",
+        "week_game_status": "week_game_status.csv",
+        "week_manual_scores": "week_manual_scores.csv",
+        "team_visuals": "team_visuals.csv",
+        "team_aliases": "team_aliases.csv",
+        "cfp_bracket": "CFPbracketresults.csv",
+        "injury_bulletin": "injury_bulletin.csv",
+    }
+
+def resolve_metric_path(prefix: str, year: int, week: int) -> tuple[str, int | None]:
+    exact = Path(f"{prefix}_{year}_wk{week}.csv")
+    if exact.exists():
+        return str(exact), week
+    candidates: list[tuple[int, str]] = []
+    for path in Path(".").glob(f"{prefix}_{year}_wk*.csv"):
+        stem = path.stem
+        marker = f"{year}_wk"
+        if marker in stem:
+            maybe = stem.split(marker, 1)[1]
+            if maybe.isdigit():
+                candidates.append((int(maybe), str(path)))
+    if not candidates:
+        return f"{prefix}_{year}_wk{week}.csv", None
+    valid_prior = [c for c in candidates if c[0] <= week]
+    if valid_prior:
+        chosen = max(valid_prior, key=lambda x: x[0])
+    else:
+        chosen = max(candidates, key=lambda x: x[0])
+    return chosen[1], chosen[0]
+
 def standardize_schedule_columns(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
@@ -129,16 +117,9 @@ def standardize_schedule_columns(df: pd.DataFrame) -> pd.DataFrame:
 def standardize_other_frames(data: dict) -> dict:
     if not data["game_summaries"].empty:
         data["game_summaries"] = data["game_summaries"].rename(columns={
-            "YEAR": "Year",
-            "WEEK": "Week",
-            "VISITOR": "AwayTeam",
-            "HOME": "HomeTeam",
-            "VIS_RANK": "AwayRank",
-            "HOME_RANK": "HomeRank",
-            "VIS_FINAL": "AwayScore",
-            "HOME_FINAL": "HomeScore",
-            "VIS_USER": "AwayUser",
-            "HOME_USER": "HomeUser",
+            "YEAR": "Year", "WEEK": "Week", "VISITOR": "AwayTeam", "HOME": "HomeTeam",
+            "VIS_RANK": "AwayRank", "HOME_RANK": "HomeRank", "VIS_FINAL": "AwayScore",
+            "HOME_FINAL": "HomeScore", "VIS_USER": "AwayUser", "HOME_USER": "HomeUser",
             "NOTES": "Summary",
         })
     if not data["cfp_rankings"].empty:
@@ -161,9 +142,9 @@ def standardize_other_frames(data: dict) -> dict:
         data["cfp_bracket"] = data["cfp_bracket"].rename(columns={
             "YEAR": "Year", "ROUND": "Round", "GAME_ID": "GameID",
             "TEAM1": "Team1", "SEED1": "Seed1", "DISPLAY_RANK1": "DisplayRank1", "RECORD1": "Record1",
-            "TEAM1_SCORE": "Team1Score", "TEAM2": "Team2", "SEED2": "Seed2",
-            "DISPLAY_RANK2": "DisplayRank2", "RECORD2": "Record2", "TEAM2_SCORE": "Team2Score",
-            "WINNER": "Winner", "LOSER": "Loser", "COMPLETED": "Completed", "SOURCE": "Source", "NOTES": "Notes"
+            "TEAM1_SCORE": "Team1Score", "TEAM2": "Team2", "SEED2": "Seed2", "DISPLAY_RANK2": "DisplayRank2",
+            "RECORD2": "Record2", "TEAM2_SCORE": "Team2Score", "WINNER": "Winner", "LOSER": "Loser",
+            "COMPLETED": "Completed", "SOURCE": "Source", "NOTES": "Notes"
         })
     return data
 
@@ -222,12 +203,7 @@ def find_logo_path(team_name: str, alias_map: dict[str, str]) -> str | None:
             continue
         parts = raw.replace("&", "and").replace("-", " ").split()
         camel = parts[0].lower() + "".join(p[:1].upper() + p[1:] for p in parts[1:]) if parts else ""
-        candidates.extend([
-            normalize_key(raw),
-            normalize_key(camel),
-            raw.replace(" ", ""),
-            raw,
-        ])
+        candidates.extend([normalize_key(raw), normalize_key(camel), raw.replace(" ", ""), raw])
     seen = []
     for c in candidates:
         if c and c not in seen:
@@ -246,7 +222,6 @@ def merge_manual_scores(schedule_df: pd.DataFrame, manual_scores_df: pd.DataFram
     for col in ["HomeTeam", "AwayTeam"]:
         if col in df.columns:
             df[col] = df[col].map(lambda x: canonical_team_name(x, alias_map))
-
     if manual_scores_df.empty:
         return df
     ms = standardize_schedule_columns(manual_scores_df.copy())
@@ -265,7 +240,12 @@ def merge_manual_scores(schedule_df: pd.DataFrame, manual_scores_df: pd.DataFram
 def load_data() -> dict:
     active_year = MANUAL_YEAR if MANUAL_YEAR is not None else infer_year_from_repo(2043)
     active_week = MANUAL_WEEK if MANUAL_WEEK is not None else infer_week_from_repo(active_year, 1)
-    file_map = build_file_map(active_year, active_week)
+    file_map = build_base_file_map(active_year)
+    fpi_path, fpi_week_used = resolve_metric_path("fpi_ratings", active_year, active_week)
+    ms_path, ms_week_used = resolve_metric_path("ms_plus", active_year, active_week)
+    file_map["fpi"] = fpi_path
+    file_map["ms_plus"] = ms_path
+
     data = {k: safe_read_csv(v) for k, v in file_map.items()}
     data["schedule"] = standardize_schedule_columns(data["schedule"])
     data["week_manual_scores"] = standardize_schedule_columns(data["week_manual_scores"])
@@ -289,6 +269,8 @@ def load_data() -> dict:
     data["active_year"] = active_year
     data["active_week"] = active_week
     data["file_map"] = file_map
+    data["fpi_week_used"] = fpi_week_used
+    data["ms_week_used"] = ms_week_used
     return data
 
 @st.cache_data(ttl=300)
@@ -354,13 +336,12 @@ def get_fpi_ms_table(fpi_df: pd.DataFrame, ms_df: pd.DataFrame) -> pd.DataFrame:
             return pd.DataFrame(columns=["Team", value_name])
         cols = {c.lower(): c for c in df.columns}
         team_col = cols.get("team") or cols.get("school") or cols.get("program")
-        value_col = cols.get(value_name.lower())
-        if not value_col and value_name == "MS+":
-            value_col = cols.get("msplus") or cols.get("ms_plus") or cols.get("ms+")
-        if not value_col and value_name == "FPI":
-            value_col = cols.get("fpi")
+        if value_name == "MS+":
+            value_col = cols.get("ms+") or cols.get("msplus") or cols.get("ms_plus")
+        else:
+            value_col = cols.get(value_name.lower())
         if not value_col:
-            preferred = [c for c in df.columns if c.lower() in {"rating", "value", "fpi", "ms+", "ms_plus", "msplus", "msplus"}]
+            preferred = [c for c in df.columns if c.lower() in {"rating", "value", "fpi", "ms+", "ms_plus", "msplus"}]
             if preferred:
                 value_col = preferred[0]
         if not value_col:
@@ -396,6 +377,18 @@ def build_game_status_lookup(game_status_df: pd.DataFrame, schedule_df: pd.DataF
                 lookup[(home, away)] = str(row.get("Status", "Scheduled")).strip()
     return lookup
 
+def status_chip_html(status: str, count: int) -> str:
+    status_u = str(status or "SCHEDULED").upper()
+    color_map = {
+        "FINAL": ("#22c55e", "rgba(34,197,94,0.16)", "#dcfce7"),
+        "LIVE": ("#ef4444", "rgba(239,68,68,0.16)", "#fee2e2"),
+        "IN PROGRESS": ("#ef4444", "rgba(239,68,68,0.16)", "#fee2e2"),
+        "SCHEDULED": ("#38bdf8", "rgba(56,189,248,0.16)", "#e0f2fe"),
+        "BYE": ("#a78bfa", "rgba(167,139,250,0.16)", "#ede9fe"),
+    }
+    border, bg, fg = color_map.get(status_u, ("#94a3b8", "rgba(148,163,184,0.16)", "#e2e8f0"))
+    return f"<span style='display:inline-block;padding:8px 12px;border-radius:999px;border:1px solid {border};background:{bg};color:{fg};font-size:.78rem;font-weight:900;margin:0 8px 10px 0;'>{status_u} • {count}</span>"
+
 # ------------------------------------------------------------
 # RENDERERS
 # ------------------------------------------------------------
@@ -404,14 +397,23 @@ def render_sidebar(data: dict) -> None:
     st.sidebar.caption(f"Year {data['active_year']} • Week {data['active_week']}")
     st.sidebar.markdown("### Rollover")
     st.sidebar.caption("Set MANUAL_YEAR / MANUAL_WEEK at the top of the file, or set them to None and let the app auto-detect the newest season/week from the repo.")
+    st.sidebar.markdown("### Metrics file in use")
+    st.sidebar.caption(f"FPI: {Path(data['file_map']['fpi']).name}" + (f" (wk {data['fpi_week_used']})" if data['fpi_week_used'] else ""))
+    st.sidebar.caption(f"MS+: {Path(data['file_map']['ms_plus']).name}" + (f" (wk {data['ms_week_used']})" if data['ms_week_used'] else ""))
     missing = [path for path in data["file_map"].values() if not os.path.exists(path)]
-    st.sidebar.markdown("### Active files")
-    st.sidebar.caption(f"FPI file: {Path(data['file_map']['fpi']).name}")
-    st.sidebar.caption(f"MS+ file: {Path(data['file_map']['ms_plus']).name}")
     if missing:
-        st.sidebar.warning("Missing files:")
+        st.sidebar.warning("Missing files in repo:")
         for path in missing:
             st.sidebar.caption(f"• {path}")
+
+def render_status_signifiers(cards_df: pd.DataFrame) -> None:
+    if cards_df.empty or "Status" not in cards_df.columns:
+        return
+    counts = cards_df["Status"].fillna("SCHEDULED").astype(str).str.upper().value_counts().to_dict()
+    preferred_order = ["FINAL", "LIVE", "IN PROGRESS", "SCHEDULED", "BYE"]
+    html = "".join(status_chip_html(status, counts[status]) for status in preferred_order if status in counts)
+    if html:
+        st.markdown(f"<div style='margin:4px 0 14px 0;'>{html}</div>", unsafe_allow_html=True)
 
 def render_team_card(row: pd.Series, rankings: pd.DataFrame, metrics: pd.DataFrame, visual_map: dict[str, dict], alias_map: dict[str, str], status_lookup: dict[tuple[str, str], str]) -> None:
     home = str(row.get("HomeTeam", "")).strip()
@@ -420,6 +422,8 @@ def render_team_card(row: pd.Series, rankings: pd.DataFrame, metrics: pd.DataFra
     home_score_col, away_score_col = score_columns(pd.DataFrame([row]))
     home_score = row.get(home_score_col) if home_score_col else None
     away_score = row.get(away_score_col) if away_score_col else None
+    tv = str(row.get("TV_Broadcast", "")).strip() if "TV_Broadcast" in row.index else ""
+    kickoff = str(row.get("Kickoff_Time", "")).strip() if "Kickoff_Time" in row.index else ""
 
     def team_meta(team: str):
         rank_row = rankings[rankings["Team"] == team]
@@ -439,36 +443,45 @@ def render_team_card(row: pd.Series, rankings: pd.DataFrame, metrics: pd.DataFra
     away_rank, away_fpi, away_ms, away_logo = team_meta(away)
     home_primary, home_secondary = get_team_colors(home, visual_map)
     away_primary, away_secondary = get_team_colors(away, visual_map)
-    status = status_lookup.get((home, away), "Scheduled")
+    status = status_lookup.get((home, away), str(row.get("Status", "Scheduled")).strip() or "Scheduled")
 
     st.markdown("""
     <style>
-    .lite-card{border-radius:18px;padding:18px;background:linear-gradient(180deg, rgba(10,14,22,.94), rgba(17,24,39,.96));border:1px solid rgba(255,255,255,.08);margin-bottom:16px;box-shadow:0 10px 24px rgba(0,0,0,.22);}
-    .team-chip{display:inline-block;padding:4px 8px;border-radius:999px;font-size:.75rem;font-weight:800;color:white;margin-top:6px;}
-    .center-meta{text-align:center;font-weight:800;color:white;}
-    .subtle{text-align:center;color:#cbd5e1;font-size:.9rem;}
+    .dyn-card{border-radius:20px;padding:18px 20px;background:linear-gradient(180deg, rgba(7,12,20,.96), rgba(17,24,39,.98));border:1px solid rgba(255,255,255,.08);margin-bottom:16px;box-shadow:0 10px 24px rgba(0,0,0,.28);}
+    .dyn-rank{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.72rem;font-weight:900;color:#fff;letter-spacing:.04em}
+    .dyn-center{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;}
+    .dyn-vs{font-size:1.7rem;font-weight:900;color:#fff;line-height:1.0}
+    .dyn-sub{font-size:.82rem;color:#cbd5e1;font-weight:700;margin-top:6px;text-align:center}
+    .dyn-meta{font-size:.76rem;color:#94a3b8;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
     </style>
     """, unsafe_allow_html=True)
+
     with st.container():
-        st.markdown("<div class='lite-card'>", unsafe_allow_html=True)
-        c1, c2, c3 = st.columns([1.4, 0.8, 1.4])
+        st.markdown("<div class='dyn-card'>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1.5, 0.9, 1.5])
         with c1:
             if home_logo:
-                st.image(home_logo, width=70)
+                st.image(home_logo, width=72)
             st.markdown(f"### {home}")
-            st.markdown(f"<span class='team-chip' style='background:{home_primary}; border:1px solid {home_secondary};'>{home_rank}</span>", unsafe_allow_html=True)
+            st.markdown(f"<span class='dyn-rank' style='background:{home_primary}; border:1px solid {home_secondary};'>{home_rank}</span>", unsafe_allow_html=True)
             st.caption(f"FPI {home_fpi} • MS+ {home_ms}")
             if home_score is not None and pd.notna(home_score):
                 st.metric("Score", int(float(home_score)))
         with c2:
-            st.markdown(f"<div class='center-meta'>WEEK {week}</div>", unsafe_allow_html=True)
-            st.markdown("<div class='center-meta' style='font-size:1.4rem;'>VS</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='subtle'>{status}</div>", unsafe_allow_html=True)
+            st.markdown("<div class='dyn-center'>", unsafe_allow_html=True)
+            st.markdown(f"<div class='dyn-meta'>Week {week}</div>", unsafe_allow_html=True)
+            st.markdown("<div class='dyn-vs'>VS</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='dyn-sub'>{status}</div>", unsafe_allow_html=True)
+            if tv:
+                st.markdown(f"<div class='dyn-sub'>📺 {tv}</div>", unsafe_allow_html=True)
+            if kickoff and kickoff.lower() != 'nan':
+                st.markdown(f"<div class='dyn-sub'>🕒 {kickoff}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
         with c3:
             if away_logo:
-                st.image(away_logo, width=70)
+                st.image(away_logo, width=72)
             st.markdown(f"### {away}")
-            st.markdown(f"<span class='team-chip' style='background:{away_primary}; border:1px solid {away_secondary};'>{away_rank}</span>", unsafe_allow_html=True)
+            st.markdown(f"<span class='dyn-rank' style='background:{away_primary}; border:1px solid {away_secondary};'>{away_rank}</span>", unsafe_allow_html=True)
             st.caption(f"FPI {away_fpi} • MS+ {away_ms}")
             if away_score is not None and pd.notna(away_score):
                 st.metric("Score", int(float(away_score)))
@@ -493,6 +506,7 @@ def render_user_cards_section(data: dict) -> None:
         st.info("No user-team games found for the current week.")
         return
 
+    render_status_signifiers(cards_df)
     for _, row in cards_df.iterrows():
         render_team_card(row, rankings, metrics, data["visual_map"], alias_map, status_lookup)
 
@@ -568,12 +582,11 @@ def render_highest_rated_games(data: dict) -> None:
     away_r = rankings.rename(columns={"Team": "AwayTeam", "Rank": "AwayRank"})
     games = schedule.merge(home_r, on="HomeTeam", how="left").merge(away_r, on="AwayTeam", how="left")
     games["RankScore"] = (26 - games["HomeRank"].fillna(26)) + (26 - games["AwayRank"].fillna(26))
-
     if not summaries.empty:
         keep_cols = [c for c in ["Year", "Week", "HomeTeam", "AwayTeam", "Summary"] if c in summaries.columns]
-        if keep_cols:
-            games = games.merge(summaries[keep_cols], on=[c for c in ["Year", "Week", "HomeTeam", "AwayTeam"] if c in keep_cols and c in games.columns], how="left")
-
+        join_cols = [c for c in ["Year", "Week", "HomeTeam", "AwayTeam"] if c in keep_cols and c in games.columns]
+        if join_cols:
+            games = games.merge(summaries[join_cols + ["Summary"]].drop_duplicates(), on=join_cols, how="left")
     games = games.sort_values(["RankScore", "Week"], ascending=[False, False]).head(12)
     display_cols = [c for c in ["Week", "HomeTeam", "AwayTeam", "HomeRank", "AwayRank", "Summary"] if c in games.columns]
     st.dataframe(games[display_cols], hide_index=True, use_container_width=True)
@@ -584,6 +597,10 @@ def render_injury_report(data: dict) -> None:
     if df.empty:
         st.info("No injury bulletin file found.")
         return
+    if "Year" in df.columns:
+        df = df[pd.to_numeric(df["Year"], errors="coerce").fillna(data["active_year"]).astype(int) == data["active_year"]]
+    if "Week" in df.columns and df["Week"].notna().any():
+        df = df[pd.to_numeric(df["Week"], errors="coerce").fillna(data["active_week"]).astype(int) <= data["active_week"]]
     st.dataframe(df, hide_index=True, use_container_width=True)
 
 def render_dynasty_news(data: dict) -> None:
@@ -603,7 +620,6 @@ def render_season_recap(data: dict) -> None:
     rankings = get_latest_rankings(data["cfp_rankings"], data["active_year"])
     bracket = data["cfp_bracket"].copy()
     bluechip = data["bluechip"].copy()
-
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Latest CFP Rankings")
@@ -616,8 +632,9 @@ def render_season_recap(data: dict) -> None:
         if bluechip.empty:
             st.info("No blue-chip ratio file found.")
         else:
+            if "Year" in bluechip.columns:
+                bluechip = bluechip[pd.to_numeric(bluechip["Year"], errors="coerce").fillna(data["active_year"]).astype(int) == data["active_year"]]
             st.dataframe(bluechip[[c for c in ["Team", "BlueChipRatio"] if c in bluechip.columns]], hide_index=True, use_container_width=True)
-
     st.subheader("CFP Bracket Results")
     if bracket.empty:
         st.info("No bracket results found.")
@@ -641,7 +658,6 @@ def render_h2h_matrix(data: dict) -> None:
     if played.empty:
         st.info("No completed games available for H2H matrix.")
         return
-
     teams = sorted(set(played["HomeTeam"].dropna().astype(str)) | set(played["AwayTeam"].dropna().astype(str)))
     matrix = pd.DataFrame("", index=teams, columns=teams)
     for _, row in played.iterrows():
