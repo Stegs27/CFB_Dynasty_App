@@ -10335,9 +10335,13 @@ def build_2041_model_table(r_2041, stats_df, rec_df):
         df[_spd_col] = pd.to_numeric(df[_spd_col], errors='coerce').fillna(0)
 
     # Pull conference from TeamRatingsHistory if present
-    if 'CONFERENCE' not in df.columns:
+    # CONFERENCE — prefer what's already in df (from team_conferences.csv via r_2041),
+    # fall back to TeamRatingsHistory.csv for legacy seasons, then default to 'Other'.
+    if 'CONFERENCE' not in df.columns or df['CONFERENCE'].fillna('').eq('').all():
         try:
             _rat_conf = pd.read_csv('TeamRatingsHistory.csv')[['TEAM','CONFERENCE']].drop_duplicates('TEAM')
+            if 'CONFERENCE' in df.columns:
+                df = df.drop(columns=['CONFERENCE'])
             df = df.merge(_rat_conf, on='TEAM', how='left')
         except Exception:
             pass
@@ -15103,7 +15107,7 @@ def _build_gs_ticker_lookup(current_year):
 
 
 @st.cache_data(ttl=300)
-def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
+def _build_ticker_headlines(year, week, is_bowl_week, nfl_revealed_week, _gs_lookup):
     """Build all ticker headlines. Cached 5 min — avoids ~13 CSV reads per rerun."""
     # Shadow module-level constants so the body runs unchanged
     CURRENT_YEAR = year
@@ -16060,9 +16064,11 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
         pass
 
     # ── 8. NFL UNIVERSE HONORS / SUPER BOWL ──────────────────────────────
+    # Gate: nfl_revealed_week is passed in as a cache-key arg.
+    # Super Bowl + awards only appear after full season revealed (>= 19).
     try:
-        # Super Bowl result
-        if os.path.exists('nfl_super_bowl_history.csv'):
+        # Super Bowl result — gated
+        if nfl_revealed_week >= 19 and os.path.exists('nfl_super_bowl_history.csv'):
             _sb_df = pd.read_csv('nfl_super_bowl_history.csv')
             if not _sb_df.empty:
                 _sb_df['Season'] = pd.to_numeric(_sb_df.get('Season'), errors='coerce')
@@ -16103,8 +16109,8 @@ def _build_ticker_headlines(year, week, is_bowl_week, _gs_lookup):
                             'logo_html': _lh,
                         })
 
-        # NFL awards
-        if os.path.exists('nfl_awards_history.csv'):
+        # NFL awards — gated
+        if nfl_revealed_week >= 19 and os.path.exists('nfl_awards_history.csv'):
             _aw_df = pd.read_csv('nfl_awards_history.csv')
             if not _aw_df.empty:
                 _aw_df['Season'] = pd.to_numeric(_aw_df.get('Season'), errors='coerce')
@@ -16342,6 +16348,7 @@ _all_headlines = _build_ticker_headlines(
     year=CURRENT_YEAR,
     week=CURRENT_WEEK_NUMBER,
     is_bowl_week=IS_BOWL_WEEK,
+    nfl_revealed_week=get_current_nfl_week(),
     _gs_lookup=_gs_ticker_lookup,
 )
 # Sort highest priority first
@@ -19541,8 +19548,8 @@ with tabs[0]:
 
         # 5. Load game matchups + commissioner status for current week
         # ── Week game lookup from scores ─────────────────────────────────
-        _gs_week = _dn_week  # week derived from cfp_rankings for display
-        _gs_year = CURRENT_YEAR  # scores always filed under dynasty CURRENT_YEAR
+        _gs_week = CURRENT_WEEK_NUMBER  # always the actual dynasty week, not derived from CFP rankings
+        _gs_year = CURRENT_YEAR
 
 
         # ── Week game lookup — read raw CSV to include unplayed games ─────
@@ -19922,7 +19929,11 @@ with tabs[0]:
         # 5. Render the Cards
         for idx, row in power_board.iterrows():
             team = str(row.get('TEAM', ''))
-            user = str(row.get('USER', ''))
+            user = str(row.get('USER', '')).strip()
+
+            # Only render cards for the 6 dynasty coaches
+            if not user or user.lower() in ('nan', '') or user not in USER_TEAMS:
+                continue
             pi      = row.get('Preseason PI', row.get('Power Index', 0))
 
             # ── Live odds from committee model (rank + schedule path) ────────
