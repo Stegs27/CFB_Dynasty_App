@@ -394,13 +394,24 @@ def status_chip_html(status: str, count: int) -> str:
 # ------------------------------------------------------------
 def render_sidebar(data: dict) -> None:
     st.sidebar.title("Dynasty Lite")
-    st.sidebar.caption(f"Year {data['active_year']} • Week {data['active_week']}")
+    st.sidebar.caption(f"Year {data.get('active_year', MANUAL_YEAR or 2043)} • Week {data.get('active_week', MANUAL_WEEK or 1)}")
     st.sidebar.markdown("### Rollover")
     st.sidebar.caption("Set MANUAL_YEAR / MANUAL_WEEK at the top of the file, or set them to None and let the app auto-detect the newest season/week from the repo.")
     st.sidebar.markdown("### Metrics file in use")
-    st.sidebar.caption(f"FPI: {Path(data['file_map']['fpi']).name}" + (f" (wk {data['fpi_week_used']})" if data['fpi_week_used'] else ""))
-    st.sidebar.caption(f"MS+: {Path(data['file_map']['ms_plus']).name}" + (f" (wk {data['ms_week_used']})" if data['ms_week_used'] else ""))
-    missing = [path for path in data["file_map"].values() if not os.path.exists(path)]
+
+    file_map = data.get('file_map', {}) or {}
+    fpi_path = file_map.get('fpi', '')
+    ms_path = file_map.get('ms_plus', '')
+    fpi_week_used = data.get('fpi_week_used')
+    ms_week_used = data.get('ms_week_used')
+
+    fpi_label = Path(fpi_path).name if fpi_path else 'No FPI file found'
+    ms_label = Path(ms_path).name if ms_path else 'No MS+ file found'
+
+    st.sidebar.caption(f"FPI: {fpi_label}" + (f" (wk {fpi_week_used})" if fpi_week_used is not None else ""))
+    st.sidebar.caption(f"MS+: {ms_label}" + (f" (wk {ms_week_used})" if ms_week_used is not None else ""))
+
+    missing = [path for path in file_map.values() if path and not os.path.exists(path)]
     if missing:
         st.sidebar.warning("Missing files in repo:")
         for path in missing:
