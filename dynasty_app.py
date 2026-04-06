@@ -9628,7 +9628,7 @@ def load_data(current_year=CURRENT_YEAR):
                 try:
                     _bcr = pd.read_csv(_bcr_file)
                     _bcr['TEAM'] = _bcr['TEAM'].astype(str).str.strip()
-                    _bcr_col = next((c for c in _bcr.columns if 'BCR' in c.upper() or 'BLUE' in c.upper() or 'RATIO' in c.upper()), None)
+                    _bcr_col = next((c for c in _bcr.columns if any(x in c.upper() for x in ('BCR','BLUE','RATIO','CHIP','PERCENT'))), None)
                     if _bcr_col:
                         _bcr['_bcr_val'] = pd.to_numeric(
                             _bcr[_bcr_col].astype(str).str.replace('%', '', regex=False),
@@ -19553,61 +19553,91 @@ with tabs[0]:
 
 
         # ── Week game lookup — read raw CSV to include unplayed games ─────
-        # global `scores` drops rows with no score (dropna on V_Pts/H_Pts),
-        # so unplayed Week 1 games won't appear in it. Read raw CSV directly.
         _user_matchup = {}
         _week_has_games = False
         try:
-            _raw_sched = load_scores_master(CURRENT_YEAR)
-            _raw_sched['YEAR'] = pd.to_numeric(_raw_sched.get('YEAR', _raw_sched.get('Year')), errors='coerce')
-            _wk_col_raw = smart_col(_raw_sched, ['Week','WEEK','week'])
-            if _wk_col_raw:
-                _raw_sched['_Week'] = pd.to_numeric(_raw_sched[_wk_col_raw], errors='coerce')
+            # Read the schedule directly — don't rely on load_scores_master
+            # which can silently return empty when run inside Streamlit's caching context.
+            _sched_file = f'schedule_{CURRENT_YEAR}.csv'
+            _sched_fallback = 'CPUscores_MASTER.csv'
+
+            if os.path.exists(_sched_file):
+                _raw_sched = pd.read_csv(_sched_file)
+            elif os.path.exists(_sched_fallback):
+                _raw_sched = pd.read_csv(_sched_fallback)
             else:
-                _raw_sched['_Week'] = float('nan')
-            _vis_col = smart_col(_raw_sched, ['Visitor','VISITOR','Vis'])
-            _hom_col = smart_col(_raw_sched, ['Home','HOME'])
-            _vsc_col = smart_col(_raw_sched, ['Vis Score','Vis_Score','V_Score','V_Pts'])
-            _hsc_col = smart_col(_raw_sched, ['Home Score','Home_Score','H_Score','H_Pts'])
-            _raw_sched['_Vis']  = _raw_sched[_vis_col].astype(str).str.strip() if _vis_col else ''
-            _raw_sched['_Hom']  = _raw_sched[_hom_col].astype(str).str.strip() if _hom_col else ''
-            _raw_sched['_VPts'] = pd.to_numeric(_raw_sched[_vsc_col], errors='coerce') if _vsc_col else float('nan')
-            _raw_sched['_HPts'] = pd.to_numeric(_raw_sched[_hsc_col], errors='coerce') if _hsc_col else float('nan')
-            # Case-insensitive lookup columns
-            _raw_sched['_VisL'] = _raw_sched['_Vis'].str.lower()
-            _raw_sched['_HomL'] = _raw_sched['_Hom'].str.lower()
+                _raw_sched = pd.DataFrame()
 
-            _sc_gs = _raw_sched[
-                (_raw_sched['YEAR'].fillna(-1).astype(int) == int(_gs_year)) &
-                (_raw_sched['_Week'].fillna(-1).astype(int) == int(_gs_week))
-            ].copy()
-            _week_has_games = not _sc_gs.empty
+            if not _raw_sched.empty:
+                # Normalize column names
+                _raw_sched.columns = [str(c).strip() for c in _raw_sched.columns]
 
-            for _gu in list(USER_TEAMS.keys()):
-                _gteam = USER_TEAMS.get(_gu, '')
-                _gteamL = _gteam.lower()
-                _v_row = _sc_gs[_sc_gs['_VisL'] == _gteamL]
-                _h_row = _sc_gs[_sc_gs['_HomL'] == _gteamL]
-                if not _v_row.empty:
-                    _gr  = _v_row.iloc[0]
-                    _opp = str(_gr['_Hom']).strip()
-                    _vp, _hp = _gr.get('_VPts'), _gr.get('_HPts')
-                    if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
-                        _res = 'W' if float(_vp) > float(_hp) else 'L'
-                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_vp)}-{int(_hp)}", 'result': _res, 'home': False}
+                # Coerce YEAR and Week
+                for _yc in ('YEAR', 'Year'):
+                    if _yc in _raw_sched.columns:
+                        _raw_sched[_yc] = pd.to_numeric(_raw_sched[_yc], errors='coerce')
+                        break
+                _yr_col = 'YEAR' if 'YEAR' in _raw_sched.columns else ('Year' if 'Year' in _raw_sched.columns else None)
+                _wk_col = next((c for c in ('Week', 'WEEK', 'week') if c in _raw_sched.columns), None)
+                if _wk_col:
+                    _raw_sched[_wk_col] = pd.to_numeric(_raw_sched[_wk_col], errors='coerce')
+
+                # Normalize team name columns (strip rank prefix like "2 Panama City")
+                import re as _re_sched
+                for _tc in ('Visitor', 'Home'):
+                    if _tc in _raw_sched.columns:
+                        _raw_sched[_tc] = _raw_sched[_tc].astype(str).apply(
+                            lambda t: _re_sched.sub(r'^\d+\s+', '', t.strip())
+                        )
+
+                # Filter to current year + week
+                _mask = pd.Series([True] * len(_raw_sched), index=_raw_sched.index)
+                if _yr_col:
+                    _mask &= (_raw_sched[_yr_col].fillna(-1).astype(int) == int(_gs_year))
+                if _wk_col:
+                    _mask &= (_raw_sched[_wk_col].fillna(-1).astype(int) == int(_gs_week))
+                _sc_gs = _raw_sched[_mask].copy()
+                _week_has_games = not _sc_gs.empty
+
+                # Build case-insensitive team lookup
+                _vis_col = next((c for c in ('Visitor', 'VISITOR') if c in _sc_gs.columns), None)
+                _hom_col = next((c for c in ('Home', 'HOME') if c in _sc_gs.columns), None)
+                _vsc_col = next((c for c in ('Vis Score', 'Vis_Score', 'V_Score', 'V_Pts') if c in _sc_gs.columns), None)
+                _hsc_col = next((c for c in ('Home Score', 'Home_Score', 'H_Score', 'H_Pts') if c in _sc_gs.columns), None)
+
+                if _vis_col:
+                    _sc_gs['_VisL'] = _sc_gs[_vis_col].astype(str).str.strip().str.lower()
+                if _hom_col:
+                    _sc_gs['_HomL'] = _sc_gs[_hom_col].astype(str).str.strip().str.lower()
+
+                for _gu in list(USER_TEAMS.keys()):
+                    _gteam  = USER_TEAMS.get(_gu, '')
+                    _gteamL = _gteam.lower()
+                    _v_row  = _sc_gs[_sc_gs.get('_VisL', pd.Series(dtype=str)) == _gteamL] if '_VisL' in _sc_gs.columns else pd.DataFrame()
+                    _h_row  = _sc_gs[_sc_gs.get('_HomL', pd.Series(dtype=str)) == _gteamL] if '_HomL' in _sc_gs.columns else pd.DataFrame()
+
+                    if not _v_row.empty:
+                        _gr  = _v_row.iloc[0]
+                        _opp = str(_gr[_hom_col]).strip() if _hom_col else '?'
+                        _vp  = pd.to_numeric(_gr.get(_vsc_col, None), errors='coerce') if _vsc_col else float('nan')
+                        _hp  = pd.to_numeric(_gr.get(_hsc_col, None), errors='coerce') if _hsc_col else float('nan')
+                        if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
+                            _res = 'W' if float(_vp) > float(_hp) else 'L'
+                            _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_vp)}-{int(_hp)}", 'result': _res, 'home': False}
+                        else:
+                            _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': False}
+                    elif not _h_row.empty:
+                        _gr  = _h_row.iloc[0]
+                        _opp = str(_gr[_vis_col]).strip() if _vis_col else '?'
+                        _vp  = pd.to_numeric(_gr.get(_vsc_col, None), errors='coerce') if _vsc_col else float('nan')
+                        _hp  = pd.to_numeric(_gr.get(_hsc_col, None), errors='coerce') if _hsc_col else float('nan')
+                        if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
+                            _res = 'W' if float(_hp) > float(_vp) else 'L'
+                            _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_hp)}-{int(_vp)}", 'result': _res, 'home': True}
+                        else:
+                            _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': True}
                     else:
-                        _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': False}
-                elif not _h_row.empty:
-                    _gr  = _h_row.iloc[0]
-                    _opp = str(_gr['_Vis']).strip()
-                    _vp, _hp = _gr.get('_VPts'), _gr.get('_HPts')
-                    if pd.notna(_vp) and pd.notna(_hp) and (float(_vp) + float(_hp)) > 0:
-                        _res = 'W' if float(_hp) > float(_vp) else 'L'
-                        _user_matchup[_gu] = {'opp': _opp, 'score': f"{int(_hp)}-{int(_vp)}", 'result': _res, 'home': True}
-                    else:
-                        _user_matchup[_gu] = {'opp': _opp, 'score': None, 'result': None, 'home': True}
-                else:
-                    _user_matchup[_gu] = 'BYE' if _week_has_games else 'UNSCHEDULED'
+                        _user_matchup[_gu] = 'BYE' if _week_has_games else 'UNSCHEDULED'
         except Exception:
             pass
 
