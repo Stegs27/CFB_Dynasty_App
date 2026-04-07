@@ -1408,11 +1408,19 @@ def render_speed_freaks_table(df, show_n=25):
         .sf-table th{padding:3px 3px!important;font-size:.48rem!important;}
         .sf-table td{padding:3px 3px!important;font-size:.65rem!important;}}
     </style>""", unsafe_allow_html=True)
-    c1,c2=st.columns([3,1])
-    with c1: st.caption(f"Speed profile for all {len(df)} teams -- live from rosters. Top 25 shown by default.")
+    c1,c2,c3=st.columns([2,1,1])
+    with c1: st.caption(f"Speed profile for all {len(df)} teams -- live from rosters. Click column headers to sort.")
     with c2:
         show_all=st.checkbox("Show all",key="sf_show_all")
+    with c3:
+        _sf_user_only=st.checkbox("User teams only",value=True,key="sf_user_only")
     display=df if show_all else df.head(show_n)
+    if _sf_user_only: display=display[display['IS_USER']]
+    # Sortable dataframe view
+    _sf_display_df=display[['TEAM','S90','CHEAT','MONSTER','QUICK_HOG','GEN','MPH','RANK']].copy()
+    _sf_display_df.columns=['Team','90+SPD','Cheat Codes','Monsters','Q-Hogs','Gen Freaks','MPH','SF Rank']
+    st.dataframe(_sf_display_df.reset_index(drop=True),use_container_width=True,hide_index=True)
+    st.markdown('---')
     thead=(
         "<tr style='background:#0a1220;'>"
         "<th style='padding:5px 6px;color:#1e293b;font-size:.58rem;width:24px;text-align:center;'>#</th>"
@@ -1692,7 +1700,7 @@ def build_ticker_items(year, week, is_bowl_week):
                             f"<div style='display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin:0 6px;'>"
                             f"<span style='font-family:Bebas Neue,sans-serif;font-size:.75rem;color:{_rk_c4};'>#{_rk4}</span>"
                             f"{_limg4}"
-                            f""  # no team name text - logos only
+                            f"<span style='font-size:.52rem;color:{_tc4};font-weight:700;max-width:48px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>{html.escape(_tm4[:12])}</span>"
                             f"</div>")
                     _top4_logo_html=("<div style='display:inline-flex;align-items:flex-end;justify-content:center;"
                         "gap:4px;background:rgba(0,0,0,.25);border-radius:10px;padding:6px 10px;"
@@ -1755,69 +1763,6 @@ def build_ticker_items(year, week, is_bowl_week):
                 headlines.append({'badge':'🏆 HEISMAN','priority':150,
                     'text':f"Heisman Winner: {_hp}, {_ht}",
                     'blurb':f"{_hp} from {_ht} wins the {CY} Heisman Trophy. Best player in college football."})
-    except: pass
-
-    # ── 6. MAJOR UPSETS (this week) ──────────────────────────────────────
-    try:
-        _sched_u=pd.read_csv(f'schedule_{CY}.csv',dtype={'YEAR':str,'Week':str})
-        _sched_u.columns=[str(c).strip() for c in _sched_u.columns]
-        _yc=next((c for c in ('YEAR','Year') if c in _sched_u.columns),None)
-        _wc=next((c for c in ('Week','WEEK') if c in _sched_u.columns),None)
-        if _yc and _wc:
-            _sched_u=_sched_u[(_sched_u[_yc].astype(str).str.split('.').str[0]==str(int(CY)))&
-                               (_sched_u[_wc].astype(str).str.split('.').str[0]==str(int(CW)))].copy()
-        _vc=next((c for c in ('Vis Score','Vis_Score') if c in _sched_u.columns),None)
-        _hc=next((c for c in ('Home Score','Home_Score') if c in _sched_u.columns),None)
-        _vrk=next((c for c in ('Visitor Rank','VIS_RANK') if c in _sched_u.columns),None)
-        _hrk=next((c for c in ('Home Rank','HOME_RANK') if c in _sched_u.columns),None)
-        if _vc and _hc:
-            _sched_u[_vc]=pd.to_numeric(_sched_u[_vc],errors='coerce')
-            _sched_u[_hc]=pd.to_numeric(_sched_u[_hc],errors='coerce')
-            _final_u=_sched_u[_sched_u.get('Status',_sched_u.get('STATUS','?')).astype(str).str.upper()=='FINAL'].dropna(subset=[_vc,_hc])
-            for _,_ug in _final_u.iterrows():
-                _uvs=float(_ug[_vc]); _uhs=float(_ug[_hc])
-                _uvr=float(_ug[_vrk]) if _vrk and pd.notna(_ug.get(_vrk)) else 99
-                _uhr=float(_ug[_hrk]) if _hrk and pd.notna(_ug.get(_hrk)) else 99
-                _uvis=str(_ug.get('Visitor','')).strip(); _uhom=str(_ug.get('Home','')).strip()
-                # Upset: ranked top-10 team loses to unranked or much lower ranked
-                _winner_rk=_uvr if _uvs>_uhs else _uhr
-                _loser_rk=_uhr if _uvs>_uhs else _uvr
-                if _loser_rk<=10 and (_winner_rk>_loser_rk+8 or _winner_rk==99):
-                    _loser=_uhom if _uvs>_uhs else _uvis
-                    _winner=_uvis if _uvs>_uhs else _uhom
-                    _wscore=int(max(_uvs,_uhs)); _lscore=int(min(_uvs,_uhs))
-                    headlines.append({'badge':'🚨 UPSET ALERT','priority':180,
-                        'text':f"UPSET: #{int(_loser_rk)} {_loser} FALLS {_wscore}-{_lscore} to {_winner}",
-                        'blurb':f"#{int(_loser_rk)} {_loser} just got knocked off. The bracket is in chaos."})
-    except: pass
-
-    # ── 7. MAJOR INJURIES (90+ OVR, 3+ weeks out) ───────────────────────
-    try:
-        _inj_t=pd.read_csv('injury_bulletin.csv') if os.path.exists('injury_bulletin.csv') else pd.DataFrame()
-        if not _inj_t.empty:
-            _inj_t.columns=[str(c).strip() for c in _inj_t.columns]
-            if 'Year' in _inj_t.columns:
-                _inj_t['Year']=pd.to_numeric(_inj_t['Year'],errors='coerce')
-                _inj_t=_inj_t[_inj_t['Year'].fillna(-1).astype(int)==CY]
-            _inj_t['OVR']=pd.to_numeric(_inj_t.get('OVR',0),errors='coerce').fillna(0)
-            _inj_t['WeeksOut']=pd.to_numeric(_inj_t.get('WeeksOut',0),errors='coerce').fillna(0)
-            if 'Week' in _inj_t.columns:
-                _inj_t['WeekSuffered']=pd.to_numeric(_inj_t['Week'],errors='coerce').fillna(CW)
-                _inj_t['WeeksRemaining']=(_inj_t['WeekSuffered']+_inj_t['WeeksOut']-CW).clip(lower=0)
-            else:
-                _inj_t['WeeksRemaining']=_inj_t['WeeksOut']
-            _big_inj=_inj_t[(_inj_t['OVR']>=90)&(_inj_t['WeeksRemaining']>=3)&
-                (_inj_t['Team'].astype(str).str.strip().isin(ALL_USER_TEAMS))].nlargest(1,'OVR')
-            if not _big_inj.empty:
-                _bi=_big_inj.iloc[0]
-                _bi_team=str(_bi.get('Team','')).strip()
-                _bi_player=str(_bi.get('Player','')).strip()
-                _bi_pos=str(_bi.get('Pos','')).strip()
-                _bi_ovr=int(_bi['OVR']); _bi_wks=int(_bi['WeeksRemaining'])
-                _bi_inj=str(_bi.get('Injury','')).strip()
-                headlines.append({'badge':'🚑 MAJOR INJURY','priority':170,
-                    'text':f"INJURY: {_bi_player} ({_bi_pos}, {_bi_team}) OUT {_bi_wks} WKS",
-                    'blurb':f"{_bi_team} loses {_bi_player} ({_bi_ovr} OVR) to {_bi_inj}. {_bi_wks} weeks out — a big blow."})
     except: pass
 
     headlines.sort(key=lambda h: h['priority'],reverse=True)
@@ -2483,21 +2428,6 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 _game_status_map=dict(zip(_wgs_cur['User'].astype(str).str.strip(),_wgs_cur['Status'].astype(str).str.strip()))
     except: pass
 
-    # ── Manual scores (built once, keyed by user) ────────────────────
-    _manual_score_map={}
-    try:
-        if os.path.exists('week_manual_scores.csv'):
-            _msc=pd.read_csv('week_manual_scores.csv')
-            _msc['Year']=pd.to_numeric(_msc.get('Year'),errors='coerce').fillna(0).astype(int)
-            _msc['Week']=pd.to_numeric(_msc.get('Week'),errors='coerce').fillna(0).astype(int)
-            _msc_cur=_msc[(_msc['Year']==int(year))&(_msc['Week']==int(week))].copy()
-            for _,_mr in _msc_cur.iterrows():
-                _manual_score_map[str(_mr.get('User','')).strip()]={
-                    'user_score':int(pd.to_numeric(_mr.get('UserScore',0),errors='coerce') or 0),
-                    'opp_score': int(pd.to_numeric(_mr.get('OppScore', 0),errors='coerce') or 0),
-                }
-    except: pass
-
     # ── Record from CFP rankings ───────────────────────────────────────
     _record_map={}
     try:
@@ -2636,13 +2566,19 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;'>{html.escape(str(rec_str))}</span>")
         else: rec_chip=""
 
-        # Manual score lookup from pre-built map (keyed by user)
-        _man=_manual_score_map.get(user,{})
-        _man_us=_man.get('user_score',0); _man_os=_man.get('opp_score',0)
+        # Check for saved score in week_manual_scores.csv
         _man_score_str=None; _man_result_str=None
-        if _man_us>0 or _man_os>0:
-            _man_result_str='W' if _man_us>_man_os else ('L' if _man_os>_man_us else 'TIE')
-            _man_score_str=f'{_man_us}-{_man_os}'
+        try:
+            if os.path.exists('week_manual_scores.csv'):
+                _msc_q=pd.read_csv('week_manual_scores.csv')
+                for _cm in ['Year','Week']: _msc_q[_cm]=pd.to_numeric(_msc_q.get(_cm),errors='coerce').fillna(0).astype(int)
+                _msc_row=_msc_q[(_msc_q['User'].astype(str).str.strip()==user)&(_msc_q['Year']==year)&(_msc_q['Week']==week)]
+                if not _msc_row.empty:
+                    _mu2=int(_msc_row.iloc[0].get('UserScore',0)); _mo2=int(_msc_row.iloc[0].get('OppScore',0))
+                    if _mu2>0 or _mo2>0:
+                        _man_result_str='W' if _mu2>_mo2 else ('L' if _mo2>_mu2 else 'TIE')
+                        _man_score_str=f'{_mu2}-{_mo2}'
+        except: pass
         # Game strip
         _chip_style="font-weight:700;padding:3px 10px;border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:.92rem;letter-spacing:.07em;"
         if matchup=='BYE':
@@ -2673,42 +2609,41 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     f"<span style='color:{rc2};font-weight:900;font-size:1.05rem;"
                     f"font-family:Barlow Condensed,sans-serif;'>{result} {score}</span>")
             else:
-                # Manual score takes priority over everything
                 if _man_score_str:
                     _rc_ms='#4ade80' if _man_result_str=='W' else ('#f87171' if _man_result_str=='L' else '#94a3b8')
-                    status_chip=f"<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;{_chip_style}'>FINAL</span>"
-                    game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;letter-spacing:.08em;'>WK {week}</span> "
-                        f"{status_chip} "
+                    status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
+                    game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;letter-spacing:.08em;'>WK {week}</span> {status_chip} "
                         f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
                         f"<span style='color:{_rc_ms};font-weight:900;font-size:1.05rem;font-family:Barlow Condensed,sans-serif;'>{_man_result_str} {_man_score_str}</span>")
+                elif game_status=='Ready' or _man_score_str:
+                    status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                 else:
-                    # No score yet — show game line
-                    if game_status=='Ready':
-                        status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
-                    else:
-                        status_chip=f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
-                    line_html=""
-                    try:
-                        _fv_t,_=_fpi_for(team); _fv_o,_=_fpi_for(opp)
-                        if _fv_t!=0 or _fv_o!=0:
-                            _hf_adj=3.0 if matchup.get('home') else -3.0
-                            _spread=max(-35.0,min(35.0,(_fv_t-_fv_o)*0.65+_hf_adj))
-                            if abs(_spread)>=1.5:
-                                _fav=team if _spread>0 else opp
-                                _sp_val=round(abs(_spread),1)
-                                _gl_str=f"{_fav} -{int(_sp_val) if _sp_val==int(_sp_val) else _sp_val}"
-                                _lc='#4ade80' if _fav==team else '#f87171'
-                                line_html=(f" <span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
-                                    f"font-weight:900;color:#94a3b8;'>LINE: "
-                                    f"<strong style='color:{_lc};font-size:1rem;'>{html.escape(_gl_str)}</strong></span>")
-                            else:
-                                line_html=" <span style='font-size:.82rem;color:#94a3b8;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></span>"
-                    except: pass
-                    game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
-                        f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
-                        f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
-                        f"<span style='font-size:.88rem;color:#f8fafc;font-family:Barlow Condensed,sans-serif;"
-                        f"font-weight:700;'>{html.escape(opp)}</span>{line_html}")
+                    status_chip=f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
+                # Game line from live FPI spread
+                line_html=""
+                try:
+                    _fv_t,_=_fpi_for(team); _fv_o,_=_fpi_for(opp)
+                    if _fv_t!=0 or _fv_o!=0:
+                        _hf_adj=3.0 if matchup.get('home') else -3.0
+                        _raw=(_fv_t-_fv_o)*0.65+_hf_adj  # FPI->pts: ~0.65x, capped at 35
+                        _spread=max(-35.0,min(35.0,_raw))
+                        if abs(_spread)>=1.5:
+                            _fav=team if _spread>0 else opp
+                            _sp_val=round(abs(_spread),1)
+                            _gl_str=f"{_fav} -{int(_sp_val) if _sp_val==int(_sp_val) else _sp_val}"
+                            _ufav=_fav==team
+                            _lc='#4ade80' if _ufav else '#f87171'
+                            line_html=(f" <span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
+                                f"font-weight:900;color:#94a3b8;'>LINE: "
+                                f"<strong style='color:{_lc};font-size:1rem;'>{html.escape(_gl_str)}</strong></span>")
+                        else:
+                            line_html=" <span style='font-size:.82rem;color:#94a3b8;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></span>"
+                except: pass
+                game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
+                    f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
+                    f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
+                    f"<span style='font-size:.88rem;color:#f8fafc;font-family:Barlow Condensed,sans-serif;"
+                    f"font-weight:700;'>{html.escape(opp)}</span>{line_html}")
         else: game_strip=""
 
         # Right panel: FPI, odds, speed rank
@@ -2767,7 +2702,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     _us_ck=int(_msc_ck_row.iloc[0].get('UserScore',0)); _os_ck=int(_msc_ck_row.iloc[0].get('OppScore',0))
                     _has_csv_score=(_us_ck>0 or _os_ck>0)
         except: pass
-        is_ready_or_final = (game_status=='Ready' or _has_csv_score or (isinstance(matchup,dict) and matchup.get('score')))
+        is_ready_or_final = (game_status=='Ready' or _has_csv_score or bool(_man_score_str) or (isinstance(matchup,dict) and matchup.get('score')))
         # Card border / background: muted until Ready or has score
         if is_cfp_alive and is_ready_or_final:
             card_bg="linear-gradient(135deg,#0f0b00 0%,#050505 55%,#0a0800 100%)"
@@ -2785,7 +2720,9 @@ def render_game_cards_with_boxscore(year, week, model_df):
             card_bg="linear-gradient(135deg,#0c111a 0%,#080d14 100%)"
             card_border="#1e293b"  # fully muted until ready
 
-        logo_img=(f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;'/>"
+        # Logo: full color if ready/final, grayscale if not
+        _logo_filter='' if is_ready_or_final else 'filter:grayscale(85%) opacity(0.5);'
+        logo_img=(f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;{_logo_filter}'/>"
                   if logo_uri else "🏈")
 
         card=(
@@ -2922,12 +2859,13 @@ def render_injury_report():
             ovr=int(row.get('OVR',0))
             inj=str(row.get('Injury','')).strip()
             wks_rem=int(row.get('WeeksRemaining',0))
+            _season_end=(CURRENT_WEEK_NUMBER+wks_rem)>21
             is_start=str(row.get('IsStarter','')).strip()
             primary=get_team_primary_color(team)
             logo=get_school_logo_src(team)
             lg_src=logo
             ovr_c="#fbbf24" if ovr>=90 else ("#60a5fa" if ovr>=85 else ("#94a3b8" if ovr>=80 else "#475569"))
-            wks_c="#f87171" if wks_rem>=6 else ("#f97316" if wks_rem>=3 else "#fbbf24")
+            wks_c='#ef4444' if _season_end else ("#f87171" if wks_rem>=6 else ("#f97316" if wks_rem>=3 else "#fbbf24"))
             starter_chip='<span style="background:#fbbf2420;color:#fbbf24;border-radius:3px;padding:1px 5px;font-size:.58rem;margin-left:2px;">STARTER</span>' if is_start.upper()=='YES' else ''
             lg_html=f'<img src="{lg_src}" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;"/>' if lg_src else ''
             card_html=(
@@ -2943,7 +2881,7 @@ def render_injury_report():
                 f"</div>"
                 f"<div style='display:flex;align-items:center;gap:8px;'>"
                 f"<span style='color:#64748b;font-size:.7rem;'>{html.escape(inj)}</span>"
-                f"<span style='color:{wks_c};font-size:.72rem;font-weight:700;'>{wks_rem} wk{'s' if wks_rem!=1 else ''} remaining</span>"
+                f"<span style='color:{wks_c};font-size:.72rem;font-weight:700;'>{'🚫 SEASON ENDING' if _season_end else str(wks_rem)+' wk'+('s' if wks_rem!=1 else '')+' remaining'}</span>"
                 f"</div>"
                 f"</div>"
                 f"</div>"
@@ -3821,8 +3759,15 @@ def render_roster_attrition_tab():
 </div>""", unsafe_allow_html=True)
     st.markdown("---")
     # ── DETAIL TABS ──────────────────────────────────────────────────
-    _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors","🎯 Incoming Recruits"])
-    with _at_tabs[0]:
+    if target_year==CURRENT_YEAR+1:
+        _at_tabs=st.tabs(["🎓 Departing Seniors"])
+        # For upcoming year only seniors are known — remap tab indices
+        _at_tab_seniors_idx=0; _at_tab_nfl_idx=None; _at_tab_xfer_idx=None
+    else:
+        _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors"])
+        _at_tab_seniors_idx=2; _at_tab_nfl_idx=0; _at_tab_xfer_idx=1
+    if _at_tab_nfl_idx is not None:
+     with _at_tabs[_at_tab_nfl_idx]:
         st.subheader(f"🏈 {target_year} NFL Draft Exits")
         if draft_raw.empty:
             st.info("No draft data for current year."); 
@@ -3855,7 +3800,8 @@ def render_roster_attrition_tab():
     <span style='{rnd_bg}border-radius:4px;padding:2px 7px;font-size:.65rem;font-weight:700;color:{rnd_c};'>Rd {rnd}</span>
   </div>
 </div>""", unsafe_allow_html=True)
-    with _at_tabs[1]:
+    if _at_tab_xfer_idx is not None:
+     with _at_tabs[_at_tab_xfer_idx]:
         st.subheader(f"🚪 {target_year} Transfers Out")
         if xf_raw.empty:
             st.info("No transfer data for current year.")
@@ -3889,11 +3835,13 @@ def render_roster_attrition_tab():
     <span style='font-size:.62rem;color:#475569;font-style:italic;'>{html.escape(reason)}</span>
   </div>
 </div>""", unsafe_allow_html=True)
-    with _at_tabs[2]:
+    with _at_tabs[_at_tab_seniors_idx]:
         st.subheader(f"🎓 {target_year} Departing Seniors")
         st.caption("Seniors who exhaust eligibility. Use the dropdown to view by team.")
         try:
-            _ros_file=f'cfb_136_top30_rosters_{target_year}.csv'
+            # 2044 dropdown uses current season roster (seniors leaving after 2043)
+            _ros_year=CURRENT_YEAR  # always current season roster for seniors
+            _ros_file=f'cfb_136_top30_rosters_{_ros_year}.csv'
             _ros_fallback='cfb26_rosters_full.csv'
             _rdf=pd.DataFrame()
             for rf in [_ros_file,_ros_fallback]:
@@ -3901,7 +3849,14 @@ def render_roster_attrition_tab():
                     _rdf=pd.read_csv(rf); break
             if _rdf.empty: st.info("No roster data found."); return
             _rdf.columns=[str(c).strip() for c in _rdf.columns]
+            # Normalise TEAM column (may be all-caps in per-year CSV)
+            _team_col=next((c for c in _rdf.columns if c.upper()=='TEAM'),'TEAM')
+            _rdf=_rdf.rename(columns={_team_col:'TEAM'})
             _rdf['TEAM']=_rdf['TEAM'].astype(str).str.strip()
+            # Filter to current year if YEAR column present
+            if 'YEAR' in _rdf.columns:
+                _rdf['YEAR']=pd.to_numeric(_rdf['YEAR'],errors='coerce')
+                _rdf=_rdf[_rdf['YEAR'].fillna(-1).astype(int)==_ros_year]
             _rdf['OVR']=pd.to_numeric(_rdf['OVR'],errors='coerce').fillna(0)
             _yr_col=next((c for c in ('YEAR_CLASS','Class','CLASS','Year') if c in _rdf.columns),None)
             if not _yr_col: st.info("No class/year column in roster."); return
@@ -3944,62 +3899,6 @@ def render_roster_attrition_tab():
                 st.markdown(card, unsafe_allow_html=True)
         except Exception as e:
             st.caption(f"Departing seniors unavailable: {e}")
-
-    with _at_tabs[3]:
-        st.subheader(f"🎯 {target_year} Incoming Recruiting Class")
-        st.caption("Incoming players from attrition_incoming.csv. Sorted by star rating.")
-        try:
-            _inc_tab=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
-            if _inc_tab.empty:
-                st.info("No attrition_incoming.csv found.")
-            else:
-                _inc_tab.columns=[str(c).strip() for c in _inc_tab.columns]
-                _inc_tab['Year']=pd.to_numeric(_inc_tab['Year'],errors='coerce').fillna(0).astype(int)
-                _inc_tab['Team']=_inc_tab['Team'].astype(str).str.strip()
-                _inc_tab['StarRating']=pd.to_numeric(_inc_tab.get('StarRating',0),errors='coerce').fillna(0).astype(int)
-                _inc_yr=_inc_tab[_inc_tab['Year']==target_year].copy()
-                if _inc_yr.empty:
-                    st.info(f"No incoming recruits data for {target_year}.")
-                else:
-                    # Team dropdown
-                    _inc_teams=sorted(_inc_yr['Team'].unique())
-                    _inc_team_sel=st.selectbox("Select team",["All User Teams"]+_inc_teams,key="inc_team_sel")
-                    _inc_show=_inc_yr if _inc_team_sel=="All User Teams" else _inc_yr[_inc_yr['Team']==_inc_team_sel]
-                    _inc_show=_inc_show.sort_values(['Team','StarRating'],ascending=[True,False])
-                    st.caption(f"{len(_inc_show)} incoming recruits {'across all user teams' if _inc_team_sel=='All User Teams' else f'for {_inc_team_sel}'}")
-                    for _,_ir in _inc_show.iterrows():
-                        _irn=str(_ir.get('Name','?')).strip()
-                        _irp=str(_ir.get('Pos','?')).strip()
-                        _irt2=str(_ir.get('Team','?')).strip()
-                        _irs=int(_ir.get('StarRating',0) or 0)
-                        _irr=int(_ir.get('NationalRank',0) or 0)
-                        _irtype=str(_ir.get('RecruitType','HS')).strip()
-                        _irovr=str(_ir.get('OverallClassRank','')).strip()
-                        _star_d='⭐'*_irs if _irs>0 else ''
-                        _rank_d=f"#{_irr}" if _irr>0 else ''
-                        _pc=get_team_primary_color(_irt2)
-                        _tlg=get_school_logo_src(_irt2)
-                        _tlh=f"<img src='{_tlg}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _tlg else ''
-                        _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irtype)}</span>"
-                            if _irtype.upper()!='HS' else '')
-                        st.markdown(
-                            f"<div style='background:#06090f;border:1px solid #1e293b;border-left:3px solid {_pc};"
-                            f"border-radius:6px;padding:6px 12px;margin-bottom:3px;"
-                            f"display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
-                            f"<div style='display:flex;align-items:center;gap:6px;'>"
-                            f"{_tlh}"
-                            f"<span style='background:{_pc}33;color:{_pc};border-radius:3px;padding:1px 5px;font-size:.6rem;font-weight:700;'>{html.escape(_irp)}</span>"
-                            f"<span style='font-weight:700;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_irn)}</span>"
-                            f"{_type_b}"
-                            f"</div>"
-                            f"<div style='display:flex;align-items:center;gap:8px;'>"
-                            f"<span style='color:#fbbf24;font-size:.7rem;'>{_star_d}</span>"
-                            f"<span style='color:#64748b;font-size:.62rem;'>{_rank_d}</span>"
-                            f"</div></div>",
-                            unsafe_allow_html=True
-                        )
-        except Exception as e:
-            st.caption(f"Incoming recruits unavailable: {e}")
 
 def render_roster_matchup_tab():
     import plotly.graph_objects as go
@@ -4227,22 +4126,19 @@ def render_roster_matchup_tab():
                 sc3.metric(f"{team_b} Score", score_b)
                 sc2.markdown("<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>", unsafe_allow_html=True)
                 pa, pb = st.columns(2)
-                _want_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
-                disp_cols = [c for c in _want_cols if c in roster_a.columns or c in roster_b.columns]
+                disp_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
                 sm_logo_a = f"<img src='{logo_uri_a}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_a else "🏈 "
                 sm_logo_b = f"<img src='{logo_uri_b}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_b else "🏈 "
                 with pa:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_a}<span style='color:{color_a};font-weight:800;font-size:0.95rem;'>{team_a}</span></div>", unsafe_allow_html=True)
                     if not grp_a.empty:
-                        _dc_a=[c for c in disp_cols if c in grp_a.columns]
-                        st.dataframe(grp_a[_dc_a].reset_index(drop=True), hide_index=True, use_container_width=True)
+                        st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
                     else:
                         st.caption("No players.")
                 with pb:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_b}<span style='color:{color_b};font-weight:800;font-size:0.95rem;'>{team_b}</span></div>", unsafe_allow_html=True)
                     if not grp_b.empty:
-                        _dc_b=[c for c in disp_cols if c in grp_b.columns]
-                        st.dataframe(grp_b[_dc_b].reset_index(drop=True), hide_index=True, use_container_width=True)
+                        st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
                     else:
                         st.caption("No players.")
 
@@ -4846,7 +4742,7 @@ st.markdown(f"""
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-.5px;">📰 Dynasty News</h2>
   {_logo_html}
   <div class="top-story-badge">{html.escape(_top['badge'])}</div>
-  <div style="font-size:1.15rem;font-weight:800;letter-spacing:.5px;margin-bottom:4px;line-height:1.4;">{'' if _top.get('badge')=='CFP TOP 4' else _hero_html}</div>
+  <div style="font-size:1.15rem;font-weight:800;letter-spacing:.5px;margin-bottom:4px;line-height:1.4;">{_hero_html}</div>
   <div style="color:#94a3b8;font-size:.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(_top['blurb'])}"</div>
   <div style="color:#38bdf8;font-size:.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
@@ -5114,7 +5010,7 @@ with tabs[0]:
                         for _c in ['Year','Week']: _wb3[_c]=pd.to_numeric(_wb3.get(_c),errors='coerce').fillna(0).astype(int)
                         _wb3=_wb3[~((_wb3['User'].astype(str).str.strip().str.title()==_logged_in_user)&(_wb3['Year']==int(_gs_year))&(_wb3['Week']==int(_gs_week)))].copy()
                         pd.concat([_wb3,pd.DataFrame([{'User':_logged_in_user,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_auto_st}])],ignore_index=True).to_csv('week_game_status.csv',index=False)
-                        st.success(f"✅ Saved! Download the CSVs and send to Mike, or Mike can grab them from Commissioner Tools.")
+                        st.success(f"✅ Score saved! Your card will show READY instantly. Push CSVs to GitHub to make it permanent across all sessions.")
                         st.cache_data.clear()
                     except Exception as e: st.error(f"Save error: {e}")
                 # Try to email score directly to commissioner
@@ -5418,8 +5314,8 @@ with tabs[1]:
                     st.subheader("🔍 By-Game Deep Dive")
                     _gc_sel_opts=[f"{r['USER']} • {r['TEAM']}" for _,r in _gc_ranked.iterrows() if str(r['TEAM']) in ALL_USER_TEAMS]
                     if _gc_sel_opts:
-                        _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_top_yr] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
-                    _gc_trend2_f=_gc_trend2[_gc_trend2['YEAR'].fillna(-1).astype(int)==_gc_top_yr] if not _gc_trend2.empty and 'YEAR' in _gc_trend2.columns else _gc_trend2
+                        _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
+                    _gc_trend2_f=_gc_trend2[_gc_trend2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_trend2.empty and 'YEAR' in _gc_trend2.columns else _gc_trend2
                     _gc_picked=st.selectbox("Select team",_gc_sel_opts,key="gc_team_sel2")
                     _gc_pu=_gc_picked.split(" • ")[0]; _gc_pt=_gc_picked.split(" • ")[1]
                     _gc_tg2=_gc_games2_f[(_gc_games2_f["USER"]==_gc_pu)&(_gc_games2_f["TEAM"]==_gc_pt)].copy() if not _gc_games2_f.empty else pd.DataFrame()
@@ -5533,14 +5429,14 @@ with tabs[1]:
                         for _ecc in ("off_explosive_index","def_steel_curtain_index"): _ei_bg_yr[_ecc]=pd.to_numeric(_ei_bg_yr.get(_ecc,0),errors="coerce").fillna(0)
                         _ei_bg_yr["_w"]=(_ei_bg_yr["RESULT"].str.upper()=="W").astype(int)
                         _ei_bg_yr["_l"]=(_ei_bg_yr["RESULT"].str.upper()=="L").astype(int)
+                        _agg_dict={"_w":"sum","_l":"sum","off_explosive_index":"mean"}
+                        if "def_steel_curtain_index" in _ei_bg_yr.columns: _agg_dict["def_steel_curtain_index"]="mean"
                         for _fc in ("quick_strike_flag","aerial_nuke_flag","ground_blast_flag","sputtering_offense_flag"):
-                            if _fc in _ei_bg_yr.columns: _ei_bg_yr[_fc]=pd.to_numeric(_ei_bg_yr[_fc],errors="coerce").fillna(0)
-                        _ei_agg_kwargs={"RECORD_WINS":pd.NamedAgg("_w","sum"),"RECORD_LOSSES":pd.NamedAgg("_l","sum"),
-                            "AVG_EXPLOSIVE_INDEX":pd.NamedAgg("off_explosive_index","mean")}
-                        if "def_steel_curtain_index" in _ei_bg_yr.columns: _ei_agg_kwargs["AVG_STEEL_CURTAIN_INDEX"]=pd.NamedAgg("def_steel_curtain_index","mean")
-                        for _fc,_fcn in [("quick_strike_flag","QUICK_STRIKES"),("aerial_nuke_flag","AERIAL_NUKES"),("ground_blast_flag","GROUND_BLASTS"),("sputtering_offense_flag","SPUTTERING_GAMES")]:
-                            if _fc in _ei_bg_yr.columns: _ei_agg_kwargs[_fcn]=pd.NamedAgg(_fc,"sum")
-                        _ei_agg=_ei_bg_yr.groupby(["USER","TEAM"]).agg(**_ei_agg_kwargs).reset_index()
+                            if _fc in _ei_bg_yr.columns: _ei_bg_yr[_fc]=pd.to_numeric(_ei_bg_yr[_fc],errors="coerce").fillna(0); _agg_dict[_fc]="sum"
+                        _ei_agg=_ei_bg_yr.groupby(["USER","TEAM"]).agg(**{k.replace("_flag","_FLAG").replace("quick_strike","QUICK_STRIKES").replace("aerial_nuke","AERIAL_NUKES").replace("ground_blast","GROUND_BLASTS").replace("sputtering_offense","SPUTTERING_GAMES").replace("off_explosive","AVG_EXPLOSIVE").replace("def_steel_curtain","AVG_STEEL_CURTAIN").replace("_w","RECORD_WINS").replace("_l","RECORD_LOSSES"):pd.NamedAgg(column=k,aggfunc=v) for k,v in _agg_dict.items()}).reset_index()
+                        # rename
+                        _ei_agg=_ei_agg.rename(columns={"AVG_EXPLOSIVE_INDEX":"AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX":"AVG_STEEL_CURTAIN_INDEX"},errors="ignore")
+                        if "AVG_EXPLOSIVE_INDEX" not in _ei_agg.columns and "off_explosive_index" in _ei_agg.columns: _ei_agg=_ei_agg.rename(columns={"off_explosive_index":"AVG_EXPLOSIVE_INDEX"})
                         for _ec in ("AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX"):
                             if _ec in _ei_agg.columns: _ei_agg[_ec]=_ei_agg[_ec].round(1)
                         # Attach style label from summary
