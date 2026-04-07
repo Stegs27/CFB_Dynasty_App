@@ -1831,7 +1831,7 @@ def _power_table(df_in, tab_key, primary_col="#fbbf24", caption_txt="", has_msp=
             unsafe_allow_html=True)
         return
     # FPI / MS+ mode
-    _sort_cols=["MS+","FPI","SOS","SOR","Chaos","W-L"] if has_msp else ["FPI","SOS","SOR","Chaos","W-L"]
+    _sort_cols=["FPI","MS+","SOS","SOR","Chaos","W-L"] if has_msp else ["FPI","SOS","SOR","Chaos","W-L"]
     with c2: _sb=st.selectbox("Sort",_sort_cols,key=f"sb_{tab_key}")
     with c3: _uo=st.checkbox("User only",key=f"uo_{tab_key}")
     _d=df_in.copy()
@@ -2380,19 +2380,25 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 _game_status_map=dict(zip(_wgs_cur['User'].astype(str).str.strip(),_wgs_cur['Status'].astype(str).str.strip()))
     except: pass
     # ── RENDER CARDS ─────────────────────────────────────────────────
-    rank_icons=["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣"]
-    rank_labels=["KING","CONTENDER","FRINGE","BUBBLE","LONG SHOT","REBUILDING"]
-    rank_colors=["#f59e0b","#9ca3af","#b45309","#6b7280","#374151","#374151"]
-    # Sort users by FPI from model_df
-    _sorted_users=list(USER_TEAMS.keys())
-    if model_df is not None and not model_df.empty and 'USER' in model_df.columns:
-        try:
-            _pi_col=next((c for c in ('Power Index','FPI','OVERALL','RATING') if c in model_df.columns),None)
-            if _pi_col:
-                _pi_map=dict(zip(model_df['USER'].astype(str).str.strip().str.title(),
-                                 pd.to_numeric(model_df[_pi_col],errors='coerce').fillna(0)))
-                _sorted_users=sorted(USER_TEAMS.keys(),key=lambda u:_pi_map.get(u,0),reverse=True)
-        except: pass
+    # Load FPI table for live FPI values on cards
+    _card_fpi_df=pd.DataFrame()
+    try:
+        _cf=f'FPI/fpi_ratings_{year}_wk{week}.csv'
+        if not os.path.exists(_cf): _cf=f'fpi_ratings_{year}_wk{week}.csv'
+        if os.path.exists(_cf):
+            _card_fpi_df=pd.read_csv(_cf)
+            _card_fpi_df['FPI']=pd.to_numeric(_card_fpi_df['FPI'],errors='coerce').fillna(0)
+            _card_fpi_df=_card_fpi_df.sort_values('FPI',ascending=False).reset_index(drop=True)
+            _card_fpi_df['_fpi_rank']=range(1,len(_card_fpi_df)+1)
+    except: pass
+    def _get_fpi(team):
+        if _card_fpi_df.empty: return 0.0,0
+        r=_card_fpi_df[_card_fpi_df['Team']==team]
+        if r.empty: return 0.0,0
+        return float(r.iloc[0]['FPI']),int(r.iloc[0]['_fpi_rank'])
+    # Sort users by FPI
+    _sorted_users=sorted(USER_TEAMS.keys(),
+        key=lambda u:_get_fpi(USER_TEAMS.get(u,''))[0],reverse=True)
     cols=st.columns(min(3,len(_sorted_users)))
     col_idx=0
     for user in _sorted_users:
@@ -2433,21 +2439,53 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     rec_str=str(mr.iloc[0]['Record'])
             except: pass
         with cols[col_idx%len(cols)]:
-            st.markdown(f"""
-<div style='background:linear-gradient(135deg,{primary}18 0%,#0f172a 40%);
-    border:1px solid {primary}44;border-radius:14px;padding:14px 16px;margin-bottom:8px;
-    border-left:5px solid {primary};'>
-  <div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
-    {logo_html}
-    <div style='flex:1;min-width:0;'>
-      <div style='font-weight:900;font-size:1rem;color:{primary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(team)}</div>
-      <div style='font-size:.72rem;color:#64748b;'>{html.escape(user)}{' · '+rec_str if rec_str else ''}</div>
-      <div style='margin-top:2px;display:flex;gap:4px;flex-wrap:wrap;'>{rank_badge}{status_badge}</div>
-    </div>
-    <div style='text-align:right;font-size:1.2rem;'>{status_dot}</div>
-  </div>
-  {match_html}
-</div>""", unsafe_allow_html=True)
+            # Live FPI for this team
+            _fpi_val,_fpi_rk=_get_fpi(team)
+            _fpi_c="#4ade80" if _fpi_val>0 else ("#f87171" if _fpi_val<0 else "#94a3b8")
+            _fpi_line=(
+                f"FPI <strong style='color:{_fpi_c};'>{_fpi_val:+.1f}</strong>"
+                +(f" <span style='color:#fbbf24;font-size:.72rem;'>#{_fpi_rk}</span>" if _fpi_rk>0 else "")
+            )
+            # Game line for upcoming game
+            _line_html=""
+            if isinstance(matchup,dict) and not matchup.get('score'):
+                try:
+                    _opp_t=matchup.get('opp','')
+                    _h=matchup.get('home',False)
+                    _hteam=team if _h else _opp_t
+                    _ateam=_opp_t if _h else team
+                    _hl=estimate_game_line(_hteam,_ateam,model_df if model_df is not None and not model_df.empty else pd.DataFrame(),official_rank_map)
+                    if isinstance(_hl,tuple): _hl=_hl[0]
+                    if _hl and str(_hl) not in ("","EVEN","Pick'em","None"):
+                        _user_fav=str(team).lower() in str(_hl).lower()
+                        _lc="#4ade80" if _user_fav else "#f87171"
+                        _line_html=(f"<span style='font-size:.72rem;color:#64748b;font-family:Barlow Condensed,sans-serif;'>"
+                                   f"LINE: <strong style='color:{_lc};'>{html.escape(str(_hl))}</strong></span>")
+                except: pass
+            # Card HTML — use string concat to avoid triple-quote rendering issues
+            card=(
+                f"<div style='background:linear-gradient(135deg,{primary}18 0%,#0f172a 40%);"
+                f"border:1px solid {primary}44;border-radius:14px;padding:14px 16px;margin-bottom:8px;"
+                f"border-left:5px solid {primary};'>"
+                f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>"
+                f"{logo_html}"
+                f"<div style='flex:1;min-width:0;'>"
+                f"<div style='font-weight:900;font-size:.95rem;color:{primary};'>{html.escape(team)}</div>"
+                f"<div style='font-size:.68rem;color:#64748b;'>{html.escape(user)}"
+                +(f" · <span style='color:#94a3b8;'>{html.escape(rec_str)}</span>" if rec_str else "")
+                +f"</div>"
+                f"<div style='font-size:.72rem;color:#94a3b8;margin-top:1px;'>{_fpi_line}</div>"
+                f"<div style='margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;'>{rank_badge}{status_badge}</div>"
+                f"</div>"
+                f"<div style='text-align:right;font-size:1.1rem;'>{status_dot}</div>"
+                f"</div>"
+                f"<div style='border-top:1px solid rgba(255,255,255,.06);padding-top:6px;margin-top:4px;'>"
+                f"{match_html}"
+                +( f"<div style='margin-top:4px;'>{_line_html}</div>" if _line_html else "")
+                +f"</div>"
+                f"</div>"
+            )
+            st.markdown(card, unsafe_allow_html=True)
             # Previous week box score
             if not prev_gs.empty:
                 try:
@@ -2458,9 +2496,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     _pg_h=prev_gs[prev_gs[_hc2].astype(str).str.strip().str.lower()==_tl] if _hc2 else pd.DataFrame()
                     _pg=_pg_v.iloc[0] if not _pg_v.empty else (_pg_h.iloc[0] if not _pg_h.empty else None)
                     if _pg is not None:
-                        _is_home=not _pg_v.empty if _pg_v.empty else False
-                        _is_home=(not _pg_v.empty)==False
-                        _is_home=_pg_h.shape[0]>0 and _pg_v.shape[0]==0
+                        _is_home=(_pg_h.shape[0]>0 and _pg_v.shape[0]==0)
                         if _is_home:
                             _us=int(float(_pg.get('HomeScore',0) or 0)); _ops=int(float(_pg.get('VisitorScore',0) or 0))
                             _uq1=int(float(_pg.get('Q1_Home',0) or 0)); _uq2=int(float(_pg.get('Q2_Home',0) or 0))
@@ -2487,45 +2523,38 @@ def render_game_cards_with_boxscore(year, week, model_df):
                         _gc=compute_game_control_score(_pg.to_dict(),_is_home)
                         _gc_c="#4ade80" if _gc>=65 else ("#fbbf24" if _gc>=50 else "#f87171")
                         _gc_pct=int(_gc)
-                        st.markdown(f"""
-<div style='background:#06090f;border:1px solid #1e293b;border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.72rem;'>
-  <div style='color:#475569;margin-bottom:5px;font-size:.62rem;letter-spacing:.05em;text-transform:uppercase;'>Wk {prev_week} vs {html.escape(_opp_ab)}</div>
-  <div style='display:flex;justify-content:space-between;margin-bottom:4px;'>
-    <div style='display:flex;gap:4px;'>
-      <span style='color:#475569;min-width:28px;'>Q1</span><span style='color:#475569;min-width:28px;'>Q2</span>
-      <span style='color:#475569;min-width:28px;'>Q3</span><span style='color:#475569;min-width:28px;'>Q4</span>
-      <span style='color:#94a3b8;font-weight:700;min-width:28px;'>TOT</span>
-    </div>
-  </div>
-  <div style='display:flex;justify-content:space-between;margin-bottom:2px;'>
-    <span style='color:#94a3b8;font-weight:700;min-width:32px;'>{html.escape(team[:6].upper())}</span>
-    <div style='display:flex;gap:4px;'>
-      <span style='color:#64748b;min-width:28px;text-align:center;'>{_uq1}</span>
-      <span style='color:#64748b;min-width:28px;text-align:center;'>{_uq2}</span>
-      <span style='color:#64748b;min-width:28px;text-align:center;'>{_uq3}</span>
-      <span style='color:#64748b;min-width:28px;text-align:center;'>{_uq4}</span>
-      <span style='color:{_rc};font-weight:900;min-width:28px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;'>{_us}</span>
-    </div>
-  </div>
-  <div style='display:flex;justify-content:space-between;margin-bottom:6px;'>
-    <span style='color:#475569;min-width:32px;'>{html.escape(_opp_ab)}</span>
-    <div style='display:flex;gap:4px;'>
-      <span style='color:#475569;min-width:28px;text-align:center;'>{_oq1}</span>
-      <span style='color:#475569;min-width:28px;text-align:center;'>{_oq2}</span>
-      <span style='color:#475569;min-width:28px;text-align:center;'>{_oq3}</span>
-      <span style='color:#475569;min-width:28px;text-align:center;'>{_oq4}</span>
-      <span style='color:#475569;font-weight:700;min-width:28px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;'>{_ops}</span>
-    </div>
-  </div>
-  <div style='font-size:.62rem;color:#475569;margin-bottom:4px;'>{_uyd} yds · {_uto} TO vs {_opp_ab}: {_oyd} yds · {_oto} TO</div>
-  <div style='margin-top:4px;'>
-    <div style='font-size:.58rem;color:#475569;margin-bottom:2px;letter-spacing:.05em;text-transform:uppercase;'>Game Control</div>
-    <div style='background:#1e293b;border-radius:4px;height:8px;overflow:hidden;'>
-      <div style='width:{_gc_pct}%;height:100%;background:linear-gradient(90deg,{_gc_c}cc,{_gc_c}55);border-radius:4px;'></div>
-    </div>
-    <div style='font-size:.6rem;color:{_gc_c};font-weight:700;margin-top:1px;'>{_gc:.1f} / 100</div>
-  </div>
-</div>""", unsafe_allow_html=True)
+                        _tm_ab=html.escape(team[:6].upper()); _op_ab=html.escape(_opp_ab)
+                        _bx=(
+                            f"<div style='background:#06090f;border:1px solid #1e293b;border-radius:10px;"
+                            f"padding:10px 12px;margin-bottom:8px;font-size:.72rem;'>"
+                            f"<div style='color:#475569;margin-bottom:5px;font-size:.62rem;letter-spacing:.05em;text-transform:uppercase;'>"
+                            f"Wk {prev_week} vs {_op_ab}</div>"
+                            f"<div style='display:grid;grid-template-columns:36px 28px 28px 28px 28px 36px;gap:2px;align-items:center;margin-bottom:3px;'>"
+                            f"<span style='color:#94a3b8;font-weight:700;font-size:.65rem;'>{_tm_ab}</span>"
+                            f"<span style='color:#64748b;text-align:center;'>{_uq1}</span>"
+                            f"<span style='color:#64748b;text-align:center;'>{_uq2}</span>"
+                            f"<span style='color:#64748b;text-align:center;'>{_uq3}</span>"
+                            f"<span style='color:#64748b;text-align:center;'>{_uq4}</span>"
+                            f"<span style='color:{_rc};font-weight:900;text-align:right;font-family:Bebas Neue,sans-serif;font-size:.95rem;'>{_us}</span>"
+                            f"</div>"
+                            f"<div style='display:grid;grid-template-columns:36px 28px 28px 28px 28px 36px;gap:2px;align-items:center;margin-bottom:6px;'>"
+                            f"<span style='color:#475569;font-size:.65rem;'>{_op_ab}</span>"
+                            f"<span style='color:#475569;text-align:center;'>{_oq1}</span>"
+                            f"<span style='color:#475569;text-align:center;'>{_oq2}</span>"
+                            f"<span style='color:#475569;text-align:center;'>{_oq3}</span>"
+                            f"<span style='color:#475569;text-align:center;'>{_oq4}</span>"
+                            f"<span style='color:#64748b;font-weight:700;text-align:right;font-family:Bebas Neue,sans-serif;font-size:.95rem;'>{_ops}</span>"
+                            f"</div>"
+                            f"<div style='font-size:.62rem;color:#475569;margin-bottom:4px;'>"
+                            f"{_uyd} yds · {_uto} TO &nbsp;|&nbsp; {_op_ab}: {_oyd} yds · {_oto} TO</div>"
+                            f"<div style='font-size:.58rem;color:#64748b;margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em;'>Game Control</div>"
+                            f"<div style='background:#1e293b;border-radius:4px;height:8px;overflow:hidden;'>"
+                            f"<div style='width:{_gc_pct}%;height:100%;background:linear-gradient(90deg,{_gc_c}cc,{_gc_c}55);border-radius:4px;'></div>"
+                            f"</div>"
+                            f"<div style='font-size:.6rem;color:{_gc_c};font-weight:700;margin-top:2px;'>{_gc:.1f} / 100</div>"
+                            f"</div>"
+                        )
+                        st.markdown(_bx, unsafe_allow_html=True)
                 except: pass
         col_idx+=1
 
@@ -2535,38 +2564,61 @@ def render_injury_report():
     try:
         _inj=pd.read_csv('injury_bulletin.csv')
         _inj.columns=[str(c).strip() for c in _inj.columns]
+        # Filter to current year
+        if 'Year' in _inj.columns:
+            _inj['Year']=pd.to_numeric(_inj['Year'],errors='coerce')
+            _inj=_inj[_inj['Year'].fillna(-1).astype(int)==CURRENT_YEAR].copy()
+        elif 'YEAR' in _inj.columns:
+            _inj['YEAR']=pd.to_numeric(_inj['YEAR'],errors='coerce')
+            _inj=_inj[_inj['YEAR'].fillna(-1).astype(int)==CURRENT_YEAR].copy()
         _inj_u=_inj[_inj['Team'].astype(str).str.strip().isin(ALL_USER_TEAMS)].copy()
         _inj_u['OVR']=pd.to_numeric(_inj_u['OVR'],errors='coerce').fillna(0)
         _inj_u['WeeksOut']=pd.to_numeric(_inj_u['WeeksOut'],errors='coerce').fillna(0)
-        _inj_u=_inj_u.sort_values('OVR',ascending=False)
+        # Compute weeks remaining using Week suffered + WeeksOut - current week
+        if 'Week' in _inj_u.columns:
+            _inj_u['WeekSuffered']=pd.to_numeric(_inj_u['Week'],errors='coerce').fillna(CURRENT_WEEK_NUMBER)
+            _inj_u['WeeksRemaining']=(_inj_u['WeekSuffered']+_inj_u['WeeksOut']-CURRENT_WEEK_NUMBER).clip(lower=0).astype(int)
+        else:
+            _inj_u['WeeksRemaining']=_inj_u['WeeksOut'].astype(int)
+        # Only show active (not yet recovered)
+        _inj_u=_inj_u[_inj_u['WeeksRemaining']>0].sort_values('OVR',ascending=False)
         if _inj_u.empty:
-            st.info("No active injuries reported."); return
+            st.info("No active injuries in the current season."); return
+        st.caption(f"{CURRENT_YEAR} season -- {len(_inj_u)} active injury report entries")
         for _,row in _inj_u.iterrows():
-            team=str(row.get('Team','')).strip(); player=str(row.get('Player','')).strip()
-            pos=str(row.get('Pos','')).strip(); ovr=int(row.get('OVR',0))
-            inj=str(row.get('Injury','')).strip(); wks=int(row.get('WeeksOut',0))
-            status=str(row.get('Status','')).strip(); is_start=str(row.get('IsStarter','')).strip()
+            team=str(row.get('Team','')).strip()
+            player=str(row.get('Player','')).strip()
+            pos=str(row.get('Pos','')).strip()
+            ovr=int(row.get('OVR',0))
+            inj=str(row.get('Injury','')).strip()
+            wks_rem=int(row.get('WeeksRemaining',0))
+            is_start=str(row.get('IsStarter','')).strip()
             primary=get_team_primary_color(team)
             logo=get_school_logo_src(team)
-            lg=f"<img src='{logo}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo else ""
+            lg_src=logo
             ovr_c="#fbbf24" if ovr>=90 else ("#60a5fa" if ovr>=85 else ("#94a3b8" if ovr>=80 else "#475569"))
-            wks_c="#f87171" if wks>=6 else ("#f97316" if wks>=3 else "#fbbf24")
-            st.markdown(f"""
-<div style='background:linear-gradient(90deg,{primary}12 0%,#06090f 40%);border:1px solid {primary}33;
-    border-left:4px solid {primary};border-radius:8px;padding:10px 14px;margin-bottom:5px;'>
-  <div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>
-    <div style='display:flex;align-items:center;gap:6px;'>
-      {lg}<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.95rem;'>{html.escape(player)}</span>
-      <span style='background:{primary}33;color:{primary};border-radius:4px;padding:1px 6px;font-size:.62rem;font-weight:700;'>{html.escape(pos)}</span>
-      <span style='color:{ovr_c};font-family:Bebas Neue,sans-serif;font-size:.9rem;'>{ovr} OVR</span>
-      {('<span style="background:#fbbf2420;color:#fbbf24;border-radius:3px;padding:1px 5px;font-size:.58rem;">STARTER</span>' if is_start.upper()=='YES' else '')}
-    </div>
-    <div style='display:flex;align-items:center;gap:8px;'>
-      <span style='color:#64748b;font-size:.7rem;'>{html.escape(inj)}</span>
-      <span style='color:{wks_c};font-size:.72rem;font-weight:700;'>{wks} wks out</span>
-    </div>
-  </div>
-</div>""", unsafe_allow_html=True)
+            wks_c="#f87171" if wks_rem>=6 else ("#f97316" if wks_rem>=3 else "#fbbf24")
+            starter_chip='<span style="background:#fbbf2420;color:#fbbf24;border-radius:3px;padding:1px 5px;font-size:.58rem;margin-left:2px;">STARTER</span>' if is_start.upper()=='YES' else ''
+            lg_html=f'<img src="{lg_src}" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;"/>' if lg_src else ''
+            card_html=(
+                f"<div style='background:linear-gradient(90deg,{primary}12 0%,#06090f 40%);border:1px solid {primary}33;"
+                f"border-left:4px solid {primary};border-radius:8px;padding:10px 14px;margin-bottom:5px;'>"
+                f"<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>"
+                f"<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap;'>"
+                f"{lg_html}"
+                f"<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.95rem;'>{html.escape(player)}</span>"
+                f"<span style='background:{primary}33;color:{primary};border-radius:4px;padding:1px 6px;font-size:.62rem;font-weight:700;'>{html.escape(pos)}</span>"
+                f"<span style='color:{ovr_c};font-family:Bebas Neue,sans-serif;font-size:.9rem;'>{ovr} OVR</span>"
+                f"{starter_chip}"
+                f"</div>"
+                f"<div style='display:flex;align-items:center;gap:8px;'>"
+                f"<span style='color:#64748b;font-size:.7rem;'>{html.escape(inj)}</span>"
+                f"<span style='color:{wks_c};font-size:.72rem;font-weight:700;'>{wks_rem} wk{'s' if wks_rem!=1 else ''} remaining</span>"
+                f"</div>"
+                f"</div>"
+                f"</div>"
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
     except Exception as e:
         st.caption(f"Injury report unavailable: {e}")
 
@@ -3118,8 +3170,8 @@ def render_natty_dna():
 
 # ── ROSTER ATTRITION TAB ──────────────────────────────────────────────────────
 def render_roster_attrition_tab():
-    st.header("📋 Roster Attrition")
-    st.caption("Who's walking out the door. NFL draft exits, transfers, and departing seniors -- rated by difficulty to replace.")
+    st.header(f"📋 {CURRENT_YEAR} Roster Attrition")
+    st.caption(f"Who's walking out the door after {CURRENT_YEAR}. NFL draft exits, transfers, and departing seniors -- rated by difficulty to replace.")
     target_year=CURRENT_YEAR
     attrition_data=compute_attrition_ratings(target_year)
     # Load raw data for detail tables
@@ -3138,7 +3190,7 @@ def render_roster_attrition_tab():
         draft_raw['DraftRound']=pd.to_numeric(draft_raw['DraftRound'],errors='coerce').fillna(8)
     except: draft_raw=pd.DataFrame()
     # ── ATTRITION RATING SUMMARY CARDS ───────────────────────────────
-    st.markdown("### Attrition Ratings")
+    st.markdown(f"### {CURRENT_YEAR} Attrition Ratings")
     _sorted_users=sorted(attrition_data.keys(),key=lambda u: attrition_data[u]['pts'],reverse=True)
     cols=st.columns(min(3,len(_sorted_users))); ci=0
     for user in _sorted_users:
@@ -3252,7 +3304,7 @@ def render_roster_attrition_tab():
 </div>""", unsafe_allow_html=True)
     with _at_tabs[2]:
         st.subheader(f"🎓 {target_year} Departing Seniors")
-        st.caption("Seniors who exhaust eligibility after this season. Compiled from roster + class data.")
+        st.caption("Seniors who exhaust eligibility. Use the dropdown to view by team.")
         try:
             _ros_file=f'cfb_136_top30_rosters_{target_year}.csv'
             _ros_fallback='cfb26_rosters_full.csv'
@@ -3267,29 +3319,42 @@ def render_roster_attrition_tab():
             _yr_col=next((c for c in ('YEAR_CLASS','Class','CLASS','Year') if c in _rdf.columns),None)
             if not _yr_col: st.info("No class/year column in roster."); return
             _user_ros=_rdf[_rdf['TEAM'].isin(ALL_USER_TEAMS)].copy()
-            _seniors=_user_ros[_user_ros[_yr_col].astype(str).apply(is_senior_label)].sort_values('OVR',ascending=False)
-            if _seniors.empty: st.info("No departing seniors found in roster data."); return
+            _all_seniors=_user_ros[_user_ros[_yr_col].astype(str).apply(is_senior_label)].copy()
+            if _all_seniors.empty: st.info("No departing seniors found in roster data."); return
+            # Team dropdown
+            _sr_teams=sorted(_all_seniors['TEAM'].unique().tolist())
+            _sr_team_sel=st.selectbox("Select team",["All User Teams"]+_sr_teams,key="sr_team_sel")
+            if _sr_team_sel=="All User Teams":
+                _seniors=_all_seniors.sort_values(['TEAM','OVR'],ascending=[True,False])
+            else:
+                _seniors=_all_seniors[_all_seniors['TEAM']==_sr_team_sel].sort_values('OVR',ascending=False)
+            st.caption(f"{len(_seniors)} departing senior{'s' if len(_seniors)!=1 else ''} {'across all user teams' if _sr_team_sel=='All User Teams' else f'for {_sr_team_sel}'}")
             for _,sr in _seniors.iterrows():
-                team=str(sr['TEAM']); nm_col=next((c for c in ('NAME','Name','PLAYER') if c in sr.index),'NAME')
-                player=str(sr.get(nm_col,'?')).strip(); pos=str(sr.get('POS',sr.get('Pos','?'))).strip()
+                team=str(sr['TEAM'])
+                nm_col=next((c for c in ('NAME','Name','PLAYER') if c in sr.index),'NAME')
+                player=str(sr.get(nm_col,'?')).strip()
+                pos=str(sr.get('POS',sr.get('Pos','?'))).strip()
                 ovr=int(sr['OVR']); cls=str(sr.get(_yr_col,'?')).strip()
-                primary=get_team_primary_color(team); logo=get_school_logo_src(team)
-                lh=f"<img src='{logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo else ""
+                primary=get_team_primary_color(team)
+                logo=get_school_logo_src(team)
+                lh=f'<img src="{logo}" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:6px;"/>' if logo else ''
                 ovr_c="#fbbf24" if ovr>=88 else ("#94a3b8" if ovr>=80 else "#475569")
-                st.markdown(f"""
-<div style='background:#06090f;border:1px solid #1e293b;border-left:3px solid {primary};
-    border-radius:8px;padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;
-    justify-content:space-between;flex-wrap:wrap;gap:6px;'>
-  <div style='display:flex;align-items:center;gap:6px;'>
-    {lh}<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.9rem;'>{html.escape(player)}</span>
-    <span style='background:{primary}33;color:{primary};border-radius:3px;padding:1px 5px;font-size:.6rem;font-weight:700;'>{pos}</span>
-    <span style='color:{ovr_c};font-size:.65rem;font-weight:700;'>{ovr} OVR</span>
-  </div>
-  <div style='display:flex;align-items:center;gap:6px;'>
-    <span style='font-size:.68rem;color:#64748b;'>{html.escape(team)}</span>
-    <span style='font-size:.62rem;color:#475569;'>{html.escape(cls)}</span>
-  </div>
-</div>""", unsafe_allow_html=True)
+                card=(
+                    f"<div style='background:#06090f;border:1px solid #1e293b;border-left:3px solid {primary};"
+                    f"border-radius:8px;padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;"
+                    f"justify-content:space-between;flex-wrap:wrap;gap:6px;'>"
+                    f"<div style='display:flex;align-items:center;gap:6px;'>"
+                    f"{lh}"
+                    f"<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.9rem;'>{html.escape(player)}</span>"
+                    f"<span style='background:{primary}33;color:{primary};border-radius:3px;padding:1px 5px;font-size:.6rem;font-weight:700;'>{pos}</span>"
+                    f"<span style='color:{ovr_c};font-size:.65rem;font-weight:700;'>{ovr} OVR</span>"
+                    f"</div>"
+                    f"<div style='display:flex;align-items:center;gap:6px;'>"
+                    f"<span style='font-size:.68rem;color:#64748b;'>{html.escape(team)}</span>"
+                    f"<span style='font-size:.62rem;color:#475569;'>{html.escape(cls)}</span>"
+                    f"</div></div>"
+                )
+                st.markdown(card, unsafe_allow_html=True)
         except Exception as e:
             st.caption(f"Departing seniors unavailable: {e}")
 
@@ -3893,6 +3958,40 @@ def render_roster_matchup_tab():
 
 
 # ── AUTO-SYNC: Derive CFP/natty stats and write back to CSVs ─────────────────
+
+def render_team_athletic_profile_plotly(team_metric_map):
+    if not team_metric_map:
+        st.caption("No athletic profile data available.")
+        return
+    metric_order=["Players 90+ Speed","Roster Avg Speed","Roster Avg Overall",
+        "Best Player Overall","Players 90+ Overall","Roster Avg Awareness","Roster Avg Agility"]
+    first_team=list(team_metric_map.keys())[0]
+    categories=[m for m in metric_order if m in team_metric_map[first_team]]
+    if not categories:
+        st.caption("No athletic profile metrics available."); return
+    all_vals=[float(team_metric_map[t].get(c,0)) for t in team_metric_map for c in categories]
+    if not all_vals: st.caption("No athletic profile values available."); return
+    min_val=min(all_vals); max_val=max(all_vals)
+    axis_floor=max(0,int(min_val)-3)
+    axis_ceiling=min(100,int(max_val)+3) if max_val<=100 else int(max_val)+2
+    fig=go.Figure()
+    for team,metrics in team_metric_map.items():
+        tc=TEAM_VISUALS.get(team,{}).get("primary","#38bdf8")
+        vals=[float(metrics.get(c,0)) for c in categories]
+        fig.add_trace(go.Bar(y=categories,x=vals,name=team,orientation="h",
+            marker=dict(color=tc),
+            text=[f"{v:.1f}" if isinstance(v,float) and not v.is_integer() else f"{int(v)}" for v in vals],
+            textposition="outside",
+            hovertemplate=f"<b>{team}</b><br>%{{y}}: %{{x}}<extra></extra>"))
+    fig.update_layout(barmode="group",height=520,
+        paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="white"),margin=dict(l=20,r=40,t=20,b=20),
+        legend=dict(orientation="h",yanchor="bottom",y=1.02,xanchor="left",x=0),
+        xaxis=dict(title="Value",range=[axis_floor,axis_ceiling],
+            gridcolor="rgba(255,255,255,0.10)",zeroline=False),
+        yaxis=dict(title="",autorange="reversed"))
+    st.plotly_chart(fig,use_container_width=True,config={"displayModeBar":False,"staticPlot":True})
+
 # ══════════════════════════════════════════════════════════════════════
 # MAIN APP -- LOAD DATA + BUILD TICKER + RENDER TABS
 # ══════════════════════════════════════════════════════════════════════
@@ -4075,7 +4174,7 @@ with tabs[1]:
             try:
                 _fpi_df,_msp_df=get_ratings_and_ms_plus(year=CURRENT_YEAR,week_cap=CURRENT_WEEK_NUMBER)
                 if not _msp_df.empty:
-                    _power_table(_msp_df,"fpi_msp","#a78bfa","MS+ and FPI combined ratings -- sorted by MS+ by default.",has_msp=True)
+                    _power_table(_msp_df,"fpi_msp","#fbbf24","FPI and MS+ combined -- sorted by FPI by default.",has_msp=True)
                 elif not _fpi_df.empty:
                     _power_table(_fpi_df,"fpi_only","#fbbf24","FPI power ratings.",has_msp=False)
                 else:
@@ -4647,7 +4746,6 @@ with tabs[3]:
 # ══════════════════════════════════════════════════════════════════════
 with tabs[4]:
     _ul_tabs = st.tabs(["⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
-    _yt_tabs = st.tabs(["▶️ Dynasty YouTube", "⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
 
     # --- H2H MATRIX ---
 with _ul_tabs[0]:
@@ -4745,129 +4843,6 @@ with _ul_tabs[0]:
         )
 
         # ── RIVALRY METER ───────────────────────────────────────────────────────────
-        st.markdown("---")
-        st.subheader("🔥 Rivalry Meter")
-        if not rivalry_df.empty:
-            _sorted_riv = rivalry_df.sort_values(
-                ['Rivalry Score', 'Games'], ascending=[False, False])
-            for _, _rv in _sorted_riv.iterrows():
-                _matchup_parts = str(_rv['Matchup']).split(' vs ')
-                _ua = _matchup_parts[0].strip() if len(_matchup_parts) == 2 else str(_rv['Matchup'])
-                _ub = _matchup_parts[1].strip() if len(_matchup_parts) == 2 else ''
-                _ia = _h2h_user_info.get(_ua, {})
-                _ib = _h2h_user_info.get(_ub, {})
-                _ca = _ia.get('color', '#6b7280')
-                _cb = _ib.get('color', '#6b7280')
-                _la = _ia.get('logo_uri', '')
-                _lb = _ib.get('logo_uri', '')
-                _logo_a = (f"<img src='{_la}' style='width:32px;height:32px;"
-                           f"object-fit:contain;'/>" if _la else "🏈")
-                _logo_b = (f"<img src='{_lb}' style='width:32px;height:32px;"
-                           f"object-fit:contain;'/>" if _lb else "🏈")
-                _wa = int(_rv.get(_ua, 0)) if _ua in _rv else 0
-                _wb = int(_rv.get(_ub, 0)) if _ub in _rv else 0
-                _riv_score = float(_rv.get('Rivalry Score', 0))
-                _avg_margin = float(_rv.get('Avg Margin', 0))
-                _games = int(_rv.get('Games', 0))
-                _heat = ("🔥🔥🔥" if _riv_score >= 25 else
-                         "🔥🔥" if _riv_score >= 15 else "🔥")
-                _bar_pct_a = int((_wa / max(_games, 1)) * 100)
-                st.markdown(
-                    f"<div style='background:#111827;border:1px solid #1e293b;"
-                    f"border-radius:12px;padding:14px 16px;margin-bottom:8px;'>"
-                    f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;"
-                    f"margin-bottom:10px;'>"
-                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:100px;'>"
-                    f"{_logo_a}"
-                    f"<span style='font-weight:900;color:{_ca};font-size:0.9rem;'>"
-                    f"{html.escape(_ua)}</span></div>"
-                    f"<div style='text-align:center;min-width:60px;'>"
-                    f"<div style='font-size:0.65rem;color:#475569;'>{_games} games</div>"
-                    f"<div style='font-size:1.1rem;font-weight:900;color:#f1f5f9;'>"
-                    f"{_wa} &ndash; {_wb}</div>"
-                    f"<div style='font-size:0.65rem;color:#64748b;'>"
-                    f"avg &#177;{_avg_margin:.1f}</div></div>"
-                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;"
-                    f"justify-content:flex-end;min-width:100px;'>"
-                    f"<span style='font-weight:900;color:{_cb};font-size:0.9rem;'>"
-                    f"{html.escape(_ub)}</span>"
-                    f"{_logo_b}</div></div>"
-                    f"<div style='display:flex;align-items:center;gap:8px;'>"
-                    f"<div style='flex:1;background:#0f172a;border-radius:999px;height:6px;overflow:hidden;'>"
-                    f"<div style='width:{_bar_pct_a}%;height:100%;background:{_ca};"
-                    f"border-radius:999px;'></div></div>"
-                    f"<span style='font-size:0.72rem;color:#fbbf24;font-weight:700;white-space:nowrap;'>"
-                    f"{_heat} {_riv_score:.0f} pts</span></div></div>",
-                    unsafe_allow_html=True
-                )
-        else:
-            st.info("No rivalry data available yet.")
-
-        # ── 1-on-1 DRILLDOWN ────────────────────────────────────────────────────────
-        st.markdown("---")
-        st.subheader("🔍 1-on-1 Drilldown")
-        _drill_user = st.selectbox(
-            "Select a coach", _h2h_users, key="h2h_select")
-        _drill_info = _h2h_user_info.get(_drill_user, {})
-        _drill_tc   = _drill_info.get('color', '#6b7280')
-        _drill_lu   = _drill_info.get('logo_uri', '')
-        _drill_logo = (f"<img src='{_drill_lu}' style='width:36px;height:36px;"
-                       f"object-fit:contain;'/>" if _drill_lu else "🏈")
-
-        st.markdown(
-            f"<div style='display:flex;align-items:center;gap:10px;"
-            f"padding:10px 14px;background:linear-gradient(90deg,{_drill_tc}1a,#0f172a);"
-            f"border:1px solid {_drill_tc}44;border-left:4px solid {_drill_tc};"
-            f"border-radius:10px;margin-bottom:12px;'>"
-            f"{_drill_logo}"
-            f"<span style='font-weight:900;font-size:1rem;color:{_drill_tc};'>"
-            f"{html.escape(_drill_user)}</span>"
-            f"<span style='font-size:0.75rem;color:#64748b;margin-left:4px;'>"
-            f"&mdash; {html.escape(_drill_info.get('team', ''))}</span>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
-        _drill_row = h2h_df[h2h_df['User'] == _drill_user]
-        for _opp in sorted(all_users):
-            if _opp == _drill_user:
-                continue
-            _opp_info2 = _h2h_user_info.get(_opp, {})
-            _opp_tc2   = _opp_info2.get('color', '#6b7280')
-            _opp_lu2   = _opp_info2.get('logo_uri', '')
-            _opp_logo2 = (f"<img src='{_opp_lu2}' style='width:28px;height:28px;"
-                          f"object-fit:contain;'/>" if _opp_lu2 else "🏈")
-            try:
-                _rec2  = _drill_row[_opp].iloc[0] if not _drill_row.empty else "0-0"
-                _net2  = int(h2h_heat.loc[_drill_user, _opp])
-                _parts2 = str(_rec2).split('-')
-                _w2 = int(_parts2[0]) if len(_parts2) == 2 else 0
-                _l2 = int(_parts2[1]) if len(_parts2) == 2 else 0
-            except Exception:
-                _rec2, _w2, _l2, _net2 = "0-0", 0, 0, 0
-            _net_c2 = ("#22c55e" if _net2 > 0 else
-                       "#f87171" if _net2 < 0 else "#94a3b8")
-            _net_s2 = f"+{_net2}" if _net2 > 0 else str(_net2)
-            _edge_label = ("LEADS" if _net2 > 0 else
-                           "TRAILS" if _net2 < 0 else "EVEN")
-            st.markdown(
-                f"<div style='display:flex;align-items:center;gap:10px;"
-                f"padding:10px 14px;background:#111827;border:1px solid #1e293b;"
-                f"border-radius:10px;margin-bottom:6px;flex-wrap:wrap;'>"
-                f"<div style='display:flex;align-items:center;gap:6px;flex:1;"
-                f"min-width:100px;'>{_opp_logo2}"
-                f"<span style='font-weight:700;color:{_opp_tc2};'>"
-                f"{html.escape(_opp)}</span></div>"
-                f"<div style='font-weight:900;font-size:1.1rem;color:#f1f5f9;'>"
-                f"{_w2} &ndash; {_l2}</div>"
-                f"<div style='text-align:right;min-width:80px;'>"
-                f"<span style='font-weight:800;color:{_net_c2};font-size:0.8rem;'>"
-                f"{_net_s2} &nbsp;"
-                f"<span style='font-size:0.65rem;'>{_edge_label}</span></span>"
-                f"</div></div>",
-                unsafe_allow_html=True
-            )
-
 # --- SEASON RECAP ---
 
 
