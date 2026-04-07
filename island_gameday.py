@@ -2569,7 +2569,8 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     _fv_t,_=_fpi_for(team); _fv_o,_=_fpi_for(opp)
                     if _fv_t!=0 or _fv_o!=0:
                         _hf_adj=3.0 if matchup.get('home') else -3.0
-                        _spread=(_fv_t-_fv_o)*2.8+_hf_adj
+                        _raw=(_fv_t-_fv_o)*0.65+_hf_adj  # FPI->pts: ~0.65x, capped at 35
+                        _spread=max(-35.0,min(35.0,_raw))
                         if abs(_spread)>=1.5:
                             _fav=team if _spread>0 else opp
                             _sp_val=round(abs(_spread),1)
@@ -2792,16 +2793,46 @@ def render_highest_rated_games(year, week):
     st.subheader("📺 Highest TV Rated Games of the Season")
     st.caption("Viewership formula: matchup stakes + rankings + margin + game context. Peak = broadcast moment.")
     try:
-        _tv=load_scores_master(year)
-        if _tv.empty: st.info("No schedule data yet."); return
+        # Read schedule directly (bypass cache) so newly-pushed CSVs always show
+        _sched_path=f'schedule_{year}.csv'
+        _tv=pd.DataFrame()
+        if os.path.exists(_sched_path):
+            try: _tv=pd.read_csv(_sched_path,on_bad_lines='skip',encoding='utf-8')
+            except:
+                try: _tv=pd.read_csv(_sched_path,on_bad_lines='skip',encoding='latin-1')
+                except: pass
+        # Also try load_scores_master as fallback
+        if _tv.empty: _tv=load_scores_master(year)
+        if _tv.empty:
+            st.info(f"No schedule data (schedule_{year}.csv not found or empty).")
+            return
+        _tv.columns=[str(c).strip() for c in _tv.columns]
+        # Flexible column name normalisation
+        _col_map={'Vis Score':['Vis Score','Vis_Score','V_Score','VisScore'],
+                  'Home Score':['Home Score','Home_Score','H_Score','HomeScore'],
+                  'Visitor Rank':['Visitor Rank','Vis Rank','VIS_RANK'],
+                  'Home Rank':['Home Rank','HOME_RANK'],
+                  'Status':['Status','STATUS'],
+                  'Vis_User':['Vis_User','VIS_USER','Visitor User'],
+                  'Home_User':['Home_User','HOME_USER','Home User']}
+        for canon,alts in _col_map.items():
+            if canon not in _tv.columns:
+                for alt in alts:
+                    if alt in _tv.columns: _tv=_tv.rename(columns={alt:canon}); break
         for c in ('YEAR','Week','Vis Score','Home Score','Visitor Rank','Home Rank'):
             if c in _tv.columns: _tv[c]=pd.to_numeric(_tv[c],errors='coerce')
-        # load_scores_master already filters by year, just filter Status
+        # Filter to current year if YEAR column present
         if 'YEAR' in _tv.columns:
-            _tv['YEAR']=pd.to_numeric(_tv['YEAR'],errors='coerce')
             _tv=_tv[_tv['YEAR'].fillna(-1).astype(int)==year]
-        _tv_cy=_tv[_tv['Status'].astype(str).str.upper()=='FINAL'].dropna(subset=['Vis Score','Home Score']).copy()
-        if _tv_cy.empty: st.info("No completed games this season yet."); return
+        # Filter to FINAL games; be flexible about Status values
+        if 'Status' in _tv.columns:
+            _tv_cy=_tv[_tv['Status'].astype(str).str.upper().str.strip()=='FINAL'].copy()
+        else:
+            _tv_cy=_tv.dropna(subset=['Vis Score','Home Score']).copy()
+        _tv_cy=_tv_cy.dropna(subset=['Vis Score','Home Score'])
+        if _tv_cy.empty:
+            st.info(f"Schedule loaded ({len(_tv)} rows) but no FINAL games yet this season.")
+            return
         _tv_cy['Vis_User']=_tv_cy.get('Vis_User',pd.Series(dtype=str)).astype(str).str.strip().str.title()
         _tv_cy['Home_User']=_tv_cy.get('Home_User',pd.Series(dtype=str)).astype(str).str.strip().str.title()
 
@@ -3462,7 +3493,7 @@ def render_natty_dna():
 # ── ROSTER ATTRITION TAB ──────────────────────────────────────────────────────
 def render_roster_attrition_tab():
     st.header(f"📋 {CURRENT_YEAR} Roster Attrition")
-    st.caption(f"Who's walking out the door after {CURRENT_YEAR}. NFL draft exits, transfers, and departing seniors -- rated by difficulty to replace.")
+    st.caption(f"Departing talent after {CURRENT_YEAR} season. Seniors graduating + transfers out ({CURRENT_YEAR} data) + NFL exits ({CURRENT_YEAR+1} draft class).")
     target_year=CURRENT_YEAR
     attrition_data=compute_attrition_ratings(target_year)
     # Load raw data for detail tables
@@ -3477,7 +3508,9 @@ def render_roster_attrition_tab():
         draft_raw=pd.read_csv('cfb_draft_results.csv')
         draft_raw.columns=[str(c).strip() for c in draft_raw.columns]
         draft_raw['DraftYear']=pd.to_numeric(draft_raw['DraftYear'],errors='coerce')
-        draft_raw=draft_raw[draft_raw['DraftYear'].fillna(-1).astype(int)==target_year].copy()
+        # NFL draft for the current SEASON's departures = next draft year
+        _draft_yrs=[target_year, target_year+1]
+        draft_raw=draft_raw[draft_raw['DraftYear'].fillna(-1).astype(int).isin(_draft_yrs)].copy()
         draft_raw['DraftRound']=pd.to_numeric(draft_raw['DraftRound'],errors='coerce').fillna(8)
     except: draft_raw=pd.DataFrame()
     # ── ATTRITION RATING SUMMARY CARDS ───────────────────────────────
@@ -3490,30 +3523,46 @@ def render_roster_attrition_tab():
         logo=image_file_to_data_uri(get_logo_source(team))
         lh=f"<img src='{logo}' style='width:48px;height:48px;object-fit:contain;'/>" if logo else "🏈"
         with cols[ci%len(cols)]:
-            st.markdown(f"""
-<div style='background:linear-gradient(135deg,{primary}15 0%,#0f172a 40%);
-    border:1px solid {primary}44;border-left:5px solid {primary};border-radius:12px;
-    padding:14px 16px;margin-bottom:8px;'>
-  <div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
-    {lh}
-    <div style='flex:1;'>
-      <div style='font-weight:900;color:{primary};font-size:.95rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(team)}</div>
-      <div style='font-size:.68rem;color:#64748b;'>{html.escape(user)}</div>
-    </div>
-    <div style='text-align:right;'>
-      <div style='font-family:Bebas Neue,sans-serif;font-size:2rem;color:{d["tier_c"]};line-height:1;'>{d["pts"]}</div>
-      <div style='font-size:.55rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;'>pts</div>
-    </div>
-  </div>
-  <div style='background:{d["tier_c"]}22;border:1px solid {d["tier_c"]}44;border-radius:6px;
-      padding:4px 10px;text-align:center;'>
-    <span style='color:{d["tier_c"]};font-weight:900;font-size:.78rem;font-family:Barlow Condensed,sans-serif;
-        letter-spacing:.05em;'>{d["tier_emoji"]} {d["tier"].upper()}</span>
-  </div>
-  <div style='margin-top:6px;font-size:.62rem;color:#475569;'>
-    {d["nfl_count"]} NFL exits · {d["transfer_count"]} transfers out
-  </div>
-</div>""", unsafe_allow_html=True)
+            # Count departing seniors from roster
+            _sr_count=0
+            try:
+                _ros_f=f'cfb_136_top30_rosters_{target_year}.csv'
+                if os.path.exists(_ros_f):
+                    _rdf2=pd.read_csv(_ros_f)
+                    _rdf2['TEAM']=_rdf2['TEAM'].astype(str).str.strip()
+                    _yr_c2=next((c for c in ('YEAR_CLASS','Class','CLASS') if c in _rdf2.columns),None)
+                    if _yr_c2:
+                        _sr_count=len(_rdf2[(_rdf2['TEAM']==team)&(_rdf2[_yr_c2].astype(str).apply(is_senior_label))])
+            except: pass
+            # Build breakdown line
+            _breakdown_parts=[]
+            if d["nfl_count"]>0: _breakdown_parts.append(f"{d['nfl_count']} NFL exit{'s' if d['nfl_count']!=1 else ''}")
+            if d["transfer_count"]>0: _breakdown_parts.append(f"{d['transfer_count']} transfer{'s' if d['transfer_count']!=1 else ''} out")
+            if _sr_count>0: _breakdown_parts.append(f"{_sr_count} senior{'s' if _sr_count!=1 else ''} graduating")
+            _breakdown_str=", ".join(_breakdown_parts) if _breakdown_parts else "No confirmed departures yet"
+            card_attrition=(
+                f"<div style='background:linear-gradient(135deg,{primary}15 0%,#0f172a 40%);"
+                f"border:1px solid {primary}44;border-left:5px solid {primary};border-radius:12px;"
+                f"padding:14px 16px;margin-bottom:8px;'>"
+                f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>"
+                f"{lh}"
+                f"<div style='flex:1;'>"
+                f"<div style='font-weight:900;color:{primary};font-size:.95rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(team)}</div>"
+                f"<div style='font-size:.68rem;color:#64748b;'>{html.escape(user)}</div>"
+                f"</div>"
+                f"<div style='text-align:right;'>"
+                f"<div style='font-family:Bebas Neue,sans-serif;font-size:2rem;color:{d['tier_c']};line-height:1;'>{d['pts']}</div>"
+                f"<div style='font-size:.55rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;'>pts</div>"
+                f"</div></div>"
+                f"<div style='background:{d['tier_c']}22;border:1px solid {d['tier_c']}44;border-radius:6px;"
+                f"padding:4px 10px;text-align:center;'>"
+                f"<span style='color:{d['tier_c']};font-weight:900;font-size:.78rem;font-family:Barlow Condensed,sans-serif;"
+                f"letter-spacing:.05em;'>{d['tier_emoji']} {d['tier'].upper()}</span>"
+                f"</div>"
+                f"<div style='margin-top:6px;font-size:.62rem;color:#475569;'>{_breakdown_str}</div>"
+                f"</div>"
+            )
+            st.markdown(card_attrition, unsafe_allow_html=True)
         ci+=1
     # Rating scale legend
     st.markdown("""
@@ -4284,6 +4333,49 @@ def mobile_metrics(metrics, cols_desktop=4):
         unsafe_allow_html=True
     )
 
+def send_score_email(user, team, user_score, opp_score, opp_name, week, year, status):
+    """
+    Send score notification email to commissioner.
+    Reads credentials from st.secrets:
+        [email]
+        sender = "dynasty_bot@gmail.com"
+        password = "app_password_here"
+        recipient = "mike@example.com"
+    Falls back to a mailto: link if secrets not configured.
+    """
+    subject=f"ISPN Score Update — {user} ({team}) Wk {week} {year}"
+    body=(f"Score submitted by {user} ({team})\n"
+          f"Week {week}, {year}\n"
+          f"Result: {team} {user_score} — {opp_name} {opp_score}\n"
+          f"Status: {status}\n"
+          f"\nSubmitted via ISPN Dynasty App")
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        _s=st.secrets.get("email",{})
+        sender=_s.get("sender","")
+        password=_s.get("password","")
+        recipient=_s.get("recipient","")
+        if sender and password and recipient:
+            msg=MIMEText(body)
+            msg['Subject']=subject
+            msg['From']=sender
+            msg['To']=recipient
+            with smtplib.SMTP_SSL('smtp.gmail.com',465) as smtp:
+                smtp.login(sender,password)
+                smtp.sendmail(sender,recipient,msg.as_string())
+            return True,"📧 Score sent to Mike!"
+        else:
+            # Secrets not configured — return mailto fallback
+            import urllib.parse
+            _encoded_body=urllib.parse.quote(body)
+            _encoded_subj=urllib.parse.quote(subject)
+            _mailto=f"mailto:{recipient or 'commissioner@ispn.com'}?subject={_encoded_subj}&body={_encoded_body}"
+            return False,_mailto
+    except Exception as e:
+        return False,str(e)
+
+
 def get_redshirt_logo_path():
     for path in ["REDSHIRT.png","logos/REDSHIRT.png",
                  "/mount/src/cfb_dynasty_app/REDSHIRT.png",
@@ -4687,11 +4779,26 @@ with tabs[0]:
                         st.success(f"✅ Saved! Download the CSVs and send to Mike, or Mike can grab them from Commissioner Tools.")
                         st.cache_data.clear()
                     except Exception as e: st.error(f"Save error: {e}")
-                dl_col,_=st.columns([1,2])
-                with dl_col:
+                # Try to email score directly to commissioner
+                try:
+                    _pl_team4=USER_TEAMS.get(_logged_in_user,_logged_in_user)
+                    _auto_st4='Ready' if (_pl_us>0 or _pl_os>0) else 'Not Set'
+                    _ok4,_result4=send_score_email(
+                        user=_logged_in_user,team=_pl_team4,
+                        user_score=_pl_us,opp_score=_pl_os,
+                        opp_name=_pl_opp,week=int(_gs_week),year=int(_gs_year),
+                        status=_auto_st4)
+                    if _ok4:
+                        pass  # success toast shown by button save above
+                    elif _result4.startswith("mailto:"):
+                        st.markdown(f"<a href='{_result4}' target='_blank'><button style='background:#3b82f6;color:white;border:none;border-radius:6px;padding:8px 16px;font-size:.85rem;font-weight:700;cursor:pointer;width:100%;'>📧 Email Score to Mike</button></a>",unsafe_allow_html=True)
+                        st.caption("Click above to open your email app pre-filled with your score.")
+                    else:
+                        st.caption(f"Email: {_result4[:80]}...")
+                except Exception as _em_err:
                     if os.path.exists('week_manual_scores.csv'):
                         with open('week_manual_scores.csv','rb') as f4:
-                            st.download_button("⬇️ My Score CSV",data=f4.read(),file_name="week_manual_scores.csv",mime="text/csv",use_container_width=True,key="pl_dl_scores")
+                            st.download_button("⬇️ Download & Send to Mike",data=f4.read(),file_name=f"score_{_logged_in_user}_wk{_gs_week}.csv",mime="text/csv",use_container_width=True,key="pl_dl_scores")
             else:
                 st.info("No matchup found for this week yet. Check back after the schedule drops.")
 
@@ -5451,7 +5558,7 @@ with _ul_tabs[0]:
 # TAB 5 -- ROSTER MATCHUP
 # ══════════════════════════════════════════════════════════════════════
 with tabs[5]:
-    _rm_tabs2 = st.tabs(["🎯 Roster Matchup", "💰 NIL Board"])
+    _rm_tabs2 = st.tabs(["🎯 Roster Matchup"])
     render_roster_matchup_tab()
 
     # --- SIDEBAR CONTENT ---
@@ -5511,339 +5618,6 @@ with tabs[5]:
             if _ok:
                 st.cache_data.clear()
 # ── NIL BOARD (Tab 13) ────────────────────────────────────────────────────────
-with _rm_tabs2[1]:
-    st.header("💰 NIL Board")
-    st.caption("Projected NIL valuations for every player on user rosters -- computed from OVR, position scarcity, class year, and athleticism. Team totals show who's running a bag program.")
-
-    try:
-        _nil_roster = pd.read_csv('cfb26_rosters_full.csv')
-
-        # Season filter
-        if 'Season' in _nil_roster.columns:
-            _nil_roster['Season'] = pd.to_numeric(_nil_roster['Season'], errors='coerce')
-            _nil_avail = sorted(_nil_roster['Season'].dropna().astype(int).unique())
-            _nil_season = CURRENT_YEAR if CURRENT_YEAR in _nil_avail else (max(_nil_avail) if _nil_avail else CURRENT_YEAR)
-            _nil_roster = _nil_roster[_nil_roster['Season'].fillna(-1).astype(int) == int(_nil_season)].copy()
-
-        # Numeric hygiene
-        for _c in ['OVR','SPD','ACC','AGI','COD','AWR']:
-            _nil_roster[_c] = pd.to_numeric(_nil_roster.get(_c, 75), errors='coerce').fillna(75)
-
-        # Filter to user teams only
-        _nil_user_teams = list(USER_TEAMS.values())
-        _nil_roster = _nil_roster[_nil_roster['Team'].astype(str).str.strip().isin(_nil_user_teams)].copy()
-
-        if _nil_roster.empty:
-            st.info("No roster data found for current user teams. Push cfb26_rosters_full.csv to populate this board.")
-        else:
-            # Compute NIL per player
-            _nil_roster['NIL_Value'] = _nil_roster.apply(compute_nil_value, axis=1)
-
-            # Cap each team's total at $40M -- proportional scale-down preserves relative values
-            _NIL_TEAM_CAP = 60_000_000
-            _team_raw_totals = _nil_roster.groupby('Team')['NIL_Value'].transform('sum')
-            _scale = (_NIL_TEAM_CAP / _team_raw_totals).clip(upper=1.0)
-            _nil_roster['NIL_Value'] = (_nil_roster['NIL_Value'] * _scale).round(0)
-            _nil_roster['NIL_Display'] = _nil_roster['NIL_Value'].apply(format_nil)
-
-            # ── TEAM TOTALS ────────────────────────────────────────────────
-            _team_nil = (
-                _nil_roster.groupby('Team')['NIL_Value']
-                .sum()
-                .reset_index()
-                .sort_values('NIL_Value', ascending=False)
-            )
-            _team_nil['User'] = _team_nil['Team'].map({v: k for k, v in USER_TEAMS.items()})
-            _team_nil['NIL_Display'] = _team_nil['NIL_Value'].apply(format_nil)
-            _team_nil['Avg_Player'] = (_nil_roster.groupby('Team')['NIL_Value'].mean().reindex(_team_nil['Team']).values)
-            _team_nil['Avg_Display'] = _team_nil['Avg_Player'].apply(format_nil)
-            _team_nil['Roster_Size'] = _nil_roster.groupby('Team').size().reindex(_team_nil['Team']).values
-
-            # Top earner per team
-            _top_earner = _nil_roster.sort_values('NIL_Value', ascending=False).drop_duplicates('Team')
-            _top_earner_map = dict(zip(_top_earner['Team'], _top_earner['Name'] + ' (' + _top_earner['Pos'] + ')'))
-
-            # ── HEADLINE METRICS ───────────────────────────────────────────
-            _nil_leader = _team_nil.iloc[0]
-            _nil_last   = _team_nil.iloc[-1]
-            _top_player = _nil_roster.sort_values('NIL_Value', ascending=False).iloc[0]
-            _league_total = _team_nil['NIL_Value'].sum()
-            mobile_metrics([
-                {"label": "💰 Biggest Bag Program", "value": str(_nil_leader.get('User', _nil_leader['Team'])), "delta": _nil_leader['NIL_Display']},
-                {"label": "🌟 Top Earner",           "value": str(_top_player.get('Name',  '--')),               "delta": format_nil(_top_player['NIL_Value'])},
-                {"label": "📊 League NIL Pool",      "value": format_nil(_league_total)},
-                {"label": "💸 Most Efficient",       "value": str(_team_nil.sort_values('Avg_Player', ascending=False).iloc[0].get('User', '--')), "delta": _team_nil.sort_values('Avg_Player', ascending=False).iloc[0]['Avg_Display'] + " avg"},
-            ])
-
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # ── TEAM TOTALS TABLE WITH LOGOS ──────────────────────────────
-            st.subheader("💼 Total Roster NIL by Program")
-            _totals_rows = []
-            for _ti2, (_, _trow2) in enumerate(_team_nil.iterrows(), 1):
-                _tt  = str(_trow2['Team']).strip()
-                _tc2 = get_team_primary_color(_tt)
-                _tlogo_uri = image_file_to_data_uri(get_logo_source(_tt))
-                _tlogo_html = f"<img src='{_tlogo_uri}' style='width:30px;height:30px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _tlogo_uri else ""
-                _t_top_name = html.escape(str(_top_earner_map.get(_tt, '--')))
-                _totals_rows.append(f"""
-                <tr style='border-left:6px solid {_tc2};background:linear-gradient(90deg,{_tc2}22,rgba(15,23,42,.95) 14%);'>
-                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;'>
-                    <div style='display:flex;align-items:center;'>{_tlogo_html}<span style='font-weight:800;color:{_tc2};'>{html.escape(_tt)}</span></div>
-                  </td>
-                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{html.escape(str(_trow2.get('User','--')))}</td>
-                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.15rem;text-align:right;'>{_trow2['NIL_Display']}</td>
-                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;'>{_trow2['Avg_Display']}</td>
-                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:center;'>{int(_trow2['Roster_Size'])}</td>
-                  <td style='padding:10px 14px;border-bottom:1px solid #1e293b;color:#fbbf24;font-size:0.82rem;'>{_t_top_name}</td>
-                </tr>""")
-            _totals_html = f"""
-            <div class="isp-table-wrap">
-              <table class="isp-table">
-                <thead><tr class="isp-tr-header">
-                  <th class="isp-th isp-th-left">Program</th>
-                  <th class="isp-th">User</th>
-                  <th class="isp-th" style='text-align:right;padding-right:16px;'>Total NIL</th>
-                  <th class="isp-th" style='text-align:right;padding-right:16px;'>Avg/Player</th>
-                  <th class="isp-th">Roster</th>
-                  <th class="isp-th isp-th-left">Top Earner</th>
-                </tr></thead>
-                <tbody>{"".join(_totals_rows)}</tbody>
-              </table>
-            </div>"""
-            st.markdown(_totals_html, unsafe_allow_html=True)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # ── TEAM SPEND BAR CHART ───────────────────────────────────────
-            _bar_colors = [get_team_primary_color(t) for t in _team_nil['Team']]
-            _bar_labels = [USER_TEAMS.get(u, t) if pd.notna(u) else t for u, t in zip(_team_nil['User'], _team_nil['Team'])]
-            import plotly.graph_objects as go
-            _fig_bar = go.Figure()
-            for _i, (_trow_idx, _trow) in enumerate(_team_nil.iterrows()):
-                _tc = get_team_primary_color(_trow['Team'])
-                _fig_bar.add_trace(go.Bar(
-                    x=[_bar_labels[_i]],
-                    y=[_trow['NIL_Value'] / 1_000_000],
-                    marker_color=_tc,
-                    text=[_trow['NIL_Display']],
-                    textposition='outside',
-                    name=_trow['Team'],
-                    showlegend=False,
-                    hovertemplate=f"<b>{_trow['Team']}</b><br>Total: {_trow['NIL_Display']}<br>Avg/Player: {_trow['Avg_Display']}<br>Roster: {int(_trow['Roster_Size'])}<extra></extra>",
-                ))
-            _fig_bar.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0', family='Barlow Condensed'),
-                yaxis=dict(title='Total NIL ($M)', gridcolor='rgba(255,255,255,0.07)', color='#94a3b8'),
-                xaxis=dict(color='#94a3b8'),
-                height=380, margin=dict(t=30, b=20, l=40, r=20),
-                bargap=0.35,
-            )
-            st.plotly_chart(_fig_bar, use_container_width=True, config={'staticPlot': True})
-
-            # ── NATTY CORRELATION ──────────────────────────────────────────
-            st.subheader("🏆 NIL Spend vs. Championship Runs")
-            st.caption("Does money win titles? Let's find out.")
-            try:
-                _nil_natty = _team_nil.copy()
-                _nil_natty['User'] = _nil_natty['Team'].map({v: k for k, v in USER_TEAMS.items()})
-                _natty_counts = stats_df[['User','Natties','CFP Wins']].copy()
-                _natty_counts['User'] = _natty_counts['User'].astype(str).str.strip().str.title()
-                _nil_natty = _nil_natty.merge(_natty_counts, on='User', how='left')
-                _nil_natty['Natties'] = pd.to_numeric(_nil_natty.get('Natties', 0), errors='coerce').fillna(0)
-                _nil_natty['CFP Wins'] = pd.to_numeric(_nil_natty.get('CFP Wins', 0), errors='coerce').fillna(0)
-
-                _fig_scatter = go.Figure()
-                for _, _sr in _nil_natty.iterrows():
-                    _sc = get_team_primary_color(_sr['Team'])
-                    _logo_uri = image_file_to_data_uri(get_logo_source(_sr['Team']))
-                    _fig_scatter.add_trace(go.Scatter(
-                        x=[_sr['NIL_Value'] / 1_000_000],
-                        y=[_sr['Natties']],
-                        mode='markers+text',
-                        marker=dict(size=18, color=_sc, line=dict(color='white', width=1.5)),
-                        text=[str(_sr.get('User', _sr['Team']))],
-                        textposition='top center',
-                        textfont=dict(color='#e2e8f0', size=11, family='Barlow Condensed'),
-                        name=_sr['Team'],
-                        showlegend=False,
-                        hovertemplate=f"<b>{_sr['Team']}</b><br>NIL: {_sr['NIL_Display']}<br>Natties: {int(_sr['Natties'])}<br>CFP Wins: {int(_sr.get('CFP Wins', 0))}<extra></extra>",
-                    ))
-                _fig_scatter.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(15,23,42,0.7)',
-                    font=dict(color='#e2e8f0', family='Barlow Condensed'),
-                    xaxis=dict(title='Current NIL Spend ($M)', gridcolor='rgba(255,255,255,0.07)', color='#94a3b8'),
-                    yaxis=dict(title='National Championships', gridcolor='rgba(255,255,255,0.07)', color='#94a3b8', dtick=1),
-                    height=400, margin=dict(t=30, b=40, l=50, r=20),
-                )
-                st.plotly_chart(_fig_scatter, use_container_width=True, config={'staticPlot': True})
-            except Exception:
-                st.caption("Natty correlation chart unavailable -- stats data not loaded.")
-
-            # ── POSITION BREAKDOWN ─────────────────────────────────────────
-            st.subheader("📊 NIL Spend by Position Group")
-            _pos_group_map = {
-                'QB': 'QB', 'HB': 'RB/FB', 'RB': 'RB/FB', 'FB': 'RB/FB',
-                'WR': 'WR', 'TE': 'TE',
-                'LT': 'O-Line', 'LG': 'O-Line', 'C': 'O-Line', 'RG': 'O-Line', 'RT': 'O-Line',
-                'LEDG': 'Edge', 'REDG': 'Edge',
-                'DT': 'D-Line', 'MIKE': 'LB', 'WILL': 'LB', 'SAM': 'LB',
-                'CB': 'CB', 'FS': 'Safety', 'SS': 'Safety', 'S': 'Safety',
-            }
-            _nil_roster['PosGroup'] = _nil_roster['Pos'].astype(str).str.upper().str.strip().map(_pos_group_map).fillna('Other')
-            _pos_nil = _nil_roster.groupby('PosGroup')['NIL_Value'].sum().sort_values(ascending=False).reset_index()
-            _pos_colors_nil = {'QB':'#f97316','RB/FB':'#22c55e','WR':'#3b82f6','TE':'#a78bfa',
-                               'O-Line':'#64748b','Edge':'#ef4444','D-Line':'#94a3b8',
-                               'LB':'#fbbf24','CB':'#06b6d4','Safety':'#8b5cf6','Other':'#475569'}
-            _fig_pos = go.Figure(go.Bar(
-                x=_pos_nil['PosGroup'],
-                y=_pos_nil['NIL_Value'] / 1_000_000,
-                marker_color=[_pos_colors_nil.get(p, '#475569') for p in _pos_nil['PosGroup']],
-                text=[format_nil(v) for v in _pos_nil['NIL_Value']],
-                textposition='outside',
-            ))
-            _fig_pos.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0', family='Barlow Condensed'),
-                yaxis=dict(title='Total NIL ($M)', gridcolor='rgba(255,255,255,0.07)', color='#94a3b8'),
-                xaxis=dict(color='#94a3b8'),
-                height=340, margin=dict(t=30, b=20, l=40, r=20),
-                showlegend=False,
-            )
-            st.plotly_chart(_fig_pos, use_container_width=True, config={'staticPlot': True})
-
-            # ── TOP EARNERS TABLE ──────────────────────────────────────────
-            st.subheader("🌟 Top Earners Across the League")
-            _top_n = _nil_roster.sort_values('NIL_Value', ascending=False).head(20).copy()
-            _top_rows = []
-            for _rank_n, (_, _pr) in enumerate(_top_n.iterrows(), 1):
-                _pt = str(_pr.get('Team', '')).strip()
-                _pc = get_team_primary_color(_pt)
-                _pname = html.escape(str(_pr.get('Name', '--')))
-                _ppos  = str(_pr.get('Pos', '--'))
-                _pyr   = str(_pr.get('Year', '--'))
-                _povr  = int(_pr.get('OVR', 0))
-                _pnil  = format_nil(_pr['NIL_Value'])
-                _puser = next((u for u, t in USER_TEAMS.items() if str(t).strip() == _pt), _pt)
-                _plogo_uri = image_file_to_data_uri(get_logo_source(_pt))
-                _plogo_html = f"<img src='{_plogo_uri}' style='width:26px;height:26px;object-fit:contain;vertical-align:middle;margin-right:5px;'/>" if _plogo_uri else ""
-                _top_rows.append(f"""
-                <tr style='border-left:4px solid {_pc};background:linear-gradient(90deg,{_pc}18,rgba(15,23,42,.95) 12%);'>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#64748b;text-align:center;font-weight:700;'>{_rank_n}</td>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;font-weight:700;color:#f1f5f9;'>{_pname}</td>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{_ppos}</td>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{_pyr}</td>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;white-space:nowrap;'><div style='display:flex;align-items:center;gap:4px;'>{_plogo_html}<span style='color:{_pc};font-weight:700;'>{html.escape(_pt)}</span></div></td>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#60a5fa;text-align:center;'>{_povr}</td>
-                  <td style='padding:9px 12px;border-bottom:1px solid #1e293b;color:#4ade80;font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.1rem;text-align:right;'>{_pnil}</td>
-                </tr>""")
-            _top_html = f"""
-            <div class="isp-table-wrap">
-              <table class="isp-table">
-                <thead><tr class="isp-tr-header">
-                  <th class="isp-th">#</th>
-                  <th class="isp-th isp-th-left">Player</th>
-                  <th class="isp-th">Pos</th>
-                  <th class="isp-th">Year</th>
-                  <th class="isp-th">Team</th>
-                  <th class="isp-th">OVR</th>
-                  <th class="isp-th">NIL Value</th>
-                </tr></thead>
-                <tbody>{"".join(_top_rows)}</tbody>
-              </table>
-            </div>"""
-            st.markdown(_top_html, unsafe_allow_html=True)
-
-            # ── PER-TEAM DEEP DIVE ─────────────────────────────────────────
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader("🔎 Team NIL Breakdown")
-            _nil_sel_user = st.selectbox("Select a program", list(USER_TEAMS.keys()), key="nil_team_select")
-            _nil_sel_team = USER_TEAMS.get(_nil_sel_user, '')
-            _nil_team_df  = _nil_roster[_nil_roster['Team'].astype(str).str.strip() == _nil_sel_team].sort_values('NIL_Value', ascending=False).copy()
-            _nil_tc = get_team_primary_color(_nil_sel_team)
-
-            if not _nil_team_df.empty:
-                _tnil_total = _nil_team_df['NIL_Value'].sum()
-                _tnil_avg   = _nil_team_df['NIL_Value'].mean()
-                _tnil_top   = _nil_team_df.iloc[0]
-                mobile_metrics([
-                    {"label": "💰 Total NIL Spend", "value": format_nil(_tnil_total)},
-                    {"label": "📈 Avg Per Player",  "value": format_nil(_tnil_avg)},
-                    {"label": "🌟 Top Earner",       "value": str(_tnil_top.get('Name','--')), "delta": format_nil(_tnil_top['NIL_Value'])},
-                    {"label": "👥 Roster Size",      "value": str(len(_nil_team_df))},
-                ])
-
-                # Waterfall-style position group bar for this team
-                _team_pos_nil = _nil_team_df.copy()
-                _team_pos_nil['PosGroup'] = _team_pos_nil['Pos'].astype(str).str.upper().str.strip().map(_pos_group_map).fillna('Other')
-                _tp_breakdown = _team_pos_nil.groupby('PosGroup')['NIL_Value'].sum().sort_values(ascending=False).reset_index()
-                _fig_team_pos = go.Figure(go.Bar(
-                    x=_tp_breakdown['PosGroup'],
-                    y=_tp_breakdown['NIL_Value'] / 1_000_000,
-                    marker_color=_nil_tc,
-                    text=[format_nil(v) for v in _tp_breakdown['NIL_Value']],
-                    textposition='outside',
-                    marker_line_color='rgba(255,255,255,0.15)',
-                    marker_line_width=1,
-                ))
-                _fig_team_pos.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#e2e8f0', family='Barlow Condensed'),
-                    yaxis=dict(gridcolor='rgba(255,255,255,0.07)', color='#94a3b8'),
-                    xaxis=dict(color='#94a3b8'),
-                    height=280, margin=dict(t=20, b=10, l=30, r=10),
-                    showlegend=False, title=dict(text=f"{_nil_sel_team} NIL by Position Group", font=dict(color='#94a3b8', size=13)),
-                )
-                st.plotly_chart(_fig_team_pos, use_container_width=True, config={'staticPlot': True})
-
-                # Full roster NIL table for this team
-                _team_rows = []
-                for _ti, (_, _tr) in enumerate(_nil_team_df.iterrows(), 1):
-                    _tname = html.escape(str(_tr.get('Name','--')))
-                    _tpos  = str(_tr.get('Pos','--'))
-                    _tyr   = str(_tr.get('Year','--'))
-                    _tovr  = int(_tr.get('OVR',0))
-                    _tspd  = int(_tr.get('SPD',0))
-                    _tnil  = format_nil(_tr['NIL_Value'])
-                    _nil_bar_w = int((_tr['NIL_Value'] / _nil_team_df['NIL_Value'].max()) * 100) if _nil_team_df['NIL_Value'].max() > 0 else 0
-                    _team_rows.append(f"""
-                    <tr style='background:{"rgba(255,255,255,0.03)" if _ti % 2 == 0 else "transparent"}'>
-                      <td style='padding:8px 10px;border-bottom:1px solid #1e293b;color:#64748b;text-align:center;'>{_ti}</td>
-                      <td style='padding:8px 10px;border-bottom:1px solid #1e293b;font-weight:600;color:#f1f5f9;'>{_tname}</td>
-                      <td style='padding:8px 10px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{_tpos}</td>
-                      <td style='padding:8px 10px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{_tyr}</td>
-                      <td style='padding:8px 10px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:center;'>{_tovr}</td>
-                      <td style='padding:8px 10px;border-bottom:1px solid #1e293b;text-align:right;'>
-                        <div style='display:flex;align-items:center;gap:8px;justify-content:flex-end;'>
-                          <div style='flex:1;max-width:80px;background:rgba(255,255,255,0.07);border-radius:2px;height:4px;'>
-                            <div style='width:{_nil_bar_w}%;height:100%;background:{_nil_tc};border-radius:2px;'></div>
-                          </div>
-                          <span style='color:#4ade80;font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.05rem;white-space:nowrap;'>{_tnil}</span>
-                        </div>
-                      </td>
-                    </tr>""")
-                _team_html = f"""
-                <div class="isp-table-wrap">
-                  <table class="isp-table">
-                    <thead><tr class="isp-tr-header">
-                      <th class="isp-th">#</th>
-                      <th class="isp-th isp-th-left">Player</th>
-                      <th class="isp-th">Pos</th>
-                      <th class="isp-th">Year</th>
-                      <th class="isp-th">OVR</th>
-                      <th class="isp-th" style='text-align:right;padding-right:16px;'>NIL Value</th>
-                    </tr></thead>
-                    <tbody>{"".join(_team_rows)}</tbody>
-                  </table>
-                </div>"""
-                st.markdown(_team_html, unsafe_allow_html=True)
-
-    except FileNotFoundError:
-        st.info("📂 Push `cfb26_rosters_full.csv` to your repo to generate NIL valuations.")
-    except Exception as _nil_err:
-        st.error(f"NIL Board error: {_nil_err}")
-
 # ══════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════
