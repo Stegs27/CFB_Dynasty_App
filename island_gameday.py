@@ -1408,11 +1408,19 @@ def render_speed_freaks_table(df, show_n=25):
         .sf-table th{padding:3px 3px!important;font-size:.48rem!important;}
         .sf-table td{padding:3px 3px!important;font-size:.65rem!important;}}
     </style>""", unsafe_allow_html=True)
-    c1,c2=st.columns([3,1])
-    with c1: st.caption(f"Speed profile for all {len(df)} teams -- live from rosters. Top 25 shown by default.")
+    _sf_sort_opts={"Speed Rank":"RANK","90+SPD":"S90","Cheat Codes":"CHEAT","Monsters":"MONSTER","Q-Hogs":"QUICK_HOG","Gen Freaks":"GEN","MPH":"MPH"}
+    c1,c2,c3,c4=st.columns([2,1,1,1])
+    with c1: st.caption(f"Speed profile for {len(df)} teams — live from rosters.")
     with c2:
+        _sf_sort_lbl=st.selectbox("Sort by",list(_sf_sort_opts.keys()),index=0,key="sf_sort_col")
+        _sf_sort_key=_sf_sort_opts[_sf_sort_lbl]
+    with c3:
         show_all=st.checkbox("Show all",key="sf_show_all")
-    display=df if show_all else df.head(show_n)
+    with c4:
+        _sf_user_only=st.checkbox("Users only",value=True,key="sf_user_only")
+    _df_sort=df.sort_values(_sf_sort_key,ascending=_sf_sort_key=="RANK").reset_index(drop=True)
+    if _sf_user_only: _df_sort=_df_sort[_df_sort["IS_USER"]]
+    display=_df_sort if show_all else _df_sort.head(show_n)
     thead=(
         "<tr style='background:#0a1220;'>"
         "<th style='padding:5px 6px;color:#1e293b;font-size:.58rem;width:24px;text-align:center;'>#</th>"
@@ -1559,6 +1567,20 @@ def compute_attrition_ratings(year=None):
                 add=0.5; lbl=f"🚶 {player} ({pos}, {int(ovr)} OVR) -- Transfer Out (Backup)"
             pts+=add
             breakdown.append({'type':'transfer','label':lbl,'pts':add,'player':player,'pos':pos,'ovr':ovr,'is_starter':is_start})
+        # Reduce pts if strong incoming class offsets losses
+        try:
+            _inc_r=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
+            if not _inc_r.empty:
+                _inc_r.columns=[str(c).strip() for c in _inc_r.columns]
+                _inc_r['Year']=pd.to_numeric(_inc_r['Year'],errors='coerce').fillna(0).astype(int)
+                _inc_r['StarRating']=pd.to_numeric(_inc_r.get('StarRating',0),errors='coerce').fillna(0)
+                _inc_r_team=_inc_r[(_inc_r['Year']==CURRENT_YEAR)&(_inc_r['Team'].astype(str).str.strip()==team)]
+                if not _inc_r_team.empty:
+                    _avg_star=_inc_r_team['StarRating'].mean(); _cnt=len(_inc_r_team)
+                    # 5-star avg class of 10 = 5pt reduction; scales with stars and count
+                    _reduction=round(max(0.0,min(6.0,(_avg_star-3.0)*1.5+(_cnt-4)*0.15)),1)
+                    pts=max(0,pts-_reduction)
+        except: pass
         # Tier
         if pts<=4:   tier="Manageable"; tier_c="#10b981"; tier_emoji="✅"
         elif pts<=8:  tier="Hurting";    tier_c="#f59e0b"; tier_emoji="⚠️"
@@ -3758,8 +3780,15 @@ def render_roster_attrition_tab():
 </div>""", unsafe_allow_html=True)
     st.markdown("---")
     # ── DETAIL TABS ──────────────────────────────────────────────────
-    _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors"])
-    with _at_tabs[0]:
+    # For upcoming year only seniors tab shown; others not yet available
+    if target_year==CURRENT_YEAR+1:
+        _at_tabs=st.tabs(["🎓 Departing Seniors","🎯 Incoming Recruits"])
+        _tab_nfl=None; _tab_xfer=None; _tab_sr=0; _tab_inc=1
+    else:
+        _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors","🎯 Incoming Recruits"])
+        _tab_nfl=0; _tab_xfer=1; _tab_sr=2; _tab_inc=3
+    if _tab_nfl is not None:
+     with _at_tabs[_tab_nfl]:
         st.subheader(f"🏈 {target_year} NFL Draft Exits")
         if draft_raw.empty:
             st.info("No draft data for current year."); 
@@ -3792,7 +3821,8 @@ def render_roster_attrition_tab():
     <span style='{rnd_bg}border-radius:4px;padding:2px 7px;font-size:.65rem;font-weight:700;color:{rnd_c};'>Rd {rnd}</span>
   </div>
 </div>""", unsafe_allow_html=True)
-    with _at_tabs[1]:
+    if _tab_xfer is not None:
+     with _at_tabs[_tab_xfer]:
         st.subheader(f"🚪 {target_year} Transfers Out")
         if xf_raw.empty:
             st.info("No transfer data for current year.")
@@ -3826,11 +3856,13 @@ def render_roster_attrition_tab():
     <span style='font-size:.62rem;color:#475569;font-style:italic;'>{html.escape(reason)}</span>
   </div>
 </div>""", unsafe_allow_html=True)
-    with _at_tabs[2]:
+    with _at_tabs[_tab_sr]:
         st.subheader(f"🎓 {target_year} Departing Seniors")
-        st.caption("Seniors who exhaust eligibility. Use the dropdown to view by team.")
+        st.caption("Seniors who exhaust eligibility after the current season.")
         try:
-            _ros_file=f'cfb_136_top30_rosters_{target_year}.csv'
+            # Always use CURRENT_YEAR roster — 2043 seniors ARE the 2044 off-season departures
+            _ros_yr=CURRENT_YEAR
+            _ros_file=f'cfb_136_top30_rosters_{_ros_yr}.csv'
             _ros_fallback='cfb26_rosters_full.csv'
             _rdf=pd.DataFrame()
             for rf in [_ros_file,_ros_fallback]:
@@ -3838,7 +3870,15 @@ def render_roster_attrition_tab():
                     _rdf=pd.read_csv(rf); break
             if _rdf.empty: st.info("No roster data found."); return
             _rdf.columns=[str(c).strip() for c in _rdf.columns]
+            # Normalise TEAM column regardless of capitalisation in CSV
+            _tc=next((c for c in _rdf.columns if c.upper()=='TEAM'),None)
+            if _tc is None: st.info("No TEAM column in roster CSV."); return
+            if _tc!='TEAM': _rdf=_rdf.rename(columns={_tc:'TEAM'})
             _rdf['TEAM']=_rdf['TEAM'].astype(str).str.strip()
+            # Filter to current year rows when YEAR column present
+            if 'YEAR' in _rdf.columns:
+                _rdf['YEAR']=pd.to_numeric(_rdf['YEAR'],errors='coerce')
+                _rdf=_rdf[_rdf['YEAR'].fillna(-1).astype(int)==_ros_yr]
             _rdf['OVR']=pd.to_numeric(_rdf['OVR'],errors='coerce').fillna(0)
             _yr_col=next((c for c in ('YEAR_CLASS','Class','CLASS','Year') if c in _rdf.columns),None)
             if not _yr_col: st.info("No class/year column in roster."); return
@@ -3881,6 +3921,55 @@ def render_roster_attrition_tab():
                 st.markdown(card, unsafe_allow_html=True)
         except Exception as e:
             st.caption(f"Departing seniors unavailable: {e}")
+
+    with _at_tabs[_tab_inc]:
+        st.subheader(f"🎯 {target_year} Incoming Recruiting Class")
+        try:
+            _inc_df=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
+            if _inc_df.empty:
+                st.info("No attrition_incoming.csv found. Drop the file in the repo.")
+            else:
+                _inc_df.columns=[str(c).strip() for c in _inc_df.columns]
+                _inc_df['Year']=pd.to_numeric(_inc_df['Year'],errors='coerce').fillna(0).astype(int)
+                _inc_df['Team']=_inc_df['Team'].astype(str).str.strip()
+                _inc_df['StarRating']=pd.to_numeric(_inc_df.get('StarRating',0),errors='coerce').fillna(0).astype(int)
+                # 2044 dropdown maps to 2043 incoming class
+                _inc_yr=CURRENT_YEAR if target_year==CURRENT_YEAR+1 else target_year
+                _inc_show=_inc_df[_inc_df['Year']==_inc_yr].copy()
+                if _inc_show.empty:
+                    st.info(f"No incoming recruits data for year {_inc_yr}.")
+                else:
+                    _inc_teams=sorted(_inc_show['Team'].unique())
+                    _inc_sel=st.selectbox("Team",["All User Teams"]+_inc_teams,key="inc_tab_team")
+                    _inc_filtered=_inc_show if _inc_sel=="All User Teams" else _inc_show[_inc_show['Team']==_inc_sel]
+                    _inc_filtered=_inc_filtered.sort_values(['Team','StarRating'],ascending=[True,False])
+                    st.caption(f"{len(_inc_filtered)} incoming recruits")
+                    for _,_ir in _inc_filtered.iterrows():
+                        _irn=str(_ir.get('Name','?')).strip(); _irp=str(_ir.get('Pos','?')).strip()
+                        _irt=str(_ir.get('Team','?')).strip()
+                        _irs=int(_ir.get('StarRating',0) or 0); _irr=int(_ir.get('NationalRank',0) or 0)
+                        _irtype=str(_ir.get('RecruitType','HS')).strip()
+                        _pc=get_team_primary_color(_irt)
+                        _tlg=get_school_logo_src(_irt)
+                        _tlh=f"<img src='{_tlg}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _tlg else ""
+                        _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irtype)}</span>" if _irtype.upper()!='HS' else "")
+                        st.markdown(
+                            f"<div style='background:#06090f;border:1px solid #1e293b;border-left:3px solid {_pc};"
+                            f"border-radius:6px;padding:6px 12px;margin-bottom:3px;"
+                            f"display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                            f"<div style='display:flex;align-items:center;gap:6px;'>"
+                            f"{_tlh}"
+                            f"<span style='background:{_pc}33;color:{_pc};border-radius:3px;padding:1px 5px;font-size:.6rem;font-weight:700;'>{html.escape(_irp)}</span>"
+                            f"<span style='font-weight:700;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_irn)}</span>"
+                            f"{_type_b}</div>"
+                            f"<div style='display:flex;align-items:center;gap:6px;'>"
+                            f"<span style='color:#fbbf24;font-size:.7rem;'>{"⭐"*_irs}</span>"
+                            f"<span style='color:#64748b;font-size:.62rem;'>{"#"+str(_irr) if _irr else ""}</span>"
+                            f"</div></div>",
+                            unsafe_allow_html=True
+                        )
+        except Exception as e:
+            st.caption(f"Incoming recruits unavailable: {e}")
 
 def render_roster_matchup_tab():
     import plotly.graph_objects as go
