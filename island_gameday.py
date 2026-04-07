@@ -1692,7 +1692,7 @@ def build_ticker_items(year, week, is_bowl_week):
                             f"<div style='display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin:0 6px;'>"
                             f"<span style='font-family:Bebas Neue,sans-serif;font-size:.75rem;color:{_rk_c4};'>#{_rk4}</span>"
                             f"{_limg4}"
-                            f"<span style='font-size:.52rem;color:{_tc4};font-weight:700;max-width:48px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>{html.escape(_tm4[:12])}</span>"
+                            f""  # no team name text - logos only
                             f"</div>")
                     _top4_logo_html=("<div style='display:inline-flex;align-items:flex-end;justify-content:center;"
                         "gap:4px;background:rgba(0,0,0,.25);border-radius:10px;padding:6px 10px;"
@@ -2420,6 +2420,21 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 _game_status_map=dict(zip(_wgs_cur['User'].astype(str).str.strip(),_wgs_cur['Status'].astype(str).str.strip()))
     except: pass
 
+    # ── Manual scores (built once, keyed by user) ────────────────────
+    _manual_score_map={}
+    try:
+        if os.path.exists('week_manual_scores.csv'):
+            _msc=pd.read_csv('week_manual_scores.csv')
+            _msc['Year']=pd.to_numeric(_msc.get('Year'),errors='coerce').fillna(0).astype(int)
+            _msc['Week']=pd.to_numeric(_msc.get('Week'),errors='coerce').fillna(0).astype(int)
+            _msc_cur=_msc[(_msc['Year']==int(year))&(_msc['Week']==int(week))].copy()
+            for _,_mr in _msc_cur.iterrows():
+                _manual_score_map[str(_mr.get('User','')).strip()]={
+                    'user_score':int(pd.to_numeric(_mr.get('UserScore',0),errors='coerce') or 0),
+                    'opp_score': int(pd.to_numeric(_mr.get('OppScore', 0),errors='coerce') or 0),
+                }
+    except: pass
+
     # ── Record from CFP rankings ───────────────────────────────────────
     _record_map={}
     try:
@@ -2558,19 +2573,13 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;'>{html.escape(str(rec_str))}</span>")
         else: rec_chip=""
 
-        # Check for saved score in week_manual_scores.csv
+        # Manual score lookup from pre-built map (keyed by user)
+        _man=_manual_score_map.get(user,{})
+        _man_us=_man.get('user_score',0); _man_os=_man.get('opp_score',0)
         _man_score_str=None; _man_result_str=None
-        try:
-            if os.path.exists('week_manual_scores.csv'):
-                _msc_q=pd.read_csv('week_manual_scores.csv')
-                for _cm in ['Year','Week']: _msc_q[_cm]=pd.to_numeric(_msc_q.get(_cm),errors='coerce').fillna(0).astype(int)
-                _msc_row=_msc_q[(_msc_q['User'].astype(str).str.strip()==user)&(_msc_q['Year']==year)&(_msc_q['Week']==week)]
-                if not _msc_row.empty:
-                    _mu2=int(_msc_row.iloc[0].get('UserScore',0)); _mo2=int(_msc_row.iloc[0].get('OppScore',0))
-                    if _mu2>0 or _mo2>0:
-                        _man_result_str='W' if _mu2>_mo2 else ('L' if _mo2>_mu2 else 'TIE')
-                        _man_score_str=f'{_mu2}-{_mo2}'
-        except: pass
+        if _man_us>0 or _man_os>0:
+            _man_result_str='W' if _man_us>_man_os else ('L' if _man_os>_man_us else 'TIE')
+            _man_score_str=f'{_man_us}-{_man_os}'
         # Game strip
         _chip_style="font-weight:700;padding:3px 10px;border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:.92rem;letter-spacing:.07em;"
         if matchup=='BYE':
@@ -2611,9 +2620,10 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                 else:
                     status_chip=f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
-                # Game line from live FPI spread
+                # Game line only shown if no manual score
                 line_html=""
-                try:
+                if not _man_score_str:
+                 try:
                     _fv_t,_=_fpi_for(team); _fv_o,_=_fpi_for(opp)
                     if _fv_t!=0 or _fv_o!=0:
                         _hf_adj=3.0 if matchup.get('home') else -3.0
@@ -2630,7 +2640,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
                                 f"<strong style='color:{_lc};font-size:1rem;'>{html.escape(_gl_str)}</strong></span>")
                         else:
                             line_html=" <span style='font-size:.82rem;color:#94a3b8;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></span>"
-                except: pass
+                 except: pass
                 game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
                     f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
                     f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
@@ -4098,19 +4108,22 @@ def render_roster_matchup_tab():
                 sc3.metric(f"{team_b} Score", score_b)
                 sc2.markdown("<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>", unsafe_allow_html=True)
                 pa, pb = st.columns(2)
-                disp_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
+                _want_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
+                disp_cols = [c for c in _want_cols if c in roster_a.columns or c in roster_b.columns]
                 sm_logo_a = f"<img src='{logo_uri_a}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_a else "🏈 "
                 sm_logo_b = f"<img src='{logo_uri_b}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_b else "🏈 "
                 with pa:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_a}<span style='color:{color_a};font-weight:800;font-size:0.95rem;'>{team_a}</span></div>", unsafe_allow_html=True)
                     if not grp_a.empty:
-                        st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+                        _dc_a=[c for c in disp_cols if c in grp_a.columns]
+                        st.dataframe(grp_a[_dc_a].reset_index(drop=True), hide_index=True, use_container_width=True)
                     else:
                         st.caption("No players.")
                 with pb:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_b}<span style='color:{color_b};font-weight:800;font-size:0.95rem;'>{team_b}</span></div>", unsafe_allow_html=True)
                     if not grp_b.empty:
-                        st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+                        _dc_b=[c for c in disp_cols if c in grp_b.columns]
+                        st.dataframe(grp_b[_dc_b].reset_index(drop=True), hide_index=True, use_container_width=True)
                     else:
                         st.caption("No players.")
 
