@@ -2610,42 +2610,42 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     f"<span style='color:{rc2};font-weight:900;font-size:1.05rem;"
                     f"font-family:Barlow Condensed,sans-serif;'>{result} {score}</span>")
             else:
+                # Manual score takes priority over everything
                 if _man_score_str:
                     _rc_ms='#4ade80' if _man_result_str=='W' else ('#f87171' if _man_result_str=='L' else '#94a3b8')
-                    status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
-                    game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;letter-spacing:.08em;'>WK {week}</span> {status_chip} "
+                    status_chip=f"<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;{_chip_style}'>FINAL</span>"
+                    game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;letter-spacing:.08em;'>WK {week}</span> "
+                        f"{status_chip} "
                         f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
                         f"<span style='color:{_rc_ms};font-weight:900;font-size:1.05rem;font-family:Barlow Condensed,sans-serif;'>{_man_result_str} {_man_score_str}</span>")
-                elif game_status=='Ready':
-                    status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                 else:
-                    status_chip=f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
-                # Game line only shown if no manual score
-                line_html=""
-                if not _man_score_str:
-                 try:
-                    _fv_t,_=_fpi_for(team); _fv_o,_=_fpi_for(opp)
-                    if _fv_t!=0 or _fv_o!=0:
-                        _hf_adj=3.0 if matchup.get('home') else -3.0
-                        _raw=(_fv_t-_fv_o)*0.65+_hf_adj  # FPI->pts: ~0.65x, capped at 35
-                        _spread=max(-35.0,min(35.0,_raw))
-                        if abs(_spread)>=1.5:
-                            _fav=team if _spread>0 else opp
-                            _sp_val=round(abs(_spread),1)
-                            _gl_str=f"{_fav} -{int(_sp_val) if _sp_val==int(_sp_val) else _sp_val}"
-                            _ufav=_fav==team
-                            _lc='#4ade80' if _ufav else '#f87171'
-                            line_html=(f" <span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
-                                f"font-weight:900;color:#94a3b8;'>LINE: "
-                                f"<strong style='color:{_lc};font-size:1rem;'>{html.escape(_gl_str)}</strong></span>")
-                        else:
-                            line_html=" <span style='font-size:.82rem;color:#94a3b8;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></span>"
-                 except: pass
-                game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
-                    f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
-                    f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
-                    f"<span style='font-size:.88rem;color:#f8fafc;font-family:Barlow Condensed,sans-serif;"
-                    f"font-weight:700;'>{html.escape(opp)}</span>{line_html}")
+                    # No score yet — show game line
+                    if game_status=='Ready':
+                        status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
+                    else:
+                        status_chip=f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
+                    line_html=""
+                    try:
+                        _fv_t,_=_fpi_for(team); _fv_o,_=_fpi_for(opp)
+                        if _fv_t!=0 or _fv_o!=0:
+                            _hf_adj=3.0 if matchup.get('home') else -3.0
+                            _spread=max(-35.0,min(35.0,(_fv_t-_fv_o)*0.65+_hf_adj))
+                            if abs(_spread)>=1.5:
+                                _fav=team if _spread>0 else opp
+                                _sp_val=round(abs(_spread),1)
+                                _gl_str=f"{_fav} -{int(_sp_val) if _sp_val==int(_sp_val) else _sp_val}"
+                                _lc='#4ade80' if _fav==team else '#f87171'
+                                line_html=(f" <span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
+                                    f"font-weight:900;color:#94a3b8;'>LINE: "
+                                    f"<strong style='color:{_lc};font-size:1rem;'>{html.escape(_gl_str)}</strong></span>")
+                            else:
+                                line_html=" <span style='font-size:.82rem;color:#94a3b8;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></span>"
+                    except: pass
+                    game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
+                        f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
+                        f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
+                        f"<span style='font-size:.88rem;color:#f8fafc;font-family:Barlow Condensed,sans-serif;"
+                        f"font-weight:700;'>{html.escape(opp)}</span>{line_html}")
         else: game_strip=""
 
         # Right panel: FPI, odds, speed rank
@@ -4727,7 +4727,7 @@ st.markdown(f"""
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-.5px;">📰 Dynasty News</h2>
   {_logo_html}
   <div class="top-story-badge">{html.escape(_top['badge'])}</div>
-  <div style="font-size:1.15rem;font-weight:800;letter-spacing:.5px;margin-bottom:4px;line-height:1.4;">{_hero_html}</div>
+  <div style="font-size:1.15rem;font-weight:800;letter-spacing:.5px;margin-bottom:4px;line-height:1.4;">{'' if _top.get('badge')=='CFP TOP 4' else _hero_html}</div>
   <div style="color:#94a3b8;font-size:.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(_top['blurb'])}"</div>
   <div style="color:#38bdf8;font-size:.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
