@@ -1510,8 +1510,10 @@ def compute_attrition_ratings(year=None):
     try:
         transfers=pd.read_csv('attrition_transfers.csv')
         transfers.columns=[str(c).strip() for c in transfers.columns]
+        # Transfers and seniors come from PRIOR year (left after last season)
+        _xfer_year=target_year-1
         transfers['Year']=pd.to_numeric(transfers.get('Year',transfers.get('YEAR',target_year)),errors='coerce')
-        transfers=transfers[(transfers['Year'].fillna(-1).astype(int)==target_year) &
+        transfers=transfers[(transfers['Year'].fillna(-1).astype(int)==_xfer_year) &
                            (transfers['TransferStatus'].astype(str).str.strip()=='Leaving')].copy()
         transfers['OVR']=pd.to_numeric(transfers['OVR'],errors='coerce').fillna(0)
     except: pass
@@ -2916,7 +2918,8 @@ def render_highest_rated_games(year, week):
                     _gq1h=int(float(gr.get('Q1_Home',0) or 0)); _gq2h=int(float(gr.get('Q2_Home',0) or 0))
                     _gq1v=int(float(gr.get('Q1_Visitor',0) or 0)); _gq2v=int(float(gr.get('Q2_Visitor',0) or 0))
                     _halfdiff=abs((_gq1h+_gq2h)-(_gq1v+_gq2v))
-                    if gr.get('Visitor_OT') or gr.get('Home_OT'):
+                    _vot=float(gr.get('Visitor_OT',0) or 0); _hot=float(gr.get('Home_OT',0) or 0)
+                    if _vot>0 or _hot>0:
                         _pk="Overtime -- neither side would quit"
                     elif _gm<=3: _pk=f"One-score game to the end -- {_ghf}-{_gvf}"
                     elif _gm<=7 and _halfdiff>=10: _pk=f"Down big at half, held on"
@@ -3508,9 +3511,8 @@ def render_roster_attrition_tab():
         draft_raw=pd.read_csv('cfb_draft_results.csv')
         draft_raw.columns=[str(c).strip() for c in draft_raw.columns]
         draft_raw['DraftYear']=pd.to_numeric(draft_raw['DraftYear'],errors='coerce')
-        # NFL draft for the current SEASON's departures = next draft year
-        _draft_yrs=[target_year, target_year+1]
-        draft_raw=draft_raw[draft_raw['DraftYear'].fillna(-1).astype(int).isin(_draft_yrs)].copy()
+        # 2043 season attrition: use 2043 draft picks (players leaving after 2043)
+        draft_raw=draft_raw[draft_raw['DraftYear'].fillna(-1).astype(int)==target_year].copy()
         draft_raw['DraftRound']=pd.to_numeric(draft_raw['DraftRound'],errors='coerce').fillna(8)
     except: draft_raw=pd.DataFrame()
     # ── ATTRITION RATING SUMMARY CARDS ───────────────────────────────
@@ -3705,11 +3707,15 @@ def render_roster_matchup_tab():
     st.caption("Full depth charts, positional battles, injury resilience, redshirt-aware eligibility, and future value pipeline analysis.")
 
     try:
-        roster = pd.read_csv('cfb26_rosters_full.csv')
+        _rm_yr_file=f'cfb_136_top30_rosters_{CURRENT_YEAR}.csv'
+        if os.path.exists(_rm_yr_file):
+            roster=pd.read_csv(_rm_yr_file)
+        else:
+            roster=pd.read_csv('cfb26_rosters_full.csv')
     except Exception:
         try:
-            roster = pd.read_csv('cfb26_rosters_top30.csv')
-            st.info("ℹ️ Using top-30 roster data. Upload cfb26_rosters_full.csv for full depth analysis.")
+            roster=pd.read_csv('cfb26_rosters_top30.csv')
+            st.info("Using top-30 roster data.")
         except Exception as e2:
             st.error(f"Could not load roster data: {e2}")
             return
@@ -4802,6 +4808,30 @@ with tabs[0]:
             else:
                 st.info("No matchup found for this week yet. Check back after the schedule drops.")
 
+    # ── SCORE SAVE ALERT — notify commissioner when a user saves ─────────
+    try:
+        if os.path.exists('week_manual_scores.csv') and os.path.exists('week_game_status.csv'):
+            import time as _time2
+            _score_mtime=os.path.getmtime('week_manual_scores.csv')
+            _status_mtime=os.path.getmtime('week_game_status.csv')
+            _last_seen=st.session_state.get('_last_score_mtime',0)
+            _latest=max(_score_mtime,_status_mtime)
+            if _latest>_last_seen and _last_seen>0:
+                # A save happened since last check
+                _ms_chk=pd.read_csv('week_manual_scores.csv')
+                _ms_chk['Year']=pd.to_numeric(_ms_chk.get('Year'),errors='coerce').fillna(0).astype(int)
+                _ms_chk['Week']=pd.to_numeric(_ms_chk.get('Week'),errors='coerce').fillna(0).astype(int)
+                _new=_ms_chk[(_ms_chk['Year']==CURRENT_YEAR)&(_ms_chk['Week']==CURRENT_WEEK_NUMBER)]
+                if not _new.empty:
+                    _new_users=_new['User'].astype(str).str.strip().tolist()
+                    for _nu in _new_users:
+                        _nrow=_new[_new['User'].astype(str).str.strip()==_nu].iloc[0]
+                        _nus=int(_nrow.get('UserScore',0)); _nos=int(_nrow.get('OppScore',0))
+                        st.toast(f"✅ {_nu} saved Wk {CURRENT_WEEK_NUMBER}: {_nus}-{_nos}. Download CSVs in Commissioner Tools!", icon="🏈")
+            st.session_state['_last_score_mtime']=_latest
+    except: pass
+
+
     st.markdown("---")
     render_injury_report()
     st.markdown("---")
@@ -4892,28 +4922,135 @@ with tabs[1]:
 
         with _met_tabs[1]:
             st.caption("Who actually dominated their games, not just won them.")
+            def _gc_acc2(s):
+                s=float(s) if s else 0
+                if s>=82: return "#22c55e"
+                if s>=72: return "#4ade80"
+                if s>=60: return "#84cc16"
+                if s>=48: return "#facc15"
+                if s>=35: return "#fb923c"
+                return "#ef4444"
+            def _gc_badge2(s):
+                s=float(s) if s else 0
+                if s>=82: return "TOTAL CONTROL","#22c55e"
+                if s>=72: return "COMMANDING","#4ade80"
+                if s>=60: return "SOLID CONTROL","#84cc16"
+                if s>=48: return "FRAGILE","#facc15"
+                if s>=35: return "SURVIVING","#fb923c"
+                return "OUTPLAYED","#ef4444"
             try:
-                _gc_file=f'game_control_summary_v3.csv'
-                _gc_paths=['FPI/'+_gc_file,_gc_file]
-                _gc_df=pd.DataFrame()
-                for p in _gc_paths:
-                    if os.path.exists(p):
-                        _gc_df=pd.read_csv(p); break
-                if not _gc_df.empty:
-                    _gc_df.columns=[str(c).strip() for c in _gc_df.columns]
-                    _tc=next((c for c in ('TEAM','Team') if c in _gc_df.columns),None)
-                    if _tc: _gc_df=_gc_df.rename(columns={_tc:'TEAM'})
-                    for _nc in ('AVG_GAME_CONTROL','BEST_GAME_CONTROL','WORST_GAME_CONTROL'):
-                        if _nc in _gc_df.columns:
-                            _gc_df[_nc]=pd.to_numeric(_gc_df[_nc],errors='coerce').fillna(50)
-                    if 'USER' not in _gc_df.columns:
-                        if model_2041 is not None and not model_2041.empty and 'USER' in model_2041.columns:
-                            _u_map=dict(zip(model_2041['TEAM'].astype(str).str.strip(),model_2041['USER'].astype(str).str.strip()))
-                            _gc_df['USER']=_gc_df['TEAM'].map(_u_map).fillna('')
-                    _power_table(_gc_df,"gc","#60a5fa","Average game control score 0-100. 50 = perfectly even game.",gc_mode=True)
-                else:
+                _gc_sum=pd.DataFrame(); _gc_games2=pd.DataFrame(); _gc_trend2=pd.DataFrame()
+                for _pth in ['FPI/game_control_summary_v3.csv','game_control_summary_v3.csv']:
+                    if os.path.exists(_pth): _gc_sum=pd.read_csv(_pth); break
+                for _pth2 in ['FPI/game_control_by_game_v3.csv','game_control_by_game_v3.csv']:
+                    if os.path.exists(_pth2): _gc_games2=pd.read_csv(_pth2); break
+                for _pth3 in ['FPI/game_control_trend_v3.csv','game_control_trend_v3.csv']:
+                    if os.path.exists(_pth3): _gc_trend2=pd.read_csv(_pth3); break
+                if _gc_sum.empty:
                     st.info("Push game_control_summary_v3.csv (run COMPUTE_RATINGS.bat) to enable Game Control.")
-                    st.caption("Game Control is pre-computed by dynasty_metrics_pipeline.py -- weighted score across 8 dominance metrics.")
+                    st.caption("Game Control is pre-computed by dynasty_metrics_pipeline.py.")
+                else:
+                    for _gdf in [_gc_sum,_gc_games2,_gc_trend2]:
+                        for _c in ("TEAM","USER"):
+                            if _c in _gdf.columns: _gdf[_c]=_gdf[_c].astype(str).str.strip()
+                    _gc_sum["AVG_GAME_CONTROL"]=pd.to_numeric(_gc_sum["AVG_GAME_CONTROL"],errors="coerce").fillna(0)
+                    _gc_ranked=_gc_sum.sort_values("AVG_GAME_CONTROL",ascending=False).reset_index(drop=True)
+                    _gc_ranked["RANK"]=range(1,len(_gc_ranked)+1)
+                    # Summary leaderboard
+                    for _,_gr2 in _gc_ranked.iterrows():
+                        _t2=str(_gr2["TEAM"]); _u2=str(_gr2["USER"])
+                        _a2=float(_gr2.get("AVG_GAME_CONTROL",0)); _w2=int(_gr2.get("RECORD_WINS",0) or 0); _l2=int(_gr2.get("RECORD_LOSSES",0) or 0)
+                        _badge2,_acc2=_gc_badge2(_a2)
+                        _logo2=image_file_to_data_uri(get_logo_source(_t2))
+                        _lh2=f"<img src='{_logo2}' style='width:36px;height:36px;object-fit:contain;'/>" if _logo2 else ""
+                        tc2=get_team_primary_color(_t2)
+                        st.markdown(
+                            f"<div style='background:linear-gradient(90deg,{tc2}18 0%,#0f172a 40%);"
+                            f"border-left:4px solid {_acc2};border-radius:10px;padding:10px 14px;margin-bottom:6px;"
+                            f"display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;'>"
+                            f"<div style='display:flex;align-items:center;gap:8px;'>"
+                            f"<span style='color:#475569;font-family:Bebas Neue,sans-serif;'>#{int(_gr2['RANK'])}</span>"
+                            f"{_lh2}"
+                            f"<div><div style='font-weight:900;color:{tc2};font-family:Barlow Condensed,sans-serif;font-size:.9rem;'>{html.escape(_t2)}</div>"
+                            f"<div style='font-size:.65rem;color:#64748b;'>{_w2}-{_l2} · {html.escape(_u2)}</div></div></div>"
+                            f"<div style='text-align:right;'>"
+                            f"<div style='font-size:.72rem;color:{_acc2};font-weight:900;letter-spacing:.04em;'>{_badge2}</div>"
+                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.4rem;color:{_acc2};'>{_a2:.1f}</div>"
+                            f"</div></div>",
+                            unsafe_allow_html=True
+                        )
+                    # Bar chart overview
+                    _gc_bar2=go.Figure()
+                    _gc_bs=_gc_ranked.sort_values("AVG_GAME_CONTROL",ascending=True)
+                    _gc_bar2.add_trace(go.Bar(
+                        y=[f"{r['TEAM']} ({r['USER']})" for _,r in _gc_bs.iterrows()],
+                        x=_gc_bs["AVG_GAME_CONTROL"], orientation='h',
+                        marker_color=[_gc_acc2(v) for v in _gc_bs["AVG_GAME_CONTROL"]],
+                        text=[f"{float(v):.1f}" for v in _gc_bs["AVG_GAME_CONTROL"]], textposition='outside'))
+                    _gc_bar2.update_layout(height=max(180,50*len(_gc_bs)),
+                        margin=dict(l=10,r=40,t=10,b=10),
+                        paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='#cbd5e1'),showlegend=False,
+                        xaxis=dict(range=[0,100],gridcolor='rgba(255,255,255,.06)'),
+                        yaxis=dict(gridcolor='rgba(255,255,255,.03)'))
+                    st.plotly_chart(_gc_bar2,use_container_width=True,config={'displayModeBar':False,'staticPlot':True})
+                    # Team deep dive
+                    st.subheader("🔍 By-Game Deep Dive")
+                    _gc_sel_opts=[f"{r['USER']} • {r['TEAM']}" for _,r in _gc_ranked.iterrows() if str(r['TEAM']) in ALL_USER_TEAMS]
+                    if _gc_sel_opts:
+                        _gc_picked=st.selectbox("Select team",_gc_sel_opts,key="gc_team_sel2")
+                        _gc_pu=_gc_picked.split(" • ")[0]; _gc_pt=_gc_picked.split(" • ")[1]
+                        _gc_tg2=_gc_games2[(_gc_games2["USER"]==_gc_pu)&(_gc_games2["TEAM"]==_gc_pt)].copy() if not _gc_games2.empty else pd.DataFrame()
+                        _gc_tt2=_gc_trend2[(_gc_trend2["USER"]==_gc_pu)&(_gc_trend2["TEAM"]==_gc_pt)].copy() if not _gc_trend2.empty else pd.DataFrame()
+                        # Trend line
+                        if not _gc_tt2.empty and "game_control_score" in _gc_tt2.columns:
+                            _gc_tt2=_gc_tt2.sort_values(["YEAR","WEEK"]).copy()
+                            _gc_tt2["wlbl"]="W"+_gc_tt2["WEEK"].astype(str)
+                            _gcfig2=go.Figure()
+                            _gcfig2.add_trace(go.Scatter(
+                                x=_gc_tt2["wlbl"],y=_gc_tt2["game_control_score"],mode='lines+markers',
+                                line=dict(color='#94a3b8',width=2),
+                                marker=dict(size=11,color=[_gc_acc2(v) for v in _gc_tt2["game_control_score"]],line=dict(color='#0f172a',width=2)),
+                                hovertemplate='<b>%{x}</b><br>GC: %{y:.1f}<extra></extra>'))
+                            for _yval,_clr in [(82,"#22c55e"),(72,"#4ade80"),(60,"#84cc16"),(48,"#facc15")]:
+                                _gcfig2.add_hline(y=_yval,line_dash="dot",line_color=_clr,opacity=.3)
+                            _gcfig2.update_layout(height=260,margin=dict(l=24,r=16,t=10,b=20),
+                                paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',
+                                font=dict(color='#cbd5e1'),showlegend=False,
+                                xaxis=dict(title="Week",gridcolor='rgba(255,255,255,.06)'),
+                                yaxis=dict(title="GC Score",gridcolor='rgba(255,255,255,.06)',range=[0,100]))
+                            st.plotly_chart(_gcfig2,use_container_width=True,config={'displayModeBar':False,'staticPlot':True})
+                        # Game cards
+                        if not _gc_tg2.empty:
+                            _gc_tg2=_gc_tg2.sort_values(["YEAR","WEEK"],ascending=[False,False])
+                            for _,_gg2 in _gc_tg2.iterrows():
+                                _wk2=int(float(_gg2.get("WEEK",0) or 0)); _opp2=str(_gg2.get("OPPONENT","?"))
+                                _ts2=int(float(_gg2.get("TEAM_SCORE",0) or 0)); _os2=int(float(_gg2.get("OPP_SCORE",0) or 0))
+                                _res2=str(_gg2.get("RESULT","?")); _score2=float(_gg2.get("game_control_score",50) or 50)
+                                _acc3=_gc_acc2(_score2)
+                                _pills2=""
+                                for _flag,_flbl,_fclr in [("close_escape","CLOSE ESCAPE","#f59e0b"),("false_blowout","FALSE BLOWOUT","#a78bfa"),("stealth_dominance","STEALTH DOM","#38bdf8"),("got_robbed_flag","GOT ROBBED","#f87171")]:
+                                    if str(_gg2.get(_flag,"")).upper() in("TRUE","1","YES"):
+                                        _pills2+=f"<span style='display:inline-block;font-size:.65rem;font-weight:900;padding:2px 7px;border-radius:999px;margin-right:4px;background:{_fclr}22;color:{_fclr};border:1px solid {_fclr}55;'>{_flbl}</span>"
+                                _opp_l2=image_file_to_data_uri(get_logo_source(_opp2))
+                                _opp_img2=f"<img src='{_opp_l2}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _opp_l2 else ""
+                                st.markdown(
+                                    f"<div style='background:linear-gradient(90deg,{_acc3}12 0%,#0a1628 28%);"
+                                    f"border-left:4px solid {_acc3};border-radius:10px;padding:10px 14px;margin-bottom:6px;'>"
+                                    f"<div style='display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;'>"
+                                    f"<div style='display:flex;align-items:center;gap:6px;font-weight:800;color:#f8fafc;'>"
+                                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:.85rem;color:#475569;'>WK {_wk2}</span>"
+                                    f"{_opp_img2}<span>{html.escape(_opp2)}</span></div>"
+                                    f"<div style='display:flex;align-items:center;gap:10px;'>"
+                                    f"<span style='font-weight:900;color:{"#4ade80" if _res2.upper()=="W" else "#f87171"};'>{_res2} {_ts2}--{_os2}</span>"
+                                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:{_acc3};font-weight:900;'>GC {_score2:.1f}</span>"
+                                    f"</div></div>"
+                                    +( f"<div style='margin-top:6px;'>{_pills2}</div>" if _pills2 else "")
+                                    +f"</div>",
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.info("No by-game data for this team yet. Push game_control_by_game_v3.csv.")
             except Exception as e:
                 st.caption(f"Game Control unavailable: {e}")
 
@@ -4937,6 +5074,55 @@ with tabs[1]:
 </div>""", unsafe_allow_html=True)
             else:
                 st.info(f"No roster data found. Push cfb_136_top30_rosters_{CURRENT_YEAR}.csv to enable Speed Freaks.")
+        # Natty Odds vs Speed scatter (user teams only)
+        try:
+            _sf_user=_sf_df[_sf_df['IS_USER']].copy() if not _sf_df.empty else pd.DataFrame()
+            if not _sf_user.empty:
+                # Try to attach natty odds from model
+                _sf_user['Natty_Odds']=0.0
+                if model_2041 is not None and not model_2041.empty and 'TEAM' in model_2041.columns:
+                    _nat_col=next((c for c in ('Preseason Natty Odds','Natty Odds') if c in model_2041.columns),None)
+                    if _nat_col:
+                        _nm=dict(zip(model_2041['TEAM'].astype(str).str.strip(),pd.to_numeric(model_2041[_nat_col],errors='coerce').fillna(0)))
+                        _sf_user['Natty_Odds']=_sf_user['TEAM'].map(_nm).fillna(0)
+                _sf_user['MPH']=_sf_user['SCORE']*1.8
+                _sf_user['TeamLabel']=_sf_user['TEAM']
+                _sf_user['LogoSrc']=_sf_user['TEAM'].apply(get_school_logo_src)
+                _yo=_sf_user['Natty_Odds'].max()>0
+                _x_min=max(0,float(_sf_user['MPH'].min())-15); _x_max=float(_sf_user['MPH'].max())+15
+                _y_min=0; _y_max=float(_sf_user['Natty_Odds'].max())+3 if _yo else 10
+                def _p2o(p):
+                    try:
+                        if p<=0: return '--'
+                        if p>=50: return 'Even'
+                        return f'{max(1,int(round((100.0/p)-1.0)))}:1'
+                    except: return '--'
+                _ytv=[v for v in [0.5,1,2,3,5,8,12,18,25,35,50] if _y_min-1<=v<=_y_max+1]
+                _yttxt=[_p2o(v) for v in _ytv]
+                _sfig=go.Figure()
+                _sfig.add_trace(go.Scatter(x=_sf_user['MPH'],y=_sf_user['Natty_Odds'],mode='markers',
+                    marker=dict(size=1,color='rgba(0,0,0,0)'),
+                    hovertemplate='<b>%{customdata[0]}</b><br>MPH: %{x:.1f}<br>Natty: %{customdata[1]}<extra></extra>',
+                    customdata=_sf_user.assign(_ol=_sf_user['Natty_Odds'].apply(_p2o))[['TEAM','_ol']].values))
+                for _,_sr in _sf_user.iterrows():
+                    _lsrc=_sr.get('LogoSrc','')
+                    if _lsrc:
+                        _sfig.add_layout_image(dict(source=_lsrc,x=float(_sr['MPH']),y=float(_sr['Natty_Odds']),
+                            xref='x',yref='y',sizex=max(10,(_x_max-_x_min)*0.10),sizey=max(3,(_y_max-_y_min)*0.18),
+                            xanchor='center',yanchor='middle',layer='above'))
+                    else:
+                        _sfig.add_trace(go.Scatter(x=[float(_sr['MPH'])],y=[float(_sr['Natty_Odds'])],
+                            mode='text',text=[_sr['TEAM']],textfont=dict(size=11,color='#111'),showlegend=False,hoverinfo='skip'))
+                _sfig.update_layout(height=600,paper_bgcolor='#efefef',plot_bgcolor='#efefef',
+                    margin=dict(l=40,r=30,t=100,b=80),showlegend=False,font=dict(color='#111'),
+                    title=dict(text="<b>More Juice, More Title Hope</b><br><span style='font-size:16px;'>Speed Freaks MPH vs Natty Odds</span>",
+                        x=0.5,xanchor='center',y=0.95,font=dict(size=24,color='#111')),
+                    xaxis=dict(title='MPH (Speed Score)',range=[_x_min,_x_max],showgrid=False,zeroline=False),
+                    yaxis=dict(title='Natty Odds',tickvals=_ytv if _ytv else None,
+                        ticktext=_yttxt if _yttxt else None,range=[_y_min,_y_max],showgrid=False,zeroline=False))
+                st.plotly_chart(_sfig,use_container_width=True,config={'staticPlot':True})
+        except Exception as _sf_err:
+            st.caption(f"Speed Freaks scatter unavailable: {_sf_err}")
 
         with _met_tabs[3]:
             render_natty_dna()
@@ -5551,6 +5737,119 @@ with _ul_tabs[0]:
         )
 
         # ── RIVALRY METER ───────────────────────────────────────────────────────────
+
+with _ul_tabs[1]:
+    st.header("🎬 ISPN Classics")
+    st.caption("The most iconic games in dynasty history — ranked by closeness, stakes, and upset factor.")
+    try:
+        _cl_scores=load_scores_master(multi_year=True)
+        _cl_ratings=model_2041.copy() if model_2041 is not None and not model_2041.empty else pd.DataFrame()
+        _classics=build_ispn_classics(_cl_scores,_cl_ratings)
+        if _classics.empty:
+            st.info("No classic games found yet. Keep playing!")
+        else:
+            for i,(_,row) in enumerate(_classics.head(15).iterrows()):
+                vis=str(row.get('Visitor','')).strip(); hom=str(row.get('Home','')).strip()
+                vs=int(float(row.get('Vis Score',0) or 0)); hs=int(float(row.get('Home Score',0) or 0))
+                wk=int(float(row.get('Week',0) or 0)); yr=int(float(row.get('YEAR',CURRENT_YEAR) or CURRENT_YEAR))
+                margin=abs(vs-hs)
+                vc=get_team_primary_color(vis); hc2=get_team_primary_color(hom)
+                vl=image_file_to_data_uri(get_logo_source(vis))
+                hl2=image_file_to_data_uri(get_logo_source(hom))
+                vl_h=f"<img src='{vl}' style='width:32px;height:32px;object-fit:contain;'/>" if vl else "🏈"
+                hl_h=f"<img src='{hl2}' style='width:32px;height:32px;object-fit:contain;'/>" if hl2 else "🏈"
+                winner=vis if vs>hs else hom
+                wsc=int(max(vs,hs)); lsc=int(min(vs,hs))
+                medals={0:"🥇",1:"🥈",2:"🥉"}
+                medal=medals.get(i,f"#{i+1}")
+                score_type="THRILLER" if margin<=7 else ("UPSET" if row.get('IsUpset') else "CLASSIC")
+                badge_c={"THRILLER":"#f43f5e","UPSET":"#f97316","CLASSIC":"#60a5fa"}.get(score_type,"#60a5fa")
+                vu=str(row.get('Vis_User','')).strip(); hu=str(row.get('Home_User','')).strip()
+                def _utag2(u):
+                    if u and u.upper()!='CPU':
+                        _tc3=get_team_primary_color(USER_TEAMS.get(u,''))
+                        return f"<span style='background:{_tc3}22;color:{_tc3};font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:3px;'>{html.escape(u.upper())}</span>"
+                    return ""
+                st.markdown(
+                    f"<div style='background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(8,15,28,.98));"
+                    f"border:1px solid #1e293b;border-radius:12px;padding:12px 14px;margin-bottom:8px;'>"
+                    f"<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;'>"
+                    f"<div style='display:flex;align-items:center;gap:8px;'>"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:#fbbf24;'>{medal}</span>"
+                    f"<span style='background:{badge_c}22;color:{badge_c};font-size:.62rem;font-weight:900;"
+                    f"padding:3px 8px;border-radius:5px;font-family:Barlow Condensed,sans-serif;"
+                    f"letter-spacing:.08em;'>{score_type}</span>"
+                    f"<span style='font-size:.65rem;color:#475569;'>Wk {wk}, {yr}</span>"
+                    f"</div></div>"
+                    f"<div style='display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;'>"
+                    f"{vl_h}<div><div style='font-size:.82rem;font-weight:800;color:{vc};'>{html.escape(vis)}{_utag2(vu)}</div>"
+                    f"<div style='font-size:.6rem;color:#475569;'>Away</div></div></div>"
+                    f"<div style='text-align:center;flex-shrink:0;padding:0 8px;'>"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#f1f5f9;'>{vs}</span>"
+                    f"<span style='color:#334155;font-size:1rem;margin:0 4px;'>-</span>"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#f1f5f9;'>{hs}</span>"
+                    f"</div>"
+                    f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;justify-content:flex-end;'>"
+                    f"<div style='text-align:right;'><div style='font-size:.82rem;font-weight:800;color:{hc2};'>{html.escape(hom)}{_utag2(hu)}</div>"
+                    f"<div style='font-size:.6rem;color:#475569;'>Home</div></div>{hl_h}</div></div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+    except Exception as e:
+        st.caption(f"ISPN Classics unavailable: {e}")
+
+with _ul_tabs[2]:
+    st.header("🐐 GOAT Rankings")
+    st.caption("All-time dynasty GOAT scores. Titles × 200 + Natty apps × 80 + CFP wins × 40 + Conf titles × 25 + 1st rounders × 12 + NFL picks × 4.")
+    try:
+        if stats_df is None or stats_df.empty:
+            st.info("No dynasty history yet.")
+        else:
+            _goat_df=stats_df.sort_values('GOAT Score',ascending=False).reset_index(drop=True)
+            _goat_df.insert(0,'Rank',range(1,len(_goat_df)+1))
+            medals_g={1:"🥇",2:"🥈",3:"🥉"}
+            for _,gr in _goat_df.iterrows():
+                user_g=str(gr['User']); team_g=USER_TEAMS.get(user_g,'')
+                tc_g=get_team_primary_color(team_g); lg=get_school_logo_src(team_g)
+                lh_g=f"<img src='{lg}' style='width:32px;height:32px;object-fit:contain;'/>" if lg else ""
+                rk_g=int(gr['Rank'])
+                medal_g=medals_g.get(rk_g,f"#{rk_g}")
+                natties=int(gr.get('Natties',0)); apps=int(gr.get('Natty Apps',0))
+                cfpw=int(gr.get('CFP Wins',0)); conft=int(gr.get('Conf Titles',0))
+                drafted=int(gr.get('Drafted',0)); rnd1=int(gr.get('1st Rounders',0))
+                goat=int(gr.get('GOAT Score',0)); rec=str(gr.get('Career Record',''))
+                st.markdown(
+                    f"<div style='background:linear-gradient(90deg,{tc_g}18 0%,#0f172a 40%);"
+                    f"border:1px solid {tc_g}44;border-left:4px solid {tc_g};"
+                    f"border-radius:12px;padding:12px 16px;margin-bottom:8px;'>"
+                    f"<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;'>"
+                    f"<div style='display:flex;align-items:center;gap:10px;'>"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.4rem;color:#fbbf24;'>{medal_g}</span>"
+                    f"{lh_g}"
+                    f"<div>"
+                    f"<div style='font-weight:900;color:{tc_g};font-size:.95rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(team_g)}</div>"
+                    f"<div style='font-size:.68rem;color:#64748b;'>{html.escape(user_g)} · {rec}</div>"
+                    f"</div></div>"
+                    f"<div style='text-align:right;'>"
+                    f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.8rem;color:#fbbf24;line-height:1;'>{goat:,}</div>"
+                    f"<div style='font-size:.55rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;'>GOAT Score</div>"
+                    f"</div></div>"
+                    f"<div style='margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;font-size:.65rem;'>"
+                    +("".join([
+                        f"<span style='background:{tc_g}22;color:{tc_g};border-radius:4px;padding:1px 7px;font-weight:700;'>{natties}🏆</span>" if natties else "",
+                        f"<span style='color:#94a3b8;'>Natty Apps: {apps}</span>" if apps else "",
+                        f"<span style='color:#94a3b8;'>CFP Wins: {cfpw}</span>" if cfpw else "",
+                        f"<span style='color:#94a3b8;'>Conf: {conft}</span>" if conft else "",
+                        f"<span style='color:#94a3b8;'>NFL: {drafted} ({rnd1} Rd1)</span>" if drafted else "",
+                    ]))
+                    +f"</div></div>",
+                    unsafe_allow_html=True
+                )
+    except Exception as e:
+        st.caption(f"GOAT Rankings unavailable: {e}")
+
+
 # --- SEASON RECAP ---
 
 
