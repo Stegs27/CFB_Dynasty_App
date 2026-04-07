@@ -1408,19 +1408,11 @@ def render_speed_freaks_table(df, show_n=25):
         .sf-table th{padding:3px 3px!important;font-size:.48rem!important;}
         .sf-table td{padding:3px 3px!important;font-size:.65rem!important;}}
     </style>""", unsafe_allow_html=True)
-    c1,c2,c3=st.columns([2,1,1])
-    with c1: st.caption(f"Speed profile for all {len(df)} teams -- live from rosters. Click column headers to sort.")
+    c1,c2=st.columns([3,1])
+    with c1: st.caption(f"Speed profile for all {len(df)} teams -- live from rosters. Top 25 shown by default.")
     with c2:
         show_all=st.checkbox("Show all",key="sf_show_all")
-    with c3:
-        _sf_user_only=st.checkbox("User teams only",value=True,key="sf_user_only")
     display=df if show_all else df.head(show_n)
-    if _sf_user_only: display=display[display['IS_USER']]
-    # Sortable dataframe view
-    _sf_display_df=display[['TEAM','S90','CHEAT','MONSTER','QUICK_HOG','GEN','MPH','RANK']].copy()
-    _sf_display_df.columns=['Team','90+SPD','Cheat Codes','Monsters','Q-Hogs','Gen Freaks','MPH','SF Rank']
-    st.dataframe(_sf_display_df.reset_index(drop=True),use_container_width=True,hide_index=True)
-    st.markdown('---')
     thead=(
         "<tr style='background:#0a1220;'>"
         "<th style='padding:5px 6px;color:#1e293b;font-size:.58rem;width:24px;text-align:center;'>#</th>"
@@ -2428,6 +2420,20 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 _game_status_map=dict(zip(_wgs_cur['User'].astype(str).str.strip(),_wgs_cur['Status'].astype(str).str.strip()))
     except: pass
 
+    # ── Manual scores built once (keyed by user) ─────────────────────
+    _manual_score_map={}
+    try:
+        if os.path.exists('week_manual_scores.csv'):
+            _msc=pd.read_csv('week_manual_scores.csv')
+            _msc['Year']=pd.to_numeric(_msc.get('Year'),errors='coerce').fillna(0).astype(int)
+            _msc['Week']=pd.to_numeric(_msc.get('Week'),errors='coerce').fillna(0).astype(int)
+            for _,_mr in _msc[(_msc['Year']==int(year))&(_msc['Week']==int(week))].iterrows():
+                _manual_score_map[str(_mr.get('User','')).strip()]={
+                    'user_score':int(pd.to_numeric(_mr.get('UserScore',0),errors='coerce') or 0),
+                    'opp_score': int(pd.to_numeric(_mr.get('OppScore', 0),errors='coerce') or 0),
+                }
+    except: pass
+
     # ── Record from CFP rankings ───────────────────────────────────────
     _record_map={}
     try:
@@ -2566,19 +2572,13 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;'>{html.escape(str(rec_str))}</span>")
         else: rec_chip=""
 
-        # Check for saved score in week_manual_scores.csv
+        # Manual score from pre-built map
+        _man=_manual_score_map.get(user,{})
+        _mu2=_man.get('user_score',0); _mo2=_man.get('opp_score',0)
         _man_score_str=None; _man_result_str=None
-        try:
-            if os.path.exists('week_manual_scores.csv'):
-                _msc_q=pd.read_csv('week_manual_scores.csv')
-                for _cm in ['Year','Week']: _msc_q[_cm]=pd.to_numeric(_msc_q.get(_cm),errors='coerce').fillna(0).astype(int)
-                _msc_row=_msc_q[(_msc_q['User'].astype(str).str.strip()==user)&(_msc_q['Year']==year)&(_msc_q['Week']==week)]
-                if not _msc_row.empty:
-                    _mu2=int(_msc_row.iloc[0].get('UserScore',0)); _mo2=int(_msc_row.iloc[0].get('OppScore',0))
-                    if _mu2>0 or _mo2>0:
-                        _man_result_str='W' if _mu2>_mo2 else ('L' if _mo2>_mu2 else 'TIE')
-                        _man_score_str=f'{_mu2}-{_mo2}'
-        except: pass
+        if _mu2>0 or _mo2>0:
+            _man_result_str='W' if _mu2>_mo2 else ('L' if _mo2>_mu2 else 'TIE')
+            _man_score_str=f'{_mu2}-{_mo2}'
         # Game strip
         _chip_style="font-weight:700;padding:3px 10px;border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:.92rem;letter-spacing:.07em;"
         if matchup=='BYE':
@@ -2720,9 +2720,8 @@ def render_game_cards_with_boxscore(year, week, model_df):
             card_bg="linear-gradient(135deg,#0c111a 0%,#080d14 100%)"
             card_border="#1e293b"  # fully muted until ready
 
-        # Logo: full color if ready/final, grayscale if not
-        _logo_filter='' if is_ready_or_final else 'filter:grayscale(85%) opacity(0.5);'
-        logo_img=(f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;{_logo_filter}'/>"
+        _lf='' if is_ready_or_final else 'filter:grayscale(85%) opacity(0.45);'
+        logo_img=(f"<img src='{logo_uri}' style='width:64px;height:64px;object-fit:contain;{_lf}'/>"
                   if logo_uri else "🏈")
 
         card=(
@@ -2865,7 +2864,7 @@ def render_injury_report():
             logo=get_school_logo_src(team)
             lg_src=logo
             ovr_c="#fbbf24" if ovr>=90 else ("#60a5fa" if ovr>=85 else ("#94a3b8" if ovr>=80 else "#475569"))
-            wks_c='#ef4444' if _season_end else ("#f87171" if wks_rem>=6 else ("#f97316" if wks_rem>=3 else "#fbbf24"))
+            wks_c="#f87171" if wks_rem>=6 else ("#f97316" if wks_rem>=3 else "#fbbf24")
             starter_chip='<span style="background:#fbbf2420;color:#fbbf24;border-radius:3px;padding:1px 5px;font-size:.58rem;margin-left:2px;">STARTER</span>' if is_start.upper()=='YES' else ''
             lg_html=f'<img src="{lg_src}" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;"/>' if lg_src else ''
             card_html=(
@@ -2881,7 +2880,7 @@ def render_injury_report():
                 f"</div>"
                 f"<div style='display:flex;align-items:center;gap:8px;'>"
                 f"<span style='color:#64748b;font-size:.7rem;'>{html.escape(inj)}</span>"
-                f"<span style='color:{wks_c};font-size:.72rem;font-weight:700;'>{'🚫 SEASON ENDING' if _season_end else str(wks_rem)+' wk'+('s' if wks_rem!=1 else '')+' remaining'}</span>"
+                f"<span style='color:{'#ef4444' if _season_end else wks_c};font-size:.72rem;font-weight:700;'>{'🚫 SEASON ENDING' if _season_end else str(wks_rem)+chr(32)+'wk'+('s' if wks_rem!=1 else '')+' remaining'}</span>"
                 f"</div>"
                 f"</div>"
                 f"</div>"
@@ -3759,15 +3758,8 @@ def render_roster_attrition_tab():
 </div>""", unsafe_allow_html=True)
     st.markdown("---")
     # ── DETAIL TABS ──────────────────────────────────────────────────
-    if target_year==CURRENT_YEAR+1:
-        _at_tabs=st.tabs(["🎓 Departing Seniors"])
-        # For upcoming year only seniors are known — remap tab indices
-        _at_tab_seniors_idx=0; _at_tab_nfl_idx=None; _at_tab_xfer_idx=None
-    else:
-        _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors"])
-        _at_tab_seniors_idx=2; _at_tab_nfl_idx=0; _at_tab_xfer_idx=1
-    if _at_tab_nfl_idx is not None:
-     with _at_tabs[_at_tab_nfl_idx]:
+    _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors"])
+    with _at_tabs[0]:
         st.subheader(f"🏈 {target_year} NFL Draft Exits")
         if draft_raw.empty:
             st.info("No draft data for current year."); 
@@ -3800,8 +3792,7 @@ def render_roster_attrition_tab():
     <span style='{rnd_bg}border-radius:4px;padding:2px 7px;font-size:.65rem;font-weight:700;color:{rnd_c};'>Rd {rnd}</span>
   </div>
 </div>""", unsafe_allow_html=True)
-    if _at_tab_xfer_idx is not None:
-     with _at_tabs[_at_tab_xfer_idx]:
+    with _at_tabs[1]:
         st.subheader(f"🚪 {target_year} Transfers Out")
         if xf_raw.empty:
             st.info("No transfer data for current year.")
@@ -3835,13 +3826,11 @@ def render_roster_attrition_tab():
     <span style='font-size:.62rem;color:#475569;font-style:italic;'>{html.escape(reason)}</span>
   </div>
 </div>""", unsafe_allow_html=True)
-    with _at_tabs[_at_tab_seniors_idx]:
+    with _at_tabs[2]:
         st.subheader(f"🎓 {target_year} Departing Seniors")
         st.caption("Seniors who exhaust eligibility. Use the dropdown to view by team.")
         try:
-            # 2044 dropdown uses current season roster (seniors leaving after 2043)
-            _ros_year=CURRENT_YEAR  # always current season roster for seniors
-            _ros_file=f'cfb_136_top30_rosters_{_ros_year}.csv'
+            _ros_file=f'cfb_136_top30_rosters_{target_year}.csv'
             _ros_fallback='cfb26_rosters_full.csv'
             _rdf=pd.DataFrame()
             for rf in [_ros_file,_ros_fallback]:
@@ -3849,14 +3838,7 @@ def render_roster_attrition_tab():
                     _rdf=pd.read_csv(rf); break
             if _rdf.empty: st.info("No roster data found."); return
             _rdf.columns=[str(c).strip() for c in _rdf.columns]
-            # Normalise TEAM column (may be all-caps in per-year CSV)
-            _team_col=next((c for c in _rdf.columns if c.upper()=='TEAM'),'TEAM')
-            _rdf=_rdf.rename(columns={_team_col:'TEAM'})
             _rdf['TEAM']=_rdf['TEAM'].astype(str).str.strip()
-            # Filter to current year if YEAR column present
-            if 'YEAR' in _rdf.columns:
-                _rdf['YEAR']=pd.to_numeric(_rdf['YEAR'],errors='coerce')
-                _rdf=_rdf[_rdf['YEAR'].fillna(-1).astype(int)==_ros_year]
             _rdf['OVR']=pd.to_numeric(_rdf['OVR'],errors='coerce').fillna(0)
             _yr_col=next((c for c in ('YEAR_CLASS','Class','CLASS','Year') if c in _rdf.columns),None)
             if not _yr_col: st.info("No class/year column in roster."); return
@@ -4126,19 +4108,22 @@ def render_roster_matchup_tab():
                 sc3.metric(f"{team_b} Score", score_b)
                 sc2.markdown("<div style='text-align:center;padding-top:0.6rem;color:#6b7280;font-size:0.8rem;'>composite score</div>", unsafe_allow_html=True)
                 pa, pb = st.columns(2)
-                disp_cols = ["Name", "Pos", "Year", "OVR", "SPD", "ACC", "AGI", "STR", "AWR"]
+                _want = ["Name","Pos","Year","OVR","SPD","ACC","AGI","STR","AWR"]
+                disp_cols = [c for c in _want if c in roster_a.columns or c in roster_b.columns]
                 sm_logo_a = f"<img src='{logo_uri_a}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_a else "🏈 "
                 sm_logo_b = f"<img src='{logo_uri_b}' style='width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:6px;'/>" if logo_uri_b else "🏈 "
                 with pa:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_a}<span style='color:{color_a};font-weight:800;font-size:0.95rem;'>{team_a}</span></div>", unsafe_allow_html=True)
                     if not grp_a.empty:
-                        st.dataframe(grp_a[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+                        _dc_a=[c for c in disp_cols if c in grp_a.columns]
+                        st.dataframe(grp_a[_dc_a].reset_index(drop=True), hide_index=True, use_container_width=True)
                     else:
                         st.caption("No players.")
                 with pb:
                     st.markdown(f"<div style='display:flex;align-items:center;gap:6px;margin-bottom:4px;'>{sm_logo_b}<span style='color:{color_b};font-weight:800;font-size:0.95rem;'>{team_b}</span></div>", unsafe_allow_html=True)
                     if not grp_b.empty:
-                        st.dataframe(grp_b[disp_cols].reset_index(drop=True), hide_index=True, use_container_width=True)
+                        _dc_b=[c for c in disp_cols if c in grp_b.columns]
+                        st.dataframe(grp_b[_dc_b].reset_index(drop=True), hide_index=True, use_container_width=True)
                     else:
                         st.caption("No players.")
 
@@ -4742,7 +4727,7 @@ st.markdown(f"""
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-.5px;">📰 Dynasty News</h2>
   {_logo_html}
   <div class="top-story-badge">{html.escape(_top['badge'])}</div>
-  <div style="font-size:1.15rem;font-weight:800;letter-spacing:.5px;margin-bottom:4px;line-height:1.4;">{_hero_html}</div>
+  <div style="font-size:1.15rem;font-weight:800;letter-spacing:.5px;margin-bottom:4px;line-height:1.4;">{"" if _top.get('badge')=='CFP TOP 4' else _hero_html}</div>
   <div style="color:#94a3b8;font-size:.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(_top['blurb'])}"</div>
   <div style="color:#38bdf8;font-size:.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
     <span class="live-indicator">●</span> LIVE UPDATE: {time_display} ET
@@ -5010,7 +4995,7 @@ with tabs[0]:
                         for _c in ['Year','Week']: _wb3[_c]=pd.to_numeric(_wb3.get(_c),errors='coerce').fillna(0).astype(int)
                         _wb3=_wb3[~((_wb3['User'].astype(str).str.strip().str.title()==_logged_in_user)&(_wb3['Year']==int(_gs_year))&(_wb3['Week']==int(_gs_week)))].copy()
                         pd.concat([_wb3,pd.DataFrame([{'User':_logged_in_user,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_auto_st}])],ignore_index=True).to_csv('week_game_status.csv',index=False)
-                        st.success(f"✅ Score saved! Your card will show READY instantly. Push CSVs to GitHub to make it permanent across all sessions.")
+                        st.success(f"✅ Saved! Download the CSVs and send to Mike, or Mike can grab them from Commissioner Tools.")
                         st.cache_data.clear()
                     except Exception as e: st.error(f"Save error: {e}")
                 # Try to email score directly to commissioner
@@ -5426,20 +5411,20 @@ with tabs[1]:
                     # Filter by selected year if YEAR column present
                     _ei_bg_yr=_ei_g[_ei_g["YEAR"].fillna(-1).astype(int)==_ei_sum_yr].copy() if not _ei_g.empty and "YEAR" in _ei_g.columns else pd.DataFrame()
                     if not _ei_bg_yr.empty and "off_explosive_index" in _ei_bg_yr.columns:
-                        for _ecc in ("off_explosive_index","def_steel_curtain_index"): _ei_bg_yr[_ecc]=pd.to_numeric(_ei_bg_yr.get(_ecc,0),errors="coerce").fillna(0)
                         _ei_bg_yr["_w"]=(_ei_bg_yr["RESULT"].str.upper()=="W").astype(int)
                         _ei_bg_yr["_l"]=(_ei_bg_yr["RESULT"].str.upper()=="L").astype(int)
-                        _agg_dict={"_w":"sum","_l":"sum","off_explosive_index":"mean"}
-                        if "def_steel_curtain_index" in _ei_bg_yr.columns: _agg_dict["def_steel_curtain_index"]="mean"
-                        for _fc in ("quick_strike_flag","aerial_nuke_flag","ground_blast_flag","sputtering_offense_flag"):
-                            if _fc in _ei_bg_yr.columns: _ei_bg_yr[_fc]=pd.to_numeric(_ei_bg_yr[_fc],errors="coerce").fillna(0); _agg_dict[_fc]="sum"
-                        _ei_agg=_ei_bg_yr.groupby(["USER","TEAM"]).agg(**{k.replace("_flag","_FLAG").replace("quick_strike","QUICK_STRIKES").replace("aerial_nuke","AERIAL_NUKES").replace("ground_blast","GROUND_BLASTS").replace("sputtering_offense","SPUTTERING_GAMES").replace("off_explosive","AVG_EXPLOSIVE").replace("def_steel_curtain","AVG_STEEL_CURTAIN").replace("_w","RECORD_WINS").replace("_l","RECORD_LOSSES"):pd.NamedAgg(column=k,aggfunc=v) for k,v in _agg_dict.items()}).reset_index()
-                        # rename
-                        _ei_agg=_ei_agg.rename(columns={"AVG_EXPLOSIVE_INDEX":"AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX":"AVG_STEEL_CURTAIN_INDEX"},errors="ignore")
-                        if "AVG_EXPLOSIVE_INDEX" not in _ei_agg.columns and "off_explosive_index" in _ei_agg.columns: _ei_agg=_ei_agg.rename(columns={"off_explosive_index":"AVG_EXPLOSIVE_INDEX"})
-                        for _ec in ("AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX"):
-                            if _ec in _ei_agg.columns: _ei_agg[_ec]=_ei_agg[_ec].round(1)
-                        # Attach style label from summary
+                        for _efc in ("off_explosive_index","def_steel_curtain_index","quick_strike_flag","aerial_nuke_flag","ground_blast_flag","sputtering_offense_flag"):
+                            if _efc in _ei_bg_yr.columns: _ei_bg_yr[_efc]=pd.to_numeric(_ei_bg_yr[_efc],errors="coerce").fillna(0)
+                        _ei_agg=_ei_bg_yr.groupby(["USER","TEAM"]).agg(
+                            RECORD_WINS=("_w","sum"),
+                            RECORD_LOSSES=("_l","sum"),
+                            AVG_EXPLOSIVE_INDEX=("off_explosive_index","mean"),
+                        ).reset_index()
+                        for _efc,_efcn in [("def_steel_curtain_index","AVG_STEEL_CURTAIN_INDEX"),("quick_strike_flag","QUICK_STRIKES"),("aerial_nuke_flag","AERIAL_NUKES"),("ground_blast_flag","GROUND_BLASTS"),("sputtering_offense_flag","SPUTTERING_GAMES")]:
+                            if _efc in _ei_bg_yr.columns:
+                                _fs=_ei_bg_yr.groupby(["USER","TEAM"])[_efc].agg("mean" if "index" in _efc else "sum").reset_index().rename(columns={_efc:_efcn})
+                                _ei_agg=_ei_agg.merge(_fs,on=["USER","TEAM"],how="left")
+                        _ei_agg["AVG_EXPLOSIVE_INDEX"]=_ei_agg["AVG_EXPLOSIVE_INDEX"].round(1)
                         _ei_style=_ei_sum[["USER","TEAM","OFF_STYLE_LABEL","DEF_STYLE_LABEL"]].copy() if all(c in _ei_sum.columns for c in ["OFF_STYLE_LABEL","DEF_STYLE_LABEL"]) else pd.DataFrame()
                         if not _ei_style.empty: _ei_agg=_ei_agg.merge(_ei_style,on=["USER","TEAM"],how="left")
                         _ei_sum_filt=_ei_agg
