@@ -1363,6 +1363,9 @@ def build_speed_freaks_live(year=None):
         if 'YEAR' in ros.columns:
             ros['YEAR']=pd.to_numeric(ros['YEAR'],errors='coerce')
             ros=ros[ros['YEAR'].fillna(-1).astype(int)==target_year].copy()
+        # Enforce top 30 per team by OVR — consistent with CSV name convention
+        if 'OVR' in ros.columns:
+            ros=ros.sort_values('OVR',ascending=False).groupby('TEAM').head(30).copy()
         ros['POS_U']=ros['POS'].astype(str).str.upper().str.strip()
         _off_pos={'QB','HB','WR','TE','LT','LG','C','RG','RT'}
         _def_pos={'CB','FS','SS','MLB','OLB','DE','DT','LEDG','REDG','SAM','MIKE','WILL','ILB','LB'}
@@ -2487,7 +2490,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
     def _pct_to_odds(pct):
         try:
             p=float(pct)
-            if p<=0: return 'inf'
+            if p<=0 or p!=p: return '--'
             if p>=50: return 'Even'
             return f'{max(1,int(round((100.0/p)-1.0)))}:1'
         except: return '--'
@@ -2560,19 +2563,24 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                 else:
                     status_chip=f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
-                # Game line
+                # Game line from live FPI spread
                 line_html=""
                 try:
-                    _ht2=team if matchup.get('home') else opp
-                    _at2=opp if matchup.get('home') else team
-                    _gl=estimate_game_line(_ht2,_at2,model_df if model_df is not None and not model_df.empty else pd.DataFrame(),official_rank_map)
-                    if isinstance(_gl,tuple): _gl=_gl[0]
-                    if _gl and str(_gl) not in ("","EVEN","Pick'em","None","nan"):
-                        _ufav=str(team).lower() in str(_gl).lower()
-                        _lc='#4ade80' if _ufav else '#f87171'
-                        line_html=(f" <span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
-                            f"font-weight:900;color:#94a3b8;'>LINE: "
-                            f"<strong style='color:{_lc};font-size:1rem;'>{html.escape(str(_gl))}</strong></span>")
+                    _fv_t,_=_fpi_for(team); _fv_o,_=_fpi_for(opp)
+                    if _fv_t!=0 or _fv_o!=0:
+                        _hf_adj=3.0 if matchup.get('home') else -3.0
+                        _spread=(_fv_t-_fv_o)*2.8+_hf_adj
+                        if abs(_spread)>=1.5:
+                            _fav=team if _spread>0 else opp
+                            _sp_val=round(abs(_spread),1)
+                            _gl_str=f"{_fav} -{int(_sp_val) if _sp_val==int(_sp_val) else _sp_val}"
+                            _ufav=_fav==team
+                            _lc='#4ade80' if _ufav else '#f87171'
+                            line_html=(f" <span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
+                                f"font-weight:900;color:#94a3b8;'>LINE: "
+                                f"<strong style='color:{_lc};font-size:1rem;'>{html.escape(_gl_str)}</strong></span>")
+                        else:
+                            line_html=" <span style='font-size:.82rem;color:#94a3b8;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></span>"
                 except: pass
                 game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
                     f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
@@ -2788,8 +2796,11 @@ def render_highest_rated_games(year, week):
         if _tv.empty: st.info("No schedule data yet."); return
         for c in ('YEAR','Week','Vis Score','Home Score','Visitor Rank','Home Rank'):
             if c in _tv.columns: _tv[c]=pd.to_numeric(_tv[c],errors='coerce')
-        _tv_cy=_tv[(_tv.get('YEAR',pd.Series(dtype=float))==year)&
-                   (_tv['Status'].astype(str).str.upper()=='FINAL')].dropna(subset=['Vis Score','Home Score']).copy()
+        # load_scores_master already filters by year, just filter Status
+        if 'YEAR' in _tv.columns:
+            _tv['YEAR']=pd.to_numeric(_tv['YEAR'],errors='coerce')
+            _tv=_tv[_tv['YEAR'].fillna(-1).astype(int)==year]
+        _tv_cy=_tv[_tv['Status'].astype(str).str.upper()=='FINAL'].dropna(subset=['Vis Score','Home Score']).copy()
         if _tv_cy.empty: st.info("No completed games this season yet."); return
         _tv_cy['Vis_User']=_tv_cy.get('Vis_User',pd.Series(dtype=str)).astype(str).str.strip().str.title()
         _tv_cy['Home_User']=_tv_cy.get('Home_User',pd.Series(dtype=str)).astype(str).str.strip().str.title()
@@ -4240,6 +4251,39 @@ def render_roster_matchup_tab():
 # ── AUTO-SYNC: Derive CFP/natty stats and write back to CSVs ─────────────────
 
 
+
+def mobile_metrics(metrics, cols_desktop=4):
+    """Responsive metric card grid. Auto-reflows on mobile."""
+    cards_html=""
+    for m in metrics:
+        label=html.escape(str(m.get("label","")))
+        value=html.escape(str(m.get("value","")))
+        delta=m.get("delta",None)
+        delta_html=""
+        if delta is not None:
+            ds=str(delta)
+            dcm=m.get("delta_color","normal")
+            is_pos=ds.startswith("+") or (not ds.startswith("-") and ds not in ["0","0.0","0%"])
+            dc=("#9ca3af" if dcm=="off" else
+                ("#f87171" if is_pos else "#4ade80") if dcm=="inverse" else
+                ("#4ade80" if is_pos else "#f87171"))
+            arrow="&#9650;" if is_pos else "&#9660;"
+            delta_html=f"<div style='font-size:.72rem;color:{dc};font-weight:600;margin-top:2px;'>{arrow} {html.escape(ds)}</div>"
+        cards_html+=(
+            "<div style='background:#1f2937;border:1px solid #374151;border-radius:10px;"
+            "padding:10px 12px;min-width:0;'>"
+            f"<div style='font-size:.72rem;color:#9ca3af;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;overflow:hidden;"
+            f"text-overflow:ellipsis;'>{label}</div>"
+            f"<div style='font-size:1.15rem;font-weight:800;color:#f3f4f6;line-height:1.2;'>{value}</div>"
+            f"{delta_html}</div>"
+        )
+    st.markdown(
+        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));"
+        f"gap:8px;margin-bottom:1rem;'>{cards_html}</div>",
+        unsafe_allow_html=True
+    )
+
 def get_redshirt_logo_path():
     for path in ["REDSHIRT.png","logos/REDSHIRT.png",
                  "/mount/src/cfb_dynasty_app/REDSHIRT.png",
@@ -4400,6 +4444,257 @@ tabs=st.tabs([
 with tabs[0]:
     render_status_banner(CURRENT_YEAR, CURRENT_WEEK_NUMBER, IS_BOWL_WEEK)
     render_game_cards_with_boxscore(CURRENT_YEAR, CURRENT_WEEK_NUMBER, model_2041)
+
+    # ── COMMISSIONER TOOLS ────────────────────────────────────────────────────
+    _gs_week = CURRENT_WEEK_NUMBER
+    _gs_year = CURRENT_YEAR
+
+    # Load matchup data for controls
+    _ctrl_matchup = {}
+    try:
+        _sf2=f'schedule_{_gs_year}.csv'
+        if os.path.exists(_sf2):
+            _rs2=pd.read_csv(_sf2,dtype={'YEAR':str,'Week':str})
+            _rs2.columns=[str(c).strip() for c in _rs2.columns]
+            _yc2=next((c for c in ('YEAR','Year') if c in _rs2.columns),None)
+            _wc2=next((c for c in ('Week','WEEK') if c in _rs2.columns),None)
+            _ym2=str(int(_gs_year)); _wm2=str(int(_gs_week))
+            _yo2=_rs2[_yc2].astype(str).str.strip().str.split('.').str[0]==_ym2 if _yc2 else pd.Series([True]*len(_rs2))
+            _wo2=_rs2[_wc2].astype(str).str.strip().str.split('.').str[0]==_wm2 if _wc2 else pd.Series([True]*len(_rs2))
+            _sc2=_rs2[_yo2&_wo2].copy()
+            for tc in ('Visitor','Home'):
+                if tc in _sc2.columns: _sc2[tc]=_sc2[tc].astype(str).apply(lambda t:re.sub(r'\d+\s+','',t.strip()))
+            _vc3=next((c for c in ('Visitor','VISITOR') if c in _sc2.columns),None)
+            _hc3=next((c for c in ('Home','HOME') if c in _sc2.columns),None)
+            _vsc3=next((c for c in ('Vis Score','Vis_Score') if c in _sc2.columns),None)
+            _hsc3=next((c for c in ('Home Score','Home_Score') if c in _sc2.columns),None)
+            if _vc3: _sc2['_VL2']=_sc2[_vc3].astype(str).str.strip().str.lower()
+            if _hc3: _sc2['_HL2']=_sc2[_hc3].astype(str).str.strip().str.lower()
+            for user,team in USER_TEAMS.items():
+                tl=team.lower()
+                _vr3=_sc2[_sc2['_VL2']==tl] if '_VL2' in _sc2.columns else pd.DataFrame()
+                _hr3=_sc2[_sc2['_HL2']==tl] if '_HL2' in _sc2.columns else pd.DataFrame()
+                if not _vr3.empty:
+                    gr3=_vr3.iloc[0]; opp3=str(gr3.get(_hc3,'')).strip() if _hc3 else '?'
+                    _ctrl_matchup[user]={'opp':opp3,'home':False}
+                elif not _hr3.empty:
+                    gr3=_hr3.iloc[0]; opp3=str(gr3.get(_vc3,'')).strip() if _vc3 else '?'
+                    _ctrl_matchup[user]={'opp':opp3,'home':True}
+                else:
+                    _ctrl_matchup[user]='BYE'
+    except: pass
+
+    _game_status_map2={}
+    try:
+        if os.path.exists('week_game_status.csv'):
+            _wgs2=pd.read_csv('week_game_status.csv')
+            _wgs2['Year']=pd.to_numeric(_wgs2.get('Year'),errors='coerce').fillna(0).astype(int)
+            _wgs2['Week']=pd.to_numeric(_wgs2.get('Week'),errors='coerce').fillna(0).astype(int)
+            _wc2=_wgs2[(_wgs2['Year']==int(_gs_year))&(_wgs2['Week']==int(_gs_week))].copy()
+            if not _wc2.empty:
+                _game_status_map2=dict(zip(_wc2['User'].astype(str).str.strip(),_wc2['Status'].astype(str).str.strip()))
+    except: pass
+
+    _msc_map2={}
+    try:
+        if os.path.exists('week_manual_scores.csv'):
+            _mdf2=pd.read_csv('week_manual_scores.csv')
+            for _c in ['Year','Week']:
+                _mdf2[_c]=pd.to_numeric(_mdf2.get(_c),errors='coerce').fillna(0).astype(int)
+            _mdf2c=_mdf2[(_mdf2['Year']==int(_gs_year))&(_mdf2['Week']==int(_gs_week))].copy()
+            for _,_mr2 in _mdf2c.iterrows():
+                _msc_map2[str(_mr2.get('User','')).strip()]={
+                    'opp':str(_mr2.get('Opponent','')).strip(),
+                    'user_score':int(pd.to_numeric(_mr2.get('UserScore',0),errors='coerce') or 0),
+                    'opp_score':int(pd.to_numeric(_mr2.get('OppScore',0),errors='coerce') or 0),
+                }
+    except: pass
+
+    st.markdown("---")
+    with st.expander(f"⚙️ Commissioner Tools — Wk {_gs_week} {_gs_year}", expanded=False):
+        _comm_unlocked=st.session_state.get("_comm_unlocked",False)
+        if not _comm_unlocked:
+            st.markdown("<div style='color:#475569;font-size:.8rem;margin-bottom:8px;'>🔒 Commissioner access only.</div>",unsafe_allow_html=True)
+            _pw_col,_=st.columns([1.5,2])
+            with _pw_col:
+                _pw_input=st.text_input("Password",type="password",key="comm_pw_input",
+                    label_visibility="collapsed",placeholder="Commissioner password")
+            if _pw_input:
+                if _pw_input=="Chicken83$":
+                    st.session_state["_comm_unlocked"]=True; st.rerun()
+                else: st.error("Wrong password.")
+        else:
+            _cap_col,_lock_col=st.columns([4,1])
+            with _cap_col:
+                st.caption(f"Admin controls — Week {_gs_week}, {_gs_year}.")
+            with _lock_col:
+                if st.button("🔒 Lock",key="comm_lock_btn",use_container_width=True):
+                    st.session_state["_comm_unlocked"]=False; st.rerun()
+            col_ref,_=st.columns([1,3])
+            with col_ref:
+                if st.button("🔄 Refresh Data",use_container_width=True,key="comm_refresh_data"):
+                    st.cache_data.clear(); st.rerun()
+            st.markdown(f"#### 🏈 Week {_gs_week} Game Status & Scores")
+            st.caption("Enter scores to auto-set Ready. Download CSVs and push to GitHub.")
+            _comb_scores={}; _comb_status={}
+            for _cmu in list(USER_TEAMS.keys()):
+                _cm=_ctrl_matchup.get(_cmu,'UNSCHEDULED')
+                _cur_msc=_msc_map2.get(_cmu,{})
+                _cur_st=_game_status_map2.get(_cmu,'Not Set')
+                if _cm=='BYE':
+                    c1,c2=st.columns([2,2])
+                    with c1:
+                        st.markdown(f"<span style='font-family:Barlow Condensed,sans-serif;font-weight:700;color:#e2e8f0;'>{html.escape(_cmu)} <span style='color:#475569;'>— BYE</span></span>",unsafe_allow_html=True)
+                    with c2:
+                        _comb_status[_cmu]=st.selectbox("Status",['Not Set','Ready'],
+                            index=1 if _cur_st=='Ready' else 0,
+                            key=f"cst_{_cmu}_{_gs_week}_{_gs_year}",label_visibility="collapsed")
+                    _comb_scores[_cmu]=None
+                elif isinstance(_cm,dict):
+                    _cm_opp=_cm.get('opp','?'); _ha='vs' if _cm.get('home') else '@'
+                    _ol=image_file_to_data_uri(get_logo_source(_cm_opp))
+                    _ol_h=f"<img src='{_ol}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:3px;'/>" if _ol else ""
+                    st.markdown(f"<div style='font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem;color:#94a3b8;margin:6px 0 2px 0;'><strong style='color:#e2e8f0;'>{html.escape(_cmu)}</strong> — {_ha} {_ol_h}{html.escape(_cm_opp)}</div>",unsafe_allow_html=True)
+                    sc1,sc2,sc3=st.columns([1,1,2])
+                    with sc1:
+                        _us=st.number_input("Us",min_value=0,max_value=99,value=_cur_msc.get('user_score',0),
+                            key=f"msu_{_cmu}_{_gs_week}_{_gs_year}",label_visibility="collapsed")
+                    with sc2:
+                        _os=st.number_input("Opp",min_value=0,max_value=99,value=_cur_msc.get('opp_score',0),
+                            key=f"mso_{_cmu}_{_gs_week}_{_gs_year}",label_visibility="collapsed")
+                    with sc3:
+                        if _us>0 or _os>0:
+                            _rl="W" if _us>_os else ("L" if _os>_us else "TIE")
+                            _rc3="#4ade80" if _rl=="W" else ("#f87171" if _rl=="L" else "#94a3b8")
+                            st.markdown(f"<span style='color:{_rc3};font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.1rem;'>{_rl} {_us}-{_os}</span>",unsafe_allow_html=True)
+                        else:
+                            _comb_status[_cmu]=st.selectbox("Status",['Not Set','Ready'],
+                                index=1 if _cur_st=='Ready' else 0,
+                                key=f"cst_{_cmu}_{_gs_week}_{_gs_year}",label_visibility="collapsed")
+                    if _us>0 or _os>0: _comb_status[_cmu]='Ready'
+                    _comb_scores[_cmu]={'opp':_cm_opp,'user_score':_us,'opp_score':_os}
+                else:
+                    c1,c2=st.columns([2,2])
+                    with c1:
+                        st.markdown(f"<span style='color:#334155;font-size:.9rem;'>{html.escape(_cmu)} — schedule pending</span>",unsafe_allow_html=True)
+                    with c2:
+                        _comb_status[_cmu]=st.selectbox("Status",['Not Set','Ready'],
+                            index=1 if _cur_st=='Ready' else 0,
+                            key=f"cst_{_cmu}_{_gs_week}_{_gs_year}",label_visibility="collapsed")
+                    _comb_scores[_cmu]=None
+            if st.button("💾 Save All",use_container_width=True,key="save_combined_btn",type="primary"):
+                try:
+                    _mb=pd.read_csv('week_manual_scores.csv') if os.path.exists('week_manual_scores.csv') else pd.DataFrame(columns=['User','Year','Week','Opponent','UserScore','OppScore'])
+                    for _c in ['Year','Week']: _mb[_c]=pd.to_numeric(_mb.get(_c),errors='coerce').fillna(0).astype(int)
+                    _mb=_mb[~((_mb['Year']==int(_gs_year))&(_mb['Week']==int(_gs_week)))].copy()
+                    _save_rows=[{'User':_u,'Year':int(_gs_year),'Week':int(_gs_week),'Opponent':v['opp'],'UserScore':v['user_score'],'OppScore':v['opp_score']} for _u,v in _comb_scores.items() if v and (v['user_score']>0 or v['opp_score']>0)]
+                    if _save_rows: pd.concat([_mb,pd.DataFrame(_save_rows)],ignore_index=True).to_csv('week_manual_scores.csv',index=False)
+                    _wb=pd.read_csv('week_game_status.csv') if os.path.exists('week_game_status.csv') else pd.DataFrame(columns=['User','Year','Week','Status'])
+                    for _c in ['Year','Week']: _wb[_c]=pd.to_numeric(_wb.get(_c),errors='coerce').fillna(0).astype(int)
+                    _wb=_wb[~((_wb['Year']==int(_gs_year))&(_wb['Week']==int(_gs_week)))].copy()
+                    pd.concat([_wb,pd.DataFrame([{'User':_u,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_s} for _u,_s in _comb_status.items()])],ignore_index=True).to_csv('week_game_status.csv',index=False)
+                    st.success(f"✅ Saved Week {_gs_week}. Download CSVs below and push to GitHub.")
+                    st.cache_data.clear()
+                except Exception as _sve: st.error(f"Save error: {_sve}")
+            dl1,dl2=st.columns(2)
+            with dl1:
+                if os.path.exists('week_manual_scores.csv'):
+                    with open('week_manual_scores.csv','rb') as f2:
+                        st.download_button("⬇️ Scores CSV",data=f2.read(),file_name="week_manual_scores.csv",mime="text/csv",use_container_width=True,key="dl_manual_scores")
+            with dl2:
+                if os.path.exists('week_game_status.csv'):
+                    with open('week_game_status.csv','rb') as f3:
+                        st.download_button("⬇️ Status CSV",data=f3.read(),file_name="week_game_status.csv",mime="text/csv",use_container_width=True,key="dl_game_status")
+
+    # ── PLAYER LOGIN ───────────────────────────────────────────────────────────
+    _user_pw_map={
+        "Mike":"sjsu26","Devin":"BGKevin","Josh":"Yayshusf",
+        "Noah":"DinnerTime","Doug":"Buttstuff","Nick":"Nads31",
+    }
+    try:
+        if os.path.exists('user_passwords.csv'):
+            _upw=pd.read_csv('user_passwords.csv')
+            _upw['User']=_upw['User'].astype(str).str.strip().str.title()
+            _upw['Password']=_upw['Password'].astype(str).str.strip()
+            _user_pw_map=dict(zip(_upw['User'],_upw['Password']))
+    except: pass
+
+    _logged_in_user=st.session_state.get('_player_logged_in_as',None)
+    with st.expander(f"🎮 {'Logged in as '+_logged_in_user if _logged_in_user else 'Player Login — Enter Your Score'}",expanded=bool(_logged_in_user)):
+        if not _logged_in_user:
+            st.caption("Log in with your team password to set your score and game status.")
+            pl1,pl2=st.columns(2)
+            with pl1:
+                _pl_user_sel=st.selectbox("Who are you?",list(USER_TEAMS.keys()),key="player_login_user_select")
+            with pl2:
+                _pl_pw=st.text_input("Password",type="password",key="player_login_pw",placeholder="Your team password")
+            if _pl_pw:
+                if _pl_pw==_user_pw_map.get(_pl_user_sel,''):
+                    st.session_state['_player_logged_in_as']=_pl_user_sel; st.rerun()
+                else: st.error("Wrong password. Ask the commissioner.")
+        else:
+            _pl_name_col,_pl_logout_col=st.columns([4,1])
+            with _pl_name_col:
+                _pl_team=USER_TEAMS.get(_logged_in_user,_logged_in_user)
+                _pl_tc=get_team_primary_color(_pl_team)
+                st.markdown(f"<span style='font-weight:900;color:{_pl_tc};font-size:1.05rem;'>{html.escape(_logged_in_user)}</span> <span style='color:#475569;font-size:.85rem;'>— {html.escape(_pl_team)}</span>",unsafe_allow_html=True)
+            with _pl_logout_col:
+                if st.button("🔒 Logout",key="player_logout_btn",use_container_width=True):
+                    st.session_state.pop('_player_logged_in_as',None); st.rerun()
+            _pl_matchup=_ctrl_matchup.get(_logged_in_user,'UNSCHEDULED')
+            _pl_cur_msc=_msc_map2.get(_logged_in_user,{})
+            _pl_cur_st=_game_status_map2.get(_logged_in_user,'Not Set')
+            if _pl_matchup=='BYE':
+                st.info("BYE WEEK — no game this week.")
+                _pl_status=st.selectbox("Set status",['Not Set','Ready'],index=1 if _pl_cur_st=='Ready' else 0,key=f"pl_status_bye_{_logged_in_user}")
+                if st.button("💾 Save Status",key="pl_bye_save",type="primary",use_container_width=True):
+                    try:
+                        _wb2=pd.read_csv('week_game_status.csv') if os.path.exists('week_game_status.csv') else pd.DataFrame(columns=['User','Year','Week','Status'])
+                        for _c in ['Year','Week']: _wb2[_c]=pd.to_numeric(_wb2.get(_c),errors='coerce').fillna(0).astype(int)
+                        _wb2=_wb2[~((_wb2['User'].astype(str).str.strip()==_logged_in_user)&(_wb2['Year']==int(_gs_year))&(_wb2['Week']==int(_gs_week)))].copy()
+                        pd.concat([_wb2,pd.DataFrame([{'User':_logged_in_user,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_pl_status}])],ignore_index=True).to_csv('week_game_status.csv',index=False)
+                        st.success("✅ Saved!"); st.cache_data.clear()
+                    except Exception as e: st.error(f"Save error: {e}")
+            elif isinstance(_pl_matchup,dict):
+                _pl_opp=_pl_matchup.get('opp','?'); _pl_ha='vs' if _pl_matchup.get('home') else '@'
+                _pl_ol=image_file_to_data_uri(get_logo_source(_pl_opp))
+                _pl_ol_h=f"<img src='{_pl_ol}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _pl_ol else ""
+                st.markdown(f"<div style='font-size:.9rem;color:#94a3b8;margin-bottom:8px;'><strong style='color:#f1f5f9;'>{html.escape(_logged_in_user)}</strong> — {_pl_ha} {_pl_ol_h}{html.escape(_pl_opp)}</div>",unsafe_allow_html=True)
+                _pls1,_pls2,_pls3=st.columns([1,1,2])
+                with _pls1:
+                    _pl_us=st.number_input("Us",min_value=0,max_value=99,value=_pl_cur_msc.get('user_score',0),key=f"pl_us_{_logged_in_user}_{_gs_week}",label_visibility="collapsed")
+                with _pls2:
+                    _pl_os=st.number_input("Opp",min_value=0,max_value=99,value=_pl_cur_msc.get('opp_score',0),key=f"pl_os_{_logged_in_user}_{_gs_week}",label_visibility="collapsed")
+                with _pls3:
+                    if _pl_us>0 or _pl_os>0:
+                        _rl2="W" if _pl_us>_pl_os else ("L" if _pl_os>_pl_us else "TIE")
+                        _rc4="#4ade80" if _rl2=="W" else ("#f87171" if _rl2=="L" else "#94a3b8")
+                        st.markdown(f"<span style='color:{_rc4};font-weight:800;font-family:Bebas Neue,sans-serif;font-size:1.4rem;'>{_rl2} {_pl_us}-{_pl_os}</span>",unsafe_allow_html=True)
+                    else:
+                        _pl_status2=st.selectbox("Status",['Not Set','Ready'],index=1 if _pl_cur_st=='Ready' else 0,key=f"pl_status_{_logged_in_user}_{_gs_week}")
+                if st.button("💾 Save My Score",key="pl_save_btn",type="primary",use_container_width=True):
+                    try:
+                        _auto_st='Ready' if (_pl_us>0 or _pl_os>0) else st.session_state.get(f"pl_status_{_logged_in_user}_{_gs_week}",'Not Set')
+                        if _pl_us>0 or _pl_os>0:
+                            _mb3=pd.read_csv('week_manual_scores.csv') if os.path.exists('week_manual_scores.csv') else pd.DataFrame(columns=['User','Year','Week','Opponent','UserScore','OppScore'])
+                            for _c in ['Year','Week']: _mb3[_c]=pd.to_numeric(_mb3.get(_c),errors='coerce').fillna(0).astype(int)
+                            _mb3=_mb3[~((_mb3['User'].astype(str).str.strip().str.title()==_logged_in_user)&(_mb3['Year']==int(_gs_year))&(_mb3['Week']==int(_gs_week)))].copy()
+                            pd.concat([_mb3,pd.DataFrame([{'User':_logged_in_user,'Year':int(_gs_year),'Week':int(_gs_week),'Opponent':_pl_opp,'UserScore':_pl_us,'OppScore':_pl_os}])],ignore_index=True).to_csv('week_manual_scores.csv',index=False)
+                        _wb3=pd.read_csv('week_game_status.csv') if os.path.exists('week_game_status.csv') else pd.DataFrame(columns=['User','Year','Week','Status'])
+                        for _c in ['Year','Week']: _wb3[_c]=pd.to_numeric(_wb3.get(_c),errors='coerce').fillna(0).astype(int)
+                        _wb3=_wb3[~((_wb3['User'].astype(str).str.strip().str.title()==_logged_in_user)&(_wb3['Year']==int(_gs_year))&(_wb3['Week']==int(_gs_week)))].copy()
+                        pd.concat([_wb3,pd.DataFrame([{'User':_logged_in_user,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_auto_st}])],ignore_index=True).to_csv('week_game_status.csv',index=False)
+                        st.success(f"✅ Saved! Download the CSVs and send to Mike, or Mike can grab them from Commissioner Tools.")
+                        st.cache_data.clear()
+                    except Exception as e: st.error(f"Save error: {e}")
+                dl_col,_=st.columns([1,2])
+                with dl_col:
+                    if os.path.exists('week_manual_scores.csv'):
+                        with open('week_manual_scores.csv','rb') as f4:
+                            st.download_button("⬇️ My Score CSV",data=f4.read(),file_name="week_manual_scores.csv",mime="text/csv",use_container_width=True,key="pl_dl_scores")
+            else:
+                st.info("No matchup found for this week yet. Check back after the schedule drops.")
+
     st.markdown("---")
     render_injury_report()
     st.markdown("---")
