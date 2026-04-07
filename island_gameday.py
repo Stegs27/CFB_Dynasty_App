@@ -3,6 +3,14 @@
 # Tabs: Dynasty News | Rankings & Metrics | Roster Attrition | Season Recap | User Legacies | Roster Matchup
 
 import streamlit as st
+
+def _safe_int(v,default=0):
+    """Convert to int safely handling NaN and non-numeric values."""
+    try:
+        r=pd.to_numeric(v,errors='coerce')
+        return default if (r is None or (isinstance(r,float) and r!=r)) else int(r)
+    except: return default
+
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -2444,36 +2452,33 @@ def render_game_cards_with_boxscore(year, week, model_df):
 
     # ── Manual scores built once (keyed by user) ─────────────────────
     _manual_score_map={}
-    _score_load_err=None
     try:
-        if os.path.exists('week_manual_scores.csv'):
-            _msc=pd.read_csv('week_manual_scores.csv')
+        _msc_path='week_manual_scores.csv'
+        if os.path.exists(_msc_path):
+            _msc=pd.read_csv(_msc_path)
             _msc.columns=[str(c).strip() for c in _msc.columns]
-            # Flexible column name support
-            _yr_c=next((c for c in ('Year','YEAR','year','season_year') if c in _msc.columns),None)
-            _wk_c=next((c for c in ('Week','WEEK','week') if c in _msc.columns),None)
-            _us_c=next((c for c in ('User','USER','user') if c in _msc.columns),None)
-            _uss_c=next((c for c in ('UserScore','user_score','VIS_SCORE','HomeScore') if c in _msc.columns),None)
-            _ops_c=next((c for c in ('OppScore','opp_score','OPP_SCORE') if c in _msc.columns),None)
+            _yr_c=next((c for c in _msc.columns if c.lower() in ('year','season_year')),None)
+            _wk_c=next((c for c in _msc.columns if c.lower()=='week'),None)
+            _us_c=next((c for c in _msc.columns if c.lower()=='user'),None)
+            _uss_c=next((c for c in _msc.columns if c.lower() in ('userscore','user_score')),None)
+            _ops_c=next((c for c in _msc.columns if c.lower() in ('oppscore','opp_score')),None)
             if _yr_c: _msc[_yr_c]=pd.to_numeric(_msc[_yr_c],errors='coerce').fillna(0).astype(int)
             if _wk_c: _msc[_wk_c]=pd.to_numeric(_msc[_wk_c],errors='coerce').fillna(0).astype(int)
-            _msc_cur=_msc.copy()
-            if _yr_c: _msc_cur=_msc_cur[_msc_cur[_yr_c]==int(year)]
-            if _wk_c: _msc_cur=_msc_cur[_msc_cur[_wk_c]==int(week)]
-            for _,_mr in _msc_cur.iterrows():
-                _ukey=str(_mr.get(_us_c,'') if _us_c else '').strip().title()
-                if _ukey in USER_TEAMS:
-                    _manual_score_map[_ukey]={
-                        'user_score':int(pd.to_numeric(_mr.get(_uss_c,0) if _uss_c else 0,errors='coerce').fillna(0)),
-                        'opp_score': int(pd.to_numeric(_mr.get(_ops_c,0) if _ops_c else 0,errors='coerce').fillna(0)),
-                    }
-    except Exception as _e: _score_load_err=str(_e)
-
-    # Debug: show score map state for commissioner
-    if _score_load_err:
-        st.caption(f"⚠️ Score load error: {_score_load_err}")
-    elif not _manual_score_map and os.path.exists('week_manual_scores.csv'):
-        st.caption(f"ℹ️ week_manual_scores.csv found but no entries match year={year} week={week}. Entries in file: {len(pd.read_csv("week_manual_scores.csv")) if os.path.exists("week_manual_scores.csv") else 0}")
+            _fil=_msc
+            if _yr_c: _fil=_fil[_fil[_yr_c]==int(year)]
+            if _wk_c: _fil=_fil[_fil[_wk_c]==int(week)]
+            for _,_mr in _fil.iterrows():
+                _uraw=str(_mr[_us_c]).strip() if _us_c else ''
+                _ukey=_uraw.title()
+                # accept both title-case and original
+                for _uk in (_ukey,_uraw):
+                    if _uk in USER_TEAMS:
+                        _manual_score_map[_uk]={
+                            'user_score':_safe_int(_mr[_uss_c] if _uss_c else 0),
+                            'opp_score': _safe_int(_mr[_ops_c] if _ops_c else 0),
+                        }
+                        break
+    except: pass
 
     # ── Record from CFP rankings ───────────────────────────────────────
     _record_map={}
@@ -3775,8 +3780,8 @@ def render_roster_attrition_tab():
                 with st.expander(f"🎯 {team} {target_year} Incoming ({_in_count})"):
                     for _,_ir in _team_inc.iterrows():
                         _irn=str(_ir.get('Name','?')).strip(); _irp=str(_ir.get('Pos','?')).strip()
-                        _irs=int(pd.to_numeric(_ir.get('StarRating',_ir.get('Stars',_ir.get('star_rating',0))),errors='coerce').fillna(0))
-                        _irr=int(pd.to_numeric(_ir.get('NationalRank',_ir.get('Natl_Rank',_ir.get('national_rank',0))),errors='coerce').fillna(0))
+                        _irs=_safe_int(_ir.get('StarRating',_ir.get('Stars',_ir.get('star_rating',0))))
+                        _irr=_safe_int(_ir.get('NationalRank',_ir.get('Natl_Rank',_ir.get('national_rank',0))))
                         _irt=str(_ir.get('RecruitType','HS')).strip()
                         _star_d="⭐"*_irs if _irs>0 else ""; _rank_d=f"#{_irr}" if _irr>0 else ""
                         _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irt)}</span>"
