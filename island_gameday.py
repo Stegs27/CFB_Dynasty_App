@@ -2685,6 +2685,13 @@ def render_game_cards_with_boxscore(year, week, model_df):
                         else:
                             line_html=" <span style='font-size:.82rem;color:#94a3b8;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></span>"
                 except: pass
+                # Append manual score alongside LINE if available
+                if _man_score_str:
+                    _rc_app='#4ade80' if _man_result_str=='W' else ('#f87171' if _man_result_str=='L' else '#94a3b8')
+                    line_html+=(f" <span style='color:#334155;'>&nbsp;·&nbsp;</span>"
+                        f"<span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
+                        f"font-weight:900;color:#94a3b8;'>SCORE: "
+                        f"<strong style='color:{_rc_app};font-size:1rem;'>{_man_result_str} {_man_score_str}</strong></span>")
                 game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
                     f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
                     f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
