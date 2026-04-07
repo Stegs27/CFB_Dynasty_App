@@ -2464,10 +2464,16 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 _ukey=str(_mr.get(_us_c,'') if _us_c else '').strip().title()
                 if _ukey in USER_TEAMS:
                     _manual_score_map[_ukey]={
-                        'user_score':int(pd.to_numeric(_mr.get(_uss_c,0) if _uss_c else 0,errors='coerce') or 0),
-                        'opp_score': int(pd.to_numeric(_mr.get(_ops_c,0) if _ops_c else 0,errors='coerce') or 0),
+                        'user_score':int(pd.to_numeric(_mr.get(_uss_c,0) if _uss_c else 0,errors='coerce').fillna(0)),
+                        'opp_score': int(pd.to_numeric(_mr.get(_ops_c,0) if _ops_c else 0,errors='coerce').fillna(0)),
                     }
     except Exception as _e: _score_load_err=str(_e)
+
+    # Debug: show score map state for commissioner
+    if _score_load_err:
+        st.caption(f"⚠️ Score load error: {_score_load_err}")
+    elif not _manual_score_map and os.path.exists('week_manual_scores.csv'):
+        st.caption(f"ℹ️ week_manual_scores.csv found but no entries match year={year} week={week}. Entries in file: {len(pd.read_csv("week_manual_scores.csv")) if os.path.exists("week_manual_scores.csv") else 0}")
 
     # ── Record from CFP rankings ───────────────────────────────────────
     _record_map={}
@@ -3769,8 +3775,8 @@ def render_roster_attrition_tab():
                 with st.expander(f"🎯 {team} {target_year} Incoming ({_in_count})"):
                     for _,_ir in _team_inc.iterrows():
                         _irn=str(_ir.get('Name','?')).strip(); _irp=str(_ir.get('Pos','?')).strip()
-                        _irs=int(pd.to_numeric(_ir.get('StarRating',_ir.get('Stars',_ir.get('star_rating',0))),errors='coerce') or 0)
-                        _irr=int(pd.to_numeric(_ir.get('NationalRank',_ir.get('Natl_Rank',_ir.get('national_rank',0))),errors='coerce') or 0)
+                        _irs=int(pd.to_numeric(_ir.get('StarRating',_ir.get('Stars',_ir.get('star_rating',0))),errors='coerce').fillna(0))
+                        _irr=int(pd.to_numeric(_ir.get('NationalRank',_ir.get('Natl_Rank',_ir.get('national_rank',0))),errors='coerce').fillna(0))
                         _irt=str(_ir.get('RecruitType','HS')).strip()
                         _star_d="⭐"*_irs if _irs>0 else ""; _rank_d=f"#{_irr}" if _irr>0 else ""
                         _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irt)}</span>"
