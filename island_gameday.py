@@ -2444,17 +2444,30 @@ def render_game_cards_with_boxscore(year, week, model_df):
 
     # ── Manual scores built once (keyed by user) ─────────────────────
     _manual_score_map={}
+    _score_load_err=None
     try:
         if os.path.exists('week_manual_scores.csv'):
             _msc=pd.read_csv('week_manual_scores.csv')
-            _msc['Year']=pd.to_numeric(_msc.get('Year'),errors='coerce').fillna(0).astype(int)
-            _msc['Week']=pd.to_numeric(_msc.get('Week'),errors='coerce').fillna(0).astype(int)
-            for _,_mr in _msc[(_msc['Year']==int(year))&(_msc['Week']==int(week))].iterrows():
-                _manual_score_map[str(_mr.get('User','')).strip()]={
-                    'user_score':int(pd.to_numeric(_mr.get('UserScore',0),errors='coerce') or 0),
-                    'opp_score': int(pd.to_numeric(_mr.get('OppScore', 0),errors='coerce') or 0),
-                }
-    except: pass
+            _msc.columns=[str(c).strip() for c in _msc.columns]
+            # Flexible column name support
+            _yr_c=next((c for c in ('Year','YEAR','year','season_year') if c in _msc.columns),None)
+            _wk_c=next((c for c in ('Week','WEEK','week') if c in _msc.columns),None)
+            _us_c=next((c for c in ('User','USER','user') if c in _msc.columns),None)
+            _uss_c=next((c for c in ('UserScore','user_score','VIS_SCORE','HomeScore') if c in _msc.columns),None)
+            _ops_c=next((c for c in ('OppScore','opp_score','OPP_SCORE') if c in _msc.columns),None)
+            if _yr_c: _msc[_yr_c]=pd.to_numeric(_msc[_yr_c],errors='coerce').fillna(0).astype(int)
+            if _wk_c: _msc[_wk_c]=pd.to_numeric(_msc[_wk_c],errors='coerce').fillna(0).astype(int)
+            _msc_cur=_msc.copy()
+            if _yr_c: _msc_cur=_msc_cur[_msc_cur[_yr_c]==int(year)]
+            if _wk_c: _msc_cur=_msc_cur[_msc_cur[_wk_c]==int(week)]
+            for _,_mr in _msc_cur.iterrows():
+                _ukey=str(_mr.get(_us_c,'') if _us_c else '').strip().title()
+                if _ukey in USER_TEAMS:
+                    _manual_score_map[_ukey]={
+                        'user_score':int(pd.to_numeric(_mr.get(_uss_c,0) if _uss_c else 0,errors='coerce') or 0),
+                        'opp_score': int(pd.to_numeric(_mr.get(_ops_c,0) if _ops_c else 0,errors='coerce') or 0),
+                    }
+    except Exception as _e: _score_load_err=str(_e)
 
     # ── Record from CFP rankings ───────────────────────────────────────
     _record_map={}
@@ -2627,7 +2640,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 status_chip=f"<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;{_chip_style}'>FINAL</span>"
                 game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
                     f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
-                    f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
+                    f"<span style='font-size:.95rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
                     f"<span style='color:{rc2};font-weight:900;font-size:1.05rem;"
                     f"font-family:Barlow Condensed,sans-serif;'>{result} {score}</span>")
             else:
@@ -3634,6 +3647,8 @@ def render_roster_attrition_tab():
     try:
         xf_raw=pd.read_csv('attrition_transfers.csv')
         xf_raw.columns=[str(c).strip() for c in xf_raw.columns]
+        for _ox,_nx in [('season_year','Year'),('YEAR','Year'),('team','Team'),('TEAM','Team')]:
+            if _ox in xf_raw.columns and _nx not in xf_raw.columns: xf_raw=xf_raw.rename(columns={_ox:_nx})
         xf_raw['Year']=pd.to_numeric(xf_raw.get('Year',xf_raw.get('YEAR',target_year)),errors='coerce')
         xf_raw=xf_raw[(xf_raw['Year'].fillna(-1).astype(int)==target_year)&
                        (xf_raw['TransferStatus'].astype(str).str.strip()=='Leaving')].copy()
@@ -3683,8 +3698,12 @@ def render_roster_attrition_tab():
         try:
             _inc=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
             if not _inc.empty:
-                _inc['Year']=pd.to_numeric(_inc['Year'],errors='coerce').fillna(0).astype(int)
-                _inc['Team']=_inc['Team'].astype(str).str.strip()
+                _inc.columns=[str(c).strip() for c in _inc.columns]
+                # Normalise renamed columns
+                for _old,_new in [('season_year','Year'),('YEAR','Year'),('team','Team'),('TEAM','Team'),('Stars','StarRating'),('star_rating','StarRating'),('Natl_Rank','NationalRank'),('national_rank','NationalRank'),('recruit_type','RecruitType'),('pos','Pos'),('POS','Pos'),('name','Name'),('NAME','Name')]:
+                    if _old in _inc.columns and _new not in _inc.columns: _inc=_inc.rename(columns={_old:_new})
+                _inc['Year']=pd.to_numeric(_inc.get('Year',_inc.get('season_year',0)),errors='coerce').fillna(0).astype(int)
+                _inc['Team']=_inc.get('Team',pd.Series(['']*len(_inc))).astype(str).str.strip()
                 _inc['StarRating']=pd.to_numeric(_inc.get('StarRating',0),errors='coerce').fillna(0).astype(int)
                 _team_inc=_inc[(_inc['Team']==team)&(_inc['Year']==target_year)].sort_values('StarRating',ascending=False)
             else:
@@ -3750,7 +3769,8 @@ def render_roster_attrition_tab():
                 with st.expander(f"🎯 {team} {target_year} Incoming ({_in_count})"):
                     for _,_ir in _team_inc.iterrows():
                         _irn=str(_ir.get('Name','?')).strip(); _irp=str(_ir.get('Pos','?')).strip()
-                        _irs=int(_ir.get('StarRating',0) or 0); _irr=int(_ir.get('NationalRank',0) or 0)
+                        _irs=int(pd.to_numeric(_ir.get('StarRating',_ir.get('Stars',_ir.get('star_rating',0))),errors='coerce') or 0)
+                        _irr=int(pd.to_numeric(_ir.get('NationalRank',_ir.get('Natl_Rank',_ir.get('national_rank',0))),errors='coerce') or 0)
                         _irt=str(_ir.get('RecruitType','HS')).strip()
                         _star_d="⭐"*_irs if _irs>0 else ""; _rank_d=f"#{_irr}" if _irr>0 else ""
                         _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irt)}</span>"
@@ -3930,8 +3950,10 @@ def render_roster_attrition_tab():
                 st.info("No attrition_incoming.csv found. Drop the file in the repo.")
             else:
                 _inc_df.columns=[str(c).strip() for c in _inc_df.columns]
-                _inc_df['Year']=pd.to_numeric(_inc_df['Year'],errors='coerce').fillna(0).astype(int)
-                _inc_df['Team']=_inc_df['Team'].astype(str).str.strip()
+                for _o2,_n2 in [('season_year','Year'),('YEAR','Year'),('team','Team'),('TEAM','Team'),('Stars','StarRating'),('star_rating','StarRating'),('Natl_Rank','NationalRank'),('national_rank','NationalRank'),('recruit_type','RecruitType'),('pos','Pos'),('POS','Pos'),('name','Name'),('NAME','Name')]:
+                    if _o2 in _inc_df.columns and _n2 not in _inc_df.columns: _inc_df=_inc_df.rename(columns={_o2:_n2})
+                _inc_df['Year']=pd.to_numeric(_inc_df.get('Year',0),errors='coerce').fillna(0).astype(int)
+                _inc_df['Team']=_inc_df.get('Team',pd.Series(['']*len(_inc_df))).astype(str).str.strip()
                 _inc_df['StarRating']=pd.to_numeric(_inc_df.get('StarRating',0),errors='coerce').fillna(0).astype(int)
                 # 2044 dropdown maps to 2043 incoming class
                 _inc_yr=CURRENT_YEAR if target_year==CURRENT_YEAR+1 else target_year
@@ -4815,7 +4837,7 @@ st.markdown(f"""
 <div style="margin-top:-75px;margin-bottom:0;text-align:center;">
   <h2 style="margin-bottom:10px;font-weight:800;letter-spacing:-.5px;">📰 Dynasty News</h2>
   {_logo_html}
-  <div class="top-story-badge">{html.escape(_top['badge'])}</div>
+  {("" if _top.get('badge')=='CFP TOP 4' else f'<div class="top-story-badge">{html.escape(_top["badge"])}</div>')}
   <div style="font-size:1.15rem;font-weight:800;letter-spacing:.5px;margin-bottom:4px;line-height:1.4;">{"" if _top.get('badge')=='CFP TOP 4' else _hero_html}</div>
   <div style="color:#94a3b8;font-size:.85rem;font-style:italic;max-width:500px;margin:0 auto;">"{html.escape(_top['blurb'])}"</div>
   <div style="color:#38bdf8;font-size:.65rem;margin-top:8px;letter-spacing:1px;font-weight:800;">
@@ -5217,7 +5239,7 @@ with tabs[1]:
                 except: pass
                 thead_cfp=(
                     "<tr style='background:#0a1220;'>"
-                    "<th style='padding:5px 6px;color:#fbbf24;font-size:.55rem;text-align:center;width:32px;'>RK</th>"
+                    "<th style='padding:5px 6px;color:#fbbf24;font-size:.72rem;text-align:center;width:36px;'>RK</th>"
                     "<th style='padding:5px 6px;color:#475569;font-size:.55rem;text-align:left;'>Team</th>"
                     "<th style='padding:5px 6px;color:#94a3b8;font-size:.55rem;text-align:center;'>Rec</th>"
                     "<th style='padding:5px 6px;color:#60a5fa;font-size:.55rem;text-align:center;'>OVR</th>"
