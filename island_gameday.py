@@ -2537,6 +2537,19 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;'>{html.escape(str(rec_str))}</span>")
         else: rec_chip=""
 
+        # Check for saved score in week_manual_scores.csv
+        _man_score_str=None; _man_result_str=None
+        try:
+            if os.path.exists('week_manual_scores.csv'):
+                _msc_q=pd.read_csv('week_manual_scores.csv')
+                for _cm in ['Year','Week']: _msc_q[_cm]=pd.to_numeric(_msc_q.get(_cm),errors='coerce').fillna(0).astype(int)
+                _msc_row=_msc_q[(_msc_q['User'].astype(str).str.strip()==user)&(_msc_q['Year']==year)&(_msc_q['Week']==week)]
+                if not _msc_row.empty:
+                    _mu2=int(_msc_row.iloc[0].get('UserScore',0)); _mo2=int(_msc_row.iloc[0].get('OppScore',0))
+                    if _mu2>0 or _mo2>0:
+                        _man_result_str='W' if _mu2>_mo2 else ('L' if _mo2>_mu2 else 'TIE')
+                        _man_score_str=f'{_mu2}-{_mo2}'
+        except: pass
         # Game strip
         _chip_style="font-weight:700;padding:3px 10px;border-radius:4px;font-family:Barlow Condensed,sans-serif;font-size:.92rem;letter-spacing:.07em;"
         if matchup=='BYE':
@@ -2561,7 +2574,13 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     f"<span style='color:{rc2};font-weight:900;font-size:1.05rem;"
                     f"font-family:Barlow Condensed,sans-serif;'>{result} {score}</span>")
             else:
-                if game_status=='Ready':
+                if _man_score_str:
+                    _rc_ms='#4ade80' if _man_result_str=='W' else ('#f87171' if _man_result_str=='L' else '#94a3b8')
+                    status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
+                    game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;letter-spacing:.08em;'>WK {week}</span> {status_chip} "
+                        f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
+                        f"<span style='color:{_rc_ms};font-weight:900;font-size:1.05rem;font-family:Barlow Condensed,sans-serif;'>{_man_result_str} {_man_score_str}</span>")
+                elif game_status=='Ready':
                     status_chip=f"<span style='background:#4ade8022;color:#4ade80;border:1px solid #4ade8055;{_chip_style}'>✓ READY</span>"
                 else:
                     status_chip=f"<span style='background:#dc262622;color:#ef4444;border:1px solid #dc262655;{_chip_style}'>NOT SET</span>"
@@ -5172,8 +5191,13 @@ with tabs[1]:
                     for _gdf in [_gc_sum,_gc_games2,_gc_trend2]:
                         for _c in ("TEAM","USER"):
                             if _c in _gdf.columns: _gdf[_c]=_gdf[_c].astype(str).str.strip()
+                        if "YEAR" in _gdf.columns: _gdf["YEAR"]=pd.to_numeric(_gdf["YEAR"],errors="coerce")
+                    _gc_yr_opts_top=sorted(_gc_games2["YEAR"].dropna().unique().astype(int),reverse=True) if not _gc_games2.empty and "YEAR" in _gc_games2.columns else [CURRENT_YEAR]
+                    _gc_top_yr=st.selectbox("Season",_gc_yr_opts_top,index=0,key="gc_top_yr")
                     _gc_sum["AVG_GAME_CONTROL"]=pd.to_numeric(_gc_sum["AVG_GAME_CONTROL"],errors="coerce").fillna(0)
-                    _gc_ranked=_gc_sum.sort_values("AVG_GAME_CONTROL",ascending=False).reset_index(drop=True)
+                    _gc_sumf=_gc_sum[_gc_sum["YEAR"].fillna(-1).astype(int)==_gc_top_yr].copy() if "YEAR" in _gc_sum.columns else _gc_sum.copy()
+                    if _gc_sumf.empty: _gc_sumf=_gc_sum.copy()
+                    _gc_ranked=_gc_sumf.sort_values("AVG_GAME_CONTROL",ascending=False).reset_index(drop=True)
                     _gc_ranked["RANK"]=range(1,len(_gc_ranked)+1)
                     # Summary leaderboard
                     for _,_gr2 in _gc_ranked.iterrows():
@@ -5217,9 +5241,7 @@ with tabs[1]:
                     st.subheader("🔍 By-Game Deep Dive")
                     _gc_sel_opts=[f"{r['USER']} • {r['TEAM']}" for _,r in _gc_ranked.iterrows() if str(r['TEAM']) in ALL_USER_TEAMS]
                     if _gc_sel_opts:
-                        _gc_yr_opts=sorted(_gc_games2['YEAR'].dropna().unique().astype(int),reverse=True) if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else [CURRENT_YEAR]
-                    _gc_yr_sel=st.selectbox("Season",_gc_yr_opts,index=0,key="gc_yr_sel2")
-                    _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
+                        _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
                     _gc_trend2_f=_gc_trend2[_gc_trend2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_trend2.empty and 'YEAR' in _gc_trend2.columns else _gc_trend2
                     _gc_picked=st.selectbox("Select team",_gc_sel_opts,key="gc_team_sel2")
                     _gc_pu=_gc_picked.split(" • ")[0]; _gc_pt=_gc_picked.split(" • ")[1]
@@ -6109,31 +6131,86 @@ with _ul_tabs[1]:
         _cl_scores=load_scores_master(multi_year=True)
         _cl_ratings=model_2041.copy() if model_2041 is not None and not model_2041.empty else pd.DataFrame()
         _classics=build_ispn_classics(_cl_scores,_cl_ratings)
+        # Supplement with CFP bracket results
+        try:
+            _cfp_bkt=pd.read_csv('CFPbracketresults.csv')
+            _cfp_bkt.columns=[str(c).strip() for c in _cfp_bkt.columns]
+            if not _cfp_bkt.empty and 'YEAR' in _cfp_bkt.columns:
+                _cfp_bkt['YEAR']=pd.to_numeric(_cfp_bkt['YEAR'],errors='coerce')
+                # Build classic rows from bracket results if they have scores
+                _sc1=next((c for c in _cfp_bkt.columns if 'SCORE' in c.upper() and ('1' in c or 'TEAM1' in c.upper() or 'VIS' in c.upper())),None)
+                _sc2=next((c for c in _cfp_bkt.columns if 'SCORE' in c.upper() and ('2' in c or 'TEAM2' in c.upper() or 'HOME' in c.upper())),None)
+                _t1c=next((c for c in _cfp_bkt.columns if c.upper()=='TEAM1'),None)
+                _t2c=next((c for c in _cfp_bkt.columns if c.upper()=='TEAM2'),None)
+                if _t1c and _t2c and _sc1 and _sc2 and not _classics.empty:
+                    _existing_keys=set(zip(_classics['Visitor'],_classics['Home'],_classics['Year']))
+                    _bkt_rows=[]
+                    for _,_br in _cfp_bkt.dropna(subset=[_sc1,_sc2]).iterrows():
+                        _t1=str(_br.get(_t1c,'')).strip(); _t2=str(_br.get(_t2c,'')).strip()
+                        _s1=int(float(_br.get(_sc1,0) or 0)); _s2=int(float(_br.get(_sc2,0) or 0))
+                        _byr=int(_br.get('YEAR',CURRENT_YEAR) or CURRENT_YEAR)
+                        _rnd=str(_br.get('ROUND','CFP')).strip()
+                        if _s1<=0 and _s2<=0: continue
+                        if (_t1,_t2,_byr) in _existing_keys or (_t2,_t1,_byr) in _existing_keys: continue
+                        _mg=abs(_s1-_s2)
+                        _gw={'NCG':20,'SF':12,'QF':8,'R1':4}.get(_rnd,6)
+                        _cs=max(0,35-_mg)+_gw
+                        _bkt_rows.append({'Year':_byr,'Visitor':_t1,'VisPts':_s1,'HomePts':_s2,'Home':_t2,
+                            'VisUser':'','HomeUser':'','Margin':_mg,'Winner':_t1 if _s1>_s2 else _t2,
+                            'Loser':_t2 if _s1>_s2 else _t1,'WinnerUser':'','LoserUser':'',
+                            'WinnerPts':max(_s1,_s2),'LoserPts':min(_s1,_s2),
+                            'WinnerOVR':80,'LoserOVR':80,'OVR_Diff':0,'IsUpset':False,
+                            'GameType':f'CFP {_rnd}','ClassicScore':_cs})
+                    if _bkt_rows:
+                        _classics=pd.concat([_classics,pd.DataFrame(_bkt_rows)],ignore_index=True).sort_values('ClassicScore',ascending=False).reset_index(drop=True)
+        except: pass
         if _classics.empty:
             st.info("No classic games found yet. Keep playing!")
         else:
+            def _utag3(u):
+                if u and u.upper() not in ('CPU','','NAN'):
+                    _tc3=get_team_primary_color(USER_TEAMS.get(u,''))
+                    return f"<span style='background:{_tc3}22;color:{_tc3};font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:3px;'>{html.escape(u.upper())}</span>"
+                return ""
+            medals_cl={0:"🥇",1:"🥈",2:"🥉"}
             for i,(_,row) in enumerate(_classics.head(15).iterrows()):
-                vis=str(row.get('Visitor','')).strip(); hom=str(row.get('Home','')).strip()
-                vs=int(float(row.get('Vis Score',0) or 0)); hs=int(float(row.get('Home Score',0) or 0))
-                wk=int(float(row.get('Week',0) or 0)); yr=int(float(row.get('YEAR',CURRENT_YEAR) or CURRENT_YEAR))
+                # Use correct column names from build_ispn_classics output
+                vis=str(row.get('Visitor','')).strip()
+                hom=str(row.get('Home','')).strip()
+                vs=int(row.get('VisPts',row.get('Vis Score',0)) or 0)
+                hs=int(row.get('HomePts',row.get('Home Score',0)) or 0)
+                yr=int(row.get('Year',row.get('YEAR',CURRENT_YEAR)) or CURRENT_YEAR)
+                gtype=str(row.get('GameType',''))
+                # Week from source data
+                _wk_raw=row.get('Week',row.get('WEEK',0))
+                wk=int(float(_wk_raw)) if _wk_raw and str(_wk_raw) not in ('','nan') else 0
+                vu=str(row.get('VisUser',row.get('Vis_User',''))).strip()
+                hu=str(row.get('HomeUser',row.get('Home_User',''))).strip()
                 margin=abs(vs-hs)
+                is_upset=bool(row.get('IsUpset',False))
                 vc=get_team_primary_color(vis); hc2=get_team_primary_color(hom)
                 vl=image_file_to_data_uri(get_logo_source(vis))
                 hl2=image_file_to_data_uri(get_logo_source(hom))
                 vl_h=f"<img src='{vl}' style='width:32px;height:32px;object-fit:contain;'/>" if vl else "🏈"
                 hl_h=f"<img src='{hl2}' style='width:32px;height:32px;object-fit:contain;'/>" if hl2 else "🏈"
-                winner=vis if vs>hs else hom
-                wsc=int(max(vs,hs)); lsc=int(min(vs,hs))
-                medals={0:"🥇",1:"🥈",2:"🥉"}
-                medal=medals.get(i,f"#{i+1}")
-                score_type="THRILLER" if margin<=7 else ("UPSET" if row.get('IsUpset') else "CLASSIC")
-                badge_c={"THRILLER":"#f43f5e","UPSET":"#f97316","CLASSIC":"#60a5fa"}.get(score_type,"#60a5fa")
-                vu=str(row.get('Vis_User','')).strip(); hu=str(row.get('Home_User','')).strip()
-                def _utag2(u):
-                    if u and u.upper()!='CPU':
-                        _tc3=get_team_primary_color(USER_TEAMS.get(u,''))
-                        return f"<span style='background:{_tc3}22;color:{_tc3};font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:3px;'>{html.escape(u.upper())}</span>"
-                    return ""
+                medal=medals_cl.get(i,f"#{i+1}")
+                # Badge: game type overrides generic labels
+                if 'National' in gtype or 'NCG' in gtype: badge_lbl="🏆 NATTY"; badge_c="#fbbf24"
+                elif 'CFP' in gtype or 'Playoff' in gtype: badge_lbl="🏟️ CFP"; badge_c="#22d3ee"
+                elif 'Conf' in gtype: badge_lbl="🎖️ CONF"; badge_c="#a78bfa"
+                elif margin<=7: badge_lbl="💀 THRILLER"; badge_c="#f43f5e"
+                elif is_upset: badge_lbl="🚨 UPSET"; badge_c="#f97316"
+                else: badge_lbl="🎬 CLASSIC"; badge_c="#60a5fa"
+                # Readable game label
+                if gtype and gtype not in ('Regular Season',''):
+                    wk_lbl=f"{gtype} · {yr}"
+                elif wk>0:
+                    wk_lbl=f"Wk {wk}, {yr}"
+                else:
+                    wk_lbl=str(yr)
+                # Score display with winner bold
+                vs_bold="font-weight:900;color:#f1f5f9;" if vs>=hs else "color:#64748b;"
+                hs_bold="font-weight:900;color:#f1f5f9;" if hs>=vs else "color:#64748b;"
                 st.markdown(
                     f"<div style='background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(8,15,28,.98));"
                     f"border:1px solid #1e293b;border-radius:12px;padding:12px 14px;margin-bottom:8px;'>"
@@ -6142,20 +6219,25 @@ with _ul_tabs[1]:
                     f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:#fbbf24;'>{medal}</span>"
                     f"<span style='background:{badge_c}22;color:{badge_c};font-size:.62rem;font-weight:900;"
                     f"padding:3px 8px;border-radius:5px;font-family:Barlow Condensed,sans-serif;"
-                    f"letter-spacing:.08em;'>{score_type}</span>"
-                    f"<span style='font-size:.65rem;color:#475569;'>Wk {wk}, {yr}</span>"
-                    f"</div></div>"
+                    f"letter-spacing:.08em;'>{badge_lbl}</span>"
+                    f"<span style='font-size:.65rem;color:#475569;'>{html.escape(wk_lbl)}</span>"
+                    f"</div>"
+                    f"<span style='font-size:.6rem;color:#334155;'>Classic Score: {float(row.get('ClassicScore',0)):.0f}</span>"
+                    f"</div>"
                     f"<div style='display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
                     f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;'>"
-                    f"{vl_h}<div><div style='font-size:.82rem;font-weight:800;color:{vc};'>{html.escape(vis)}{_utag2(vu)}</div>"
+                    f"{vl_h}<div><div style='font-size:.82rem;font-weight:800;color:{vc};'>{html.escape(vis)}{_utag3(vu)}</div>"
                     f"<div style='font-size:.6rem;color:#475569;'>Away</div></div></div>"
                     f"<div style='text-align:center;flex-shrink:0;padding:0 8px;'>"
-                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#f1f5f9;'>{vs}</span>"
-                    f"<span style='color:#334155;font-size:1rem;margin:0 4px;'>-</span>"
-                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#f1f5f9;'>{hs}</span>"
+                    f"<div style='display:flex;align-items:center;gap:4px;'>"
+                    f"<span style='{vs_bold}font-family:Bebas Neue,sans-serif;font-size:1.5rem;line-height:1;'>{vs}</span>"
+                    f"<span style='color:#334155;font-size:1rem;'>-</span>"
+                    f"<span style='{hs_bold}font-family:Bebas Neue,sans-serif;font-size:1.5rem;line-height:1;'>{hs}</span>"
+                    f"</div>"
+                    f"<div style='font-size:.55rem;color:#334155;text-transform:uppercase;letter-spacing:.06em;'>FINAL</div>"
                     f"</div>"
                     f"<div style='display:flex;align-items:center;gap:8px;flex:1;min-width:0;justify-content:flex-end;'>"
-                    f"<div style='text-align:right;'><div style='font-size:.82rem;font-weight:800;color:{hc2};'>{html.escape(hom)}{_utag2(hu)}</div>"
+                    f"<div style='text-align:right;'><div style='font-size:.82rem;font-weight:800;color:{hc2};'>{html.escape(hom)}{_utag3(hu)}</div>"
                     f"<div style='font-size:.6rem;color:#475569;'>Home</div></div>{hl_h}</div></div>"
                     f"</div>",
                     unsafe_allow_html=True
