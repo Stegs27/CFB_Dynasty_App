@@ -2594,7 +2594,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
 
         # Right panel: FPI, odds, speed rank
         fpi_c='#4ade80' if fpi_val>0 else ('#f87171' if fpi_val<0 else '#94a3b8')
-        # Load natty/cfp odds from MS+ CSV, then model fallback
+        # Natty odds — computed from live FPI if no pre-computed CSV available
         natty_pct=0.0; cfp_pct_v=0.0
         try:
             _msp_path=f'FPI/ms_plus_{year}_wk{week}.csv'
@@ -2608,14 +2608,29 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     if _noc: natty_pct=float(safe_num(_msp_r.iloc[0][_noc],0))
                     if _coc: cfp_pct_v=float(safe_num(_msp_r.iloc[0][_coc],0))
         except: pass
-        if natty_pct==0.0 and model_df is not None and not model_df.empty and 'TEAM' in model_df.columns:
+        # FPI-based formula if CSV not available
+        if natty_pct==0.0:
             try:
-                mr=model_df[model_df['TEAM']==team]
-                if not mr.empty:
-                    natty_pct=float(safe_num(mr.iloc[0].get('Preseason Natty Odds',mr.iloc[0].get('Natty Odds',0)),0))
-                    cfp_pct_v=float(safe_num(mr.iloc[0].get('Preseason CFP %',mr.iloc[0].get('CFP Odds',0)),0))
+                _fv2,_fr2=_fpi_for(team)
+                if _fv2!=0.0 and not _card_fpi_df.empty:
+                    # Logistic model: FPI rank 1→~30% natty, rank 6→~8%, rank 13→~2%, unranked→~0.3%
+                    _n_teams=max(1,len(_card_fpi_df))
+                    _pct_ile=(_n_teams-_fr2+1)/_n_teams  # 0-1
+                    # Curve: top team gets ~30%, steeper drop-off
+                    natty_pct=round(max(0.1, min(35.0, 30.0*(_pct_ile**2.8))), 1)
+                    cfp_pct_v=round(max(0.5, min(99.0, 95.0*(_pct_ile**1.2))), 1)
             except: pass
-        natty_odds=_pct_to_odds(natty_pct) if natty_pct>0 else f"{natty_pct:.1f}%"
+        # FPI-based formula when no pre-computed odds
+        if natty_pct==0.0:
+            try:
+                _fv2,_fr2=_fpi_for(team)
+                if not _card_fpi_df.empty and _fr2>0:
+                    _n_teams=max(1,len(_card_fpi_df))
+                    _pct_ile=(_n_teams-_fr2+1)/_n_teams
+                    natty_pct=round(max(0.1,min(35.0,30.0*(_pct_ile**2.8))),1)
+                    cfp_pct_v=round(max(0.5,min(99.0,95.0*(_pct_ile**1.1))),1)
+            except: pass
+        natty_odds=(f"{natty_pct:.1f}%" if natty_pct>0 else "--")
         cfp_show=(f"{cfp_pct_v:.0f}%" if cfp_pct_v>0 else "--")
         sf_chip=(f"<span style='background:{tc}22;color:{tc};border:1px solid {tc}55;"
             f"border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:800;"
@@ -3525,9 +3540,17 @@ def render_natty_dna():
 
 # ── ROSTER ATTRITION TAB ──────────────────────────────────────────────────────
 def render_roster_attrition_tab():
-    st.header(f"📋 {CURRENT_YEAR} Roster Attrition")
-    st.caption(f"Departing talent after {CURRENT_YEAR} season. Seniors graduating + transfers out ({CURRENT_YEAR} data) + NFL exits ({CURRENT_YEAR+1} draft class).")
-    target_year=CURRENT_YEAR
+    _atr_col1,_atr_col2=st.columns([3,1])
+    with _atr_col1:
+        st.header("📋 Roster Attrition")
+    with _atr_col2:
+        target_year=st.selectbox("Season",[CURRENT_YEAR,CURRENT_YEAR+1],
+            format_func=lambda y:f"{y} (Current)" if y==CURRENT_YEAR else f"{y} (Upcoming)",
+            key="attrition_yr_sel")
+    if target_year==CURRENT_YEAR:
+        st.caption(f"Departing talent after {target_year}. NFL exits (2043 draft) + transfers out (2042) + seniors graduating.")
+    else:
+        st.caption(f"Projected {target_year} losses — known seniors from current rosters. NFL/transfer estimates.")
     attrition_data=compute_attrition_ratings(target_year)
     # Load raw data for detail tables
     try:
@@ -3554,31 +3577,78 @@ def render_roster_attrition_tab():
         primary=get_team_primary_color(team)
         logo=image_file_to_data_uri(get_logo_source(team))
         lh=f"<img src='{logo}' style='width:48px;height:48px;object-fit:contain;'/>" if logo else "🏈"
+        # ── Attrition card with enriched data ────────────────────────
+        # Senior count + biggest skill loss
+        _sr_count=0; _biggest_loss=""
+        _SKILL={'QB','HB','WR','TE','CB','FS','SS','LEDG','REDG','MLB','OLB','WILL','SAM','DE'}
+        try:
+            _ros_f=f'cfb_136_top30_rosters_{CURRENT_YEAR}.csv'
+            if os.path.exists(_ros_f):
+                _rdf2=pd.read_csv(_ros_f)
+                _rdf2['TEAM']=_rdf2['TEAM'].astype(str).str.strip()
+                _rdf2['OVR']=pd.to_numeric(_rdf2['OVR'],errors='coerce').fillna(0)
+                if 'YEAR' in _rdf2.columns:
+                    _rdf2['YEAR']=pd.to_numeric(_rdf2['YEAR'],errors='coerce')
+                    _rdf2=_rdf2[_rdf2['YEAR'].fillna(-1).astype(int)==CURRENT_YEAR]
+                _yr_c2=next((c for c in ('YEAR_CLASS','Class','CLASS') if c in _rdf2.columns),None)
+                _t_ros=_rdf2[_rdf2['TEAM']==team]
+                if _yr_c2:
+                    _srs=_t_ros[_t_ros[_yr_c2].astype(str).apply(is_senior_label)]
+                    _sr_count=len(_srs)
+                    _skill_srs=_srs[_srs['POS'].astype(str).str.upper().str.strip().isin(_SKILL)]
+                    if not _skill_srs.empty:
+                        _top_sr=_skill_srs.nlargest(1,'OVR').iloc[0]
+                        _nm_c=next((c for c in ('NAME','Name','PLAYER') if c in _top_sr.index),'NAME')
+                        _biggest_loss=f"{str(_top_sr.get(_nm_c,'?')).strip()} ({_top_sr.get('POS','?')}, {int(_top_sr['OVR'])} OVR)"
+        except: pass
+        # Incoming recruits
+        try:
+            _inc=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
+            if not _inc.empty:
+                _inc['Year']=pd.to_numeric(_inc['Year'],errors='coerce').fillna(0).astype(int)
+                _inc['Team']=_inc['Team'].astype(str).str.strip()
+                _inc['StarRating']=pd.to_numeric(_inc.get('StarRating',0),errors='coerce').fillna(0).astype(int)
+                _team_inc=_inc[(_inc['Team']==team)&(_inc['Year']==target_year)].sort_values('StarRating',ascending=False)
+            else:
+                _team_inc=pd.DataFrame()
+        except: _team_inc=pd.DataFrame()
+        # Ideal class blurb
+        _needs_str=""
+        try:
+            if not _t_ros.empty and _yr_c2:
+                _pos_need=_srs['POS'].astype(str).str.upper().str.strip().value_counts().head(3)
+                _skill_need=[p for p in _pos_need.index if p in _SKILL]
+                if _skill_need: _needs_str="Needs: "+", ".join(_skill_need[:3])
+        except: pass
+        # BCR context
+        _bcr_str=""
+        try:
+            _bcr_f2=f'bluechip_ratio_{target_year}.csv'
+            if os.path.exists(_bcr_f2):
+                _bcr2=pd.read_csv(_bcr_f2); _bcr2['TEAM']=_bcr2['TEAM'].astype(str).str.strip()
+                _bcr_col2=next((c for c in _bcr2.columns if any(x in c.upper() for x in ('BCR','BLUE','RATIO','CHIP','PERCENT'))),None)
+                if _bcr_col2:
+                    _br=_bcr2[_bcr2['TEAM']==team]
+                    if not _br.empty:
+                        _bv=float(str(_br.iloc[0][_bcr_col2]).replace('%','') or 0)
+                        _bcr_str=f"BCR {_bv:.0f}% · "+("🔴 Need elite recruits" if _bv<25 else ("🟡 Target 4-5★" if _bv<50 else "🟢 Elite BCR"))
+        except: pass
+        # Breakdown line
+        _bp=[]
+        if d["nfl_count"]>0: _bp.append(f"{d['nfl_count']} NFL exit{'s' if d['nfl_count']!=1 else ''}")
+        if d["transfer_count"]>0: _bp.append(f"{d['transfer_count']} transfer{'s' if d['transfer_count']!=1 else ''} out")
+        if _sr_count>0: _bp.append(f"{_sr_count} senior{'s' if _sr_count!=1 else ''} graduating")
+        _bdown=", ".join(_bp) if _bp else "No confirmed departures yet"
+        _in_count=len(_team_inc)
+        _avg_star=int(round(_team_inc['StarRating'].mean())) if _in_count>0 and 'StarRating' in _team_inc.columns else 0
+        # Build card
         with cols[ci%len(cols)]:
-            # Count departing seniors from roster
-            _sr_count=0
-            try:
-                _ros_f=f'cfb_136_top30_rosters_{target_year}.csv'
-                if os.path.exists(_ros_f):
-                    _rdf2=pd.read_csv(_ros_f)
-                    _rdf2['TEAM']=_rdf2['TEAM'].astype(str).str.strip()
-                    _yr_c2=next((c for c in ('YEAR_CLASS','Class','CLASS') if c in _rdf2.columns),None)
-                    if _yr_c2:
-                        _sr_count=len(_rdf2[(_rdf2['TEAM']==team)&(_rdf2[_yr_c2].astype(str).apply(is_senior_label))])
-            except: pass
-            # Build breakdown line
-            _breakdown_parts=[]
-            if d["nfl_count"]>0: _breakdown_parts.append(f"{d['nfl_count']} NFL exit{'s' if d['nfl_count']!=1 else ''}")
-            if d["transfer_count"]>0: _breakdown_parts.append(f"{d['transfer_count']} transfer{'s' if d['transfer_count']!=1 else ''} out")
-            if _sr_count>0: _breakdown_parts.append(f"{_sr_count} senior{'s' if _sr_count!=1 else ''} graduating")
-            _breakdown_str=", ".join(_breakdown_parts) if _breakdown_parts else "No confirmed departures yet"
-            card_attrition=(
+            card_html=(
                 f"<div style='background:linear-gradient(135deg,{primary}15 0%,#0f172a 40%);"
                 f"border:1px solid {primary}44;border-left:5px solid {primary};border-radius:12px;"
                 f"padding:14px 16px;margin-bottom:8px;'>"
                 f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>"
-                f"{lh}"
-                f"<div style='flex:1;'>"
+                f"{lh}<div style='flex:1;'>"
                 f"<div style='font-weight:900;color:{primary};font-size:.95rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(team)}</div>"
                 f"<div style='font-size:.68rem;color:#64748b;'>{html.escape(user)}</div>"
                 f"</div>"
@@ -3586,15 +3656,41 @@ def render_roster_attrition_tab():
                 f"<div style='font-family:Bebas Neue,sans-serif;font-size:2rem;color:{d['tier_c']};line-height:1;'>{d['pts']}</div>"
                 f"<div style='font-size:.55rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;'>pts</div>"
                 f"</div></div>"
-                f"<div style='background:{d['tier_c']}22;border:1px solid {d['tier_c']}44;border-radius:6px;"
-                f"padding:4px 10px;text-align:center;'>"
-                f"<span style='color:{d['tier_c']};font-weight:900;font-size:.78rem;font-family:Barlow Condensed,sans-serif;"
-                f"letter-spacing:.05em;'>{d['tier_emoji']} {d['tier'].upper()}</span>"
-                f"</div>"
-                f"<div style='margin-top:6px;font-size:.62rem;color:#475569;'>{_breakdown_str}</div>"
-                f"</div>"
+                f"<div style='background:{d['tier_c']}22;border:1px solid {d['tier_c']}44;border-radius:6px;padding:4px 10px;text-align:center;'>"
+                f"<span style='color:{d['tier_c']};font-weight:900;font-size:.78rem;font-family:Barlow Condensed,sans-serif;letter-spacing:.05em;'>"
+                f"{d['tier_emoji']} {d['tier'].upper()}</span></div>"
+                f"<div style='margin-top:6px;font-size:.62rem;color:#94a3b8;'>{_bdown}</div>"
+                +( f"<div style='margin-top:3px;font-size:.62rem;color:#f87171;'>💔 <strong>Biggest loss:</strong> {html.escape(_biggest_loss)}</div>" if _biggest_loss else "" )
+                +( f"<div style='margin-top:3px;font-size:.6rem;color:#fbbf24;'>📋 {html.escape(_needs_str)}</div>" if _needs_str else "" )
+                +( f"<div style='margin-top:3px;font-size:.6rem;color:#60a5fa;'>💎 {html.escape(_bcr_str)}</div>" if _bcr_str else "" )
+                +( f"<div style='margin-top:3px;font-size:.6rem;color:#4ade80;'>🎯 Class incoming: {_in_count} recruits"
+                   +( f" · avg {_avg_star}★" if _avg_star else "" )+"</div>" if _in_count>0 else "" )
+                +f"</div>"
             )
-            st.markdown(card_attrition, unsafe_allow_html=True)
+            st.markdown(card_html, unsafe_allow_html=True)
+            if not _team_inc.empty:
+                with st.expander(f"🎯 {team} {target_year} Incoming ({_in_count})"):
+                    for _,_ir in _team_inc.iterrows():
+                        _irn=str(_ir.get('Name','?')).strip(); _irp=str(_ir.get('Pos','?')).strip()
+                        _irs=int(_ir.get('StarRating',0) or 0); _irr=int(_ir.get('NationalRank',0) or 0)
+                        _irt=str(_ir.get('RecruitType','HS')).strip()
+                        _star_d="⭐"*_irs if _irs>0 else ""; _rank_d=f"#{_irr}" if _irr>0 else ""
+                        _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irt)}</span>"
+                                 if _irt and _irt.upper()!='HS' else "")
+                        st.markdown(
+                            f"<div style='background:#06090f;border:1px solid #1e293b;border-left:3px solid {primary};"
+                            f"border-radius:6px;padding:5px 10px;margin-bottom:3px;"
+                            f"display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                            f"<div style='display:flex;align-items:center;gap:6px;'>"
+                            f"<span style='background:{primary}33;color:{primary};border-radius:3px;padding:1px 5px;font-size:.58rem;font-weight:700;'>{html.escape(_irp)}</span>"
+                            f"<span style='font-weight:700;color:#f1f5f9;font-size:.82rem;'>{html.escape(_irn)}</span>"
+                            f"{_type_b}</div>"
+                            f"<div style='display:flex;align-items:center;gap:4px;'>"
+                            f"<span style='color:#fbbf24;font-size:.68rem;'>{_star_d}</span>"
+                            f"<span style='color:#64748b;font-size:.6rem;'>{_rank_d}</span>"
+                            f"</div></div>",
+                            unsafe_allow_html=True
+                        )
         ci+=1
     # Rating scale legend
     st.markdown("""
@@ -3861,6 +3957,14 @@ def render_roster_matchup_tab():
         # Athletes with high SPD/ACC/AGI but moderate OVR = high ceiling (they just need reps)
         # Formula: OVR * 0.55 + AthlScore * 0.25 + EligLeft * 3.0
         # AthlScore = avg of SPD, ACC, AGI, COD
+        for _sc in ('SPD','ACC','AGI','COD','OVR','STR'):
+            if _sc not in df.columns: df[_sc]=pd.to_numeric(df.get(_sc.title(),df.get(_sc.lower(),0)),errors='coerce').fillna(0)
+            else: df[_sc]=pd.to_numeric(df[_sc],errors='coerce').fillna(0)
+        for _sc2 in ('SPD','ACC','AGI','COD','OVR'):
+            if _sc2 not in df.columns:
+                df[_sc2]=pd.to_numeric(df.get(_sc2.lower(),df.get(_sc2.title(),0)),errors='coerce').fillna(0)
+            else:
+                df[_sc2]=pd.to_numeric(df[_sc2],errors='coerce').fillna(0)
         df['AthlScore'] = (df['SPD'] + df['ACC'] + df['AGI'] + df['COD']) / 4.0
         df['FV'] = (df['OVR'] * 0.55 + df['AthlScore'] * 0.25 + df['EligLeft'] * 3.0).round(1)
 
@@ -4916,21 +5020,32 @@ with tabs[1]:
                 # Build enriched data maps for rankings table
                 _cfp_fpi_map={}; _cfp_msp_map={}; _cfp_sf_map={}; _cfp_natty_map={}; _cfp_ovr_map={}
                 try:
+                    import glob as _fg
                     _fp=f'FPI/fpi_ratings_{_sel_yr}_wk{_sel_wk}.csv'
                     if not os.path.exists(_fp): _fp=f'fpi_ratings_{_sel_yr}_wk{_sel_wk}.csv'
-                    if os.path.exists(_fp):
+                    if not os.path.exists(_fp):
+                        # fallback: latest available FPI for this year
+                        _fps=sorted(_fg.glob(f'FPI/fpi_ratings_{_sel_yr}_wk*.csv')+_fg.glob(f'fpi_ratings_{_sel_yr}_wk*.csv'),reverse=True)
+                        _fp=_fps[0] if _fps else ''
+                    if _fp and os.path.exists(_fp):
                         _fdf=pd.read_csv(_fp)
-                        _cfp_fpi_map=dict(zip(_fdf['Team'].astype(str).str.strip(),pd.to_numeric(_fdf['FPI'],errors='coerce').fillna(0)))
+                        _tm_col=next((c for c in _fdf.columns if c.lower()=='team'),'Team')
+                        _fpi_col=next((c for c in _fdf.columns if c.upper()=='FPI'),'FPI')
+                        _cfp_fpi_map=dict(zip(_fdf[_tm_col].astype(str).str.strip(),pd.to_numeric(_fdf[_fpi_col],errors='coerce').fillna(0)))
                 except: pass
                 try:
                     _mp=f'FPI/ms_plus_{_sel_yr}_wk{_sel_wk}.csv'
                     if not os.path.exists(_mp): _mp=f'ms_plus_{_sel_yr}_wk{_sel_wk}.csv'
-                    if os.path.exists(_mp):
+                    if not os.path.exists(_mp):
+                        _mps=sorted(_fg.glob(f'FPI/ms_plus_{_sel_yr}_wk*.csv')+_fg.glob(f'ms_plus_{_sel_yr}_wk*.csv'),reverse=True)
+                        _mp=_mps[0] if _mps else ''
+                    if _mp and os.path.exists(_mp):
                         _mdf=pd.read_csv(_mp)
+                        _tm_col2=next((c for c in _mdf.columns if c.lower()=='team'),'Team')
                         _noc=next((c for c in ('Natty Odds','Preseason Natty Odds') if c in _mdf.columns),None)
-                        _msc=next((c for c in ('MSPlus','MS+') if c in _mdf.columns),None)
-                        if _msc: _cfp_msp_map=dict(zip(_mdf['Team'].astype(str).str.strip(),pd.to_numeric(_mdf[_msc],errors='coerce').fillna(0)))
-                        if _noc: _cfp_natty_map=dict(zip(_mdf['Team'].astype(str).str.strip(),pd.to_numeric(_mdf[_noc],errors='coerce').fillna(0)))
+                        _msc=next((c for c in ('MSPlus','MS+','MS_PLUS') if c in _mdf.columns),None)
+                        if _msc: _cfp_msp_map=dict(zip(_mdf[_tm_col2].astype(str).str.strip(),pd.to_numeric(_mdf[_msc],errors='coerce').fillna(0)))
+                        if _noc: _cfp_natty_map=dict(zip(_mdf[_tm_col2].astype(str).str.strip(),pd.to_numeric(_mdf[_noc],errors='coerce').fillna(0)))
                 except: pass
                 try:
                     _sf_tmp=build_speed_freaks_live(_sel_yr)
@@ -4938,10 +5053,15 @@ with tabs[1]:
                 except: pass
                 try:
                     _tr_f=f'team_ratings_{_sel_yr}.csv'
+                    if not os.path.exists(_tr_f): _tr_f=f'FPI/team_ratings_{_sel_yr}.csv'
                     if os.path.exists(_tr_f):
                         _trdf=pd.read_csv(_tr_f)
-                        _trdf['TEAM']=_trdf['TEAM'].astype(str).str.strip()
-                        _cfp_ovr_map=dict(zip(_trdf['TEAM'],pd.to_numeric(_trdf.get('OVR',_trdf.get('OVERALL',82)),errors='coerce').fillna(0).astype(int)))
+                        _trdf.columns=[str(c).strip() for c in _trdf.columns]
+                        _tm_col3=next((c for c in _trdf.columns if c.upper() in ('TEAM','SCHOOL')),'TEAM')
+                        _trdf[_tm_col3]=_trdf[_tm_col3].astype(str).str.strip()
+                        _ovr_col=next((c for c in _trdf.columns if c.upper() in ('OVR','OVERALL','RATING')),'OVR')
+                        if _ovr_col in _trdf.columns:
+                            _cfp_ovr_map=dict(zip(_trdf[_tm_col3],pd.to_numeric(_trdf[_ovr_col],errors='coerce').fillna(0).astype(int)))
                 except: pass
                 thead_cfp=(
                     "<tr style='background:#0a1220;'>"
@@ -4966,11 +5086,29 @@ with tabs[1]:
                     bl=f"border-left:3px solid {uc};" if is_u else "border-left:2px solid #0f172a;"
                     nw="font-weight:900;color:#f8fafc;" if is_u else "font-weight:400;color:#64748b;"
                     rk_c="#fbbf24" if rk<=4 else ("#f8fafc" if rk<=12 else "#64748b")
+                    _ovr2=_cfp_ovr_map.get(tm,0); _ovr2_s=str(_ovr2) if _ovr2 else "--"
+                    _fpi2=_cfp_fpi_map.get(tm); _fpi2_s=f"{_fpi2:+.1f}" if _fpi2 is not None else "--"
+                    _fpi2_c="#4ade80" if (_fpi2 or 0)>=5 else ("#fbbf24" if (_fpi2 or 0)>=0 else "#f87171")
+                    _msp2=_cfp_msp_map.get(tm); _msp2_s=f"{_msp2:.1f}" if _msp2 else "--"
+                    _sfr2=_cfp_sf_map.get(tm); _sfr2_s=f"#{_sfr2}" if _sfr2 else "--"
+                    _nat2=_cfp_natty_map.get(tm,0)
+                    def __p2o2(p):
+                        try:
+                            if p<=0: return "--"
+                            if p>=50: return "Even"
+                            return f'{max(1,int(round((100.0/p)-1.0)))}:1'
+                        except: return "--"
+                    _nat2_s=__p2o2(_nat2)
                     rows_cfp+=(f"<tr style='{bg}{bl}'>"
-                        f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:1rem;color:{rk_c};'>{rk}</td>"
-                        f"<td style='padding:5px 8px;white-space:nowrap;'>{lh}"
-                        f"<span style='{nw}font-family:Barlow Condensed,sans-serif;font-size:.9rem;margin-left:6px;'>{html.escape(tm)}</span></td>"
-                        f"<td style='padding:5px 8px;text-align:center;color:#64748b;font-size:.75rem;'>{html.escape(rec)}</td>"
+                        f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{rk_c};'>{rk}</td>"
+                        f"<td style='padding:4px 6px;white-space:nowrap;'>{lh}"
+                        f"<span style='{nw}font-family:Barlow Condensed,sans-serif;font-size:.82rem;margin-left:4px;'>{html.escape(tm)}</span></td>"
+                        f"<td style='padding:4px 6px;text-align:center;color:#64748b;font-size:.68rem;'>{html.escape(rec)}</td>"
+                        f"<td style='padding:4px 6px;text-align:center;color:#60a5fa;font-size:.72rem;font-weight:700;'>{_ovr2_s}</td>"
+                        f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_fpi2_c};font-size:.85rem;'>{_fpi2_s}</td>"
+                        f"<td style='padding:4px 6px;text-align:center;color:#a78bfa;font-size:.72rem;'>{_msp2_s}</td>"
+                        f"<td style='padding:4px 6px;text-align:center;color:#38bdf8;font-size:.72rem;'>{_sfr2_s}</td>"
+                        f"<td style='padding:4px 6px;text-align:center;color:#4ade80;font-size:.68rem;'>{_nat2_s}</td>"
                         f"</tr>")
                 st.markdown(f"<div class='isp-power-table-wrap'><table class='isp-power-table' style='min-width:300px;'>"
                     f"<thead>{thead_cfp}</thead><tbody>{rows_cfp}</tbody></table></div>",
@@ -5183,11 +5321,17 @@ with tabs[1]:
                 if _ei_sum.empty:
                     st.info("Push explosive_index_summary.csv to enable this tab.")
                 else:
+                    _ei_yr_avail=sorted(_ei_g['YEAR'].dropna().unique().astype(int),reverse=True) if not _ei_g.empty and 'YEAR' in _ei_g.columns else [CURRENT_YEAR]
+                    _ei_sum_yr=st.selectbox('Season',_ei_yr_avail,index=0,key='ei_sum_yr')
+                    _ei_sum_f=_ei_sum.copy()  # summary is all-time, games filtered
                     for _df in [_ei_sum,_ei_g,_ei_t]:
                         for _c in ('USER','TEAM'): 
                             if _c in _df.columns: _df[_c]=_df[_c].astype(str).str.strip()
                     _ei_sum['AVG_EXPLOSIVE_INDEX']=pd.to_numeric(_ei_sum.get('AVG_EXPLOSIVE_INDEX',0),errors='coerce').fillna(0)
-                    _ei_ranked=_ei_sum.sort_values('AVG_EXPLOSIVE_INDEX',ascending=False).reset_index(drop=True)
+                    # Filter by selected year if YEAR column present
+                    _ei_sum_filt=_ei_sum[_ei_sum['YEAR'].fillna(-1).astype(int)==_ei_sum_yr].copy() if 'YEAR' in _ei_sum.columns else _ei_sum.copy()
+                    if _ei_sum_filt.empty: _ei_sum_filt=_ei_sum.copy()
+                    _ei_ranked=_ei_sum_filt.sort_values('AVG_EXPLOSIVE_INDEX',ascending=False).reset_index(drop=True)
                     _ei_ranked['RANK']=range(1,len(_ei_ranked)+1)
                     # Leaderboard
                     for _,_er in _ei_ranked.iterrows():
@@ -5225,8 +5369,10 @@ with tabs[1]:
                     _ei_teams=[f"{r['USER']} • {r['TEAM']}" for _,r in _ei_ranked.iterrows() if r['TEAM'] in ALL_USER_TEAMS]
                     if _ei_teams:
                         _ei_pick=st.selectbox("Team",_ei_teams,key="ei_team_pick")
+
                         _ei_pu2,_ei_pt2=_ei_pick.split(" • ",1)
-                        _ei_tg=_ei_g_f[(_ei_g_f['USER']==_ei_pu2)&(_ei_g_f['TEAM']==_ei_pt2)].sort_values(['YEAR','WEEK'],ascending=[False,False])
+                        _ei_g_sel=_ei_g[_ei_g['YEAR'].fillna(-1).astype(int)==_ei_sum_yr].copy() if not _ei_g.empty and 'YEAR' in _ei_g.columns else _ei_g.copy()
+                        _ei_tg=_ei_g_sel[(_ei_g_sel['USER']==_ei_pu2)&(_ei_g_sel['TEAM']==_ei_pt2)].sort_values(['YEAR','WEEK'],ascending=[False,False])
                         for _,_eg in _ei_tg.iterrows():
                             _ewk=int(float(_eg.get('WEEK',0) or 0))
                             _eopp=str(_eg.get('OPPONENT','?')); _eres=str(_eg.get('RESULT','?'))
@@ -5268,11 +5414,15 @@ with tabs[1]:
                 if _brc_sum.empty:
                     st.info("Push beatdown_reality_check_summary.csv to enable this tab.")
                 else:
+                    _brc_yr_avail2=sorted(_brc_g['YEAR'].dropna().unique().astype(int),reverse=True) if not _brc_g.empty and 'YEAR' in _brc_g.columns else [CURRENT_YEAR]
+                    _brc_sum_yr=st.selectbox('Season',_brc_yr_avail2,index=0,key='brc_sum_yr')
                     for _df in [_brc_sum,_brc_g]:
                         for _c in ('USER','TEAM'):
                             if _c in _df.columns: _df[_c]=_df[_c].astype(str).str.strip()
                     _brc_sum['AVG_BEATDOWN_REALITY_SCORE']=pd.to_numeric(_brc_sum.get('AVG_BEATDOWN_REALITY_SCORE',0),errors='coerce').fillna(0)
-                    _brc_ranked=_brc_sum.sort_values('AVG_BEATDOWN_REALITY_SCORE',ascending=False).reset_index(drop=True)
+                    _brc_sum_filt=_brc_sum[_brc_sum['YEAR'].fillna(-1).astype(int)==_brc_sum_yr].copy() if 'YEAR' in _brc_sum.columns else _brc_sum.copy()
+                    if _brc_sum_filt.empty: _brc_sum_filt=_brc_sum.copy()
+                    _brc_ranked=_brc_sum_filt.sort_values('AVG_BEATDOWN_REALITY_SCORE',ascending=False).reset_index(drop=True)
                     _brc_ranked['RANK']=range(1,len(_brc_ranked)+1)
                     def _brc_c(s):
                         s=float(s) if s else 0
@@ -5314,7 +5464,8 @@ with tabs[1]:
                     if _brc_teams:
                         _brc_pick=st.selectbox("Team",_brc_teams,key="brc_team_pick")
                         _brc_pu,_brc_pt=_brc_pick.split(" • ",1)
-                        _brc_tg=_brc_g_f[(_brc_g_f['USER']==_brc_pu)&(_brc_g_f['TEAM']==_brc_pt)].sort_values(['YEAR','WEEK'],ascending=[False,False])
+                        _brc_g_sel2=_brc_g[_brc_g['YEAR'].fillna(-1).astype(int)==_brc_sum_yr].copy() if not _brc_g.empty and 'YEAR' in _brc_g.columns else _brc_g.copy()
+                        _brc_tg=_brc_g_sel2[(_brc_g_sel2['USER']==_brc_pu)&(_brc_g_sel2['TEAM']==_brc_pt)].sort_values(['YEAR','WEEK'],ascending=[False,False])
                         for _,_bg in _brc_tg.iterrows():
                             _bgwk=int(float(_bg.get('WEEK',0) or 0))
                             _bgopp=str(_bg.get('OPPONENT','?')); _bgres=str(_bg.get('RESULT','?'))
