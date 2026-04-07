@@ -1678,8 +1678,29 @@ def build_ticker_items(year, week, is_bowl_week):
             if not _snap.empty and not is_bowl_week:
                 top4_str=' · '.join(f"#{int(r['RANK'])} {str(r['TEAM']).strip()}" for _,r in _snap.iterrows())
                 no1=str(_snap.iloc[0]['TEAM']).strip()
+                # Build logo strip for hero display
+                _top4_logo_html=''
+                try:
+                    _logo_chips=[]
+                    for _,_tr4 in _snap.iterrows():
+                        _rk4=int(_tr4['RANK']); _tm4=str(_tr4['TEAM']).strip()
+                        _lsrc4=image_file_to_data_uri(get_logo_source(_tm4))
+                        _limg4=f"<img src='{_lsrc4}' style='width:36px;height:36px;object-fit:contain;'/>" if _lsrc4 else _tm4
+                        _tc4=get_team_primary_color(_tm4)
+                        _rk_c4='#fbbf24' if _rk4==1 else '#94a3b8'
+                        _logo_chips.append(
+                            f"<div style='display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin:0 6px;'>"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:.75rem;color:{_rk_c4};'>#{_rk4}</span>"
+                            f"{_limg4}"
+                            f"<span style='font-size:.52rem;color:{_tc4};font-weight:700;max-width:48px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>{html.escape(_tm4[:12])}</span>"
+                            f"</div>")
+                    _top4_logo_html=("<div style='display:inline-flex;align-items:flex-end;justify-content:center;"
+                        "gap:4px;background:rgba(0,0,0,.25);border-radius:10px;padding:6px 10px;"
+                        "margin-top:6px;margin-bottom:2px;'>"+''.join(_logo_chips)+"</div>")
+                except: pass
                 headlines.append({'badge':'CFP TOP 4','priority':85,
                     'text':f"Wk {_lw} CFP: {top4_str}",
+                    'logo_html':_top4_logo_html,
                     'blurb':f"{no1} holds the #1 spot. The committee has spoken."})
     except: pass
 
@@ -2557,8 +2578,8 @@ def render_game_cards_with_boxscore(year, week, model_df):
         elif matchup=='UNSCHEDULED' or matchup is None:
             if _man_score_str:
                 _rc_us='#4ade80' if _man_result_str=='W' else ('#f87171' if _man_result_str=='L' else '#94a3b8')
-                _sc_chip=f"<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;{_chip_style}'>FINAL</span>"
-                game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;letter-spacing:.08em;'>WK {week}</span> {_sc_chip} "
+                _sc_chip2=f"<span style='background:#60a5fa22;color:#60a5fa;border:1px solid #60a5fa55;{_chip_style}'>FINAL</span>"
+                game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;letter-spacing:.08em;'>WK {week}</span> {_sc_chip2} "
                     f"<span style='color:{_rc_us};font-weight:900;font-size:1.05rem;font-family:Barlow Condensed,sans-serif;'>{_man_result_str} {_man_score_str}</span>")
             else:
                 game_strip=f"<span style='color:#334155;font-size:.88rem;'>Schedule pending</span>"
@@ -3895,10 +3916,8 @@ def render_roster_matchup_tab():
         )
         roster = roster[roster['Season'].fillna(-1).astype(int) == int(_target_season)].copy()
 
-    # User teams only
     teams = sorted([t for t in roster['Team'].unique().tolist() if t in ALL_USER_TEAMS])
-    if not teams:
-        teams = sorted(roster['Team'].unique().tolist())
+    if not teams: teams = sorted(roster['Team'].unique().tolist())
 
     # Default Team A and Team B to the 2 user teams with highest Natty Odds
     _matchup_default_a, _matchup_default_b = 0, 1
@@ -4031,6 +4050,9 @@ def render_roster_matchup_tab():
     # ════════════════════════════════════════════════════════════════════════
     with tab_overview:
         def team_summary(df):
+            for _tc in ('AWR','SPD','ACC','AGI','COD','STR','OVR'):
+                if _tc not in df.columns: df[_tc]=pd.to_numeric(df.get(_tc.lower(),df.get(_tc.title(),0)),errors='coerce').fillna(0)
+                else: df[_tc]=pd.to_numeric(df[_tc],errors='coerce').fillna(0)
             return {
                 "Avg OVR":       round(df["OVR"].mean(), 1),
                 "Top OVR":       int(df["OVR"].max()),
@@ -5204,24 +5226,22 @@ with tabs[1]:
                     _gc_yr_opts_top=sorted(_gc_games2["YEAR"].dropna().unique().astype(int),reverse=True) if not _gc_games2.empty and "YEAR" in _gc_games2.columns else [CURRENT_YEAR]
                     _gc_top_yr=st.selectbox("Season",_gc_yr_opts_top,index=0,key="gc_top_yr")
                     _gc_sum["AVG_GAME_CONTROL"]=pd.to_numeric(_gc_sum["AVG_GAME_CONTROL"],errors="coerce").fillna(0)
-                    # Build per-year W-L from by-game data
-                    _gc_yr_games=_gc_games2[_gc_games2["YEAR"].fillna(-1).astype(int)==_gc_top_yr].copy() if not _gc_games2.empty and "YEAR" in _gc_games2.columns else pd.DataFrame()
-                    _gc_wl_map={}
-                    if not _gc_yr_games.empty and "RESULT" in _gc_yr_games.columns:
-                        for (_tu,_tt),_grp in _gc_yr_games.groupby(["USER","TEAM"]):
-                            _gc_wl_map[(_tu,_tt)]=(int((_grp["RESULT"].str.upper()=="W").sum()),int((_grp["RESULT"].str.upper()=="L").sum()))
-                    # Use summary for AVG_GAME_CONTROL but override W-L
-                    _gc_sumf=_gc_sum.copy()
-                    if _gc_wl_map:
-                        def _gc_wl(r):
-                            k=(str(r.get("USER","")),str(r.get("TEAM","")))
-                            return _gc_wl_map.get(k,(int(r.get("RECORD_WINS",0) or 0),int(r.get("RECORD_LOSSES",0) or 0)))
-                        _gc_sumf["RECORD_WINS"]=_gc_sumf.apply(lambda r:_gc_wl(r)[0],axis=1)
-                        _gc_sumf["RECORD_LOSSES"]=_gc_sumf.apply(lambda r:_gc_wl(r)[1],axis=1)
-                        # Also filter to only teams with games in selected year
-                        _yr_teams=set((u,t) for (u,t) in _gc_wl_map)
-                        _gc_sumf=_gc_sumf[_gc_sumf.apply(lambda r:(str(r.get("USER","")),str(r.get("TEAM",""))) in _yr_teams,axis=1)].copy()
-                    if _gc_sumf.empty: _gc_sumf=_gc_sum.copy()
+                    # Build per-year table from by-game CSV (summary has no YEAR col)
+                    _gc_bg_yr=_gc_games2[_gc_games2["YEAR"].fillna(-1).astype(int)==_gc_top_yr].copy() if not _gc_games2.empty and "YEAR" in _gc_games2.columns else pd.DataFrame()
+                    if not _gc_bg_yr.empty and "game_control_score" in _gc_bg_yr.columns:
+                        _gc_bg_yr["game_control_score"]=pd.to_numeric(_gc_bg_yr["game_control_score"],errors="coerce")
+                        _gc_bg_yr["_w"]=(_gc_bg_yr["RESULT"].str.upper()=="W").astype(int)
+                        _gc_bg_yr["_l"]=(_gc_bg_yr["RESULT"].str.upper()=="L").astype(int)
+                        _gc_agg=_gc_bg_yr.groupby(["USER","TEAM"]).agg(
+                            RECORD_WINS=("_w","sum"),RECORD_LOSSES=("_l","sum"),
+                            AVG_GAME_CONTROL=("game_control_score","mean"),
+                            BEST_GAME_CONTROL=("game_control_score","max"),
+                            WORST_GAME_CONTROL=("game_control_score","min"),
+                        ).reset_index()
+                        _gc_agg["AVG_GAME_CONTROL"]=_gc_agg["AVG_GAME_CONTROL"].round(1)
+                        _gc_sumf=_gc_agg.copy()
+                    else:
+                        _gc_sumf=_gc_sum.copy()
                     _gc_ranked=_gc_sumf.sort_values("AVG_GAME_CONTROL",ascending=False).reset_index(drop=True)
                     _gc_ranked["RANK"]=range(1,len(_gc_ranked)+1)
                     # Summary leaderboard
@@ -5376,22 +5396,28 @@ with tabs[1]:
                             if _c in _df.columns: _df[_c]=_df[_c].astype(str).str.strip()
                     _ei_sum['AVG_EXPLOSIVE_INDEX']=pd.to_numeric(_ei_sum.get('AVG_EXPLOSIVE_INDEX',0),errors='coerce').fillna(0)
                     # Filter by selected year if YEAR column present
-                    _ei_yr_games=_ei_g[_ei_g["YEAR"].fillna(-1).astype(int)==_ei_sum_yr].copy() if not _ei_g.empty and "YEAR" in _ei_g.columns else pd.DataFrame()
-                    _ei_wl_map={}
-                    if not _ei_yr_games.empty and "RESULT" in _ei_yr_games.columns:
-                        for (_eu,_et),_egrp in _ei_yr_games.groupby(["USER","TEAM"]):
-                            _ei_wl_map[(_eu,_et)]=(int((_egrp["RESULT"].str.upper()=="W").sum()),int((_egrp["RESULT"].str.upper()=="L").sum()))
-                    _ei_sum_filt=_ei_sum.copy()
-                    if _ei_wl_map:
-                        def _ei_wl(r):
-                            k=(str(r.get("USER","")),str(r.get("TEAM","")))
-                            return _ei_wl_map.get(k,(int(r.get("RECORD_WINS",0) or 0),int(r.get("RECORD_LOSSES",0) or 0)))
-                        _ei_sum_filt["RECORD_WINS"]=_ei_sum_filt.apply(lambda r:_ei_wl(r)[0],axis=1)
-                        _ei_sum_filt["RECORD_LOSSES"]=_ei_sum_filt.apply(lambda r:_ei_wl(r)[1],axis=1)
-                        _ei_yr_teams=set((u,t) for (u,t) in _ei_wl_map)
-                        _ei_sum_filt=_ei_sum_filt[_ei_sum_filt.apply(lambda r:(str(r.get("USER","")),str(r.get("TEAM",""))) in _ei_yr_teams,axis=1)].copy()
-                    if _ei_sum_filt.empty: _ei_sum_filt=_ei_sum.copy()
-                    _ei_ranked=_ei_sum_filt.sort_values('AVG_EXPLOSIVE_INDEX',ascending=False).reset_index(drop=True)
+                    _ei_bg_yr=_ei_g[_ei_g["YEAR"].fillna(-1).astype(int)==_ei_sum_yr].copy() if not _ei_g.empty and "YEAR" in _ei_g.columns else pd.DataFrame()
+                    if not _ei_bg_yr.empty and "off_explosive_index" in _ei_bg_yr.columns:
+                        for _ecc in ("off_explosive_index","def_steel_curtain_index"): _ei_bg_yr[_ecc]=pd.to_numeric(_ei_bg_yr.get(_ecc,0),errors="coerce").fillna(0)
+                        _ei_bg_yr["_w"]=(_ei_bg_yr["RESULT"].str.upper()=="W").astype(int)
+                        _ei_bg_yr["_l"]=(_ei_bg_yr["RESULT"].str.upper()=="L").astype(int)
+                        _agg_dict={"_w":"sum","_l":"sum","off_explosive_index":"mean"}
+                        if "def_steel_curtain_index" in _ei_bg_yr.columns: _agg_dict["def_steel_curtain_index"]="mean"
+                        for _fc in ("quick_strike_flag","aerial_nuke_flag","ground_blast_flag","sputtering_offense_flag"):
+                            if _fc in _ei_bg_yr.columns: _ei_bg_yr[_fc]=pd.to_numeric(_ei_bg_yr[_fc],errors="coerce").fillna(0); _agg_dict[_fc]="sum"
+                        _ei_agg=_ei_bg_yr.groupby(["USER","TEAM"]).agg(**{k.replace("_flag","_FLAG").replace("quick_strike","QUICK_STRIKES").replace("aerial_nuke","AERIAL_NUKES").replace("ground_blast","GROUND_BLASTS").replace("sputtering_offense","SPUTTERING_GAMES").replace("off_explosive","AVG_EXPLOSIVE").replace("def_steel_curtain","AVG_STEEL_CURTAIN").replace("_w","RECORD_WINS").replace("_l","RECORD_LOSSES"):pd.NamedAgg(column=k,aggfunc=v) for k,v in _agg_dict.items()}).reset_index()
+                        # rename
+                        _ei_agg=_ei_agg.rename(columns={"AVG_EXPLOSIVE_INDEX":"AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX":"AVG_STEEL_CURTAIN_INDEX"},errors="ignore")
+                        if "AVG_EXPLOSIVE_INDEX" not in _ei_agg.columns and "off_explosive_index" in _ei_agg.columns: _ei_agg=_ei_agg.rename(columns={"off_explosive_index":"AVG_EXPLOSIVE_INDEX"})
+                        for _ec in ("AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX"):
+                            if _ec in _ei_agg.columns: _ei_agg[_ec]=_ei_agg[_ec].round(1)
+                        # Attach style label from summary
+                        _ei_style=_ei_sum[["USER","TEAM","OFF_STYLE_LABEL","DEF_STYLE_LABEL"]].copy() if all(c in _ei_sum.columns for c in ["OFF_STYLE_LABEL","DEF_STYLE_LABEL"]) else pd.DataFrame()
+                        if not _ei_style.empty: _ei_agg=_ei_agg.merge(_ei_style,on=["USER","TEAM"],how="left")
+                        _ei_sum_filt=_ei_agg
+                    else:
+                        _ei_sum_filt=_ei_sum.copy()
+                    _ei_ranked=_ei_sum_filt.sort_values("AVG_EXPLOSIVE_INDEX",ascending=False).reset_index(drop=True)
                     _ei_ranked['RANK']=range(1,len(_ei_ranked)+1)
                     # Leaderboard
                     for _,_er in _ei_ranked.iterrows():
@@ -5480,22 +5506,27 @@ with tabs[1]:
                         for _c in ('USER','TEAM'):
                             if _c in _df.columns: _df[_c]=_df[_c].astype(str).str.strip()
                     _brc_sum['AVG_BEATDOWN_REALITY_SCORE']=pd.to_numeric(_brc_sum.get('AVG_BEATDOWN_REALITY_SCORE',0),errors='coerce').fillna(0)
-                    _brc_yr_games=_brc_g[_brc_g["YEAR"].fillna(-1).astype(int)==_brc_sum_yr].copy() if not _brc_g.empty and "YEAR" in _brc_g.columns else pd.DataFrame()
-                    _brc_wl_map={}
-                    if not _brc_yr_games.empty and "RESULT" in _brc_yr_games.columns:
-                        for (_bu,_bt),_bgrp in _brc_yr_games.groupby(["USER","TEAM"]):
-                            _brc_wl_map[(_bu,_bt)]=(int((_bgrp["RESULT"].str.upper()=="W").sum()),int((_bgrp["RESULT"].str.upper()=="L").sum()))
-                    _brc_sum_filt=_brc_sum.copy()
-                    if _brc_wl_map:
-                        def _brc_wl(r):
-                            k=(str(r.get("USER","")),str(r.get("TEAM","")))
-                            return _brc_wl_map.get(k,(int(r.get("RECORD_WINS",0) or 0),int(r.get("RECORD_LOSSES",0) or 0)))
-                        _brc_sum_filt["RECORD_WINS"]=_brc_sum_filt.apply(lambda r:_brc_wl(r)[0],axis=1)
-                        _brc_sum_filt["RECORD_LOSSES"]=_brc_sum_filt.apply(lambda r:_brc_wl(r)[1],axis=1)
-                        _brc_yr_teams=set((u,t) for (u,t) in _brc_wl_map)
-                        _brc_sum_filt=_brc_sum_filt[_brc_sum_filt.apply(lambda r:(str(r.get("USER","")),str(r.get("TEAM",""))) in _brc_yr_teams,axis=1)].copy()
-                    if _brc_sum_filt.empty: _brc_sum_filt=_brc_sum.copy()
-                    _brc_ranked=_brc_sum_filt.sort_values('AVG_BEATDOWN_REALITY_SCORE',ascending=False).reset_index(drop=True)
+                    _brc_bg_yr=_brc_g[_brc_g["YEAR"].fillna(-1).astype(int)==_brc_sum_yr].copy() if not _brc_g.empty and "YEAR" in _brc_g.columns else pd.DataFrame()
+                    if not _brc_bg_yr.empty and "beatdown_reality_score" in _brc_bg_yr.columns:
+                        _brc_bg_yr["beatdown_reality_score"]=pd.to_numeric(_brc_bg_yr["beatdown_reality_score"],errors="coerce")
+                        _brc_bg_yr["_w"]=(_brc_bg_yr["RESULT"].str.upper()=="W").astype(int)
+                        _brc_bg_yr["_l"]=(_brc_bg_yr["RESULT"].str.upper()=="L").astype(int)
+                        _brc_agg_d={"_w":"sum","_l":"sum","beatdown_reality_score":"mean"}
+                        for _bf in ("win_was_shakier_than_score_flag","we_should_have_won_bigger_flag","got_worked_flag"):
+                            if _bf in _brc_bg_yr.columns: _brc_bg_yr[_bf]=pd.to_numeric(_brc_bg_yr[_bf],errors="coerce").fillna(0); _brc_agg_d[_bf]="sum"
+                        _brc_agg=_brc_bg_yr.groupby(["USER","TEAM"]).agg(**{
+                            "RECORD_WINS":pd.NamedAgg("_w","sum"),
+                            "RECORD_LOSSES":pd.NamedAgg("_l","sum"),
+                            "AVG_BEATDOWN_REALITY_SCORE":pd.NamedAgg("beatdown_reality_score","mean"),
+                            **({k.replace("win_was_shakier_than_score_flag","SHAKY_WINS").replace("we_should_have_won_bigger_flag","SHOULD_HAVE_WON_BIGGER_GAMES").replace("got_worked_flag","GOT_WORKED_GAMES"):pd.NamedAgg(column=k,aggfunc="sum") for k in ("win_was_shakier_than_score_flag","we_should_have_won_bigger_flag","got_worked_flag") if k in _brc_bg_yr.columns})
+                        }).reset_index()
+                        _brc_agg["AVG_BEATDOWN_REALITY_SCORE"]=_brc_agg["AVG_BEATDOWN_REALITY_SCORE"].round(1)
+                        _brc_style=_brc_sum[["USER","TEAM","BRC_PROFILE_LABEL"]].copy() if "BRC_PROFILE_LABEL" in _brc_sum.columns else pd.DataFrame()
+                        if not _brc_style.empty: _brc_agg=_brc_agg.merge(_brc_style,on=["USER","TEAM"],how="left")
+                        _brc_sum_filt=_brc_agg
+                    else:
+                        _brc_sum_filt=_brc_sum.copy()
+                    _brc_ranked=_brc_sum_filt.sort_values("AVG_BEATDOWN_REALITY_SCORE",ascending=False).reset_index(drop=True)
                     _brc_ranked['RANK']=range(1,len(_brc_ranked)+1)
                     def _brc_c(s):
                         s=float(s) if s else 0
