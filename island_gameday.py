@@ -3712,6 +3712,20 @@ def render_roster_matchup_tab():
             roster=pd.read_csv(_rm_yr_file)
         else:
             roster=pd.read_csv('cfb26_rosters_full.csv')
+        # Normalise column names: TEAM->Team, POS->Pos, NAME->Name, YEAR_CLASS->Class, etc.
+        _col_norm={'TEAM':'Team','POS':'Pos','NAME':'Name','PLAYER':'Name',
+                   'YEAR_CLASS':'Class','YEAR':'Season','SPD':'Spd','ACC':'Acc',
+                   'AGI':'Agi','COD':'COD','STR':'Str','AWR':'Awr','OVR':'OVR',
+                   'REDSHIRT':'REDSHIRT','ARCHETYPE':'Archetype','HEIGHT':'Height',
+                   'WEIGHT':'Weight','HOMETOWN':'Hometown'}
+        _actual_renames={k:v for k,v in _col_norm.items() if k in roster.columns and v not in roster.columns}
+        if _actual_renames:
+            roster=roster.rename(columns=_actual_renames)
+        # Ensure Season column exists (used for year filtering)
+        if 'Season' not in roster.columns and 'Class' in roster.columns:
+            roster['Season']=CURRENT_YEAR
+        elif 'Season' not in roster.columns:
+            roster['Season']=CURRENT_YEAR
     except Exception:
         try:
             roster=pd.read_csv('cfb26_rosters_top30.csv')
