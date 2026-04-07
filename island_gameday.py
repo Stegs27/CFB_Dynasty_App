@@ -1757,6 +1757,69 @@ def build_ticker_items(year, week, is_bowl_week):
                     'blurb':f"{_hp} from {_ht} wins the {CY} Heisman Trophy. Best player in college football."})
     except: pass
 
+    # ── 6. MAJOR UPSETS (this week) ──────────────────────────────────────
+    try:
+        _sched_u=pd.read_csv(f'schedule_{CY}.csv',dtype={'YEAR':str,'Week':str})
+        _sched_u.columns=[str(c).strip() for c in _sched_u.columns]
+        _yc=next((c for c in ('YEAR','Year') if c in _sched_u.columns),None)
+        _wc=next((c for c in ('Week','WEEK') if c in _sched_u.columns),None)
+        if _yc and _wc:
+            _sched_u=_sched_u[(_sched_u[_yc].astype(str).str.split('.').str[0]==str(int(CY)))&
+                               (_sched_u[_wc].astype(str).str.split('.').str[0]==str(int(CW)))].copy()
+        _vc=next((c for c in ('Vis Score','Vis_Score') if c in _sched_u.columns),None)
+        _hc=next((c for c in ('Home Score','Home_Score') if c in _sched_u.columns),None)
+        _vrk=next((c for c in ('Visitor Rank','VIS_RANK') if c in _sched_u.columns),None)
+        _hrk=next((c for c in ('Home Rank','HOME_RANK') if c in _sched_u.columns),None)
+        if _vc and _hc:
+            _sched_u[_vc]=pd.to_numeric(_sched_u[_vc],errors='coerce')
+            _sched_u[_hc]=pd.to_numeric(_sched_u[_hc],errors='coerce')
+            _final_u=_sched_u[_sched_u.get('Status',_sched_u.get('STATUS','?')).astype(str).str.upper()=='FINAL'].dropna(subset=[_vc,_hc])
+            for _,_ug in _final_u.iterrows():
+                _uvs=float(_ug[_vc]); _uhs=float(_ug[_hc])
+                _uvr=float(_ug[_vrk]) if _vrk and pd.notna(_ug.get(_vrk)) else 99
+                _uhr=float(_ug[_hrk]) if _hrk and pd.notna(_ug.get(_hrk)) else 99
+                _uvis=str(_ug.get('Visitor','')).strip(); _uhom=str(_ug.get('Home','')).strip()
+                # Upset: ranked top-10 team loses to unranked or much lower ranked
+                _winner_rk=_uvr if _uvs>_uhs else _uhr
+                _loser_rk=_uhr if _uvs>_uhs else _uvr
+                if _loser_rk<=10 and (_winner_rk>_loser_rk+8 or _winner_rk==99):
+                    _loser=_uhom if _uvs>_uhs else _uvis
+                    _winner=_uvis if _uvs>_uhs else _uhom
+                    _wscore=int(max(_uvs,_uhs)); _lscore=int(min(_uvs,_uhs))
+                    headlines.append({'badge':'🚨 UPSET ALERT','priority':180,
+                        'text':f"UPSET: #{int(_loser_rk)} {_loser} FALLS {_wscore}-{_lscore} to {_winner}",
+                        'blurb':f"#{int(_loser_rk)} {_loser} just got knocked off. The bracket is in chaos."})
+    except: pass
+
+    # ── 7. MAJOR INJURIES (90+ OVR, 3+ weeks out) ───────────────────────
+    try:
+        _inj_t=pd.read_csv('injury_bulletin.csv') if os.path.exists('injury_bulletin.csv') else pd.DataFrame()
+        if not _inj_t.empty:
+            _inj_t.columns=[str(c).strip() for c in _inj_t.columns]
+            if 'Year' in _inj_t.columns:
+                _inj_t['Year']=pd.to_numeric(_inj_t['Year'],errors='coerce')
+                _inj_t=_inj_t[_inj_t['Year'].fillna(-1).astype(int)==CY]
+            _inj_t['OVR']=pd.to_numeric(_inj_t.get('OVR',0),errors='coerce').fillna(0)
+            _inj_t['WeeksOut']=pd.to_numeric(_inj_t.get('WeeksOut',0),errors='coerce').fillna(0)
+            if 'Week' in _inj_t.columns:
+                _inj_t['WeekSuffered']=pd.to_numeric(_inj_t['Week'],errors='coerce').fillna(CW)
+                _inj_t['WeeksRemaining']=(_inj_t['WeekSuffered']+_inj_t['WeeksOut']-CW).clip(lower=0)
+            else:
+                _inj_t['WeeksRemaining']=_inj_t['WeeksOut']
+            _big_inj=_inj_t[(_inj_t['OVR']>=90)&(_inj_t['WeeksRemaining']>=3)&
+                (_inj_t['Team'].astype(str).str.strip().isin(ALL_USER_TEAMS))].nlargest(1,'OVR')
+            if not _big_inj.empty:
+                _bi=_big_inj.iloc[0]
+                _bi_team=str(_bi.get('Team','')).strip()
+                _bi_player=str(_bi.get('Player','')).strip()
+                _bi_pos=str(_bi.get('Pos','')).strip()
+                _bi_ovr=int(_bi['OVR']); _bi_wks=int(_bi['WeeksRemaining'])
+                _bi_inj=str(_bi.get('Injury','')).strip()
+                headlines.append({'badge':'🚑 MAJOR INJURY','priority':170,
+                    'text':f"INJURY: {_bi_player} ({_bi_pos}, {_bi_team}) OUT {_bi_wks} WKS",
+                    'blurb':f"{_bi_team} loses {_bi_player} ({_bi_ovr} OVR) to {_bi_inj}. {_bi_wks} weeks out — a big blow."})
+    except: pass
+
     headlines.sort(key=lambda h: h['priority'],reverse=True)
     if not headlines:
         headlines=[{'badge':'LIVE','priority':1,'text':'ISPN Dynasty Gameday -- live coverage all season','blurb':'Your dynasty. Your data. All season long.'}]
@@ -3758,7 +3821,7 @@ def render_roster_attrition_tab():
 </div>""", unsafe_allow_html=True)
     st.markdown("---")
     # ── DETAIL TABS ──────────────────────────────────────────────────
-    _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors"])
+    _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors","🎯 Incoming Recruits"])
     with _at_tabs[0]:
         st.subheader(f"🏈 {target_year} NFL Draft Exits")
         if draft_raw.empty:
@@ -3881,6 +3944,62 @@ def render_roster_attrition_tab():
                 st.markdown(card, unsafe_allow_html=True)
         except Exception as e:
             st.caption(f"Departing seniors unavailable: {e}")
+
+    with _at_tabs[3]:
+        st.subheader(f"🎯 {target_year} Incoming Recruiting Class")
+        st.caption("Incoming players from attrition_incoming.csv. Sorted by star rating.")
+        try:
+            _inc_tab=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
+            if _inc_tab.empty:
+                st.info("No attrition_incoming.csv found.")
+            else:
+                _inc_tab.columns=[str(c).strip() for c in _inc_tab.columns]
+                _inc_tab['Year']=pd.to_numeric(_inc_tab['Year'],errors='coerce').fillna(0).astype(int)
+                _inc_tab['Team']=_inc_tab['Team'].astype(str).str.strip()
+                _inc_tab['StarRating']=pd.to_numeric(_inc_tab.get('StarRating',0),errors='coerce').fillna(0).astype(int)
+                _inc_yr=_inc_tab[_inc_tab['Year']==target_year].copy()
+                if _inc_yr.empty:
+                    st.info(f"No incoming recruits data for {target_year}.")
+                else:
+                    # Team dropdown
+                    _inc_teams=sorted(_inc_yr['Team'].unique())
+                    _inc_team_sel=st.selectbox("Select team",["All User Teams"]+_inc_teams,key="inc_team_sel")
+                    _inc_show=_inc_yr if _inc_team_sel=="All User Teams" else _inc_yr[_inc_yr['Team']==_inc_team_sel]
+                    _inc_show=_inc_show.sort_values(['Team','StarRating'],ascending=[True,False])
+                    st.caption(f"{len(_inc_show)} incoming recruits {'across all user teams' if _inc_team_sel=='All User Teams' else f'for {_inc_team_sel}'}")
+                    for _,_ir in _inc_show.iterrows():
+                        _irn=str(_ir.get('Name','?')).strip()
+                        _irp=str(_ir.get('Pos','?')).strip()
+                        _irt2=str(_ir.get('Team','?')).strip()
+                        _irs=int(_ir.get('StarRating',0) or 0)
+                        _irr=int(_ir.get('NationalRank',0) or 0)
+                        _irtype=str(_ir.get('RecruitType','HS')).strip()
+                        _irovr=str(_ir.get('OverallClassRank','')).strip()
+                        _star_d='⭐'*_irs if _irs>0 else ''
+                        _rank_d=f"#{_irr}" if _irr>0 else ''
+                        _pc=get_team_primary_color(_irt2)
+                        _tlg=get_school_logo_src(_irt2)
+                        _tlh=f"<img src='{_tlg}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:4px;'/>" if _tlg else ''
+                        _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irtype)}</span>"
+                            if _irtype.upper()!='HS' else '')
+                        st.markdown(
+                            f"<div style='background:#06090f;border:1px solid #1e293b;border-left:3px solid {_pc};"
+                            f"border-radius:6px;padding:6px 12px;margin-bottom:3px;"
+                            f"display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                            f"<div style='display:flex;align-items:center;gap:6px;'>"
+                            f"{_tlh}"
+                            f"<span style='background:{_pc}33;color:{_pc};border-radius:3px;padding:1px 5px;font-size:.6rem;font-weight:700;'>{html.escape(_irp)}</span>"
+                            f"<span style='font-weight:700;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_irn)}</span>"
+                            f"{_type_b}"
+                            f"</div>"
+                            f"<div style='display:flex;align-items:center;gap:8px;'>"
+                            f"<span style='color:#fbbf24;font-size:.7rem;'>{_star_d}</span>"
+                            f"<span style='color:#64748b;font-size:.62rem;'>{_rank_d}</span>"
+                            f"</div></div>",
+                            unsafe_allow_html=True
+                        )
+        except Exception as e:
+            st.caption(f"Incoming recruits unavailable: {e}")
 
 def render_roster_matchup_tab():
     import plotly.graph_objects as go
@@ -5299,8 +5418,8 @@ with tabs[1]:
                     st.subheader("🔍 By-Game Deep Dive")
                     _gc_sel_opts=[f"{r['USER']} • {r['TEAM']}" for _,r in _gc_ranked.iterrows() if str(r['TEAM']) in ALL_USER_TEAMS]
                     if _gc_sel_opts:
-                        _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
-                    _gc_trend2_f=_gc_trend2[_gc_trend2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_trend2.empty and 'YEAR' in _gc_trend2.columns else _gc_trend2
+                        _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_top_yr] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
+                    _gc_trend2_f=_gc_trend2[_gc_trend2['YEAR'].fillna(-1).astype(int)==_gc_top_yr] if not _gc_trend2.empty and 'YEAR' in _gc_trend2.columns else _gc_trend2
                     _gc_picked=st.selectbox("Select team",_gc_sel_opts,key="gc_team_sel2")
                     _gc_pu=_gc_picked.split(" • ")[0]; _gc_pt=_gc_picked.split(" • ")[1]
                     _gc_tg2=_gc_games2_f[(_gc_games2_f["USER"]==_gc_pu)&(_gc_games2_f["TEAM"]==_gc_pt)].copy() if not _gc_games2_f.empty else pd.DataFrame()
@@ -5414,14 +5533,14 @@ with tabs[1]:
                         for _ecc in ("off_explosive_index","def_steel_curtain_index"): _ei_bg_yr[_ecc]=pd.to_numeric(_ei_bg_yr.get(_ecc,0),errors="coerce").fillna(0)
                         _ei_bg_yr["_w"]=(_ei_bg_yr["RESULT"].str.upper()=="W").astype(int)
                         _ei_bg_yr["_l"]=(_ei_bg_yr["RESULT"].str.upper()=="L").astype(int)
-                        _agg_dict={"_w":"sum","_l":"sum","off_explosive_index":"mean"}
-                        if "def_steel_curtain_index" in _ei_bg_yr.columns: _agg_dict["def_steel_curtain_index"]="mean"
                         for _fc in ("quick_strike_flag","aerial_nuke_flag","ground_blast_flag","sputtering_offense_flag"):
-                            if _fc in _ei_bg_yr.columns: _ei_bg_yr[_fc]=pd.to_numeric(_ei_bg_yr[_fc],errors="coerce").fillna(0); _agg_dict[_fc]="sum"
-                        _ei_agg=_ei_bg_yr.groupby(["USER","TEAM"]).agg(**{k.replace("_flag","_FLAG").replace("quick_strike","QUICK_STRIKES").replace("aerial_nuke","AERIAL_NUKES").replace("ground_blast","GROUND_BLASTS").replace("sputtering_offense","SPUTTERING_GAMES").replace("off_explosive","AVG_EXPLOSIVE").replace("def_steel_curtain","AVG_STEEL_CURTAIN").replace("_w","RECORD_WINS").replace("_l","RECORD_LOSSES"):pd.NamedAgg(column=k,aggfunc=v) for k,v in _agg_dict.items()}).reset_index()
-                        # rename
-                        _ei_agg=_ei_agg.rename(columns={"AVG_EXPLOSIVE_INDEX":"AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX":"AVG_STEEL_CURTAIN_INDEX"},errors="ignore")
-                        if "AVG_EXPLOSIVE_INDEX" not in _ei_agg.columns and "off_explosive_index" in _ei_agg.columns: _ei_agg=_ei_agg.rename(columns={"off_explosive_index":"AVG_EXPLOSIVE_INDEX"})
+                            if _fc in _ei_bg_yr.columns: _ei_bg_yr[_fc]=pd.to_numeric(_ei_bg_yr[_fc],errors="coerce").fillna(0)
+                        _ei_agg_kwargs={"RECORD_WINS":pd.NamedAgg("_w","sum"),"RECORD_LOSSES":pd.NamedAgg("_l","sum"),
+                            "AVG_EXPLOSIVE_INDEX":pd.NamedAgg("off_explosive_index","mean")}
+                        if "def_steel_curtain_index" in _ei_bg_yr.columns: _ei_agg_kwargs["AVG_STEEL_CURTAIN_INDEX"]=pd.NamedAgg("def_steel_curtain_index","mean")
+                        for _fc,_fcn in [("quick_strike_flag","QUICK_STRIKES"),("aerial_nuke_flag","AERIAL_NUKES"),("ground_blast_flag","GROUND_BLASTS"),("sputtering_offense_flag","SPUTTERING_GAMES")]:
+                            if _fc in _ei_bg_yr.columns: _ei_agg_kwargs[_fcn]=pd.NamedAgg(_fc,"sum")
+                        _ei_agg=_ei_bg_yr.groupby(["USER","TEAM"]).agg(**_ei_agg_kwargs).reset_index()
                         for _ec in ("AVG_EXPLOSIVE_INDEX","AVG_STEEL_CURTAIN_INDEX"):
                             if _ec in _ei_agg.columns: _ei_agg[_ec]=_ei_agg[_ec].round(1)
                         # Attach style label from summary
