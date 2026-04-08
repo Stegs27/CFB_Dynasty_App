@@ -4348,8 +4348,14 @@ def render_roster_attrition_tab():
                 _aa_xf["Year"]=pd.to_numeric(_aa_xf.get("Year",0),errors="coerce").fillna(0).astype(int)
                 _aa_xf["Team"]=_aa_xf.get("Team",pd.Series([""]* len(_aa_xf))).astype(str).str.strip()
                 # Filter to OUTGOING transfers only
-                _ts_col=next((c for c in _aa_xf.columns if c.upper() in ("TRANSFERSTATUS","TRANSFER_STATUS","STATUS")),None)
-                if _ts_col: _aa_xf=_aa_xf[_aa_xf[_ts_col].astype(str).str.strip().str.lower().isin(["leaving","out","transfer out"])].copy()
+                _ts_col=next((c for c in _aa_xf.columns if c.upper() in ("TRANSFERSTATUS","TRANSFER_STATUS")),None)
+                if _ts_col:
+                    _ts_vals=_aa_xf[_ts_col].astype(str).str.strip().str.lower().unique().tolist()
+                    # Accept any value containing "leav" or "out"; if none found keep all rows
+                    _leave_vals=[v for v in _ts_vals if "leav" in v or v=="out" or "transfer" in v]
+                    if _leave_vals: _aa_xf=_aa_xf[_aa_xf[_ts_col].astype(str).str.strip().str.lower().isin(_leave_vals)].copy()
+                # Also filter: keep only rows where Team is a user team (outgoing FROM user programs)
+                _aa_xf=_aa_xf[_aa_xf["Team"].isin(ALL_USER_TEAMS)].copy()
                 _aa_yrs=sorted(_aa_xf["Year"].unique())[-4:]
                 _aa_xf=_aa_xf[_aa_xf["Year"].isin(_aa_yrs)].copy()
                 # Flexible reason column: ReasonDetail or Reason
@@ -4368,6 +4374,14 @@ def render_roster_attrition_tab():
                 _tc_aa=next((c for c in _aa_draft.columns if c in ("CollegeTeam","Team","TEAM")),None)
                 if _tc_aa and _tc_aa!="Team": _aa_draft=_aa_draft.rename(columns={_tc_aa:"Team"})
                 _aa_draft["Team"]=_aa_draft.get("Team",pd.Series([""]*len(_aa_draft))).astype(str).str.strip()
+            # Debug: show what's in the transfer data (collapse by default)
+            if not _aa_xf.empty:
+                with st.expander(f"🔍 Transfer data debug ({len(_aa_xf)} rows, {_aa_xf['Year'].nunique()} seasons)",expanded=False):
+                    _uniq_reasons=sorted(_aa_xf["_reason"].unique().tolist())
+                    st.caption(f"**Columns:** {list(_aa_xf.columns)}")
+                    st.caption(f"**Unique reasons ({len(_uniq_reasons)}):** {_uniq_reasons[:20]}")
+                    st.caption(f"**Teams in data:** {sorted(_aa_xf['Team'].unique().tolist())}")
+                    st.caption(f"**Years:** {sorted(_aa_xf['Year'].unique().tolist())}")
             # Card renderer
             def _aa_card(title,subtitle,rows,color,icon):
                 _max_v=rows[0][1] if rows else 1
@@ -4485,7 +4499,7 @@ def render_roster_attrition_tab():
                     if _elite.empty:
                         st.info("No elite stingers found in the last 4 seasons.")
                     else:
-                        _elite=_elite.drop_duplicates(subset=["Player","Team","Year"]).sort_values(["Year","OVR"],ascending=[False,False])
+                        _elite=_elite.drop_duplicates(subset=["Player","Team"]).sort_values(["Year","OVR"],ascending=[False,False])
                         for _,_er in _elite.iterrows():
                             _eplayer=str(_er.get("Player","?")); _epos=str(_er.get("Pos","?")); _eovr=int(_er.get("OVR",0) or 0)
                             _eteam=str(_er.get("Team","?")); _eyr=int(_er.get("Year",0) or 0); _ereason=str(_er.get("_reason",""))
