@@ -1513,6 +1513,19 @@ def infer_starter(pos, ovr, team, roster_df):
         return rank < slots
     except: return ovr>=80
 
+def best_backup_ovr(pos, departing_ovr, team, roster_df):
+    """Return OVR of the best remaining player at pos on team after removing the departing player."""
+    pos_u=str(pos).strip().upper()
+    try:
+        if roster_df.empty: return 70
+        grp=roster_df[(roster_df["TEAM"].astype(str).str.strip()==team)&
+                      (roster_df["POS"].astype(str).str.upper().str.strip()==pos_u)]
+        others=grp["OVR"].sort_values(ascending=False)
+        # Remove the departing player (skip the top match equal to departing_ovr)
+        others=others[others<departing_ovr] if (others>=departing_ovr).any() else others
+        return float(others.iloc[0]) if not others.empty else 65.0
+    except: return 70.0
+
 @st.cache_data(ttl=300)
 def compute_attrition_ratings(year=None):
     """Compute per-team attrition rating from transfers + NFL draft data."""
@@ -1580,8 +1593,9 @@ def compute_attrition_ratings(year=None):
                     _sr_ovr=float(_sr.get('OVR',70)); _sr_pos=str(_sr.get('POS',_sr.get('Pos','?')))
                     _sr_nm=str(_sr.get('NAME',_sr.get('Name','?')))
                     is_start_s=infer_starter(_sr_pos,_sr_ovr,team,_sr_ref)
-                    if is_start_s: _sadd=1.5; _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) -- Sr Graduating (Starter)'
-                    else: _sadd=0.5; _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) -- Sr Graduating (Backup)'
+                    _sadd=_depth_loss(_sr_pos,_sr_ovr,team,_sr_ref,is_start_s) if '_depth_loss' in dir() else (1.5 if is_start_s else 0.5)
+                    _st_s="Starter" if is_start_s else "Backup"
+                    _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) {_st_s} -- Sr Graduating'
                     pts+=_sadd
                     breakdown.append({'type':'senior','label':_slbl,'pts':_sadd,'player':_sr_nm,'pos':_sr_pos,'ovr':_sr_ovr,'is_starter':is_start_s})
         except: pass
@@ -1591,16 +1605,34 @@ def compute_attrition_ratings(year=None):
         if not draft.empty:
             dc=next((c for c in ('CollegeTeam','Team','TEAM') if c in draft.columns),None)
             if dc: team_draft=draft[draft[dc].astype(str).str.strip()==team]
+        # ── depth_loss: OVR gap weighted starter loss ───────────────────────
+        def _depth_loss(pos, ovr, team, roster_df, is_starter):
+            """Loss severity based on how big a hole the departure leaves.
+            Starter losses are weighted by how bad the backup is.
+            Backup losses are minor (0.3 flat).
+            """
+            if not is_starter: return 0.3
+            backup=best_backup_ovr(pos,ovr,team,roster_df)
+            gap=max(0.0, float(ovr)-float(backup))   # OVR points the backup is below
+            # 0-gap=quality backup, big gap=huge hole
+            # Scale: gap of 20 = 3.0pts, gap of 10 = 1.8pts, gap of 0 = 0.5pts
+            return round(max(0.5, min(3.5, 0.5 + gap * 0.15)), 2)
+
         for _,dr in team_draft.iterrows():
             rnd=int(safe_num(dr.get('DraftRound',8),8))
             player=str(dr.get('Player','?')); pos=str(dr.get('Pos','?')); ovr=int(safe_num(dr.get('OVR',0),0))
-            if rnd==1:
-                pts+=3.0; label=f"🥇 {player} ({pos}, {ovr} OVR) -- Rd 1 NFL"
-            elif rnd<=3:
-                pts+=2.0; label=f"📈 {player} ({pos}, {ovr} OVR) -- Rd {rnd} NFL"
-            else:
-                pts+=1.0; label=f"🏈 {player} ({pos}, {ovr} OVR) -- Rd {rnd} NFL"
-            breakdown.append({'type':'nfl','label':label,'pts':pts,'rnd':rnd,'player':player,'pos':pos,'ovr':ovr})
+            is_start=infer_starter(pos,ovr,team,roster_df)
+            _base=_depth_loss(pos,ovr,team,roster_df,is_start)
+            # Round bonus: Rd1=+1.5, Rd2-3=+0.5 (elite talent recognized by NFL)
+            _rnd_bonus=1.5 if rnd==1 else (0.5 if rnd<=3 else 0.0)
+            _base=min(4.5, _base+_rnd_bonus)
+            _start_tag="Starter" if is_start else "Backup"
+            _rnd_s=f"Rd {rnd}"
+            if rnd==1: label=f"🥇 {player} ({pos}, {ovr} OVR) {_start_tag} -- Rd 1 NFL"
+            elif rnd<=3: label=f"📈 {player} ({pos}, {ovr} OVR) {_start_tag} -- Rd {rnd} NFL"
+            else: label=f"🏈 {player} ({pos}, {ovr} OVR) {_start_tag} -- Rd {rnd} NFL"
+            pts+=_base
+            breakdown.append({'type':'nfl','label':label,'pts':_base,'rnd':rnd,'player':player,'pos':pos,'ovr':ovr,'is_starter':is_start})
         # Transfer losses
         team_xf=pd.DataFrame()
         if not transfers.empty:
@@ -1610,10 +1642,9 @@ def compute_attrition_ratings(year=None):
             pos=str(xr.get('Pos','?')); ovr=float(xr.get('OVR',70))
             player=str(xr.get('Player','?')); reason=str(xr.get('ReasonDetail',''))
             is_start=infer_starter(pos,ovr,team,roster_df)
-            if is_start:
-                add=1.5; lbl=f"🚪 {player} ({pos}, {int(ovr)} OVR) -- Transfer Out (Starter)"
-            else:
-                add=0.5; lbl=f"🚶 {player} ({pos}, {int(ovr)} OVR) -- Transfer Out (Backup)"
+            add=_depth_loss(pos,ovr,team,roster_df,is_start)
+            _st_tag="Starter" if is_start else "Backup"
+            lbl=f"🚪 {player} ({pos}, {int(ovr)} OVR) {_st_tag} -- Transfer Out"
             pts+=add
             breakdown.append({'type':'transfer','label':lbl,'pts':add,'player':player,'pos':pos,'ovr':ovr,'is_starter':is_start})
         # Reduce pts if strong incoming class offsets losses
@@ -1646,11 +1677,11 @@ def compute_attrition_ratings(year=None):
         except: pass
         # Tier - starter-aware scoring
         _starters_lost=sum(1 for b in breakdown if b.get('is_starter',True))
-        if pts<=3:   tier="Minimal Loss";  tier_c="#10b981"; tier_emoji="✅"
-        elif pts<=6: tier="Manageable";    tier_c="#22c55e"; tier_emoji="🟢"
-        elif pts<=9: tier="Hurting";       tier_c="#f59e0b"; tier_emoji="⚠️"
-        elif pts<=13: tier="Rebuilding";   tier_c="#f97316"; tier_emoji="🔥"
-        else:         tier="Program Reset"; tier_c="#ef4444"; tier_emoji="💀"
+        if pts<=2:   tier="Depth Intact";        tier_c="#10b981"; tier_emoji="✅"
+        elif pts<=5: tier="Noticeable Gaps";     tier_c="#22c55e"; tier_emoji="🟢"
+        elif pts<=9: tier="Significant Holes";   tier_c="#f59e0b"; tier_emoji="⚠️"
+        elif pts<=14: tier="Heavy Talent Drain"; tier_c="#f97316"; tier_emoji="🔥"
+        else:         tier="Mass Exodus";         tier_c="#ef4444"; tier_emoji="💀"
         # Incoming class gain label
         if _inc_count==0:
             _raw_loss=pts+_inc_pts
@@ -4133,11 +4164,11 @@ def render_roster_attrition_tab():
     # Rating scale legend
     st.markdown("""
 <div style='display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px;font-size:.65rem;'>
-  <span style='background:#10b98120;color:#10b981;border:1px solid #10b98140;border-radius:4px;padding:2px 8px;'>✅ 0-3 Minimal Loss</span>
-  <span style='background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;border-radius:4px;padding:2px 8px;'>🟢 4-6 Manageable</span>
-  <span style='background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b40;border-radius:4px;padding:2px 8px;'>⚠️ 7-9 Hurting</span>
-  <span style='background:#f9731620;color:#f97316;border:1px solid #f9731640;border-radius:4px;padding:2px 8px;'>🔥 10-13 Rebuilding</span>
-  <span style='background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:4px;padding:2px 8px;'>💀 14+ Program Reset</span>
+  <span style='background:#10b98120;color:#10b981;border:1px solid #10b98140;border-radius:4px;padding:2px 8px;'>✅ 0-2 Depth Intact</span>
+  <span style='background:#22c55e20;color:#22c55e;border:1px solid #22c55e40;border-radius:4px;padding:2px 8px;'>🟢 3-5 Noticeable Gaps</span>
+  <span style='background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b40;border-radius:4px;padding:2px 8px;'>⚠️ 6-9 Significant Holes</span>
+  <span style='background:#f9731620;color:#f97316;border:1px solid #f9731640;border-radius:4px;padding:2px 8px;'>🔥 10-14 Heavy Talent Drain</span>
+  <span style='background:#ef444420;color:#ef4444;border:1px solid #ef444440;border-radius:4px;padding:2px 8px;'>💀 15+ Mass Exodus</span>
 </div>""", unsafe_allow_html=True)
     st.markdown("---")
     # ── DETAIL TABS ──────────────────────────────────────────────────
