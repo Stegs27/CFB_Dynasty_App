@@ -5789,6 +5789,52 @@ with tabs[0]:
                     with open('week_game_status.csv','rb') as f3:
                         st.download_button("⬇️ Status CSV",data=f3.read(),file_name="week_game_status.csv",mime="text/csv",use_container_width=True,key="dl_game_status")
 
+    # ── WEEK ADVANCE ──────────────────────────────────────────────────────────
+    if _comm_unlocked:
+        st.markdown("---")
+        # Check if all users are ready
+        _all_statuses={u:_game_status_map2.get(u,'') for u in USER_TEAMS}
+        _score_users={u for u,v in _msc_map2.items() if v.get('user_score',0)>0 or v.get('opp_score',0)>0}
+        _ready_users={u for u,s in _all_statuses.items() if s=='Ready'} | _score_users
+        _all_ready=len(_ready_users)>=len(USER_TEAMS)
+        _next_week=int(_gs_week)+1
+        _adv_col1,_adv_col2=st.columns([3,1])
+        with _adv_col1:
+            if _all_ready:
+                st.success(f"✅ All {len(USER_TEAMS)} coaches are Ready! You can advance to Week {_next_week}.")
+            else:
+                _not_ready=sorted(set(USER_TEAMS.keys())-_ready_users)
+                st.warning(f"⏳ Waiting on: {', '.join(_not_ready)} ({len(_ready_users)}/{len(USER_TEAMS)} ready)")
+        with _adv_col2:
+            _adv_btn=st.button(f"⏭️ Advance to Wk {_next_week}",
+                use_container_width=True,
+                key="advance_week_btn",
+                type="primary" if _all_ready else "secondary",
+                help="Downloads updated dynasty_state.csv with next week. Push it to the repo.")
+        if _adv_btn:
+            try:
+                _ds_new=pd.DataFrame([{
+                    'CurrentWeek': _next_week,
+                    'CurrentYear': int(_gs_year),
+                    'IsBowlWeek': _next_week>=16,
+                    'BowlRound': max(0,_next_week-15),
+                    'NFLWeek': _DYNASTY_STATE.get('NFLWeek',0),
+                }])
+                _ds_csv=_ds_new.to_csv(index=False)
+                st.download_button(
+                    f"⬇️ Download dynasty_state.csv (Wk {_next_week})",
+                    data=_ds_csv,
+                    file_name="dynasty_state.csv",
+                    mime="text/csv",
+                    key="dl_dynasty_state_adv",
+                    use_container_width=True,
+                    type="primary"
+                )
+                _send_discord(f"📅 Commissioner is advancing the dynasty to Week {_next_week}! Update incoming.")
+                st.info(f"⬆️ Download the CSV above and push to your GitHub repo root. The app will update to Week {_next_week} on next load.")
+            except Exception as _adve:
+                st.error(f"Advance error: {_adve}")
+
     # ── PLAYER LOGIN ───────────────────────────────────────────────────────────
     _user_pw_map={
         "Mike":"sjsu26","Devin":"BGKevin","Josh":"Yayshusf",
