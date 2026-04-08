@@ -1604,7 +1604,7 @@ def compute_attrition_ratings(year=None):
                     _sr_ovr=float(_sr.get('OVR',70)); _sr_pos=str(_sr.get('POS',_sr.get('Pos','?')))
                     _sr_nm=str(_sr.get('NAME',_sr.get('Name','?')))
                     is_start_s=infer_starter(_sr_pos,_sr_ovr,team,_sr_ref)
-                    _sadd=_depth_loss(_sr_pos,_sr_ovr,team,_sr_ref,is_start_s) if '_depth_loss' in dir() else (1.5 if is_start_s else 0.5)
+                    _sadd=_depth_loss(_sr_pos,_sr_ovr,team,_sr_ref,is_start_s,is_senior=True) if '_depth_loss' in dir() else (0.8 if is_start_s else 0.2)
                     _st_s="Starter" if is_start_s else "Backup"
                     _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) {_st_s} -- Sr Graduating'
                     pts+=_sadd
@@ -1617,17 +1617,20 @@ def compute_attrition_ratings(year=None):
             dc=next((c for c in ('CollegeTeam','Team','TEAM') if c in draft.columns),None)
             if dc: team_draft=draft[draft[dc].astype(str).str.strip()==team]
         # ── depth_loss: OVR gap weighted starter loss ───────────────────────
-        def _depth_loss(pos, ovr, team, roster_df, is_starter):
-            """Loss severity based on how big a hole the departure leaves.
-            Starter losses are weighted by how bad the backup is.
-            Backup losses are minor (0.3 flat).
+        def _depth_loss(pos, ovr, team, roster_df, is_starter, is_senior=False):
+            """Loss severity based on OVR gap to best backup.
+            Seniors score lower — planned departure, full recruiting cycle to replace.
+            NFL/Transfer starters score higher — unplanned, harder to replace.
             """
-            if not is_starter: return 0.3
+            if not is_starter:
+                return 0.15 if is_senior else 0.25
             backup=best_backup_ovr(pos,ovr,team,roster_df)
-            gap=max(0.0, float(ovr)-float(backup))   # OVR points the backup is below
-            # 0-gap=quality backup, big gap=huge hole
-            # Scale: gap of 20 = 3.0pts, gap of 10 = 1.8pts, gap of 0 = 0.5pts
-            return round(max(0.5, min(3.5, 0.5 + gap * 0.15)), 2)
+            gap=max(0.0, float(ovr)-float(backup))
+            if is_senior:
+                # Seniors: 0.35–1.0pts per starter. Large gap = 1pt, small gap = 0.35pt.
+                return round(max(0.35, min(1.0, 0.35 + gap * 0.065)), 2)
+            # NFL/Transfer: 0.6–3.0pts per starter
+            return round(max(0.6, min(3.0, 0.6 + gap * 0.12)), 2)
 
         for _,dr in team_draft.iterrows():
             rnd=int(safe_num(dr.get('DraftRound',8),8))
@@ -1877,54 +1880,54 @@ def build_ticker_items(year, week, is_bowl_week):
                 _prev=_sched2[_sched2[_wc2]==_pw].copy()
                 if _sts2: _prev=_prev[_prev[_sts2].astype(str).str.upper()=='FINAL']
                 _prev=_prev.dropna(subset=[_sc2,_hc2])
-                _prev['_margin']=(_prev[_sc2]-_prev[_hc2]).abs()
-                _vr2=next((c for c in ('Visitor Rank','VIS_RANK','Vis Rank') if c in _prev.columns),None)
-                _hr2=next((c for c in ('Home Rank','HOME_RANK','Home Rank') if c in _prev.columns),None)
-                if _vr2: _prev[_vr2]=pd.to_numeric(_prev[_vr2],errors='coerce')
-                if _hr2: _prev[_hr2]=pd.to_numeric(_prev[_hr2],errors='coerce')
-                if not _prev.empty:
-                    # Upset: winner ranked worse (or unranked) beat a ranked team
-                    def _upset_score(r):
-                        vs=float(r.get(_sc2,0) or 0); hs=float(r.get(_hc2,0) or 0)
-                        if vs==hs: return 0
-                        w_rank=float(r.get(_vr2,0) or 0) if vs>hs else float(r.get(_hr2,0) or 0)
-                        l_rank=float(r.get(_hr2,0) or 0) if vs>hs else float(r.get(_vr2,0) or 0)
-                        if l_rank>0 and (w_rank==0 or w_rank>l_rank):
-                            return l_rank+(50 if w_rank==0 else l_rank-w_rank)
-                        return 0
-                    _prev['_upset']=_prev.apply(_upset_score,axis=1)
-                    _top_upset=_prev[_prev['_upset']>0].nlargest(1,'_upset')
-                    if not _top_upset.empty:
-                        _ug=_top_upset.iloc[0]
-                        _uvs=float(_ug.get(_sc2,0) or 0); _uhs=float(_ug.get(_hc2,0) or 0)
-                        _uvis=str(_ug.get('Visitor','')); _uhom=str(_ug.get('Home',''))
-                        _uw=_uvis if _uvs>_uhs else _uhom; _ul=_uhom if _uvs>_uhs else _uvis
-                        _uws=int(max(_uvs,_uhs)); _uls=int(min(_uvs,_uhs))
-                        _ulr=_ug.get(_hr2 if _uvs>_uhs else _vr2,None) if (_hr2 or _vr2) else None
-                        _ulr_s=f"#{int(float(_ulr))} " if pd.notna(_ulr) and float(_ulr or 0)>0 else "ranked "
-                        is_user_u=(_uvis in ALL_USER_TEAMS or _uhom in ALL_USER_TEAMS)
-                        headlines.append({'badge':'🚨 UPSET ALERT','priority':190 if is_user_u else 130,
-                            'text':f"{_uw} stuns {_ulr_s}{_ul} {_uws}-{_uls} (Wk {_pw})",
-                            'blurb':f"{_uw} pulled off the upset of the week, taking down {_ulr_s}{_ul}."})
-                    # Biggest blowout
-                    _vu_col=next((c for c in ('Vis_User','VIS_USER') if c in _prev.columns),None)
-                    _hu_col=next((c for c in ('Home_User','HOME_USER') if c in _prev.columns),None)
-                    _user_prev=_prev.copy()
-                    if _vu_col and _hu_col:
-                        _user_prev=_prev[(_prev[_vu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))|                                         (_prev[_hu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))]
-                    if _user_prev.empty: _user_prev=_prev
-                    _top_blow=_user_prev.nlargest(1,'_margin')
-                    if not _top_blow.empty:
-                        _bg2=_top_blow.iloc[0]
-                        _bvs=float(_bg2.get(_sc2,0) or 0); _bhs=float(_bg2.get(_hc2,0) or 0)
-                        _bvis=str(_bg2.get('Visitor','')); _bhom=str(_bg2.get('Home',''))
-                        _bw=_bvis if _bvs>_bhs else _bhom; _bl2=_bhom if _bvs>_bhs else _bvis
-                        _bws=int(max(_bvs,_bhs)); _bls=int(min(_bvs,_bhs)); _bmg=_bws-_bls
-                        if _bmg>=21:
-                            is_user_b=(_bvis in ALL_USER_TEAMS or _bhom in ALL_USER_TEAMS)
-                            headlines.append({'badge':'💥 BLOWOUT','priority':170 if is_user_b else 110,
-                                'text':f"{_bw} crushes {_bl2} {_bws}-{_bls} (Wk {_pw})",
-                                'blurb':f"{_bw} put on a clinic. {_bmg} points is not a football score, that's a statement."})
+            _prev['_margin']=(_prev[_sc2]-_prev[_hc2]).abs()
+            _vr2=next((c for c in ('Visitor Rank','VIS_RANK','Vis Rank') if c in _prev.columns),None)
+            _hr2=next((c for c in ('Home Rank','HOME_RANK','Home Rank') if c in _prev.columns),None)
+            if _vr2: _prev[_vr2]=pd.to_numeric(_prev[_vr2],errors='coerce')
+            if _hr2: _prev[_hr2]=pd.to_numeric(_prev[_hr2],errors='coerce')
+            if not _prev.empty:
+                # Upset: winner ranked worse (or unranked) beat a ranked team
+                def _upset_score(r):
+                    vs=float(r.get(_sc2,0) or 0); hs=float(r.get(_hc2,0) or 0)
+                    if vs==hs: return 0
+                    w_rank=float(r.get(_vr2,0) or 0) if vs>hs else float(r.get(_hr2,0) or 0)
+                    l_rank=float(r.get(_hr2,0) or 0) if vs>hs else float(r.get(_vr2,0) or 0)
+                    if l_rank>0 and (w_rank==0 or w_rank>l_rank):
+                        return l_rank+(50 if w_rank==0 else l_rank-w_rank)
+                    return 0
+                _prev['_upset']=_prev.apply(_upset_score,axis=1)
+                _top_upset=_prev[_prev['_upset']>0].nlargest(1,'_upset')
+                if not _top_upset.empty:
+                    _ug=_top_upset.iloc[0]
+                    _uvs=float(_ug.get(_sc2,0) or 0); _uhs=float(_ug.get(_hc2,0) or 0)
+                    _uvis=str(_ug.get('Visitor','')); _uhom=str(_ug.get('Home',''))
+                    _uw=_uvis if _uvs>_uhs else _uhom; _ul=_uhom if _uvs>_uhs else _uvis
+                    _uws=int(max(_uvs,_uhs)); _uls=int(min(_uvs,_uhs))
+                    _ulr=_ug.get(_hr2 if _uvs>_uhs else _vr2,None) if (_hr2 or _vr2) else None
+                    _ulr_s=f"#{int(float(_ulr))} " if pd.notna(_ulr) and float(_ulr or 0)>0 else "ranked "
+                    is_user_u=(_uvis in ALL_USER_TEAMS or _uhom in ALL_USER_TEAMS)
+                    headlines.append({'badge':'🚨 UPSET ALERT','priority':190 if is_user_u else 130,
+                        'text':f"{_uw} stuns {_ulr_s}{_ul} {_uws}-{_uls} (Wk {_pw})",
+                        'blurb':f"{_uw} pulled off the upset of the week, taking down {_ulr_s}{_ul}."})
+                # Biggest blowout
+                _vu_col=next((c for c in ('Vis_User','VIS_USER') if c in _prev.columns),None)
+                _hu_col=next((c for c in ('Home_User','HOME_USER') if c in _prev.columns),None)
+                _user_prev=_prev.copy()
+                if _vu_col and _hu_col:
+                    _user_prev=_prev[(_prev[_vu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))|                                         (_prev[_hu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))]
+                if _user_prev.empty: _user_prev=_prev
+                _top_blow=_user_prev.nlargest(1,'_margin')
+                if not _top_blow.empty:
+                    _bg2=_top_blow.iloc[0]
+                    _bvs=float(_bg2.get(_sc2,0) or 0); _bhs=float(_bg2.get(_hc2,0) or 0)
+                    _bvis=str(_bg2.get('Visitor','')); _bhom=str(_bg2.get('Home',''))
+                    _bw=_bvis if _bvs>_bhs else _bhom; _bl2=_bhom if _bvs>_bhs else _bvis
+                    _bws=int(max(_bvs,_bhs)); _bls=int(min(_bvs,_bhs)); _bmg=_bws-_bls
+                    if _bmg>=21:
+                        is_user_b=(_bvis in ALL_USER_TEAMS or _bhom in ALL_USER_TEAMS)
+                        headlines.append({'badge':'💥 BLOWOUT','priority':170 if is_user_b else 110,
+                            'text':f"{_bw} crushes {_bl2} {_bws}-{_bls} (Wk {_pw})",
+                            'blurb':f"{_bw} put on a clinic. {_bmg} points is not a football score, that's a statement."})
     except: pass
 
     # ── 4b. SEASON-ENDING / LONG-TERM INJURIES (current week) ────────────────
@@ -4036,7 +4039,7 @@ def render_roster_attrition_tab():
     # ── ATTRITION RATING SUMMARY CARDS ───────────────────────────────
     st.markdown(f"### {CURRENT_YEAR} Attrition Ratings")
     _sorted_users=sorted(attrition_data.keys(),key=lambda u: attrition_data[u]['pts'],reverse=True)
-    cols=st.columns(min(3,len(_sorted_users))); ci=0
+    cols=st.columns(min(2,len(_sorted_users))); ci=0
     for user in _sorted_users:
         d=attrition_data[user]; team=d['team']
         primary=get_team_primary_color(team)
@@ -5983,6 +5986,18 @@ with tabs[1]:
                         if _msc: _cfp_msp_map=dict(zip(_mdf[_tm_col2].astype(str).str.strip(),pd.to_numeric(_mdf[_msc],errors='coerce').fillna(0)))
                         if _noc: _cfp_natty_map=dict(zip(_mdf[_tm_col2].astype(str).str.strip(),pd.to_numeric(_mdf[_noc],errors='coerce').fillna(0)))
                 except: pass
+                # SOS from FPI file
+                _cfp_sos_map={}
+                try:
+                    if _fp and os.path.exists(_fp):
+                        _sosdf=pd.read_csv(_fp)
+                        _sos_tm=next((c for c in _sosdf.columns if c.lower()=='team'),'Team')
+                        _sos_c=next((c for c in _sosdf.columns if c.upper() in ('SOS','STRENGTH_OF_SCHEDULE','STR_OF_SCHED')),None)
+                        if _sos_c: _cfp_sos_map=dict(zip(_sosdf[_sos_tm].astype(str).str.strip(),pd.to_numeric(_sosdf[_sos_c],errors='coerce').fillna(0)))
+                except: pass
+                try:
+                    _noc  # re-open try for remaining code
+                except: pass
                 try:
                     _sf_tmp=build_speed_freaks_live(_sel_yr)
                     if not _sf_tmp.empty: _cfp_sf_map=dict(zip(_sf_tmp['TEAM'].astype(str),_sf_tmp['RANK'].astype(int)))
@@ -6000,7 +6015,7 @@ with tabs[1]:
                             _cfp_ovr_map=dict(zip(_trdf[_tm_col3],pd.to_numeric(_trdf[_ovr_col],errors='coerce').fillna(0).astype(int)))
                 except: pass
                 thead_cfp=(
-                    "<tr style='background:#0a1220;'>"
+                    "<tr style='background:linear-gradient(90deg,#0a1220,#060a11);border-bottom:2px solid #1e293b;'>"
                     "<th style='padding:5px 6px;color:#fbbf24;font-size:.72rem;text-align:center;width:36px;'>RK</th>"
                     "<th style='padding:5px 6px;color:#475569;font-size:.55rem;text-align:left;'>Team</th>"
                     "<th style='padding:5px 6px;color:#94a3b8;font-size:.55rem;text-align:center;'>Rec</th>"
@@ -6008,7 +6023,7 @@ with tabs[1]:
                     "<th style='padding:5px 6px;color:#fbbf24;font-size:.55rem;text-align:center;'>FPI</th>"
                     "<th style='padding:5px 6px;color:#a78bfa;font-size:.55rem;text-align:center;'>MS+</th>"
                     "<th style='padding:5px 6px;color:#38bdf8;font-size:.55rem;text-align:center;'>SPD</th>"
-                    "<th style='padding:5px 6px;color:#4ade80;font-size:.55rem;text-align:center;'>Natty</th>"
+                    "<th style='padding:5px 6px;color:#f97316;font-size:.55rem;text-align:center;'>SOS</th>"
                     "</tr>"
                 )
                 rows_cfp=""
@@ -6027,14 +6042,9 @@ with tabs[1]:
                     _fpi2_c="#4ade80" if (_fpi2 or 0)>=5 else ("#fbbf24" if (_fpi2 or 0)>=0 else "#f87171")
                     _msp2=_cfp_msp_map.get(tm); _msp2_s=f"{_msp2:.1f}" if _msp2 else "--"
                     _sfr2=_cfp_sf_map.get(tm); _sfr2_s=f"#{_sfr2}" if _sfr2 else "--"
-                    _nat2=_cfp_natty_map.get(tm,0)
-                    def __p2o2(p):
-                        try:
-                            if p<=0: return "--"
-                            if p>=50: return "Even"
-                            return f'{max(1,int(round((100.0/p)-1.0)))}:1'
-                        except: return "--"
-                    _nat2_s=__p2o2(_nat2)
+                    _sos2=_cfp_sos_map.get(tm,0)
+                    _sos2_s=f"{_sos2:+.1f}" if _sos2 else "--"
+                    _sos2_c="#f97316" if (_sos2 or 0)>=5 else ("#fbbf24" if (_sos2 or 0)>=0 else "#94a3b8")
                     rows_cfp+=(f"<tr style='{bg}{bl}'>"
                         f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{rk_c};'>{rk}</td>"
                         f"<td style='padding:4px 6px;white-space:nowrap;'>{lh}"
@@ -6044,7 +6054,7 @@ with tabs[1]:
                         f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_fpi2_c};font-size:.85rem;'>{_fpi2_s}</td>"
                         f"<td style='padding:4px 6px;text-align:center;color:#a78bfa;font-size:.72rem;'>{_msp2_s}</td>"
                         f"<td style='padding:4px 6px;text-align:center;color:#38bdf8;font-size:.72rem;'>{_sfr2_s}</td>"
-                        f"<td style='padding:4px 6px;text-align:center;color:#4ade80;font-size:.68rem;'>{_nat2_s}</td>"
+                        f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_sos2_c};font-size:.82rem;'>{_sos2_s}</td>"
                         f"</tr>")
                 st.markdown(f"<div class='isp-power-table-wrap'><table class='isp-power-table' style='min-width:300px;'>"
                     f"<thead>{thead_cfp}</thead><tbody>{rows_cfp}</tbody></table></div>",
@@ -6091,37 +6101,77 @@ with tabs[1]:
                     _pcfp_snap['_rank_pts']=(26-_pcfp_snap['RANK'].clip(upper=25)).clip(lower=0)
                     _pcfp_snap['_proj_score']=_pcfp_snap['_rank_pts']*2+_pcfp_snap['FPI']
                     _pcfp_top12=_pcfp_snap.sort_values('_proj_score',ascending=False).head(12).reset_index(drop=True)
-                    # Render as seeded bracket list
-                    _pcfp_cols=st.columns(2)
-                    for _pi,(_,_pr) in enumerate(_pcfp_top12.iterrows()):
-                        _pseed=_pi+1; _ptm=str(_pr['TEAM'])
-                        _pcfp_rk=int(_pr.get('RANK',99)); _pfpi=float(_pr.get('FPI',0))
-                        _pfpi_s=f'{_pfpi:+.1f}'
-                        _puc=get_team_primary_color(_ptm)
+                    # Build bracket: seeds 1-4 bye, 5v12, 6v11, 7v10, 8v9
+                    # Projected win % from FPI gap: ~60% per 5 FPI pts
+                    def _proj_rec(rec_str, seed, fpi_val, all_seeds):
+                        """Estimate final record: current + projected CFP wins."""
+                        try:
+                            parts=str(rec_str).split('-'); w=int(parts[0]); l=int(parts[1]) if len(parts)>1 else 0
+                        except: w,l=0,0
+                        if seed<=4: return f"{w}-{l} (bye)"
+                        # Round 1 matchup
+                        opp_seed={5:12,6:11,7:10,8:9,9:8,10:7,11:6,12:5}.get(seed,13)
+                        try:
+                            opp_fpi=float(all_seeds[opp_seed-1].get('FPI',0))
+                            gap=fpi_val-opp_fpi
+                            win_p=max(0.15,min(0.85,0.5+gap*0.04))
+                            exp_wins=round(win_p,0)
+                            return f"{w+int(exp_wins)}-{l+int(1-exp_wins)} proj."
+                        except: return f"{w}-{l}"
+                    _seeds_list=_pcfp_top12.to_dict('records')
+                    # Render: byes section + first-round bracket
+                    st.markdown("<div style='font-size:.62rem;color:#fbbf24;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;'>🛡️ First Round Byes — Seeds 1-4</div>",unsafe_allow_html=True)
+                    for _pi in range(4):
+                        _pr=_seeds_list[_pi]; _pseed=_pi+1; _ptm=str(_pr['TEAM'])
+                        _pfpi=float(_pr.get('FPI',0)); _puc=get_team_primary_color(_ptm)
                         _plg=get_school_logo_src(_ptm)
-                        _plh=f"<img src='{_plg}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _plg else ''
+                        _plh=f"<img src='{_plg}' style='width:20px;height:20px;object-fit:contain;'/>" if _plg else ''
                         _pis_user=_ptm in ALL_USER_TEAMS
-                        _pbg=f"background:linear-gradient(90deg,{_puc}22 0%,#06090f 60%);" if _pis_user else "background:#06090f;"
-                        _pbl=f"border-left:3px solid {_puc};" if _pis_user else "border-left:2px solid #1e293b;"
-                        _pseed_c='#fbbf24' if _pseed<=4 else ('#60a5fa' if _pseed<=8 else '#94a3b8')
-                        _prec=str(_pr.get('RECORD','')).strip()
-                        _pcol=_pcfp_cols[_pi%2]
-                        _pcol.markdown(
-                            f"<div style='{_pbg}{_pbl}border:1px solid #1e293b;border-radius:8px;"
-                            f"padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
-                            f"<div style='display:flex;align-items:center;gap:6px;'>"
-                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:{_pseed_c};min-width:22px;'>#{_pseed}</span>"
+                        _prec=_proj_rec(str(_pr.get('RECORD','')),_pseed,_pfpi,_seeds_list)
+                        st.markdown(
+                            f"<div style='background:linear-gradient(90deg,{_puc}28 0%,#060a11 50%);border:1px solid {_puc}55;"
+                            f"border-left:4px solid #fbbf24;border-radius:8px;padding:6px 12px;margin-bottom:3px;"
+                            f"display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                            f"<div style='display:flex;align-items:center;gap:7px;'>"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#fbbf24;min-width:24px;'>#{_pseed}</span>"
                             f"{_plh}"
-                            f"<span style='font-weight:800;color:{'#f1f5f9' if _pis_user else '#64748b'};font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_ptm)}</span>"
-                            f"<span style='font-size:.62rem;color:#475569;'>{html.escape(_prec)}</span>"
+                            f"<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.92rem;'>{html.escape(_ptm)}</span>"
                             f"</div>"
-                            f"<div style='text-align:right;'>"
-                            f"<span style='font-size:.68rem;color:#475569;'>CFP #{_pcfp_rk}</span>"
-                            f"<span style='font-size:.68rem;color:#60a5fa;margin-left:6px;'>FPI {_pfpi_s}</span>"
-                            f"</div></div>",
-                            unsafe_allow_html=True
-                        )
-                    st.caption(f"Projected field from Wk {_pcfp_lw} CFP rankings + FPI. Seeds 1-4 = first-round byes.")
+                            f"<span style='font-size:.68rem;color:#64748b;'>{html.escape(_prec)}</span>"
+                            f"</div>",unsafe_allow_html=True)
+                    # First round matchups
+                    st.markdown("<div style='font-size:.62rem;color:#60a5fa;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px;'>⚔️ First Round Matchups</div>",unsafe_allow_html=True)
+                    _matchups=[(5,12),(6,11),(7,10),(8,9)]
+                    for _hi,_li in _matchups:
+                        if _hi>len(_seeds_list) or _li>len(_seeds_list): continue
+                        _ha=_seeds_list[_hi-1]; _la=_seeds_list[_li-1]
+                        _htm=str(_ha['TEAM']); _ltm=str(_la['TEAM'])
+                        _hfpi=float(_ha.get('FPI',0)); _lfpi=float(_la.get('FPI',0))
+                        _hpc=get_team_primary_color(_htm); _lpc=get_team_primary_color(_ltm)
+                        _hlg=get_school_logo_src(_htm); _llg=get_school_logo_src(_ltm)
+                        _hlh=f"<img src='{_hlg}' style='width:18px;height:18px;object-fit:contain;'/>" if _hlg else ''
+                        _llh=f"<img src='{_llg}' style='width:18px;height:18px;object-fit:contain;'/>" if _llg else ''
+                        _his_user=_htm in ALL_USER_TEAMS; _lis_user=_ltm in ALL_USER_TEAMS
+                        _fav=_htm if _hfpi>=_lfpi else _ltm
+                        _hrec=_proj_rec(str(_ha.get('RECORD','')),_hi,_hfpi,_seeds_list)
+                        _lrec=_proj_rec(str(_la.get('RECORD','')),_li,_lfpi,_seeds_list)
+                        st.markdown(
+                            f"<div style='background:#060a11;border:1px solid #1e293b;border-radius:8px;padding:6px 10px;margin-bottom:4px;'>"
+                            f"<div style='display:flex;align-items:center;justify-content:space-between;gap:4px;'>"
+                            f"<div style='display:flex;align-items:center;gap:5px;flex:1;'>"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:.95rem;color:#60a5fa;min-width:20px;'>#{_hi}</span>"
+                            f"{_hlh}<span style='font-weight:{'900' if _his_user else '500'};color:{_hpc if _his_user else '#64748b'};font-family:Barlow Condensed,sans-serif;font-size:.85rem;'>{html.escape(_htm)}</span>"
+                            f"<span style='font-size:.6rem;color:#334155;'>{html.escape(_hrec)}</span>"
+                            f"</div>"
+                            f"<span style='color:#334155;font-size:.75rem;font-weight:700;padding:0 6px;'>vs</span>"
+                            f"<div style='display:flex;align-items:center;gap:5px;flex:1;justify-content:flex-end;'>"
+                            f"<span style='font-size:.6rem;color:#334155;'>{html.escape(_lrec)}</span>"
+                            f"<span style='font-weight:{'900' if _lis_user else '500'};color:{_lpc if _lis_user else '#64748b'};font-family:Barlow Condensed,sans-serif;font-size:.85rem;'>{html.escape(_ltm)}</span>{_llh}"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:.95rem;color:#60a5fa;min-width:20px;text-align:right;'>#{_li}</span>"
+                            f"</div></div>"
+                            f"<div style='font-size:.55rem;color:#475569;margin-top:2px;text-align:center;'>"
+                            f"FPI edge: {html.escape(_fav)} ({abs(_hfpi-_lfpi):.1f} pts)</div></div>",unsafe_allow_html=True)
+                    st.caption(f"Projected field from Wk {_pcfp_lw} CFP rankings + FPI. Proj. record includes expected CFP run.")
             else:
                 st.info("No CFP rankings data available for projection.")
         except Exception as _pe:
