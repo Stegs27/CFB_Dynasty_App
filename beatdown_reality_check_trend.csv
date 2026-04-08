@@ -107,3 +107,8 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2043,4,Doug,Florida,Washington,W,42,14,28.0,35.0,-7.0,2.0,0.5,0.5,100.0,Should've Beat Their Ass,93.97,0.0,False,False,False,True,False
 2043,4,Mike,San Jose State,Ohio State,W,52,17,35.0,35.0,0.0,2.0,0.5,0.5,100.0,Score Told the Truth,100.0,0.0,False,False,False,False,False
 2043,4,Nick,Florida State,South Carolina,W,42,0,42.0,35.0,7.0,-2.0,0.5,0.5,100.0,We Got Away With One,100.0,0.0,False,False,True,False,False
+2043,5,Doug,Florida,Illinois,W,52,7,45.0,35.0,10.0,-2.0,0.5,0.5,100.0,We Got Away With One,100.0,0.0,True,False,True,False,False
+2043,5,Josh,USF,Georgia,W,49,14,35.0,35.0,0.0,-2.0,0.5,0.5,100.0,Score Told the Truth,100.0,0.0,False,False,False,False,False
+2043,5,Mike,San Jose State,Nebraska,W,54,42,12.0,25.45,-13.45,2.0,0.5,0.5,87.68,Should've Beat Their Ass,95.89,-12.32,False,True,False,True,False
+2043,5,Nick,Florida State,Panama City,W,56,7,49.0,35.0,14.0,2.0,0.5,0.5,100.0,Score Lied for Us,100.0,0.0,True,False,True,False,False
+2043,5,Noah,Texas Tech,USC,W,70,42,28.0,29.33,-1.33,-2.0,0.5,0.5,100.0,Score Told the Truth,83.16,0.0,False,False,False,False,False
