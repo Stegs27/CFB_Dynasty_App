@@ -1565,6 +1565,31 @@ def compute_attrition_ratings(year=None):
                     if not _r.empty:
                         roster_df=_r.copy(); break
             except: pass
+    # ── Compute per-team avg YoY OVR improvement from roster history ────────
+    # Used to project backup development: if the coach improves players by X/yr,
+    # the backup will be that much better when they step into the starting role.
+    _team_avg_improvement={}
+    try:
+        import glob as _rg
+        _yr_files=sorted(_rg.glob(f'cfb_136_top30_rosters_*.csv'),reverse=True)
+        if len(_yr_files)>=2:
+            _ros_new2=pd.read_csv(_yr_files[0]); _ros_old2=pd.read_csv(_yr_files[1])
+            for _rdf3 in [_ros_new2,_ros_old2]:
+                _rdf3.columns=[str(c).strip() for c in _rdf3.columns]
+                for _oc2,_nc2 in [('Team','TEAM'),('Pos','POS'),('Name','NAME'),('Ovr','OVR')]:
+                    if _oc2 in _rdf3.columns and _nc2 not in _rdf3.columns: _rdf3.rename(columns={_oc2:_nc2},inplace=True)
+                if 'OVR' in _rdf3.columns: _rdf3['OVR']=pd.to_numeric(_rdf3['OVR'],errors='coerce').fillna(0)
+            # Match players on NAME+TEAM, compute avg delta
+            _mn=_ros_new2.merge(_ros_old2[['NAME','TEAM','OVR']].rename(columns={'OVR':'OVR_old'}),on=['NAME','TEAM'],how='inner') if all(c in _ros_new2.columns and c in _ros_old2.columns for c in ['NAME','TEAM','OVR']) else pd.DataFrame()
+            if not _mn.empty:
+                _mn['_d']=_mn['OVR']-_mn['OVR_old']
+                for _ut,_tt in USER_TEAMS.items():
+                    _tm_d=_mn[_mn['TEAM']==_tt]['_d']
+                    _team_avg_improvement[_ut]=round(float(_tm_d.mean()),2) if not _tm_d.empty else 2.0
+        # Fallback: assume 2.0 OVR/yr avg improvement if no data
+        _global_avg_imp=round(float(pd.Series(list(_team_avg_improvement.values())).mean()),2) if _team_avg_improvement else 2.0
+    except: _team_avg_improvement={}; _global_avg_imp=2.0
+
     # Load transfers
     transfers=pd.DataFrame()
     try:
@@ -1626,20 +1651,31 @@ def compute_attrition_ratings(year=None):
             dc=next((c for c in ('CollegeTeam','Team','TEAM') if c in draft.columns),None)
             if dc: team_draft=draft[draft[dc].astype(str).str.strip()==team]
         # ── depth_loss: OVR gap weighted starter loss ───────────────────────
+        # Get this team's avg OVR improvement per player per year
+        _coach_avg_imp=_team_avg_improvement.get(user, _global_avg_imp)
+        # Clamp to reasonable range: 0–6 OVR/yr improvement
+        _coach_avg_imp=max(0.0, min(6.0, _coach_avg_imp))
+
         def _depth_loss(pos, ovr, team, roster_df, is_starter, is_senior=False):
-            """Loss severity based on OVR gap to best backup.
-            Seniors score lower — planned departure, full recruiting cycle to replace.
-            NFL/Transfer starters score higher — unplanned, harder to replace.
+            """Loss severity = f(OVR gap to best backup, adjusted for projected development).
+            For seniors: the backup has a full offseason to develop before stepping in.
+            For NFL/Transfer: the gap is immediate with no development window.
+            The coach's historical avg improvement rate reduces the effective gap for seniors.
             """
             if not is_starter:
                 return 0.15 if is_senior else 0.25
             backup=best_backup_ovr(pos,ovr,team,roster_df)
-            gap=max(0.0, float(ovr)-float(backup))
+            raw_gap=max(0.0, float(ovr)-float(backup))
             if is_senior:
-                # Seniors: 0.35–1.0pts per starter. Large gap = 1pt, small gap = 0.35pt.
-                return round(max(0.35, min(1.0, 0.35 + gap * 0.065)), 2)
-            # NFL/Transfer: 0.6–3.0pts per starter
-            return round(max(0.6, min(3.0, 0.6 + gap * 0.12)), 2)
+                # Project backup OVR after one offseason of development
+                # Use coach's proven avg improvement; cap at closing 60% of gap
+                _projected_gain=min(_coach_avg_imp, raw_gap * 0.6)
+                effective_gap=max(0.0, raw_gap - _projected_gain)
+                # Seniors: 0.3–1.0pts. A small effective gap = easily replaced.
+                return round(max(0.3, min(1.0, 0.3 + effective_gap * 0.06)), 2)
+            # NFL/Transfer: immediate gap, no development window
+            # 0.6–3.0pts per starter
+            return round(max(0.6, min(3.0, 0.6 + raw_gap * 0.12)), 2)
 
         for _,dr in team_draft.iterrows():
             rnd=int(safe_num(dr.get('DraftRound',8),8))
