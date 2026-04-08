@@ -1582,7 +1582,7 @@ def compute_attrition_ratings(year=None):
                     if is_start_s: _sadd=1.5; _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) -- Sr Graduating (Starter)'
                     else: _sadd=0.5; _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) -- Sr Graduating (Backup)'
                     pts+=_sadd
-                    breakdown.append({'type':'senior','label':_slbl,'pts':_sadd,'player':_sr_nm,'pos':_sr_pos,'ovr':_sr_ovr})
+                    breakdown.append({'type':'senior','label':_slbl,'pts':_sadd,'player':_sr_nm,'pos':_sr_pos,'ovr':_sr_ovr,'is_starter':is_start_s})
         except: pass
 
         # NFL draft losses
@@ -3733,6 +3733,147 @@ def render_natty_dna():
 </div>""", unsafe_allow_html=True)
     except Exception as e:
         st.caption(f"Natty DNA unavailable: {e}")
+
+    # ── Natty Ring → NFL Pipeline ─────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("💍 Natty Ring to NFL Pipeline")
+    st.caption("Players who won a natty ring and later made it to the NFL. Freshman who wins in 2041 and gets drafted in 2044 counts.")
+    try:
+        _pipe_draft=pd.read_csv('cfb_draft_results.csv') if os.path.exists('cfb_draft_results.csv') else pd.DataFrame()
+        _pipe_champs=pd.read_csv('champs.csv') if os.path.exists('champs.csv') else pd.DataFrame()
+        if not _pipe_draft.empty and not _pipe_champs.empty:
+            _pipe_champs.columns=[str(c).strip() for c in _pipe_champs.columns]
+            _pipe_draft.columns=[str(c).strip() for c in _pipe_draft.columns]
+            _pc_yr=next((c for c in _pipe_champs.columns if 'YEAR' in c.upper() or c.upper()=='SEASON'),None)
+            _pc_tm=next((c for c in _pipe_champs.columns if 'TEAM' in c.upper() and 'USER' not in c.upper()),None)
+            _pc_us=next((c for c in _pipe_champs.columns if 'USER' in c.upper()),None)
+            _pd_tc=next((c for c in _pipe_draft.columns if c in ('CollegeTeam','Team','TEAM')),None)
+            if _pc_yr and _pd_tc:
+                _pipe_champs[_pc_yr]=pd.to_numeric(_pipe_champs[_pc_yr],errors='coerce')
+                _pipe_draft['DraftYear']=pd.to_numeric(_pipe_draft['DraftYear'],errors='coerce')
+                _pipe_draft['DraftRound']=pd.to_numeric(_pipe_draft['DraftRound'],errors='coerce')
+                _pipeline={}
+                for _pu2,_tm2 in USER_TEAMS.items():
+                    _match_col=_pc_tm if _pc_tm else _pc_us
+                    _match_val=_tm2 if _pc_tm else _pu2
+                    _team_natty_yrs=sorted(_pipe_champs[_pipe_champs[_match_col].astype(str).str.strip()==_match_val][_pc_yr].dropna().astype(int).tolist())
+                    _nfl_ring=[]
+                    for _ny2 in _team_natty_yrs:
+                        _picks=_pipe_draft[(_pipe_draft[_pd_tc].astype(str).str.strip()==_tm2)&(_pipe_draft['DraftYear']>=_ny2)]
+                        for _,_pk in _picks.iterrows():
+                            _nfl_ring.append({'player':str(_pk.get('Player','?')),'rnd':int(_pk.get('DraftRound',8) or 8)})
+                    _pipeline[_pu2]={'team':_tm2,'count':len(_nfl_ring),'rd1':sum(1 for p in _nfl_ring if p['rnd']==1)}
+                _pipe_sorted=sorted(_pipeline.items(),key=lambda x:-x[1]['count'])
+                _pipe_html=""
+                for _pi,(_pu3,_pd3) in enumerate(_pipe_sorted):
+                    _ptm=_pd3['team']; _ppc=get_team_primary_color(_ptm)
+                    _plg=get_school_logo_src(_ptm)
+                    _plh=f"<img src='{_plg}' style='width:24px;height:24px;object-fit:contain;'/>" if _plg else ""
+                    _rk_c=('#fbbf24' if _pi==0 else ('#94a3b8' if _pi==1 else ('#cd7f32' if _pi==2 else '#475569')))
+                    _pipe_html+=(f"<tr style='border-bottom:1px solid #0f172a;background:{_ppc}12;'>"
+                        f"<td style='padding:6px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:1rem;color:{_rk_c};'>#{_pi+1}</td>"
+                        f"<td style='padding:6px 8px;'>{_plh}<span style='font-weight:900;color:{_ppc};font-family:Barlow Condensed,sans-serif;font-size:.9rem;margin-left:4px;'>{html.escape(_ptm)}</span></td>"
+                        f"<td style='padding:6px 8px;text-align:center;color:#64748b;font-size:.72rem;'>{html.escape(_pu3)}</td>"
+                        f"<td style='padding:6px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#4ade80;'>{_pd3['count']}</td>"
+                        f"<td style='padding:6px 8px;text-align:center;font-size:.8rem;color:#fbbf24;font-weight:700;'>{_pd3['rd1']}</td>"
+                        f"</tr>")
+                st.markdown(
+                    "<div style='overflow-x:auto;border:1px solid #334155;border-radius:12px;background:#060a11;'>"
+                    "<table style='width:100%;border-collapse:collapse;'><thead><tr style='background:#111827;border-bottom:2px solid #1e293b;'>"
+                    "<th style='padding:6px 8px;color:#475569;font-size:.6rem;'>#</th>"
+                    "<th style='padding:6px 8px;color:#94a3b8;font-size:.6rem;text-align:left;'>Program</th>"
+                    "<th style='padding:6px 8px;color:#475569;font-size:.6rem;'>Coach</th>"
+                    "<th style='padding:6px 8px;color:#4ade80;font-size:.6rem;'>Ringers→NFL</th>"
+                    "<th style='padding:6px 8px;color:#fbbf24;font-size:.6rem;'>1st Rd</th>"
+                    f"</tr></thead><tbody>{_pipe_html}</tbody></table></div>",
+                    unsafe_allow_html=True)
+    except Exception as _pe:
+        st.caption(f"Pipeline leaderboard unavailable: {_pe}")
+
+    # ── Fastest Natty Offense & Defense ──────────────────────────────────────
+    st.markdown("---")
+    st.subheader("⚡ Fastest Natty Offense & Defense")
+    st.caption("Avg SPD+ACC+AGI+COD of starters on each championship team. Offense: QB/HB/WR/TE. Defense: CB/FS/SS/LB/LEDG/REDG.")
+    try:
+        _nat_champs2=pd.read_csv('champs.csv') if os.path.exists('champs.csv') else pd.DataFrame()
+        if not _nat_champs2.empty:
+            _nat_champs2.columns=[str(c).strip() for c in _nat_champs2.columns]
+            _nat_yr_c=next((c for c in _nat_champs2.columns if 'YEAR' in c.upper()),None)
+            _nat_tm_c=next((c for c in _nat_champs2.columns if 'TEAM' in c.upper() and 'USER' not in c.upper()),None)
+            _nat_us_c=next((c for c in _nat_champs2.columns if 'USER' in c.upper()),None)
+            _OFF_POS={'QB','HB','WR','TE'}
+            _DEF_POS={'CB','FS','SS','MLB','OLB','WILL','SAM','LEDG','REDG','DE','LB'}
+            _speed_attrs=['SPD','ACC','AGI','COD']
+            _nat_off_rows=[]; _nat_def_rows=[]
+            for _,_ncr in _nat_champs2.iterrows():
+                try:
+                    _nyr=int(pd.to_numeric(_ncr.get(_nat_yr_c,0),errors='coerce') or 0)
+                    _ntm=str(_ncr.get(_nat_tm_c,'')).strip() if _nat_tm_c else ''
+                    _nus=str(_ncr.get(_nat_us_c,'')).strip() if _nat_us_c else ''
+                    _nrf=f'cfb_136_top30_rosters_{_nyr}.csv'
+                    _nr=pd.DataFrame()
+                    if os.path.exists(_nrf): _nr=pd.read_csv(_nrf)
+                    elif os.path.exists('cfb26_rosters_full.csv'):
+                        _r2=pd.read_csv('cfb26_rosters_full.csv'); _r2.columns=[str(c).strip() for c in _r2.columns]
+                        _yc2=next((c for c in _r2.columns if c.upper() in ('YEAR','SEASON')),None)
+                        if _yc2: _nr=_r2[pd.to_numeric(_r2[_yc2],errors='coerce').fillna(-1).astype(int)==_nyr]
+                    if _nr.empty: continue
+                    _nr.columns=[str(c).strip() for c in _nr.columns]
+                    _tc3=next((c for c in _nr.columns if c.upper()=='TEAM'),None)
+                    _pc3=next((c for c in _nr.columns if c.upper()=='POS'),None)
+                    if not _tc3 or not _pc3: continue
+                    _nr[_tc3]=_nr[_tc3].astype(str).str.strip()
+                    _lookup_tm=_ntm if _ntm and _ntm in _nr[_tc3].values else USER_TEAMS.get(_nus.title(),'')
+                    _tm_ros=_nr[_nr[_tc3]==_lookup_tm].copy() if _lookup_tm else pd.DataFrame()
+                    if _tm_ros.empty: continue
+                    _tm_ros['OVR']=pd.to_numeric(_tm_ros.get('OVR',0),errors='coerce').fillna(0)
+                    for _sa in _speed_attrs:
+                        if _sa in _tm_ros.columns: _tm_ros[_sa]=pd.to_numeric(_tm_ros[_sa],errors='coerce').fillna(0)
+                    _tm_ros['_pos']=_tm_ros[_pc3].astype(str).str.upper().str.strip()
+                    def _get_speed_avg(grp_df,pos_set):
+                        _starters=[]
+                        for _p3 in pos_set:
+                            _slots=STARTER_SLOTS.get(_p3,1)
+                            _pg=grp_df[grp_df['_pos']==_p3].nlargest(_slots,'OVR')
+                            if not _pg.empty: _starters.append(_pg)
+                        if not _starters: return 0.0
+                        _st_df=pd.concat(_starters)
+                        _avail=[a for a in _speed_attrs if a in _st_df.columns]
+                        return round(float(_st_df[_avail].values.mean()),1) if _avail else 0.0
+                    _off_spd=_get_speed_avg(_tm_ros,_OFF_POS); _def_spd=_get_speed_avg(_tm_ros,_DEF_POS)
+                    _disp_tm=_lookup_tm or _nus
+                    _nat_off_rows.append({'team':_disp_tm,'year':_nyr,'avg_spd':_off_spd})
+                    _nat_def_rows.append({'team':_disp_tm,'year':_nyr,'avg_spd':_def_spd})
+                except: continue
+            def _render_speed_lb(rows,title,color):
+                if not rows: st.info(f"No data for {title}."); return
+                _sorted_r=sorted(rows,key=lambda r:-r['avg_spd'])
+                _shtml=""
+                for _si,_sr in enumerate(_sorted_r):
+                    _spc=get_team_primary_color(_sr['team']); _slg=get_school_logo_src(_sr['team'])
+                    _slh=f"<img src='{_slg}' style='width:20px;height:20px;object-fit:contain;'/>" if _slg else ""
+                    _yr_s=f"'{str(_sr['year'])[-2:]}"
+                    _rk_c2=('#fbbf24' if _si==0 else ('#94a3b8' if _si==1 else ('#cd7f32' if _si==2 else '#475569')))
+                    _shtml+=(f"<tr style='border-bottom:1px solid #0f172a;background:{_spc}12;'>"
+                        f"<td style='padding:5px 7px;color:{_rk_c2};font-family:Bebas Neue,sans-serif;font-size:.95rem;text-align:center;'>#{_si+1}</td>"
+                        f"<td style='padding:5px 7px;'>{_slh}<span style='font-weight:800;color:{_spc};font-family:Barlow Condensed,sans-serif;font-size:.85rem;margin-left:4px;'>{html.escape(_sr['team'])}</span></td>"
+                        f"<td style='padding:5px 7px;text-align:center;color:#64748b;font-size:.68rem;'>{html.escape(_yr_s)}</td>"
+                        f"<td style='padding:5px 7px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:1.05rem;color:{color};'>{_sr['avg_spd']:.1f}</td>"
+                        f"</tr>")
+                st.markdown(
+                    f"<div style='border:1px solid #1e293b;border-radius:10px;overflow:hidden;background:#0a1220;'>"
+                    f"<table style='width:100%;border-collapse:collapse;'><thead><tr style='background:#06090f;border-bottom:2px solid #1e293b;'>"
+                    f"<th style='padding:5px 7px;color:#475569;font-size:.58rem;'>#</th>"
+                    f"<th style='padding:5px 7px;color:#94a3b8;font-size:.58rem;text-align:left;'>{html.escape(title)}</th>"
+                    f"<th style='padding:5px 7px;color:#475569;font-size:.58rem;'>Year</th>"
+                    f"<th style='padding:5px 7px;color:{color};font-size:.58rem;'>Avg Speed</th>"
+                    f"</tr></thead><tbody>{_shtml}</tbody></table></div>",
+                    unsafe_allow_html=True)
+            _nc1,_nc2=st.columns(2)
+            with _nc1: _render_speed_lb(_nat_off_rows,"Fastest Natty Offense","#fbbf24")
+            with _nc2: _render_speed_lb(_nat_def_rows,"Fastest Natty Defense","#38bdf8")
+    except Exception as _nse:
+        st.caption(f"Speed leaderboard unavailable: {_nse}")
 
 # ── ROSTER ATTRITION TAB ──────────────────────────────────────────────────────
 def render_roster_attrition_tab():
@@ -6143,6 +6284,75 @@ with tabs[1]:
             except Exception as _tde:
                 st.caption(f"Talent Development unavailable: {_tde}")
 
+            # ── Per-Team Breakdown ─────────────────────────────────────────
+            st.markdown("---")
+            st.subheader("🏟️ Team Talent Tracker")
+            st.caption("Select a team to see roster OVR progression across all available seasons.")
+            try:
+                _tt_team=st.selectbox("Select team",sorted(ALL_USER_TEAMS),key="tt_team_sel")
+                _tt_all=[]
+                for _yr3 in sorted(_td_years):
+                    try:
+                        _rr3=_load_roster_for_year(_yr3)
+                        if _rr3.empty: continue
+                        _rr3.columns=[str(c).strip() for c in _rr3.columns]
+                        _tc4=next((c for c in _rr3.columns if c.upper()=='TEAM'),'TEAM')
+                        if _tc4!='TEAM': _rr3.rename(columns={_tc4:'TEAM'},inplace=True)
+                        _nc4=next((c for c in _rr3.columns if c.upper() in ('NAME','PLAYER')),'NAME')
+                        if _nc4!='NAME': _rr3.rename(columns={_nc4:'NAME'},inplace=True)
+                        _pc4=next((c for c in _rr3.columns if c.upper()=='POS'),'POS')
+                        if _pc4!='POS': _rr3.rename(columns={_pc4:'POS'},inplace=True)
+                        _rr3['OVR']=pd.to_numeric(_rr3.get('OVR',0),errors='coerce').fillna(0)
+                        _rr3=_rr3[_rr3['TEAM']==_tt_team].copy()
+                        if _rr3.empty: continue
+                        _rr3['_yr']=_yr3
+                        _tt_all.append(_rr3[['NAME','POS','OVR','_yr']])
+                    except: pass
+                if len(_tt_all)<2:
+                    st.info(f"Need at least 2 seasons of data for {_tt_team}.")
+                else:
+                    _tt_df=pd.concat(_tt_all,ignore_index=True)
+                    _tt_years=sorted(_tt_df['_yr'].unique())
+                    _multi=_tt_df.groupby('NAME').filter(lambda g: g['_yr'].nunique()>=2)
+                    if _multi.empty:
+                        st.info("No players tracked across multiple seasons yet.")
+                    else:
+                        _pivot=_multi.pivot_table(index=['NAME','POS'],columns='_yr',values='OVR',aggfunc='max').reset_index()
+                        _pivot.columns=[str(c) for c in _pivot.columns]
+                        _yr_cols=[c for c in _pivot.columns if c.isdigit()]
+                        if len(_yr_cols)>=2:
+                            _pivot['Career Δ']=(_pivot[_yr_cols[-1]]-_pivot[_yr_cols[0]]).round(1)
+                        _pivot=_pivot.sort_values('Career Δ',ascending=False) if 'Career Δ' in _pivot.columns else _pivot
+                        _tt_html=""
+                        _tc5=get_team_primary_color(_tt_team)
+                        for _,_tr4 in _pivot.head(20).iterrows():
+                            _tnm2=str(_tr4.get('NAME','?')); _tpo2=str(_tr4.get('POS','?'))
+                            _td2=float(_tr4.get('Career Δ',0) or 0)
+                            _td_c='#4ade80' if _td2>0 else ('#f87171' if _td2<0 else '#94a3b8')
+                            _yr_cells=""
+                            for _yc2 in _yr_cols:
+                                _ov=_tr4.get(_yc2)
+                                _ovs=str(int(_ov)) if pd.notna(_ov) and _ov!=0 else '--'
+                                _yr_cells+=f"<td style='padding:4px 6px;text-align:center;color:#94a3b8;font-size:.75rem;'>{_ovs}</td>"
+                            _tt_html+=(f"<tr style='border-bottom:1px solid #0f172a;background:{_tc5}10;'>"
+                                f"<td style='padding:4px 8px;'><span style='font-weight:800;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.85rem;'>{html.escape(_tnm2)}</span></td>"
+                                f"<td style='padding:4px 6px;'><span style='background:{_tc5}33;color:{_tc5};border-radius:3px;padding:1px 5px;font-size:.6rem;font-weight:700;'>{_tpo2}</span></td>"
+                                +_yr_cells
+                                +f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{_td_c};'>{'+' if _td2>0 else ''}{_td2:.0f}</td>"
+                                f"</tr>")
+                        _yr_headers="".join(f"<th style='padding:5px 6px;color:#60a5fa;font-size:.6rem;'>{_yc3}</th>" for _yc3 in _yr_cols)
+                        st.markdown(
+                            f"<div style='overflow-x:auto;border:1px solid {_tc5}44;border-radius:10px;background:#0a1220;'>"
+                            f"<table style='width:100%;border-collapse:collapse;'><thead><tr style='background:#06090f;border-bottom:2px solid #1e293b;'>"
+                            f"<th style='padding:5px 8px;color:#94a3b8;font-size:.6rem;text-align:left;'>Player</th>"
+                            f"<th style='padding:5px 6px;color:#475569;font-size:.6rem;'>Pos</th>"
+                            +_yr_headers+
+                            f"<th style='padding:5px 6px;color:#4ade80;font-size:.6rem;'>Δ</th>"
+                            f"</tr></thead><tbody>{_tt_html}</tbody></table></div>",
+                            unsafe_allow_html=True)
+            except Exception as _tte:
+                st.caption(f"Team tracker unavailable: {_tte}")
+
         with _met_tabs[7]:
             st.header("📊 Dynasty Analytics")
             st.caption("Signature stats from Game Control, Explosive Index, and Beatdown Reality.")
@@ -6267,25 +6477,62 @@ with tabs[1]:
                 except Exception as _qe:
                     st.caption(f"Q scoring unavailable: {_qe}")
                 st.markdown("---")
-                st.subheader(f"📋 {_da_yr_sel} Full Breakdown")
-                _stat_rows=[]
-                for _du in USER_TEAMS:
-                    _row={'Coach':_du}
-                    if not _gc_yr.empty and 'game_control_score' in _gc_yr.columns:
-                        _ug=_gc_yr[_gc_yr['USER']==_du]
-                        _row['Avg GC']=f"{_ug['game_control_score'].mean():.1f}" if not _ug.empty else '--'
-                        _row['Dom Wins']=int((_ug['game_control_score']>=80).sum()) if not _ug.empty else 0
-                    if not _ei_yr.empty and 'off_explosive_index' in _ei_yr.columns:
-                        _ue=_ei_yr[_ei_yr['USER']==_du]
-                        _row['Avg EI']=f"{_ue['off_explosive_index'].mean():.1f}" if not _ue.empty else '--'
-                        _row['Nukes']=int(_ue['aerial_nuke_flag'].sum()) if not _ue.empty and 'aerial_nuke_flag' in _ue.columns else 0
-                    if not _brc_yr.empty and 'beatdown_reality_score' in _brc_yr.columns:
-                        _ub=_brc_yr[_brc_yr['USER']==_du]
-                        _row['Avg BRC']=f"{_ub['beatdown_reality_score'].mean():.1f}" if not _ub.empty else '--'
-                        _row['Shaky W']=int(_ub['win_was_shakier_than_score_flag'].sum()) if not _ub.empty and 'win_was_shakier_than_score_flag' in _ub.columns else 0
-                    _stat_rows.append(_row)
-                if _stat_rows:
-                    st.dataframe(pd.DataFrame(_stat_rows).set_index('Coach'),use_container_width=True)
+                st.subheader("👊 Belt to Ass: Top 5 Blowouts")
+                st.caption("Highest Game Control scores in W games this season. Pure dominance on the field.")
+                try:
+                    _gc_bta=_da_gc.copy() if not _da_gc.empty else pd.DataFrame()
+                    _gs_bta=pd.read_csv('game_summaries.csv') if os.path.exists('game_summaries.csv') else pd.DataFrame()
+                    if not _gc_bta.empty and 'game_control_score' in _gc_bta.columns:
+                        _gc_bta['YEAR']=pd.to_numeric(_gc_bta['YEAR'],errors='coerce')
+                        _gc_bta['WEEK']=pd.to_numeric(_gc_bta['WEEK'],errors='coerce')
+                        _gc_bta['game_control_score']=pd.to_numeric(_gc_bta['game_control_score'],errors='coerce')
+                        _gc_bta['RESULT']=_gc_bta['RESULT'].astype(str).str.strip()
+                        _gc_bta['USER']=_gc_bta['USER'].astype(str).str.strip()
+                        _gc_yr2=_gc_bta[_gc_bta['YEAR'].fillna(-1).astype(int)==_da_yr_sel]
+                        _gc_w=_gc_yr2[_gc_yr2['RESULT']=='W'].nlargest(5,'game_control_score')
+                        if _gc_w.empty:
+                            st.info("No game control data yet for this season.")
+                        else:
+                            _medals_bta={0:'🥇',1:'🥈',2:'🥉'}
+                            for _bi,(_,_br) in enumerate(_gc_w.iterrows()):
+                                _buser=str(_br.get('USER','')); _bteam=str(_br.get('TEAM',''))
+                                _bopp=str(_br.get('OPPONENT','?')); _bwk=int(_br.get('WEEK',0) or 0)
+                                _bgc=float(_br.get('game_control_score',0))
+                                _bpc=get_team_primary_color(_bteam); _blg=get_school_logo_src(_bteam)
+                                _blh=f"<img src='{_blg}' style='width:28px;height:28px;object-fit:contain;'/>" if _blg else ""
+                                _score_txt=""
+                                try:
+                                    if not _gs_bta.empty:
+                                        _gs_bta2=_gs_bta.copy()
+                                        _gs_bta2['YEAR']=pd.to_numeric(_gs_bta2['YEAR'],errors='coerce')
+                                        _gs_bta2['WEEK']=pd.to_numeric(_gs_bta2['WEEK'],errors='coerce')
+                                        _gs_m=_gs_bta2[(_gs_bta2['YEAR'].fillna(-1).astype(int)==_da_yr_sel)&(_gs_bta2['WEEK'].fillna(-1).astype(int)==_bwk)&((_gs_bta2['VIS_USER'].astype(str).str.strip()==_buser)|(_gs_bta2['HOME_USER'].astype(str).str.strip()==_buser))]
+                                        if not _gs_m.empty:
+                                            _gr=_gs_m.iloc[0]
+                                            _vf=int(float(_gr.get('VIS_FINAL',0) or 0)); _hf=int(float(_gr.get('HOME_FINAL',0) or 0))
+                                            _score_txt=f" · {_vf}–{_hf}"
+                                except: pass
+                                _gc_tier='🔥 COMMANDING' if _bgc>=80 else ('💪 DOMINANT' if _bgc>=65 else '📊 CONTROLLED')
+                                st.markdown(
+                                    f"<div style='background:linear-gradient(90deg,{_bpc}22 0%,#06090f 50%);border:1px solid {_bpc}44;"
+                                    f"border-left:4px solid {_bpc};border-radius:10px;padding:10px 14px;margin-bottom:5px;'>"
+                                    f"<div style='display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                                    f"<div style='display:flex;align-items:center;gap:8px;'>"
+                                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.2rem;color:#fbbf24;'>{_medals_bta.get(_bi,f'#{_bi+1}')}</span>"
+                                    f"{_blh}"
+                                    f"<div><div style='font-weight:900;color:{_bpc};font-family:Barlow Condensed,sans-serif;font-size:.95rem;'>{html.escape(_bteam)}</div>"
+                                    f"<div style='font-size:.62rem;color:#64748b;'>Wk {_bwk} vs {html.escape(_bopp)}{_score_txt}</div></div>"
+                                    f"</div>"
+                                    f"<div style='text-align:right;'>"
+                                    f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.6rem;color:#f97316;line-height:1;'>{_bgc:.1f}</div>"
+                                    f"<div style='font-size:.55rem;color:#475569;letter-spacing:.06em;'>GAME CONTROL</div>"
+                                    f"<div style='font-size:.6rem;color:#f97316;font-weight:700;'>{_gc_tier}</div>"
+                                    f"</div></div></div>",
+                                    unsafe_allow_html=True)
+                    else:
+                        st.info("Push game_control_by_game_v3.csv to enable Belt to Ass.")
+                except Exception as _btae:
+                    st.caption(f"Belt to Ass unavailable: {_btae}")
                 # ── Game Summaries Box Score Section ─────────────────────────────
                 st.markdown("---")
                 st.subheader("🎮 Box Score Theater")
