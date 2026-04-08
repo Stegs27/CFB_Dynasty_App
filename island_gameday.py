@@ -4001,7 +4001,7 @@ def render_roster_attrition_tab():
         _bdown=", ".join(_bp) if _bp else "No confirmed departures yet"
         _in_count=len(_team_inc)
         _avg_star=int(round(_team_inc['StarRating'].mean())) if _in_count>0 and 'StarRating' in _team_inc.columns else 0
-        # Class rank from recruiting_class_history_all.csv
+        # Class rank from recruiting_class_history_all.csv (long format: Year/Team/Rank/ClassType)
         _class_rank_str=''; _class_rank_num=0
         try:
             _rcl=pd.read_csv('recruiting_class_history_all.csv') if os.path.exists('recruiting_class_history_all.csv') else pd.DataFrame()
@@ -4009,17 +4009,39 @@ def render_roster_attrition_tab():
                 _rcl.columns=[str(c).strip() for c in _rcl.columns]
                 _yr_rc=next((c for c in _rcl.columns if c.upper() in ('YEAR','SEASON')),None)
                 _tm_rc=next((c for c in _rcl.columns if c.upper() in ('TEAM','SCHOOL')),None)
-                _rk_rc=next((c for c in _rcl.columns if 'OVERALL' in c.upper() or c.upper()=='RANK'),None)
+                _rk_rc=next((c for c in _rcl.columns if c.upper()=='RANK'),None)
+                _ct_rc=next((c for c in _rcl.columns if c.upper() in ('CLASSTYPE','CLASS_TYPE','TYPE')),None)
                 if _yr_rc and _tm_rc and _rk_rc:
                     _rcl[_yr_rc]=pd.to_numeric(_rcl[_yr_rc],errors='coerce')
                     _rcl[_rk_rc]=pd.to_numeric(_rcl[_rk_rc].astype(str).str.replace(',',''),errors='coerce')
                     _rcl_team=_rcl[(_rcl[_yr_rc].fillna(-1).astype(int)==target_year)&(_rcl[_tm_rc].astype(str).str.strip()==team)]
                     if not _rcl_team.empty:
-                        _class_rank_num=int(_rcl_team.iloc[0][_rk_rc] or 0)
+                        def _get_rank(cls_type):
+                            if _ct_rc:
+                                _r=_rcl_team[_rcl_team[_ct_rc].astype(str).str.upper()==cls_type.upper()]
+                                return int(_r.iloc[0][_rk_rc]) if not _r.empty and pd.notna(_r.iloc[0][_rk_rc]) else 0
+                            elif cls_type.upper()=='OVERALL': return int(_rcl_team.iloc[0][_rk_rc] or 0)
+                            return 0
+                        _class_rank_num=_get_rank('OVERALL')
+                        _hs_rank=_get_rank('HS')
+                        _xf_rank=_get_rank('TRANSFER')
                         # Count 4+5 stars
-                        _4star=len(_team_inc[_team_inc.get('StarRating',pd.Series([0]*len(_team_inc)))>=4]) if _in_count>0 and 'StarRating' in _team_inc.columns else 0
-                        _class_rank_str=f' · #{_class_rank_num} class · {_4star} elite recruits' if _class_rank_num>0 else ''
+                        _4star=int((_team_inc['StarRating']>=4).sum()) if _in_count>0 and 'StarRating' in _team_inc.columns else 0
+                        _parts=[]
+                        if _class_rank_num>0: _parts.append(f"Overall: #{_class_rank_num}")
+                        if _hs_rank>0: _parts.append(f"HS: #{_hs_rank}")
+                        if _xf_rank>0: _parts.append(f"Transfer: #{_xf_rank}")
+                        if _4star>0: _parts.append(f"{_4star} elite recruits")
+                        _class_rank_str=' · '+' · '.join(_parts) if _parts else ''
         except: pass
+        # Override gain_label with class rank if we have it
+        if _class_rank_num>0:
+            _4s=_4star if '_4star' in dir() else 0
+            if _class_rank_num<=15: d['gain_label']=f"🌟 Elite class incoming (#{_class_rank_num} overall · {_4s} elite recruits)"
+            elif _class_rank_num<=25: d['gain_label']=f"💪 Strong class incoming (#{_class_rank_num} overall · {_4s} elite recruits)"
+            elif _class_rank_num<=40: d['gain_label']=f"📋 Solid class incoming (#{_class_rank_num} overall · {_4s} elite recruits)"
+            elif _class_rank_num<=60: d['gain_label']=f"📋 Decent class incoming (#{_class_rank_num} overall · {_4s} elite recruits)"
+            else: d['gain_label']=f"⚠️ Weak class (#{_class_rank_num} overall · {_4s} elite recruits)"
         # Gain block color: green=top15, blue-green=16-30, yellow=31-50, red=51+
         if _class_rank_num>0 and _class_rank_num<=15: _gain_bg='#052e16'; _gain_brd='#4ade8066'; _gain_fc='#4ade80'
         elif _class_rank_num>0 and _class_rank_num<=30: _gain_bg='#042f2e'; _gain_brd='#2dd4bf66'; _gain_fc='#2dd4bf'
@@ -4060,7 +4082,7 @@ def render_roster_attrition_tab():
             _seen_players=set()
             _dept=[b for b in _dept_raw if b.get('player','?').lower() not in _seen_players and not _seen_players.add(b.get('player','?').lower())]
             if _dept:
-                _dept_starters=[b for b in _dept if b.get('is_starter') is True]
+                _dept_starters=[b for b in _dept if b.get('is_starter',True)]
                 _dept_label=f"📋 Departures ({len(_dept)}, {len(_dept_starters)} starters)"
                 with st.expander(_dept_label):
                     for _bd in sorted(_dept,key=lambda x:-x.get('ovr',0)):
@@ -4121,11 +4143,11 @@ def render_roster_attrition_tab():
     # ── DETAIL TABS ──────────────────────────────────────────────────
     # For upcoming year only seniors tab shown; others not yet available
     if target_year==CURRENT_YEAR+1:
-        _at_tabs=st.tabs(["🎓 Departing Seniors","🎯 Incoming Recruits"])
-        _tab_nfl=None; _tab_xfer=None; _tab_sr=0; _tab_inc=1
+        _at_tabs=st.tabs(["🎓 Departing Seniors","🎯 Incoming Recruits","📊 Attrition Analytics"])
+        _tab_nfl=None; _tab_xfer=None; _tab_sr=0; _tab_inc=1; _tab_ana=2
     else:
-        _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors","🎯 Incoming Recruits"])
-        _tab_nfl=0; _tab_xfer=1; _tab_sr=2; _tab_inc=3
+        _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors","🎯 Incoming Recruits","📊 Attrition Analytics"])
+        _tab_nfl=0; _tab_xfer=1; _tab_sr=2; _tab_inc=3; _tab_ana=4
     if _tab_nfl is not None:
      with _at_tabs[_tab_nfl]:
         st.subheader(f"🏈 {target_year} NFL Draft Exits")
