@@ -1425,7 +1425,7 @@ def render_speed_freaks_table(df, show_n=25):
     with c3:
         show_all=st.checkbox("Show all",key="sf_show_all")
     with c4:
-        _sf_user_only=st.checkbox("Users only",value=True,key="sf_user_only")
+        _sf_user_only=st.checkbox("Users only",value=False,key="sf_user_only")
     _df_sort=df.sort_values(_sf_sort_key,ascending=_sf_sort_key=="RANK").reset_index(drop=True)
     if _sf_user_only: _df_sort=_df_sort[_df_sort["IS_USER"]]
     display=_df_sort if show_all else _df_sort.head(show_n)
@@ -2524,7 +2524,8 @@ def render_game_cards_with_boxscore(year, week, model_df):
         gl_uri=image_file_to_data_uri(get_logo_source(team))
         matchup=_user_matchup.get(user,'UNSCHEDULED')
         has_score=(isinstance(matchup,dict) and matchup.get('score'))
-        is_ready=_game_status_map.get(user,'')=='Ready' or has_score
+        _man_g=_manual_score_map.get(user,{}); _has_manual=(_man_g.get('user_score',0)>0 or _man_g.get('opp_score',0)>0)
+        is_ready=_game_status_map.get(user,'')=='Ready' or has_score or _has_manual
         tc_lower=team.lower()
         is_cfp_alive=tc_lower in official_cfp_teams and tc_lower not in eliminated_teams and len(official_cfp_teams)>0
         is_elim=tc_lower in eliminated_teams
@@ -2536,7 +2537,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
         elif is_ready:
             sq_bg=f'linear-gradient(135deg,{tc}28 0%,#0a0d14 100%)'; sq_bdr=tc
             glow=f'box-shadow:0 0 14px {tc}88;'; lbl_col=tc; lf=f'drop-shadow(0 0 4px {tc}88)'
-            dot=f"<span style='width:7px;height:7px;border-radius:50%;background:{tc};box-shadow:0 0 6px {tc};display:inline-block;margin-bottom:2px;'></span>"
+            dot="<span style='width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade80;display:inline-block;margin-bottom:2px;'></span>"
         elif is_elim:
             sq_bg='linear-gradient(135deg,#0d1117 0%,#080d14 100%)'; sq_bdr='#374151'
             glow='box-shadow:0 2px 6px rgba(0,0,0,.5);'; lbl_col='#4b5563'; lf='grayscale(100%) opacity(.35)'
@@ -2900,7 +2901,7 @@ def render_injury_report():
         else:
             _inj_u['WeeksRemaining']=_inj_u['WeeksOut'].astype(int)
         # Only show active (not yet recovered)
-        _inj_u=_inj_u[_inj_u['WeeksRemaining']>0].sort_values('OVR',ascending=False)
+        _inj_u=_inj_u[_inj_u['WeeksRemaining']>0].sort_values(['Team','WeeksRemaining'],ascending=[True,False])
         if _inj_u.empty:
             st.info("No active injuries in the current season."); return
         st.caption(f"{CURRENT_YEAR} season -- {len(_inj_u)} active injury report entries")
@@ -2920,23 +2921,28 @@ def render_injury_report():
             wks_c="#f87171" if wks_rem>=6 else ("#f97316" if wks_rem>=3 else "#fbbf24")
             starter_chip='<span style="background:#fbbf2420;color:#fbbf24;border-radius:3px;padding:1px 5px;font-size:.58rem;margin-left:2px;">STARTER</span>' if is_start.upper()=='YES' else ''
             lg_html=f'<img src="{lg_src}" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px;"/>' if lg_src else ''
+            _inj_badge='🚫 SEASON ENDING' if _season_end else f"{wks_rem} wk{'s' if wks_rem!=1 else ''} remaining"
+            _inj_badge_c='#ef4444' if _season_end else wks_c
+            _team_lbl=html.escape(team) if team else ''
             card_html=(
-                f"<div style='background:linear-gradient(90deg,{primary}12 0%,#06090f 40%);border:1px solid {primary}33;"
-                f"border-left:4px solid {primary};border-radius:8px;padding:10px 14px;margin-bottom:5px;'>"
-                f"<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;'>"
-                f"<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap;'>"
-                f"{lg_html}"
-                f"<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.95rem;'>{html.escape(player)}</span>"
-                f"<span style='background:{primary}33;color:{primary};border-radius:4px;padding:1px 6px;font-size:.62rem;font-weight:700;'>{html.escape(pos)}</span>"
-                f"<span style='color:{ovr_c};font-family:Bebas Neue,sans-serif;font-size:.9rem;'>{ovr} OVR</span>"
-                f"{starter_chip}"
-                f"</div>"
-                f"<div style='display:flex;align-items:center;gap:8px;'>"
-                f"<span style='color:#64748b;font-size:.7rem;'>{html.escape(inj)}</span>"
-                f"<span style='color:{'#ef4444' if _season_end else wks_c};font-size:.72rem;font-weight:700;'>{'🚫 SEASON ENDING' if _season_end else str(wks_rem)+chr(32)+'wk'+('s' if wks_rem!=1 else '')+' remaining'}</span>"
-                f"</div>"
-                f"</div>"
-                f"</div>"
+                f"<div style='background:linear-gradient(135deg,{primary}18 0%,#060a11 50%);border:1px solid {primary}40;"
+                f"border-left:4px solid {primary};border-radius:12px;padding:12px 16px;margin-bottom:6px;'>"
+                f"<div style='display:flex;align-items:center;gap:10px;'>"
+                f"<div style='flex-shrink:0;'>{lg_html}</div>"
+                f"<div style='flex:1;min-width:0;'>"
+                f"<div style='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;'>"
+                f"<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:1.05rem;'>{html.escape(player)}</span>"
+                f"<span style='background:{primary}33;color:{primary};border-radius:4px;padding:1px 7px;font-size:.65rem;font-weight:700;'>{html.escape(pos)}</span>"
+                f"<span style='color:{ovr_c};font-family:Bebas Neue,sans-serif;font-size:1rem;font-weight:900;'>{ovr} OVR</span>"
+                f"{starter_chip}</div>"
+                f"<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap;'>"
+                f"<span style='color:#64748b;font-size:.78rem;font-style:italic;'>{html.escape(inj)}</span>"
+                f"<span style='background:{_inj_badge_c}22;color:{_inj_badge_c};border:1px solid {_inj_badge_c}55;"
+                f"border-radius:5px;padding:2px 8px;font-size:.72rem;font-weight:800;font-family:Barlow Condensed,sans-serif;"
+                f"letter-spacing:.04em;'>{_inj_badge}</span>"
+                f"</div></div>"
+                f"<div style='font-size:.6rem;color:{primary}99;margin-top:2px;text-align:right;font-weight:600;'>{_team_lbl}</div>"
+                f"</div></div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
     except Exception as e:
@@ -3973,9 +3979,8 @@ def render_roster_attrition_tab():
                 _inc_df['Year']=pd.to_numeric(_inc_df.get('Year',0),errors='coerce').fillna(0).astype(int)
                 _inc_df['Team']=_inc_df.get('Team',pd.Series(['']*len(_inc_df))).astype(str).str.strip()
                 _inc_df['StarRating']=pd.to_numeric(_inc_df.get('StarRating',0),errors='coerce').fillna(0).astype(int)
-                # 2044 dropdown maps to 2043 incoming class
-                _inc_yr=CURRENT_YEAR if target_year==CURRENT_YEAR+1 else target_year
-                _inc_show=_inc_df[_inc_df['Year']==_inc_yr].copy()
+                # Use target_year directly — 2043 attrition = 2043 incoming class
+                _inc_show=_inc_df[_inc_df['Year']==target_year].copy()
                 if _inc_show.empty:
                     st.info(f"No incoming recruits data for year {_inc_yr}.")
                 else:
@@ -5312,6 +5317,78 @@ with tabs[1]:
             st.caption(f"CFP Rankings unavailable: {e}")
 
         st.markdown("---")
+        st.subheader("🎯 Projected CFP Field (Top 12)")
+        st.caption("Projected playoff field based on current FPI, CFP rank, and remaining strength of schedule. Auto-selected based on latest data.")
+        try:
+            _pcfp_yr=CURRENT_YEAR; _pcfp_wk=CURRENT_WEEK_NUMBER
+            _pcfp_fpi_f=f'FPI/fpi_ratings_{_pcfp_yr}_wk{_pcfp_wk}.csv'
+            if not os.path.exists(_pcfp_fpi_f): _pcfp_fpi_f=f'fpi_ratings_{_pcfp_yr}_wk{_pcfp_wk}.csv'
+            import glob as _pcfp_glob
+            if not os.path.exists(_pcfp_fpi_f):
+                _fps2=sorted(_pcfp_glob.glob(f'FPI/fpi_ratings_{_pcfp_yr}_wk*.csv')+_pcfp_glob.glob(f'fpi_ratings_{_pcfp_yr}_wk*.csv'),reverse=True)
+                _pcfp_fpi_f=_fps2[0] if _fps2 else ''
+            _pcfp_cfp=pd.read_csv('cfp_rankings_history.csv') if os.path.exists('cfp_rankings_history.csv') else pd.DataFrame()
+            _pcfp_fpi_df=pd.read_csv(_pcfp_fpi_f) if _pcfp_fpi_f and os.path.exists(_pcfp_fpi_f) else pd.DataFrame()
+            if not _pcfp_cfp.empty:
+                _pcfp_cfp['YEAR']=pd.to_numeric(_pcfp_cfp['YEAR'],errors='coerce')
+                _pcfp_cfp['WEEK']=pd.to_numeric(_pcfp_cfp['WEEK'],errors='coerce')
+                _pcfp_cy=_pcfp_cfp[_pcfp_cfp['YEAR']==_pcfp_yr]
+                if not _pcfp_cy.empty:
+                    _pcfp_lw=int(_pcfp_cy['WEEK'].max())
+                    _pcfp_snap=_pcfp_cy[_pcfp_cy['WEEK']==_pcfp_lw].sort_values('RANK').head(25).copy()
+                    _pcfp_snap['TEAM']=_pcfp_snap['TEAM'].astype(str).str.strip()
+                    # Merge FPI scores
+                    if not _pcfp_fpi_df.empty:
+                        _tm_c=next((c for c in _pcfp_fpi_df.columns if c.lower()=='team'),'Team')
+                        _fpi_c=next((c for c in _pcfp_fpi_df.columns if c.upper()=='FPI'),'FPI')
+                        _pcfp_fpi_df[_tm_c]=_pcfp_fpi_df[_tm_c].astype(str).str.strip()
+                        _pcfp_snap=_pcfp_snap.merge(_pcfp_fpi_df[[_tm_c,_fpi_c]].rename(columns={_tm_c:'TEAM',_fpi_c:'FPI'}),on='TEAM',how='left')
+                    else:
+                        _pcfp_snap['FPI']=0.0
+                    _pcfp_snap['FPI']=pd.to_numeric(_pcfp_snap.get('FPI',0),errors='coerce').fillna(0)
+                    _pcfp_snap['RANK']=pd.to_numeric(_pcfp_snap['RANK'],errors='coerce').fillna(99)
+                    # Projection score: weight CFP rank + FPI
+                    # Rank 1=25pts...25=1pt; FPI adds bonus
+                    _pcfp_snap['_rank_pts']=(26-_pcfp_snap['RANK'].clip(upper=25)).clip(lower=0)
+                    _pcfp_snap['_proj_score']=_pcfp_snap['_rank_pts']*2+_pcfp_snap['FPI']
+                    _pcfp_top12=_pcfp_snap.sort_values('_proj_score',ascending=False).head(12).reset_index(drop=True)
+                    # Render as seeded bracket list
+                    _pcfp_cols=st.columns(2)
+                    for _pi,(_,_pr) in enumerate(_pcfp_top12.iterrows()):
+                        _pseed=_pi+1; _ptm=str(_pr['TEAM'])
+                        _pcfp_rk=int(_pr.get('RANK',99)); _pfpi=float(_pr.get('FPI',0))
+                        _pfpi_s=f'{_pfpi:+.1f}'
+                        _puc=get_team_primary_color(_ptm)
+                        _plg=get_school_logo_src(_ptm)
+                        _plh=f"<img src='{_plg}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _plg else ''
+                        _pis_user=_ptm in ALL_USER_TEAMS
+                        _pbg=f"background:linear-gradient(90deg,{_puc}22 0%,#06090f 60%);" if _pis_user else "background:#06090f;"
+                        _pbl=f"border-left:3px solid {_puc};" if _pis_user else "border-left:2px solid #1e293b;"
+                        _pseed_c='#fbbf24' if _pseed<=4 else ('#60a5fa' if _pseed<=8 else '#94a3b8')
+                        _prec=str(_pr.get('RECORD','')).strip()
+                        _pcol=_pcfp_cols[_pi%2]
+                        _pcol.markdown(
+                            f"<div style='{_pbg}{_pbl}border:1px solid #1e293b;border-radius:8px;"
+                            f"padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                            f"<div style='display:flex;align-items:center;gap:6px;'>"
+                            f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:{_pseed_c};min-width:22px;'>#{_pseed}</span>"
+                            f"{_plh}"
+                            f"<span style='font-weight:800;color:{'#f1f5f9' if _pis_user else '#64748b'};font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_ptm)}</span>"
+                            f"<span style='font-size:.62rem;color:#475569;'>{html.escape(_prec)}</span>"
+                            f"</div>"
+                            f"<div style='text-align:right;'>"
+                            f"<span style='font-size:.68rem;color:#475569;'>CFP #{_pcfp_rk}</span>"
+                            f"<span style='font-size:.68rem;color:#60a5fa;margin-left:6px;'>FPI {_pfpi_s}</span>"
+                            f"</div></div>",
+                            unsafe_allow_html=True
+                        )
+                    st.caption(f"Projected field from Wk {_pcfp_lw} CFP rankings + FPI. Seeds 1-4 = first-round byes.")
+            else:
+                st.info("No CFP rankings data available for projection.")
+        except Exception as _pe:
+            st.caption(f"CFP projection unavailable: {_pe}")
+
+        st.markdown("---")
         render_cfp_bracket()
 
     with _rm_tabs[1]:
@@ -5428,8 +5505,8 @@ with tabs[1]:
                     st.subheader("🔍 By-Game Deep Dive")
                     _gc_sel_opts=[f"{r['USER']} • {r['TEAM']}" for _,r in _gc_ranked.iterrows() if str(r['TEAM']) in ALL_USER_TEAMS]
                     if _gc_sel_opts:
-                        _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
-                    _gc_trend2_f=_gc_trend2[_gc_trend2['YEAR'].fillna(-1).astype(int)==_gc_yr_sel] if not _gc_trend2.empty and 'YEAR' in _gc_trend2.columns else _gc_trend2
+                        _gc_games2_f=_gc_games2[_gc_games2['YEAR'].fillna(-1).astype(int)==_gc_top_yr] if not _gc_games2.empty and 'YEAR' in _gc_games2.columns else _gc_games2
+                    _gc_trend2_f=_gc_trend2[_gc_trend2['YEAR'].fillna(-1).astype(int)==_gc_top_yr] if not _gc_trend2.empty and 'YEAR' in _gc_trend2.columns else _gc_trend2
                     _gc_picked=st.selectbox("Select team",_gc_sel_opts,key="gc_team_sel2")
                     _gc_pu=_gc_picked.split(" • ")[0]; _gc_pt=_gc_picked.split(" • ")[1]
                     _gc_tg2=_gc_games2_f[(_gc_games2_f["USER"]==_gc_pu)&(_gc_games2_f["TEAM"]==_gc_pt)].copy() if not _gc_games2_f.empty else pd.DataFrame()
@@ -6132,6 +6209,16 @@ with tabs[3]:
         _rc_scores_df["Home Rank"] = pd.to_numeric(_rc_scores_df["Home Rank"], errors="coerce")
 
         # Use CFP ranking snapshots if available
+        _GLOBAL_WEEK_RANK_LOOKUP = {}
+        try:
+            _cfp_h2=pd.read_csv('cfp_rankings_history.csv')
+            for _,_rr in _cfp_h2.iterrows():
+                _rteam=str(_rr.get('TEAM','')).strip().lower()
+                _ryr=int(_rr.get('YEAR',0) or 0)
+                _rwk=int(_rr.get('WEEK',0) or 0)
+                _rrk=int(_rr.get('RANK',99) or 99)
+                _GLOBAL_WEEK_RANK_LOOKUP[(_rteam,_ryr,_rwk)]=_rrk
+        except: pass
         if _GLOBAL_WEEK_RANK_LOOKUP:
             _rc_scores_df["Visitor Rank Snapshot"] = _rc_scores_df.apply(
                 lambda r: get_rank_at_week(r.get("Visitor",""), r.get("Week",0), r.get("YEAR", sel_year)), axis=1)
@@ -6345,6 +6432,69 @@ with _ul_tabs[0]:
             f"<tbody>{_data_rows}</tbody></table></div>",
             unsafe_allow_html=True
         )
+
+        # ── AVERAGE MARGIN OF VICTORY MATRIX ─────────────────────────────────────
+        st.markdown("---")
+        st.subheader("📐 Average Margin of Victory")
+        st.caption("Average point differential when these two coaches face off. Positive = row coach wins by that margin on average.")
+        try:
+            _all_scores=load_scores_master(multi_year=True)
+            _all_scores.columns=[str(c).strip() for c in _all_scores.columns]
+            _vu_c=next((c for c in _all_scores.columns if 'vis' in c.lower() and 'user' in c.lower()),None)
+            _hu_c=next((c for c in _all_scores.columns if 'home' in c.lower() and 'user' in c.lower()),None)
+            _vs_c=next((c for c in _all_scores.columns if c in ('Vis Score','Vis_Score','V_Pts')),None)
+            _hs_c=next((c for c in _all_scores.columns if c in ('Home Score','Home_Score','H_Pts')),None)
+            if _vu_c and _hu_c and _vs_c and _hs_c:
+                _all_scores['_vu']=_all_scores[_vu_c].astype(str).str.strip().str.title()
+                _all_scores['_hu']=_all_scores[_hu_c].astype(str).str.strip().str.title()
+                _all_scores['_vs']=pd.to_numeric(_all_scores[_vs_c],errors='coerce')
+                _all_scores['_hs']=pd.to_numeric(_all_scores[_hs_c],errors='coerce')
+                _g=_all_scores[(_all_scores['_vu'].isin(_h2h_users))&(_all_scores['_hu'].isin(_h2h_users))].dropna(subset=['_vs','_hs'])
+                # Build avg margin grid
+                _mar_header="<td style='padding:6px;'></td>"
+                for _opp2 in _h2h_users:
+                    _opp_inf2=_h2h_user_info.get(_opp2,{})
+                    _opp_lu2=_opp_inf2.get('logo_uri','')
+                    _opp_tc2=_opp_inf2.get('color','#6b7280')
+                    _lg2=f"<img src='{_opp_lu2}' style='width:24px;height:24px;object-fit:contain;'/>" if _opp_lu2 else '🏈'
+                    _mar_header+=f"<td style='text-align:center;padding:5px;'><div style='display:flex;flex-direction:column;align-items:center;gap:1px;'>{_lg2}<span style='font-size:.55rem;color:{_opp_tc2};font-weight:700;'>{html.escape(_opp2)}</span></div></td>"
+                _mar_rows=''
+                for _usr2 in _h2h_users:
+                    _ui2=_h2h_user_info.get(_usr2,{}); _ul2=_ui2.get('logo_uri',''); _uc2=_ui2.get('color','#6b7280')
+                    _ul_img=f"<img src='{_ul2}' style='width:24px;height:24px;object-fit:contain;'/>" if _ul2 else '🏈'
+                    _row='<td style="padding:5px 8px;border-right:1px solid #1e293b;">'
+                    _row+=f"<div style='display:flex;align-items:center;gap:5px;'>{_ul_img}<span style='font-size:.68rem;font-weight:700;color:{_uc2};'>{html.escape(_usr2)}</span></div></td>"
+                    for _opp2 in _h2h_users:
+                        if _usr2==_opp2:
+                            _row+="<td style='text-align:center;padding:5px;background:#1e293b;'><span style='color:#374151;'>—</span></td>"
+                            continue
+                        # As visitor
+                        _gv=_g[(_g['_vu']==_usr2)&(_g['_hu']==_opp2)]
+                        _margins_v=(_gv['_vs']-_gv['_hs']).tolist()
+                        # As home
+                        _gh=_g[(_g['_hu']==_usr2)&(_g['_vu']==_opp2)]
+                        _margins_h=(_gh['_hs']-_gh['_vs']).tolist()
+                        _all_m=_margins_v+_margins_h
+                        if _all_m:
+                            _avg_m=sum(_all_m)/len(_all_m)
+                            _mc='#4ade80' if _avg_m>0 else ('#f87171' if _avg_m<0 else '#94a3b8')
+                            _ms=f"+{_avg_m:.1f}" if _avg_m>0 else f"{_avg_m:.1f}"
+                            _nbg='#0d2b0d' if _avg_m>0 else ('#2b0d0d' if _avg_m<0 else '#111827')
+                            _row+=f"<td style='text-align:center;padding:5px;background:{_nbg};'><span style='font-weight:900;font-size:.82rem;color:{_mc};'>{_ms}</span></td>"
+                        else:
+                            _row+="<td style='text-align:center;padding:5px;'><span style='color:#334155;font-size:.7rem;'>—</span></td>"
+                    _mar_rows+=f"<tr style='border-bottom:1px solid #0f172a;'>{_row}</tr>"
+                st.markdown(
+                    f"<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:12px;background:#0f172a;'>"
+                    f"<table style='width:100%;border-collapse:collapse;font-size:13px;'>"
+                    f"<thead><tr style='background:#111827;'>{_mar_header}</tr></thead>"
+                    f"<tbody>{_mar_rows}</tbody></table></div>",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info("Not enough score data to build margin matrix.")
+        except Exception as _me:
+            st.caption(f"Margin matrix unavailable: {_me}")
 
         # ── RIVALRY METER ───────────────────────────────────────────────────────────
 
