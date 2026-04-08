@@ -1518,8 +1518,17 @@ def best_backup_ovr(pos, departing_ovr, team, roster_df):
     pos_u=str(pos).strip().upper()
     try:
         if roster_df.empty: return 70
-        grp=roster_df[(roster_df["TEAM"].astype(str).str.strip()==team)&
-                      (roster_df["POS"].astype(str).str.upper().str.strip()==pos_u)]
+        # Normalize column names defensively
+        _rdf=roster_df.copy()
+        if "TEAM" not in _rdf.columns:
+            _tc=next((c for c in _rdf.columns if c.lower()=="team"),None)
+            if _tc: _rdf=_rdf.rename(columns={_tc:"TEAM"})
+        if "POS" not in _rdf.columns:
+            _pc=next((c for c in _rdf.columns if c.lower()=="pos"),None)
+            if _pc: _rdf=_rdf.rename(columns={_pc:"POS"})
+        if "TEAM" not in _rdf.columns or "POS" not in _rdf.columns: return 70
+        grp=_rdf[(_rdf["TEAM"].astype(str).str.strip()==team)&
+                 (_rdf["POS"].astype(str).str.upper().str.strip()==pos_u)]
         others=grp["OVR"].sort_values(ascending=False)
         # Remove the departing player (skip the top match equal to departing_ovr)
         others=others[others<departing_ovr] if (others>=departing_ovr).any() else others
@@ -1866,25 +1875,39 @@ def build_ticker_items(year, week, is_bowl_week):
 
     # ── 4. BIGGEST UPSET + BIGGEST BLOWOUT (prior week) ─────────────────
     try:
-        _sched2=load_scores_master(CY)
-        if not _sched2.empty:
-            _wc2=next((c for c in ('Week','WEEK') if c in _sched2.columns),None)
-            _sc2=next((c for c in ('Vis Score','Vis_Score') if c in _sched2.columns),None)
-            _hc2=next((c for c in ('Home Score','Home_Score') if c in _sched2.columns),None)
-            _sts2=next((c for c in ('Status','STATUS') if c in _sched2.columns),None)
-            if _wc2 and _sc2 and _hc2:
-                _sched2[_wc2]=pd.to_numeric(_sched2[_wc2],errors='coerce')
-                _sched2[_sc2]=pd.to_numeric(_sched2[_sc2],errors='coerce')
-                _sched2[_hc2]=pd.to_numeric(_sched2[_hc2],errors='coerce')
-                _pw=max(1,CW-1)
-                _prev=_sched2[_sched2[_wc2]==_pw].copy()
-                if _sts2: _prev=_prev[_prev[_sts2].astype(str).str.upper()=='FINAL']
+        _pw=max(1,CW-1); _prev=pd.DataFrame()
+        # Try game_summaries.csv first (most complete)
+        if os.path.exists('game_summaries.csv'):
+            _gs_raw=pd.read_csv('game_summaries.csv')
+            _gs_raw.columns=[str(c).strip() for c in _gs_raw.columns]
+            for _gc in ('YEAR','WEEK','VIS_FINAL','HOME_FINAL','VIS_RANK','HOME_RANK'):
+                if _gc in _gs_raw.columns: _gs_raw[_gc]=pd.to_numeric(_gs_raw[_gc],errors='coerce')
+            _prev=_gs_raw[(_gs_raw['YEAR'].fillna(-1).astype(int)==CY)&(_gs_raw['WEEK'].fillna(-1).astype(int)==_pw)].copy()
+            if not _prev.empty:
+                _prev=_prev.rename(columns={'VISITOR':'Visitor','HOME':'Home'})
+                _sc2='VIS_FINAL'; _hc2='HOME_FINAL'; _vr2='VIS_RANK'; _hr2='HOME_RANK'
                 _prev=_prev.dropna(subset=[_sc2,_hc2])
+        # Fallback: schedule CSV
+        if _prev.empty:
+            _sched2=load_scores_master(CY)
+            if not _sched2.empty:
+                _wc2=next((c for c in ('Week','WEEK') if c in _sched2.columns),None)
+                _sc2=next((c for c in ('Vis Score','Vis_Score') if c in _sched2.columns),None)
+                _hc2=next((c for c in ('Home Score','Home_Score') if c in _sched2.columns),None)
+                _sts2=next((c for c in ('Status','STATUS') if c in _sched2.columns),None)
+                _vr2=next((c for c in ('Visitor Rank','VIS_RANK') if c in _sched2.columns),None)
+                _hr2=next((c for c in ('Home Rank','HOME_RANK') if c in _sched2.columns),None)
+                if _wc2 and _sc2 and _hc2:
+                    _sched2[_wc2]=pd.to_numeric(_sched2[_wc2],errors='coerce')
+                    _sched2[_sc2]=pd.to_numeric(_sched2[_sc2],errors='coerce')
+                    _sched2[_hc2]=pd.to_numeric(_sched2[_hc2],errors='coerce')
+                    _prev=_sched2[_sched2[_wc2]==_pw].copy()
+                    if _sts2: _prev=_prev[_prev[_sts2].astype(str).str.upper()=='FINAL']
+                    _prev=_prev.dropna(subset=[_sc2,_hc2])
+        if not _prev.empty:
+            if _vr2 and _vr2 in _prev.columns: _prev[_vr2]=pd.to_numeric(_prev[_vr2],errors='coerce')
+            if _hr2 and _hr2 in _prev.columns: _prev[_hr2]=pd.to_numeric(_prev[_hr2],errors='coerce')
             _prev['_margin']=(_prev[_sc2]-_prev[_hc2]).abs()
-            _vr2=next((c for c in ('Visitor Rank','VIS_RANK','Vis Rank') if c in _prev.columns),None)
-            _hr2=next((c for c in ('Home Rank','HOME_RANK','Home Rank') if c in _prev.columns),None)
-            if _vr2: _prev[_vr2]=pd.to_numeric(_prev[_vr2],errors='coerce')
-            if _hr2: _prev[_hr2]=pd.to_numeric(_prev[_hr2],errors='coerce')
             if not _prev.empty:
                 # Upset: winner ranked worse (or unranked) beat a ranked team
                 def _upset_score(r):
