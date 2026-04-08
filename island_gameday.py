@@ -1933,9 +1933,8 @@ def build_ticker_items(year, week, is_bowl_week):
                         return l_rank+(50 if w_rank==0 else l_rank-w_rank)
                     return 0
                 _prev['_upset']=_prev.apply(_upset_score,axis=1)
-                _top_upset=_prev[_prev['_upset']>0].nlargest(1,'_upset')
-                if not _top_upset.empty:
-                    _ug=_top_upset.iloc[0]
+                _top_upsets=_prev[_prev['_upset']>0].nlargest(3,'_upset')
+                for _,_ug in _top_upsets.iterrows():
                     _uvs=float(_ug.get(_sc2,0) or 0); _uhs=float(_ug.get(_hc2,0) or 0)
                     _uvis=str(_ug.get('Visitor','')); _uhom=str(_ug.get('Home',''))
                     _uw=_uvis if _uvs>_uhs else _uhom; _ul=_uhom if _uvs>_uhs else _uvis
@@ -1943,7 +1942,7 @@ def build_ticker_items(year, week, is_bowl_week):
                     _ulr=_ug.get(_hr2 if _uvs>_uhs else _vr2,None) if (_hr2 or _vr2) else None
                     _ulr_s=f"#{int(float(_ulr))} " if pd.notna(_ulr) and float(_ulr or 0)>0 else "ranked "
                     is_user_u=(_uvis in ALL_USER_TEAMS or _uhom in ALL_USER_TEAMS)
-                    headlines.append({'badge':'🚨 UPSET ALERT','priority':190 if is_user_u else 130,
+                    headlines.append({'badge':'🚨 UPSET ALERT','priority':195 if is_user_u else 132,
                         'text':f"{_uw} stuns {_ulr_s}{_ul} {_uws}-{_uls} (Wk {_pw})",
                         'blurb':f"{_uw} pulled off the upset of the week, taking down {_ulr_s}{_ul}."})
                 # Biggest blowout
@@ -1953,9 +1952,8 @@ def build_ticker_items(year, week, is_bowl_week):
                 if _vu_col and _hu_col:
                     _user_prev=_prev[(_prev[_vu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))|                                         (_prev[_hu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))]
                 if _user_prev.empty: _user_prev=_prev
-                _top_blow=_user_prev.nlargest(1,'_margin')
-                if not _top_blow.empty:
-                    _bg2=_top_blow.iloc[0]
+                _top_blows=_user_prev.nlargest(3,'_margin')
+                for _,_bg2 in _top_blows.iterrows():
                     _bvs=float(_bg2.get(_sc2,0) or 0); _bhs=float(_bg2.get(_hc2,0) or 0)
                     _bvis=str(_bg2.get('Visitor','')); _bhom=str(_bg2.get('Home',''))
                     _bw=_bvis if _bvs>_bhs else _bhom; _bl2=_bhom if _bvs>_bhs else _bvis
@@ -1976,27 +1974,27 @@ def build_ticker_items(year, week, is_bowl_week):
             _wk_ic=next((c for c in _inj2.columns if c.upper()=='WEEK'),None)
             if _yr_ic: _inj2[_yr_ic]=pd.to_numeric(_inj2[_yr_ic],errors='coerce')
             if _wk_ic: _inj2[_wk_ic]=pd.to_numeric(_inj2[_wk_ic],errors='coerce')
-            # Filter to current year only — show ALL still-active long-term injuries
+            # Show injuries that happened last week (_pw)
             _inj_yr=_inj2[_inj2[_yr_ic].fillna(-1).astype(int)==CY].copy() if _yr_ic else _inj2.copy()
             _inj_yr['_wo']=pd.to_numeric(_inj_yr.get('WeeksOut',_inj_yr.get('Weeks_Out',0)),errors='coerce').fillna(0)
-            _inj_yr['_wk_suf']=pd.to_numeric(_inj_yr[_wk_ic],errors='coerce').fillna(CW) if _wk_ic else CW
-            # Active: week_suffered + weeks_out > current week (still recovering)
-            _inj_yr['_wks_left']=(_inj_yr['_wk_suf']+_inj_yr['_wo']-CW).clip(lower=0).astype(int)
-            _inj_active=_inj_yr[(_inj_yr['_wks_left']>0)&(_inj_yr['_wo']>=6)].copy()
-            _inj_active['_is_user']=_inj_active.get('Team',pd.Series(['']*len(_inj_active))).astype(str).str.strip().isin(ALL_USER_TEAMS)
-            _inj_active=_inj_active.sort_values(['_is_user','_wks_left'],ascending=[False,False])
-            for _,_ir3 in _inj_active.head(4).iterrows():
+            if _wk_ic: _inj_yr['_wk_suf']=pd.to_numeric(_inj_yr[_wk_ic],errors='coerce').fillna(-1)
+            else: _inj_yr['_wk_suf']=-1
+            # Filter to injuries that occurred in the prior week
+            _inj_pw=_inj_yr[_inj_yr['_wk_suf'].astype(int)==_pw].copy()
+            _inj_pw['_is_user']=_inj_pw.get('Team',pd.Series(['']*len(_inj_pw))).astype(str).str.strip().isin(ALL_USER_TEAMS)
+            _inj_pw=_inj_pw.sort_values(['_is_user','_wo'],ascending=[False,False])
+            for _,_ir3 in _inj_pw.head(3).iterrows():
                 _ip=str(_ir3.get('Player','?')); _it=str(_ir3.get('Team','?')); _ipos=str(_ir3.get('Pos','?'))
-                _iwo_orig=int(_ir3.get('_wo',0)); _iwks_left=int(_ir3.get('_wks_left',0))
+                _iwo=int(_ir3.get('_wo',0))
                 _iinj=str(_ir3.get('Injury',''))
                 _iinj_s=f' -- {_iinj}' if _iinj and _iinj.lower() not in ('nan','') else ''
                 is_user_i=_it in ALL_USER_TEAMS
-                _season_end=(CW+_iwks_left)>21
-                _badge='🏥 SEASON ENDING' if _season_end else '🚑 LONG TERM INJURY'
-                _wording="OUT FOR THE SEASON" if _season_end else f"{_iwks_left} wks left"
+                _season_end=(CW+_iwo)>21
+                _badge='🏥 SEASON ENDING' if _season_end else ('🚑 LONG TERM INJURY' if _iwo>=6 else '🤕 INJURY')
+                _wording="OUT FOR THE SEASON" if _season_end else f"{_iwo} wks"
                 headlines.append({'badge':_badge,'priority':220 if is_user_i else 155,
-                    'text':f"{_ip} ({_it}, {_ipos}) -- {_wording}{_iinj_s}",
-                    'blurb':f"{_ip} from {_it} is out {_wording}. Huge blow for the program."})
+                    'text':f"Wk {_pw}: {_ip} ({_it}, {_ipos}) -- {_wording}{_iinj_s}",
+                    'blurb':f"{_ip} from {_it} went down in Week {_pw}. Out {_wording}."})
     except: pass
     # ── 5. HEISMAN WINNER ────────────────────────────────────────────────────
     try:
