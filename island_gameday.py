@@ -1907,6 +1907,20 @@ def build_ticker_items(year, week, is_bowl_week):
         if not _prev.empty:
             if _vr2 and _vr2 in _prev.columns: _prev[_vr2]=pd.to_numeric(_prev[_vr2],errors='coerce')
             if _hr2 and _hr2 in _prev.columns: _prev[_hr2]=pd.to_numeric(_prev[_hr2],errors='coerce')
+            # Fill null ranks from CFP rankings history
+            try:
+                _cfp_rh=pd.read_csv('cfp_rankings_history.csv') if os.path.exists('cfp_rankings_history.csv') else pd.DataFrame()
+                if not _cfp_rh.empty:
+                    _cfp_rh['YEAR']=pd.to_numeric(_cfp_rh['YEAR'],errors='coerce'); _cfp_rh['WEEK']=pd.to_numeric(_cfp_rh['WEEK'],errors='coerce'); _cfp_rh['RANK']=pd.to_numeric(_cfp_rh['RANK'],errors='coerce')
+                    _rk_snap=_cfp_rh[(_cfp_rh['YEAR']==CY)&(_cfp_rh['WEEK']<=_pw)].sort_values('WEEK',ascending=False).drop_duplicates('TEAM')
+                    _rk_map=dict(zip(_rk_snap['TEAM'].astype(str).str.strip(),_rk_snap['RANK']))
+                    _vis_col='Visitor' if 'Visitor' in _prev.columns else 'VISITOR'
+                    _hom_col='Home' if 'Home' in _prev.columns else 'HOME'
+                    if _vr2 not in _prev.columns or _prev[_vr2].isna().all():
+                        _prev['_VR']=_prev[_vis_col].astype(str).str.strip().map(_rk_map); _vr2='_VR'
+                    if _hr2 not in _prev.columns or _prev[_hr2].isna().all():
+                        _prev['_HR']=_prev[_hom_col].astype(str).str.strip().map(_rk_map); _hr2='_HR'
+            except: pass
             _prev['_margin']=(_prev[_sc2]-_prev[_hc2]).abs()
             if not _prev.empty:
                 # Upset: winner ranked worse (or unranked) beat a ranked team
@@ -1953,7 +1967,7 @@ def build_ticker_items(year, week, is_bowl_week):
                             'blurb':f"{_bw} put on a clinic. {_bmg} points is not a football score, that's a statement."})
     except: pass
 
-    # ── 4b. SEASON-ENDING / LONG-TERM INJURIES (current week) ────────────────
+    # ── 4b. ACTIVE LONG-TERM & SEASON-ENDING INJURIES ────────────────────────
     try:
         _inj2=pd.read_csv('injury_bulletin.csv') if os.path.exists('injury_bulletin.csv') else pd.DataFrame()
         if not _inj2.empty:
@@ -1962,19 +1976,26 @@ def build_ticker_items(year, week, is_bowl_week):
             _wk_ic=next((c for c in _inj2.columns if c.upper()=='WEEK'),None)
             if _yr_ic: _inj2[_yr_ic]=pd.to_numeric(_inj2[_yr_ic],errors='coerce')
             if _wk_ic: _inj2[_wk_ic]=pd.to_numeric(_inj2[_wk_ic],errors='coerce')
-            _inj_cur=_inj2.copy()
-            if _yr_ic: _inj_cur=_inj_cur[_inj_cur[_yr_ic].fillna(-1).astype(int)==CY]
-            if _wk_ic: _inj_cur=_inj_cur[_inj_cur[_wk_ic].fillna(-1).astype(int)==CW]
-            _inj_cur['_wo']=pd.to_numeric(_inj_cur.get('WeeksOut',_inj_cur.get('Weeks_Out',0)),errors='coerce').fillna(0)
-            for _,_ir3 in _inj_cur[_inj_cur['_wo']>=6].iterrows():
+            # Filter to current year only — show ALL still-active long-term injuries
+            _inj_yr=_inj2[_inj2[_yr_ic].fillna(-1).astype(int)==CY].copy() if _yr_ic else _inj2.copy()
+            _inj_yr['_wo']=pd.to_numeric(_inj_yr.get('WeeksOut',_inj_yr.get('Weeks_Out',0)),errors='coerce').fillna(0)
+            _inj_yr['_wk_suf']=pd.to_numeric(_inj_yr[_wk_ic],errors='coerce').fillna(CW) if _wk_ic else CW
+            # Active: week_suffered + weeks_out > current week (still recovering)
+            _inj_yr['_wks_left']=(_inj_yr['_wk_suf']+_inj_yr['_wo']-CW).clip(lower=0).astype(int)
+            _inj_active=_inj_yr[(_inj_yr['_wks_left']>0)&(_inj_yr['_wo']>=6)].copy()
+            _inj_active['_is_user']=_inj_active.get('Team',pd.Series(['']*len(_inj_active))).astype(str).str.strip().isin(ALL_USER_TEAMS)
+            _inj_active=_inj_active.sort_values(['_is_user','_wks_left'],ascending=[False,False])
+            for _,_ir3 in _inj_active.head(4).iterrows():
                 _ip=str(_ir3.get('Player','?')); _it=str(_ir3.get('Team','?')); _ipos=str(_ir3.get('Pos','?'))
-                _iwo=int(_ir3.get('_wo',0)); _iinj=str(_ir3.get('Injury',''))
+                _iwo_orig=int(_ir3.get('_wo',0)); _iwks_left=int(_ir3.get('_wks_left',0))
+                _iinj=str(_ir3.get('Injury',''))
+                _iinj_s=f' -- {_iinj}' if _iinj and _iinj.lower() not in ('nan','') else ''
                 is_user_i=_it in ALL_USER_TEAMS
-                _season_end=(CW+_iwo)>21
+                _season_end=(CW+_iwks_left)>21
                 _badge='🏥 SEASON ENDING' if _season_end else '🚑 LONG TERM INJURY'
-                _wording="OUT FOR THE SEASON" if _season_end else f"{_iwo} weeks"
-                headlines.append({'badge':_badge,'priority':210 if is_user_i else 160,
-                    'text':f"{_ip} ({_it}, {_ipos}) -- {_wording}"+(f" -- {_iinj}" if _iinj and _iinj.lower()!='nan' else ''),
+                _wording="OUT FOR THE SEASON" if _season_end else f"{_iwks_left} wks left"
+                headlines.append({'badge':_badge,'priority':220 if is_user_i else 155,
+                    'text':f"{_ip} ({_it}, {_ipos}) -- {_wording}{_iinj_s}",
                     'blurb':f"{_ip} from {_it} is out {_wording}. Huge blow for the program."})
     except: pass
     # ── 5. HEISMAN WINNER ────────────────────────────────────────────────────
