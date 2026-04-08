@@ -4580,8 +4580,10 @@ def render_roster_attrition_tab():
             st.subheader("💸 Persuade? Nah, Got Paid")
             st.caption("Players who were persuaded to STAY — coach talked 'em out of the portal. Ranked by total persuasions over the last 4 seasons.")
             try:
-                if not _aa_xf.empty and "_persuaded" in _aa_xf.columns:
-                    _prs_rows=[(u,int(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_persuaded"]==True)].shape[0]),t) for u,t in USER_TEAMS.items()]
+                # Use _aa_xf_all (no Leaving filter) capped to last 4 years — persuaded players never have TransferStatus=Leaving
+                _prs_src=_aa_xf_all[_aa_xf_all["Year"].isin(_aa_yrs)].copy() if not _aa_xf_all.empty else pd.DataFrame()
+                if not _prs_src.empty and "_persuaded" in _prs_src.columns:
+                    _prs_rows=[(u,int(_prs_src[(_prs_src["Team"]==t)&(_prs_src["_persuaded"]==True)].shape[0]),t) for u,t in USER_TEAMS.items()]
                     _prs_rows=[r for r in _prs_rows if r[1]>0]; _prs_rows.sort(key=lambda x:-x[1])
                     if _prs_rows:
                         _aa_card("Persuade? Nah, Got Paid","Players persuaded to stay (last 4 seasons)",_prs_rows,"#4ade80","🗣️")
