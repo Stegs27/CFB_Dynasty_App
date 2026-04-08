@@ -4366,6 +4366,8 @@ def render_roster_attrition_tab():
                 _aa_xf["OVR"]=pd.to_numeric(_aa_xf.get("OVR",0),errors="coerce").fillna(0)
                 _aa_xf["Player"]=_aa_xf.get("Player",pd.Series(["?"]*len(_aa_xf))).astype(str).str.strip()
                 _aa_xf["Pos"]=_aa_xf.get("Pos",pd.Series(["?"]*len(_aa_xf))).astype(str).str.strip()
+                # Dedup source: same player leaving same team in same year = one row
+                _aa_xf=_aa_xf.drop_duplicates(subset=["Player","Team","Year"]).copy()
             _aa_draft=pd.DataFrame()
             if os.path.exists("cfb_draft_results.csv"):
                 _aa_draft=pd.read_csv("cfb_draft_results.csv")
