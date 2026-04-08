@@ -1508,8 +1508,9 @@ def infer_starter(pos, ovr, team, roster_df):
         if pos_grp.empty: return ovr>=80
         ranked=pos_grp['OVR'].sort_values(ascending=False).reset_index(drop=True)
         if len(ranked)==0: return False
-        rank=ranked.searchsorted(-ovr, side='left')
-        return int(rank) < slots
+        # Count how many players have strictly higher OVR = this player's rank (0-indexed)
+        rank=int((ranked>ovr).sum())
+        return rank < slots
     except: return ovr>=80
 
 @st.cache_data(ttl=300)
@@ -2391,7 +2392,7 @@ def render_status_banner(year, week, is_bowl):
     <div style='text-align:center;display:flex;align-items:center;'>
         {_ncaa_img}
         <div>
-            <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#fbbf24;line-height:1;'>{year}</div>
+            <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#4ade80;line-height:1;'>{year}</div>
             <div style='font-size:.6rem;color:#475569;text-transform:uppercase;letter-spacing:.12em;'>Season</div>
         </div>
     </div>
@@ -2400,11 +2401,7 @@ def render_status_banner(year, week, is_bowl):
         <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#60a5fa;line-height:1;'>{wk_label}</div>
         <div style='font-size:.6rem;color:#475569;text-transform:uppercase;letter-spacing:.12em;'>Current Week</div>
     </div>
-    <div style='width:1px;height:40px;background:rgba(255,255,255,.1);'></div>
-    <div style='text-align:center;'>
-        <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#4ade80;line-height:1;'>{year+1}</div>
-        <div style='font-size:.6rem;color:#475569;text-transform:uppercase;letter-spacing:.12em;'>Draft Class</div>
-    </div>
+
 </div>""", unsafe_allow_html=True)
 
 def render_game_cards_with_boxscore(year, week, model_df):
@@ -2612,9 +2609,9 @@ def render_game_cards_with_boxscore(year, week, model_df):
             glow='box-shadow:0 2px 6px rgba(0,0,0,.5);'; lbl_col='#4b5563'; lf='grayscale(100%) opacity(.35)'
             dot="<span style='width:7px;height:7px;border-radius:50%;background:#4b5563;display:inline-block;margin-bottom:2px;'></span>"
         else:
-            sq_bg='linear-gradient(135deg,#0f172a 0%,#080d14 100%)'; sq_bdr='#1e293b'
-            glow='box-shadow:0 2px 6px rgba(0,0,0,.4);'; lbl_col='#475569'; lf='opacity(.6)'
-            dot="<span style='width:7px;height:7px;border-radius:50%;background:#334155;display:inline-block;margin-bottom:2px;'></span>"
+            sq_bg='linear-gradient(135deg,#0c0f18 0%,#06090f 100%)'; sq_bdr='#1e293b'
+            glow='box-shadow:0 2px 6px rgba(0,0,0,.3);'; lbl_col='#374151'; lf='grayscale(100%) opacity(.35)'
+            dot="<span style='width:7px;height:7px;border-radius:50%;background:#7f1d1d;box-shadow:0 0 4px rgba(239,68,68,.3);display:inline-block;margin-bottom:2px;'></span>"
         gl_img=(f"<img src='{gl_uri}' style='width:44px;height:44px;object-fit:contain;filter:{lf};'/>" if gl_uri else "🏈")
         _grid_parts.append(
             f"<div style='display:flex;flex-direction:column;align-items:center;justify-content:center;"
@@ -3895,7 +3892,17 @@ def render_roster_attrition_tab():
         target_year=st.selectbox("Season",_atr_yr_opts,index=_atr_yr_opts.index(CURRENT_YEAR),
             format_func=_atr_yr_label,key="attrition_yr_sel")
     if target_year==CURRENT_YEAR:
-        st.caption(f"Departing talent after {target_year}. NFL exits (2043 draft) + transfers out (2042) + seniors graduating.")
+        st.markdown(
+            "<div style='background:#0a1220;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;margin-bottom:8px;'>"
+            "<span style='font-weight:700;color:#fbbf24;font-size:.8rem;'>📊 How Points Work</span>"
+            "<span style='color:#64748b;font-size:.75rem;'> · Higher = more talent to replace. "
+            "NFL exits: 1-3pts by round, scaled by starter status. "
+            "Transfers: 2pts starter, 0.5pts backup. "
+            "Seniors: 1.5pts starter, 0.5pts backup. "
+            "Heisman candidate: +2pts. Elite QB (90+ OVR): +1.5pts. "
+            "Strong incoming class reduces points.</span></div>",
+            unsafe_allow_html=True
+        )
     else:
         st.caption(f"Projected {target_year} losses — known seniors from current rosters. NFL/transfer estimates.")
     attrition_data=compute_attrition_ratings(target_year)
@@ -3994,6 +4001,31 @@ def render_roster_attrition_tab():
         _bdown=", ".join(_bp) if _bp else "No confirmed departures yet"
         _in_count=len(_team_inc)
         _avg_star=int(round(_team_inc['StarRating'].mean())) if _in_count>0 and 'StarRating' in _team_inc.columns else 0
+        # Class rank from recruiting_class_history_all.csv
+        _class_rank_str=''; _class_rank_num=0
+        try:
+            _rcl=pd.read_csv('recruiting_class_history_all.csv') if os.path.exists('recruiting_class_history_all.csv') else pd.DataFrame()
+            if not _rcl.empty:
+                _rcl.columns=[str(c).strip() for c in _rcl.columns]
+                _yr_rc=next((c for c in _rcl.columns if c.upper() in ('YEAR','SEASON')),None)
+                _tm_rc=next((c for c in _rcl.columns if c.upper() in ('TEAM','SCHOOL')),None)
+                _rk_rc=next((c for c in _rcl.columns if 'OVERALL' in c.upper() or c.upper()=='RANK'),None)
+                if _yr_rc and _tm_rc and _rk_rc:
+                    _rcl[_yr_rc]=pd.to_numeric(_rcl[_yr_rc],errors='coerce')
+                    _rcl[_rk_rc]=pd.to_numeric(_rcl[_rk_rc].astype(str).str.replace(',',''),errors='coerce')
+                    _rcl_team=_rcl[(_rcl[_yr_rc].fillna(-1).astype(int)==target_year)&(_rcl[_tm_rc].astype(str).str.strip()==team)]
+                    if not _rcl_team.empty:
+                        _class_rank_num=int(_rcl_team.iloc[0][_rk_rc] or 0)
+                        # Count 4+5 stars
+                        _4star=len(_team_inc[_team_inc.get('StarRating',pd.Series([0]*len(_team_inc)))>=4]) if _in_count>0 and 'StarRating' in _team_inc.columns else 0
+                        _class_rank_str=f' · #{_class_rank_num} class · {_4star} elite recruits' if _class_rank_num>0 else ''
+        except: pass
+        # Gain block color: green=top15, blue-green=16-30, yellow=31-50, red=51+
+        if _class_rank_num>0 and _class_rank_num<=15: _gain_bg='#052e16'; _gain_brd='#4ade8066'; _gain_fc='#4ade80'
+        elif _class_rank_num>0 and _class_rank_num<=30: _gain_bg='#042f2e'; _gain_brd='#2dd4bf66'; _gain_fc='#2dd4bf'
+        elif _class_rank_num>0 and _class_rank_num<=50: _gain_bg='#2b1900'; _gain_brd='#fbbf2466'; _gain_fc='#fbbf24'
+        elif _class_rank_num>50: _gain_bg='#2b0d0d'; _gain_brd='#f8717166'; _gain_fc='#f87171'
+        else: _gain_bg='#1e3a8a22'; _gain_brd='#3b82f644'; _gain_fc='#60a5fa'
         # Build card
         with cols[ci%len(cols)]:
             card_html=(
@@ -4002,31 +4034,33 @@ def render_roster_attrition_tab():
                 f"padding:14px 16px;margin-bottom:8px;'>"
                 f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>"
                 f"{lh}<div style='flex:1;'>"
-                f"<div style='font-weight:900;color:{primary};font-size:.95rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(team)}</div>"
-                f"<div style='font-size:.68rem;color:#64748b;'>{html.escape(user)}</div>"
+                f"<div style='font-weight:900;color:{primary};font-size:1.05rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(team)}</div>"
+                f"<div style='font-size:.72rem;color:#64748b;'>{html.escape(user)}</div>"
                 f"</div>"
                 f"<div style='text-align:right;'>"
                 f"<div style='font-family:Bebas Neue,sans-serif;font-size:2rem;color:{d['tier_c']};line-height:1;'>{d['pts']}</div>"
                 f"<div style='font-size:.55rem;color:#475569;text-transform:uppercase;letter-spacing:.05em;'>pts</div>"
                 f"</div></div>"
                 f"<div style='background:{d['tier_c']}22;border:1px solid {d['tier_c']}44;border-radius:6px;padding:4px 10px;text-align:center;'>"
-                f"<span style='color:{d['tier_c']};font-weight:900;font-size:.78rem;font-family:Barlow Condensed,sans-serif;letter-spacing:.05em;'>"
+                f"<span style='color:{d['tier_c']};font-weight:900;font-size:.85rem;font-family:Barlow Condensed,sans-serif;letter-spacing:.05em;'>"
                 f"{d['tier_emoji']} {d['tier'].upper()}</span></div>"
-                f"<div style='background:#1e3a8a22;border:1px solid #3b82f644;border-radius:6px;padding:4px 10px;text-align:center;margin-top:4px;'>"
-                f"<span style='color:#60a5fa;font-weight:700;font-size:.68rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(d.get('gain_label','⏳ Incoming data pending'))}</span></div>"
-                f"<div style='margin-top:6px;font-size:.62rem;color:#94a3b8;'>{_bdown}</div>"
+                f"<div style='background:{_gain_bg};border:1px solid {_gain_brd};border-radius:6px;padding:4px 10px;text-align:center;margin-top:4px;'>"
+                f"<span style='color:{_gain_fc};font-weight:700;font-size:.68rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(d.get('gain_label','⏳ Incoming data pending'))}</span></div>"
+                f"<div style='margin-top:6px;font-size:.72rem;color:#94a3b8;'>{_bdown}</div>"
                 +( f"<div style='margin-top:3px;font-size:.62rem;color:#f87171;'>💔 <strong>Biggest loss:</strong> {html.escape(_biggest_loss)}</div>" if _biggest_loss else "" )
                 +( f"<div style='margin-top:3px;font-size:.6rem;color:#fbbf24;'>📋 {html.escape(_needs_str)}</div>" if _needs_str else "" )
                 +( f"<div style='margin-top:3px;font-size:.6rem;color:#60a5fa;'>💎 {html.escape(_bcr_str)}</div>" if _bcr_str else "" )
-                +( f"<div style='margin-top:3px;font-size:.6rem;color:#4ade80;'>🎯 Class incoming: {_in_count} recruits"
-                   +( f" · avg {_avg_star}★" if _avg_star else "" )+"</div>" if _in_count>0 else "" )
+                +( f"<div style='margin-top:3px;font-size:.65rem;color:#4ade80;'>🎯 Class incoming: {_in_count} recruits{_class_rank_str}</div>" if _in_count>0 else "" )
                 +f"</div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
             # Departing players expander
-            _dept=d.get('breakdown',[])
+            # Dedup by player name to prevent duplicates
+            _dept_raw=d.get('breakdown',[])
+            _seen_players=set()
+            _dept=[b for b in _dept_raw if b.get('player','?').lower() not in _seen_players and not _seen_players.add(b.get('player','?').lower())]
             if _dept:
-                _dept_starters=[b for b in _dept if b.get('is_starter',True)]
+                _dept_starters=[b for b in _dept if b.get('is_starter') is True]
                 _dept_label=f"📋 Departures ({len(_dept)}, {len(_dept_starters)} starters)"
                 with st.expander(_dept_label):
                     for _bd in sorted(_dept,key=lambda x:-x.get('ovr',0)):
@@ -4053,7 +4087,8 @@ def render_roster_attrition_tab():
                     for _,_ir in _team_inc.iterrows():
                         _irn=str(_ir.get('Name','?')).strip(); _irp=str(_ir.get('Pos','?')).strip()
                         _irs=_safe_int(_ir.get('StarRating',_ir.get('Stars',_ir.get('star_rating',0))))
-                        _irr=_safe_int(_ir.get('NationalRank',_ir.get('Natl_Rank',_ir.get('national_rank',0))))
+                        _irr_raw2=str(_ir.get('NationalRank',_ir.get('Natl_Rank',_ir.get('national_rank','0'))) or '0').replace(',','').strip()
+                        _irr=_safe_int(_irr_raw2)
                         _irt=str(_ir.get('RecruitType','HS')).strip()
                         _star_d="⭐"*_irs if _irs>0 else ""; _rank_d=f"#{_irr}" if _irr>0 else ""
                         _type_b=(f"<span style='background:#60a5fa22;color:#60a5fa;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;'>{html.escape(_irt)}</span>"
@@ -4252,7 +4287,9 @@ def render_roster_attrition_tab():
                     for _,_ir in _inc_filtered.iterrows():
                         _irn=str(_ir.get('Name','?')).strip(); _irp=str(_ir.get('Pos','?')).strip()
                         _irt=str(_ir.get('Team','?')).strip()
-                        _irs=int(_ir.get('StarRating',0) or 0); _irr=int(_ir.get('NationalRank',0) or 0)
+                        _irs=_safe_int(_ir.get('StarRating',0))
+                        _irr_raw=str(_ir.get('NationalRank','0') or '0').replace(',','').strip()
+                        _irr=_safe_int(_irr_raw)
                         _irtype=str(_ir.get('RecruitType','HS')).strip()
                         _pc=get_team_primary_color(_irt)
                         _tlg=get_school_logo_src(_irt)
@@ -4275,6 +4312,89 @@ def render_roster_attrition_tab():
                         )
         except Exception as e:
             st.caption(f"Incoming recruits unavailable: {e}")
+
+    with _at_tabs[_tab_ana]:
+        st.header("📊 Attrition Analytics")
+        st.caption("Cross-season transfer portal trends across the last 4 seasons.")
+        try:
+            _aa_xf=pd.DataFrame()
+            if os.path.exists("attrition_transfers.csv"):
+                _aa_xf=pd.read_csv("attrition_transfers.csv")
+                _aa_xf.columns=[str(c).strip() for c in _aa_xf.columns]
+                for _ox,_nx in [("season_year","Year"),("YEAR","Year"),("team","Team"),("TEAM","Team")]:
+                    if _ox in _aa_xf.columns and _nx not in _aa_xf.columns: _aa_xf=_aa_xf.rename(columns={_ox:_nx})
+                _aa_xf["Year"]=pd.to_numeric(_aa_xf.get("Year",0),errors="coerce").fillna(0).astype(int)
+                _aa_xf["Team"]=_aa_xf.get("Team",pd.Series([""]* len(_aa_xf))).astype(str).str.strip()
+                _aa_yrs=sorted(_aa_xf["Year"].unique())[-4:]
+                _aa_xf=_aa_xf[_aa_xf["Year"].isin(_aa_yrs)].copy()
+                _rd_col=next((c for c in _aa_xf.columns if "REASON" in c.upper()),None)
+                _aa_xf["_reason"]=_aa_xf[_rd_col].astype(str).str.strip() if _rd_col else ""
+            _aa_draft=pd.DataFrame()
+            if os.path.exists("cfb_draft_results.csv"):
+                _aa_draft=pd.read_csv("cfb_draft_results.csv")
+                _aa_draft.columns=[str(c).strip() for c in _aa_draft.columns]
+                _aa_draft["DraftYear"]=pd.to_numeric(_aa_draft["DraftYear"],errors="coerce").fillna(0).astype(int)
+                _aa_yrs_d=sorted(_aa_draft["DraftYear"].unique())[-4:]
+                _aa_draft=_aa_draft[_aa_draft["DraftYear"].isin(_aa_yrs_d)].copy()
+                _tc_aa=next((c for c in _aa_draft.columns if c in ("CollegeTeam","Team","TEAM")),None)
+                if _tc_aa and _tc_aa!="Team": _aa_draft=_aa_draft.rename(columns={_tc_aa:"Team"})
+                _aa_draft["Team"]=_aa_draft.get("Team",pd.Series([""]*len(_aa_draft))).astype(str).str.strip()
+            # Card renderer
+            def _aa_card(title,subtitle,rows,color,icon):
+                _max_v=rows[0][1] if rows else 1
+                _md=(f"<div style='background:linear-gradient(135deg,{color}18 0%,#06090f 60%);border:1px solid {color}40;"
+                     f"border-radius:14px;padding:14px 16px;margin-bottom:8px;'>"
+                     f"<div style='font-size:.68rem;color:{color};font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px;'>{icon} {html.escape(title)}</div>"
+                     f"<div style='font-size:.62rem;color:#64748b;margin-bottom:8px;'>{html.escape(subtitle)}</div>")
+                _medals={0:"🥇",1:"🥈",2:"🥉"}
+                for _ri,(_ru,_rv,_rt) in enumerate(rows[:6]):
+                    _rpc=get_team_primary_color(_rt); _rlg=get_school_logo_src(_rt)
+                    _rlh=f"<img src='{_rlg}' style='width:20px;height:20px;object-fit:contain;'/>" if _rlg else ""
+                    _bar=min(100,max(4,int(_rv/_max_v*90))) if _max_v>0 else 4
+                    _md+=(f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:5px;'>"
+                          f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#fbbf24;min-width:20px;'>{_medals.get(_ri,f'#{_ri+1}')}</span>"
+                          f"{_rlh}"
+                          f"<div style='flex:1;'>"
+                          f"<div style='display:flex;justify-content:space-between;align-items:baseline;'>"
+                          f"<span style='font-weight:800;color:{_rpc};font-family:Barlow Condensed,sans-serif;font-size:.85rem;'>{html.escape(_ru)}</span>"
+                          f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:{color};'>{_rv}</span></div>"
+                          f"<div style='background:#1e293b;border-radius:3px;height:4px;margin-top:2px;overflow:hidden;'>"
+                          f"<div style='background:{color};width:{_bar}%;height:100%;border-radius:3px;'></div></div>"
+                          f"</div></div>")
+                _md+="</div>"
+                st.markdown(_md,unsafe_allow_html=True)
+            _col1,_col2=st.columns(2)
+            with _col1:
+                if not _aa_draft.empty:
+                    _nfl_c=[(u,len(_aa_draft[_aa_draft["Team"]==t]),t) for u,t in USER_TEAMS.items() if len(_aa_draft[_aa_draft["Team"]==t])>0]
+                    _nfl_c.sort(key=lambda x:-x[1])
+                    _aa_card("NFL Factory","Most players to NFL (last 4 seasons)",_nfl_c,"#fbbf24","🏈")
+                else:
+                    st.info("Push cfb_draft_results.csv for NFL Factory.")
+            with _col2:
+                if not _aa_xf.empty:
+                    _pt_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Playing Time",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _pt_c=[(u,n,t) for u,n,t in _pt_c if n>0]; _pt_c.sort(key=lambda x:-x[1])
+                    _aa_card("Put Me in Coach","Transfers out — Playing Time (last 4 seasons)",_pt_c,"#38bdf8","🪑")
+                else:
+                    st.info("No transfer data found.")
+            _col3,_col4=st.columns(2)
+            with _col3:
+                if not _aa_xf.empty:
+                    _ps_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Playing Style",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _ps_c=[(u,n,t) for u,n,t in _ps_c if n>0]; _ps_c.sort(key=lambda x:-x[1])
+                    _aa_card("This Team Sucks","Transfers out — Playing Style (last 4 seasons)",_ps_c,"#f97316","😤")
+                else:
+                    st.info("No transfer data found.")
+            with _col4:
+                if not _aa_xf.empty:
+                    _cp_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Prestige",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _cp_c=[(u,n,t) for u,n,t in _cp_c if n>0]; _cp_c.sort(key=lambda x:-x[1])
+                    _aa_card("Coaching Malpractice","Transfers out — Coach Prestige (last 4 seasons)",_cp_c,"#ef4444","🚨")
+                else:
+                    st.info("No transfer data found.")
+        except Exception as _aae:
+            st.caption(f"Attrition Analytics unavailable: {_aae}")
 
 def render_roster_matchup_tab():
     import plotly.graph_objects as go
