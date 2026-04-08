@@ -4347,10 +4347,17 @@ def render_roster_attrition_tab():
                     if _ox in _aa_xf.columns and _nx not in _aa_xf.columns: _aa_xf=_aa_xf.rename(columns={_ox:_nx})
                 _aa_xf["Year"]=pd.to_numeric(_aa_xf.get("Year",0),errors="coerce").fillna(0).astype(int)
                 _aa_xf["Team"]=_aa_xf.get("Team",pd.Series([""]* len(_aa_xf))).astype(str).str.strip()
+                # Filter to OUTGOING transfers only
+                _ts_col=next((c for c in _aa_xf.columns if c.upper() in ("TRANSFERSTATUS","TRANSFER_STATUS","STATUS")),None)
+                if _ts_col: _aa_xf=_aa_xf[_aa_xf[_ts_col].astype(str).str.strip().str.lower().isin(["leaving","out","transfer out"])].copy()
                 _aa_yrs=sorted(_aa_xf["Year"].unique())[-4:]
                 _aa_xf=_aa_xf[_aa_xf["Year"].isin(_aa_yrs)].copy()
-                _rd_col=next((c for c in _aa_xf.columns if "REASON" in c.upper()),None)
+                # Flexible reason column: ReasonDetail or Reason
+                _rd_col=next((c for c in _aa_xf.columns if c.upper() in ("REASONDETAIL","REASON_DETAIL","REASON")),None)
                 _aa_xf["_reason"]=_aa_xf[_rd_col].astype(str).str.strip() if _rd_col else ""
+                _aa_xf["OVR"]=pd.to_numeric(_aa_xf.get("OVR",0),errors="coerce").fillna(0)
+                _aa_xf["Player"]=_aa_xf.get("Player",pd.Series(["?"]*len(_aa_xf))).astype(str).str.strip()
+                _aa_xf["Pos"]=_aa_xf.get("Pos",pd.Series(["?"]*len(_aa_xf))).astype(str).str.strip()
             _aa_draft=pd.DataFrame()
             if os.path.exists("cfb_draft_results.csv"):
                 _aa_draft=pd.read_csv("cfb_draft_results.csv")
@@ -4415,6 +4422,127 @@ def render_roster_attrition_tab():
                     _aa_card("Coaching Malpractice","Transfers out — Coach Prestige (last 4 seasons)",_cp_c,"#ef4444","🚨")
                 else:
                     st.info("No transfer data found.")
+
+            # Row 3: Show Me the Money + I Miss Mama
+            _col5,_col6=st.columns(2)
+            with _col5:
+                if not _aa_xf.empty:
+                    _pp_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Pro Potential|Pro_Potential|Professional",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _pp_c=[(u,n,t) for u,n,t in _pp_c if n>0]; _pp_c.sort(key=lambda x:-x[1])
+                    _aa_card("Show Me the Money","Transfers out — Pro Potential reason (last 4 seasons)",_pp_c,"#a78bfa","💰")
+                else:
+                    st.info("No transfer data found.")
+            with _col6:
+                if not _aa_xf.empty:
+                    _hm_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Proximity|Home|Mama|Homesick",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _hm_c=[(u,n,t) for u,n,t in _hm_c if n>0]; _hm_c.sort(key=lambda x:-x[1])
+                    _aa_card("I Miss Mama's Cookin'","Transfers out — Proximity to Home reason (last 4 seasons)",_hm_c,"#f472b6","🏠")
+                else:
+                    st.info("No transfer data found.")
+
+            # ── ELITE STINGERS (full width) ─────────────────────────────
+            st.markdown("---")
+            st.subheader("🐝 Elite Stingers")
+            st.caption("Players who transferred OUT from a user program with OVR ≥ 85, OR who were a Top-10 Future Value player, OR a High-Ceiling Sleeper on their roster at the time. These are the departures that sting the most. Calculated across the last 4 seasons.")
+            try:
+                if not _aa_xf.empty:
+                    # Identify Elite Stingers: OVR >= 85 qualifies immediately
+                    # Also pull FV/HighCeiling from roster CSVs if available
+                    _elite=_aa_xf[_aa_xf["OVR"]>=85].copy()
+                    # Try to augment with FV and HighCeiling from per-year rosters
+                    try:
+                        import glob as _sg
+                        for _syr in _aa_yrs:
+                            _srf=f"cfb_136_top30_rosters_{_syr}.csv"
+                            if not os.path.exists(_srf): continue
+                            _sr2=pd.read_csv(_srf); _sr2.columns=[str(c).strip() for c in _sr2.columns]
+                            _sr2["OVR"]=pd.to_numeric(_sr2.get("OVR",0),errors="coerce").fillna(0)
+                            for _sc in ("SPD","ACC","AGI","COD","EligLeft","EligYr"):
+                                if _sc in _sr2.columns: _sr2[_sc]=pd.to_numeric(_sr2[_sc],errors="coerce").fillna(0)
+                            if all(c in _sr2.columns for c in ("SPD","ACC","AGI","COD")):
+                                _sr2["AthlScore"]=(_sr2["SPD"]+_sr2["ACC"]+_sr2["AGI"]+_sr2["COD"])/4.0
+                                _elig=_sr2.get("EligLeft",_sr2.get("EligYr",pd.Series([1]*len(_sr2)))); 
+                                if hasattr(_elig,"fillna"): _elig=_elig.fillna(1)
+                                _sr2["FV"]=(_sr2["OVR"]*0.55+_sr2["AthlScore"]*0.25+_elig*3.0).round(1)
+                                _sr2["HighCeiling"]=(_elig>=3)&(_sr2["AthlScore"]>=82)&(_sr2["OVR"]<85)
+                                _nm_c=next((c for c in _sr2.columns if c.upper() in ("NAME","PLAYER")),None)
+                                _tm_c2=next((c for c in _sr2.columns if c.upper()=="TEAM"),None)
+                                if _nm_c and _tm_c2:
+                                    _sr2[_tm_c2]=_sr2[_tm_c2].astype(str).str.strip()
+                                    for _,_sr2r in _sr2.iterrows():
+                                        _s2team=str(_sr2r.get(_tm_c2,"")); _s2name=str(_sr2r.get(_nm_c,""))
+                                        if _s2team not in ALL_USER_TEAMS: continue
+                                        _is_top10_fv=_sr2[_sr2[_tm_c2]==_s2team]["FV"].nlargest(10).min() if not _sr2[_sr2[_tm_c2]==_s2team].empty else 0
+                                        _is_ceiling=bool(_sr2r.get("HighCeiling",False))
+                                        _is_fv_top10=float(_sr2r.get("FV",0))>=float(_is_top10_fv)
+                                        if (_is_fv_top10 or _is_ceiling) and float(_sr2r.get("OVR",0))<85:
+                                            # Check if this player transferred out this year
+                                            _match=_aa_xf[(_aa_xf["Year"]==_syr)&(_aa_xf["Player"].astype(str).str.strip()==_s2name)&(_aa_xf["Team"]==_s2team)]
+                                            if not _match.empty and not (_elite["Player"].astype(str).str.strip()==_s2name).any():
+                                                _row=_match.iloc[0].copy(); _row["OVR"]=float(_sr2r.get("OVR",0)); _row["_fv_flag"]="FV/Ceiling"
+                                                _elite=pd.concat([_elite,_row.to_frame().T],ignore_index=True)
+                    except: pass
+                    if _elite.empty:
+                        st.info("No elite stingers found in the last 4 seasons.")
+                    else:
+                        _elite=_elite.drop_duplicates(subset=["Player","Team","Year"]).sort_values(["Year","OVR"],ascending=[False,False])
+                        for _,_er in _elite.iterrows():
+                            _eplayer=str(_er.get("Player","?")); _epos=str(_er.get("Pos","?")); _eovr=int(_er.get("OVR",0) or 0)
+                            _eteam=str(_er.get("Team","?")); _eyr=int(_er.get("Year",0) or 0); _ereason=str(_er.get("_reason",""))
+                            _eflag=str(_er.get("_fv_flag","")) if "_fv_flag" in _er.index else ""
+                            _epc=get_team_primary_color(_eteam); _elg=get_school_logo_src(_eteam)
+                            _elh=f"<img src='{_elg}' style='width:22px;height:22px;object-fit:contain;vertical-align:middle;'/>" if _elg else ""
+                            _eovr_c="#fbbf24" if _eovr>=90 else ("#60a5fa" if _eovr>=85 else "#94a3b8")
+                            _etag=_eflag if _eflag else ("90+ OVR" if _eovr>=90 else "85+ OVR")
+                            st.markdown(
+                                f"<div style='background:linear-gradient(90deg,{_epc}18 0%,#06090f 50%);border:1px solid {_epc}44;"
+                                f"border-left:4px solid {_epc};border-radius:8px;padding:8px 12px;margin-bottom:4px;"
+                                f"display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                                f"<div style='display:flex;align-items:center;gap:8px;'>"
+                                f"<span style='font-size:.62rem;color:#475569;min-width:28px;'>{_eyr}</span>"
+                                f"{_elh}"
+                                f"<span style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.95rem;'>{html.escape(_eplayer)}</span>"
+                                f"<span style='background:{_epc}33;color:{_epc};border-radius:3px;padding:1px 5px;font-size:.58rem;font-weight:700;'>{_epos}</span>"
+                                f"<span style='color:{_eovr_c};font-family:Bebas Neue,sans-serif;font-size:.95rem;'>{_eovr} OVR</span>"
+                                f"</div>"
+                                f"<div style='display:flex;align-items:center;gap:6px;'>"
+                                f"<span style='background:#7f1d1d33;color:#f87171;border-radius:4px;padding:1px 7px;font-size:.58rem;font-weight:700;'>{html.escape(_etag)}</span>"
+                                f"<span style='color:#475569;font-size:.62rem;'>{html.escape(_ereason[:30]) if _ereason and _ereason!='nan' else ''}</span>"
+                                f"</div></div>",
+                                unsafe_allow_html=True)
+                        # ── F$%K! IT STINGS! ranking ──────────────────────────────────
+                        st.markdown("---")
+                        st.subheader("💸 F$%K! It Stings!")
+                        st.caption("Which coaches have bled the most Elite Stingers over the last 4 seasons.")
+                        _fk_cnts=[(u,len(_elite[_elite["Team"]==t]),t) for u,t in USER_TEAMS.items()]
+                        _fk_cnts=[(u,n,t) for u,n,t in _fk_cnts if n>0]; _fk_cnts.sort(key=lambda x:-x[1])
+                        if _fk_cnts:
+                            _fk_html=""
+                            _fk_max=_fk_cnts[0][1] if _fk_cnts else 1
+                            _fk_medals={0:"🥇",1:"🥈",2:"🥉"}
+                            for _fi,(_fu,_fv,_ft) in enumerate(_fk_cnts):
+                                _fpc=get_team_primary_color(_ft); _flg=get_school_logo_src(_ft)
+                                _flh=f"<img src='{_flg}' style='width:22px;height:22px;object-fit:contain;'/>" if _flg else ""
+                                _fbar=min(100,max(4,int(_fv/_fk_max*90)))
+                                _fk_html+=(f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:6px;'>"
+                                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#fbbf24;min-width:20px;'>{_fk_medals.get(_fi,f'#{_fi+1}')}</span>"
+                                    f"{_flh}"
+                                    f"<div style='flex:1;'>"
+                                    f"<div style='display:flex;justify-content:space-between;align-items:baseline;'>"
+                                    f"<span style='font-weight:800;color:{_fpc};font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_fu)}</span>"
+                                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#ef4444;'>{_fv} stingers</span></div>"
+                                    f"<div style='background:#1e293b;border-radius:3px;height:4px;margin-top:2px;overflow:hidden;'>"
+                                    f"<div style='background:#ef4444;width:{_fbar}%;height:100%;border-radius:3px;'></div></div>"
+                                    f"</div></div>")
+                            st.markdown(
+                                f"<div style='background:linear-gradient(135deg,#ef444418 0%,#06090f 60%);border:1px solid #ef444440;border-radius:14px;padding:14px 16px;'>"
+                                +_fk_html+"</div>",unsafe_allow_html=True)
+                        else:
+                            st.info("No Elite Stingers ranked yet.")
+                else:
+                    st.info("Push attrition_transfers.csv to enable Elite Stingers.")
+            except Exception as _ese:
+                st.caption(f"Elite Stingers unavailable: {_ese}")
         except Exception as _aae:
             st.caption(f"Attrition Analytics unavailable: {_aae}")
 
