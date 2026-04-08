@@ -4143,11 +4143,11 @@ def render_roster_attrition_tab():
     # ── DETAIL TABS ──────────────────────────────────────────────────
     # For upcoming year only seniors tab shown; others not yet available
     if target_year==CURRENT_YEAR+1:
-        _at_tabs=st.tabs(["🎓 Departing Seniors","🎯 Incoming Recruits","📊 Attrition Analytics"])
-        _tab_nfl=None; _tab_xfer=None; _tab_sr=0; _tab_inc=1; _tab_ana=2
+        _at_tabs=st.tabs(["📊 Attrition Analytics","🎓 Departing Seniors","🎯 Incoming Recruits"])
+        _tab_nfl=None; _tab_xfer=None; _tab_ana=0; _tab_sr=1; _tab_inc=2
     else:
-        _at_tabs=st.tabs(["🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors","🎯 Incoming Recruits","📊 Attrition Analytics"])
-        _tab_nfl=0; _tab_xfer=1; _tab_sr=2; _tab_inc=3; _tab_ana=4
+        _at_tabs=st.tabs(["📊 Attrition Analytics","🏈 NFL Draft Exits","🚪 Transfers Out","🎓 Departing Seniors","🎯 Incoming Recruits"])
+        _tab_ana=0; _tab_nfl=1; _tab_xfer=2; _tab_sr=3; _tab_inc=4
     if _tab_nfl is not None:
      with _at_tabs[_tab_nfl]:
         st.subheader(f"🏈 {target_year} NFL Draft Exits")
@@ -4368,6 +4368,26 @@ def render_roster_attrition_tab():
                 _aa_xf["Pos"]=_aa_xf.get("Pos",pd.Series(["?"]*len(_aa_xf))).astype(str).str.strip()
                 # Dedup source: same player leaving same team in same year = one row
                 _aa_xf=_aa_xf.drop_duplicates(subset=["Player","Team","Year"]).copy()
+            # Load FULL transfer history for persuade rate (all years)
+            _aa_xf_all=pd.DataFrame()
+            if os.path.exists("attrition_transfers.csv"):
+                try:
+                    _aa_xf_all=pd.read_csv("attrition_transfers.csv")
+                    _aa_xf_all.columns=[str(c).strip() for c in _aa_xf_all.columns]
+                    for _ox,_nx in [("season_year","Year"),("YEAR","Year"),("team","Team"),("TEAM","Team")]:
+                        if _ox in _aa_xf_all.columns and _nx not in _aa_xf_all.columns: _aa_xf_all=_aa_xf_all.rename(columns={_ox:_nx})
+                    _aa_xf_all["Year"]=pd.to_numeric(_aa_xf_all.get("Year",0),errors="coerce").fillna(0).astype(int)
+                    _aa_xf_all["Team"]=_aa_xf_all.get("Team",pd.Series([""]*len(_aa_xf_all))).astype(str).str.strip()
+                    _aa_xf_all=_aa_xf_all[_aa_xf_all["Team"].isin(ALL_USER_TEAMS)].copy()
+                    _prs_col=next((c for c in _aa_xf_all.columns if "PERSUAD" in c.upper()),None)
+                    if _prs_col: _aa_xf_all["_persuaded"]=_aa_xf_all[_prs_col].astype(str).str.strip().str.lower().isin(["yes","y","true","1"])
+                    else: _aa_xf_all["_persuaded"]=False
+                except: _aa_xf_all=pd.DataFrame()
+            # Also add persuaded col to _aa_xf for last-4-seasons cards
+            if not _aa_xf.empty:
+                _prs_col2=next((c for c in _aa_xf.columns if "PERSUAD" in c.upper()),None)
+                if _prs_col2: _aa_xf["_persuaded"]=_aa_xf[_prs_col2].astype(str).str.strip().str.lower().isin(["yes","y","true","1"])
+                else: _aa_xf["_persuaded"]=False
             _aa_draft=pd.DataFrame()
             if os.path.exists("cfb_draft_results.csv"):
                 _aa_draft=pd.read_csv("cfb_draft_results.csv")
@@ -4555,6 +4575,67 @@ def render_roster_attrition_tab():
                     st.info("Push attrition_transfers.csv to enable Elite Stingers.")
             except Exception as _ese:
                 st.caption(f"Elite Stingers unavailable: {_ese}")
+            # ── PERSUADE? NAH, GOT PAID ──────────────────────────────────
+            st.markdown("---")
+            st.subheader("💸 Persuade? Nah, Got Paid")
+            st.caption("Players who were persuaded to STAY — coach talked 'em out of the portal. Ranked by total persuasions over the last 4 seasons.")
+            try:
+                if not _aa_xf.empty and "_persuaded" in _aa_xf.columns:
+                    _prs_rows=[(u,int(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_persuaded"]==True)].shape[0]),t) for u,t in USER_TEAMS.items()]
+                    _prs_rows=[r for r in _prs_rows if r[1]>0]; _prs_rows.sort(key=lambda x:-x[1])
+                    if _prs_rows:
+                        _aa_card("Persuade? Nah, Got Paid","Players persuaded to stay (last 4 seasons)",_prs_rows,"#4ade80","🗣️")
+                    else:
+                        st.info("No persuaded players found in last 4 seasons. Persuaded column may be empty.")
+                else:
+                    st.info("No Persuaded column found in attrition_transfers.csv.")
+            except Exception as _pre:
+                st.caption(f"Persuade section unavailable: {_pre}")
+
+            # ── PERSUADE RATE ─────────────────────────────────────────────
+            st.markdown("---")
+            st.subheader("📊 Persuade Rate")
+            st.caption("Overall persuasion success rate — what % of transfer-risk players did each coach convince to stay? All seasons, all history.")
+            try:
+                if not _aa_xf_all.empty and "_persuaded" in _aa_xf_all.columns:
+                    _prate_rows=[]
+                    for _pu,_pt in USER_TEAMS.items():
+                        _team_all=_aa_xf_all[_aa_xf_all["Team"]==_pt]
+                        _total=len(_team_all); _persuaded=int(_team_all["_persuaded"].sum())
+                        if _total>0:
+                            _rate=round(_persuaded/_total*100,1)
+                            _prate_rows.append((_pu,_rate,_pt,_persuaded,_total))
+                    _prate_rows.sort(key=lambda x:-x[1])
+                    if _prate_rows:
+                        _pr_max=_prate_rows[0][1] if _prate_rows else 1
+                        _pr_medals={0:"🥇",1:"🥈",2:"🥉"}
+                        _pr_md=(f"<div style='background:linear-gradient(135deg,#4ade8018 0%,#06090f 60%);border:1px solid #4ade8040;"
+                                f"border-radius:14px;padding:14px 16px;'>")
+                        for _pri,(_pu,_rate,_pt,_perd,_ptot) in enumerate(_prate_rows):
+                            _rpc=get_team_primary_color(_pt); _rlg=get_school_logo_src(_pt)
+                            _rlh=f"<img src='{_rlg}' style='width:20px;height:20px;object-fit:contain;'/>" if _rlg else ""
+                            _pbar=min(100,max(4,int(_rate/_pr_max*90)))
+                            _pr_c="#4ade80" if _rate>=50 else ("#fbbf24" if _rate>=25 else "#f87171")
+                            _pr_md+=(f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:6px;'>"
+                                f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#fbbf24;min-width:20px;'>{_pr_medals.get(_pri,f'#{_pri+1}')}</span>"
+                                f"{_rlh}"
+                                f"<div style='flex:1;'>"
+                                f"<div style='display:flex;justify-content:space-between;align-items:baseline;'>"
+                                f"<span style='font-weight:800;color:{_rpc};font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_pu)}</span>"
+                                f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:{_pr_c};'>{_rate}%"
+                                f"<span style='font-size:.6rem;color:#475569;font-family:sans-serif;'> ({_perd}/{_ptot})</span></span></div>"
+                                f"<div style='background:#1e293b;border-radius:3px;height:4px;margin-top:2px;overflow:hidden;'>"
+                                f"<div style='background:{_pr_c};width:{_pbar}%;height:100%;border-radius:3px;'></div></div>"
+                                f"</div></div>")
+                        _pr_md+="</div>"
+                        st.markdown(_pr_md,unsafe_allow_html=True)
+                        st.caption("🟢 ≥50% · 🟡 25–49% · 🔴 <25% retention rate")
+                    else:
+                        st.info("No persuasion data found across all seasons.")
+                else:
+                    st.info("No Persuaded column found in attrition_transfers.csv.")
+            except Exception as _prre:
+                st.caption(f"Persuade Rate unavailable: {_prre}")
         except Exception as _aae:
             st.caption(f"Attrition Analytics unavailable: {_aae}")
 
