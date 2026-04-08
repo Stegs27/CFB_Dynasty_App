@@ -4358,8 +4358,10 @@ def render_roster_attrition_tab():
                 _aa_xf=_aa_xf[_aa_xf["Team"].isin(ALL_USER_TEAMS)].copy()
                 _aa_yrs=sorted(_aa_xf["Year"].unique())[-4:]
                 _aa_xf=_aa_xf[_aa_xf["Year"].isin(_aa_yrs)].copy()
-                # Flexible reason column: ReasonDetail or Reason
-                _rd_col=next((c for c in _aa_xf.columns if c.upper() in ("REASONDETAIL","REASON_DETAIL","REASON")),None)
+                # Use ReasonDetail specifically (not the generic Reason column)
+                _rd_col=next((c for c in _aa_xf.columns if c.upper() in ("REASONDETAIL","REASON_DETAIL")),None)
+                if _rd_col is None:
+                    _rd_col=next((c for c in _aa_xf.columns if c.upper()=="REASON"),None)
                 _aa_xf["_reason"]=_aa_xf[_rd_col].astype(str).str.strip() if _rd_col else ""
                 _aa_xf["OVR"]=pd.to_numeric(_aa_xf.get("OVR",0),errors="coerce").fillna(0)
                 _aa_xf["Player"]=_aa_xf.get("Player",pd.Series(["?"]*len(_aa_xf))).astype(str).str.strip()
@@ -4377,10 +4379,14 @@ def render_roster_attrition_tab():
             # Debug: show what's in the transfer data (collapse by default)
             if not _aa_xf.empty:
                 with st.expander(f"🔍 Transfer data debug ({len(_aa_xf)} rows, {_aa_xf['Year'].nunique()} seasons)",expanded=False):
-                    _uniq_reasons=sorted(_aa_xf["_reason"].unique().tolist())
-                    st.caption(f"**Columns:** {list(_aa_xf.columns)}")
-                    st.caption(f"**Unique reasons ({len(_uniq_reasons)}):** {_uniq_reasons[:20]}")
-                    st.caption(f"**Teams in data:** {sorted(_aa_xf['Team'].unique().tolist())}")
+                    _uniq_reasons=sorted(_aa_xf["_reason"].dropna().unique().tolist())
+                    _raw_rd=sorted(_aa_xf["ReasonDetail"].dropna().unique().tolist()) if "ReasonDetail" in _aa_xf.columns else []
+                    _raw_r=sorted(_aa_xf["Reason"].dropna().unique().tolist()) if "Reason" in _aa_xf.columns else []
+                    st.caption(f"**Using column:** {_rd_col}")
+                    st.caption(f"**_reason unique:** {_uniq_reasons[:30]}")
+                    st.caption(f"**Raw ReasonDetail unique:** {_raw_rd[:30]}")
+                    st.caption(f"**Raw Reason unique:** {_raw_r[:30]}")
+                    st.caption(f"**Teams:** {sorted(_aa_xf['Team'].unique().tolist())}")
                     st.caption(f"**Years:** {sorted(_aa_xf['Year'].unique().tolist())}")
             # Card renderer
             def _aa_card(title,subtitle,rows,color,icon):
