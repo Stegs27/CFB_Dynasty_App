@@ -1533,17 +1533,28 @@ def compute_attrition_ratings(year=None):
     results={}
     # Load full roster for starter inference
     roster_df=pd.DataFrame()
-    for ros_file in [f'cfb26_rosters_full.csv', f'cfb_136_top30_rosters_{target_year}.csv']:
+    # Try per-year file FIRST (most accurate), fall back to cfb26 legacy
+    for ros_file in [f'cfb_136_top30_rosters_{target_year}.csv', f'cfb26_rosters_full.csv']:
         if os.path.exists(ros_file):
             try:
                 _r=pd.read_csv(ros_file)
+                _r.columns=[str(c).strip() for c in _r.columns]
+                # Normalize column names to TEAM/POS
+                for _oc,_nc in [('Team','TEAM'),('Pos','POS'),('Name','NAME'),('Ovr','OVR')]:
+                    if _oc in _r.columns and _nc not in _r.columns: _r=_r.rename(columns={_oc:_nc})
                 if 'TEAM' in _r.columns and 'POS' in _r.columns and 'OVR' in _r.columns:
                     _r['OVR']=pd.to_numeric(_r['OVR'],errors='coerce').fillna(0)
-                    if 'Season' in _r.columns:
+                    _r['TEAM']=_r['TEAM'].astype(str).str.strip()
+                    _r['POS']=_r['POS'].astype(str).str.upper().str.strip()
+                    # For per-year file filter by YEAR; for cfb26 filter by Season
+                    if 'YEAR' in _r.columns:
+                        _r['YEAR']=pd.to_numeric(_r['YEAR'],errors='coerce')
+                        _r=_r[_r['YEAR'].fillna(-1).astype(int)==target_year]
+                    elif 'Season' in _r.columns:
                         _r['Season']=pd.to_numeric(_r['Season'],errors='coerce')
                         _r=_r[_r['Season'].fillna(-1).astype(int)==target_year]
-                    roster_df=_r.copy()
-                    break
+                    if not _r.empty:
+                        roster_df=_r.copy(); break
             except: pass
     # Load transfers
     transfers=pd.DataFrame()
@@ -1850,29 +1861,96 @@ def build_ticker_items(year, week, is_bowl_week):
                     'blurb':f"{_lt} tops the power index at {_lf:+.1f}. The model says this is the best team in the dynasty."})
     except: pass
 
-    # ── 4. HIGHEST RATED GAME ────────────────────────────────────────────────
+    # ── 4. BIGGEST UPSET + BIGGEST BLOWOUT (prior week) ─────────────────
     try:
-        _gs=load_game_summaries(CY)
-        if not _gs.empty:
-            _gs['VIS_RANK']=pd.to_numeric(_gs.get('Visitor Rank',_gs.get('VIS_RANK',None)),errors='coerce')
-            _gs['HOME_RANK']=pd.to_numeric(_gs.get('Home Rank',_gs.get('HOME_RANK',None)),errors='coerce')
-            _gs['_game_rating']=_gs.apply(lambda r:
-                (min(26-float(r['VIS_RANK']),25) if pd.notna(r['VIS_RANK']) and float(r['VIS_RANK'])>0 else 0)+
-                (min(26-float(r['HOME_RANK']),25) if pd.notna(r['HOME_RANK']) and float(r['HOME_RANK'])>0 else 0),axis=1)
-            _top_game=_gs[_gs['_game_rating']>0].nlargest(1,'_game_rating')
-            if not _top_game.empty:
-                _tg=_top_game.iloc[0]
-                _tv=str(_tg.get('Visitor','')); _th=str(_tg.get('Home',''))
-                _tvr=_tg.get('VIS_RANK',None); _thr=_tg.get('HOME_RANK',None)
-                _tvs=int(float(_tg.get('VisitorScore',0) or 0))
-                _ths=int(float(_tg.get('HomeScore',0) or 0))
-                _vr=f"#{int(_tvr)} " if pd.notna(_tvr) and float(_tvr)>0 else ""
-                _hr=f"#{int(_thr)} " if pd.notna(_thr) and float(_thr)>0 else ""
-                headlines.append({'badge':'RATED GAME','priority':60,
-                    'text':f"Top Matchup: {_vr}{_tv} vs {_hr}{_th} -- {_tvs}-{_ths}",
-                    'blurb':f"The highest-rated matchup of the season. Both programs had something to prove."})
+        _sched2=load_scores_master(CY)
+        if not _sched2.empty:
+            _wc2=next((c for c in ('Week','WEEK') if c in _sched2.columns),None)
+            _sc2=next((c for c in ('Vis Score','Vis_Score') if c in _sched2.columns),None)
+            _hc2=next((c for c in ('Home Score','Home_Score') if c in _sched2.columns),None)
+            _sts2=next((c for c in ('Status','STATUS') if c in _sched2.columns),None)
+            if _wc2 and _sc2 and _hc2:
+                _sched2[_wc2]=pd.to_numeric(_sched2[_wc2],errors='coerce')
+                _sched2[_sc2]=pd.to_numeric(_sched2[_sc2],errors='coerce')
+                _sched2[_hc2]=pd.to_numeric(_sched2[_hc2],errors='coerce')
+                _pw=max(1,CW-1)
+                _prev=_sched2[_sched2[_wc2]==_pw].copy()
+                if _sts2: _prev=_prev[_prev[_sts2].astype(str).str.upper()=='FINAL']
+                _prev=_prev.dropna(subset=[_sc2,_hc2])
+                _prev['_margin']=(_prev[_sc2]-_prev[_hc2]).abs()
+                _vr2=next((c for c in ('Visitor Rank','VIS_RANK','Vis Rank') if c in _prev.columns),None)
+                _hr2=next((c for c in ('Home Rank','HOME_RANK','Home Rank') if c in _prev.columns),None)
+                if _vr2: _prev[_vr2]=pd.to_numeric(_prev[_vr2],errors='coerce')
+                if _hr2: _prev[_hr2]=pd.to_numeric(_prev[_hr2],errors='coerce')
+                if not _prev.empty:
+                    # Upset: winner ranked worse (or unranked) beat a ranked team
+                    def _upset_score(r):
+                        vs=float(r.get(_sc2,0) or 0); hs=float(r.get(_hc2,0) or 0)
+                        if vs==hs: return 0
+                        w_rank=float(r.get(_vr2,0) or 0) if vs>hs else float(r.get(_hr2,0) or 0)
+                        l_rank=float(r.get(_hr2,0) or 0) if vs>hs else float(r.get(_vr2,0) or 0)
+                        if l_rank>0 and (w_rank==0 or w_rank>l_rank):
+                            return l_rank+(50 if w_rank==0 else l_rank-w_rank)
+                        return 0
+                    _prev['_upset']=_prev.apply(_upset_score,axis=1)
+                    _top_upset=_prev[_prev['_upset']>0].nlargest(1,'_upset')
+                    if not _top_upset.empty:
+                        _ug=_top_upset.iloc[0]
+                        _uvs=float(_ug.get(_sc2,0) or 0); _uhs=float(_ug.get(_hc2,0) or 0)
+                        _uvis=str(_ug.get('Visitor','')); _uhom=str(_ug.get('Home',''))
+                        _uw=_uvis if _uvs>_uhs else _uhom; _ul=_uhom if _uvs>_uhs else _uvis
+                        _uws=int(max(_uvs,_uhs)); _uls=int(min(_uvs,_uhs))
+                        _ulr=_ug.get(_hr2 if _uvs>_uhs else _vr2,None) if (_hr2 or _vr2) else None
+                        _ulr_s=f"#{int(float(_ulr))} " if pd.notna(_ulr) and float(_ulr or 0)>0 else "ranked "
+                        is_user_u=(_uvis in ALL_USER_TEAMS or _uhom in ALL_USER_TEAMS)
+                        headlines.append({'badge':'🚨 UPSET ALERT','priority':190 if is_user_u else 130,
+                            'text':f"{_uw} stuns {_ulr_s}{_ul} {_uws}-{_uls} (Wk {_pw})",
+                            'blurb':f"{_uw} pulled off the upset of the week, taking down {_ulr_s}{_ul}."})
+                    # Biggest blowout
+                    _vu_col=next((c for c in ('Vis_User','VIS_USER') if c in _prev.columns),None)
+                    _hu_col=next((c for c in ('Home_User','HOME_USER') if c in _prev.columns),None)
+                    _user_prev=_prev.copy()
+                    if _vu_col and _hu_col:
+                        _user_prev=_prev[(_prev[_vu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))|                                         (_prev[_hu_col].astype(str).str.strip().isin(USER_TEAMS.keys()))]
+                    if _user_prev.empty: _user_prev=_prev
+                    _top_blow=_user_prev.nlargest(1,'_margin')
+                    if not _top_blow.empty:
+                        _bg2=_top_blow.iloc[0]
+                        _bvs=float(_bg2.get(_sc2,0) or 0); _bhs=float(_bg2.get(_hc2,0) or 0)
+                        _bvis=str(_bg2.get('Visitor','')); _bhom=str(_bg2.get('Home',''))
+                        _bw=_bvis if _bvs>_bhs else _bhom; _bl2=_bhom if _bvs>_bhs else _bvis
+                        _bws=int(max(_bvs,_bhs)); _bls=int(min(_bvs,_bhs)); _bmg=_bws-_bls
+                        if _bmg>=21:
+                            is_user_b=(_bvis in ALL_USER_TEAMS or _bhom in ALL_USER_TEAMS)
+                            headlines.append({'badge':'💥 BLOWOUT','priority':170 if is_user_b else 110,
+                                'text':f"{_bw} crushes {_bl2} {_bws}-{_bls} (Wk {_pw})",
+                                'blurb':f"{_bw} put on a clinic. {_bmg} points is not a football score, that's a statement."})
     except: pass
 
+    # ── 4b. SEASON-ENDING / LONG-TERM INJURIES (current week) ────────────────
+    try:
+        _inj2=pd.read_csv('injury_bulletin.csv') if os.path.exists('injury_bulletin.csv') else pd.DataFrame()
+        if not _inj2.empty:
+            _inj2.columns=[str(c).strip() for c in _inj2.columns]
+            _yr_ic=next((c for c in _inj2.columns if c.upper() in ('YEAR','SEASON')),None)
+            _wk_ic=next((c for c in _inj2.columns if c.upper()=='WEEK'),None)
+            if _yr_ic: _inj2[_yr_ic]=pd.to_numeric(_inj2[_yr_ic],errors='coerce')
+            if _wk_ic: _inj2[_wk_ic]=pd.to_numeric(_inj2[_wk_ic],errors='coerce')
+            _inj_cur=_inj2.copy()
+            if _yr_ic: _inj_cur=_inj_cur[_inj_cur[_yr_ic].fillna(-1).astype(int)==CY]
+            if _wk_ic: _inj_cur=_inj_cur[_inj_cur[_wk_ic].fillna(-1).astype(int)==CW]
+            _inj_cur['_wo']=pd.to_numeric(_inj_cur.get('WeeksOut',_inj_cur.get('Weeks_Out',0)),errors='coerce').fillna(0)
+            for _,_ir3 in _inj_cur[_inj_cur['_wo']>=6].iterrows():
+                _ip=str(_ir3.get('Player','?')); _it=str(_ir3.get('Team','?')); _ipos=str(_ir3.get('Pos','?'))
+                _iwo=int(_ir3.get('_wo',0)); _iinj=str(_ir3.get('Injury',''))
+                is_user_i=_it in ALL_USER_TEAMS
+                _season_end=(CW+_iwo)>21
+                _badge='🏥 SEASON ENDING' if _season_end else '🚑 LONG TERM INJURY'
+                _wording="OUT FOR THE SEASON" if _season_end else f"{_iwo} weeks"
+                headlines.append({'badge':_badge,'priority':210 if is_user_i else 160,
+                    'text':f"{_ip} ({_it}, {_ipos}) -- {_wording}"+(f" -- {_iinj}" if _iinj and _iinj.lower()!='nan' else ''),
+                    'blurb':f"{_ip} from {_it} is out {_wording}. Huge blow for the program."})
+    except: pass
     # ── 5. HEISMAN WINNER ────────────────────────────────────────────────────
     try:
         _hwin=pd.read_csv('Heisman_History.csv') if os.path.exists('Heisman_History.csv') else pd.DataFrame()
