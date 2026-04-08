@@ -5429,7 +5429,7 @@ with tabs[1]:
 
     with _rm_tabs[1]:
         st.header("📐 FPI, MS+ & Metrics")
-        _met_tabs=st.tabs(["📈 FPI & MS+","🎮 Game Control","⚡ Speed Freaks","🧬 Natty DNA","💥 Explosive Index","🔍 Beatdown Reality"])
+        _met_tabs=st.tabs(["📈 FPI & MS+","🎮 Game Control","⚡ Speed Freaks","🧬 Natty DNA","💥 Explosive Index","🔍 Beatdown Reality","🧠 Talent Development","📊 Dynasty Analytics"])
 
         with _met_tabs[0]:
             st.caption("Power ratings, schedule-adjusted projections, and résumé metrics.")
@@ -6042,6 +6042,110 @@ with tabs[1]:
                     _stat_rows.append(_row)
                 if _stat_rows:
                     st.dataframe(pd.DataFrame(_stat_rows).set_index('Coach'),use_container_width=True)
+                # ── Game Summaries Box Score Section ─────────────────────────────
+                st.markdown("---")
+                st.subheader("🎮 Box Score Theater")
+                st.caption("Game-by-game stats from game_summaries.csv. Select any matchup to see the full box score.")
+                try:
+                    _gs=pd.read_csv('game_summaries.csv') if os.path.exists('game_summaries.csv') else pd.DataFrame()
+                    if _gs.empty:
+                        st.info("Push game_summaries.csv to the repo to enable Box Score Theater.")
+                    else:
+                        _gs.columns=[str(c).strip() for c in _gs.columns]
+                        _gs['YEAR']=pd.to_numeric(_gs['YEAR'],errors='coerce')
+                        _gs['WEEK']=pd.to_numeric(_gs['WEEK'],errors='coerce')
+                        _gs_yr=_gs[_gs['YEAR'].fillna(-1).astype(int)==_da_yr_sel].copy()
+                        for _nc2 in ('VIS_FINAL','HOME_FINAL','VIS_TOTAL_OFFENSE','HOME_TOTAL_OFFENSE','VIS_RUSH_YDS','HOME_RUSH_YDS','VIS_PASS_YDS','HOME_PASS_YDS','VIS_TURNOVERS','HOME_TURNOVERS','VIS_3RD_CONV','VIS_3RD_ATT','HOME_3RD_CONV','HOME_3RD_ATT','HOME_RUSH_TD','VIS_RUSH_TD','VIS_PASS_TD','HOME_PASS_TD'):
+                            if _nc2 in _gs_yr.columns: _gs_yr[_nc2]=pd.to_numeric(_gs_yr[_nc2],errors='coerce')
+                        if _gs_yr.empty:
+                            st.info(f"No game summaries for {_da_yr_sel}.")
+                        else:
+                            # User-team games only
+                            _gs_user=_gs_yr[(_gs_yr['VIS_USER'].astype(str).str.strip().isin(USER_TEAMS.keys()))|
+                                             (_gs_yr['HOME_USER'].astype(str).str.strip().isin(USER_TEAMS.keys()))].copy()
+                            _gs_user['_label']=_gs_user.apply(lambda r:
+                                f"Wk {int(r['WEEK'])} · {str(r['VISITOR']).strip()} {int(r['VIS_FINAL']) if pd.notna(r['VIS_FINAL']) else '?'} @ "
+                                f"{str(r['HOME']).strip()} {int(r['HOME_FINAL']) if pd.notna(r['HOME_FINAL']) else '?'}",axis=1)
+                            _gs_sel=st.selectbox("Select Game",_gs_user['_label'].tolist(),key="gs_box_sel")
+                            _gs_row=_gs_user[_gs_user['_label']==_gs_sel].iloc[0]
+                            # Render box score card
+                            _vis=str(_gs_row['VISITOR']).strip(); _hom=str(_gs_row['HOME']).strip()
+                            _vf=int(_gs_row['VIS_FINAL']) if pd.notna(_gs_row['VIS_FINAL']) else 0
+                            _hf=int(_gs_row['HOME_FINAL']) if pd.notna(_gs_row['HOME_FINAL']) else 0
+                            _vc=get_team_primary_color(_vis); _hc=get_team_primary_color(_hom)
+                            _vl=get_school_logo_src(_vis); _hl=get_school_logo_src(_hom)
+                            _vlh=f"<img src='{_vl}' style='width:32px;height:32px;object-fit:contain;'/>" if _vl else ""
+                            _hlh=f"<img src='{_hl}' style='width:32px;height:32px;object-fit:contain;'/>" if _hl else ""
+                            _wc2='#4ade80' if _vf>_hf else '#f87171'
+                            _hc2='#4ade80' if _hf>_vf else '#f87171'
+                            _note=str(_gs_row.get('NOTES','')).strip()
+                            # Score header
+                            st.markdown(
+                                f"<div style='background:linear-gradient(135deg,{_vc}12 0%,#06090f 50%,{_hc}12 100%);"
+                                f"border:1px solid #1e293b;border-radius:14px;padding:16px 20px;margin-bottom:10px;'>"
+                                f"<div style='display:flex;align-items:center;justify-content:space-between;gap:12px;'>"
+                                f"<div style='flex:1;display:flex;align-items:center;gap:8px;'>{_vlh}<div>"
+                                f"<div style='font-weight:900;color:{_vc};font-family:Barlow Condensed,sans-serif;font-size:1rem;'>{html.escape(_vis)}</div>"
+                                f"<div style='font-size:.62rem;color:#64748b;'>Away</div></div></div>"
+                                f"<div style='text-align:center;'><div style='display:flex;align-items:center;gap:8px;'>"
+                                f"<span style='font-family:Bebas Neue,sans-serif;font-size:2.5rem;color:{_wc2};line-height:1;'>{_vf}</span>"
+                                f"<span style='color:#334155;font-size:1.5rem;'>-</span>"
+                                f"<span style='font-family:Bebas Neue,sans-serif;font-size:2.5rem;color:{_hc2};line-height:1;'>{_hf}</span></div>"
+                                f"<div style='font-size:.55rem;color:#475569;letter-spacing:.08em;'>FINAL · Wk {int(_gs_row['WEEK'])}</div></div>"
+                                f"<div style='flex:1;display:flex;align-items:center;gap:8px;justify-content:flex-end;'><div style='text-align:right;'>"
+                                f"<div style='font-weight:900;color:{_hc};font-family:Barlow Condensed,sans-serif;font-size:1rem;'>{html.escape(_hom)}</div>"
+                                f"<div style='font-size:.62rem;color:#64748b;'>Home</div></div>{_hlh}</div></div>"
+                                +(f"<div style='margin-top:8px;font-size:.72rem;color:#94a3b8;font-style:italic;border-top:1px solid #1e293b;padding-top:8px;'>{html.escape(_note[:120])}</div>" if _note and _note!='nan' else "")
+                                +f"</div>",unsafe_allow_html=True)
+                            # Q-by-Q scores
+                            _q_cols=st.columns(5)
+                            for _qi,_ql in enumerate(['Q1','Q2','Q3','Q4','FINAL']):
+                                _vq=_gs_row.get(f'VIS_{_ql}' if _ql!='FINAL' else 'VIS_FINAL',None)
+                                _hq=_gs_row.get(f'HOME_{_ql}' if _ql!='FINAL' else 'HOME_FINAL',None)
+                                _vqs=f"{int(float(_vq))}" if pd.notna(_vq) and str(_vq)!='nan' else "-"
+                                _hqs=f"{int(float(_hq))}" if pd.notna(_hq) and str(_hq)!='nan' else "-"
+                                _q_cols[_qi].markdown(f"<div style='text-align:center;background:#0a1220;border-radius:8px;padding:6px 4px;'>"
+                                    f"<div style='font-size:.58rem;color:#475569;letter-spacing:.08em;'>{_ql}</div>"
+                                    f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:{_wc2};'>{_vqs}</div>"
+                                    f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:{_hc2};'>{_hqs}</div>"
+                                    f"</div>",unsafe_allow_html=True)
+                            st.markdown("---")
+                            # Full stat grid
+                            _stat_pairs=[
+                                ("Total Yards","VIS_TOTAL_OFFENSE","HOME_TOTAL_OFFENSE"),
+                                ("Rush Yards","VIS_RUSH_YDS","HOME_RUSH_YDS"),
+                                ("Pass Yards","VIS_PASS_YDS","HOME_PASS_YDS"),
+                                ("Rush TDs","VIS_RUSH_TD","HOME_RUSH_TD"),
+                                ("Pass TDs","VIS_PASS_TD","HOME_PASS_TD"),
+                                ("1st Downs","VIS_FIRST_DOWNS","HOME_FIRST_DOWNS"),
+                                ("3rd Down","VIS_3RD_CONV","HOME_3RD_CONV"),
+                                ("Turnovers","VIS_TURNOVERS","HOME_TURNOVERS"),
+                                ("Penalties","VIS_PENALTIES","HOME_PENALTIES"),
+                                ("TOP","VIS_TOP","HOME_TOP"),
+                            ]
+                            _gs_rows_html=""
+                            for _sn,_vc2,_hc2n in _stat_pairs:
+                                _vv=_gs_row.get(_vc2); _hv=_gs_row.get(_hc2n)
+                                _vvs=str(int(float(_vv))) if pd.notna(_vv) and str(_vv)!='nan' else "--"
+                                _hvs=str(int(float(_hv))) if pd.notna(_hv) and str(_hv)!='nan' else "--"
+                                try:
+                                    _better_vis=float(_vv)>float(_hv) if _sn!='Turnovers' and _sn!='Penalties' else float(_vv)<float(_hv)
+                                    _vis_fc='#4ade80' if _better_vis else '#94a3b8'; _hom_fc='#4ade80' if not _better_vis else '#94a3b8'
+                                except: _vis_fc='#94a3b8'; _hom_fc='#94a3b8'
+                                _gs_rows_html+=(f"<tr style='border-bottom:1px solid #0f172a;'>"
+                                    f"<td style='padding:5px 10px;text-align:right;font-weight:700;color:{_vis_fc};font-size:.85rem;'>{_vvs}</td>"
+                                    f"<td style='padding:5px 10px;text-align:center;color:#475569;font-size:.72rem;'>{html.escape(_sn)}</td>"
+                                    f"<td style='padding:5px 10px;text-align:left;font-weight:700;color:{_hom_fc};font-size:.85rem;'>{_hvs}</td>"
+                                    f"</tr>")
+                            st.markdown(
+                                f"<table style='width:100%;border-collapse:collapse;background:#06090f;border-radius:10px;overflow:hidden;'>"
+                                f"<thead><tr><th style='padding:6px 10px;text-align:right;color:{_vc};font-size:.75rem;'>{html.escape(_vis)}</th>"
+                                f"<th style='padding:6px 10px;text-align:center;color:#334155;font-size:.65rem;'>STAT</th>"
+                                f"<th style='padding:6px 10px;text-align:left;color:{_hc};font-size:.75rem;'>{html.escape(_hom)}</th></tr></thead>"
+                                f"<tbody>{_gs_rows_html}</tbody></table>",
+                                unsafe_allow_html=True)
+                except Exception as _gse:
+                    st.caption(f"Box Score Theater unavailable: {_gse}")
             except Exception as _dae:
                 st.caption(f"Dynasty Analytics unavailable: {_dae}")
 
