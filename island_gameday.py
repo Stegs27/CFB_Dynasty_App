@@ -4,6 +4,8 @@
 
 import streamlit as st
 
+_GLOBAL_WEEK_RANK_LOOKUP={}
+
 def _safe_int(v,default=0):
     """Convert to int safely handling NaN and non-numeric values."""
     try:
@@ -1526,10 +1528,9 @@ def compute_attrition_ratings(year=None):
     try:
         transfers=pd.read_csv('attrition_transfers.csv')
         transfers.columns=[str(c).strip() for c in transfers.columns]
-        # Transfers and seniors come from PRIOR year (left after last season)
-        _xfer_year=target_year-1
+        # Transfers with Year == target_year are this season's attrition
         transfers['Year']=pd.to_numeric(transfers.get('Year',transfers.get('YEAR',target_year)),errors='coerce')
-        transfers=transfers[(transfers['Year'].fillna(-1).astype(int)==_xfer_year) &
+        transfers=transfers[(transfers['Year'].fillna(-1).astype(int)==target_year) &
                            (transfers['TransferStatus'].astype(str).str.strip()=='Leaving')].copy()
         transfers['OVR']=pd.to_numeric(transfers['OVR'],errors='coerce').fillna(0)
     except: pass
@@ -1545,6 +1546,29 @@ def compute_attrition_ratings(year=None):
     except: pass
     for user,team in USER_TEAMS.items():
         pts=0.0; breakdown=[]
+        # Departing seniors (year col = target_year in roster CSV)
+        try:
+            _sr_file=f'cfb_136_top30_rosters_{target_year}.csv'
+            if os.path.exists(_sr_file):
+                _sr_df=pd.read_csv(_sr_file)
+                _sr_df.columns=[str(c).strip() for c in _sr_df.columns]
+                _tc_s=next((c for c in _sr_df.columns if c.upper()=='TEAM'),'TEAM')
+                if _tc_s!='TEAM': _sr_df=_sr_df.rename(columns={_tc_s:'TEAM'})
+                _sr_df['TEAM']=_sr_df['TEAM'].astype(str).str.strip()
+                _sr_df['OVR']=pd.to_numeric(_sr_df.get('OVR',0),errors='coerce').fillna(0)
+                if 'YEAR' in _sr_df.columns: _sr_df=_sr_df[pd.to_numeric(_sr_df['YEAR'],errors='coerce').fillna(-1).astype(int)==target_year]
+                _yr_cs=next((c for c in ('YEAR_CLASS','Class','CLASS') if c in _sr_df.columns),None)
+                _team_srs=_sr_df[(_sr_df['TEAM']==team)&(_sr_df[_yr_cs].astype(str).apply(is_senior_label))].copy() if _yr_cs else pd.DataFrame()
+                for _,_sr in _team_srs.iterrows():
+                    _sr_ovr=float(_sr.get('OVR',70)); _sr_pos=str(_sr.get('POS',_sr.get('Pos','?')))
+                    _sr_nm=str(_sr.get('NAME',_sr.get('Name','?')))
+                    is_start_s=infer_starter(_sr_pos,_sr_ovr,team,roster_df)
+                    if is_start_s: _sadd=1.5; _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) -- Sr Graduating (Starter)'
+                    else: _sadd=0.5; _slbl=f'🎓 {_sr_nm} ({_sr_pos}, {int(_sr_ovr)} OVR) -- Sr Graduating (Backup)'
+                    pts+=_sadd
+                    breakdown.append({'type':'senior','label':_slbl,'pts':_sadd,'player':_sr_nm,'pos':_sr_pos,'ovr':_sr_ovr})
+        except: pass
+
         # NFL draft losses
         team_draft=pd.DataFrame()
         if not draft.empty:
@@ -1582,7 +1606,7 @@ def compute_attrition_ratings(year=None):
                 _inc_r.columns=[str(c).strip() for c in _inc_r.columns]
                 _inc_r['Year']=pd.to_numeric(_inc_r['Year'],errors='coerce').fillna(0).astype(int)
                 _inc_r['StarRating']=pd.to_numeric(_inc_r.get('StarRating',0),errors='coerce').fillna(0)
-                _inc_r_team=_inc_r[(_inc_r['Year']==CURRENT_YEAR)&(_inc_r['Team'].astype(str).str.strip()==team)]
+                _inc_r_team=_inc_r[(_inc_r['Year']==target_year)&(_inc_r['Team'].astype(str).str.strip()==team)]
                 if not _inc_r_team.empty:
                     _avg_star=_inc_r_team['StarRating'].mean(); _cnt=len(_inc_r_team)
                     # 5-star avg class of 10 = 5pt reduction; scales with stars and count
@@ -2949,6 +2973,18 @@ def render_injury_report():
         st.caption(f"Injury report unavailable: {e}")
 
 # ── HIGHEST RATED GAMES ───────────────────────────────────────────────────────
+def get_rank_at_week(team, week, year):
+    """Get CFP rank of a team at a specific week/year using prebuilt lookup."""
+    try:
+        k=(str(team).strip().lower(),int(year),int(week))
+        if k in _GLOBAL_WEEK_RANK_LOOKUP: return int(_GLOBAL_WEEK_RANK_LOOKUP[k])
+        # Fallback: find nearest week
+        for wk in range(int(week),-1,-1):
+            k2=(str(team).strip().lower(),int(year),wk)
+            if k2 in _GLOBAL_WEEK_RANK_LOOKUP: return int(_GLOBAL_WEEK_RANK_LOOKUP[k2])
+    except: pass
+    return 0
+
 def render_highest_rated_games(year, week):
     """TV-viewership-formula rated games -- matches original app."""
     import hashlib
@@ -5813,6 +5849,201 @@ with tabs[1]:
                             )
             except Exception as _brc_err:
                 st.caption(f"Beatdown Reality Check unavailable: {_brc_err}")
+
+        with _met_tabs[6]:
+            st.header("🧠 Talent Development")
+            st.caption("Year-over-year player rating improvements. Compare a player's OVR, SPD, ACC, AGI, COD across seasons.")
+            try:
+                import glob as _tg
+                _td_years=sorted([int(f.split('_')[-1].replace('.csv','')) for f in _tg.glob('cfb_136_top30_rosters_*.csv')],reverse=True)
+                if len(_td_years)<2:
+                    st.info("Need at least 2 seasons of roster CSVs to show development.")
+                else:
+                    _td_c1,_td_c2=st.columns(2)
+                    with _td_c1: _td_yr_new=st.selectbox("Current Season",_td_years,index=0,key="td_yr_new")
+                    with _td_c2:
+                        _td_yr_old_opts=[y for y in _td_years if y<_td_yr_new]
+                        _td_yr_old=st.selectbox("Prior Season",_td_yr_old_opts,index=0,key="td_yr_old") if _td_yr_old_opts else None
+                    if _td_yr_old:
+                        _ros_new=pd.read_csv(f'cfb_136_top30_rosters_{_td_yr_new}.csv')
+                        _ros_old=pd.read_csv(f'cfb_136_top30_rosters_{_td_yr_old}.csv')
+                        for _rdf in [_ros_new,_ros_old]:
+                            _rdf.columns=[str(c).strip() for c in _rdf.columns]
+                            for _old_c,_new_c in [('PLAYER','NAME'),('POS','POS')]:
+                                if _old_c in _rdf.columns and _new_c not in _rdf.columns: _rdf.rename(columns={_old_c:_new_c},inplace=True)
+                            _tc=next((c for c in _rdf.columns if c.upper()=='TEAM'),'TEAM')
+                            _nc=next((c for c in _rdf.columns if c.upper() in ('NAME','PLAYER')),'NAME')
+                            if _tc!='TEAM': _rdf.rename(columns={_tc:'TEAM'},inplace=True)
+                            if _nc!='NAME': _rdf.rename(columns={_nc:'NAME'},inplace=True)
+                            for _ac in ('OVR','SPD','ACC','AGI','COD'):
+                                if _ac in _rdf.columns: _rdf[_ac]=pd.to_numeric(_rdf[_ac],errors='coerce').fillna(0)
+                        _ros_new_u=_ros_new[_ros_new['TEAM'].isin(ALL_USER_TEAMS)].copy()
+                        _ros_old_u=_ros_old[_ros_old['TEAM'].isin(ALL_USER_TEAMS)].copy()
+                        _merge_cols=[c for c in ('OVR','SPD','ACC','AGI','COD') if c in _ros_old_u.columns]
+                        _merged=_ros_new_u.merge(_ros_old_u[['NAME','TEAM']+_merge_cols],on=['NAME','TEAM'],suffixes=('','_old'),how='inner')
+                        for _ac in ('OVR','SPD','ACC','AGI','COD'):
+                            if f'{_ac}_old' in _merged.columns:
+                                _merged[f'd{_ac}']=(_merged[_ac]-_merged[f'{_ac}_old']).round(1)
+                        if _merged.empty:
+                            st.info("No matching players between seasons.")
+                        else:
+                            _merged=_merged[_merged['dOVR'].notna()].copy()
+                            st.subheader(f"🏆 Biggest Movers: {_td_yr_old} → {_td_yr_new}")
+                            _imp_cols=['OVR','SPD','ACC','AGI','COD']
+                            _imp_labels={'OVR':'Overall','SPD':'Speed','ACC':'Accel','AGI':'Agility','COD':'COD'}
+                            _imp_colors={'OVR':'#fbbf24','SPD':'#38bdf8','ACC':'#4ade80','AGI':'#a78bfa','COD':'#f97316'}
+                            _card_cols=st.columns(len(_imp_cols))
+                            for _idx,_at in enumerate(_imp_cols):
+                                _dc=f'd{_at}'
+                                if _dc not in _merged.columns: continue
+                                _best=_merged[_merged[_dc]>0].nlargest(1,_dc)
+                                if _best.empty: continue
+                                _bp=_best.iloc[0]; _btm=str(_bp['TEAM']); _ic=_imp_colors[_at]
+                                _blg=get_school_logo_src(_btm)
+                                _blh=f"<img src='{_blg}' style='width:20px;height:20px;object-fit:contain;'/>" if _blg else ''
+                                _bnm=str(_bp.get('NAME','?')); _bpo=str(_bp.get('POS','?'))
+                                _bdelta=float(_bp[_dc]); _bnew=int(_bp.get(_at,0)); _bold=int(_bp.get(f'{_at}_old',0))
+                                _card_cols[_idx].markdown(
+                                    f"<div style='background:linear-gradient(135deg,{_ic}18 0%,#06090f 60%);border:1px solid {_ic}40;"
+                                    f"border-radius:12px;padding:10px 12px;text-align:center;'>"
+                                    f"<div style='font-size:.58rem;color:{_ic};font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;'>TOP {_imp_labels[_at]} ↑</div>"
+                                    f"<div style='margin-bottom:3px;'>{_blh}</div>"
+                                    f"<div style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.85rem;'>{html.escape(_bnm)}</div>"
+                                    f"<div style='font-size:.58rem;color:#64748b;margin-bottom:4px;'>{html.escape(_bpo)} · {html.escape(_btm)}</div>"
+                                    f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.4rem;color:{_ic};line-height:1;'>+{_bdelta:.0f}</div>"
+                                    f"<div style='font-size:.55rem;color:#475569;'>{_bold} → {_bnew}</div></div>",
+                                    unsafe_allow_html=True)
+                            st.markdown("---")
+                            _c_l,_c_r=st.columns(2)
+                            with _c_l:
+                                st.subheader(f"📈 Top 10 OVR Gains ({_td_yr_old}→{_td_yr_new})")
+                                _top10=_merged.nlargest(10,'dOVR')[['NAME','POS','TEAM','OVR','dOVR']].copy()
+                                _top10.columns=['Player','Pos','Team','OVR','Δ OVR']
+                                st.dataframe(_top10.reset_index(drop=True),use_container_width=True,hide_index=True)
+                            with _c_r:
+                                st.subheader("🏅 Coach Developer Rankings")
+                                _coach_avgs=[]
+                                for _cuser,_cteam in USER_TEAMS.items():
+                                    _tm=_merged[_merged['TEAM']==_cteam]
+                                    if not _tm.empty and 'dOVR' in _tm.columns:
+                                        _coach_avgs.append({'Coach':_cuser,'Team':_cteam,'Avg Δ OVR':round(_tm['dOVR'].mean(),2),'# Improved':int((_tm['dOVR']>0).sum()),'Tracked':len(_tm)})
+                                if _coach_avgs:
+                                    _cdf=pd.DataFrame(_coach_avgs).sort_values('Avg Δ OVR',ascending=False).reset_index(drop=True)
+                                    _cdf.index=range(1,len(_cdf)+1)
+                                    st.dataframe(_cdf,use_container_width=True)
+                            st.markdown("---")
+                            st.subheader("🌟 Top 10 Career OVR Gains")
+                            _all_ros=[]
+                            for _yr in sorted(_td_years):
+                                try:
+                                    _rr=pd.read_csv(f'cfb_136_top30_rosters_{_yr}.csv')
+                                    _rr.columns=[str(c).strip() for c in _rr.columns]
+                                    _tc2=next((c for c in _rr.columns if c.upper()=='TEAM'),'TEAM')
+                                    _nc2=next((c for c in _rr.columns if c.upper() in ('NAME','PLAYER')),'NAME')
+                                    if _tc2!='TEAM': _rr.rename(columns={_tc2:'TEAM'},inplace=True)
+                                    if _nc2!='NAME': _rr.rename(columns={_nc2:'NAME'},inplace=True)
+                                    _rr['OVR']=pd.to_numeric(_rr.get('OVR',0),errors='coerce').fillna(0)
+                                    _rr['_yr']=_yr; _all_ros.append(_rr[['NAME','TEAM','OVR','_yr']])
+                                except: pass
+                            if _all_ros:
+                                _adf=pd.concat(_all_ros,ignore_index=True)[lambda d:d['TEAM'].isin(ALL_USER_TEAMS)]
+                                _first=_adf.groupby(['NAME','TEAM'])['OVR'].first().reset_index().rename(columns={'OVR':'Start'})
+                                _last=_adf.groupby(['NAME','TEAM'])['OVR'].last().reset_index().rename(columns={'OVR':'Current'})
+                                _car=_first.merge(_last,on=['NAME','TEAM'])
+                                _car['Career Δ']=(_car['Current']-_car['Start']).round(1)
+                                _car10=_car[_car['Career Δ']>0].nlargest(10,'Career Δ')[['NAME','TEAM','Start','Current','Career Δ']]
+                                _car10.columns=['Player','Team','Start OVR','Current OVR','Career Δ']
+                                st.dataframe(_car10.reset_index(drop=True),use_container_width=True,hide_index=True)
+            except Exception as _tde:
+                st.caption(f"Talent Development unavailable: {_tde}")
+
+        with _met_tabs[7]:
+            st.header("📊 Dynasty Analytics")
+            st.caption("Signature stats from Game Control, Explosive Index, and Beatdown Reality.")
+            try:
+                _da_gc=pd.DataFrame(); _da_ei=pd.DataFrame(); _da_brc=pd.DataFrame()
+                for _p in ['FPI/game_control_by_game_v3.csv','game_control_by_game_v3.csv']:
+                    if os.path.exists(_p): _da_gc=pd.read_csv(_p); break
+                for _p in ['FPI/explosive_index_by_game.csv','explosive_index_by_game.csv']:
+                    if os.path.exists(_p): _da_ei=pd.read_csv(_p); break
+                for _p in ['FPI/beatdown_reality_check_by_game.csv','beatdown_reality_check_by_game.csv']:
+                    if os.path.exists(_p): _da_brc=pd.read_csv(_p); break
+                for _df3 in [_da_gc,_da_ei,_da_brc]:
+                    if not _df3.empty:
+                        for _c3 in ('USER','TEAM','RESULT'):
+                            if _c3 in _df3.columns: _df3[_c3]=_df3[_c3].astype(str).str.strip()
+                _da_yr_sel=st.selectbox("Season",[CURRENT_YEAR,CURRENT_YEAR-1],format_func=lambda y:str(y),key="da_yr_sel")
+                for _dfc in [_da_gc,_da_ei,_da_brc]:
+                    if not _dfc.empty and 'YEAR' in _dfc.columns: _dfc['YEAR']=pd.to_numeric(_dfc['YEAR'],errors='coerce')
+                _gc_yr=_da_gc[_da_gc['YEAR'].fillna(-1).astype(int)==_da_yr_sel] if not _da_gc.empty else pd.DataFrame()
+                _ei_yr=_da_ei[_da_ei['YEAR'].fillna(-1).astype(int)==_da_yr_sel] if not _da_ei.empty else pd.DataFrame()
+                _brc_yr=_da_brc[_da_brc['YEAR'].fillna(-1).astype(int)==_da_yr_sel] if not _da_brc.empty else pd.DataFrame()
+                for _dfn in [_gc_yr,_ei_yr,_brc_yr]:
+                    for _num_col in ('game_control_score','off_explosive_index','beatdown_reality_score','aerial_nuke_flag','win_was_shakier_than_score_flag','got_worked_flag','quick_strike_flag'):
+                        if _num_col in _dfn.columns: _dfn[_num_col]=pd.to_numeric(_dfn[_num_col],errors='coerce').fillna(0)
+                _da_metrics=[]
+                if not _gc_yr.empty and 'game_control_score' in _gc_yr.columns:
+                    _dom=_gc_yr[(_gc_yr['game_control_score']>=80)&(_gc_yr['RESULT']=='W')]
+                    if not _dom.empty:
+                        _dom_cnt=_dom.groupby('USER').size(); _dt=_dom_cnt.idxmax()
+                        _da_metrics.append(('🔥 Most Dominant Wins',f"{_dt}: {int(_dom_cnt[_dt])} dominant W (GC≥80)","game_control_score ≥ 80",'#f97316'))
+                    _gc_std=_gc_yr.groupby('USER')['game_control_score'].std().dropna()
+                    if not _gc_std.empty:
+                        _ct=_gc_std.idxmin()
+                        _da_metrics.append(('🎯 Most Consistent',f"{_ct} (σ={_gc_std[_ct]:.1f})","Lowest game control variance",'#4ade80'))
+                if not _ei_yr.empty and 'off_explosive_index' in _ei_yr.columns:
+                    _ea=_ei_yr.groupby('USER')['off_explosive_index'].mean().dropna()
+                    if not _ea.empty:
+                        _et=_ea.idxmax()
+                        _da_metrics.append(('💥 Most Explosive',f"{_et}: {_ea[_et]:.1f} avg EI","Highest avg explosive index",'#fbbf24'))
+                    if 'aerial_nuke_flag' in _ei_yr.columns:
+                        _nk=_ei_yr.groupby('USER')['aerial_nuke_flag'].sum()
+                        if _nk.max()>0:
+                            _nt=_nk.idxmax()
+                            _da_metrics.append(('🚀 Air Raid King',f"{_nt}: {int(_nk[_nt])} nuke games","Most aerial nuke flag games",'#38bdf8'))
+                if not _brc_yr.empty and 'win_was_shakier_than_score_flag' in _brc_yr.columns:
+                    _sw=_brc_yr[_brc_yr['RESULT']=='W'].groupby('USER')['win_was_shakier_than_score_flag'].sum()
+                    if not _sw.empty and _sw.max()>0:
+                        _st2=_sw.idxmax()
+                        _da_metrics.append(('😅 Luckiest Winner',f"{_st2}: {int(_sw[_st2])} shaky wins","Won but shouldn't have by that much",'#a78bfa'))
+                if not _brc_yr.empty and 'got_worked_flag' in _brc_yr.columns:
+                    _wk=_brc_yr.groupby('USER')['got_worked_flag'].sum()
+                    if not _wk.empty and _wk.max()>0:
+                        _wt=_wk.idxmax()
+                        _da_metrics.append(('💀 Most Demolished',f"{_wt}: got worked {int(_wk[_wt])}x","Most got_worked_flag games",'#ef4444'))
+                if _da_metrics:
+                    for _mi in range(0,len(_da_metrics),3):
+                        _row_m=_da_metrics[_mi:_mi+3]
+                        _mcc=st.columns(max(1,len(_row_m)))
+                        for _mj,(_mtit,_mval,_mdsc,_mc_c) in enumerate(_row_m):
+                            _mcc[_mj].markdown(
+                                f"<div style='background:linear-gradient(135deg,{_mc_c}18 0%,#06090f 60%);border:1px solid {_mc_c}40;border-radius:12px;padding:12px 14px;margin-bottom:8px;'>"
+                                f"<div style='font-size:.6rem;color:{_mc_c};font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px;'>{html.escape(_mtit)}</div>"
+                                f"<div style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.98rem;margin-bottom:2px;'>{html.escape(_mval)}</div>"
+                                f"<div style='font-size:.58rem;color:#475569;font-style:italic;'>{html.escape(_mdsc)}</div></div>",
+                                unsafe_allow_html=True)
+                st.markdown("---")
+                st.subheader(f"📋 {_da_yr_sel} Full Breakdown")
+                _stat_rows=[]
+                for _du in USER_TEAMS:
+                    _row={'Coach':_du}
+                    if not _gc_yr.empty and 'game_control_score' in _gc_yr.columns:
+                        _ug=_gc_yr[_gc_yr['USER']==_du]
+                        _row['Avg GC']=f"{_ug['game_control_score'].mean():.1f}" if not _ug.empty else '--'
+                        _row['Dom Wins']=int((_ug['game_control_score']>=80).sum()) if not _ug.empty else 0
+                    if not _ei_yr.empty and 'off_explosive_index' in _ei_yr.columns:
+                        _ue=_ei_yr[_ei_yr['USER']==_du]
+                        _row['Avg EI']=f"{_ue['off_explosive_index'].mean():.1f}" if not _ue.empty else '--'
+                        _row['Nukes']=int(_ue['aerial_nuke_flag'].sum()) if not _ue.empty and 'aerial_nuke_flag' in _ue.columns else 0
+                    if not _brc_yr.empty and 'beatdown_reality_score' in _brc_yr.columns:
+                        _ub=_brc_yr[_brc_yr['USER']==_du]
+                        _row['Avg BRC']=f"{_ub['beatdown_reality_score'].mean():.1f}" if not _ub.empty else '--'
+                        _row['Shaky W']=int(_ub['win_was_shakier_than_score_flag'].sum()) if not _ub.empty and 'win_was_shakier_than_score_flag' in _ub.columns else 0
+                    _stat_rows.append(_row)
+                if _stat_rows:
+                    st.dataframe(pd.DataFrame(_stat_rows).set_index('Coach'),use_container_width=True)
+            except Exception as _dae:
+                st.caption(f"Dynasty Analytics unavailable: {_dae}")
 
 # ══════════════════════════════════════════════════════════════════════
 # TAB 2 -- ROSTER ATTRITION
