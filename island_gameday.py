@@ -6,6 +6,14 @@ import streamlit as st
 
 _GLOBAL_WEEK_RANK_LOOKUP={}
 
+def _send_discord(msg: str):
+    """Post a notification to the Discord webhook configured in st.secrets."""
+    try:
+        import requests as _rq
+        _wh=st.secrets.get("DISCORD_WEBHOOK","")
+        if _wh: _rq.post(_wh,json={"content":msg},timeout=4)
+    except: pass
+
 def _safe_int(v,default=0):
     """Convert to int safely handling NaN and non-numeric values."""
     try:
@@ -1621,13 +1629,42 @@ def compute_attrition_ratings(year=None):
                     _reduction=round(max(0.0,min(6.0,(_avg_star-3.0)*1.5+(_cnt-4)*0.15)),1)
                     pts=max(0,pts-_reduction)
         except: pass
-        # Tier
-        if pts<=4:   tier="Manageable"; tier_c="#10b981"; tier_emoji="✅"
-        elif pts<=8:  tier="Hurting";    tier_c="#f59e0b"; tier_emoji="⚠️"
-        elif pts<=12: tier="Rebuilding"; tier_c="#f97316"; tier_emoji="🔥"
-        else:         tier="Total Teardown"; tier_c="#ef4444"; tier_emoji="💀"
+        _inc_count=0; _inc_pts=0.0; _avg_inc_star=0.0
+        try:
+            _inc_r2=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
+            if not _inc_r2.empty:
+                _inc_r2.columns=[str(c).strip() for c in _inc_r2.columns]
+                for _o3,_n3 in [('season_year','Year'),('YEAR','Year'),('team','Team'),('TEAM','Team'),('Stars','StarRating'),('star_rating','StarRating')]:
+                    if _o3 in _inc_r2.columns and _n3 not in _inc_r2.columns: _inc_r2=_inc_r2.rename(columns={_o3:_n3})
+                _inc_r2['Year']=pd.to_numeric(_inc_r2.get('Year',0),errors='coerce').fillna(0).astype(int)
+                _inc_r2['StarRating']=pd.to_numeric(_inc_r2.get('StarRating',0),errors='coerce').fillna(0)
+                _ir2_team=_inc_r2[(_inc_r2['Year']==target_year)&(_inc_r2.get('Team',pd.Series(['']*len(_inc_r2))).astype(str).str.strip()==team)]
+                if not _ir2_team.empty:
+                    _avg_inc_star=float(_ir2_team['StarRating'].mean()); _inc_count=len(_ir2_team)
+                    _inc_pts=round(max(0.0,min(6.0,(_avg_inc_star-3.0)*1.5+(_inc_count-4)*0.15)),1)
+        except: pass
+        # Tier - starter-aware scoring
+        _starters_lost=sum(1 for b in breakdown if b.get('is_starter',True))
+        if pts<=3:   tier="Minimal Loss";  tier_c="#10b981"; tier_emoji="✅"
+        elif pts<=6: tier="Manageable";    tier_c="#22c55e"; tier_emoji="🟢"
+        elif pts<=9: tier="Hurting";       tier_c="#f59e0b"; tier_emoji="⚠️"
+        elif pts<=13: tier="Rebuilding";   tier_c="#f97316"; tier_emoji="🔥"
+        else:         tier="Program Reset"; tier_c="#ef4444"; tier_emoji="💀"
+        # Incoming class gain label
+        if _inc_count==0:
+            _raw_loss=pts+_inc_pts
+            if _raw_loss>10:   gain_label="🆘 Massive talent needed in recruiting"
+            elif _raw_loss>6:  gain_label="🔍 Heavy recruiting push required"
+            elif _raw_loss>3:  gain_label="📋 Solid class needed to reload"
+            else:              gain_label="✅ Minor recruiting needs this cycle"
+        else:
+            if _avg_inc_star>=4.5 and _inc_count>=8: gain_label=f"🌟 Elite class incoming ({_inc_count} recruits, {_avg_inc_star:.1f}★ avg)"
+            elif _avg_inc_star>=4.0: gain_label=f"💪 Strong class replenishing ({_inc_count} recruits, {_avg_inc_star:.1f}★ avg)"
+            elif _avg_inc_star>=3.5: gain_label=f"📋 Decent class incoming ({_inc_count} recruits, {_avg_inc_star:.1f}★ avg)"
+            else: gain_label=f"⚠️ Weak class ({_inc_count}, {_avg_inc_star:.1f}★) — need elite portal"
         results[user]={'team':team,'pts':round(pts,1),'tier':tier,'tier_c':tier_c,
                        'tier_emoji':tier_emoji,'breakdown':breakdown,
+                       'gain_label':gain_label,'starters_lost':_starters_lost,
                        'nfl_count':len(team_draft),'transfer_count':len(team_xf)}
     return results
 
@@ -2724,7 +2761,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
                     line_html+=(f" <span style='color:#334155;'>&nbsp;·&nbsp;</span>"
                         f"<span style='font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
                         f"font-weight:900;color:#94a3b8;'>SCORE: "
-                        f"<strong style='color:#f472b6;font-size:1rem;'>{_man_result_str} {_man_score_str}</strong></span>")
+                        f"<strong style='color:#d00072;font-size:1rem;'>{_man_result_str} {_man_score_str}</strong></span>")
                 game_strip=(f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#475569;"
                     f"letter-spacing:.08em;'>WK {week}</span> {status_chip} "
                     f"<span style='font-size:.88rem;color:#94a3b8;'>{ha}</span> {opp_rk_html}{opp_img} "
@@ -3705,7 +3742,11 @@ def render_roster_attrition_tab():
     with _atr_col2:
         # Build year options: prior seasons + current + upcoming only after week 6
         _atr_yr_opts=list(range(max(CURRENT_YEAR-3,2041),CURRENT_YEAR+1))
-        if CURRENT_WEEK_NUMBER>=6: _atr_yr_opts.append(CURRENT_YEAR+1)
+        # Only show next season tab when IN that next season at week 6+
+        # i.e. dynasty_state.csv year == CURRENT_YEAR+1 AND week >= 6
+        # Or simpler: show upcoming only once the offseason fully starts (week>=25)
+        # OR if this is the offseason of the NEXT year already in dynasty_state
+        if IS_OFFSEASON or CURRENT_WEEK_NUMBER>=25: _atr_yr_opts.append(CURRENT_YEAR+1)
         def _atr_yr_label(y):
             if y==CURRENT_YEAR: return f"{y} (Current)"
             if y==CURRENT_YEAR+1: return f"{y} (Upcoming)"
@@ -3841,6 +3882,31 @@ def render_roster_attrition_tab():
                 +f"</div>"
             )
             st.markdown(card_html, unsafe_allow_html=True)
+            # Departing players expander
+            _dept=d.get('breakdown',[])
+            if _dept:
+                _dept_starters=[b for b in _dept if b.get('is_starter',True)]
+                _dept_label=f"📋 Departures ({len(_dept)}, {len(_dept_starters)} starters)"
+                with st.expander(_dept_label):
+                    for _bd in sorted(_dept,key=lambda x:-x.get('ovr',0)):
+                        _bd_pc=primary
+                        _bd_is=_bd.get('is_starter',True); _bd_t=_bd.get('type','')
+                        _bd_ic='#fbbf24' if _bd_t=='nfl' else ('#f87171' if _bd_t=='transfer' else '#94a3b8')
+                        _bd_start_badge=(f"<span style='background:#4ade8022;color:#4ade80;border-radius:3px;padding:1px 5px;font-size:.55rem;font-weight:700;margin-left:4px;'>STARTER</span>" if _bd_is else "")
+                        st.markdown(
+                            f"<div style='background:#06090f;border:1px solid #1e293b;border-left:3px solid {_bd_ic};"
+                            f"border-radius:6px;padding:5px 10px;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;gap:8px;'>"
+                            f"<div style='display:flex;align-items:center;gap:6px;'>"
+                            f"<span style='background:{_bd_pc}33;color:{_bd_pc};border-radius:3px;padding:1px 5px;font-size:.58rem;font-weight:700;'>{html.escape(str(_bd.get('pos','?')))}</span>"
+                            f"<span style='font-weight:700;color:#f1f5f9;font-size:.82rem;'>{html.escape(str(_bd.get('player','?')))}</span>"
+                            f"{_bd_start_badge}"
+                            f"</div>"
+                            f"<div style='display:flex;align-items:center;gap:6px;'>"
+                            f"<span style='color:#64748b;font-size:.65rem;'>{int(_bd.get('ovr',0))} OVR</span>"
+                            f"<span style='color:{_bd_ic};font-size:.65rem;font-weight:700;'>{('NFL' if _bd_t=='nfl' else ('Transfer' if _bd_t=='transfer' else 'Sr'))}</span>"
+                            f"<span style='color:#475569;font-size:.62rem;'>{round(_bd.get('pts',0),1)}pts</span>"
+                            f"</div></div>",
+                            unsafe_allow_html=True)
             if not _team_inc.empty:
                 with st.expander(f"🎯 {team} {target_year} Incoming ({_in_count})"):
                     for _,_ir in _team_inc.iterrows():
@@ -5091,6 +5157,7 @@ with tabs[0]:
                     for _c in ['Year','Week']: _wb[_c]=pd.to_numeric(_wb.get(_c),errors='coerce').fillna(0).astype(int)
                     _wb=_wb[~((_wb['Year']==int(_gs_year))&(_wb['Week']==int(_gs_week)))].copy()
                     pd.concat([_wb,pd.DataFrame([{'User':_u,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_s} for _u,_s in _comb_status.items()])],ignore_index=True).to_csv('week_game_status.csv',index=False)
+                    _send_discord(f"📋 Commissioner locked in Wk {int(_gs_week)} scores/statuses — check the app!")
                     st.success(f"✅ Saved Week {_gs_week}. Download CSVs below and push to GitHub.")
                     st.cache_data.clear()
                 except Exception as _sve: st.error(f"Save error: {_sve}")
@@ -5151,6 +5218,7 @@ with tabs[0]:
                         for _c in ['Year','Week']: _wb2[_c]=pd.to_numeric(_wb2.get(_c),errors='coerce').fillna(0).astype(int)
                         _wb2=_wb2[~((_wb2['User'].astype(str).str.strip()==_logged_in_user)&(_wb2['Year']==int(_gs_year))&(_wb2['Week']==int(_gs_week)))].copy()
                         pd.concat([_wb2,pd.DataFrame([{'User':_logged_in_user,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_pl_status}])],ignore_index=True).to_csv('week_game_status.csv',index=False)
+                        _send_discord(f"🔔 **{_logged_in_user}** marked game status as '{_pl_status}' for Wk {int(_gs_week)}.")
                         st.success("✅ Saved!"); st.cache_data.clear()
                     except Exception as e: st.error(f"Save error: {e}")
             elif isinstance(_pl_matchup,dict):
@@ -5182,6 +5250,9 @@ with tabs[0]:
                         for _c in ['Year','Week']: _wb3[_c]=pd.to_numeric(_wb3.get(_c),errors='coerce').fillna(0).astype(int)
                         _wb3=_wb3[~((_wb3['User'].astype(str).str.strip().str.title()==_logged_in_user)&(_wb3['Year']==int(_gs_year))&(_wb3['Week']==int(_gs_week)))].copy()
                         pd.concat([_wb3,pd.DataFrame([{'User':_logged_in_user,'Year':int(_gs_year),'Week':int(_gs_week),'Status':_auto_st}])],ignore_index=True).to_csv('week_game_status.csv',index=False)
+                        _auto_st_msg='Ready' if (_pl_us>0 or _pl_os>0) else 'Not Set'
+                        _dc_msg=f"🏈 **{_logged_in_user}** ({USER_TEAMS.get(_logged_in_user,'')}) submitted Wk {int(_gs_week)} score: **{_pl_us}–{_pl_os}** vs {_pl_opp}"
+                        _send_discord(_dc_msg)
                         st.success(f"✅ Saved! Download the CSVs and send to Mike, or Mike can grab them from Commissioner Tools.")
                         st.cache_data.clear()
                     except Exception as e: st.error(f"Save error: {e}")
