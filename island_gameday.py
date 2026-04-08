@@ -6138,50 +6138,59 @@ with tabs[1]:
                         if _ovr_col in _trdf.columns:
                             _cfp_ovr_map=dict(zip(_trdf[_tm_col3],pd.to_numeric(_trdf[_ovr_col],errors='coerce').fillna(0).astype(int)))
                 except: pass
-                thead_cfp=(
-                    "<tr style='background:linear-gradient(90deg,#0a1220,#060a11);border-bottom:2px solid #1e293b;'>"
-                    "<th style='padding:5px 6px;color:#fbbf24;font-size:.72rem;text-align:center;width:36px;'>RK</th>"
-                    "<th style='padding:5px 6px;color:#475569;font-size:.55rem;text-align:left;'>Team</th>"
-                    "<th style='padding:5px 6px;color:#94a3b8;font-size:.55rem;text-align:center;'>Rec</th>"
-                    "<th style='padding:5px 6px;color:#60a5fa;font-size:.55rem;text-align:center;'>OVR</th>"
-                    "<th style='padding:5px 6px;color:#fbbf24;font-size:.55rem;text-align:center;'>FPI</th>"
-                    "<th style='padding:5px 6px;color:#a78bfa;font-size:.55rem;text-align:center;'>MS+</th>"
-                    "<th style='padding:5px 6px;color:#38bdf8;font-size:.55rem;text-align:center;'>SPD</th>"
-                    "<th style='padding:5px 6px;color:#f97316;font-size:.55rem;text-align:center;'>SOS</th>"
-                    "</tr>"
-                )
-                rows_cfp=""
+                # Render each row as a Projected-CFP-Field style card
+                _cfp_cards_html=''
                 for _,cr in _snap.iterrows():
                     tm=str(cr.get('TEAM','')).strip(); rk=int(cr.get('RANK',0))
                     rec=str(cr.get('RECORD','')).strip()
-                    is_u=tm in ALL_USER_TEAMS; uc=get_team_primary_color(tm) if is_u else "#0f172a"
+                    is_u=tm in ALL_USER_TEAMS
+                    uc=get_team_primary_color(tm)
                     lg=get_school_logo_src(tm)
-                    lh=f"<img src='{lg}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if lg else ""
-                    bg=f"background:linear-gradient(90deg,{uc}22 0%,#06090f 30%);" if is_u else "background:#06090f;"
-                    bl=f"border-left:3px solid {uc};" if is_u else "border-left:2px solid #0f172a;"
-                    nw="font-weight:900;color:#f8fafc;" if is_u else "font-weight:400;color:#64748b;"
-                    rk_c="#fbbf24" if rk<=4 else ("#f8fafc" if rk<=12 else "#64748b")
-                    _ovr2=_cfp_ovr_map.get(tm,0); _ovr2_s=str(_ovr2) if _ovr2 else "--"
-                    _fpi2=_cfp_fpi_map.get(tm); _fpi2_s=f"{_fpi2:+.1f}" if _fpi2 is not None else "--"
-                    _fpi2_c="#4ade80" if (_fpi2 or 0)>=5 else ("#fbbf24" if (_fpi2 or 0)>=0 else "#f87171")
-                    _msp2=_cfp_msp_map.get(tm); _msp2_s=f"{_msp2:.1f}" if _msp2 else "--"
-                    _sfr2=_cfp_sf_map.get(tm); _sfr2_s=f"#{_sfr2}" if _sfr2 else "--"
-                    _sos2=_cfp_sos_map.get(tm,0)
-                    _sos2_s=f"{_sos2:+.1f}" if _sos2 else "--"
-                    _sos2_c="#f97316" if (_sos2 or 0)>=5 else ("#fbbf24" if (_sos2 or 0)>=0 else "#94a3b8")
-                    rows_cfp+=(f"<tr style='{bg}{bl}'>"
-                        f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{rk_c};'>{rk}</td>"
-                        f"<td style='padding:4px 6px;white-space:nowrap;'>{lh}"
-                        f"<span style='{nw}font-family:Barlow Condensed,sans-serif;font-size:.82rem;margin-left:4px;'>{html.escape(tm)}</span></td>"
-                        f"<td style='padding:4px 6px;text-align:center;color:#64748b;font-size:.68rem;'>{html.escape(rec)}</td>"
-                        f"<td style='padding:4px 6px;text-align:center;color:#60a5fa;font-size:.72rem;font-weight:700;'>{_ovr2_s}</td>"
-                        f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_fpi2_c};font-size:.85rem;'>{_fpi2_s}</td>"
-                        f"<td style='padding:4px 6px;text-align:center;color:#a78bfa;font-size:.72rem;'>{_msp2_s}</td>"
-                        f"<td style='padding:4px 6px;text-align:center;color:#38bdf8;font-size:.72rem;'>{_sfr2_s}</td>"
-                        f"<td style='padding:4px 6px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_sos2_c};font-size:.82rem;'>{_sos2_s}</td>"
-                        f"</tr>")
-                st.markdown(f"<div class='isp-power-table-wrap'><table class='isp-power-table' style='min-width:300px;'>"
-                    f"<thead>{thead_cfp}</thead><tbody>{rows_cfp}</tbody></table></div>",
+                    lh=f"<img src='{lg}' style='width:28px;height:28px;object-fit:contain;border-radius:4px;'/>" if lg else ''
+                    # Rank number color + border glow tier
+                    if rk<=4:   rk_c='#fbbf24'; card_bdr=f'border:1px solid {uc}66;border-left:4px solid #fbbf24;'
+                    elif rk<=12: rk_c='#60a5fa'; card_bdr=f'border:1px solid {uc}44;border-left:3px solid {uc};' if is_u else 'border:1px solid #1e293b;border-left:3px solid #60a5fa;'
+                    else:        rk_c='#475569'; card_bdr='border:1px solid #1e293b;border-left:2px solid #1e293b;'
+                    card_bg=f'background:linear-gradient(90deg,{uc}28 0%,#060a11 55%);' if is_u else 'background:#060a11;'
+                    nm_style=f'font-weight:900;color:#f1f5f9;' if is_u else 'font-weight:500;color:#94a3b8;'
+                    _ovr2=_cfp_ovr_map.get(tm,0); _ovr2_s=str(_ovr2) if _ovr2 else '--'
+                    _fpi2=_cfp_fpi_map.get(tm,None); _fpi2_s=f'{_fpi2:+.1f}' if _fpi2 is not None else '--'
+                    _fpi2_c='#4ade80' if (_fpi2 or 0)>=5 else ('#fbbf24' if (_fpi2 or 0)>=0 else '#f87171')
+                    _msp2=_cfp_msp_map.get(tm,None); _msp2_s=f'{_msp2:.1f}' if _msp2 else '--'
+                    _sfr2=_cfp_sf_map.get(tm,None); _sfr2_s=f'#{_sfr2}' if _sfr2 else '--'
+                    _sos2=_cfp_sos_map.get(tm,0); _sos2_s=f'{_sos2:+.1f}' if _sos2 else '--'
+                    _sos2_c='#f97316' if (_sos2 or 0)>=5 else ('#fbbf24' if (_sos2 or 0)>=0 else '#94a3b8')
+                    _cfp_cards_html+=(
+                        f"<div style='{card_bg}{card_bdr}border-radius:10px;padding:8px 14px;"
+                        f"margin-bottom:5px;display:flex;align-items:center;gap:10px;'>"
+                        # Rank
+                        f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.4rem;color:{rk_c};"
+                        f"min-width:32px;text-align:center;line-height:1;'>{rk}</span>"
+                        # Logo
+                        f"{lh}"
+                        # Team name + record
+                        f"<div style='flex:1;min-width:0;'>"
+                        f"<div style='{nm_style}font-family:Barlow Condensed,sans-serif;font-size:.95rem;"
+                        f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{html.escape(tm)}</div>"
+                        f"<div style='font-size:.62rem;color:#475569;'>{html.escape(rec)}</div>"
+                        f"</div>"
+                        # Stat pills
+                        f"<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>"
+                        f"<div style='text-align:center;'><div style='font-family:Bebas Neue,sans-serif;font-size:.95rem;"
+                        f"color:{_fpi2_c};'>{_fpi2_s}</div><div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>FPI</div></div>"
+                        f"<div style='text-align:center;'><div style='font-family:Bebas Neue,sans-serif;font-size:.95rem;"
+                        f"color:#60a5fa;'>{_ovr2_s}</div><div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>OVR</div></div>"
+                        f"<div style='text-align:center;'><div style='font-family:Bebas Neue,sans-serif;font-size:.95rem;"
+                        f"color:#a78bfa;'>{_msp2_s}</div><div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>MS+</div></div>"
+                        f"<div style='text-align:center;'><div style='font-family:Bebas Neue,sans-serif;font-size:.95rem;"
+                        f"color:{_sos2_c};'>{_sos2_s}</div><div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>SOS</div></div>"
+                        f"<div style='text-align:center;'><div style='font-size:.72rem;color:#38bdf8;font-weight:700;'>{_sfr2_s}</div>"
+                        f"<div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>SPD</div></div>"
+                        f"</div>"
+                        f"</div>"
+                    )
+                st.markdown(
+                    f"<div style='display:flex;flex-direction:column;gap:0;'>{_cfp_cards_html}</div>",
                     unsafe_allow_html=True)
                 st.caption(f"Week {_sel_wk} · {_sel_yr} season · {len(_snap)} teams ranked")
             else:
