@@ -4377,17 +4377,7 @@ def render_roster_attrition_tab():
                 if _tc_aa and _tc_aa!="Team": _aa_draft=_aa_draft.rename(columns={_tc_aa:"Team"})
                 _aa_draft["Team"]=_aa_draft.get("Team",pd.Series([""]*len(_aa_draft))).astype(str).str.strip()
             # Debug: show what's in the transfer data (collapse by default)
-            if not _aa_xf.empty:
-                with st.expander(f"🔍 Transfer data debug ({len(_aa_xf)} rows, {_aa_xf['Year'].nunique()} seasons)",expanded=False):
-                    _uniq_reasons=sorted(_aa_xf["_reason"].dropna().unique().tolist())
-                    _raw_rd=sorted(_aa_xf["ReasonDetail"].dropna().unique().tolist()) if "ReasonDetail" in _aa_xf.columns else []
-                    _raw_r=sorted(_aa_xf["Reason"].dropna().unique().tolist()) if "Reason" in _aa_xf.columns else []
-                    st.caption(f"**Using column:** {_rd_col}")
-                    st.caption(f"**_reason unique:** {_uniq_reasons[:30]}")
-                    st.caption(f"**Raw ReasonDetail unique:** {_raw_rd[:30]}")
-                    st.caption(f"**Raw Reason unique:** {_raw_r[:30]}")
-                    st.caption(f"**Teams:** {sorted(_aa_xf['Team'].unique().tolist())}")
-                    st.caption(f"**Years:** {sorted(_aa_xf['Year'].unique().tolist())}")
+
             # Card renderer
             def _aa_card(title,subtitle,rows,color,icon):
                 _max_v=rows[0][1] if rows else 1
@@ -4437,7 +4427,7 @@ def render_roster_attrition_tab():
                     st.info("No transfer data found.")
             with _col4:
                 if not _aa_xf.empty:
-                    _cp_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Prestige",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _cp_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Coach Prestige",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
                     _cp_c=[(u,n,t) for u,n,t in _cp_c if n>0]; _cp_c.sort(key=lambda x:-x[1])
                     _aa_card("Coaching Malpractice","Transfers out — Coach Prestige (last 4 seasons)",_cp_c,"#ef4444","🚨")
                 else:
@@ -4447,14 +4437,14 @@ def render_roster_attrition_tab():
             _col5,_col6=st.columns(2)
             with _col5:
                 if not _aa_xf.empty:
-                    _pp_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Pro Potential|Pro_Potential|Professional",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _pp_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Pro Potential",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
                     _pp_c=[(u,n,t) for u,n,t in _pp_c if n>0]; _pp_c.sort(key=lambda x:-x[1])
                     _aa_card("Show Me the Money","Transfers out — Pro Potential reason (last 4 seasons)",_pp_c,"#a78bfa","💰")
                 else:
                     st.info("No transfer data found.")
             with _col6:
                 if not _aa_xf.empty:
-                    _hm_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Proximity|Home|Mama|Homesick",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
+                    _hm_c=[(u,len(_aa_xf[(_aa_xf["Team"]==t)&(_aa_xf["_reason"].str.contains("Proximity To Home",case=False,na=False))]),t) for u,t in USER_TEAMS.items()]
                     _hm_c=[(u,n,t) for u,n,t in _hm_c if n>0]; _hm_c.sort(key=lambda x:-x[1])
                     _aa_card("I Miss Mama's Cookin'","Transfers out — Proximity to Home reason (last 4 seasons)",_hm_c,"#f472b6","🏠")
                 else:
