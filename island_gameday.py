@@ -5855,9 +5855,33 @@ with tabs[1]:
             st.caption("Year-over-year player rating improvements. Compare a player's OVR, SPD, ACC, AGI, COD across seasons.")
             try:
                 import glob as _tg
-                _td_years=sorted([int(f.split('_')[-1].replace('.csv','')) for f in _tg.glob('cfb_136_top30_rosters_*.csv')],reverse=True)
+                # Build year list: per-year CSVs (2043+) + legacy years from cfb26_rosters_full.csv
+                _td_peryear=sorted([int(f.split('_')[-1].replace('.csv','')) for f in _tg.glob('cfb_136_top30_rosters_*.csv')],reverse=True)
+                _td_legacy_yrs=[]
+                if os.path.exists('cfb26_rosters_full.csv'):
+                    try:
+                        _leg=pd.read_csv('cfb26_rosters_full.csv')
+                        _leg.columns=[str(c).strip() for c in _leg.columns]
+                        _yr_lc=next((c for c in _leg.columns if c.upper() in ('YEAR','SEASON')),None)
+                        if _yr_lc: _td_legacy_yrs=sorted(_leg[_yr_lc].dropna().astype(int).unique().tolist())
+                    except: pass
+                _td_years=sorted(list(set(_td_peryear+_td_legacy_yrs)),reverse=True)
+                def _load_roster_for_year(yr):
+                    """Load roster for year — per-year CSV first, fall back to cfb26 legacy."""
+                    _f=f'cfb_136_top30_rosters_{yr}.csv'
+                    if os.path.exists(_f):
+                        _r=pd.read_csv(_f); _r.columns=[str(c).strip() for c in _r.columns]
+                        if 'YEAR' in _r.columns:
+                            _r['YEAR']=pd.to_numeric(_r['YEAR'],errors='coerce')
+                            _r=_r[_r['YEAR'].fillna(-1).astype(int)==yr]
+                        return _r
+                    if os.path.exists('cfb26_rosters_full.csv'):
+                        _r=pd.read_csv('cfb26_rosters_full.csv'); _r.columns=[str(c).strip() for c in _r.columns]
+                        _yr_lc=next((c for c in _r.columns if c.upper() in ('YEAR','SEASON')),None)
+                        if _yr_lc: return _r[pd.to_numeric(_r[_yr_lc],errors='coerce').fillna(-1).astype(int)==yr]
+                    return pd.DataFrame()
                 if len(_td_years)<2:
-                    st.info("Need at least 2 seasons of roster CSVs to show development.")
+                    st.info("Need at least 2 seasons of roster data to show development.")
                 else:
                     _td_c1,_td_c2=st.columns(2)
                     with _td_c1: _td_yr_new=st.selectbox("Current Season",_td_years,index=0,key="td_yr_new")
@@ -5865,8 +5889,8 @@ with tabs[1]:
                         _td_yr_old_opts=[y for y in _td_years if y<_td_yr_new]
                         _td_yr_old=st.selectbox("Prior Season",_td_yr_old_opts,index=0,key="td_yr_old") if _td_yr_old_opts else None
                     if _td_yr_old:
-                        _ros_new=pd.read_csv(f'cfb_136_top30_rosters_{_td_yr_new}.csv')
-                        _ros_old=pd.read_csv(f'cfb_136_top30_rosters_{_td_yr_old}.csv')
+                        _ros_new=_load_roster_for_year(_td_yr_new)
+                        _ros_old=_load_roster_for_year(_td_yr_old)
                         for _rdf in [_ros_new,_ros_old]:
                             _rdf.columns=[str(c).strip() for c in _rdf.columns]
                             for _old_c,_new_c in [('PLAYER','NAME'),('POS','POS')]:
@@ -5914,30 +5938,82 @@ with tabs[1]:
                                     f"<div style='font-size:.55rem;color:#475569;'>{_bold} → {_bnew}</div></div>",
                                     unsafe_allow_html=True)
                             st.markdown("---")
-                            _c_l,_c_r=st.columns(2)
-                            with _c_l:
-                                st.subheader(f"📈 Top 10 OVR Gains ({_td_yr_old}→{_td_yr_new})")
-                                _top10=_merged.nlargest(10,'dOVR')[['NAME','POS','TEAM','OVR','dOVR']].copy()
-                                _top10.columns=['Player','Pos','Team','OVR','Δ OVR']
-                                st.dataframe(_top10.reset_index(drop=True),use_container_width=True,hide_index=True)
-                            with _c_r:
-                                st.subheader("🏅 Coach Developer Rankings")
-                                _coach_avgs=[]
-                                for _cuser,_cteam in USER_TEAMS.items():
-                                    _tm=_merged[_merged['TEAM']==_cteam]
-                                    if not _tm.empty and 'dOVR' in _tm.columns:
-                                        _coach_avgs.append({'Coach':_cuser,'Team':_cteam,'Avg Δ OVR':round(_tm['dOVR'].mean(),2),'# Improved':int((_tm['dOVR']>0).sum()),'Tracked':len(_tm)})
-                                if _coach_avgs:
-                                    _cdf=pd.DataFrame(_coach_avgs).sort_values('Avg Δ OVR',ascending=False).reset_index(drop=True)
-                                    _cdf.index=range(1,len(_cdf)+1)
-                                    st.dataframe(_cdf,use_container_width=True)
+                            # ── Top 10 OVR Gains — FPI-style leaderboard ─────────────
+                            st.subheader(f"📈 Top 10 OVR Gains: {_td_yr_old} → {_td_yr_new}")
+                            _top10=_merged.nlargest(10,'dOVR').copy()
+                            _top10_html=""
+                            for _ti,(_,_tr) in enumerate(_top10.iterrows()):
+                                _tnm=str(_tr.get('NAME','?')); _tpo=str(_tr.get('POS','?')); _ttm=str(_tr.get('TEAM','?'))
+                                _tdov=float(_tr.get('dOVR',0)); _tnew=int(_tr.get('OVR',0)); _told=int(_tr.get('OVR_old',0))
+                                _tpc=get_team_primary_color(_ttm); _tlg=get_school_logo_src(_ttm)
+                                _tlh=f"<img src='{_tlg}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _tlg else ""
+                                _trk_c='#fbbf24' if _ti==0 else ('#94a3b8' if _ti==1 else ('#cd7f32' if _ti==2 else '#475569'))
+                                _top10_html+=(f"<tr style='border-bottom:1px solid #0f172a;background:{_tpc}12'>"
+                                    f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{_trk_c};'>#{_ti+1}</td>"
+                                    f"<td style='padding:5px 8px;white-space:nowrap;'>{_tlh} <span style='font-weight:800;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_tnm)}</span></td>"
+                                    f"<td style='padding:5px 8px;text-align:center;'><span style='background:{_tpc}33;color:{_tpc};border-radius:3px;padding:1px 6px;font-size:.62rem;font-weight:700;'>{_tpo}</span></td>"
+                                    f"<td style='padding:5px 8px;text-align:center;color:#64748b;font-size:.75rem;'>{html.escape(_ttm[:12])}</td>"
+                                    f"<td style='padding:5px 8px;text-align:center;color:#94a3b8;font-size:.75rem;'>{_told}</td>"
+                                    f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:#4ade80;'>+{_tdov:.0f}</td>"
+                                    f"<td style='padding:5px 8px;text-align:center;color:#f1f5f9;font-weight:700;font-size:.82rem;'>{_tnew}</td>"
+                                    f"</tr>")
+                            st.markdown(
+                                "<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:10px;background:#0a1220;'>"
+                                "<table style='width:100%;border-collapse:collapse;font-size:.82rem;'>"
+                                "<thead><tr style='background:#06090f;'>"
+                                "<th style='padding:6px 8px;color:#475569;font-size:.58rem;'>#</th>"
+                                "<th style='padding:6px 8px;color:#94a3b8;font-size:.58rem;text-align:left;'>Player</th>"
+                                "<th style='padding:6px 8px;color:#475569;font-size:.58rem;'>Pos</th>"
+                                "<th style='padding:6px 8px;color:#475569;font-size:.58rem;'>Team</th>"
+                                "<th style='padding:6px 8px;color:#64748b;font-size:.58rem;'>Was</th>"
+                                "<th style='padding:6px 8px;color:#4ade80;font-size:.58rem;'>Δ OVR</th>"
+                                "<th style='padding:6px 8px;color:#f1f5f9;font-size:.58rem;'>Now</th>"
+                                f"</tr></thead><tbody>{_top10_html}</tbody></table></div>",
+                                unsafe_allow_html=True
+                            )
+                            st.markdown("---")
+                            # ── Coach Developer Rankings — EI-style cards ─────────────
+                            st.subheader("🏅 Coach Talent Developer Rankings")
+                            _coach_avgs=[]
+                            for _cuser,_cteam in USER_TEAMS.items():
+                                _tm=_merged[_merged['TEAM']==_cteam]
+                                if not _tm.empty and 'dOVR' in _tm.columns:
+                                    _coach_avgs.append({'user':_cuser,'team':_cteam,'avg_imp':round(_tm['dOVR'].mean(),2),'improved':int((_tm['dOVR']>0).sum()),'total':len(_tm)})
+                            if _coach_avgs:
+                                _coach_avgs.sort(key=lambda x:-x['avg_imp'])
+                                _dev_medals={0:'🥇',1:'🥈',2:'🥉'}
+                                for _di,_da in enumerate(_coach_avgs):
+                                    _du=_da['user']; _dt=_da['team']
+                                    _dc=get_team_primary_color(_dt)
+                                    _dlg=get_school_logo_src(_dt)
+                                    _dlh=f"<img src='{_dlg}' style='width:28px;height:28px;object-fit:contain;'/>" if _dlg else ""
+                                    _bar_w=max(5,min(100,int((_da['avg_imp']+5)*8)))
+                                    _medal=_dev_medals.get(_di,f"#{_di+1}")
+                                    st.markdown(
+                                        f"<div style='background:linear-gradient(90deg,{_dc}22 0%,#06090f 40%);border:1px solid {_dc}44;"
+                                        f"border-left:4px solid {_dc};border-radius:10px;padding:10px 16px;margin-bottom:6px;'>"
+                                        f"<div style='display:flex;align-items:center;gap:10px;'>"
+                                        f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:#fbbf24;min-width:28px;'>{_medal}</span>"
+                                        f"{_dlh}"
+                                        f"<div style='flex:1;'>"
+                                        f"<div style='display:flex;align-items:baseline;gap:6px;'><span style='font-weight:900;color:{_dc};font-family:Barlow Condensed,sans-serif;font-size:.95rem;'>{html.escape(_dt)}</span>"
+                                        f"<span style='font-size:.65rem;color:#64748b;'>{html.escape(_du)}</span></div>"
+                                        f"<div style='background:#1e293b;border-radius:4px;height:6px;margin-top:4px;overflow:hidden;'>"
+                                        f"<div style='background:{_dc};width:{_bar_w}%;height:100%;border-radius:4px;'></div></div>"
+                                        f"</div>"
+                                        f"<div style='text-align:right;'><div style='font-family:Bebas Neue,sans-serif;font-size:1.8rem;color:{"#4ade80" if _da["avg_imp"]>0 else "#f87171"};line-height:1;'>{_da['avg_imp']:+.2f}</div>"
+                                        f"<div style='font-size:.55rem;color:#475569;'>AVG Δ OVR</div>"
+                                        f"<div style='font-size:.6rem;color:#64748b;'>{_da['improved']}/{_da['total']} improved</div></div>"
+                                        f"</div></div>",
+                                        unsafe_allow_html=True
+                                    )
                             st.markdown("---")
                             st.subheader("🌟 Top 10 Career OVR Gains")
                             _all_ros=[]
                             for _yr in sorted(_td_years):
                                 try:
-                                    _rr=pd.read_csv(f'cfb_136_top30_rosters_{_yr}.csv')
-                                    _rr.columns=[str(c).strip() for c in _rr.columns]
+                                    _rr=_load_roster_for_year(_yr)
+                                    if _rr.empty: continue
                                     _tc2=next((c for c in _rr.columns if c.upper()=='TEAM'),'TEAM')
                                     _nc2=next((c for c in _rr.columns if c.upper() in ('NAME','PLAYER')),'NAME')
                                     if _tc2!='TEAM': _rr.rename(columns={_tc2:'TEAM'},inplace=True)
@@ -5953,7 +6029,29 @@ with tabs[1]:
                                 _car['Career Δ']=(_car['Current']-_car['Start']).round(1)
                                 _car10=_car[_car['Career Δ']>0].nlargest(10,'Career Δ')[['NAME','TEAM','Start','Current','Career Δ']]
                                 _car10.columns=['Player','Team','Start OVR','Current OVR','Career Δ']
-                                st.dataframe(_car10.reset_index(drop=True),use_container_width=True,hide_index=True)
+                                _car_html=""
+                                for _ci,(_,_cr) in enumerate(_car10.reset_index(drop=True).iterrows()):
+                                    _cpc=get_team_primary_color(str(_cr['Team'])); _clg=get_school_logo_src(str(_cr['Team']))
+                                    _clh=f"<img src='{_clg}' style='width:18px;height:18px;object-fit:contain;vertical-align:middle;'/>" if _clg else ""
+                                    _car_html+=(f"<tr style='border-bottom:1px solid #0f172a;background:{_cpc}10;'>"
+                                        f"<td style='padding:5px 8px;text-align:center;color:#fbbf24;font-family:Bebas Neue,sans-serif;'>#{_ci+1}</td>"
+                                        f"<td style='padding:5px 8px;'>{_clh} <span style='font-weight:800;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.85rem;'>{html.escape(str(_cr['Player']))}</span></td>"
+                                        f"<td style='padding:5px 8px;text-align:center;color:#64748b;font-size:.72rem;'>{html.escape(str(_cr['Team'])[:12])}</td>"
+                                        f"<td style='padding:5px 8px;text-align:center;color:#94a3b8;font-size:.72rem;'>{int(_cr['Start OVR'])}</td>"
+                                        f"<td style='padding:5px 8px;text-align:center;color:#f1f5f9;font-weight:700;font-size:.78rem;'>{int(_cr['Current OVR'])}</td>"
+                                        f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:#4ade80;'>+{float(_cr['Career Δ']):.0f}</td>"
+                                        f"</tr>")
+                                st.markdown(
+                                    "<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:10px;background:#0a1220;'>"
+                                    "<table style='width:100%;border-collapse:collapse;'><thead><tr style='background:#06090f;'>"
+                                    "<th style='padding:6px 8px;color:#475569;font-size:.58rem;'>#</th>"
+                                    "<th style='padding:6px 8px;color:#94a3b8;font-size:.58rem;text-align:left;'>Player</th>"
+                                    "<th style='padding:6px 8px;color:#475569;font-size:.58rem;'>Team</th>"
+                                    "<th style='padding:6px 8px;color:#64748b;font-size:.58rem;'>Start</th>"
+                                    "<th style='padding:6px 8px;color:#f1f5f9;font-size:.58rem;'>Now</th>"
+                                    "<th style='padding:6px 8px;color:#4ade80;font-size:.58rem;'>Career Δ</th>"
+                                    f"</tr></thead><tbody>{_car_html}</tbody></table></div>",
+                                    unsafe_allow_html=True)
             except Exception as _tde:
                 st.caption(f"Talent Development unavailable: {_tde}")
 
@@ -6022,6 +6120,64 @@ with tabs[1]:
                                 f"<div style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;font-size:.98rem;margin-bottom:2px;'>{html.escape(_mval)}</div>"
                                 f"<div style='font-size:.58rem;color:#475569;font-style:italic;'>{html.escape(_mdsc)}</div></div>",
                                 unsafe_allow_html=True)
+                st.markdown("---")
+                st.subheader("🕐 Quarter-by-Quarter Scoring")
+                st.caption("Average points scored per quarter and 4th-quarter scoring (comeback/closer ability).")
+                try:
+                    _gs_q=pd.read_csv('game_summaries.csv') if os.path.exists('game_summaries.csv') else pd.DataFrame()
+                    if not _gs_q.empty:
+                        _gs_q['YEAR']=pd.to_numeric(_gs_q['YEAR'],errors='coerce')
+                        _gs_q=_gs_q[_gs_q['YEAR'].fillna(-1).astype(int)==_da_yr_sel].copy()
+                        for _qc in ('VIS_Q1','VIS_Q2','VIS_Q3','VIS_Q4','HOME_Q1','HOME_Q2','HOME_Q3','HOME_Q4','VIS_FINAL','HOME_FINAL'):
+                            if _qc in _gs_q.columns: _gs_q[_qc]=pd.to_numeric(_gs_q[_qc],errors='coerce')
+                        # Build per-user Q rows
+                        _q_rows=[]
+                        for _,_qr in _gs_q.iterrows():
+                            _vu=str(_qr.get('VIS_USER','')).strip(); _hu=str(_qr.get('HOME_USER','')).strip()
+                            if _vu and _vu!='nan' and _vu in USER_TEAMS:
+                                _q_rows.append({'user':_vu,'Q1':_qr.get('VIS_Q1'),'Q2':_qr.get('VIS_Q2'),'Q3':_qr.get('VIS_Q3'),'Q4':_qr.get('VIS_Q4')})
+                            if _hu and _hu!='nan' and _hu in USER_TEAMS:
+                                _q_rows.append({'user':_hu,'Q1':_qr.get('HOME_Q1'),'Q2':_qr.get('HOME_Q2'),'Q3':_qr.get('HOME_Q3'),'Q4':_qr.get('HOME_Q4')})
+                        if _q_rows:
+                            _qdf=pd.DataFrame(_q_rows)
+                            for _qc in ('Q1','Q2','Q3','Q4'): _qdf[_qc]=pd.to_numeric(_qdf[_qc],errors='coerce')
+                            _q_avg=_qdf.groupby('user')[['Q1','Q2','Q3','Q4']].mean().round(1)
+                            _q_avg['Total/G']=_q_avg.sum(axis=1).round(1)
+                            _q_avg=_q_avg.sort_values('Total/G',ascending=False)
+                            # Render as FPI-style table
+                            _q_html=""
+                            for _qi,(_qu,_qrow) in enumerate(_q_avg.iterrows()):
+                                _qteam=USER_TEAMS.get(_qu,'')
+                                _qpc=get_team_primary_color(_qteam)
+                                _qlg=get_school_logo_src(_qteam)
+                                _qlh=f"<img src='{_qlg}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _qlg else ""
+                                # Best/worst Q highlighting
+                                _qs=[_qrow['Q1'],_qrow['Q2'],_qrow['Q3'],_qrow['Q4']]
+                                _best_q=_qs.index(max(_qs)); _worst_q=_qs.index(min(_qs))
+                                def _qc_fmt(qi,val):
+                                    c='#4ade80' if qi==_best_q else ('#f87171' if qi==_worst_q else '#94a3b8')
+                                    return f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.92rem;color:{c};'>{val:.1f}</td>"
+                                _q_html+=(f"<tr style='border-bottom:1px solid #0f172a;background:{_qpc}12;'>"
+                                    f"<td style='padding:5px 8px;text-align:center;color:#475569;font-family:Bebas Neue,sans-serif;'>#{_qi+1}</td>"
+                                    f"<td style='padding:5px 8px;white-space:nowrap;'>{_qlh} <span style='font-weight:800;color:{_qpc};font-family:Barlow Condensed,sans-serif;font-size:.88rem;'>{html.escape(_qu)}</span></td>"
+                                    +_qc_fmt(0,_qrow['Q1'])+_qc_fmt(1,_qrow['Q2'])+_qc_fmt(2,_qrow['Q3'])+_qc_fmt(3,_qrow['Q4'])
+                                    +f"<td style='padding:5px 8px;text-align:center;color:#fbbf24;font-weight:900;font-size:.88rem;'>{_qrow['Total/G']:.1f}</td>"
+                                    f"</tr>")
+                            st.markdown(
+                                "<div style='overflow-x:auto;border:1px solid #1e293b;border-radius:10px;background:#0a1220;'>"
+                                "<table style='width:100%;border-collapse:collapse;'><thead><tr style='background:#06090f;'>"
+                                "<th style='padding:6px 8px;color:#475569;font-size:.6rem;'>#</th>"
+                                "<th style='padding:6px 8px;color:#94a3b8;font-size:.6rem;text-align:left;'>Coach</th>"
+                                "<th style='padding:6px 8px;color:#60a5fa;font-size:.6rem;'>Q1</th>"
+                                "<th style='padding:6px 8px;color:#4ade80;font-size:.6rem;'>Q2</th>"
+                                "<th style='padding:6px 8px;color:#f97316;font-size:.6rem;'>Q3</th>"
+                                "<th style='padding:6px 8px;color:#f87171;font-size:.6rem;'>Q4</th>"
+                                "<th style='padding:6px 8px;color:#fbbf24;font-size:.6rem;'>Pts/G</th>"
+                                f"</tr></thead><tbody>{_q_html}</tbody></table></div>",
+                                unsafe_allow_html=True)
+                            st.caption("🟢 Best quarter avg per coach · 🔴 Worst quarter avg · Best Q4 = strongest closer")
+                except Exception as _qe:
+                    st.caption(f"Q scoring unavailable: {_qe}")
                 st.markdown("---")
                 st.subheader(f"📋 {_da_yr_sel} Full Breakdown")
                 _stat_rows=[]
@@ -6121,15 +6277,24 @@ with tabs[1]:
                                 ("3rd Down","VIS_3RD_CONV","HOME_3RD_CONV"),
                                 ("Turnovers","VIS_TURNOVERS","HOME_TURNOVERS"),
                                 ("Penalties","VIS_PENALTIES","HOME_PENALTIES"),
-                                ("TOP","VIS_TOP","HOME_TOP"),
+                                ("TOP (min)","VIS_TOP","HOME_TOP"),
                             ]
                             _gs_rows_html=""
                             for _sn,_vc2,_hc2n in _stat_pairs:
                                 _vv=_gs_row.get(_vc2); _hv=_gs_row.get(_hc2n)
-                                _vvs=str(int(float(_vv))) if pd.notna(_vv) and str(_vv)!='nan' else "--"
-                                _hvs=str(int(float(_hv))) if pd.notna(_hv) and str(_hv)!='nan' else "--"
+                                def _fmt_stat(v,nm):
+                                    if not pd.notna(v) or str(v)=='nan': return "--"
+                                    if nm=="TOP (min)": return str(v).split(":")[0]+":"+str(v).split(":")[1] if ":" in str(v) else str(v)
+                                    try: return str(int(float(v)))
+                                    except: return str(v)
+                                _vvs=_fmt_stat(_vv,_sn); _hvs=_fmt_stat(_hv,_sn)
                                 try:
-                                    _better_vis=float(_vv)>float(_hv) if _sn!='Turnovers' and _sn!='Penalties' else float(_vv)<float(_hv)
+                                    if _sn=="TOP (min)":
+                                        _vm=int(str(_vv).split(":")[0]) if ":" in str(_vv) else float(_vv)
+                                        _hm=int(str(_hv).split(":")[0]) if ":" in str(_hv) else float(_hv)
+                                        _better_vis=_vm>_hm
+                                    elif _sn in ('Turnovers','Penalties'): _better_vis=float(_vv)<float(_hv)
+                                    else: _better_vis=float(_vv)>float(_hv)
                                     _vis_fc='#4ade80' if _better_vis else '#94a3b8'; _hom_fc='#4ade80' if not _better_vis else '#94a3b8'
                                 except: _vis_fc='#94a3b8'; _hom_fc='#94a3b8'
                                 _gs_rows_html+=(f"<tr style='border-bottom:1px solid #0f172a;'>"
