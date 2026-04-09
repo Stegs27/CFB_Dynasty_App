@@ -8474,176 +8474,114 @@ with _ul_tabs[2]:
 
 with _ul_tabs[3]:
     st.header("📈 Against The Spread (ATS)")
-    st.caption("How often does each coach actually cover the line? Spread computed from the FPI file for that specific week. 2042 onward, user games only.")
+    st.caption("How often does each coach actually cover the line? Spread = FPI-based line from that week's ratings file. Run RUN_ALL_METRICS.bat to refresh. 2042+, user games only.")
 
     try:
-        import glob as _ats_glob
+        # ── Load pre-computed CSVs from compute_ats.py ────────────────────────
+        # Check FPI/ subfolder first, then root (same pattern as rest of app)
+        _ats_rec_path = next((p for p in ['FPI/ats_records.csv','ats_records.csv'] if os.path.exists(p)), None)
+        _ats_sum_path = next((p for p in ['FPI/ats_summary.csv','ats_summary.csv'] if os.path.exists(p)), None)
 
-        # ── Step 1: load all schedule CSVs 2042+ ──────────────────────────────
-        _ats_parts = []
-        for _af in sorted(_ats_glob.glob('schedule_*.csv')):
-            try:
-                _ad = pd.read_csv(_af)
-                _ad.columns = [str(c).strip() for c in _ad.columns]
-                _ats_parts.append(_ad)
-            except: pass
-        if not _ats_parts:
-            st.info("No schedule_YYYY.csv files found. ATS tracking starts with 2042+ data.")
-            raise StopIteration
+        if _ats_rec_path and _ats_sum_path:
+            # ── Happy path: pre-computed CSVs exist ───────────────────────────
+            _ats_rec = pd.read_csv(_ats_rec_path)
+            _ats_sum = pd.read_csv(_ats_sum_path)
+            _ats_rec.columns = [str(c).strip() for c in _ats_rec.columns]
+            _ats_sum.columns = [str(c).strip() for c in _ats_sum.columns]
+            _rc = _ats_rec.rename(columns={
+                'USER':'user','TEAM':'team','YEAR':'year','WEEK':'week',
+                'OPPONENT':'opp','HOME_AWAY':'home_away','TEAM_SCORE':'user_score',
+                'OPP_SCORE':'opp_score','ACTUAL_MARGIN':'actual_margin',
+                'SPREAD':'spread','DIFF_VS_SPREAD':'diff','RESULT':'result','FAV_DOG':'fav_dog',
+            })
+            _rc['home'] = _rc['home_away'].astype(str).str.upper() == 'HOME'
+            _rc['fav']  = _rc['fav_dog'].astype(str).str.upper() == 'FAV'
+            _rc['dog']  = _rc['fav_dog'].astype(str).str.upper() == 'DOG'
+            for _nc in ('year','week','user_score','opp_score','actual_margin'):
+                _rc[_nc] = pd.to_numeric(_rc[_nc], errors='coerce').fillna(0).astype(int)
+            for _nc in ('spread','diff'):
+                _rc[_nc] = pd.to_numeric(_rc[_nc], errors='coerce').fillna(0.0)
+            _ats_df = _rc
+            _ats_source = 'precomputed'
 
-        _ats_all = pd.concat(_ats_parts, ignore_index=True)
-        _ats_all.columns = [str(c).strip() for c in _ats_all.columns]
-
-        # Normalise key columns
-        _ats_yr  = next((c for c in _ats_all.columns if c.upper() == 'YEAR'),  None)
-        _ats_wk  = next((c for c in _ats_all.columns if c.upper() == 'WEEK'),  None)
-        _ats_vc  = next((c for c in _ats_all.columns if c.upper() == 'VISITOR'), None)
-        _ats_hc  = next((c for c in _ats_all.columns if c.upper() == 'HOME'),    None)
-        _ats_vs  = next((c for c in _ats_all.columns if c.upper() in ('VIS SCORE','VIS_SCORE','VISITOR SCORE')), None) or \
-                   next((c for c in _ats_all.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()), None)
-        _ats_hs  = next((c for c in _ats_all.columns if c.upper() in ('HOME SCORE','HOME_SCORE')), None) or \
-                   next((c for c in _ats_all.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()), None)
-        _ats_vuc = next((c for c in _ats_all.columns if 'VIS' in c.upper() and 'USER' in c.upper()), None)
-        _ats_huc = next((c for c in _ats_all.columns if 'HOME' in c.upper() and 'USER' in c.upper()), None)
-        _ats_stc = next((c for c in _ats_all.columns if c.upper() == 'STATUS'), None)
-
-        if not all([_ats_yr, _ats_wk, _ats_vc, _ats_hc, _ats_vs, _ats_hs]):
-            st.info("Schedule CSVs missing required columns (YEAR, Week, Visitor, Home, scores). Check your data.")
-            raise StopIteration
-
-        _ats_all[_ats_yr] = pd.to_numeric(_ats_all[_ats_yr], errors='coerce')
-        _ats_all[_ats_wk] = pd.to_numeric(_ats_all[_ats_wk], errors='coerce')
-        _ats_all[_ats_vs] = pd.to_numeric(_ats_all[_ats_vs], errors='coerce')
-        _ats_all[_ats_hs] = pd.to_numeric(_ats_all[_ats_hs], errors='coerce')
-
-        # Only FINAL games with actual scores
-        if _ats_stc:
-            _ats_final = _ats_all[_ats_all[_ats_stc].astype(str).str.upper() == 'FINAL'].copy()
         else:
-            _ats_final = _ats_all.dropna(subset=[_ats_vs, _ats_hs]).copy()
-        _ats_final = _ats_final.dropna(subset=[_ats_vs, _ats_hs, _ats_yr, _ats_wk])
+            # ── Fallback: live computation (no CSV yet) ────────────────────────
+            st.caption("⚠️ ats_records.csv not found — computing live. Run RUN_ALL_METRICS.bat to pre-compute for faster loads.")
+            import glob as _ats_glob
+            _ats_parts = []
+            for _af in sorted(_ats_glob.glob('schedule_*.csv')):
+                try:
+                    _ad = pd.read_csv(_af); _ad.columns=[str(c).strip() for c in _ad.columns]
+                    try:
+                        if int(_af.replace('schedule_','').replace('.csv','')) >= 2042: _ats_parts.append(_ad)
+                    except: _ats_parts.append(_ad)
+                except: pass
+            if not _ats_parts:
+                st.info("No schedule_YYYY.csv files found. ATS tracking starts with 2042+ data.")
+                raise StopIteration
+            _ats_all = pd.concat(_ats_parts, ignore_index=True)
+            _ats_all.columns = [str(c).strip() for c in _ats_all.columns]
+            _ats_yr=next((c for c in _ats_all.columns if c.upper()=='YEAR'),None)
+            _ats_wk=next((c for c in _ats_all.columns if c.upper()=='WEEK'),None)
+            _ats_vc=next((c for c in _ats_all.columns if c.upper()=='VISITOR'),None)
+            _ats_hc=next((c for c in _ats_all.columns if c.upper()=='HOME'),None)
+            _ats_vs=next((c for c in _ats_all.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
+            _ats_hs=next((c for c in _ats_all.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
+            _ats_vuc=next((c for c in _ats_all.columns if 'VIS' in c.upper() and 'USER' in c.upper()),None)
+            _ats_huc=next((c for c in _ats_all.columns if 'HOME' in c.upper() and 'USER' in c.upper()),None)
+            _ats_stc=next((c for c in _ats_all.columns if c.upper()=='STATUS'),None)
+            if not all([_ats_yr,_ats_wk,_ats_vc,_ats_hc,_ats_vs,_ats_hs]):
+                st.info("Schedule CSVs missing required columns."); raise StopIteration
+            for _c in [_ats_yr,_ats_wk,_ats_vs,_ats_hs]:
+                _ats_all[_c]=pd.to_numeric(_ats_all[_c],errors='coerce')
+            if _ats_stc: _ats_final=_ats_all[_ats_all[_ats_stc].astype(str).str.upper()=='FINAL'].copy()
+            else: _ats_final=_ats_all.dropna(subset=[_ats_vs,_ats_hs]).copy()
+            _ats_final=_ats_final.dropna(subset=[_ats_vs,_ats_hs,_ats_yr,_ats_wk])
+            _tm2usr={v:k for k,v in USER_TEAMS.items()}
+            _ats_final['_vu']=(_ats_final[_ats_vuc].astype(str).str.strip() if _ats_vuc else _ats_final[_ats_vc].astype(str).str.strip().map(lambda t:_tm2usr.get(t,'')))
+            _ats_final['_hu']=(_ats_final[_ats_huc].astype(str).str.strip() if _ats_huc else _ats_final[_ats_hc].astype(str).str.strip().map(lambda t:_tm2usr.get(t,'')))
+            _ats_final=_ats_final[_ats_final['_vu'].isin(USER_TEAMS.keys())|_ats_final['_hu'].isin(USER_TEAMS.keys())].copy()
+            if _ats_final.empty: st.info("No completed user games found yet."); raise StopIteration
+            _ats_fpi_cache={}
+            def _get_fpi_map(yr,wk):
+                k=(int(yr),int(wk))
+                if k in _ats_fpi_cache: return _ats_fpi_cache[k]
+                _map={}
+                for _try_wk in range(int(wk),max(0,int(wk)-9),-1):
+                    for _fp in [f'FPI/fpi_ratings_{int(yr)}_wk{_try_wk}.csv',f'fpi_ratings_{int(yr)}_wk{_try_wk}.csv']:
+                        if os.path.exists(_fp):
+                            try:
+                                _fd=pd.read_csv(_fp); _fd.columns=[str(c).strip() for c in _fd.columns]
+                                _tm_c=next((c for c in _fd.columns if c.lower()=='team'),None)
+                                _fp_c=next((c for c in _fd.columns if c.upper()=='FPI'),None)
+                                if _tm_c and _fp_c: _map=dict(zip(_fd[_tm_c].astype(str).str.strip(),pd.to_numeric(_fd[_fp_c],errors='coerce').fillna(0)))
+                            except: pass
+                            if _map: break
+                    if _map: break
+                _ats_fpi_cache[k]=_map; return _map
+            _ats_rows=[]
+            for _,_gr in _ats_final.iterrows():
+                yr_g=int(_gr[_ats_yr]); wk_g=int(_gr[_ats_wk])
+                vis=str(_gr[_ats_vc]).strip(); hom=str(_gr[_ats_hc]).strip()
+                v_sc=float(_gr[_ats_vs]); h_sc=float(_gr[_ats_hs])
+                vu=str(_gr.get('_vu','')).strip(); hu=str(_gr.get('_hu','')).strip()
+                _fpi=_get_fpi_map(yr_g,wk_g)
+                def _mk(utag,tm,opp,usc,osc,is_home,_f=_fpi):
+                    fu=float(_f.get(tm,0) or 0); fo=float(_f.get(opp,0) or 0)
+                    sp=max(-35.0,min(35.0,(fu-fo)*0.65+(3.0 if is_home else -3.0)))
+                    am=usc-osc; d=round(am-sp,1)
+                    res='PUSH' if abs(d)<=0.5 else ('COVER' if d>0 else 'MISS')
+                    return {'user':utag,'team':tm,'year':yr_g,'week':wk_g,'opp':opp,'home':is_home,
+                            'spread':round(sp,1),'actual_margin':int(am),'diff':d,'result':res,
+                            'fav':sp>0.5,'dog':sp<-0.5,'user_score':int(usc),'opp_score':int(osc)}
+                if vu in USER_TEAMS: _ats_rows.append(_mk(vu,vis,hom,v_sc,h_sc,False))
+                if hu in USER_TEAMS: _ats_rows.append(_mk(hu,hom,vis,h_sc,v_sc,True))
+            if not _ats_rows: st.info("Not enough data yet. Need FPI files + schedule scores."); raise StopIteration
+            _ats_df=pd.DataFrame(_ats_rows)
+            _ats_source='live'
 
-        # Must involve at least one user team
-        if _ats_vuc and _ats_huc:
-            _ats_final['_vu'] = _ats_final[_ats_vuc].astype(str).str.strip()
-            _ats_final['_hu'] = _ats_final[_ats_huc].astype(str).str.strip()
-            _ats_user_mask = (
-                _ats_final['_vu'].isin(USER_TEAMS.keys()) |
-                _ats_final['_hu'].isin(USER_TEAMS.keys())
-            )
-            _ats_final = _ats_final[_ats_user_mask].copy()
-        else:
-            # Fall back to team name match
-            _ats_final['_vu'] = ''
-            _ats_final['_hu'] = ''
-            _tm2usr = {v: k for k, v in USER_TEAMS.items()}
-            _ats_final['_vu'] = _ats_final[_ats_vc].astype(str).str.strip().map(lambda t: _tm2usr.get(t, ''))
-            _ats_final['_hu'] = _ats_final[_ats_hc].astype(str).str.strip().map(lambda t: _tm2usr.get(t, ''))
-            _ats_final = _ats_final[
-                _ats_final['_vu'].isin(USER_TEAMS.keys()) | _ats_final['_hu'].isin(USER_TEAMS.keys())
-            ].copy()
 
-        if _ats_final.empty:
-            st.info("No completed user games found yet.")
-            raise StopIteration
-
-        # ── Step 2: build FPI lookup per (year, week) ────────────────────────
-        # Cache: (year, week) → {team: fpi_value}
-        _ats_fpi_cache = {}
-
-        def _get_fpi_map(yr, wk):
-            k = (int(yr), int(wk))
-            if k in _ats_fpi_cache:
-                return _ats_fpi_cache[k]
-            # Try exact week, then walk backwards up to 8 weeks to find nearest file
-            _map = {}
-            for _try_wk in range(int(wk), max(0, int(wk) - 9), -1):
-                for _fp in [f'FPI/fpi_ratings_{int(yr)}_wk{_try_wk}.csv',
-                             f'fpi_ratings_{int(yr)}_wk{_try_wk}.csv']:
-                    if os.path.exists(_fp):
-                        try:
-                            _fd = pd.read_csv(_fp)
-                            _fd.columns = [str(c).strip() for c in _fd.columns]
-                            _tm_c = next((c for c in _fd.columns if c.lower() == 'team'), None)
-                            _fp_c = next((c for c in _fd.columns if c.upper() == 'FPI'), None)
-                            if _tm_c and _fp_c:
-                                _map = dict(zip(
-                                    _fd[_tm_c].astype(str).str.strip(),
-                                    pd.to_numeric(_fd[_fp_c], errors='coerce').fillna(0)
-                                ))
-                        except: pass
-                        if _map:
-                            break
-                if _map:
-                    break
-            _ats_fpi_cache[k] = _map
-            return _map
-
-        # ── Step 3: compute spread and cover result per game per user ─────────
-        # Returns list of dicts with user, team, yr, wk, opp, spread, margin, result
-        _ats_rows = []
-
-        for _, _gr in _ats_final.iterrows():
-            yr_g  = int(_gr[_ats_yr])
-            wk_g  = int(_gr[_ats_wk])
-            vis   = str(_gr[_ats_vc]).strip()
-            hom   = str(_gr[_ats_hc]).strip()
-            v_sc  = float(_gr[_ats_vs])
-            h_sc  = float(_gr[_ats_hs])
-            vu    = str(_gr.get('_vu', '')).strip()
-            hu    = str(_gr.get('_hu', '')).strip()
-
-            _fpi  = _get_fpi_map(yr_g, wk_g)
-            fpi_v = float(_fpi.get(vis, 0) or 0)
-            fpi_h = float(_fpi.get(hom, 0) or 0)
-
-            def _cover_result(user_team, opp_team, user_score, opp_score, user_is_home):
-                fpi_u = float(_fpi.get(user_team, 0) or 0)
-                fpi_o = float(_fpi.get(opp_team, 0) or 0)
-                home_adj = 3.0 if user_is_home else -3.0
-                raw_spread = (fpi_u - fpi_o) * 0.65 + home_adj
-                spread = max(-35.0, min(35.0, raw_spread))
-                actual_margin = user_score - opp_score  # positive = user won
-                diff = actual_margin - spread  # positive = covered
-                if abs(diff) < 0.5:
-                    result = 'PUSH'
-                elif diff > 0:
-                    result = 'COVER'
-                else:
-                    result = 'MISS'
-                return {
-                    'user': user_team_label,
-                    'team': user_team,
-                    'year': yr_g,
-                    'week': wk_g,
-                    'opp': opp_team,
-                    'home': user_is_home,
-                    'spread': round(spread, 1),
-                    'actual_margin': int(actual_margin),
-                    'diff': round(diff, 1),
-                    'result': result,
-                    'fav': spread > 0.5,
-                    'dog': spread < -0.5,
-                    'user_score': int(user_score),
-                    'opp_score': int(opp_score),
-                }
-
-            # Visitor user
-            if vu in USER_TEAMS:
-                user_team_label = vu
-                _ats_rows.append(_cover_result(vis, hom, v_sc, h_sc, False))
-            # Home user
-            if hu in USER_TEAMS:
-                user_team_label = hu
-                _ats_rows.append(_cover_result(hom, vis, h_sc, v_sc, True))
-
-        if not _ats_rows:
-            st.info("Not enough data to compute ATS records yet. Need FPI files + schedule scores.")
-            raise StopIteration
-
-        _ats_df = pd.DataFrame(_ats_rows)
-
-        # ── Step 4: summary table ─────────────────────────────────────────────
+        # ── Leaderboard ───────────────────────────────────────────────────────
         def _ats_summary(df):
             covers = (df['result'] == 'COVER').sum()
             misses = (df['result'] == 'MISS').sum()
@@ -8656,7 +8594,17 @@ with _ul_tabs[3]:
             return covers, misses, pushes, total, pct, avg_diff, best, worst
 
         st.subheader("🏆 All-Time ATS Leaderboard")
-        st.caption("Covers = beat the spread. Pushes excluded from cover %. Spread = FPI-based line from that week's ratings file.")
+        _src_badge = ""
+        if _ats_source == 'precomputed':
+            try:
+                _ats_mtime = os.path.getmtime(_ats_rec_path)
+                import datetime as _dt
+                _ats_age = _dt.datetime.fromtimestamp(_ats_mtime).strftime('%b %d, %Y')
+                _src_badge = f" · 📊 Pre-computed · Last run: {_ats_age}"
+            except: _src_badge = " · 📊 Pre-computed"
+        else:
+            _src_badge = " · ⚡ Live computed (run RUN_ALL_METRICS.bat to cache)"
+        st.caption(f"Covers = beat the spread. Pushes excluded from cover %. Spread = FPI-based line from that week's ratings file.{_src_badge}")
 
         _ats_sorted_users = sorted(USER_TEAMS.keys(), key=lambda u: (
             -(_ats_summary(_ats_df[_ats_df['user'] == u])[4])  # sort by cover %
