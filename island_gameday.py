@@ -2639,16 +2639,41 @@ def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=Fa
 
     # ── Advance time + countdown ──────────────────────────────────────────
     _adv_html=''
+    _iso_utc=''   # ISO 8601 UTC string for JS — browsers parse this reliably
     if advance_time:
         _window_hrs=48 if has_h2h_game else 24
-        # Build proper label
         _window_label=f"{'48h window · H2H week' if has_h2h_game else '24h window'}"
+
+        # ── Pretty-print the advance time ─────────────────────────────────
+        # Parse robustly — handle ISO, Excel US format (M/D/YYYY H:MM AM/PM), etc.
+        import datetime as _dt
+        _parsed=None
+        _fmt_attempts=[
+            '%Y-%m-%d %H:%M:%S','%Y-%m-%dT%H:%M:%S','%Y-%m-%d %H:%M',
+            '%Y-%m-%dT%H:%M','%m/%d/%Y %H:%M:%S','%m/%d/%Y %I:%M %p',
+            '%m/%d/%Y %I:%M:%S %p','%m/%d/%Y %H:%M','%m-%d-%Y %H:%M:%S',
+        ]
+        for _fmt in _fmt_attempts:
+            try: _parsed=_dt.datetime.strptime(str(advance_time).strip(),_fmt); break
+            except: pass
+        if _parsed:
+            # Build ISO 8601 UTC string for JS (no space, Z suffix)
+            _iso_utc=_parsed.strftime('%Y-%m-%dT%H:%M:%SZ')
+            # Human label: "April 8th at 10:00 PM EST"
+            _day=_parsed.day
+            _suffix='th' if 11<=_day<=13 else {1:'st',2:'nd',3:'rd'}.get(_day%10,'th')
+            _pretty=_parsed.strftime(f'%B {_day}{_suffix} at %-I:%M %p EST').replace('AM','AM').replace('PM','PM')
+        else:
+            _iso_utc=''
+            _pretty=str(advance_time)
+
         _adv_html=(
             f"<div style='width:1px;height:40px;background:rgba(255,255,255,.1);'></div>"
-            f"<div style='text-align:center;min-width:140px;'>"
-            f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.82rem;color:#94a3b8;font-weight:700;'>ADVANCED {advance_time}</div>"
-            f"<div id='adv-countdown' style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:#f59e0b;margin-top:1px;letter-spacing:.04em;'>--:--:--</div>"
-            f"<div style='font-size:.5rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>{_window_label}</div>"
+            f"<div style='text-align:center;min-width:160px;'>"
+            f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.72rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.08em;'>Advanced</div>"
+            f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.88rem;color:#94a3b8;font-weight:700;margin-top:1px;'>{_pretty}</div>"
+            f"<div id='adv-countdown' style='font-family:Bebas Neue,sans-serif;font-size:1.4rem;color:#f59e0b;margin-top:2px;letter-spacing:.06em;'>--:--:--</div>"
+            f"<div style='font-size:.48rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>{_window_label}</div>"
             f"</div>"
         )
 
@@ -2673,14 +2698,16 @@ def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=Fa
 </div>
 {f'''<script>
 (function(){{
-  var deadline=new Date("{advance_time} UTC");
-  deadline.setHours(deadline.getHours()+{_window_hrs});
+  // ISO 8601 UTC string — parses reliably in all browsers
+  var base=new Date("{_iso_utc}");
+  // Deadline = advance time + window hours, using getTime() to stay in UTC
+  var deadline=new Date(base.getTime()+{_window_hrs}*3600*1000);
   function tick(){{
     var now=new Date();
-    var diff=deadline-now;
+    var diff=deadline.getTime()-now.getTime();
     var el=document.getElementById("adv-countdown");
     if(!el)return;
-    if(diff<=0){{el.textContent="DEADLINE PASSED";el.style.color="#f87171";return;}}
+    if(diff<=0){{el.textContent="WINDOW CLOSED";el.style.color="#f87171";return;}}
     var h=Math.floor(diff/3600000);
     var m=Math.floor((diff%3600000)/60000);
     var s=Math.floor((diff%60000)/1000);
@@ -2689,7 +2716,7 @@ def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=Fa
   }}
   tick();
 }})();
-</script>''' if advance_time else ''}""", unsafe_allow_html=True)
+</script>''' if _iso_utc else ''}""", unsafe_allow_html=True)
 
 def render_game_cards_with_boxscore(year, week, model_df):
     """Status grid + full detail cards matching original style."""
@@ -8493,6 +8520,36 @@ with _ul_tabs[1]:
                     _cl_img=f"<img src='{_cl}' style='width:52px;height:52px;object-fit:contain;'/>" if _cl else '🏈'
                     _rl_img=f"<img src='{_rl}' style='width:44px;height:44px;object-fit:contain;opacity:.75;'/>" if _rl else '🏈'
 
+                    # ── Natty celebration photo ────────────────────────────
+                    _natty_photo_html=''
+                    for _np_path in [f'NattyChamp_{_yr_v}.png',f'images/NattyChamp_{_yr_v}.png',
+                                     f'logos/NattyChamp_{_yr_v}.png']:
+                        if os.path.exists(_np_path):
+                            try:
+                                _np_uri=image_file_to_data_uri(_np_path)
+                                if _np_uri:
+                                    _natty_photo_html=(
+                                        f"<div style='margin-top:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px;'>"
+                                        f"<div style='position:relative;border-radius:10px;overflow:hidden;"
+                                        f"box-shadow:0 0 0 1px #fbbf2433,0 0 32px {_cc}33,0 8px 32px rgba(0,0,0,.6);'>"
+                                        f"<div style='position:absolute;top:0;left:0;right:0;height:3px;"
+                                        f"background:linear-gradient(90deg,transparent,#fbbf24,#f59e0b,#fbbf24,transparent);z-index:2;'></div>"
+                                        f"<img src='{_np_uri}' style='width:100%;max-height:320px;object-fit:cover;"
+                                        f"display:block;filter:brightness(.95) contrast(1.05);'/>"
+                                        f"<div style='position:absolute;bottom:0;left:0;right:0;"
+                                        f"background:linear-gradient(transparent,rgba(0,0,0,.78));padding:24px 16px 12px;z-index:2;'>"
+                                        f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#fbbf24;"
+                                        f"letter-spacing:.12em;'>{_yr_v} NATIONAL CHAMPIONS</div>"
+                                        f"<div style='font-size:.68rem;font-weight:900;color:{_cc};"
+                                        f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;'>{html.escape(_champ_team)}</div>"
+                                        f"</div>"
+                                        f"<div style='position:absolute;bottom:0;left:0;right:0;height:2px;"
+                                        f"background:linear-gradient(90deg,transparent,#fbbf24,transparent);z-index:2;'></div>"
+                                        f"</div></div>"
+                                    )
+                            except: pass
+                            break
+
                     # ── Box score lookup ───────────────────────────────────
                     _bs_html=''
                     try:
@@ -8652,6 +8709,7 @@ with _ul_tabs[1]:
                         f"</div>"
                         # Box score section (if available)
                         + _bs_html
+                        + _natty_photo_html
                         + f"</div>"
                     )
                 if _clash_count==0:
