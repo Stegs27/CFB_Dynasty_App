@@ -2724,11 +2724,14 @@ def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=Fa
     _html=f"""<!DOCTYPE html>
 <html>
 <head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
   * {{ margin:0; padding:0; box-sizing:border-box; }}
   body {{
     background: transparent;
-    font-family: sans-serif;
+    font-family: 'Barlow Condensed', sans-serif;
     overflow: hidden;
   }}
   .banner {{
