@@ -1,0 +1,120 @@
+YEAR,WEEK,USER,TEAM,OPPONENT,HOME_AWAY,TEAM_SCORE,OPP_SCORE,ACTUAL_MARGIN,SPREAD,DIFF_VS_SPREAD,RESULT,FAV_DOG,FPI_TEAM,FPI_OPP,FPI_FILE,OPP_IS_USER
+2042,1,Devin,Bowling Green,Miami,HOME,56,28,28,3.0,25.0,COVER,FAV,0.0,0.0,none,False
+2042,2,Devin,Bowling Green,Penn State,AWAY,49,21,28,-3.0,31.0,COVER,DOG,0.0,0.0,none,False
+2042,3,Devin,Bowling Green,Toledo,AWAY,77,10,67,-3.0,70.0,COVER,DOG,0.0,0.0,none,False
+2042,4,Devin,Bowling Green,Kentucky,HOME,69,10,59,3.0,56.0,COVER,FAV,0.0,0.0,none,False
+2042,5,Devin,Bowling Green,Florida,HOME,56,38,18,3.0,15.0,COVER,FAV,0.0,0.0,none,True
+2042,6,Devin,Bowling Green,Missouri,HOME,42,24,18,3.0,15.0,COVER,FAV,0.0,0.0,none,False
+2042,7,Devin,Bowling Green,South Carolina,AWAY,49,0,49,-3.0,52.0,COVER,DOG,0.0,0.0,none,False
+2042,8,Devin,Bowling Green,Notre Dame,HOME,44,36,8,3.2,4.8,COVER,FAV,22.84,22.52,fpi_ratings_2042_wk8.csv,False
+2042,9,Devin,Bowling Green,Oklahoma,HOME,35,28,7,16.7,-9.7,MISS,FAV,22.24,1.16,fpi_ratings_2042_wk9.csv,False
+2042,10,Devin,Bowling Green,Georgia,AWAY,42,17,25,4.3,20.7,COVER,FAV,22.24,11.01,fpi_ratings_2042_wk9.csv,False
+2042,11,Devin,Bowling Green,Auburn,AWAY,31,21,10,4.8,5.2,COVER,FAV,22.24,10.3,fpi_ratings_2042_wk9.csv,False
+2042,13,Devin,Bowling Green,Florida State,AWAY,38,35,3,0.7,2.3,COVER,FAV,21.4,15.75,fpi_ratings_2042_wk13.csv,True
+2042,16,Devin,Bowling Green,Florida State,HOME,38,41,-3,6.7,-9.7,MISS,FAV,21.4,15.75,fpi_ratings_2042_wk13.csv,True
+2042,18,Devin,Bowling Green,Death Valley,HOME,55,20,35,20.3,14.7,COVER,FAV,21.4,-5.23,fpi_ratings_2042_wk13.csv,False
+2042,19,Devin,Bowling Green,Georgia Tech,HOME,45,35,10,7.4,2.6,COVER,FAV,21.4,14.57,fpi_ratings_2042_wk13.csv,False
+2042,20,Devin,Bowling Green,USF,AWAY,35,21,14,-3.5,17.5,COVER,DOG,21.4,22.21,fpi_ratings_2042_wk13.csv,True
+2043,1,Devin,Bowling Green,Georgia Tech,AWAY,49,17,32,21.3,10.7,COVER,FAV,14.56,-22.77,fpi_ratings_2043_wk1.csv,False
+2043,2,Devin,Bowling Green,Baylor,HOME,42,13,29,19.4,9.6,COVER,FAV,25.12,-0.04,fpi_ratings_2043_wk2.csv,False
+2043,3,Devin,Bowling Green,SMU,HOME,56,24,32,26.5,5.5,COVER,FAV,25.12,-11.06,fpi_ratings_2043_wk3.csv,False
+2043,4,Devin,Bowling Green,Georgia,AWAY,56,7,49,14.3,34.7,COVER,FAV,23.39,-3.21,fpi_ratings_2043_wk4.csv,False
+2043,6,Devin,Bowling Green,Ole Miss,HOME,49,10,39,12.7,26.3,COVER,FAV,25.2,10.22,fpi_ratings_2043_wk6.csv,False
+2042,1,Doug,Florida,Washington,HOME,56,21,35,3.0,32.0,COVER,FAV,0.0,0.0,none,False
+2042,2,Doug,Florida,NC State,HOME,43,26,17,3.0,14.0,COVER,FAV,0.0,0.0,none,False
+2042,4,Doug,Florida,Texas,HOME,38,35,3,3.0,0.0,PUSH,FAV,0.0,0.0,none,False
+2042,5,Doug,Florida,Bowling Green,AWAY,38,56,-18,-3.0,-15.0,MISS,DOG,0.0,0.0,none,True
+2042,6,Doug,Florida,Oklahoma State,HOME,56,49,7,3.0,4.0,COVER,FAV,0.0,0.0,none,False
+2042,7,Doug,Florida,Ole Miss,AWAY,41,45,-4,-3.0,-1.0,MISS,DOG,0.0,0.0,none,False
+2042,8,Doug,Florida,Tennessee,AWAY,38,23,15,4.4,10.6,COVER,FAV,8.82,-2.61,fpi_ratings_2042_wk8.csv,False
+2042,9,Doug,Florida,Alabama,HOME,31,20,11,7.2,3.8,COVER,FAV,9.83,3.31,fpi_ratings_2042_wk9.csv,False
+2042,10,Doug,Florida,Iowa,AWAY,42,3,39,9.6,29.4,COVER,FAV,9.83,-9.52,fpi_ratings_2042_wk9.csv,False
+2042,11,Doug,Florida,LSU,AWAY,48,17,31,-10.4,41.4,COVER,DOG,9.83,21.24,fpi_ratings_2042_wk9.csv,False
+2042,12,Doug,Florida,Wyoming,HOME,34,21,13,9.2,3.8,COVER,FAV,9.83,0.34,fpi_ratings_2042_wk9.csv,False
+2042,14,Doug,Florida,Florida State,AWAY,24,28,-4,-4.6,0.6,COVER,DOG,13.33,15.75,fpi_ratings_2042_wk13.csv,True
+2042,17,Doug,Florida,Georgia Tech,AWAY,35,38,-3,-3.8,0.8,COVER,DOG,13.33,14.57,fpi_ratings_2042_wk13.csv,False
+2043,1,Doug,Florida,Rapid City,AWAY,31,21,10,8.3,1.7,COVER,FAV,4.56,-12.77,fpi_ratings_2043_wk1.csv,False
+2043,2,Doug,Florida,Indiana,HOME,42,24,18,12.1,5.9,COVER,FAV,5.0,-8.96,fpi_ratings_2043_wk2.csv,False
+2043,3,Doug,Florida,Iowa,AWAY,48,7,41,4.4,36.6,COVER,FAV,5.0,-6.46,fpi_ratings_2043_wk3.csv,False
+2043,4,Doug,Florida,Washington,HOME,42,14,28,5.0,23.0,COVER,FAV,13.47,10.42,fpi_ratings_2043_wk4.csv,False
+2043,5,Doug,Florida,Illinois,AWAY,52,7,45,13.6,31.4,COVER,FAV,17.58,-7.89,fpi_ratings_2043_wk5.csv,False
+2043,6,Doug,Florida,USC,HOME,35,23,12,23.3,-11.3,MISS,FAV,19.56,-11.64,fpi_ratings_2043_wk6.csv,False
+2042,1,Josh,USF,Hammond,AWAY,77,24,53,-3.0,56.0,COVER,DOG,0.0,0.0,none,False
+2042,2,Josh,USF,Arkansas,HOME,56,16,40,3.0,37.0,COVER,FAV,0.0,0.0,none,False
+2042,3,Josh,USF,Oklahoma,HOME,49,0,49,3.0,46.0,COVER,FAV,0.0,0.0,none,False
+2042,4,Josh,USF,San Jose State,AWAY,23,28,-5,-3.0,-2.0,MISS,DOG,0.0,0.0,none,True
+2042,6,Josh,USF,Indiana,HOME,77,14,63,3.0,60.0,COVER,FAV,0.0,0.0,none,False
+2042,7,Josh,USF,Nebraska,AWAY,56,31,25,-3.0,28.0,COVER,DOG,0.0,0.0,none,False
+2042,8,Josh,USF,Michigan,HOME,52,14,38,8.0,30.0,COVER,FAV,23.25,15.6,fpi_ratings_2042_wk8.csv,False
+2042,9,Josh,USF,Michigan State,AWAY,56,19,37,10.1,26.9,COVER,FAV,24.62,4.53,fpi_ratings_2042_wk9.csv,False
+2042,11,Josh,USF,Minnesota,HOME,49,10,39,26.4,12.6,COVER,FAV,24.62,-11.37,fpi_ratings_2042_wk9.csv,False
+2042,13,Josh,USF,Maryland,AWAY,90,10,80,21.9,58.1,COVER,FAV,22.21,-16.16,fpi_ratings_2042_wk13.csv,False
+2042,14,Josh,USF,Penn State,HOME,52,35,17,12.6,4.4,COVER,FAV,22.21,7.47,fpi_ratings_2042_wk13.csv,False
+2042,17,Josh,USF,Nebraska,HOME,53,42,11,13.3,-2.3,MISS,FAV,22.21,6.37,fpi_ratings_2042_wk13.csv,False
+2042,18,Josh,USF,Texas Tech,AWAY,46,43,3,-3.7,6.7,COVER,DOG,22.21,23.32,fpi_ratings_2042_wk13.csv,True
+2042,19,Josh,USF,Florida State,HOME,43,31,12,7.2,4.8,COVER,FAV,22.21,15.75,fpi_ratings_2042_wk13.csv,True
+2042,20,Josh,USF,Bowling Green,HOME,21,35,-14,3.5,-17.5,MISS,FAV,22.21,21.4,fpi_ratings_2042_wk13.csv,True
+2043,1,Josh,USF,NC State,HOME,42,35,7,6.5,0.5,COVER,FAV,-1.44,-6.77,fpi_ratings_2043_wk1.csv,False
+2043,2,Josh,USF,USC,HOME,63,21,42,25.1,16.9,COVER,FAV,9.39,-24.55,fpi_ratings_2043_wk2.csv,False
+2043,3,Josh,USF,Nebraska,AWAY,49,17,32,-9.2,41.2,COVER,DOG,9.39,18.94,fpi_ratings_2043_wk3.csv,False
+2043,5,Josh,USF,Georgia,AWAY,49,14,35,14.1,20.9,COVER,FAV,20.7,-5.67,fpi_ratings_2043_wk5.csv,False
+2043,6,Josh,USF,Missouri,HOME,49,13,36,22.0,14.0,COVER,FAV,20.97,-8.23,fpi_ratings_2043_wk6.csv,False
+2042,1,Mike,San Jose State,Stanford,HOME,71,61,10,3.0,7.0,COVER,FAV,0.0,0.0,none,False
+2042,2,Mike,San Jose State,Texas,AWAY,38,37,1,-3.0,4.0,COVER,DOG,0.0,0.0,none,False
+2042,3,Mike,San Jose State,Auburn,HOME,34,19,15,3.0,12.0,COVER,FAV,0.0,0.0,none,False
+2042,4,Mike,San Jose State,USF,HOME,28,23,5,3.0,2.0,COVER,FAV,0.0,0.0,none,True
+2042,5,Mike,San Jose State,Washington,AWAY,36,57,-21,-3.0,-18.0,MISS,DOG,0.0,0.0,none,False
+2042,6,Mike,San Jose State,USC,AWAY,52,35,17,-3.0,20.0,COVER,DOG,0.0,0.0,none,False
+2042,7,Mike,San Jose State,Indiana,HOME,59,36,23,3.0,20.0,COVER,FAV,0.0,0.0,none,False
+2042,8,Mike,San Jose State,Texas Tech,HOME,31,35,-4,-9.0,5.0,COVER,DOG,8.91,27.32,fpi_ratings_2042_wk8.csv,True
+2042,9,Mike,San Jose State,Nebraska,AWAY,37,52,-15,-0.9,-14.1,MISS,DOG,8.78,5.5,fpi_ratings_2042_wk9.csv,False
+2042,10,Mike,San Jose State,Michigan,HOME,30,27,3,1.5,1.5,COVER,FAV,8.78,11.14,fpi_ratings_2042_wk9.csv,False
+2042,11,Mike,San Jose State,Wisconsin,AWAY,66,9,57,-1.2,58.2,COVER,DOG,8.78,5.98,fpi_ratings_2042_wk9.csv,False
+2042,14,Mike,San Jose State,Michigan State,AWAY,50,33,17,1.7,15.3,COVER,FAV,8.33,1.18,fpi_ratings_2042_wk13.csv,False
+2042,17,Mike,San Jose State,Ole Miss,HOME,36,13,23,2.3,20.7,COVER,FAV,8.33,9.38,fpi_ratings_2042_wk13.csv,False
+2043,1,Mike,San Jose State,Death Valley,HOME,84,26,58,27.3,30.7,COVER,FAV,14.56,-22.77,fpi_ratings_2043_wk1.csv,False
+2043,2,Mike,San Jose State,LSU,HOME,77,10,67,17.7,49.3,COVER,FAV,20.34,-2.23,fpi_ratings_2043_wk2.csv,False
+2043,3,Mike,San Jose State,Purdue,AWAY,91,17,74,2.0,72.0,COVER,FAV,20.34,12.67,fpi_ratings_2043_wk3.csv,False
+2043,4,Mike,San Jose State,Ohio State,HOME,52,17,35,18.2,16.8,COVER,FAV,22.62,-0.78,fpi_ratings_2043_wk4.csv,False
+2043,5,Mike,San Jose State,Nebraska,HOME,54,42,12,12.7,-0.7,MISS,FAV,22.32,7.45,fpi_ratings_2043_wk5.csv,False
+2043,6,Mike,San Jose State,Michigan State,AWAY,38,26,12,14.6,-2.6,MISS,FAV,20.73,-6.4,fpi_ratings_2043_wk6.csv,False
+2042,1,Nick,Florida State,North Carolina,HOME,56,35,21,3.0,18.0,COVER,FAV,0.0,0.0,none,False
+2042,2,Nick,Florida State,Nebraska,AWAY,21,43,-22,-3.0,-19.0,MISS,DOG,0.0,0.0,none,False
+2042,4,Nick,Florida State,South Carolina,AWAY,56,19,37,-3.0,40.0,COVER,DOG,0.0,0.0,none,False
+2042,5,Nick,Florida State,Auburn,HOME,35,47,-12,3.0,-15.0,MISS,FAV,0.0,0.0,none,False
+2042,6,Nick,Florida State,Georgia,HOME,63,53,10,3.0,7.0,COVER,FAV,0.0,0.0,none,False
+2042,7,Nick,Florida State,Miami,AWAY,21,14,7,-3.0,10.0,COVER,DOG,0.0,0.0,none,False
+2042,8,Nick,Florida State,Oklahoma,AWAY,58,10,48,-2.4,50.4,COVER,DOG,5.45,4.5,fpi_ratings_2042_wk8.csv,False
+2042,10,Nick,Florida State,Ole Miss,HOME,56,17,39,-1.9,40.9,COVER,DOG,8.91,16.43,fpi_ratings_2042_wk9.csv,False
+2042,11,Nick,Florida State,Oregon,AWAY,56,7,49,-0.8,49.8,COVER,DOG,8.91,5.59,fpi_ratings_2042_wk9.csv,False
+2042,12,Nick,Florida State,Kentucky,AWAY,77,31,46,6.8,39.2,COVER,FAV,8.91,-6.13,fpi_ratings_2042_wk9.csv,False
+2042,13,Nick,Florida State,Bowling Green,HOME,35,38,-3,-0.7,-2.3,MISS,DOG,15.75,21.4,fpi_ratings_2042_wk13.csv,True
+2042,14,Nick,Florida State,Florida,HOME,28,24,4,4.6,-0.6,MISS,FAV,15.75,13.33,fpi_ratings_2042_wk13.csv,True
+2042,16,Nick,Florida State,Bowling Green,AWAY,41,38,3,-6.7,9.7,COVER,DOG,15.75,21.4,fpi_ratings_2042_wk13.csv,True
+2042,17,Nick,Florida State,West Virginia,HOME,49,14,35,0.7,34.3,COVER,FAV,15.75,19.23,fpi_ratings_2042_wk13.csv,False
+2042,18,Nick,Florida State,Notre Dame,AWAY,55,10,45,-6.9,51.9,COVER,DOG,15.75,21.7,fpi_ratings_2042_wk13.csv,False
+2042,19,Nick,Florida State,USF,AWAY,31,43,-12,-7.2,-4.8,MISS,DOG,15.75,22.21,fpi_ratings_2042_wk13.csv,True
+2043,1,Nick,Florida State,Penn State,HOME,56,13,43,27.3,15.7,COVER,FAV,14.56,-22.77,fpi_ratings_2043_wk1.csv,False
+2043,2,Nick,Florida State,Arizona State,HOME,69,17,52,19.4,32.6,COVER,FAV,24.64,-0.63,fpi_ratings_2043_wk2.csv,False
+2043,3,Nick,Florida State,Kentucky,AWAY,63,3,60,5.2,54.8,COVER,FAV,24.64,12.05,fpi_ratings_2043_wk3.csv,False
+2043,4,Nick,Florida State,South Carolina,AWAY,42,0,42,15.7,26.3,COVER,FAV,24.44,-4.37,fpi_ratings_2043_wk4.csv,False
+2043,5,Nick,Florida State,Panama City,HOME,56,7,49,17.6,31.4,COVER,FAV,25.21,2.75,fpi_ratings_2043_wk5.csv,False
+2043,6,Nick,Florida State,Oklahoma,AWAY,42,10,32,9.0,23.0,COVER,FAV,27.33,8.91,fpi_ratings_2043_wk6.csv,False
+2042,1,Noah,Texas Tech,Georgia Tech,AWAY,48,10,38,-3.0,41.0,COVER,DOG,0.0,0.0,none,False
+2042,2,Noah,Texas Tech,TCU,HOME,36,13,23,3.0,20.0,COVER,FAV,0.0,0.0,none,False
+2042,3,Noah,Texas Tech,Tennessee,AWAY,52,10,42,-3.0,45.0,COVER,DOG,0.0,0.0,none,False
+2042,4,Noah,Texas Tech,Oregon,HOME,45,21,24,3.0,21.0,COVER,FAV,0.0,0.0,none,False
+2042,5,Noah,Texas Tech,USC,HOME,48,21,27,3.0,24.0,COVER,FAV,0.0,0.0,none,False
+2042,6,Noah,Texas Tech,Purdue,AWAY,60,26,34,-3.0,37.0,COVER,DOG,0.0,0.0,none,False
+2042,7,Noah,Texas Tech,Penn State,HOME,59,24,35,3.0,32.0,COVER,FAV,0.0,0.0,none,False
+2042,8,Noah,Texas Tech,San Jose State,AWAY,35,31,4,9.0,-5.0,MISS,FAV,27.32,8.91,fpi_ratings_2042_wk8.csv,True
+2042,9,Noah,Texas Tech,Ohio State,AWAY,49,35,14,8.5,5.5,COVER,FAV,25.2,7.54,fpi_ratings_2042_wk9.csv,False
+2042,11,Noah,Texas Tech,Iowa,HOME,63,21,42,25.6,16.4,COVER,FAV,25.2,-9.52,fpi_ratings_2042_wk9.csv,False
+2042,12,Noah,Texas Tech,Wisconsin,AWAY,59,54,5,9.5,-4.5,MISS,FAV,25.2,5.98,fpi_ratings_2042_wk9.csv,False
+2042,16,Noah,Texas Tech,Nebraska,HOME,38,20,18,14.0,4.0,COVER,FAV,23.32,6.37,fpi_ratings_2042_wk13.csv,False
+2042,18,Noah,Texas Tech,USF,HOME,43,46,-3,3.7,-6.7,MISS,FAV,23.32,22.21,fpi_ratings_2042_wk13.csv,True
+2043,1,Noah,Texas Tech,Iowa,HOME,91,45,46,21.9,24.1,COVER,FAV,22.81,-6.28,fpi_ratings_2043_wk1.csv,False
+2043,2,Noah,Texas Tech,Washington,AWAY,63,59,4,4.0,-0.0,PUSH,FAV,14.98,4.16,fpi_ratings_2043_wk2.csv,False
+2043,3,Noah,Texas Tech,TCU,HOME,70,38,32,0.7,31.3,COVER,FAV,14.98,18.54,fpi_ratings_2043_wk3.csv,False
+2043,5,Noah,Texas Tech,USC,AWAY,70,42,28,16.4,11.6,COVER,FAV,20.36,-9.55,fpi_ratings_2043_wk5.csv,False
+2043,6,Noah,Texas Tech,Illinois,HOME,58,20,38,24.2,13.8,COVER,FAV,21.53,-11.02,fpi_ratings_2043_wk6.csv,False
