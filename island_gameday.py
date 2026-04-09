@@ -2873,6 +2873,71 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 else: _user_matchup[user]='BYE' if _week_has_games else 'UNSCHEDULED'
     except: pass
 
+    # ── Next-week matchup (week+1) ─────────────────────────────────────
+    _next_matchup={}
+    try:
+        _sf2=f'schedule_{year}.csv'
+        if os.path.exists(_sf2):
+            _rn=pd.read_csv(_sf2,dtype={'YEAR':str,'Week':str})
+            _rn.columns=[str(c).strip() for c in _rn.columns]
+            _ync=next((c for c in ('YEAR','Year') if c in _rn.columns),None)
+            _wnc=next((c for c in ('Week','WEEK') if c in _rn.columns),None)
+            _nwm=str(int(week)+1)
+            _yr_ok2=_rn[_ync].astype(str).str.strip().str.split('.').str[0]==str(int(year)) if _ync else pd.Series([True]*len(_rn))
+            _wk_ok2=_rn[_wnc].astype(str).str.strip().str.split('.').str[0]==_nwm if _wnc else pd.Series([True]*len(_rn))
+            _scn=_rn[_yr_ok2&_wk_ok2].copy()
+            for _tc2 in ('Visitor','Home'):
+                if _tc2 in _scn.columns: _scn[_tc2]=_scn[_tc2].astype(str).apply(lambda t:re.sub(r'^\d+\s+','',t.strip()))
+            _vcn=next((c for c in ('Visitor','VISITOR') if c in _scn.columns),None)
+            _hcn=next((c for c in ('Home','HOME') if c in _scn.columns),None)
+            if _vcn: _scn['_VN']=_scn[_vcn].astype(str).str.strip().str.lower()
+            if _hcn: _scn['_HN']=_scn[_hcn].astype(str).str.strip().str.lower()
+            for user,team in USER_TEAMS.items():
+                tl=team.lower()
+                _vnr=_scn[_scn['_VN']==tl] if '_VN' in _scn.columns else pd.DataFrame()
+                _hnr=_scn[_scn['_HN']==tl] if '_HN' in _scn.columns else pd.DataFrame()
+                if not _vnr.empty:
+                    _next_matchup[user]={'opp':str(_vnr.iloc[0].get(_hcn,'')).strip(),'home':False}
+                elif not _hnr.empty:
+                    _next_matchup[user]={'opp':str(_hnr.iloc[0].get(_vcn,'')).strip(),'home':True}
+    except: pass
+
+    # ── Remaining SOS per user (avg FPI of future SCHEDULED opponents) ─
+    _rsos_map={}
+    try:
+        _rsf=f'schedule_{year}.csv'
+        _rfpi_f=f'FPI/fpi_ratings_{year}_wk{week}.csv'
+        if not os.path.exists(_rfpi_f): _rfpi_f=f'fpi_ratings_{year}_wk{week}.csv'
+        if os.path.exists(_rsf) and os.path.exists(_rfpi_f):
+            _rsched=pd.read_csv(_rsf); _rsched.columns=[str(c).strip() for c in _rsched.columns]
+            _rfpi_df=pd.read_csv(_rfpi_f); _rfpi_df.columns=[str(c).strip() for c in _rfpi_df.columns]
+            _rfc=next((c for c in _rfpi_df.columns if c.lower()=='team'),None)
+            _rfv=next((c for c in _rfpi_df.columns if c.upper()=='FPI'),None)
+            if _rfc and _rfv:
+                _rfpi_map=dict(zip(_rfpi_df[_rfc].astype(str).str.strip(),pd.to_numeric(_rfpi_df[_rfv],errors='coerce').fillna(0)))
+                _rsts=next((c for c in _rsched.columns if c.upper()=='STATUS'),None)
+                _rwkc=next((c for c in _rsched.columns if c.upper()=='WEEK'),None)
+                _rvcc=next((c for c in _rsched.columns if c.upper() in ('VISITOR','VIS')),None)
+                _rhcc=next((c for c in _rsched.columns if c.upper()=='HOME'),None)
+                if _rvcc and _rhcc:
+                    _rfut=_rsched.copy()
+                    if _rsts: _rfut=_rfut[_rfut[_rsts].astype(str).str.upper()=='SCHEDULED']
+                    if _rwkc:
+                        _rfut[_rwkc]=pd.to_numeric(_rfut[_rwkc],errors='coerce')
+                        _rfut=_rfut[_rfut[_rwkc]>int(week)]
+                    for _ruser,_rteam in USER_TEAMS.items():
+                        _opps=[]
+                        _rasv=_rfut[_rfut[_rvcc].astype(str).str.strip()==_rteam]
+                        for _,_rr in _rasv.iterrows():
+                            _of=_rfpi_map.get(str(_rr.get(_rhcc,'')).strip())
+                            if _of is not None: _opps.append(_of)
+                        _rash=_rfut[_rfut[_rhcc].astype(str).str.strip()==_rteam]
+                        for _,_rr in _rash.iterrows():
+                            _of=_rfpi_map.get(str(_rr.get(_rvcc,'')).strip())
+                            if _of is not None: _opps.append(_of)
+                        if _opps: _rsos_map[_ruser]=round(sum(_opps)/len(_opps),1)
+    except: pass
+
     # ── Game status map ────────────────────────────────────────────────
     _game_status_map={}
     try:
@@ -3337,12 +3402,32 @@ def render_game_cards_with_boxscore(year, week, model_df):
         # ── Stats bottom strip ────────────────────────────────────────────────
         _strip_items=[]
         _strip_items.append(f"<span style='color:{fpi_c};font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;'>FPI {fpi_val:+.1f}"+(f"<span style='color:#fbbf24;font-size:.62rem;'> #{fpi_rk}</span>" if fpi_rk>0 else "")+"</span>")
+        # rSOS
+        _rsos_v=_rsos_map.get(user)
+        if _rsos_v is not None:
+            _rsos_c='#f97316' if _rsos_v>=5 else ('#fbbf24' if _rsos_v>=-2 else '#94a3b8')
+            _strip_items.append(f"<span style='color:{_rsos_c};font-family:Barlow Condensed,sans-serif;font-size:.72rem;font-weight:700;'>rSOS {_rsos_v:+.1f}</span>")
         if natty_pct>0:
             _strip_items.append(f"<span style='color:#fbbf24;font-size:.72rem;'>🏆 {natty_odds}</span>")
         if sf_rk>0:
             _strip_items.append(f"<span style='background:{tc}22;color:{tc};border:1px solid {tc}44;border-radius:4px;padding:1px 6px;font-size:.68rem;font-weight:800;font-family:Barlow Condensed,sans-serif;'>SPD #{sf_rk}</span>")
-        if _status_badge:
+        # Status badge — but NOT when the game is already FINAL (score already visible in center)
+        _game_is_final = bool(_final_score and _final_result) if isinstance(matchup,dict) else False
+        if _status_badge and not _game_is_final:
             _strip_items.append(_status_badge)
+        # Next week's opponent
+        _nxt=_next_matchup.get(user)
+        if _nxt and _nxt.get('opp') and not IS_OFFSEASON:
+            _nxt_opp=_nxt['opp']; _nxt_home=_nxt.get('home',True)
+            _nxt_lu=image_file_to_data_uri(get_logo_source(_nxt_opp))
+            _nxt_img=(f"<img src='{_nxt_lu}' style='width:16px;height:16px;object-fit:contain;"
+                      f"vertical-align:middle;margin:0 3px 0 2px;'/>" if _nxt_lu else '')
+            _nxt_ab=_ABBREV.get(_nxt_opp,_nxt_opp[:4].upper())
+            _nxt_ha='vs' if _nxt_home else '@'
+            _strip_items.append(
+                f"<span style='color:#475569;font-family:Barlow Condensed,sans-serif;font-size:.7rem;'>"
+                f"Next: {_nxt_ha}{_nxt_img}<span style='color:#64748b;font-weight:700;'>{html.escape(_nxt_ab)}</span></span>"
+            )
         _dot="<span style='color:#1e293b;margin:0 2px;'>·</span>"
         _strip_html=_dot.join(_strip_items)
 
