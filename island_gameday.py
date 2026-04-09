@@ -1970,6 +1970,28 @@ def build_ticker_items(year, week, is_bowl_week):
                     return 0
                 _prev['_upset']=_prev.apply(_upset_score,axis=1)
                 _top_upsets=_prev[_prev['_upset']>0].nlargest(3,'_upset')
+                # ── Upset phrase bank ───────────────────────────────────────────
+                def _upset_phrase(winner, loser, loser_rank_s, ws, ls):
+                    _seed=hash(f"{winner}{loser}{ws}{ls}")%1000
+                    _phrases=[
+                        f"{winner} SHOCKS {loser_rank_s}{loser} {ws}-{ls}",
+                        f"{loser_rank_s}{loser} LEFT DUMBFOUNDED BY {winner} {ws}-{ls}",
+                        f"{loser_rank_s}{loser} CHOKED — {winner} WINS {ws}-{ls}",
+                        f"{loser_rank_s}{loser} HAD A NIGHTMARE THANKS TO {winner} {ws}-{ls}",
+                        f"{winner} PULLS THE RUG OUT FROM UNDER {loser_rank_s}{loser} {ws}-{ls}",
+                        f"WHO IS {winner}?! STUNS {loser_rank_s}{loser} {ws}-{ls}",
+                        f"{loser_rank_s}{loser} ABSOLUTELY DID NOT SEE {winner} COMING — {ws}-{ls}",
+                        f"CHAOS: {winner} TAKES DOWN {loser_rank_s}{loser} {ws}-{ls}",
+                    ]
+                    _blurbs=[
+                        f"{winner} pulled off the upset of the week. {loser_rank_s}{loser} is going to need a moment.",
+                        f"Someone tell {loser_rank_s}{loser} that {winner} doesn't give a damn about rankings.",
+                        f"{loser_rank_s}{loser} choked. {winner} cashed in. That's college football, baby.",
+                        f"{winner} treated {loser_rank_s}{loser} like a Tuesday scrimmage. Absolutely embarrassing.",
+                        f"Circle {winner} on the schedule next year. {loser_rank_s}{loser} won't forget this one.",
+                    ]
+                    return _phrases[_seed%len(_phrases)], _blurbs[_seed%len(_blurbs)]
+
                 for _,_ug in _top_upsets.iterrows():
                     _uvs=float(_ug.get(_sc2,0) or 0); _uhs=float(_ug.get(_hc2,0) or 0)
                     _uvis=str(_ug.get('Visitor','')); _uhom=str(_ug.get('Home',''))
@@ -1978,9 +2000,43 @@ def build_ticker_items(year, week, is_bowl_week):
                     _ulr=_ug.get(_hr2 if _uvs>_uhs else _vr2,None) if (_hr2 or _vr2) else None
                     _ulr_s=f"#{int(float(_ulr))} " if pd.notna(_ulr) and float(_ulr or 0)>0 else "ranked "
                     is_user_u=(_uvis in ALL_USER_TEAMS or _uhom in ALL_USER_TEAMS)
+                    _ut, _ub = _upset_phrase(_uw, _ul, _ulr_s, _uws, _uls)
                     headlines.append({'badge':'🚨 UPSET ALERT','priority':195 if is_user_u else 132,
-                        'text':f"{_uw} stuns {_ulr_s}{_ul} {_uws}-{_uls} (Wk {_pw})",
-                        'blurb':f"{_uw} pulled off the upset of the week, taking down {_ulr_s}{_ul}."})
+                        'text':f"{_ut} (Wk {_pw})", 'blurb':_ub})
+
+                # ── Blowout phrase bank ─────────────────────────────────────────
+                def _blowout_phrase(winner, loser, ws, ls, margin, is_upset_blowout=False):
+                    _seed=hash(f"{winner}{loser}{ws}{ls}")%1000
+                    if is_upset_blowout:
+                        _phrases=[
+                            f"{loser} GETS SURPRISE POUNDING FROM {winner} {ws}-{ls}",
+                            f"{winner} DIDN'T JUST BEAT {loser} — THEY OBLITERATED THEM {ws}-{ls}",
+                            f"UPSET + BLOWOUT: {winner} RAW DOGS {loser} {ws}-{ls}",
+                            f"{loser} GOT THEIR BELT TAKEN AND THEIR LUNCH MONEY TOO — {winner} {ws}-{ls}",
+                        ]
+                    else:
+                        _phrases=[
+                            f"{winner} OBLITERATES {loser} {ws}-{ls}",
+                            f"{winner} SMOKED {loser} {ws}-{ls}",
+                            f"{winner} ANNIHILATES {loser} {ws}-{ls}",
+                            f"{winner} DISMANTLES {loser} {ws}-{ls}",
+                            f"{winner} GAVE THE BELT TO {loser}'S ASS {ws}-{ls}",
+                            f"{winner} DID BUTT STUFF TO {loser} {ws}-{ls}",
+                            f"{winner} STRAIGHT-UP COOKED {loser} {ws}-{ls}",
+                            f"{loser} GOT FINGERED BY {winner} — {ws}-{ls}",
+                            f"{winner} PUT A BODY BAG ON {loser} {ws}-{ls}",
+                            f"{winner} MADE {loser} LOOK LIKE A JV SQUAD — {ws}-{ls}",
+                        ]
+                    _blurbs=[
+                        f"{winner} put on a clinic. {margin} points is not a football score, that's a war crime.",
+                        f"{loser} got cooked, baked, and served. {winner} by {margin}. Go home.",
+                        f"This wasn't a game. This was a mugging. {winner} +{margin}.",
+                        f"{winner} is sending a message to the committee. Someone in the selection room felt that.",
+                        f"The mercy rule doesn't exist in college football. {loser} wishes it did.",
+                        f"{margin} points. THIRTY-SIX. {loser} needed a doctor, not a halftime speech.",
+                    ]
+                    return _phrases[_seed%len(_phrases)], _blurbs[_seed%len(_blurbs)]
+
                 # Biggest blowout
                 _vu_col=next((c for c in ('Vis_User','VIS_USER') if c in _prev.columns),None)
                 _hu_col=next((c for c in ('Home_User','HOME_USER') if c in _prev.columns),None)
@@ -1996,9 +2052,15 @@ def build_ticker_items(year, week, is_bowl_week):
                     _bws=int(max(_bvs,_bhs)); _bls=int(min(_bvs,_bhs)); _bmg=_bws-_bls
                     if _bmg>=21:
                         is_user_b=(_bvis in ALL_USER_TEAMS or _bhom in ALL_USER_TEAMS)
+                        # check if it's also an upset blowout
+                        try:
+                            _bvr=float(_bg2.get(_vr2,0) or 0); _bhr=float(_bg2.get(_hr2,0) or 0)
+                            _win_rk=_bvr if _bvs>_bhs else _bhr; _los_rk=_bhr if _bvs>_bhs else _bvr
+                            _is_blow_upset=(_los_rk>0 and _los_rk<=15 and (_win_rk==0 or _win_rk>_los_rk+5))
+                        except: _is_blow_upset=False
+                        _bt, _bb = _blowout_phrase(_bw, _bl2, _bws, _bls, _bmg, _is_blow_upset)
                         headlines.append({'badge':'💥 BLOWOUT','priority':170 if is_user_b else 110,
-                            'text':f"{_bw} crushes {_bl2} {_bws}-{_bls} (Wk {_pw})",
-                            'blurb':f"{_bw} put on a clinic. {_bmg} points is not a football score, that's a statement."})
+                            'text':f"{_bt} (Wk {_pw})", 'blurb':_bb})
     except: pass
 
     # ── 4b. ACTIVE LONG-TERM & SEASON-ENDING INJURIES ────────────────────────
@@ -6119,6 +6181,38 @@ with tabs[1]:
                         _sos_c=next((c for c in _sosdf.columns if c.upper() in ('SOS','STRENGTH_OF_SCHEDULE','STR_OF_SCHED')),None)
                         if _sos_c: _cfp_sos_map=dict(zip(_sosdf[_sos_tm].astype(str).str.strip(),pd.to_numeric(_sosdf[_sos_c],errors='coerce').fillna(0)))
                 except: pass
+                # Remaining SOS — avg FPI of future (SCHEDULED) opponents from schedule CSV
+                _cfp_rsos_map={}
+                try:
+                    _sched_f=f'schedule_{_sel_yr}.csv'
+                    if os.path.exists(_sched_f) and _cfp_fpi_map:
+                        _sched_rsos=pd.read_csv(_sched_f)
+                        _sched_rsos.columns=[str(c).strip() for c in _sched_rsos.columns]
+                        _st_col=next((c for c in _sched_rsos.columns if c.upper()=='STATUS'),None)
+                        _sw_col=next((c for c in _sched_rsos.columns if c.upper()=='WEEK'),None)
+                        _sv_col=next((c for c in _sched_rsos.columns if c.upper() in ('VISITOR','VIS')),None)
+                        _sh_col=next((c for c in _sched_rsos.columns if c.upper() in ('HOME',)),None)
+                        if _st_col and _sv_col and _sh_col:
+                            # SCHEDULED games at or after selected week
+                            _sched_future=_sched_rsos[_sched_rsos[_st_col].astype(str).str.upper()=='SCHEDULED'].copy()
+                            if _sw_col:
+                                _sched_future[_sw_col]=pd.to_numeric(_sched_future[_sw_col],errors='coerce')
+                                _sched_future=_sched_future[_sched_future[_sw_col]>=_sel_wk]
+                            for _rsos_tm in _cfp_fpi_map.keys():
+                                _as_vis=_sched_future[_sched_future[_sv_col].astype(str).str.strip()==_rsos_tm]
+                                _as_hom=_sched_future[_sched_future[_sh_col].astype(str).str.strip()==_rsos_tm]
+                                _opp_fpis=[]
+                                for _,_rr in _as_vis.iterrows():
+                                    _opp=str(_rr.get(_sh_col,'')).strip()
+                                    _of=_cfp_fpi_map.get(_opp)
+                                    if _of is not None: _opp_fpis.append(_of)
+                                for _,_rr in _as_hom.iterrows():
+                                    _opp=str(_rr.get(_sv_col,'')).strip()
+                                    _of=_cfp_fpi_map.get(_opp)
+                                    if _of is not None: _opp_fpis.append(_of)
+                                if _opp_fpis:
+                                    _cfp_rsos_map[_rsos_tm]=round(sum(_opp_fpis)/len(_opp_fpis),1)
+                except: pass
                 try:
                     _noc  # re-open try for remaining code
                 except: pass
@@ -6160,6 +6254,9 @@ with tabs[1]:
                     _sfr2=_cfp_sf_map.get(tm,None); _sfr2_s=f'#{_sfr2}' if _sfr2 else '--'
                     _sos2=_cfp_sos_map.get(tm,0); _sos2_s=f'{_sos2:+.1f}' if _sos2 else '--'
                     _sos2_c='#f97316' if (_sos2 or 0)>=5 else ('#fbbf24' if (_sos2 or 0)>=0 else '#94a3b8')
+                    _rsos2=_cfp_rsos_map.get(tm,None)
+                    _rsos2_s=f'{_rsos2:+.1f}' if _rsos2 is not None else '--'
+                    _rsos2_c='#f97316' if (_rsos2 or 0)>=5 else ('#fbbf24' if (_rsos2 or 0)>=-2 else '#94a3b8')
                     _cfp_cards_html+=(
                         f"<div style='{card_bg}{card_bdr}border-radius:10px;padding:8px 14px;"
                         f"margin-bottom:5px;display:flex;align-items:center;gap:10px;'>"
@@ -6184,6 +6281,8 @@ with tabs[1]:
                         f"color:#a78bfa;'>{_msp2_s}</div><div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>MS+</div></div>"
                         f"<div style='text-align:center;'><div style='font-family:Bebas Neue,sans-serif;font-size:.95rem;"
                         f"color:{_sos2_c};'>{_sos2_s}</div><div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>SOS</div></div>"
+                        f"<div style='text-align:center;'><div style='font-family:Bebas Neue,sans-serif;font-size:.95rem;"
+                        f"color:{_rsos2_c};'>{_rsos2_s}</div><div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>rSOS</div></div>"
                         f"<div style='text-align:center;'><div style='font-size:.72rem;color:#38bdf8;font-weight:700;'>{_sfr2_s}</div>"
                         f"<div style='font-size:.48rem;color:#475569;letter-spacing:.06em;'>SPD</div></div>"
                         f"</div>"
@@ -6192,7 +6291,7 @@ with tabs[1]:
                 st.markdown(
                     f"<div style='display:flex;flex-direction:column;gap:0;'>{_cfp_cards_html}</div>",
                     unsafe_allow_html=True)
-                st.caption(f"Week {_sel_wk} · {_sel_yr} season · {len(_snap)} teams ranked")
+                st.caption(f"Week {_sel_wk} · {_sel_yr} season · {len(_snap)} teams ranked · rSOS = avg FPI of remaining opponents")
             else:
                 st.info("No rankings data for selected season.")
         except Exception as e:
@@ -8044,6 +8143,156 @@ with _ul_tabs[0]:
 
         # ── RIVALRY METER ───────────────────────────────────────────────────────────
 
+        # ── 🏆 USER VS USER NATIONAL CHAMPIONSHIP GAMES ─────────────────────────────
+        st.markdown("---")
+        st.subheader("🏆 National Championship Clashes")
+        st.caption("Every time two user-coached programs met in the National Championship game. The biggest stage, the highest stakes.")
+        try:
+            _natty_clash_df=pd.DataFrame()
+            for _p in ['champs.csv','FPI/champs.csv']:
+                if os.path.exists(_p): _natty_clash_df=pd.read_csv(_p); break
+            if _natty_clash_df.empty:
+                st.info("No champs.csv data yet — check back after your first natty.")
+            else:
+                _natty_clash_df.columns=[str(c).strip() for c in _natty_clash_df.columns]
+                _nc_yr=next((c for c in _natty_clash_df.columns if 'YEAR' in c.upper() or c.upper()=='SEASON'),None)
+                _nc_tm=next((c for c in _natty_clash_df.columns if 'TEAM' in c.upper() and 'USER' not in c.upper()),None)
+                _nc_usr=next((c for c in _natty_clash_df.columns if 'USER' in c.upper()),None)
+                if not (_nc_yr and _nc_tm):
+                    st.info("champs.csv missing required columns (YEAR, TEAM).")
+                else:
+                    # Build year → {champion, runner_up, ...} from champs.csv
+                    # Try to find runner-up from schedule CSVs (natty game rows) or CFP bracket CSV
+                    _natty_games=[]
+                    # Load all schedule CSVs — natty games marked Natty Game=1
+                    _all_sched_years=[]
+                    import glob as _nglob
+                    for _nf in sorted(_nglob.glob('schedule_*.csv')+_nglob.glob('FPI/schedule_*.csv')):
+                        try:
+                            _ndf=pd.read_csv(_nf); _ndf.columns=[str(c).strip() for c in _ndf.columns]
+                            _ng_col=next((c for c in _ndf.columns if 'NATTY' in c.upper() or c.upper() in ('NATTY_GAME','NATTY GAME','NATIONAL CHAMPIONSHIP')),None)
+                            if _ng_col:
+                                _ndf[_ng_col]=pd.to_numeric(_ndf[_ng_col],errors='coerce').fillna(0)
+                                _natty_rows=_ndf[_ndf[_ng_col]==1].copy()
+                                if not _natty_rows.empty: _all_sched_years.append(_natty_rows)
+                        except: pass
+                    _sched_natties=pd.concat(_all_sched_years,ignore_index=True) if _all_sched_years else pd.DataFrame()
+
+                    # Also try CFPbracketresults.csv
+                    _bkt_natties=pd.DataFrame()
+                    for _bp in ['CFPbracketresults.csv','FPI/CFPbracketresults.csv']:
+                        if os.path.exists(_bp):
+                            try:
+                                _bd=pd.read_csv(_bp); _bd.columns=[str(c).strip() for c in _bd.columns]
+                                _brnd=next((c for c in _bd.columns if 'ROUND' in c.upper()),None)
+                                if _brnd:
+                                    _bd[_brnd]=_bd[_brnd].astype(str).str.upper()
+                                    _bkt_natties=_bd[_bd[_brnd].str.contains('NATIONAL|NATTY|CHAMPIONSHIP',na=False)].copy()
+                            except: pass
+                            break
+
+                    # Map year → runner-up
+                    _yr_runner={}
+                    if not _sched_natties.empty:
+                        _nv=next((c for c in _sched_natties.columns if c.upper() in ('VISITOR','VIS')),None)
+                        _nh=next((c for c in _sched_natties.columns if c.upper()=='HOME'),None)
+                        _nvs=next((c for c in _sched_natties.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
+                        _nhs=next((c for c in _sched_natties.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
+                        _nyr=next((c for c in _sched_natties.columns if 'YEAR' in c.upper()),None)
+                        _nvsn=next((c for c in _sched_natties.columns if 'VIS_SCORE' in c.upper() or c.upper()=='VIS SCORE'),None)
+                        _nhsn=next((c for c in _sched_natties.columns if 'HOME_SCORE' in c.upper() or c.upper()=='HOME SCORE'),None)
+                        _nvs2=_nvs or _nvsn; _nhs2=_nhs or _nhsn
+                        for _,_nr in _sched_natties.iterrows():
+                            yr_v=int(float(_nr.get(_nyr,0))) if _nyr else 0
+                            if yr_v==0: continue
+                            _vis=str(_nr.get(_nv,'')).strip() if _nv else ''
+                            _hom=str(_nr.get(_nh,'')).strip() if _nh else ''
+                            _vsc=float(_nr.get(_nvs2,0) or 0) if _nvs2 else 0
+                            _hsc=float(_nr.get(_nhs2,0) or 0) if _nhs2 else 0
+                            if _vis and _hom:
+                                _winner=_vis if _vsc>_hsc else (_hom if _hsc>_vsc else None)
+                                _loser=_hom if _vsc>_hsc else (_vis if _hsc>_vsc else None)
+                                _yr_runner[yr_v]={'vis':_vis,'home':_hom,'vis_score':int(_vsc),'home_score':int(_hsc),'winner':_winner,'loser':_loser}
+
+                    # Build list of natty clashes where both participants are/were user teams
+                    _all_user_teams_ever=set(USER_TEAMS.values())
+                    # Also include historical user teams from model_2041 if available
+                    try:
+                        if model_2041 is not None and not model_2041.empty and 'TEAM' in model_2041.columns:
+                            for _,_mr in model_2041.iterrows():
+                                _all_user_teams_ever.add(str(_mr['TEAM']).strip())
+                    except: pass
+                    # Include expansion teams
+                    _all_user_teams_ever.update(EXPANSION_TEAMS)
+
+                    _clash_cards_html=''; _clash_count=0
+                    # Iterate each year in champs.csv
+                    if _nc_yr:
+                        _natty_clash_df[_nc_yr]=pd.to_numeric(_natty_clash_df[_nc_yr],errors='coerce')
+                    for _yr_v in sorted(_natty_clash_df[_nc_yr].dropna().unique().astype(int),reverse=True):
+                        _yr_rows=_natty_clash_df[_natty_clash_df[_nc_yr]==_yr_v]
+                        if _yr_rows.empty: continue
+                        _champ_team=str(_yr_rows.iloc[0].get(_nc_tm,'')).strip() if _nc_tm else ''
+                        _champ_user=str(_yr_rows.iloc[0].get(_nc_usr,'')).strip() if _nc_usr else ''
+                        if not _champ_team: continue
+                        # Look up the natty game row
+                        _ng=_yr_runner.get(_yr_v,{})
+                        _runner=_ng.get('loser','') or ''
+                        _runner_user=''
+                        if _runner:
+                            for _k,_v in USER_TEAMS.items():
+                                if _v==_runner: _runner_user=_k; break
+                        # Is this a user vs user natty?
+                        _champ_is_user=(_champ_team in _all_user_teams_ever)
+                        _runner_is_user=(_runner in _all_user_teams_ever) if _runner else False
+                        if not (_champ_is_user and _runner_is_user):
+                            continue
+                        _clash_count+=1
+                        # Scores
+                        _ws=_ng.get('vis_score',0); _ls=_ng.get('home_score',0)
+                        if _ng.get('winner')==_runner: _ws,_ls=_ls,_ws  # flip to winner-first
+                        _score_str=f"{_ws}-{_ls}" if (_ws or _ls) else "Score N/A"
+                        # Colors + logos
+                        _cc=get_team_primary_color(_champ_team); _rc=get_team_primary_color(_runner)
+                        _cl=image_file_to_data_uri(get_logo_source(_champ_team))
+                        _rl=image_file_to_data_uri(get_logo_source(_runner))
+                        _cl_img=f"<img src='{_cl}' style='width:48px;height:48px;object-fit:contain;'/>" if _cl else '🏈'
+                        _rl_img=f"<img src='{_rl}' style='width:40px;height:40px;object-fit:contain;opacity:.7;'/>" if _rl else '🏈'
+                        _clash_cards_html+=(
+                            f"<div style='background:linear-gradient(135deg,{_cc}18 0%,#060a11 50%,{_rc}12 100%);"
+                            f"border:1px solid {_cc}44;border-left:4px solid #fbbf24;"
+                            f"border-radius:14px;padding:16px 20px;margin-bottom:10px;"
+                            f"display:flex;align-items:center;gap:16px;'>"
+                            # Champion side
+                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;min-width:80px;'>"
+                            f"{_cl_img}"
+                            f"<div style='font-size:.62rem;font-weight:900;color:{_cc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;'>{html.escape(_champ_team)}</div>"
+                            f"<div style='font-size:.55rem;color:#64748b;'>{html.escape(_champ_user)}</div>"
+                            f"<div style='font-size:.5rem;background:#fbbf2422;color:#fbbf24;border:1px solid #fbbf2444;border-radius:4px;padding:1px 6px;font-weight:700;margin-top:2px;'>CHAMPION</div>"
+                            f"</div>"
+                            # Score / year center
+                            f"<div style='flex:1;text-align:center;'>"
+                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:.7rem;color:#fbbf24;letter-spacing:.12em;'>{_yr_v} NATIONAL CHAMPIONSHIP</div>"
+                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:2rem;color:#f8fafc;letter-spacing:.04em;line-height:1.1;margin:4px 0;'>{_score_str}</div>"
+                            f"<div style='font-size:.58rem;color:#475569;'>User vs. User Natty Clash</div>"
+                            f"</div>"
+                            # Runner-up side
+                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;min-width:80px;'>"
+                            f"{_rl_img}"
+                            f"<div style='font-size:.62rem;font-weight:700;color:{_rc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;'>{html.escape(_runner)}</div>"
+                            f"<div style='font-size:.55rem;color:#64748b;'>{html.escape(_runner_user)}</div>"
+                            f"<div style='font-size:.5rem;background:#1e293b;color:#475569;border:1px solid #334155;border-radius:4px;padding:1px 6px;font-weight:700;margin-top:2px;'>RUNNER-UP</div>"
+                            f"</div>"
+                            f"</div>"
+                        )
+                    if _clash_count==0:
+                        st.info("No user vs. user national championship games yet. Someone's gotta step up and make it a dynasty showdown.")
+                    else:
+                        st.markdown(f"<div>{_clash_cards_html}</div>", unsafe_allow_html=True)
+                        st.caption(f"{_clash_count} user vs. user natty clash{'es' if _clash_count!=1 else ''} in dynasty history")
+        except Exception as _nc_err:
+            st.caption(f"Natty clashes unavailable: {_nc_err}")
+
 with _ul_tabs[1]:
     st.header("🎬 ISPN Classics")
     st.caption("The most iconic games in dynasty history — ranked by closeness, stakes, and upset factor.")
@@ -8215,8 +8464,13 @@ with _ul_tabs[2]:
     except Exception as e:
         st.caption(f"GOAT Rankings unavailable: {e}")
 
-
-# --- SEASON RECAP ---
+    # ── FUTURE: Per-Team Coaching Record Breakdown ────────────────────────────────
+    # TODO (post-July CPUscores_MASTER retirement): Add a section breaking down each
+    # user's all-time record against every opponent, split by team coached.
+    # e.g. Mike's record vs each coach as Rapid City / Maryland / Wyoming / San Jose State
+    # Source: schedule_{YEAR}.csv files (2042+) + CPUscores_MASTER.csv (pre-2042 archive)
+    # Join on Vis_User / Home_User columns to identify user matchups per team per season.
+    # ─────────────────────────────────────────────────────────────────────────────────
 
 
 # ══════════════════════════════════════════════════════════════════════
