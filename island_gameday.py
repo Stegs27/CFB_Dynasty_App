@@ -4179,6 +4179,7 @@ def render_season_news(year, week):
         )
 
 
+def render_injury_report():
     st.subheader("🚑 Injury Report")
     try:
         _inj=pd.read_csv('injury_bulletin.csv')
