@@ -2641,14 +2641,6 @@ def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=Fa
     _adv_html=''
     if advance_time:
         _window_hrs=48 if has_h2h_game else 24
-        _adv_html=(
-            f"<div style='text-align:center;min-width:140px;'>"
-            f"<div id='adv-time-lbl' style='font-size:.55rem;color:#475569;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;'>ADVANCED</div>"
-            f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.78rem;color:#94a3b8;font-weight:700;'>{advance_time}</div>"
-            f"<div id='adv-countdown' style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#f59e0b;margin-top:1px;letter-spacing:.04em;'>--:--:--</div>"
-            f"<div style='font-size:.48rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>{'48h' if has_h2h_game else '24h'} window · H2H week' if has_h2h_game else '{'48h' if has_h2h_game else '24h'} window'}</div>"
-            f"</div>"
-        )
         # Build proper label
         _window_label=f"{'48h window · H2H week' if has_h2h_game else '24h window'}"
         _adv_html=(
