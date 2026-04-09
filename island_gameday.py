@@ -2240,17 +2240,22 @@ def build_ticker_items(year, week, is_bowl_week):
 
     # ── 5. HEISMAN WINNER ────────────────────────────────────────────────────
     try:
-        _hwin=pd.read_csv('Heisman_History.csv') if os.path.exists('Heisman_History.csv') else pd.DataFrame()
+        _hwin=pd.read_csv('Heisman_Finalists.csv') if os.path.exists('Heisman_Finalists.csv') else pd.DataFrame()
         if not _hwin.empty:
-            _hwin['Year']=pd.to_numeric(_hwin.get('Year',_hwin.get('YEAR',0)),errors='coerce')
-            _hy=_hwin[_hwin['Year']==CY]
-            if not _hy.empty:
-                _hr=_hy.iloc[0]
-                _hp=str(_hr.get('Player',_hr.get('Winner',_hr.get('NAME','?')))).strip()
-                _ht=str(_hr.get('Team',_hr.get('School','?'))).strip()
-                headlines.append({'badge':'🏆 HEISMAN','priority':150,
-                    'text':f"Heisman Winner: {_hp}, {_ht}",
-                    'blurb':f"{_hp} from {_ht} wins the {CY} Heisman Trophy. Best player in college football."})
+            _hwin.columns=[str(c).strip() for c in _hwin.columns]
+            _hwin_yr=next((c for c in _hwin.columns if c.upper() in ('YEAR','SEASON')),None)
+            _hwin_fin=next((c for c in _hwin.columns if c.upper() in ('FINISH','PLACE','RANK')),None)
+            if _hwin_yr and _hwin_fin:
+                _hwin[_hwin_yr]=pd.to_numeric(_hwin[_hwin_yr],errors='coerce')
+                _hwin[_hwin_fin]=pd.to_numeric(_hwin[_hwin_fin],errors='coerce')
+                _hy=_hwin[(_hwin[_hwin_yr]==CY)&(_hwin[_hwin_fin]==1)]
+                if not _hy.empty:
+                    _hr=_hy.iloc[0]
+                    _hp=str(_hr.get('NAME','?')).strip()
+                    _ht=str(_hr.get('TEAM','?')).strip()
+                    headlines.append({'badge':'🏆 HEISMAN','priority':150,
+                        'text':f"Heisman Winner: {_hp}, {_ht}",
+                        'blurb':f"{_hp} from {_ht} wins the {CY} Heisman Trophy. Best player in college football."})
     except: pass
 
     headlines.sort(key=lambda h: h['priority'],reverse=True)
@@ -3677,7 +3682,503 @@ def render_game_cards_with_boxscore(year, week, model_df):
 
 
 # ── INJURY REPORT ─────────────────────────────────────────────────────────────
-def render_injury_report():
+def render_season_news(year, week):
+    """Season News section — curated headlines for current + prior week events."""
+    import datetime as _sndt
+    st.subheader("📰 Season News")
+    CW=int(week); CY=int(year); PW=max(1,CW-1)
+    _is_offseason=(CW>=25)
+    _stories=[]  # list of dicts: {cat, badge_color, headline, blurb, logo_uri, priority}
+
+    def _add(cat, color, headline, blurb, logo_uri='', priority=50):
+        _stories.append({'cat':cat,'color':color,'headline':headline,
+                         'blurb':blurb,'logo_uri':logo_uri,'priority':priority})
+
+    def _logo(team): return image_file_to_data_uri(get_logo_source(team)) if team else ''
+    def _tc(team): return get_team_primary_color(team) if team else '#475569'
+    def _ab(team): return _ABBREV.get(team, team[:4].upper()) if team else '?'
+    def _safe_int(v):
+        try: r=int(float(v)); return r if r==r else None
+        except: return None
+
+    # ── 1. HEISMAN WINNER (persists until week 1 of next season) ──────────
+    try:
+        _hwf=pd.read_csv('Heisman_Finalists.csv') if os.path.exists('Heisman_Finalists.csv') else pd.DataFrame()
+        if not _hwf.empty:
+            _hwf.columns=[str(c).strip() for c in _hwf.columns]
+            _hwf_yr=next((c for c in _hwf.columns if c.upper() in ('YEAR','SEASON')),None)
+            _hwf_fin=next((c for c in _hwf.columns if c.upper() in ('FINISH','PLACE','RANK')),None)
+            if _hwf_yr and _hwf_fin:
+                _hwf[_hwf_yr]=pd.to_numeric(_hwf[_hwf_yr],errors='coerce')
+                _hwf[_hwf_fin]=pd.to_numeric(_hwf[_hwf_fin],errors='coerce')
+                # Show for current season OR persist through week 1 of next season
+                _hw_yr=CY if not (CW<=1 and _hwf[_hwf[_hwf_yr]==CY].empty) else CY-1
+                _hw_rows=_hwf[(_hwf[_hwf_yr]==_hw_yr)&(_hwf[_hwf_fin]==1)]
+                if not _hw_rows.empty:
+                    _hr=_hw_rows.iloc[0]
+                    _hp=str(_hr.get('NAME','?')).strip()
+                    _ht=str(_hr.get('TEAM','?')).strip()
+                    _hpos=str(_hr.get('POS','')).strip()
+                    _hu=str(_hr.get('USER','')).strip()
+                    # Build position-specific stat line
+                    _stat_parts=[]
+                    _pos_u=_hpos.upper()
+                    if _pos_u=='QB':
+                        for _sc,_sl in [('PASS_YDS','pass yds'),('PASS_TD','TDs'),('PASS_INT','INT'),('RUSH_YDS','rush yds')]:
+                            _sv=_hr.get(_sc,'')
+                            if _sv and str(_sv).strip() not in ('','nan','None','0'):
+                                try: _stat_parts.append(f"{int(float(_sv))} {_sl}")
+                                except: pass
+                    elif _pos_u in ('HB','RB'):
+                        for _sc,_sl in [('RUSH_YDS','rush yds'),('RUSH_TD','TDs'),('CATCHES','rec'),('REC_YDS','rec yds')]:
+                            _sv=_hr.get(_sc,'')
+                            if _sv and str(_sv).strip() not in ('','nan','None','0'):
+                                try: _stat_parts.append(f"{int(float(_sv))} {_sl}")
+                                except: pass
+                    elif _pos_u in ('WR','TE'):
+                        for _sc,_sl in [('CATCHES','rec'),('REC_YDS','rec yds'),('REC_TD','TDs')]:
+                            _sv=_hr.get(_sc,'')
+                            if _sv and str(_sv).strip() not in ('','nan','None','0'):
+                                try: _stat_parts.append(f"{int(float(_sv))} {_sl}")
+                                except: pass
+                    _stat_str=' | '.join(_stat_parts) if _stat_parts else ''
+                    _blurb=(f"{_hp} wins the {_hw_yr} Heisman Trophy"
+                            + (f" as a {_hpos}" if _hpos else '')
+                            + f" from {_ht}"
+                            + (f" (coach: {_hu})" if _hu and _hu not in ('nan','') else '')
+                            + "."
+                            + (f" Stat line: {_stat_str}." if _stat_str else ''))
+                    _add('HEISMAN','#f59e0b',f"🏆 {_hp}, {_ht} wins the {_hw_yr} Heisman Trophy",_blurb,_logo(_ht),95)
+    except: pass
+
+    # ── 2. NATIONAL CHAMPION (persists until week 1 of next season) ───────
+    try:
+        _ncf=pd.read_csv('champs.csv') if os.path.exists('champs.csv') else pd.DataFrame()
+        if not _ncf.empty:
+            _ncf.columns=[str(c).strip() for c in _ncf.columns]
+            _nc_yr=next((c for c in _ncf.columns if 'YEAR' in c.upper() or c.upper()=='SEASON'),None)
+            _nc_tm=next((c for c in _ncf.columns if 'TEAM' in c.upper() and 'USER' not in c.upper()),None)
+            _nc_usr=next((c for c in _ncf.columns if 'USER' in c.upper()),None)
+            if _nc_yr and _nc_tm:
+                _ncf[_nc_yr]=pd.to_numeric(_ncf[_nc_yr],errors='coerce')
+                _nc_row=_ncf[_ncf[_nc_yr]==CY]
+                if _nc_row.empty and CW<=1: _nc_row=_ncf[_ncf[_nc_yr]==CY-1]
+                if not _nc_row.empty:
+                    _nct=str(_nc_row.iloc[0][_nc_tm]).strip()
+                    _ncu=str(_nc_row.iloc[0].get(_nc_usr,'')).strip() if _nc_usr else ''
+                    _season_yr=int(_nc_row.iloc[0][_nc_yr])
+                    _blurb=(f"{_nct} are your {_season_yr} National Champions."
+                            + (f" Coached by {_ncu}." if _ncu else '')
+                            + " The trophy is earned. The legacy is locked in.")
+                    _add('NATTY CHAMP',_tc(_nct),f"🏆 {_nct} — {_season_yr} National Champions",_blurb,_logo(_nct),94)
+    except: pass
+
+    # ── 3. MAJOR INJURIES (current week, long-term or season-ending) ──────
+    try:
+        _inj=pd.read_csv('injury_bulletin.csv') if os.path.exists('injury_bulletin.csv') else pd.DataFrame()
+        if not _inj.empty:
+            _inj.columns=[str(c).strip() for c in _inj.columns]
+            _iyc=next((c for c in _inj.columns if c.upper() in ('YEAR','SEASON')),None)
+            _iwc=next((c for c in _inj.columns if c.upper()=='WEEK'),None)
+            _itm=next((c for c in _inj.columns if c.upper()=='TEAM'),None)
+            _ipl=next((c for c in _inj.columns if c.upper() in ('PLAYER','NAME')),None)
+            _ipos=next((c for c in _inj.columns if c.upper() in ('POS','POSITION')),None)
+            _iwo=next((c for c in _inj.columns if 'WEEK' in c.upper() and 'OUT' in c.upper()),None) or \
+                 next((c for c in _inj.columns if c.upper() in ('WEEKSOUT','WEEKS_OUT')),None)
+            _iinj=next((c for c in _inj.columns if c.upper() in ('INJURY','INJURYTYPE')),None)
+            _iovr=next((c for c in _inj.columns if c.upper() in ('OVR','OVERALL')),None)
+            if _iyc: _inj[_iyc]=pd.to_numeric(_inj[_iyc],errors='coerce')
+            if _iwc: _inj[_iwc]=pd.to_numeric(_inj[_iwc],errors='coerce')
+            if _iwo: _inj[_iwo]=pd.to_numeric(_inj[_iwo],errors='coerce').fillna(0)
+            # Current year, current week, user teams, long-term+ (>=6 weeks or season-ending)
+            _inj_cy=_inj[_inj[_iyc].fillna(-1).astype(int)==CY].copy() if _iyc else _inj.copy()
+            if _iwc: _inj_cy=_inj_cy[_inj_cy[_iwc].fillna(-1).astype(int)==CW]
+            if _itm: _inj_cy=_inj_cy[_inj_cy[_itm].astype(str).str.strip().isin(ALL_USER_TEAMS)]
+            if _iwo: _inj_cy=_inj_cy[pd.to_numeric(_inj_cy[_iwo],errors='coerce').fillna(0)>=6]
+            if not _inj_cy.empty:
+                _inj_cy=_inj_cy.sort_values(_iwo,ascending=False) if _iwo else _inj_cy
+                for _,_ir in _inj_cy.head(4).iterrows():
+                    _ipn=str(_ir.get(_ipl,'')).strip() if _ipl else '?'
+                    _itn=str(_ir.get(_itm,'')).strip() if _itm else ''
+                    _ips=str(_ir.get(_ipos,'')).strip() if _ipos else ''
+                    _iw=int(float(_ir.get(_iwo,0) or 0)) if _iwo else 0
+                    _iinj_t=str(_ir.get(_iinj,'')).strip() if _iinj else ''
+                    _iovr_v=_safe_int(_ir.get(_iovr,'')) if _iovr else None
+                    _se=(CW+_iw)>21
+                    _badge='SEASON ENDING' if _se else 'LONG TERM INJURY'
+                    _badge_c='#dc2626' if _se else '#f97316'
+                    _hl=f"{'🏥' if _se else '🚑'} {_ipn}{f', {_ips}' if _ips else ''} — {'Out for the season' if _se else f'Out {_iw} weeks'}"
+                    if _itn: _hl+=f" ({_ab(_itn)})"
+                    _bl=(f"{_itn} loses {_ipn}" + (f" ({_ips}" + (f", {_iovr_v} OVR)" if _iovr_v else ')') if _ips else '')
+                        + (f" to {_iinj_t}" if _iinj_t else '')
+                        + (f". {'This is a season-ending blow for the program.' if _se else f'Out {_iw} weeks — the depth chart takes a hit.'}" ))
+                    _add(_badge,_badge_c,_hl,_bl,_logo(_itn),88 if _se else 75)
+    except: pass
+
+    # ── 4. MAJOR UPSETS (prior week) ─────────────────────────────────────
+    try:
+        _usched=load_scores_master(year)
+        if not _usched.empty:
+            _usched.columns=[str(c).strip() for c in _usched.columns]
+            _uwkc=next((c for c in _usched.columns if c.upper()=='WEEK'),None)
+            _uvc=next((c for c in _usched.columns if c.upper() in ('VISITOR','VIS')),None)
+            _uhc=next((c for c in _usched.columns if c.upper()=='HOME'),None)
+            _uvsc=next((c for c in _usched.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
+            _uhsc=next((c for c in _usched.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
+            _uvrk=next((c for c in _usched.columns if 'VIS' in c.upper() and 'RANK' in c.upper()),None)
+            _uhrk=next((c for c in _usched.columns if 'HOME' in c.upper() and 'RANK' in c.upper()),None)
+            _ustc=next((c for c in _usched.columns if c.upper()=='STATUS'),None)
+            if _uwkc and _uvc and _uhc and _uvsc and _uhsc:
+                _usched[_uwkc]=pd.to_numeric(_usched[_uwkc],errors='coerce')
+                for _c2 in [_uvsc,_uhsc]:
+                    if _c2: _usched[_c2]=pd.to_numeric(_usched[_c2],errors='coerce')
+                _upw=_usched[_usched[_uwkc].fillna(-1).astype(int)==PW].copy()
+                if _ustc: _upw=_upw[_upw[_ustc].astype(str).str.upper()=='FINAL']
+                _upw=_upw.dropna(subset=[_uvsc,_uhsc])
+                def _upset_score_sn(row):
+                    vr=float(row[_uvrk]) if _uvrk and pd.notna(row.get(_uvrk)) else 99
+                    hr=float(row[_uhrk]) if _uhrk and pd.notna(row.get(_uhrk)) else 99
+                    vs=float(row[_uvsc]); hs=float(row[_uhsc])
+                    winner_rk=vr if vs>hs else hr; loser_rk=hr if vs>hs else vr
+                    if loser_rk<=15 and (winner_rk==99 or winner_rk>loser_rk+5): return loser_rk
+                    return 0
+                if not _upw.empty:
+                    _upw['_us']=_upw.apply(_upset_score_sn,axis=1)
+                    _top_upsets=_upw[_upw['_us']>0].nsmallest(3,'_us')
+                    for _,_ur in _top_upsets.iterrows():
+                        _uvt=str(_ur[_uvc]).strip(); _uht=str(_ur[_uhc]).strip()
+                        _uvs=float(_ur[_uvsc]); _uhs=float(_ur[_uhsc])
+                        _uw=_uvt if _uvs>_uhs else _uht; _ul=_uht if _uvs>_uhs else _uvt
+                        _uws=int(max(_uvs,_uhs)); _uls=int(min(_uvs,_uhs))
+                        _ulrk=_safe_int(_ur[_uhrk] if _uvs>_uhs else _ur[_uvrk]) if (_uvrk and _uhrk) else None
+                        _ulrk_s=f"#{_ulrk} " if _ulrk else "ranked "
+                        _is_user_u=(_uvt in ALL_USER_TEAMS or _uht in ALL_USER_TEAMS)
+                        _hl=f"🚨 {_uw} shocks {_ulrk_s}{_ul} {_uws}-{_uls} (Wk {PW})"
+                        _bl=f"{_uw} knocked off {_ulrk_s}{_ul} in one of the week's biggest upsets. The committee felt that one."
+                        _add('UPSET','#dc2626',_hl,_bl,_logo(_uw),80 if _is_user_u else 60)
+    except: pass
+
+    # ── 5. USER VS USER RESULTS (prior week) ──────────────────────────────
+    try:
+        _h2h_sched=load_scores_master(year)
+        if not _h2h_sched.empty:
+            _h2h_sched.columns=[str(c).strip() for c in _h2h_sched.columns]
+            _hwkc=next((c for c in _h2h_sched.columns if c.upper()=='WEEK'),None)
+            _hvuc=next((c for c in _h2h_sched.columns if 'VIS' in c.upper() and 'USER' in c.upper()),None)
+            _hhuc=next((c for c in _h2h_sched.columns if 'HOME' in c.upper() and 'USER' in c.upper()),None)
+            _hvtc=next((c for c in _h2h_sched.columns if c.upper() in ('VISITOR','VIS')),None)
+            _hhtc=next((c for c in _h2h_sched.columns if c.upper()=='HOME'),None)
+            _hvsc=next((c for c in _h2h_sched.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
+            _hhsc=next((c for c in _h2h_sched.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
+            _hstc=next((c for c in _h2h_sched.columns if c.upper()=='STATUS'),None)
+            if _hwkc and _hvtc and _hhtc and _hvsc and _hhsc:
+                _h2h_sched[_hwkc]=pd.to_numeric(_h2h_sched[_hwkc],errors='coerce')
+                for _c3 in [_hvsc,_hhsc]:
+                    if _c3: _h2h_sched[_c3]=pd.to_numeric(_h2h_sched[_c3],errors='coerce')
+                _h2h_pw=_h2h_sched[_h2h_sched[_hwkc].fillna(-1).astype(int)==PW].copy()
+                if _hstc: _h2h_pw=_h2h_pw[_h2h_pw[_hstc].astype(str).str.upper()=='FINAL']
+                _h2h_pw=_h2h_pw.dropna(subset=[_hvsc,_hhsc])
+                if _hvuc and _hhuc:
+                    _h2h_pw['_vu2']=_h2h_pw[_hvuc].astype(str).str.strip()
+                    _h2h_pw['_hu2']=_h2h_pw[_hhuc].astype(str).str.strip()
+                    _h2h_games=_h2h_pw[_h2h_pw['_vu2'].isin(USER_TEAMS.keys()) & _h2h_pw['_hu2'].isin(USER_TEAMS.keys())]
+                    for _,_hg in _h2h_games.iterrows():
+                        _hvt=str(_hg[_hvtc]).strip(); _hht=str(_hg[_hhtc]).strip()
+                        _hvs=float(_hg[_hvsc]); _hhs=float(_hg[_hhsc])
+                        _hw=_hvt if _hvs>_hhs else _hht; _hl2=_hht if _hvs>_hhs else _hvt
+                        _hws=int(max(_hvs,_hhs)); _hls=int(min(_hvs,_hhs))
+                        _hmg=_hws-_hls
+                        _hw_u=str(_hg['_vu2'] if _hvs>_hhs else _hg['_hu2']); _hl_u=str(_hg['_hu2'] if _hvs>_hhs else _hg['_vu2'])
+                        _hl_txt=f"⚔️ {_ab(_hw)} def. {_ab(_hl2)} {_hws}-{_hls} (Wk {PW})"
+                        _tone='dominated' if _hmg>=21 else ('edged' if _hmg<=7 else 'beat')
+                        _bl2=f"{_hw} ({_hw_u}) {_tone} {_hl2} ({_hl_u}) {_hws}-{_hls} in a user vs user showdown. Margin: {_hmg} points."
+                        _add('H2H RESULT','#f97316',_hl_txt,_bl2,_logo(_hw),85)
+    except: pass
+
+    # ── 6. NEW COMMITS (current week, user teams) ──────────────────────────
+    try:
+        _inc2=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
+        if not _inc2.empty:
+            _inc2.columns=[str(c).strip() for c in _inc2.columns]
+            _ic_yr=next((c for c in _inc2.columns if c.upper() in ('YEAR','SEASON')),None)
+            _ic_wk=next((c for c in _inc2.columns if c.upper()=='WEEK'),None)
+            _ic_tm=next((c for c in _inc2.columns if c.upper()=='TEAM'),None)
+            _ic_nm=next((c for c in _inc2.columns if c.upper()=='NAME'),None)
+            _ic_ps=next((c for c in _inc2.columns if c.upper() in ('POS','POSITION')),None)
+            _ic_st=next((c for c in _inc2.columns if c.upper()=='STATE'),None)
+            _ic_sr=next((c for c in _inc2.columns if c.upper() in ('STARRATING','STAR_RATING','STARS')),None)
+            _ic_nr=next((c for c in _inc2.columns if c.upper() in ('NATIONALRANK','NATIONAL_RANK')),None)
+            _ic_pr=next((c for c in _inc2.columns if c.upper() in ('POSITIONRANK','POSITION_RANK')),None)
+            _ic_str=next((c for c in _inc2.columns if c.upper() in ('STATERANK','STATE_RANK')),None)
+            _ic_usr=next((c for c in _inc2.columns if c.upper()=='USER'),None)
+            if _ic_yr: _inc2[_ic_yr]=pd.to_numeric(_inc2[_ic_yr],errors='coerce')
+            if _ic_wk: _inc2[_ic_wk]=pd.to_numeric(_inc2[_ic_wk],errors='coerce')
+            if _ic_sr: _inc2[_ic_sr]=pd.to_numeric(_inc2[_ic_sr],errors='coerce').fillna(0)
+            _inc2_cy=_inc2[_inc2[_ic_yr].fillna(-1).astype(int)==CY].copy() if _ic_yr else _inc2.copy()
+            if _ic_wk: _inc2_cy=_inc2_cy[_inc2_cy[_ic_wk].fillna(-1).astype(int)==CW]
+            # User teams only
+            if _ic_usr: _inc2_cy=_inc2_cy[_inc2_cy[_ic_usr].astype(str).str.strip().isin(USER_TEAMS.keys())]
+            elif _ic_tm: _inc2_cy=_inc2_cy[_inc2_cy[_ic_tm].astype(str).str.strip().isin(ALL_USER_TEAMS)]
+            if not _inc2_cy.empty and _ic_nm:
+                if _ic_sr: _inc2_cy=_inc2_cy.sort_values(_ic_sr,ascending=False)
+                for _,_ic in _inc2_cy.head(5).iterrows():
+                    _ict=str(_ic.get(_ic_tm,'')).strip() if _ic_tm else ''
+                    _icn=str(_ic.get(_ic_nm,'')).strip()
+                    _icp=str(_ic.get(_ic_ps,'')).strip() if _ic_ps else ''
+                    _ics=int(float(_ic.get(_ic_sr,0) or 0)) if _ic_sr else 0
+                    _icst=str(_ic.get(_ic_st,'')).strip() if _ic_st else ''
+                    _icnr=_safe_int(_ic.get(_ic_nr,'')) if _ic_nr else None
+                    _icpr=_safe_int(_ic.get(_ic_pr,'')) if _ic_pr else None
+                    _icstr=_safe_int(_ic.get(_ic_str,'')) if _ic_str else None
+                    _star_s='★'*_ics if 0<_ics<=5 else ''
+                    _ctx2=[]
+                    if _icpr and _icp: _ctx2.append(f"#{_icpr} {_icp} nationally")
+                    if _icnr: _ctx2.append(f"#{_icnr} overall")
+                    if _icstr and _icst: _ctx2.append(f"#{_icstr} in {_icst}")
+                    _ctx2_s=' · '.join(_ctx2)
+                    _hl3=f"🎯 {_ab(_ict)} lands {_ics}★ {_icn}{f', {_icp}' if _icp else ''}"
+                    if _icst and _icst not in ('nan',''): _hl3+=f" out of {_icst}"
+                    _bl3=(f"{_ict} picks up a {_ics}-star commitment from {_icn}"
+                          + (f", a {_icp}" if _icp else '')
+                          + (f" out of {_icst}" if _icst and _icst not in ('nan','') else '')+'.'
+                          + (f" Ranked {_ctx2_s}." if _ctx2_s else ''))
+                    _is_no1=(_icpr==1 or _icnr==1 or _icstr==1)
+                    _pri=90 if _is_no1 else (72 if _ics>=4 else 55)
+                    _add('NEW COMMIT',_tc(_ict),_hl3,_bl3,_logo(_ict),_pri)
+    except: pass
+
+    # ── 7. CFP RANKINGS MOVEMENT (current week vs prior week) ─────────────
+    try:
+        _cfp_mv=pd.read_csv('cfp_rankings_history.csv') if os.path.exists('cfp_rankings_history.csv') else pd.DataFrame()
+        if not _cfp_mv.empty:
+            _cfp_mv.columns=[str(c).strip() for c in _cfp_mv.columns]
+            for _c4 in ('YEAR','WEEK','RANK'):
+                if _c4 in _cfp_mv.columns: _cfp_mv[_c4]=pd.to_numeric(_cfp_mv[_c4],errors='coerce')
+            _cfp_cy2=_cfp_mv[_cfp_mv['YEAR'].fillna(-1).astype(int)==CY]
+            _cfp_wks=sorted(_cfp_cy2['WEEK'].dropna().unique().astype(int),reverse=True)
+            if len(_cfp_wks)>=2:
+                _cw_snap=_cfp_cy2[_cfp_cy2['WEEK']==_cfp_wks[0]].set_index('TEAM')['RANK'].to_dict()
+                _pw_snap=_cfp_cy2[_cfp_cy2['WEEK']==_cfp_wks[1]].set_index('TEAM')['RANK'].to_dict()
+                # Find biggest movers
+                _movers=[]
+                for _team5,_rk5 in _cw_snap.items():
+                    _prk=_pw_snap.get(_team5)
+                    if _prk and pd.notna(_rk5) and pd.notna(_prk):
+                        _delta=int(_prk)-int(_rk5)
+                        if abs(_delta)>=3: _movers.append((_team5,int(_rk5),_delta))
+                # Also check new entries (in cw but not pw) and dropouts (in pw but not cw)
+                for _team5 in _cw_snap:
+                    if _team5 not in _pw_snap: _movers.append((_team5,int(_cw_snap[_team5]),25))
+                _movers.sort(key=lambda x:-abs(x[2]))
+                for _mv_team,_mv_rk,_mv_delta in _movers[:2]:
+                    _new_entry=(_mv_delta==25)
+                    if _new_entry:
+                        _hl4=f"📈 {_ab(_mv_team)} enters CFP Rankings at #{_mv_rk}"
+                        _bl4=f"{_mv_team} is a new entry in the CFP Rankings at #{_mv_rk}. The committee has taken notice."
+                    elif _mv_delta>0:
+                        _hl4=f"📈 {_ab(_mv_team)} jumps {_mv_delta} spots to #{_mv_rk} in CFP Rankings"
+                        _bl4=f"{_mv_team} climbed {_mv_delta} spots to #{_mv_rk} in the latest CFP Rankings. Momentum building."
+                    else:
+                        _hl4=f"📉 {_ab(_mv_team)} drops {abs(_mv_delta)} spots to #{_mv_rk} in CFP Rankings"
+                        _bl4=f"{_mv_team} fell {abs(_mv_delta)} spots to #{_mv_rk}. The committee isn't impressed."
+                    _is_user_mv=(_mv_team in ALL_USER_TEAMS)
+                    _add('CFP RANKINGS','#60a5fa',_hl4,_bl4,_logo(_mv_team),70 if _is_user_mv else 45)
+    except: pass
+
+    # ── 8. TOP 5 TV-RATED GAMES (prior week in top 5 all-season) ──────────
+    try:
+        _tv2=load_scores_master(year) if not _is_offseason else pd.DataFrame()
+        if not _tv2.empty:
+            _tv2.columns=[str(c).strip() for c in _tv2.columns]
+            for _c5 in ('YEAR','Week','Vis Score','Home Score','Visitor Rank','Home Rank'):
+                if _c5 in _tv2.columns: _tv2[_c5]=pd.to_numeric(_tv2[_c5],errors='coerce')
+            _tv2_st=next((c for c in _tv2.columns if c.upper()=='STATUS'),None)
+            if _tv2_st: _tv2_f=_tv2[_tv2[_tv2_st].astype(str).str.upper()=='FINAL'].dropna(subset=['Vis Score','Home Score'])
+            else: _tv2_f=_tv2.dropna(subset=['Vis Score','Home Score'])
+            if 'YEAR' in _tv2_f.columns: _tv2_f=_tv2_f[_tv2_f['YEAR'].fillna(-1).astype(int)==CY]
+            if not _tv2_f.empty and 'Week' in _tv2_f.columns:
+                def _tvr2(row):
+                    vs=float(row.get('Vis Score',0)); hs=float(row.get('Home Score',0))
+                    vr=float(row.get('Visitor Rank',99) or 99); hr=float(row.get('Home Rank',99) or 99)
+                    mg=abs(vs-hs); tot=vs+hs; tr=min(vr,hr); both=(vr<=25 and hr<=25)
+                    b=2.0+(6.5 if tr<=5 else 4.5 if tr<=10 else 2.8 if tr<=15 else 1.5 if tr<=25 else 0)
+                    if both: b+=2.5
+                    b+=(3.5 if mg<=3 else 2.0 if mg<=7 else 0.8 if mg<=14 else 0)
+                    b+=(1.5 if tot>=100 else 0.8 if tot>=80 else 0)
+                    wk=float(row.get('Week',0) or 0)
+                    if wk>=16: b+=3.2
+                    _vu3=str(row.get('Vis_User','')).strip(); _hu3=str(row.get('Home_User','')).strip()
+                    if _vu3 in USER_TEAMS and _hu3 in USER_TEAMS: b+=2.5
+                    elif _vu3 in USER_TEAMS or _hu3 in USER_TEAMS: b+=1.2
+                    return round(b,2)
+                _tv2_f=_tv2_f.copy(); _tv2_f['_tvr']=_tv2_f.apply(_tvr2,axis=1)
+                _tv2_sorted=_tv2_f.nlargest(5,'_tvr')
+                # Check if any of the top 5 games are from prior week
+                _vc5=next((c for c in _tv2_f.columns if c.upper() in ('VISITOR','VIS')),None)
+                _hc5=next((c for c in _tv2_f.columns if c.upper()=='HOME'),None)
+                for _,_tg in _tv2_sorted.iterrows():
+                    if int(float(_tg.get('Week',0) or 0))==PW:
+                        _tvt1=str(_tg.get(_vc5,'?')).strip() if _vc5 else '?'
+                        _tvt2=str(_tg.get(_hc5,'?')).strip() if _hc5 else '?'
+                        _tvvs=int(float(_tg.get('Vis Score',0))); _tvhs=int(float(_tg.get('Home Score',0)))
+                        _tvmg=abs(_tvvs-_tvhs); _tvpos=int(_tv2_sorted.index.get_loc(_tg.name))+1
+                        _hl5=f"📺 {_ab(_tvt1)} vs {_ab(_tvt2)} — #{_tvpos} most-watched game of the season"
+                        _bl5=(f"{_tvt1} vs {_tvt2} last week enters the top 5 most-watched games of the {CY} season. "
+                              f"Final: {_tvvs}-{_tvhs}{', a {}-point game'.format(_tvmg) if _tvmg<=7 else ''}.")
+                        _is_user_tv=(_tvt1 in ALL_USER_TEAMS or _tvt2 in ALL_USER_TEAMS)
+                        _add('TOP TV GAME','#a78bfa',_hl5,_bl5,_logo(_tvt1),65 if _is_user_tv else 40)
+                        break
+    except: pass
+
+    # ── 9. HEISMAN WATCH MOVEMENT ─────────────────────────────────────────
+    try:
+        _hw2=pd.read_csv('Heisman_watch_history.csv') if os.path.exists('Heisman_watch_history.csv') else pd.DataFrame()
+        if not _hw2.empty:
+            _hw2.columns=[str(c).strip() for c in _hw2.columns]
+            for _c6 in ('YEAR','WEEK','RANK'):
+                if _c6 in _hw2.columns: _hw2[_c6]=pd.to_numeric(_hw2[_c6],errors='coerce')
+            _hw2_cy=_hw2[_hw2['YEAR'].fillna(-1).astype(int)==CY]
+            _hw2_wks=sorted(_hw2_cy['WEEK'].dropna().unique().astype(int),reverse=True)
+            if _hw2_wks:
+                _lw2=_hw2_wks[0]
+                _hw2_curr=_hw2_cy[_hw2_cy['WEEK']==_lw2].sort_values('RANK')
+                _hw2_prev_map={}
+                if len(_hw2_wks)>=2:
+                    _hw2_pw=_hw2_cy[_hw2_cy['WEEK']==_hw2_wks[1]]
+                    _hw2_prev_map=dict(zip(_hw2_pw['NAME'].astype(str).str.strip(),
+                                           _hw2_pw['RANK'].astype(int)))
+                if not _hw2_curr.empty:
+                    _hw2_top=_hw2_curr.iloc[0]
+                    _hw2_name=str(_hw2_top.get('NAME',_hw2_top.get('Name','?'))).strip()
+                    _hw2_team=str(_hw2_top.get('TEAM',_hw2_top.get('Team','?'))).strip()
+                    _prev_top_name=_hw2_cy[_hw2_cy['WEEK']==_hw2_wks[1]].sort_values('RANK').iloc[0].get('NAME','') if len(_hw2_wks)>=2 else ''
+                    # Leader changed?
+                    if str(_prev_top_name).strip() and str(_prev_top_name).strip()!=_hw2_name:
+                        _hl6=f"🏆 {_hw2_name} takes the Heisman lead ({_hw2_team})"
+                        _bl6=f"{_hw2_name} has moved to #1 in the Heisman Watch, overtaking {_prev_top_name}. The voters are watching."
+                        _add('HEISMAN WATCH','#f59e0b',_hl6,_bl6,_logo(_hw2_team),78)
+                    # New entrants in top 5?
+                    for _,_h5r in _hw2_curr.head(5).iterrows():
+                        _h5n=str(_h5r.get('NAME',_h5r.get('Name','?'))).strip()
+                        if _h5n not in _hw2_prev_map:
+                            _h5t=str(_h5r.get('TEAM',_h5r.get('Team','?'))).strip()
+                            _h5rk=int(_h5r['RANK'])
+                            _hl6b=f"🏆 {_h5n} enters Heisman top 5 at #{_h5rk} ({_ab(_h5t)})"
+                            _bl6b=f"{_h5n} from {_h5t} is a new entrant in the top 5 Heisman Watch at #{_h5rk}."
+                            _add('HEISMAN WATCH','#f59e0b',_hl6b,_bl6b,_logo(_h5t),62)
+    except: pass
+
+    # ── 10. BELT TO ASS — new #1 blowout ──────────────────────────────────
+    try:
+        _bta=load_scores_master(year) if not _is_offseason else pd.DataFrame()
+        if not _bta.empty:
+            _bta.columns=[str(c).strip() for c in _bta.columns]
+            _bta_st=next((c for c in _bta.columns if c.upper()=='STATUS'),None)
+            _bta_vc=next((c for c in _bta.columns if c.upper() in ('VISITOR','VIS')),None)
+            _bta_hc=next((c for c in _bta.columns if c.upper()=='HOME'),None)
+            _bta_vsc=next((c for c in _bta.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
+            _bta_hsc=next((c for c in _bta.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
+            _bta_wkc=next((c for c in _bta.columns if c.upper()=='WEEK'),None)
+            if _bta_vsc and _bta_hsc and _bta_vc and _bta_hc:
+                _bta_f=_bta.copy()
+                if _bta_st: _bta_f=_bta_f[_bta_f[_bta_st].astype(str).str.upper()=='FINAL']
+                if 'YEAR' in _bta_f.columns: _bta_f=_bta_f[_bta_f['YEAR'].fillna(-1).astype(int)==CY]
+                for _c7 in [_bta_vsc,_bta_hsc]:
+                    _bta_f[_c7]=pd.to_numeric(_bta_f[_c7],errors='coerce')
+                _bta_f=_bta_f.dropna(subset=[_bta_vsc,_bta_hsc])
+                _bta_f['_mg']=(_bta_f[_bta_vsc]-_bta_f[_bta_hsc]).abs()
+                _bta_top=_bta_f.nlargest(5,'_mg')
+                # Check if the current week produced a new #1 blowout
+                if _bta_wkc and not _bta_top.empty:
+                    _bta_top[_bta_wkc]=pd.to_numeric(_bta_top[_bta_wkc],errors='coerce')
+                    _bta_no1=_bta_top.iloc[0]
+                    if int(float(_bta_no1.get(_bta_wkc,0) or 0))==PW:
+                        _bt1v=str(_bta_no1[_bta_vc]).strip(); _bt1h=str(_bta_no1[_bta_hc]).strip()
+                        _bt1vs=int(float(_bta_no1[_bta_vsc])); _bt1hs=int(float(_bta_no1[_bta_hsc]))
+                        _bt1w=_bt1v if _bt1vs>_bt1hs else _bt1h; _bt1l=_bt1h if _bt1vs>_bt1hs else _bt1v
+                        _bt1mg=abs(_bt1vs-_bt1hs)
+                        _hl7=f"💥 {_ab(_bt1w)} owns the biggest blowout of the season ({_bt1mg} pts)"
+                        _bl7=f"{_bt1w} over {_bt1l} by {_bt1mg} points is now the most dominant win of the {CY} season. That's the top of the Belt to Ass chart."
+                        _is_user_bt=(_bt1w in ALL_USER_TEAMS or _bt1l in ALL_USER_TEAMS)
+                        _add('BELT TO ASS','#dc2626',_hl7,_bl7,_logo(_bt1w),68 if _is_user_bt else 42)
+    except: pass
+
+    # ── 11. OFFSEASON / START OF SEASON: transfer losses + persuaded stays ─
+    if _is_offseason or CW<=1:
+        try:
+            _tr2=pd.read_csv('attrition_transfers.csv') if os.path.exists('attrition_transfers.csv') else pd.DataFrame()
+            if not _tr2.empty:
+                _tr2.columns=[str(c).strip() for c in _tr2.columns]
+                _tr_yr=next((c for c in _tr2.columns if c.upper() in ('YEAR','SEASON')),None)
+                _tr_tm=next((c for c in _tr2.columns if c.upper()=='TEAM'),None)
+                _tr_pl=next((c for c in _tr2.columns if c.upper() in ('PLAYER','NAME')),None)
+                _tr_ov=next((c for c in _tr2.columns if c.upper() in ('OVR','OVERALL')),None)
+                _tr_st=next((c for c in _tr2.columns if c.upper() in ('TRANSFERSTATUS','TRANSFER_STATUS')),None)
+                _tr_ps=next((c for c in _tr2.columns if c.upper() in ('PERSUADED',)),None)
+                _tr_ps_col=next((c for c in _tr2.columns if c.upper() in ('POS','POSITION')),None)
+                if _tr_yr: _tr2[_tr_yr]=pd.to_numeric(_tr2[_tr_yr],errors='coerce')
+                if _tr_ov: _tr2[_tr_ov]=pd.to_numeric(_tr2[_tr_ov],errors='coerce')
+                _tr_cy2=_tr2[_tr2[_tr_yr].fillna(-1).astype(int)==CY].copy() if _tr_yr else _tr2.copy()
+                # Leaving players
+                _tr_leaving=_tr_cy2.copy()
+                if _tr_st: _tr_leaving=_tr_cy2[_tr_cy2[_tr_st].astype(str).str.strip().str.lower().str.contains('leav',na=False)]
+                # Per user team: count transfers and list quality players
+                if _tr_tm:
+                    for _usr3,_tm3 in USER_TEAMS.items():
+                        _tm3_tr=_tr_leaving[_tr_leaving[_tr_tm].astype(str).str.strip()==_tm3]
+                        if len(_tm3_tr)>=5:
+                            _key_tr=_tm3_tr[pd.to_numeric(_tm3_tr[_tr_ov],errors='coerce').fillna(0)>=80].sort_values(_tr_ov,ascending=False) if _tr_ov else pd.DataFrame()
+                            _key_names=[str(r.get(_tr_pl,'?')).strip() for _,r in _key_tr.head(3).iterrows()] if _tr_pl and not _key_tr.empty else []
+                            _hl8=f"📤 {_ab(_tm3)} loses {len(_tm3_tr)} players to the transfer portal"
+                            _bl8=(f"{_tm3} saw {len(_tm3_tr)} players enter the transfer portal this offseason."
+                                  + (f" Key losses include {', '.join(_key_names)}." if _key_names else ' The depth chart is taking hits.'))
+                            _add('PORTAL',_tc(_tm3),_hl8,_bl8,_logo(_tm3),65)
+                # Persuaded to stay ≥85 OVR
+                if _tr_ps and _tr_ov and _tr_tm:
+                    _persuaded=_tr_cy2[_tr_cy2[_tr_ps].astype(str).str.strip().str.lower().isin(['yes','y','true','1'])]
+                    _persuaded_hi=_persuaded[pd.to_numeric(_persuaded[_tr_ov],errors='coerce').fillna(0)>=85]
+                    for _,_pp in _persuaded_hi.iterrows():
+                        _pp_tm=str(_pp.get(_tr_tm,'')).strip()
+                        if _pp_tm not in ALL_USER_TEAMS: continue
+                        _pp_pl=str(_pp.get(_tr_pl,'?')).strip() if _tr_pl else '?'
+                        _pp_ov=int(float(_pp.get(_tr_ov,0) or 0))
+                        _pp_ps=str(_pp.get(_tr_ps_col,'')).strip() if _tr_ps_col else ''
+                        _hl9=f"🤝 {_ab(_pp_tm)} convinces {_pp_pl} ({_pp_ov} OVR) to stay"
+                        _bl9=(f"{_pp_tm} persuaded {_pp_pl}"
+                              + (f" ({_pp_ps})" if _pp_ps else '')
+                              + f", a {_pp_ov} OVR contributor, to stay in the program. That's a big retention.")
+                        _add('RETAINED',_tc(_pp_tm),_hl9,_bl9,_logo(_pp_tm),70)
+        except: pass
+
+    # ── Render ────────────────────────────────────────────────────────────
+    if not _stories:
+        st.caption("No major news this week. Check back after games are played.")
+        return
+    _stories.sort(key=lambda s:-s['priority'])
+    for _s in _stories:
+        _s_tc=_s['color']; _s_lu=_s.get('logo_uri','')
+        _s_limg=(f"<img src='{_s_lu}' style='width:36px;height:36px;object-fit:contain;"
+                 f"flex-shrink:0;'/>" if _s_lu else '')
+        st.markdown(
+            f"<div style='background:linear-gradient(90deg,{_s_tc}14 0%,#060a11 45%);"
+            f"border:1px solid {_s_tc}33;border-left:3px solid {_s_tc};"
+            f"border-radius:10px;padding:10px 14px;margin-bottom:6px;"
+            f"display:flex;align-items:flex-start;gap:12px;'>"
+            f"<div style='flex-shrink:0;padding-top:2px;'>{_s_limg}</div>"
+            f"<div style='flex:1;min-width:0;'>"
+            f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:4px;'>"
+            f"<span style='background:{_s_tc}22;color:{_s_tc};border:1px solid {_s_tc}44;"
+            f"border-radius:4px;padding:1px 7px;font-size:.6rem;font-weight:900;"
+            f"font-family:Barlow Condensed,sans-serif;letter-spacing:.08em;text-transform:uppercase;'>{html.escape(_s['cat'])}</span>"
+            f"</div>"
+            f"<div style='font-weight:900;color:#f1f5f9;font-family:Barlow Condensed,sans-serif;"
+            f"font-size:.95rem;letter-spacing:.02em;line-height:1.3;margin-bottom:3px;'>{html.escape(_s['headline'])}</div>"
+            f"<div style='font-size:.72rem;color:#64748b;line-height:1.4;font-style:italic;'>{html.escape(_s['blurb'])}</div>"
+            f"</div></div>",
+            unsafe_allow_html=True
+        )
+
+
     st.subheader("🚑 Injury Report")
     try:
         _inj=pd.read_csv('injury_bulletin.csv')
@@ -6628,6 +7129,8 @@ with tabs[0]:
     except: pass
 
 
+    st.markdown("---")
+    render_season_news(CURRENT_YEAR, CURRENT_WEEK_NUMBER)
     st.markdown("---")
     render_injury_report()
     st.markdown("---")
