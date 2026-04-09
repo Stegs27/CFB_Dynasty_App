@@ -1792,6 +1792,7 @@ def _badge_color(badge):
     if 'HEISMAN' in badge: return('#f59e0b','#451a03')
     if 'NATTY' in badge or 'CHAMPION' in badge: return('#f59e0b','#451a03')
     if 'UPSET' in badge: return('#dc2626','white')
+    if 'COMMIT' in badge and '#1' in badge: return('#f59e0b','#451a03')
     if 'COMMIT' in badge: return('#16a34a','white')
     if 'FPI' in badge: return('#3b82f6','white')
     if 'RATED' in badge: return('#7c3aed','white')
@@ -2132,7 +2133,6 @@ def build_ticker_items(year, week, is_bowl_week):
                 _nr_ic=next((c for c in _inc_cw.columns if c.upper() in ('NATIONALRANK','NATIONAL_RANK')),None)
                 _pr_ic=next((c for c in _inc_cw.columns if c.upper() in ('POSITIONRANK','POSITION_RANK')),None)
                 _str_ic=next((c for c in _inc_cw.columns if c.upper() in ('STATERANK','STATE_RANK')),None)
-                # Sort: user teams first, then by star rating desc
                 if _usr_ic:
                     _inc_cw['_is_user']=_inc_cw[_usr_ic].astype(str).str.strip().isin(USER_TEAMS.keys())
                 else:
@@ -2151,29 +2151,91 @@ def build_ticker_items(year, week, is_bowl_week):
                     _pos_rk=str(_cr.get(_pr_ic,'')).strip() if _pr_ic else ''
                     _state_rk=str(_cr.get(_str_ic,'')).strip() if _str_ic else ''
                     _tab_c=_ABBREV.get(_team_c,_team_c[:4].upper()) if _team_c else _usr_c
+                    _tc_col=get_team_primary_color(_team_c) if _team_c else '#94a3b8'
+                    # Brighten very dark colors so they read on the dark ticker
+                    try:
+                        _r2,_g2,_b2=int(_tc_col[1:3],16),int(_tc_col[3:5],16),int(_tc_col[5:7],16)
+                        if 0.299*_r2+0.587*_g2+0.114*_b2<60:
+                            _tc_col=f'#{min(255,_r2+90):02x}{min(255,_g2+90):02x}{min(255,_b2+90):02x}'
+                    except: pass
                     is_user_commit=(_usr_c in USER_TEAMS or _team_c in ALL_USER_TEAMS)
-                    # Build star string
-                    _star_s=f"{_stars_c}★ " if _stars_c>0 else ''
-                    # Build location/rank context
+
+                    # ── Parse rank integers ────────────────────────────────────
+                    def _rk_int(v):
+                        try: r=int(float(v)); return r if r>0 else None
+                        except: return None
+                    _pos_rk_i=_rk_int(_pos_rk)
+                    _nat_rk_i=_rk_int(_nat_c)
+                    _state_rk_i=_rk_int(_state_rk)
+
+                    # ── Detect #1 anywhere ─────────────────────────────────────
+                    _is_no1_pos   = _pos_rk_i==1
+                    _is_no1_nat   = _nat_rk_i==1
+                    _is_no1_state = _state_rk_i==1
+
+                    # ── Build rank context string ──────────────────────────────
                     _ctx_parts=[]
-                    # PositionRank = national position rank (e.g. "#2 HB nationally")
-                    if _pos_rk and _pos_rk not in ('nan','') and _pos_c:
-                        try: _ctx_parts.append(f"#{int(float(_pos_rk))} {_pos_c} nationally")
-                        except: pass
-                    # NationalRank = overall national rank (e.g. "#45 overall")
-                    if _nat_c and _nat_c not in ('nan',''):
-                        try: _ctx_parts.append(f"#{int(float(_nat_c))} overall")
-                        except: pass
-                    # StateRank = overall rank in the state (e.g. "#3 overall in Indiana")
-                    if _state_rk and _state_rk not in ('nan','') and _state_c and _state_c not in ('nan',''):
-                        try: _ctx_parts.append(f"#{int(float(_state_rk))} in {_state_c}")
-                        except: pass
+                    if _pos_rk_i and _pos_c:
+                        _ctx_parts.append(f"{'#1' if _is_no1_pos else f'#{_pos_rk_i}'} {_pos_c} nationally")
+                    if _nat_rk_i:
+                        _ctx_parts.append(f"{'#1' if _is_no1_nat else f'#{_nat_rk_i}'} overall")
+                    if _state_rk_i and _state_c and _state_c not in ('nan',''):
+                        _ctx_parts.append(f"{'#1' if _is_no1_state else f'#{_state_rk_i}'} in {_state_c}")
                     _ctx=', '.join(_ctx_parts)
-                    _txt=f"{_tab_c} commits {_star_s}{_name_c}{f', {_pos_c}' if _pos_c else ''}"
-                    if _ctx: _txt+=f" — {_ctx}"
-                    headlines.append({'badge':'🎯 COMMIT','priority':185 if is_user_commit else 120,
-                        'text':_txt,
-                        'blurb':f"{_team_c or _usr_c} lands a commitment. The class is taking shape."})
+
+                    # ── Star HTML — yellow ─────────────────────────────────────
+                    _star_html=(f"<span style='color:#fbbf24;font-weight:900;'>{_stars_c}★</span> "
+                                if _stars_c>0 else '')
+
+                    # ── ticker text_html with colored abbrev + yellow stars ─────
+                    _plain_txt=f"{_tab_c} COMMITS {_stars_c}★ {_name_c.upper()}{f', {_pos_c}' if _pos_c else ''}"
+                    if _ctx: _plain_txt+=f" — {_ctx.upper()}"
+                    _html_txt=(
+                        f"<span style='color:{_tc_col};font-weight:900;'>{html.escape(_tab_c)}</span>"
+                        f" COMMITS {_star_html}"
+                        f"<span style='color:#f8fafc;font-weight:900;'>{html.escape(_name_c.upper())}</span>"
+                        + (f"<span style='color:#94a3b8;'>, {html.escape(_pos_c)}</span>" if _pos_c else '')
+                        + (f"<span style='color:#94a3b8;'> — {html.escape(_ctx.upper())}</span>" if _ctx else '')
+                    )
+
+                    # ── Rich blurb ─────────────────────────────────────────────
+                    _star_label={5:'a generational 5-star',4:'a blue-chip 4-star',3:'a 3-star',
+                                 2:'a 2-star',1:'a 1-star'}.get(_stars_c,'a')
+                    _blurb_parts=[f"{_team_c or _usr_c} lands {_star_label} commitment from {_name_c}"]
+                    if _pos_c: _blurb_parts.append(f"a {_pos_c}")
+                    if _state_c and _state_c not in ('nan',''): _blurb_parts.append(f"out of {_state_c}")
+                    _blurb=', '.join(_blurb_parts[:3])+'.'
+                    if _pos_rk_i and _pos_c:
+                        _blurb+=f" Ranked {'#1' if _is_no1_pos else f'#{_pos_rk_i}'} {_pos_c} in the nation"
+                        if _nat_rk_i: _blurb+=f" and {'#1' if _is_no1_nat else f'#{_nat_rk_i}'} overall"
+                        _blurb+='.'
+                    elif _nat_rk_i:
+                        _blurb+=f" {'The top overall prospect' if _is_no1_nat else f'#{_nat_rk_i} overall'} in the country."
+
+                    # ── Priority bump for #1 recruits → becomes hero candidate ─
+                    _is_no1=_is_no1_pos or _is_no1_nat or _is_no1_state
+                    if _is_no1 and is_user_commit:
+                        _no1_labels=[]
+                        if _is_no1_pos and _pos_c: _no1_labels.append(f"#1 {_pos_c} in the nation")
+                        if _is_no1_nat: _no1_labels.append("#1 overall prospect in the nation")
+                        if _is_no1_state and _state_c: _no1_labels.append(f"#1 overall in {_state_c}")
+                        _no1_str=' · '.join(_no1_labels)
+                        _blurb=(f"{_name_c} is {_no1_str}. "
+                                f"{'This is a program-defining commitment.' if _stars_c>=4 else 'A massive get for the program.'} "
+                                f"{_team_c or _usr_c} just sent a message to the rest of the league.")
+                        _priority=250  # beats everything including injuries (220)
+                        # Add team logo for hero display
+                        _tl2=image_file_to_data_uri(get_logo_source(_team_c))
+                        _logo_h=(f"<div style='text-align:center;margin-bottom:8px;'>"
+                                 f"<img src='{_tl2}' style='width:72px;height:72px;object-fit:contain;"
+                                 f"filter:drop-shadow(0 0 12px {_tc_col});'/></div>") if _tl2 else ''
+                        headlines.append({'badge':'🎯 #1 COMMIT','priority':_priority,
+                            'text':_plain_txt,'text_html':_html_txt,'blurb':_blurb,
+                            'logo_html':_logo_h})
+                    else:
+                        headlines.append({'badge':'🎯 COMMIT',
+                            'priority':185 if is_user_commit else 120,
+                            'text':_plain_txt,'text_html':_html_txt,'blurb':_blurb})
     except: pass
 
     # ── 5. HEISMAN WINNER ────────────────────────────────────────────────────
