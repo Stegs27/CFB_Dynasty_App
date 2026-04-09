@@ -2626,7 +2626,7 @@ def load_data(current_year=None):
         return (pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),pd.DataFrame(),[])
 
 # ── GAME STATUS + CARD SECTION ────────────────────────────────────────────────
-def render_status_banner(year, week, is_bowl):
+def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=False):
     _is_offseason=week>=25
     if _is_offseason: wk_label='OFFSEASON'
     elif is_bowl or week>=16:
@@ -2636,8 +2636,32 @@ def render_status_banner(year, week, is_bowl):
     else: wk_label=f"Week {week}"
     _ncaa=image_file_to_data_uri(get_logo_source('NCAA') or '') or ''
     _ncaa_img=f"<img src='{_ncaa}' style='height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;'/>" if _ncaa else ""
+
+    # ── Advance time + countdown ──────────────────────────────────────────
+    _adv_html=''
+    if advance_time:
+        _window_hrs=48 if has_h2h_game else 24
+        _adv_html=(
+            f"<div style='text-align:center;min-width:140px;'>"
+            f"<div id='adv-time-lbl' style='font-size:.55rem;color:#475569;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;'>ADVANCED</div>"
+            f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.78rem;color:#94a3b8;font-weight:700;'>{advance_time}</div>"
+            f"<div id='adv-countdown' style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#f59e0b;margin-top:1px;letter-spacing:.04em;'>--:--:--</div>"
+            f"<div style='font-size:.48rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>{'48h' if has_h2h_game else '24h'} window · H2H week' if has_h2h_game else '{'48h' if has_h2h_game else '24h'} window'}</div>"
+            f"</div>"
+        )
+        # Build proper label
+        _window_label=f"{'48h window · H2H week' if has_h2h_game else '24h window'}"
+        _adv_html=(
+            f"<div style='width:1px;height:40px;background:rgba(255,255,255,.1);'></div>"
+            f"<div style='text-align:center;min-width:140px;'>"
+            f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.82rem;color:#94a3b8;font-weight:700;'>ADVANCED {advance_time}</div>"
+            f"<div id='adv-countdown' style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:#f59e0b;margin-top:1px;letter-spacing:.04em;'>--:--:--</div>"
+            f"<div style='font-size:.5rem;color:#475569;letter-spacing:.08em;text-transform:uppercase;'>{_window_label}</div>"
+            f"</div>"
+        )
+
     st.markdown(f"""
-<div style='display:flex;align-items:center;justify-content:center;gap:18px;
+<div id='ispn-banner' style='display:flex;align-items:center;justify-content:center;gap:18px;
     background:linear-gradient(90deg,rgba(59,130,246,.08),rgba(251,191,36,.05));
     border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 20px;margin-bottom:18px;
     flex-wrap:wrap;'>
@@ -2653,8 +2677,27 @@ def render_status_banner(year, week, is_bowl):
         <div style='font-family:Bebas Neue,sans-serif;font-size:2.8rem;color:#60a5fa;line-height:1;'>{wk_label}</div>
         <div style='font-size:.6rem;color:#475569;text-transform:uppercase;letter-spacing:.12em;'>Current Week</div>
     </div>
-
-</div>""", unsafe_allow_html=True)
+    {_adv_html}
+</div>
+{f'''<script>
+(function(){{
+  var deadline=new Date("{advance_time} UTC");
+  deadline.setHours(deadline.getHours()+{_window_hrs});
+  function tick(){{
+    var now=new Date();
+    var diff=deadline-now;
+    var el=document.getElementById("adv-countdown");
+    if(!el)return;
+    if(diff<=0){{el.textContent="DEADLINE PASSED";el.style.color="#f87171";return;}}
+    var h=Math.floor(diff/3600000);
+    var m=Math.floor((diff%3600000)/60000);
+    var s=Math.floor((diff%60000)/1000);
+    el.textContent=(h<10?"0"+h:h)+":"+(m<10?"0"+m:m)+":"+(s<10?"0"+s:s);
+    setTimeout(tick,1000);
+  }}
+  tick();
+}})();
+</script>''' if advance_time else ''}""", unsafe_allow_html=True)
 
 def render_game_cards_with_boxscore(year, week, model_df):
     """Status grid + full detail cards matching original style."""
@@ -3058,10 +3101,11 @@ def render_game_cards_with_boxscore(year, week, model_df):
             except: pass
         natty_odds=(f"{natty_pct:.1f}%" if natty_pct>0 else "--")
         cfp_show=(f"{cfp_pct_v:.0f}%" if cfp_pct_v>0 else "--")
-        sf_chip=(f"<span style='background:{tc}22;color:{tc};border:1px solid {tc}55;"
-            f"border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:800;"
-            f"font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;'>"
-            f"Speed Freaks: #{sf_rk}</span>" if sf_rk>0 else "")
+
+        # Abbreviation helpers for this card
+        _tab=_ABBREV.get(team, team[:4].upper())
+        # Opponent record (from same _record_map used for user team)
+        _opp_rec_str=''
 
         # Has final score in CSV?
         _has_csv_score = False
@@ -3114,7 +3158,8 @@ def render_game_cards_with_boxscore(year, week, model_df):
             _opp_lf='' if is_ready_or_final else 'filter:grayscale(85%) opacity(0.35);'
             _opp_logo_html=(f"<img src='{_opp_lu}' style='width:56px;height:56px;object-fit:contain;{_opp_lf}'/>" if _opp_lu else '🏈')
             _opp_cfp_rk=official_rank_map.get(_opp_name)
-            _opp_rk_s=(f"<span style='font-size:.52rem;color:#fbbf24;font-weight:800;font-family:Barlow Condensed,sans-serif;display:block;text-align:center;'>#{_opp_cfp_rk}</span>" if _opp_cfp_rk and _opp_cfp_rk<=25 else '')
+            _opp_ab=_ABBREV.get(_opp_name,_opp_name[:4].upper())
+            _opp_rec_str=_record_map.get(_opp_name,'')
             score=matchup.get('score'); result=matchup.get('result')
             _final_score=score or _man_score_str
             _final_result=result or _man_result_str
@@ -3126,18 +3171,18 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 )
                 _status_badge=f"<span style='background:{_result_color}22;color:{_result_color};border:1px solid {_result_color}55;{_chip_style}'>FINAL</span>"
             else:
-                # Not played yet — show line
                 _line_str=''
                 try:
                     _fv_t2,_=_fpi_for(team); _fv_o2,_=_fpi_for(_opp_name)
                     if _fv_t2!=0 or _fv_o2!=0:
                         _hf2=3.0 if _is_home_g else -3.0
                         _sp2=max(-35.0,min(35.0,(_fv_t2-_fv_o2)*0.65+_hf2))
+                        _fav_ab=_tab if _sp2>0 else _opp_ab
+                        _dog_ab=_opp_ab if _sp2>0 else _tab
                         if abs(_sp2)>=1.5:
-                            _fav2=team if _sp2>0 else _opp_name
                             _spv=round(abs(_sp2),1)
-                            _lc2='#4ade80' if _fav2==team else '#f87171'
-                            _line_str=f"<div style='font-size:.65rem;color:#64748b;margin-top:5px;'>LINE: <strong style='color:{_lc2};'>{_fav2[:12]} -{int(_spv) if _spv==int(_spv) else _spv}</strong></div>"
+                            _lc2='#4ade80' if _sp2>0 else '#f87171'
+                            _line_str=f"<div style='font-size:.65rem;color:#64748b;margin-top:5px;'>LINE: <strong style='color:{_lc2};'>{_fav_ab} -{int(_spv) if _spv==int(_spv) else _spv}</strong></div>"
                         else:
                             _line_str=f"<div style='font-size:.65rem;color:#64748b;margin-top:5px;'>LINE: <strong style='color:#fbbf24;'>Pick'em</strong></div>"
                 except: pass
@@ -3159,12 +3204,40 @@ def render_game_cards_with_boxscore(year, week, model_df):
                         f"<div>{_status_badge}</div>"
                         f"{_line_str}"
                     )
-                    _status_badge=''  # embedded in center
+                    _status_badge=''
         else:
             _score_center=f"<div style='font-size:.75rem;color:#334155;'>Schedule pending</div>"
             _status_badge=''
+            _opp_ab=''
 
-        # ── Home/Away badge for user side ─────────────────────────────────────
+        # ── User team name row: #RANK ABBREV ──────────────────────────────────
+        if cfp_rank:
+            _rk_int2=int(cfp_rank); _rk_c2='#fbbf24' if _rk_int2<=4 else '#60a5fa'
+            _user_name_row=(
+                f"<div style='display:flex;align-items:baseline;justify-content:center;gap:4px;'>"
+                f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:{_rk_c2};line-height:1;'>#{_rk_int2}</span>"
+                f"<span style='font-size:.85rem;font-weight:900;color:{tc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;'>{html.escape(_tab)}</span>"
+                f"</div>"
+            )
+        else:
+            _user_name_row=f"<div style='font-size:.9rem;font-weight:900;color:{tc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;'>{html.escape(_tab)}</div>"
+
+        # ── Opponent name row: #RANK ABBREV ───────────────────────────────────
+        if _opp_name:
+            _oab=_ABBREV.get(_opp_name,_opp_name[:4].upper())
+            if _opp_cfp_rk and _opp_cfp_rk<=25:
+                _opp_name_row=(
+                    f"<div style='display:flex;align-items:baseline;justify-content:center;gap:4px;'>"
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:1rem;color:#fbbf24;line-height:1;'>#{_opp_cfp_rk}</span>"
+                    f"<span style='font-size:.85rem;font-weight:700;color:{_opp_tc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;opacity:.88;'>{html.escape(_oab)}</span>"
+                    f"</div>"
+                )
+            else:
+                _opp_name_row=f"<div style='font-size:.9rem;font-weight:700;color:{_opp_tc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;opacity:.88;'>{html.escape(_oab)}</div>"
+        else:
+            _opp_name_row=f"<div style='font-size:.6rem;color:#1e293b;'>TBD</div>"
+
+        # ── Home/Away badge ───────────────────────────────────────────────────
         _ha_badge=''
         if isinstance(matchup,dict) and _opp_name:
             _ha_c='#60a5fa' if _is_home_g else '#94a3b8'
@@ -3173,17 +3246,22 @@ def render_game_cards_with_boxscore(year, week, model_df):
                        f"border-radius:3px;padding:1px 5px;font-weight:800;letter-spacing:.08em;font-family:Barlow Condensed,sans-serif;margin-top:2px;'>"
                        f"{'HOME' if _is_home_g else 'AWAY'}</div>")
 
+        # ── Record chips (both sides) ─────────────────────────────────────────
+        def _rec_chip(rec, color):
+            if not rec or str(rec).lower() in ('nan','',): return ''
+            return (f"<div style='font-size:.52rem;font-weight:800;color:{color};"
+                    f"font-family:Barlow Condensed,sans-serif;text-align:center;'>{html.escape(str(rec))}</div>")
+        try:
+            _rw2=int(str(rec_str).split('-')[0]); _rl2=int(str(rec_str).split('-')[1])
+            _rec_c2='#4ade80' if _rw2>_rl2 else ('#f87171' if _rl2>_rw2 else '#94a3b8')
+        except: _rec_c2='#94a3b8'
+        try:
+            _orw=int(str(_opp_rec_str).split('-')[0]); _orl=int(str(_opp_rec_str).split('-')[1])
+            _opp_rec_c='#4ade80' if _orw>_orl else ('#f87171' if _orl>_orw else '#94a3b8')
+        except: _opp_rec_c='#94a3b8'
+
         # ── Stats bottom strip ────────────────────────────────────────────────
         _strip_items=[]
-        if rec_str and str(rec_str).lower() not in ('nan',''):
-            try:
-                _rw=int(str(rec_str).split('-')[0]); _rl=int(str(rec_str).split('-')[1])
-                _rec_c='#4ade80' if _rw>_rl else ('#f87171' if _rl>_rw else '#94a3b8')
-            except: _rec_c='#94a3b8'
-            _strip_items.append(f"<span style='color:{_rec_c};font-weight:900;font-size:.78rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(str(rec_str))}</span>")
-        if cfp_rank:
-            _rk_int2=int(cfp_rank); _rk_c2='#fbbf24' if _rk_int2<=4 else '#60a5fa'
-            _strip_items.append(f"<span style='color:{_rk_c2};font-weight:900;font-size:.75rem;font-family:Barlow Condensed,sans-serif;'>CFP #{_rk_int2}</span>")
         _strip_items.append(f"<span style='color:{fpi_c};font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;'>FPI {fpi_val:+.1f}"+(f"<span style='color:#fbbf24;font-size:.62rem;'> #{fpi_rk}</span>" if fpi_rk>0 else "")+"</span>")
         if natty_pct>0:
             _strip_items.append(f"<span style='color:#fbbf24;font-size:.72rem;'>🏆 {natty_odds}</span>")
@@ -3201,10 +3279,11 @@ def render_game_cards_with_boxscore(year, week, model_df):
             # ── Matchup row: team | score | opponent ────────────────────────────
             f"<div style='display:flex;align-items:center;gap:14px;'>"
             # User team column
-            f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:76px;'>"
+            f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:76px;'>"
             f"{logo_img}"
-            f"<div style='font-size:.65rem;font-weight:900;color:{tc};font-family:Barlow Condensed,sans-serif;letter-spacing:.03em;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px;'>{html.escape(team)}</div>"
-            f"<div style='font-size:.52rem;color:#64748b;text-align:center;'>{html.escape(user)}</div>"
+            f"{_user_name_row}"
+            f"<div style='font-size:.5rem;color:#64748b;text-align:center;'>{html.escape(user)}</div>"
+            f"{_rec_chip(rec_str,_rec_c2)}"
             f"{_ha_badge}"
             f"</div>"
             # Center: score / status
@@ -3212,11 +3291,11 @@ def render_game_cards_with_boxscore(year, week, model_df):
             f"{_score_center}"
             f"</div>"
             # Opponent column
-            f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:76px;'>"
+            f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:76px;'>"
             + (
                 f"{_opp_logo_html}"
-                f"{_opp_rk_s}"
-                f"<div style='font-size:.65rem;font-weight:700;color:{_opp_tc};font-family:Barlow Condensed,sans-serif;letter-spacing:.03em;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px;opacity:.85;'>{html.escape(_opp_name)}</div>"
+                f"{_opp_name_row}"
+                f"{_rec_chip(_opp_rec_str,_opp_rec_c)}"
                 if _opp_name else
                 f"<div style='width:56px;height:56px;'></div><div style='font-size:.58rem;color:#1e293b;'>TBD</div>"
             )
@@ -5863,7 +5942,48 @@ tabs=st.tabs([
 # TAB 0 -- DYNASTY NEWS
 # ══════════════════════════════════════════════════════════════════════
 with tabs[0]:
-    render_status_banner(CURRENT_YEAR, CURRENT_WEEK_NUMBER, IS_BOWL_WEEK)
+    # ── Load advance time from week_advance_log.csv ───────────────────────
+    _adv_time_str = None
+    _week_has_h2h  = False
+    try:
+        _adv_log_path = next((p for p in ['week_advance_log.csv','FPI/week_advance_log.csv'] if os.path.exists(p)), None)
+        if _adv_log_path:
+            _adv_log = pd.read_csv(_adv_log_path)
+            _adv_log.columns = [str(c).strip() for c in _adv_log.columns]
+            _yr_ac = next((c for c in _adv_log.columns if 'YEAR' in c.upper() or c.upper()=='SEASON'), None)
+            _wk_ac = next((c for c in _adv_log.columns if 'WEEK' in c.upper()), None)
+            _tm_ac = next((c for c in _adv_log.columns if 'TIME' in c.upper() or 'ADV' in c.upper()), None)
+            if _yr_ac and _wk_ac and _tm_ac:
+                _adv_log[_yr_ac] = pd.to_numeric(_adv_log[_yr_ac], errors='coerce')
+                _adv_log[_wk_ac] = pd.to_numeric(_adv_log[_wk_ac], errors='coerce')
+                _adv_row = _adv_log[(_adv_log[_yr_ac]==CURRENT_YEAR)&(_adv_log[_wk_ac]==CURRENT_WEEK_NUMBER)]
+                if not _adv_row.empty:
+                    _adv_time_str = str(_adv_row.iloc[0][_tm_ac]).strip()
+                    if _adv_time_str.lower() in ('nan','none',''): _adv_time_str = None
+    except: pass
+    # ── Detect user vs user game this week ─────────────────────────────────
+    try:
+        _h2h_sched_f = f'schedule_{CURRENT_YEAR}.csv'
+        if os.path.exists(_h2h_sched_f):
+            _h2h_df = pd.read_csv(_h2h_sched_f, dtype={'YEAR':str,'Week':str})
+            _h2h_df.columns = [str(c).strip() for c in _h2h_df.columns]
+            _h2h_yc = next((c for c in _h2h_df.columns if c.upper()=='YEAR'), None)
+            _h2h_wc = next((c for c in _h2h_df.columns if c.upper()=='WEEK'), None)
+            _h2h_vuc = next((c for c in _h2h_df.columns if 'VIS' in c.upper() and 'USER' in c.upper()), None)
+            _h2h_huc = next((c for c in _h2h_df.columns if 'HOME' in c.upper() and 'USER' in c.upper()), None)
+            if _h2h_yc and _h2h_wc and _h2h_vuc and _h2h_huc:
+                _h2h_wk = _h2h_df[
+                    (_h2h_df[_h2h_yc].astype(str).str.split('.').str[0]==str(CURRENT_YEAR)) &
+                    (_h2h_df[_h2h_wc].astype(str).str.split('.').str[0]==str(CURRENT_WEEK_NUMBER))
+                ]
+                _week_has_h2h = bool((
+                    _h2h_wk[_h2h_vuc].astype(str).str.strip().isin(USER_TEAMS.keys()) &
+                    _h2h_wk[_h2h_huc].astype(str).str.strip().isin(USER_TEAMS.keys())
+                ).any())
+    except: pass
+
+    render_status_banner(CURRENT_YEAR, CURRENT_WEEK_NUMBER, IS_BOWL_WEEK,
+                         advance_time=_adv_time_str, has_h2h_game=_week_has_h2h)
     render_game_cards_with_boxscore(CURRENT_YEAR, CURRENT_WEEK_NUMBER, model_2041)
 
     # ── COMMISSIONER TOOLS ────────────────────────────────────────────────────
@@ -8026,7 +8146,7 @@ with tabs[3]:
 # Dynasty YouTube dropped.
 # ══════════════════════════════════════════════════════════════════════
 with tabs[4]:
-    _ul_tabs = st.tabs(["⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings", "📈 ATS Records"])
+    _ul_tabs = st.tabs(["⚔️ H2H Matrix", "🏆 Natty Clashes", "🎬 ISPN Classics", "🐐 GOAT Rankings", "📈 ATS Records"])
 
     # --- H2H MATRIX ---
 with _ul_tabs[0]:
