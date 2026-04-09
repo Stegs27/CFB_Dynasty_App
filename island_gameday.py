@@ -2667,12 +2667,14 @@ def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=Fa
                 _offset = _dt.timedelta(hours=4 if _is_edt else 5)
                 _utc_dt = _parsed + _offset
             _iso_utc = _utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+            # Determine EDT vs EST from the UTC offset
+            _offset_hrs = int((_utc_dt.replace(tzinfo=None) - _parsed).total_seconds() // 3600)
+            _tz_lbl = 'EDT' if _offset_hrs == 4 else 'EST'
             # Human label uses the original entered time (Eastern)
             _day=_parsed.day
             _sfx='th' if 11<=_day<=13 else {1:'st',2:'nd',3:'rd'}.get(_day%10,'th')
             _hr=_parsed.hour % 12 or 12
             _ampm='AM' if _parsed.hour<12 else 'PM'
-            _tz_lbl='EDT' if (_utc_dt - _parsed).seconds//3600 == 4 else 'EST'
             _pretty=f"{_parsed.strftime('%B')} {_day}{_sfx} at {_hr}:{_parsed.strftime('%M')} {_ampm} {_tz_lbl}"
         else:
             _pretty=str(advance_time)
