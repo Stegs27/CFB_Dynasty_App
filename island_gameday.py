@@ -1792,6 +1792,7 @@ def _badge_color(badge):
     if 'HEISMAN' in badge: return('#f59e0b','#451a03')
     if 'NATTY' in badge or 'CHAMPION' in badge: return('#f59e0b','#451a03')
     if 'UPSET' in badge: return('#dc2626','white')
+    if 'COMMIT' in badge: return('#16a34a','white')
     if 'FPI' in badge: return('#3b82f6','white')
     if 'RATED' in badge: return('#7c3aed','white')
     return('#3b82f6','white')
@@ -2094,6 +2095,87 @@ def build_ticker_items(year, week, is_bowl_week):
                     'text':f"Wk {_pw}: {_ip} ({_it}, {_ipos}) -- {_wording}{_iinj_s}",
                     'blurb':f"{_ip} from {_it} went down in Week {_pw}. Out {_wording}."})
     except: pass
+
+    # ── 4c. NEW COMMITS (current week incoming recruits) ─────────────────
+    try:
+        _inc=pd.read_csv('attrition_incoming.csv') if os.path.exists('attrition_incoming.csv') else pd.DataFrame()
+        if not _inc.empty:
+            _inc.columns=[str(c).strip() for c in _inc.columns]
+            # Year filter
+            _yr_ic=next((c for c in _inc.columns if c.upper() in ('YEAR','SEASON')),None)
+            _wk_ic=next((c for c in _inc.columns if c.upper()=='WEEK'),None)
+            if _yr_ic:
+                _inc[_yr_ic]=pd.to_numeric(_inc[_yr_ic],errors='coerce')
+                _inc_cy=_inc[_inc[_yr_ic].fillna(-1).astype(int)==CY].copy()
+            else:
+                _inc_cy=_inc.copy()
+            # Week filter — only show commits from THIS week
+            if _wk_ic and not _inc_cy.empty:
+                _inc_cy[_wk_ic]=pd.to_numeric(_inc_cy[_wk_ic],errors='coerce')
+                _inc_cw=_inc_cy[_inc_cy[_wk_ic].fillna(-1).astype(int)==CW].copy()
+            else:
+                _inc_cw=pd.DataFrame()  # no Week column = no ticker items (run watcher to stamp)
+            # Only user teams
+            _usr_ic=next((c for c in _inc_cw.columns if c.upper()=='USER'),None)
+            _tm_ic=next((c for c in _inc_cw.columns if c.upper()=='TEAM'),None)
+            if not _inc_cw.empty and (_usr_ic or _tm_ic):
+                if _usr_ic:
+                    _inc_cw=_inc_cw[_inc_cw[_usr_ic].astype(str).str.strip().isin(USER_TEAMS.keys())].copy()
+                elif _tm_ic:
+                    _inc_cw=_inc_cw[_inc_cw[_tm_ic].astype(str).str.strip().isin(ALL_USER_TEAMS)].copy()
+            # Build ticker items — up to 6 commits, user teams first
+            if not _inc_cw.empty:
+                _nm_ic=next((c for c in _inc_cw.columns if c.upper()=='NAME'),None)
+                _pos_ic=next((c for c in _inc_cw.columns if c.upper() in ('POS','POSITION')),None)
+                _st_ic=next((c for c in _inc_cw.columns if c.upper()=='STATE'),None)
+                _sr_ic=next((c for c in _inc_cw.columns if c.upper() in ('STARRATING','STAR_RATING','STARS')),None)
+                _nr_ic=next((c for c in _inc_cw.columns if c.upper() in ('NATIONALRANK','NATIONAL_RANK')),None)
+                _pr_ic=next((c for c in _inc_cw.columns if c.upper() in ('POSITIONRANK','POSITION_RANK')),None)
+                _str_ic=next((c for c in _inc_cw.columns if c.upper() in ('STATERANK','STATE_RANK')),None)
+                # Sort: user teams first, then by star rating desc
+                if _usr_ic:
+                    _inc_cw['_is_user']=_inc_cw[_usr_ic].astype(str).str.strip().isin(USER_TEAMS.keys())
+                else:
+                    _inc_cw['_is_user']=True
+                if _sr_ic:
+                    _inc_cw[_sr_ic]=pd.to_numeric(_inc_cw[_sr_ic],errors='coerce').fillna(0)
+                _inc_cw=_inc_cw.sort_values(['_is_user']+([_sr_ic] if _sr_ic else []),ascending=[False]+([False] if _sr_ic else [])).head(6)
+                for _,_cr in _inc_cw.iterrows():
+                    _team_c=str(_cr.get(_tm_ic,'')).strip() if _tm_ic else ''
+                    _usr_c=str(_cr.get(_usr_ic,'')).strip() if _usr_ic else ''
+                    _name_c=str(_cr.get(_nm_ic,'')).strip() if _nm_ic else '?'
+                    _pos_c=str(_cr.get(_pos_ic,'')).strip() if _pos_ic else ''
+                    _state_c=str(_cr.get(_st_ic,'')).strip() if _st_ic else ''
+                    _stars_c=int(float(_cr.get(_sr_ic,0) or 0)) if _sr_ic else 0
+                    _nat_c=str(_cr.get(_nr_ic,'')).strip() if _nr_ic else ''
+                    _pos_rk=str(_cr.get(_pr_ic,'')).strip() if _pr_ic else ''
+                    _state_rk=str(_cr.get(_str_ic,'')).strip() if _str_ic else ''
+                    _tab_c=_ABBREV.get(_team_c,_team_c[:4].upper()) if _team_c else _usr_c
+                    is_user_commit=(_usr_c in USER_TEAMS or _team_c in ALL_USER_TEAMS)
+                    # Build star string
+                    _star_s=f"{_stars_c}★ " if _stars_c>0 else ''
+                    # Build location/rank context
+                    _ctx_parts=[]
+                    # PositionRank = national position rank (e.g. "#2 HB nationally")
+                    if _pos_rk and _pos_rk not in ('nan','') and _pos_c:
+                        try: _ctx_parts.append(f"#{int(float(_pos_rk))} {_pos_c} nationally")
+                        except: pass
+                    # NationalRank = overall national rank (e.g. "#45 overall")
+                    if _nat_c and _nat_c not in ('nan',''):
+                        try: _ctx_parts.append(f"#{int(float(_nat_c))} overall")
+                        except: pass
+                    # StateRank = overall rank in the state (e.g. "#3 overall in Indiana")
+                    if _state_rk and _state_rk not in ('nan','') and _state_c and _state_c not in ('nan',''):
+                        try: _ctx_parts.append(f"#{int(float(_state_rk))} in {_state_c}")
+                        except: pass
+                    _ctx=', '.join(_ctx_parts)
+                    _txt=f"{_tab_c} commits {_star_s}{_name_c}{f', {_pos_c}' if _pos_c else ''}"
+                    if _ctx: _txt+=f" — {_ctx}"
+                    headlines.append({'badge':'🎯 COMMIT','priority':185 if is_user_commit else 120,
+                        'text':_txt,
+                        'blurb':f"{_team_c or _usr_c} lands a commitment. The class is taking shape."})
+    except: pass
+
     # ── 5. HEISMAN WINNER ────────────────────────────────────────────────────
     try:
         _hwin=pd.read_csv('Heisman_History.csv') if os.path.exists('Heisman_History.csv') else pd.DataFrame()
