@@ -9098,15 +9098,16 @@ with _ul_tabs[4]:
             _ud = _ats_df[_ats_df['user'] == _usr]
             if _ud.empty: continue
             _team = USER_TEAMS.get(_usr, '')
+            _tab  = _ABBREV.get(_team, _team[:4].upper())  # abbreviation for tight spaces
             _tc   = get_team_primary_color(_team)
             _lg   = image_file_to_data_uri(get_logo_source(_team))
-            _lh   = f"<img src='{_lg}' style='width:40px;height:40px;object-fit:contain;'/>" if _lg else '🏈'
+            _lh   = f"<img src='{_lg}' style='width:44px;height:44px;object-fit:contain;flex-shrink:0;'/>" if _lg else '🏈'
             _cv, _ms, _ps, _tot, _pct, _avg, _best, _worst = _ats_summary(_ud)
             _pct_c = '#4ade80' if _pct >= 55 else ('#fbbf24' if _pct >= 45 else '#f87171')
             _avg_c = '#4ade80' if _avg > 0 else ('#fbbf24' if _avg >= -2 else '#f87171')
             _avg_s = f'+{_avg:.1f}' if _avg >= 0 else f'{_avg:.1f}'
             _medal = _medals_a.get(_ri, f'#{_ri+1}')
-            # As fav vs dog breakdown
+            # Fav / Dog splits
             _fav_d  = _ud[_ud['fav']]
             _dog_d  = _ud[_ud['dog']]
             _fav_cv = (_fav_d['result'] == 'COVER').sum(); _fav_ms = (_fav_d['result'] == 'MISS').sum()
@@ -9114,40 +9115,55 @@ with _ul_tabs[4]:
             _fav_pct = _fav_cv / (_fav_cv + _fav_ms) * 100 if (_fav_cv + _fav_ms) > 0 else 0
             _dog_pct = _dog_cv / (_dog_cv + _dog_ms) * 100 if (_dog_cv + _dog_ms) > 0 else 0
             _ats_board_html += (
-                f"<div style='background:linear-gradient(90deg,{_tc}18 0%,#060a11 50%);"
+                f"<div style='background:linear-gradient(90deg,{_tc}18 0%,#060a11 55%);"
                 f"border:1px solid {_tc}44;border-left:4px solid {_tc};"
-                f"border-radius:14px;padding:14px 18px;margin-bottom:8px;'>"
-                f"<div style='display:flex;align-items:center;gap:14px;'>"
-                f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#fbbf24;min-width:28px;'>{_medal}</span>"
+                f"border-radius:14px;padding:12px 14px;margin-bottom:8px;'>"
+                # ── Top row: medal | logo | abbrev+record | cover% ──────────────
+                f"<div style='display:flex;align-items:center;gap:10px;'>"
+                f"<span style='font-size:1.4rem;flex-shrink:0;'>{_medal}</span>"
                 f"{_lh}"
-                f"<div style='flex:1;min-width:0;'>"
-                f"<div style='font-weight:900;color:{_tc};font-size:1rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(_team)}</div>"
-                f"<div style='font-size:.65rem;color:#64748b;'>{html.escape(_usr)}</div>"
+                # Team abbrev + C-M record stacked
+                f"<div style='flex:1;min-width:0;overflow:hidden;'>"
+                f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.3rem;color:{_tc};"
+                f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;'>{html.escape(_tab)}</div>"
+                f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.72rem;font-weight:800;"
+                f"color:#f8fafc;margin-top:2px;white-space:nowrap;'>"
+                f"{_cv}-{_ms}{f'-{_ps}P' if _ps else ''} "
+                f"<span style='color:#475569;font-weight:400;'>C-M{'-P' if _ps else ''}</span></div>"
                 f"</div>"
-                # Big cover %
-                f"<div style='text-align:center;min-width:70px;'>"
-                f"<div style='font-family:Bebas Neue,sans-serif;font-size:2rem;color:{_pct_c};line-height:1;'>{_pct:.0f}%</div>"
-                f"<div style='font-size:.5rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;'>Cover %</div>"
+                # Cover % — big number, right-aligned
+                f"<div style='text-align:center;flex-shrink:0;'>"
+                f"<div style='font-family:Bebas Neue,sans-serif;font-size:2.2rem;color:{_pct_c};line-height:1;'>{_pct:.0f}%</div>"
+                f"<div style='font-size:.48rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;'>Cover</div>"
                 f"</div>"
-                # W-L-P
-                f"<div style='text-align:center;min-width:60px;'>"
-                f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#f8fafc;'>{_cv}-{_ms}{f'-{_ps}' if _ps else ''}</div>"
-                f"<div style='font-size:.5rem;color:#475569;'>C-M{'-P' if _ps else ''}</div>"
-                f"</div>"
-                # Avg margin vs spread
-                f"<div style='text-align:center;min-width:52px;'>"
+                # Avg vs line pill
+                f"<div style='text-align:center;flex-shrink:0;min-width:44px;'>"
                 f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:{_avg_c};'>{_avg_s}</div>"
-                f"<div style='font-size:.5rem;color:#475569;'>Avg vs Line</div>"
+                f"<div style='font-size:.48rem;color:#475569;'>Avg</div>"
                 f"</div>"
                 f"</div>"
-                # Fav vs Dog row
-                f"<div style='margin-top:8px;border-top:1px solid rgba(255,255,255,.06);padding-top:7px;"
-                f"display:flex;gap:16px;font-size:.68rem;'>"
-                f"<span style='color:#94a3b8;'>As Fav: "
-                f"<strong style='color:{'#4ade80' if _fav_pct>=50 else '#f87171'};'>{_fav_cv}-{_fav_ms} ({_fav_pct:.0f}%)</strong></span>"
-                f"<span style='color:#94a3b8;'>As Dog: "
-                f"<strong style='color:{'#4ade80' if _dog_pct>=50 else '#f87171'};'>{_dog_cv}-{_dog_ms} ({_dog_pct:.0f}%)</strong></span>"
-                f"<span style='color:#475569;'>{_tot} games</span>"
+                # ── Bottom row: fav / dog / games ────────────────────────────────
+                f"<div style='margin-top:7px;border-top:1px solid rgba(255,255,255,.06);"
+                f"padding-top:6px;display:flex;gap:0;'>"
+                # Fav
+                f"<div style='flex:1;text-align:center;border-right:1px solid rgba(255,255,255,.06);'>"
+                f"<div style='font-size:.55rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;'>Fav</div>"
+                f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.82rem;font-weight:900;"
+                f"color:{'#4ade80' if _fav_pct>=50 else '#f87171'};'>"
+                f"{_fav_cv}-{_fav_ms} <span style='font-size:.65rem;font-weight:400;'>({_fav_pct:.0f}%)</span></div>"
+                f"</div>"
+                # Dog
+                f"<div style='flex:1;text-align:center;border-right:1px solid rgba(255,255,255,.06);'>"
+                f"<div style='font-size:.55rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;'>Dog</div>"
+                f"<div style='font-family:Barlow Condensed,sans-serif;font-size:.82rem;font-weight:900;"
+                f"color:{'#4ade80' if _dog_pct>=50 else '#f87171'};'>"
+                f"{_dog_cv}-{_dog_ms} <span style='font-size:.65rem;font-weight:400;'>({_dog_pct:.0f}%)</span></div>"
+                f"</div>"
+                # Total games
+                f"<div style='flex:1;text-align:center;'>"
+                f"<div style='font-size:.55rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;'>Games</div>"
+                f"<div style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:#94a3b8;'>{_tot}</div>"
+                f"</div>"
                 f"</div>"
                 f"</div>"
             )
