@@ -3241,8 +3241,8 @@ def render_game_cards_with_boxscore(year, week, model_df):
         # ── Record chips (both sides) ─────────────────────────────────────────
         def _rec_chip(rec, color):
             if not rec or str(rec).lower() in ('nan','',): return ''
-            return (f"<div style='font-size:.52rem;font-weight:800;color:{color};"
-                    f"font-family:Barlow Condensed,sans-serif;text-align:center;'>{html.escape(str(rec))}</div>")
+            return (f"<div style='font-size:.72rem;font-weight:900;color:{color};"
+                    f"font-family:Barlow Condensed,sans-serif;text-align:center;letter-spacing:.04em;'>{html.escape(str(rec))}</div>")
         try:
             _rw2=int(str(rec_str).split('-')[0]); _rl2=int(str(rec_str).split('-')[1])
             _rec_c2='#4ade80' if _rw2>_rl2 else ('#f87171' if _rl2>_rw2 else '#94a3b8')
@@ -3274,7 +3274,6 @@ def render_game_cards_with_boxscore(year, week, model_df):
             f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:76px;'>"
             f"{logo_img}"
             f"{_user_name_row}"
-            f"<div style='font-size:.5rem;color:#64748b;text-align:center;'>{html.escape(user)}</div>"
             f"{_rec_chip(rec_str,_rec_c2)}"
             f"{_ha_badge}"
             f"</div>"
@@ -8354,317 +8353,316 @@ with _ul_tabs[0]:
 
         # ── RIVALRY METER ───────────────────────────────────────────────────────────
 
-        # ── 🏆 USER VS USER NATIONAL CHAMPIONSHIP GAMES ─────────────────────────────
-        st.markdown("---")
-        st.subheader("🏆 National Championship Clashes")
-        st.caption("Every time two user-coached programs met in the National Championship game. The biggest stage, the highest stakes.")
-        try:
-            _natty_clash_df=pd.DataFrame()
-            for _p in ['champs.csv','FPI/champs.csv']:
-                if os.path.exists(_p): _natty_clash_df=pd.read_csv(_p); break
-            if _natty_clash_df.empty:
-                st.info("No champs.csv data yet — check back after your first natty.")
-            else:
-                _natty_clash_df.columns=[str(c).strip() for c in _natty_clash_df.columns]
-                _nc_yr=next((c for c in _natty_clash_df.columns if 'YEAR' in c.upper() or c.upper()=='SEASON'),None)
-                _nc_tm=next((c for c in _natty_clash_df.columns if 'TEAM' in c.upper() and 'USER' not in c.upper()),None)
-                _nc_usr=next((c for c in _natty_clash_df.columns if 'USER' in c.upper()),None)
-                if not (_nc_yr and _nc_tm):
-                    st.info("champs.csv missing required columns (YEAR, TEAM).")
-                else:
-                    # Build year → {champion, runner_up, ...} from champs.csv
-                    # Try to find runner-up from schedule CSVs (natty game rows) or CFP bracket CSV
-                    _natty_games=[]
-                    # Load all schedule CSVs — natty games marked Natty Game=1
-                    _all_sched_years=[]
-                    import glob as _nglob
-                    for _nf in sorted(_nglob.glob('schedule_*.csv')+_nglob.glob('FPI/schedule_*.csv')):
-                        try:
-                            _ndf=pd.read_csv(_nf); _ndf.columns=[str(c).strip() for c in _ndf.columns]
-                            _ng_col=next((c for c in _ndf.columns if 'NATTY' in c.upper() or c.upper() in ('NATTY_GAME','NATTY GAME','NATIONAL CHAMPIONSHIP')),None)
-                            if _ng_col:
-                                _ndf[_ng_col]=pd.to_numeric(_ndf[_ng_col],errors='coerce').fillna(0)
-                                _natty_rows=_ndf[_ndf[_ng_col]==1].copy()
-                                if not _natty_rows.empty: _all_sched_years.append(_natty_rows)
-                        except: pass
-                    _sched_natties=pd.concat(_all_sched_years,ignore_index=True) if _all_sched_years else pd.DataFrame()
-
-                    # Also try CFPbracketresults.csv
-                    _bkt_natties=pd.DataFrame()
-                    for _bp in ['CFPbracketresults.csv','FPI/CFPbracketresults.csv']:
-                        if os.path.exists(_bp):
-                            try:
-                                _bd=pd.read_csv(_bp); _bd.columns=[str(c).strip() for c in _bd.columns]
-                                _brnd=next((c for c in _bd.columns if 'ROUND' in c.upper()),None)
-                                if _brnd:
-                                    _bd[_brnd]=_bd[_brnd].astype(str).str.upper()
-                                    _bkt_natties=_bd[_bd[_brnd].str.contains('NATIONAL|NATTY|CHAMPIONSHIP',na=False)].copy()
-                            except: pass
-                            break
-
-                    # Map year → runner-up
-                    _yr_runner={}
-                    if not _sched_natties.empty:
-                        _nv=next((c for c in _sched_natties.columns if c.upper() in ('VISITOR','VIS')),None)
-                        _nh=next((c for c in _sched_natties.columns if c.upper()=='HOME'),None)
-                        _nvs=next((c for c in _sched_natties.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
-                        _nhs=next((c for c in _sched_natties.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
-                        _nyr=next((c for c in _sched_natties.columns if 'YEAR' in c.upper()),None)
-                        _nvsn=next((c for c in _sched_natties.columns if 'VIS_SCORE' in c.upper() or c.upper()=='VIS SCORE'),None)
-                        _nhsn=next((c for c in _sched_natties.columns if 'HOME_SCORE' in c.upper() or c.upper()=='HOME SCORE'),None)
-                        _nvs2=_nvs or _nvsn; _nhs2=_nhs or _nhsn
-                        for _,_nr in _sched_natties.iterrows():
-                            yr_v=int(float(_nr.get(_nyr,0))) if _nyr else 0
-                            if yr_v==0: continue
-                            _vis=str(_nr.get(_nv,'')).strip() if _nv else ''
-                            _hom=str(_nr.get(_nh,'')).strip() if _nh else ''
-                            _vsc=float(_nr.get(_nvs2,0) or 0) if _nvs2 else 0
-                            _hsc=float(_nr.get(_nhs2,0) or 0) if _nhs2 else 0
-                            if _vis and _hom:
-                                _winner=_vis if _vsc>_hsc else (_hom if _hsc>_vsc else None)
-                                _loser=_hom if _vsc>_hsc else (_vis if _hsc>_vsc else None)
-                                _yr_runner[yr_v]={'vis':_vis,'home':_hom,'vis_score':int(_vsc),'home_score':int(_hsc),'winner':_winner,'loser':_loser}
-
-                    # Build list of natty clashes where both participants are/were user teams
-                    _all_user_teams_ever=set(USER_TEAMS.values())
-                    # Also include historical user teams from model_2041 if available
-                    try:
-                        if model_2041 is not None and not model_2041.empty and 'TEAM' in model_2041.columns:
-                            for _,_mr in model_2041.iterrows():
-                                _all_user_teams_ever.add(str(_mr['TEAM']).strip())
-                    except: pass
-                    # Include expansion teams
-                    _all_user_teams_ever.update(EXPANSION_TEAMS)
-
-                    _clash_cards_html=''; _clash_count=0
-                    # Load game_summaries once for box score lookups
-                    _gs_all=pd.DataFrame()
-                    try:
-                        if os.path.exists('game_summaries.csv'):
-                            _gs_all=pd.read_csv('game_summaries.csv')
-                            _gs_all.columns=[str(c).strip() for c in _gs_all.columns]
-                            if 'YEAR' in _gs_all.columns:
-                                _gs_all['YEAR']=pd.to_numeric(_gs_all['YEAR'],errors='coerce')
-                    except: pass
-
-                    def _gs_val(row, *keys, default=''):
-                        for k in keys:
-                            v=row.get(k,'')
-                            if str(v).strip() not in ('','nan','None','0','0.0'): return str(v).strip()
-                        return default
-
-                    def _gs_int(row, *keys):
-                        for k in keys:
-                            try:
-                                v=float(row.get(k,0) or 0)
-                                if v>0: return int(v)
-                            except: pass
-                        return None
-
-
-                    # Iterate each year in champs.csv
-                    if _nc_yr:
-                        _natty_clash_df[_nc_yr]=pd.to_numeric(_natty_clash_df[_nc_yr],errors='coerce')
-                    for _yr_v in sorted(_natty_clash_df[_nc_yr].dropna().unique().astype(int),reverse=True):
-                        _yr_rows=_natty_clash_df[_natty_clash_df[_nc_yr]==_yr_v]
-                        if _yr_rows.empty: continue
-                        _champ_team=str(_yr_rows.iloc[0].get(_nc_tm,'')).strip() if _nc_tm else ''
-                        _champ_user=str(_yr_rows.iloc[0].get(_nc_usr,'')).strip() if _nc_usr else ''
-                        if not _champ_team: continue
-                        # Look up the natty game row
-                        _ng=_yr_runner.get(_yr_v,{})
-                        _runner=_ng.get('loser','') or ''
-                        _runner_user=''
-                        if _runner:
-                            for _k,_v in USER_TEAMS.items():
-                                if _v==_runner: _runner_user=_k; break
-                        # Is this a user vs user natty?
-                        _champ_is_user=(_champ_team in _all_user_teams_ever)
-                        _runner_is_user=(_runner in _all_user_teams_ever) if _runner else False
-                        if not (_champ_is_user and _runner_is_user):
-                            continue
-                        _clash_count+=1
-                        # Scores
-                        _ws=_ng.get('vis_score',0); _ls=_ng.get('home_score',0)
-                        if _ng.get('winner')==_runner: _ws,_ls=_ls,_ws  # flip to winner-first
-                        _score_str=f"{_ws}-{_ls}" if (_ws or _ls) else "Score N/A"
-                        # Colors + logos
-                        _cc=get_team_primary_color(_champ_team); _rc=get_team_primary_color(_runner)
-                        _cl=image_file_to_data_uri(get_logo_source(_champ_team))
-                        _rl=image_file_to_data_uri(get_logo_source(_runner))
-                        _cl_img=f"<img src='{_cl}' style='width:52px;height:52px;object-fit:contain;'/>" if _cl else '🏈'
-                        _rl_img=f"<img src='{_rl}' style='width:44px;height:44px;object-fit:contain;opacity:.75;'/>" if _rl else '🏈'
-
-                        # ── Box score lookup ───────────────────────────────────
-                        _bs_html=''
-                        try:
-                            if not _gs_all.empty and 'YEAR' in _gs_all.columns:
-                                _gs_yr=_gs_all[_gs_all['YEAR'].fillna(-1).astype(int)==_yr_v]
-                                # Match by visitor/home team
-                                _vis_g=_ng.get('vis',''); _hom_g=_ng.get('home','')
-                                _vc2=next((c for c in _gs_yr.columns if c.upper() in ('VISITOR','VIS')),None)
-                                _hc2=next((c for c in _gs_yr.columns if c.upper()=='HOME'),None)
-                                _gs_row=pd.DataFrame()
-                                if _vc2 and _hc2:
-                                    _gs_row=_gs_yr[
-                                        (_gs_yr[_vc2].astype(str).str.strip()==_vis_g) &
-                                        (_gs_yr[_hc2].astype(str).str.strip()==_hom_g)
-                                    ]
-                                    if _gs_row.empty:
-                                        # try flipped
-                                        _gs_row=_gs_yr[
-                                            (_gs_yr[_vc2].astype(str).str.strip()==_hom_g) &
-                                            (_gs_yr[_hc2].astype(str).str.strip()==_vis_g)
-                                        ]
-                                if not _gs_row.empty:
-                                    _gr=_gs_row.iloc[0].to_dict()
-                                    # Determine which side is champ vs runner
-                                    _champ_is_vis=(str(_gr.get(_vc2 or 'VISITOR','')).strip()==_vis_g and _vis_g==_champ_team) or \
-                                                  (str(_gr.get(_vc2 or 'VISITOR','')).strip()==_hom_g and _hom_g==_champ_team)
-                                    # Champ side cols
-                                    if str(_gr.get(_vc2,'') or '').strip()==_champ_team:
-                                        _cp='VIS'; _rp='HOME'
-                                    else:
-                                        _cp='HOME'; _rp='VIS'
-                                    # Quarter scores
-                                    _cq=[_gs_int(_gr,f'{_cp}_Q{i}',f'{_cp.lower()}_q{i}') for i in range(1,5)]
-                                    _rq=[_gs_int(_gr,f'{_rp}_Q{i}',f'{_rp.lower()}_q{i}') for i in range(1,5)]
-                                    _cot=_gs_int(_gr,f'{_cp}_OT',f'{_cp.lower()}_ot')
-                                    _rot=_gs_int(_gr,f'{_rp}_OT',f'{_rp.lower()}_ot')
-                                    _has_quarters=any(v is not None for v in _cq+_rq)
-                                    # Key stats
-                                    _c_pass=_gs_int(_gr,f'{_cp}_PASS_YDS','VIS_PASS_YDS' if _cp=='VIS' else 'HOME_PASS_YDS','PassYds_Visitor' if _cp=='VIS' else 'PassYds_Home')
-                                    _r_pass=_gs_int(_gr,f'{_rp}_PASS_YDS','VIS_PASS_YDS' if _rp=='VIS' else 'HOME_PASS_YDS','PassYds_Visitor' if _rp=='VIS' else 'PassYds_Home')
-                                    _c_rush=_gs_int(_gr,f'{_cp}_RUSH_YDS','VIS_RUSH_YDS' if _cp=='VIS' else 'HOME_RUSH_YDS','RushYds_Visitor' if _cp=='VIS' else 'RushYds_Home')
-                                    _r_rush=_gs_int(_gr,f'{_rp}_RUSH_YDS','VIS_RUSH_YDS' if _rp=='VIS' else 'HOME_RUSH_YDS','RushYds_Visitor' if _rp=='VIS' else 'RushYds_Home')
-                                    _c_to=_gs_int(_gr,f'{_cp}_TURNOVERS','VIS_TURNOVERS' if _cp=='VIS' else 'HOME_TURNOVERS','Turnovers_Visitor' if _cp=='VIS' else 'Turnovers_Home')
-                                    _r_to=_gs_int(_gr,f'{_rp}_TURNOVERS','VIS_TURNOVERS' if _rp=='VIS' else 'HOME_TURNOVERS','Turnovers_Visitor' if _rp=='VIS' else 'Turnovers_Home')
-
-                                    def _q(v): return str(v) if v is not None else '-'
-                                    def _stat(v): return str(v) if v is not None else '--'
-
-                                    _th_cell="padding:5px 10px;text-align:center;font-size:.52rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #1e293b;"
-                                    _td_champ=f"padding:6px 10px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{_cc};font-weight:700;"
-                                    _td_runner=f"padding:6px 10px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{_rc};opacity:.75;"
-                                    _td_lbl="padding:6px 8px;text-align:center;font-size:.55rem;color:#475569;letter-spacing:.06em;text-transform:uppercase;"
-
-                                    _ot_col=f"<th style='{_th_cell}'>OT</th>" if (_cot or _rot) else ""
-                                    _ot_champ=f"<td style='{_td_champ}'>{_q(_cot)}</td>" if (_cot or _rot) else ""
-                                    _ot_runner=f"<td style='{_td_runner}'>{_q(_rot)}</td>" if (_cot or _rot) else ""
-
-                                    _score_row_champ=f"<td style='{_td_champ};color:#fbbf24;font-size:1.1rem;'>{_ws}</td>"
-                                    _score_row_runner=f"<td style='{_td_runner};font-size:1.1rem;'>{_ls}</td>"
-
-                                    # Abbreviate team names for table
-                                    _cab=_ABBREV.get(_champ_team,_champ_team[:4].upper())
-                                    _rab=_ABBREV.get(_runner,_runner[:4].upper())
-
-                                    _bs_table=(
-                                        f"<table style='width:100%;border-collapse:collapse;'>"
-                                        f"<thead><tr style='background:#0a1220;'>"
-                                        f"<th style='{_th_cell};text-align:left;min-width:60px;'>Team</th>"
-                                        f"<th style='{_th_cell}'>Q1</th><th style='{_th_cell}'>Q2</th>"
-                                        f"<th style='{_th_cell}'>Q3</th><th style='{_th_cell}'>Q4</th>"
-                                        f"{_ot_col}"
-                                        f"<th style='{_th_cell};color:#fbbf24;'>F</th>"
-                                        f"</tr></thead><tbody>"
-                                        # Champ row
-                                        f"<tr style='border-bottom:1px solid #0f172a;'>"
-                                        f"<td style='padding:6px 8px;font-size:.72rem;font-weight:900;color:{_cc};font-family:Barlow Condensed,sans-serif;white-space:nowrap;'>"
-                                        f"🏆 {_cab}</td>"
-                                        f"<td style='{_td_champ}'>{_q(_cq[0])}</td><td style='{_td_champ}'>{_q(_cq[1])}</td>"
-                                        f"<td style='{_td_champ}'>{_q(_cq[2])}</td><td style='{_td_champ}'>{_q(_cq[3])}</td>"
-                                        f"{_ot_champ}{_score_row_champ}"
-                                        f"</tr>"
-                                        # Runner row
-                                        f"<tr>"
-                                        f"<td style='padding:6px 8px;font-size:.72rem;font-weight:700;color:{_rc};opacity:.75;font-family:Barlow Condensed,sans-serif;white-space:nowrap;'>"
-                                        f"{_rab}</td>"
-                                        f"<td style='{_td_runner}'>{_q(_rq[0])}</td><td style='{_td_runner}'>{_q(_rq[1])}</td>"
-                                        f"<td style='{_td_runner}'>{_q(_rq[2])}</td><td style='{_td_runner}'>{_q(_rq[3])}</td>"
-                                        f"{_ot_runner}{_score_row_runner}"
-                                        f"</tr>"
-                                        f"</tbody></table>"
-                                    )
-
-                                    # Key stats strip
-                                    _has_stats=any(v is not None for v in [_c_pass,_r_pass,_c_rush,_r_rush,_c_to,_r_to])
-                                    if _has_stats:
-                                        def _vs_stat(cv,rv,label,lower_is_better=False):
-                                            if cv is None and rv is None: return ''
-                                            _cv_s=_stat(cv); _rv_s=_stat(rv)
-                                            if cv is not None and rv is not None:
-                                                _c_win=(cv>rv) if not lower_is_better else (cv<rv)
-                                                _cc2=_cc if _c_win else '#475569'
-                                                _rc2=_rc if not _c_win else '#475569'
-                                            else: _cc2=_cc; _rc2=_rc
-                                            return (f"<div style='text-align:center;min-width:60px;'>"
-                                                f"<div style='font-size:.6rem;color:#334155;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;'>{label}</div>"
-                                                f"<div style='font-size:.82rem;font-weight:900;font-family:Barlow Condensed,sans-serif;'>"
-                                                f"<span style='color:{_cc2};'>{_cv_s}</span>"
-                                                f"<span style='color:#1e293b;'> / </span>"
-                                                f"<span style='color:{_rc2};'>{_rv_s}</span>"
-                                                f"</div></div>")
-                                        _stats_strip=(
-                                            f"<div style='display:flex;justify-content:center;gap:8px;flex-wrap:wrap;"
-                                            f"padding:8px 0 0 0;border-top:1px solid #0f172a;margin-top:4px;'>"
-                                            +_vs_stat(_c_pass,_r_pass,'Pass Yds')
-                                            +_vs_stat(_c_rush,_r_rush,'Rush Yds')
-                                            +_vs_stat(_c_to,_r_to,'TOs',lower_is_better=True)
-                                            +f"</div>"
-                                        )
-                                    else: _stats_strip=''
-
-                                    if _has_quarters:
-                                        _bs_html=(
-                                            f"<div style='margin-top:10px;border-top:1px solid rgba(255,255,255,.08);"
-                                            f"padding-top:10px;border-radius:0 0 10px 10px;overflow:hidden;'>"
-                                            f"{_bs_table}"
-                                            f"{_stats_strip}"
-                                            f"</div>"
-                                        )
-                        except: pass
-
-                        _clash_cards_html+=(
-                            f"<div style='background:linear-gradient(135deg,{_cc}18 0%,#060a11 50%,{_rc}12 100%);"
-                            f"border:1px solid {_cc}44;border-left:4px solid #fbbf24;"
-                            f"border-radius:14px;padding:16px 20px;margin-bottom:12px;'>"
-                            # Top matchup row
-                            f"<div style='display:flex;align-items:center;gap:16px;'>"
-                            # Champion side
-                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;min-width:80px;'>"
-                            f"{_cl_img}"
-                            f"<div style='font-size:.62rem;font-weight:900;color:{_cc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;'>{html.escape(_champ_team)}</div>"
-                            f"<div style='font-size:.55rem;color:#64748b;'>{html.escape(_champ_user)}</div>"
-                            f"<div style='font-size:.5rem;background:#fbbf2422;color:#fbbf24;border:1px solid #fbbf2444;border-radius:4px;padding:1px 6px;font-weight:700;margin-top:2px;'>CHAMPION</div>"
-                            f"</div>"
-                            # Score / year center
-                            f"<div style='flex:1;text-align:center;'>"
-                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:.7rem;color:#fbbf24;letter-spacing:.12em;'>{_yr_v} NATIONAL CHAMPIONSHIP</div>"
-                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:2.2rem;color:#f8fafc;letter-spacing:.04em;line-height:1.1;margin:4px 0;'>{_score_str}</div>"
-                            f"<div style='font-size:.58rem;color:#475569;'>User vs. User · Final</div>"
-                            f"</div>"
-                            # Runner-up side
-                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;min-width:80px;'>"
-                            f"{_rl_img}"
-                            f"<div style='font-size:.62rem;font-weight:700;color:{_rc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;'>{html.escape(_runner)}</div>"
-                            f"<div style='font-size:.55rem;color:#64748b;'>{html.escape(_runner_user)}</div>"
-                            f"<div style='font-size:.5rem;background:#1e293b;color:#475569;border:1px solid #334155;border-radius:4px;padding:1px 6px;font-weight:700;margin-top:2px;'>RUNNER-UP</div>"
-                            f"</div>"
-                            f"</div>"
-                            # Box score section (if available)
-                            + _bs_html
-                            + f"</div>"
-                        )
-                    if _clash_count==0:
-                        st.info("No user vs. user national championship games yet. Someone's gotta step up and make it a dynasty showdown.")
-                    else:
-                        st.markdown(f"<div>{_clash_cards_html}</div>", unsafe_allow_html=True)
-                        st.caption(f"{_clash_count} user vs. user natty clash{'es' if _clash_count!=1 else ''} in dynasty history")
-        except Exception as _nc_err:
-            st.caption(f"Natty clashes unavailable: {_nc_err}")
-
 with _ul_tabs[1]:
+    st.header("🏆 National Championship Clashes")
+    st.caption("Every time two user-coached programs met in the National Championship game. The biggest stage, the highest stakes.")
+    try:
+        _natty_clash_df=pd.DataFrame()
+        for _p in ['champs.csv','FPI/champs.csv']:
+            if os.path.exists(_p): _natty_clash_df=pd.read_csv(_p); break
+        if _natty_clash_df.empty:
+            st.info("No champs.csv data yet — check back after your first natty.")
+        else:
+            _natty_clash_df.columns=[str(c).strip() for c in _natty_clash_df.columns]
+            _nc_yr=next((c for c in _natty_clash_df.columns if 'YEAR' in c.upper() or c.upper()=='SEASON'),None)
+            _nc_tm=next((c for c in _natty_clash_df.columns if 'TEAM' in c.upper() and 'USER' not in c.upper()),None)
+            _nc_usr=next((c for c in _natty_clash_df.columns if 'USER' in c.upper()),None)
+            if not (_nc_yr and _nc_tm):
+                st.info("champs.csv missing required columns (YEAR, TEAM).")
+            else:
+                # Build year → {champion, runner_up, ...} from champs.csv
+                # Try to find runner-up from schedule CSVs (natty game rows) or CFP bracket CSV
+                _natty_games=[]
+                # Load all schedule CSVs — natty games marked Natty Game=1
+                _all_sched_years=[]
+                import glob as _nglob
+                for _nf in sorted(_nglob.glob('schedule_*.csv')+_nglob.glob('FPI/schedule_*.csv')):
+                    try:
+                        _ndf=pd.read_csv(_nf); _ndf.columns=[str(c).strip() for c in _ndf.columns]
+                        _ng_col=next((c for c in _ndf.columns if 'NATTY' in c.upper() or c.upper() in ('NATTY_GAME','NATTY GAME','NATIONAL CHAMPIONSHIP')),None)
+                        if _ng_col:
+                            _ndf[_ng_col]=pd.to_numeric(_ndf[_ng_col],errors='coerce').fillna(0)
+                            _natty_rows=_ndf[_ndf[_ng_col]==1].copy()
+                            if not _natty_rows.empty: _all_sched_years.append(_natty_rows)
+                    except: pass
+                _sched_natties=pd.concat(_all_sched_years,ignore_index=True) if _all_sched_years else pd.DataFrame()
+
+                # Also try CFPbracketresults.csv
+                _bkt_natties=pd.DataFrame()
+                for _bp in ['CFPbracketresults.csv','FPI/CFPbracketresults.csv']:
+                    if os.path.exists(_bp):
+                        try:
+                            _bd=pd.read_csv(_bp); _bd.columns=[str(c).strip() for c in _bd.columns]
+                            _brnd=next((c for c in _bd.columns if 'ROUND' in c.upper()),None)
+                            if _brnd:
+                                _bd[_brnd]=_bd[_brnd].astype(str).str.upper()
+                                _bkt_natties=_bd[_bd[_brnd].str.contains('NATIONAL|NATTY|CHAMPIONSHIP',na=False)].copy()
+                        except: pass
+                        break
+
+                # Map year → runner-up
+                _yr_runner={}
+                if not _sched_natties.empty:
+                    _nv=next((c for c in _sched_natties.columns if c.upper() in ('VISITOR','VIS')),None)
+                    _nh=next((c for c in _sched_natties.columns if c.upper()=='HOME'),None)
+                    _nvs=next((c for c in _sched_natties.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
+                    _nhs=next((c for c in _sched_natties.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
+                    _nyr=next((c for c in _sched_natties.columns if 'YEAR' in c.upper()),None)
+                    _nvsn=next((c for c in _sched_natties.columns if 'VIS_SCORE' in c.upper() or c.upper()=='VIS SCORE'),None)
+                    _nhsn=next((c for c in _sched_natties.columns if 'HOME_SCORE' in c.upper() or c.upper()=='HOME SCORE'),None)
+                    _nvs2=_nvs or _nvsn; _nhs2=_nhs or _nhsn
+                    for _,_nr in _sched_natties.iterrows():
+                        yr_v=int(float(_nr.get(_nyr,0))) if _nyr else 0
+                        if yr_v==0: continue
+                        _vis=str(_nr.get(_nv,'')).strip() if _nv else ''
+                        _hom=str(_nr.get(_nh,'')).strip() if _nh else ''
+                        _vsc=float(_nr.get(_nvs2,0) or 0) if _nvs2 else 0
+                        _hsc=float(_nr.get(_nhs2,0) or 0) if _nhs2 else 0
+                        if _vis and _hom:
+                            _winner=_vis if _vsc>_hsc else (_hom if _hsc>_vsc else None)
+                            _loser=_hom if _vsc>_hsc else (_vis if _hsc>_vsc else None)
+                            _yr_runner[yr_v]={'vis':_vis,'home':_hom,'vis_score':int(_vsc),'home_score':int(_hsc),'winner':_winner,'loser':_loser}
+
+                # Build list of natty clashes where both participants are/were user teams
+                _all_user_teams_ever=set(USER_TEAMS.values())
+                # Also include historical user teams from model_2041 if available
+                try:
+                    if model_2041 is not None and not model_2041.empty and 'TEAM' in model_2041.columns:
+                        for _,_mr in model_2041.iterrows():
+                            _all_user_teams_ever.add(str(_mr['TEAM']).strip())
+                except: pass
+                # Include expansion teams
+                _all_user_teams_ever.update(EXPANSION_TEAMS)
+
+                _clash_cards_html=''; _clash_count=0
+                # Load game_summaries once for box score lookups
+                _gs_all=pd.DataFrame()
+                try:
+                    if os.path.exists('game_summaries.csv'):
+                        _gs_all=pd.read_csv('game_summaries.csv')
+                        _gs_all.columns=[str(c).strip() for c in _gs_all.columns]
+                        if 'YEAR' in _gs_all.columns:
+                            _gs_all['YEAR']=pd.to_numeric(_gs_all['YEAR'],errors='coerce')
+                except: pass
+
+                def _gs_val(row, *keys, default=''):
+                    for k in keys:
+                        v=row.get(k,'')
+                        if str(v).strip() not in ('','nan','None','0','0.0'): return str(v).strip()
+                    return default
+
+                def _gs_int(row, *keys):
+                    for k in keys:
+                        try:
+                            v=float(row.get(k,0) or 0)
+                            if v>0: return int(v)
+                        except: pass
+                    return None
+
+
+                # Iterate each year in champs.csv
+                if _nc_yr:
+                    _natty_clash_df[_nc_yr]=pd.to_numeric(_natty_clash_df[_nc_yr],errors='coerce')
+                for _yr_v in sorted(_natty_clash_df[_nc_yr].dropna().unique().astype(int),reverse=True):
+                    _yr_rows=_natty_clash_df[_natty_clash_df[_nc_yr]==_yr_v]
+                    if _yr_rows.empty: continue
+                    _champ_team=str(_yr_rows.iloc[0].get(_nc_tm,'')).strip() if _nc_tm else ''
+                    _champ_user=str(_yr_rows.iloc[0].get(_nc_usr,'')).strip() if _nc_usr else ''
+                    if not _champ_team: continue
+                    # Look up the natty game row
+                    _ng=_yr_runner.get(_yr_v,{})
+                    _runner=_ng.get('loser','') or ''
+                    _runner_user=''
+                    if _runner:
+                        for _k,_v in USER_TEAMS.items():
+                            if _v==_runner: _runner_user=_k; break
+                    # Is this a user vs user natty?
+                    _champ_is_user=(_champ_team in _all_user_teams_ever)
+                    _runner_is_user=(_runner in _all_user_teams_ever) if _runner else False
+                    if not (_champ_is_user and _runner_is_user):
+                        continue
+                    _clash_count+=1
+                    # Scores
+                    _ws=_ng.get('vis_score',0); _ls=_ng.get('home_score',0)
+                    if _ng.get('winner')==_runner: _ws,_ls=_ls,_ws  # flip to winner-first
+                    _score_str=f"{_ws}-{_ls}" if (_ws or _ls) else "Score N/A"
+                    # Colors + logos
+                    _cc=get_team_primary_color(_champ_team); _rc=get_team_primary_color(_runner)
+                    _cl=image_file_to_data_uri(get_logo_source(_champ_team))
+                    _rl=image_file_to_data_uri(get_logo_source(_runner))
+                    _cl_img=f"<img src='{_cl}' style='width:52px;height:52px;object-fit:contain;'/>" if _cl else '🏈'
+                    _rl_img=f"<img src='{_rl}' style='width:44px;height:44px;object-fit:contain;opacity:.75;'/>" if _rl else '🏈'
+
+                    # ── Box score lookup ───────────────────────────────────
+                    _bs_html=''
+                    try:
+                        if not _gs_all.empty and 'YEAR' in _gs_all.columns:
+                            _gs_yr=_gs_all[_gs_all['YEAR'].fillna(-1).astype(int)==_yr_v]
+                            # Match by visitor/home team
+                            _vis_g=_ng.get('vis',''); _hom_g=_ng.get('home','')
+                            _vc2=next((c for c in _gs_yr.columns if c.upper() in ('VISITOR','VIS')),None)
+                            _hc2=next((c for c in _gs_yr.columns if c.upper()=='HOME'),None)
+                            _gs_row=pd.DataFrame()
+                            if _vc2 and _hc2:
+                                _gs_row=_gs_yr[
+                                    (_gs_yr[_vc2].astype(str).str.strip()==_vis_g) &
+                                    (_gs_yr[_hc2].astype(str).str.strip()==_hom_g)
+                                ]
+                                if _gs_row.empty:
+                                    # try flipped
+                                    _gs_row=_gs_yr[
+                                        (_gs_yr[_vc2].astype(str).str.strip()==_hom_g) &
+                                        (_gs_yr[_hc2].astype(str).str.strip()==_vis_g)
+                                    ]
+                            if not _gs_row.empty:
+                                _gr=_gs_row.iloc[0].to_dict()
+                                # Determine which side is champ vs runner
+                                _champ_is_vis=(str(_gr.get(_vc2 or 'VISITOR','')).strip()==_vis_g and _vis_g==_champ_team) or \
+                                              (str(_gr.get(_vc2 or 'VISITOR','')).strip()==_hom_g and _hom_g==_champ_team)
+                                # Champ side cols
+                                if str(_gr.get(_vc2,'') or '').strip()==_champ_team:
+                                    _cp='VIS'; _rp='HOME'
+                                else:
+                                    _cp='HOME'; _rp='VIS'
+                                # Quarter scores
+                                _cq=[_gs_int(_gr,f'{_cp}_Q{i}',f'{_cp.lower()}_q{i}') for i in range(1,5)]
+                                _rq=[_gs_int(_gr,f'{_rp}_Q{i}',f'{_rp.lower()}_q{i}') for i in range(1,5)]
+                                _cot=_gs_int(_gr,f'{_cp}_OT',f'{_cp.lower()}_ot')
+                                _rot=_gs_int(_gr,f'{_rp}_OT',f'{_rp.lower()}_ot')
+                                _has_quarters=any(v is not None for v in _cq+_rq)
+                                # Key stats
+                                _c_pass=_gs_int(_gr,f'{_cp}_PASS_YDS','VIS_PASS_YDS' if _cp=='VIS' else 'HOME_PASS_YDS','PassYds_Visitor' if _cp=='VIS' else 'PassYds_Home')
+                                _r_pass=_gs_int(_gr,f'{_rp}_PASS_YDS','VIS_PASS_YDS' if _rp=='VIS' else 'HOME_PASS_YDS','PassYds_Visitor' if _rp=='VIS' else 'PassYds_Home')
+                                _c_rush=_gs_int(_gr,f'{_cp}_RUSH_YDS','VIS_RUSH_YDS' if _cp=='VIS' else 'HOME_RUSH_YDS','RushYds_Visitor' if _cp=='VIS' else 'RushYds_Home')
+                                _r_rush=_gs_int(_gr,f'{_rp}_RUSH_YDS','VIS_RUSH_YDS' if _rp=='VIS' else 'HOME_RUSH_YDS','RushYds_Visitor' if _rp=='VIS' else 'RushYds_Home')
+                                _c_to=_gs_int(_gr,f'{_cp}_TURNOVERS','VIS_TURNOVERS' if _cp=='VIS' else 'HOME_TURNOVERS','Turnovers_Visitor' if _cp=='VIS' else 'Turnovers_Home')
+                                _r_to=_gs_int(_gr,f'{_rp}_TURNOVERS','VIS_TURNOVERS' if _rp=='VIS' else 'HOME_TURNOVERS','Turnovers_Visitor' if _rp=='VIS' else 'Turnovers_Home')
+
+                                def _q(v): return str(v) if v is not None else '-'
+                                def _stat(v): return str(v) if v is not None else '--'
+
+                                _th_cell="padding:5px 10px;text-align:center;font-size:.52rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #1e293b;"
+                                _td_champ=f"padding:6px 10px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{_cc};font-weight:700;"
+                                _td_runner=f"padding:6px 10px;text-align:center;font-family:Bebas Neue,sans-serif;font-size:.95rem;color:{_rc};opacity:.75;"
+                                _td_lbl="padding:6px 8px;text-align:center;font-size:.55rem;color:#475569;letter-spacing:.06em;text-transform:uppercase;"
+
+                                _ot_col=f"<th style='{_th_cell}'>OT</th>" if (_cot or _rot) else ""
+                                _ot_champ=f"<td style='{_td_champ}'>{_q(_cot)}</td>" if (_cot or _rot) else ""
+                                _ot_runner=f"<td style='{_td_runner}'>{_q(_rot)}</td>" if (_cot or _rot) else ""
+
+                                _score_row_champ=f"<td style='{_td_champ};color:#fbbf24;font-size:1.1rem;'>{_ws}</td>"
+                                _score_row_runner=f"<td style='{_td_runner};font-size:1.1rem;'>{_ls}</td>"
+
+                                # Abbreviate team names for table
+                                _cab=_ABBREV.get(_champ_team,_champ_team[:4].upper())
+                                _rab=_ABBREV.get(_runner,_runner[:4].upper())
+
+                                _bs_table=(
+                                    f"<table style='width:100%;border-collapse:collapse;'>"
+                                    f"<thead><tr style='background:#0a1220;'>"
+                                    f"<th style='{_th_cell};text-align:left;min-width:60px;'>Team</th>"
+                                    f"<th style='{_th_cell}'>Q1</th><th style='{_th_cell}'>Q2</th>"
+                                    f"<th style='{_th_cell}'>Q3</th><th style='{_th_cell}'>Q4</th>"
+                                    f"{_ot_col}"
+                                    f"<th style='{_th_cell};color:#fbbf24;'>F</th>"
+                                    f"</tr></thead><tbody>"
+                                    # Champ row
+                                    f"<tr style='border-bottom:1px solid #0f172a;'>"
+                                    f"<td style='padding:6px 8px;font-size:.72rem;font-weight:900;color:{_cc};font-family:Barlow Condensed,sans-serif;white-space:nowrap;'>"
+                                    f"🏆 {_cab}</td>"
+                                    f"<td style='{_td_champ}'>{_q(_cq[0])}</td><td style='{_td_champ}'>{_q(_cq[1])}</td>"
+                                    f"<td style='{_td_champ}'>{_q(_cq[2])}</td><td style='{_td_champ}'>{_q(_cq[3])}</td>"
+                                    f"{_ot_champ}{_score_row_champ}"
+                                    f"</tr>"
+                                    # Runner row
+                                    f"<tr>"
+                                    f"<td style='padding:6px 8px;font-size:.72rem;font-weight:700;color:{_rc};opacity:.75;font-family:Barlow Condensed,sans-serif;white-space:nowrap;'>"
+                                    f"{_rab}</td>"
+                                    f"<td style='{_td_runner}'>{_q(_rq[0])}</td><td style='{_td_runner}'>{_q(_rq[1])}</td>"
+                                    f"<td style='{_td_runner}'>{_q(_rq[2])}</td><td style='{_td_runner}'>{_q(_rq[3])}</td>"
+                                    f"{_ot_runner}{_score_row_runner}"
+                                    f"</tr>"
+                                    f"</tbody></table>"
+                                )
+
+                                # Key stats strip
+                                _has_stats=any(v is not None for v in [_c_pass,_r_pass,_c_rush,_r_rush,_c_to,_r_to])
+                                if _has_stats:
+                                    def _vs_stat(cv,rv,label,lower_is_better=False):
+                                        if cv is None and rv is None: return ''
+                                        _cv_s=_stat(cv); _rv_s=_stat(rv)
+                                        if cv is not None and rv is not None:
+                                            _c_win=(cv>rv) if not lower_is_better else (cv<rv)
+                                            _cc2=_cc if _c_win else '#475569'
+                                            _rc2=_rc if not _c_win else '#475569'
+                                        else: _cc2=_cc; _rc2=_rc
+                                        return (f"<div style='text-align:center;min-width:60px;'>"
+                                            f"<div style='font-size:.6rem;color:#334155;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;'>{label}</div>"
+                                            f"<div style='font-size:.82rem;font-weight:900;font-family:Barlow Condensed,sans-serif;'>"
+                                            f"<span style='color:{_cc2};'>{_cv_s}</span>"
+                                            f"<span style='color:#1e293b;'> / </span>"
+                                            f"<span style='color:{_rc2};'>{_rv_s}</span>"
+                                            f"</div></div>")
+                                    _stats_strip=(
+                                        f"<div style='display:flex;justify-content:center;gap:8px;flex-wrap:wrap;"
+                                        f"padding:8px 0 0 0;border-top:1px solid #0f172a;margin-top:4px;'>"
+                                        +_vs_stat(_c_pass,_r_pass,'Pass Yds')
+                                        +_vs_stat(_c_rush,_r_rush,'Rush Yds')
+                                        +_vs_stat(_c_to,_r_to,'TOs',lower_is_better=True)
+                                        +f"</div>"
+                                    )
+                                else: _stats_strip=''
+
+                                if _has_quarters:
+                                    _bs_html=(
+                                        f"<div style='margin-top:10px;border-top:1px solid rgba(255,255,255,.08);"
+                                        f"padding-top:10px;border-radius:0 0 10px 10px;overflow:hidden;'>"
+                                        f"{_bs_table}"
+                                        f"{_stats_strip}"
+                                        f"</div>"
+                                    )
+                    except: pass
+
+                    _clash_cards_html+=(
+                        f"<div style='background:linear-gradient(135deg,{_cc}18 0%,#060a11 50%,{_rc}12 100%);"
+                        f"border:1px solid {_cc}44;border-left:4px solid #fbbf24;"
+                        f"border-radius:14px;padding:16px 20px;margin-bottom:12px;'>"
+                        # Top matchup row
+                        f"<div style='display:flex;align-items:center;gap:16px;'>"
+                        # Champion side
+                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;min-width:80px;'>"
+                        f"{_cl_img}"
+                        f"<div style='font-size:.62rem;font-weight:900;color:{_cc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;'>{html.escape(_champ_team)}</div>"
+                        f"<div style='font-size:.55rem;color:#64748b;'>{html.escape(_champ_user)}</div>"
+                        f"<div style='font-size:.5rem;background:#fbbf2422;color:#fbbf24;border:1px solid #fbbf2444;border-radius:4px;padding:1px 6px;font-weight:700;margin-top:2px;'>CHAMPION</div>"
+                        f"</div>"
+                        # Score / year center
+                        f"<div style='flex:1;text-align:center;'>"
+                        f"<div style='font-family:Bebas Neue,sans-serif;font-size:.7rem;color:#fbbf24;letter-spacing:.12em;'>{_yr_v} NATIONAL CHAMPIONSHIP</div>"
+                        f"<div style='font-family:Bebas Neue,sans-serif;font-size:2.2rem;color:#f8fafc;letter-spacing:.04em;line-height:1.1;margin:4px 0;'>{_score_str}</div>"
+                        f"<div style='font-size:.58rem;color:#475569;'>User vs. User · Final</div>"
+                        f"</div>"
+                        # Runner-up side
+                        f"<div style='display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;min-width:80px;'>"
+                        f"{_rl_img}"
+                        f"<div style='font-size:.62rem;font-weight:700;color:{_rc};font-family:Barlow Condensed,sans-serif;letter-spacing:.04em;text-align:center;'>{html.escape(_runner)}</div>"
+                        f"<div style='font-size:.55rem;color:#64748b;'>{html.escape(_runner_user)}</div>"
+                        f"<div style='font-size:.5rem;background:#1e293b;color:#475569;border:1px solid #334155;border-radius:4px;padding:1px 6px;font-weight:700;margin-top:2px;'>RUNNER-UP</div>"
+                        f"</div>"
+                        f"</div>"
+                        # Box score section (if available)
+                        + _bs_html
+                        + f"</div>"
+                    )
+                if _clash_count==0:
+                    st.info("No user vs. user national championship games yet. Someone's gotta step up and make it a dynasty showdown.")
+                else:
+                    st.markdown(f"<div>{_clash_cards_html}</div>", unsafe_allow_html=True)
+                    st.caption(f"{_clash_count} user vs. user natty clash{'es' if _clash_count!=1 else ''} in dynasty history")
+    except Exception as _nc_err:
+        st.caption(f"Natty clashes unavailable: {_nc_err}")
+
+with _ul_tabs[2]:
     st.header("🎬 ISPN Classics")
     st.caption("The most iconic games in dynasty history — ranked by closeness, stakes, and upset factor.")
     try:
@@ -8785,7 +8783,7 @@ with _ul_tabs[1]:
     except Exception as e:
         st.caption(f"ISPN Classics unavailable: {e}")
 
-with _ul_tabs[2]:
+with _ul_tabs[3]:
     st.header("🐐 GOAT Rankings")
     st.caption("All-time dynasty GOAT scores. Titles × 200 + Natty apps × 80 + CFP wins × 40 + Conf titles × 25 + 1st rounders × 12 + NFL picks × 4.")
     try:
@@ -8843,7 +8841,7 @@ with _ul_tabs[2]:
     # Join on Vis_User / Home_User columns to identify user matchups per team per season.
     # ─────────────────────────────────────────────────────────────────────────────────
 
-with _ul_tabs[3]:
+with _ul_tabs[4]:
     st.header("📈 Against The Spread (ATS)")
     st.caption("How often does each coach actually cover the line? Spread = FPI-based line from that week's ratings file. Run RUN_ALL_METRICS.bat to refresh. 2042+, user games only.")
 
