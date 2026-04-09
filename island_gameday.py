@@ -7927,7 +7927,7 @@ with tabs[3]:
 # Dynasty YouTube dropped.
 # ══════════════════════════════════════════════════════════════════════
 with tabs[4]:
-    _ul_tabs = st.tabs(["⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings"])
+    _ul_tabs = st.tabs(["⚔️ H2H Matrix", "🎬 ISPN Classics", "🐐 GOAT Rankings", "📈 ATS Records"])
 
     # --- H2H MATRIX ---
 with _ul_tabs[0]:
@@ -8471,6 +8471,354 @@ with _ul_tabs[2]:
     # Source: schedule_{YEAR}.csv files (2042+) + CPUscores_MASTER.csv (pre-2042 archive)
     # Join on Vis_User / Home_User columns to identify user matchups per team per season.
     # ─────────────────────────────────────────────────────────────────────────────────
+
+with _ul_tabs[3]:
+    st.header("📈 Against The Spread (ATS)")
+    st.caption("How often does each coach actually cover the line? Spread computed from the FPI file for that specific week. 2042 onward, user games only.")
+
+    try:
+        import glob as _ats_glob
+
+        # ── Step 1: load all schedule CSVs 2042+ ──────────────────────────────
+        _ats_parts = []
+        for _af in sorted(_ats_glob.glob('schedule_*.csv')):
+            try:
+                _ad = pd.read_csv(_af)
+                _ad.columns = [str(c).strip() for c in _ad.columns]
+                _ats_parts.append(_ad)
+            except: pass
+        if not _ats_parts:
+            st.info("No schedule_YYYY.csv files found. ATS tracking starts with 2042+ data.")
+            raise StopIteration
+
+        _ats_all = pd.concat(_ats_parts, ignore_index=True)
+        _ats_all.columns = [str(c).strip() for c in _ats_all.columns]
+
+        # Normalise key columns
+        _ats_yr  = next((c for c in _ats_all.columns if c.upper() == 'YEAR'),  None)
+        _ats_wk  = next((c for c in _ats_all.columns if c.upper() == 'WEEK'),  None)
+        _ats_vc  = next((c for c in _ats_all.columns if c.upper() == 'VISITOR'), None)
+        _ats_hc  = next((c for c in _ats_all.columns if c.upper() == 'HOME'),    None)
+        _ats_vs  = next((c for c in _ats_all.columns if c.upper() in ('VIS SCORE','VIS_SCORE','VISITOR SCORE')), None) or \
+                   next((c for c in _ats_all.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()), None)
+        _ats_hs  = next((c for c in _ats_all.columns if c.upper() in ('HOME SCORE','HOME_SCORE')), None) or \
+                   next((c for c in _ats_all.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()), None)
+        _ats_vuc = next((c for c in _ats_all.columns if 'VIS' in c.upper() and 'USER' in c.upper()), None)
+        _ats_huc = next((c for c in _ats_all.columns if 'HOME' in c.upper() and 'USER' in c.upper()), None)
+        _ats_stc = next((c for c in _ats_all.columns if c.upper() == 'STATUS'), None)
+
+        if not all([_ats_yr, _ats_wk, _ats_vc, _ats_hc, _ats_vs, _ats_hs]):
+            st.info("Schedule CSVs missing required columns (YEAR, Week, Visitor, Home, scores). Check your data.")
+            raise StopIteration
+
+        _ats_all[_ats_yr] = pd.to_numeric(_ats_all[_ats_yr], errors='coerce')
+        _ats_all[_ats_wk] = pd.to_numeric(_ats_all[_ats_wk], errors='coerce')
+        _ats_all[_ats_vs] = pd.to_numeric(_ats_all[_ats_vs], errors='coerce')
+        _ats_all[_ats_hs] = pd.to_numeric(_ats_all[_ats_hs], errors='coerce')
+
+        # Only FINAL games with actual scores
+        if _ats_stc:
+            _ats_final = _ats_all[_ats_all[_ats_stc].astype(str).str.upper() == 'FINAL'].copy()
+        else:
+            _ats_final = _ats_all.dropna(subset=[_ats_vs, _ats_hs]).copy()
+        _ats_final = _ats_final.dropna(subset=[_ats_vs, _ats_hs, _ats_yr, _ats_wk])
+
+        # Must involve at least one user team
+        if _ats_vuc and _ats_huc:
+            _ats_final['_vu'] = _ats_final[_ats_vuc].astype(str).str.strip()
+            _ats_final['_hu'] = _ats_final[_ats_huc].astype(str).str.strip()
+            _ats_user_mask = (
+                _ats_final['_vu'].isin(USER_TEAMS.keys()) |
+                _ats_final['_hu'].isin(USER_TEAMS.keys())
+            )
+            _ats_final = _ats_final[_ats_user_mask].copy()
+        else:
+            # Fall back to team name match
+            _ats_final['_vu'] = ''
+            _ats_final['_hu'] = ''
+            _tm2usr = {v: k for k, v in USER_TEAMS.items()}
+            _ats_final['_vu'] = _ats_final[_ats_vc].astype(str).str.strip().map(lambda t: _tm2usr.get(t, ''))
+            _ats_final['_hu'] = _ats_final[_ats_hc].astype(str).str.strip().map(lambda t: _tm2usr.get(t, ''))
+            _ats_final = _ats_final[
+                _ats_final['_vu'].isin(USER_TEAMS.keys()) | _ats_final['_hu'].isin(USER_TEAMS.keys())
+            ].copy()
+
+        if _ats_final.empty:
+            st.info("No completed user games found yet.")
+            raise StopIteration
+
+        # ── Step 2: build FPI lookup per (year, week) ────────────────────────
+        # Cache: (year, week) → {team: fpi_value}
+        _ats_fpi_cache = {}
+
+        def _get_fpi_map(yr, wk):
+            k = (int(yr), int(wk))
+            if k in _ats_fpi_cache:
+                return _ats_fpi_cache[k]
+            # Try exact week, then walk backwards up to 8 weeks to find nearest file
+            _map = {}
+            for _try_wk in range(int(wk), max(0, int(wk) - 9), -1):
+                for _fp in [f'FPI/fpi_ratings_{int(yr)}_wk{_try_wk}.csv',
+                             f'fpi_ratings_{int(yr)}_wk{_try_wk}.csv']:
+                    if os.path.exists(_fp):
+                        try:
+                            _fd = pd.read_csv(_fp)
+                            _fd.columns = [str(c).strip() for c in _fd.columns]
+                            _tm_c = next((c for c in _fd.columns if c.lower() == 'team'), None)
+                            _fp_c = next((c for c in _fd.columns if c.upper() == 'FPI'), None)
+                            if _tm_c and _fp_c:
+                                _map = dict(zip(
+                                    _fd[_tm_c].astype(str).str.strip(),
+                                    pd.to_numeric(_fd[_fp_c], errors='coerce').fillna(0)
+                                ))
+                        except: pass
+                        if _map:
+                            break
+                if _map:
+                    break
+            _ats_fpi_cache[k] = _map
+            return _map
+
+        # ── Step 3: compute spread and cover result per game per user ─────────
+        # Returns list of dicts with user, team, yr, wk, opp, spread, margin, result
+        _ats_rows = []
+
+        for _, _gr in _ats_final.iterrows():
+            yr_g  = int(_gr[_ats_yr])
+            wk_g  = int(_gr[_ats_wk])
+            vis   = str(_gr[_ats_vc]).strip()
+            hom   = str(_gr[_ats_hc]).strip()
+            v_sc  = float(_gr[_ats_vs])
+            h_sc  = float(_gr[_ats_hs])
+            vu    = str(_gr.get('_vu', '')).strip()
+            hu    = str(_gr.get('_hu', '')).strip()
+
+            _fpi  = _get_fpi_map(yr_g, wk_g)
+            fpi_v = float(_fpi.get(vis, 0) or 0)
+            fpi_h = float(_fpi.get(hom, 0) or 0)
+
+            def _cover_result(user_team, opp_team, user_score, opp_score, user_is_home):
+                fpi_u = float(_fpi.get(user_team, 0) or 0)
+                fpi_o = float(_fpi.get(opp_team, 0) or 0)
+                home_adj = 3.0 if user_is_home else -3.0
+                raw_spread = (fpi_u - fpi_o) * 0.65 + home_adj
+                spread = max(-35.0, min(35.0, raw_spread))
+                actual_margin = user_score - opp_score  # positive = user won
+                diff = actual_margin - spread  # positive = covered
+                if abs(diff) < 0.5:
+                    result = 'PUSH'
+                elif diff > 0:
+                    result = 'COVER'
+                else:
+                    result = 'MISS'
+                return {
+                    'user': user_team_label,
+                    'team': user_team,
+                    'year': yr_g,
+                    'week': wk_g,
+                    'opp': opp_team,
+                    'home': user_is_home,
+                    'spread': round(spread, 1),
+                    'actual_margin': int(actual_margin),
+                    'diff': round(diff, 1),
+                    'result': result,
+                    'fav': spread > 0.5,
+                    'dog': spread < -0.5,
+                    'user_score': int(user_score),
+                    'opp_score': int(opp_score),
+                }
+
+            # Visitor user
+            if vu in USER_TEAMS:
+                user_team_label = vu
+                _ats_rows.append(_cover_result(vis, hom, v_sc, h_sc, False))
+            # Home user
+            if hu in USER_TEAMS:
+                user_team_label = hu
+                _ats_rows.append(_cover_result(hom, vis, h_sc, v_sc, True))
+
+        if not _ats_rows:
+            st.info("Not enough data to compute ATS records yet. Need FPI files + schedule scores.")
+            raise StopIteration
+
+        _ats_df = pd.DataFrame(_ats_rows)
+
+        # ── Step 4: summary table ─────────────────────────────────────────────
+        def _ats_summary(df):
+            covers = (df['result'] == 'COVER').sum()
+            misses = (df['result'] == 'MISS').sum()
+            pushes = (df['result'] == 'PUSH').sum()
+            total  = covers + misses  # pushes don't count
+            pct    = covers / total * 100 if total > 0 else 0
+            avg_diff = df['diff'].mean()
+            best   = df.loc[df['diff'].idxmax()] if not df.empty else None
+            worst  = df.loc[df['diff'].idxmin()] if not df.empty else None
+            return covers, misses, pushes, total, pct, avg_diff, best, worst
+
+        st.subheader("🏆 All-Time ATS Leaderboard")
+        st.caption("Covers = beat the spread. Pushes excluded from cover %. Spread = FPI-based line from that week's ratings file.")
+
+        _ats_sorted_users = sorted(USER_TEAMS.keys(), key=lambda u: (
+            -(_ats_summary(_ats_df[_ats_df['user'] == u])[4])  # sort by cover %
+        ))
+
+        _ats_board_html = ''
+        _medals_a = {0: '🥇', 1: '🥈', 2: '🥉'}
+        for _ri, _usr in enumerate(_ats_sorted_users):
+            _ud = _ats_df[_ats_df['user'] == _usr]
+            if _ud.empty: continue
+            _team = USER_TEAMS.get(_usr, '')
+            _tc   = get_team_primary_color(_team)
+            _lg   = image_file_to_data_uri(get_logo_source(_team))
+            _lh   = f"<img src='{_lg}' style='width:40px;height:40px;object-fit:contain;'/>" if _lg else '🏈'
+            _cv, _ms, _ps, _tot, _pct, _avg, _best, _worst = _ats_summary(_ud)
+            _pct_c = '#4ade80' if _pct >= 55 else ('#fbbf24' if _pct >= 45 else '#f87171')
+            _avg_c = '#4ade80' if _avg > 0 else ('#fbbf24' if _avg >= -2 else '#f87171')
+            _avg_s = f'+{_avg:.1f}' if _avg >= 0 else f'{_avg:.1f}'
+            _medal = _medals_a.get(_ri, f'#{_ri+1}')
+            # As fav vs dog breakdown
+            _fav_d  = _ud[_ud['fav']]
+            _dog_d  = _ud[_ud['dog']]
+            _fav_cv = (_fav_d['result'] == 'COVER').sum(); _fav_ms = (_fav_d['result'] == 'MISS').sum()
+            _dog_cv = (_dog_d['result'] == 'COVER').sum(); _dog_ms = (_dog_d['result'] == 'MISS').sum()
+            _fav_pct = _fav_cv / (_fav_cv + _fav_ms) * 100 if (_fav_cv + _fav_ms) > 0 else 0
+            _dog_pct = _dog_cv / (_dog_cv + _dog_ms) * 100 if (_dog_cv + _dog_ms) > 0 else 0
+            _ats_board_html += (
+                f"<div style='background:linear-gradient(90deg,{_tc}18 0%,#060a11 50%);"
+                f"border:1px solid {_tc}44;border-left:4px solid {_tc};"
+                f"border-radius:14px;padding:14px 18px;margin-bottom:8px;'>"
+                f"<div style='display:flex;align-items:center;gap:14px;'>"
+                f"<span style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#fbbf24;min-width:28px;'>{_medal}</span>"
+                f"{_lh}"
+                f"<div style='flex:1;min-width:0;'>"
+                f"<div style='font-weight:900;color:{_tc};font-size:1rem;font-family:Barlow Condensed,sans-serif;'>{html.escape(_team)}</div>"
+                f"<div style='font-size:.65rem;color:#64748b;'>{html.escape(_usr)}</div>"
+                f"</div>"
+                # Big cover %
+                f"<div style='text-align:center;min-width:70px;'>"
+                f"<div style='font-family:Bebas Neue,sans-serif;font-size:2rem;color:{_pct_c};line-height:1;'>{_pct:.0f}%</div>"
+                f"<div style='font-size:.5rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;'>Cover %</div>"
+                f"</div>"
+                # W-L-P
+                f"<div style='text-align:center;min-width:60px;'>"
+                f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:#f8fafc;'>{_cv}-{_ms}{f'-{_ps}' if _ps else ''}</div>"
+                f"<div style='font-size:.5rem;color:#475569;'>C-M{'-P' if _ps else ''}</div>"
+                f"</div>"
+                # Avg margin vs spread
+                f"<div style='text-align:center;min-width:52px;'>"
+                f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.1rem;color:{_avg_c};'>{_avg_s}</div>"
+                f"<div style='font-size:.5rem;color:#475569;'>Avg vs Line</div>"
+                f"</div>"
+                f"</div>"
+                # Fav vs Dog row
+                f"<div style='margin-top:8px;border-top:1px solid rgba(255,255,255,.06);padding-top:7px;"
+                f"display:flex;gap:16px;font-size:.68rem;'>"
+                f"<span style='color:#94a3b8;'>As Fav: "
+                f"<strong style='color:{'#4ade80' if _fav_pct>=50 else '#f87171'};'>{_fav_cv}-{_fav_ms} ({_fav_pct:.0f}%)</strong></span>"
+                f"<span style='color:#94a3b8;'>As Dog: "
+                f"<strong style='color:{'#4ade80' if _dog_pct>=50 else '#f87171'};'>{_dog_cv}-{_dog_ms} ({_dog_pct:.0f}%)</strong></span>"
+                f"<span style='color:#475569;'>{_tot} games</span>"
+                f"</div>"
+                f"</div>"
+            )
+        st.markdown(f"<div>{_ats_board_html}</div>", unsafe_allow_html=True)
+
+        # ── Step 5: per-user game log ─────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("📋 Game-by-Game ATS Log")
+        _sel_ats_user = st.selectbox("Coach", options=sorted(USER_TEAMS.keys()), key='ats_user_sel')
+        _sel_ats_yr   = st.selectbox("Season", options=['All'] + sorted(
+            _ats_df['year'].unique().astype(int).tolist(), reverse=True), key='ats_yr_sel')
+
+        _log_d = _ats_df[_ats_df['user'] == _sel_ats_user].copy()
+        if _sel_ats_yr != 'All':
+            _log_d = _log_d[_log_d['year'] == int(_sel_ats_yr)]
+        _log_d = _log_d.sort_values(['year', 'week'], ascending=[False, False])
+
+        if _log_d.empty:
+            st.info("No completed games for this selection.")
+        else:
+            _log_html = ''
+            for _, _lr in _log_d.iterrows():
+                _l_tc = get_team_primary_color(str(_lr['team']))
+                _res  = str(_lr['result'])
+                _res_c = '#4ade80' if _res == 'COVER' else ('#fbbf24' if _res == 'PUSH' else '#f87171')
+                _res_bg = '#0d2b0d' if _res == 'COVER' else ('#2b2000' if _res == 'PUSH' else '#2b0d0d')
+                _sp   = _lr['spread']
+                _sp_s = f"-{abs(_sp):.1f}" if _sp > 0.5 else (f"+{abs(_sp):.1f}" if _sp < -0.5 else "PK")
+                _role = "FAV" if _sp > 0.5 else ("DOG" if _sp < -0.5 else "PK")
+                _role_c = '#fbbf24' if _role == 'FAV' else ('#60a5fa' if _role == 'DOG' else '#94a3b8')
+                _diff  = _lr['diff']
+                _diff_s = f"+{_diff:.1f}" if _diff >= 0 else f"{_diff:.1f}"
+                _ha    = "vs" if _lr['home'] else "@"
+                _opp_logo = image_file_to_data_uri(get_logo_source(str(_lr['opp'])))
+                _opp_img  = f"<img src='{_opp_logo}' style='width:20px;height:20px;object-fit:contain;vertical-align:middle;'/>" if _opp_logo else ''
+                _sc_str   = f"{_lr['user_score']}-{_lr['opp_score']}"
+                _sc_c     = '#4ade80' if _lr['user_score'] > _lr['opp_score'] else '#f87171'
+                _log_html += (
+                    f"<div style='display:flex;align-items:center;gap:10px;padding:7px 12px;"
+                    f"border-bottom:1px solid #0f172a;background:{_res_bg}18;'>"
+                    # Week + year
+                    f"<span style='font-size:.62rem;color:#475569;min-width:52px;font-family:Barlow Condensed,sans-serif;'>"
+                    f"{int(_lr['year'])} Wk{int(_lr['week'])}</span>"
+                    # Opponent
+                    f"<span style='font-size:.75rem;color:#94a3b8;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+                    f"{_ha} {_opp_img} {html.escape(str(_lr['opp']))}</span>"
+                    # Score
+                    f"<span style='font-family:Bebas Neue,sans-serif;font-size:.9rem;color:{_sc_c};min-width:44px;text-align:center;'>{_sc_str}</span>"
+                    # Line
+                    f"<span style='font-size:.7rem;color:{_role_c};min-width:52px;text-align:center;"
+                    f"font-family:Barlow Condensed,sans-serif;font-weight:700;'>{_role} {_sp_s}</span>"
+                    # Diff vs line
+                    f"<span style='font-size:.7rem;color:{'#4ade80' if _diff>=0 else '#f87171'};"
+                    f"min-width:40px;text-align:center;font-weight:700;'>{_diff_s}</span>"
+                    # Result badge
+                    f"<span style='background:{_res_c}22;color:{_res_c};border:1px solid {_res_c}55;"
+                    f"border-radius:4px;padding:1px 8px;font-size:.6rem;font-weight:900;"
+                    f"font-family:Barlow Condensed,sans-serif;letter-spacing:.06em;min-width:52px;text-align:center;'>{_res}</span>"
+                    f"</div>"
+                )
+            # Header row
+            _log_header = (
+                f"<div style='display:flex;gap:10px;padding:6px 12px;"
+                f"background:#0a1220;border-radius:8px 8px 0 0;border-bottom:2px solid #1e293b;'>"
+                f"<span style='font-size:.55rem;color:#334155;min-width:52px;text-transform:uppercase;letter-spacing:.08em;'>Wk</span>"
+                f"<span style='font-size:.55rem;color:#334155;flex:1;text-transform:uppercase;letter-spacing:.08em;'>Opponent</span>"
+                f"<span style='font-size:.55rem;color:#334155;min-width:44px;text-align:center;text-transform:uppercase;letter-spacing:.08em;'>Score</span>"
+                f"<span style='font-size:.55rem;color:#334155;min-width:52px;text-align:center;text-transform:uppercase;letter-spacing:.08em;'>Line</span>"
+                f"<span style='font-size:.55rem;color:#334155;min-width:40px;text-align:center;text-transform:uppercase;letter-spacing:.08em;'>Diff</span>"
+                f"<span style='font-size:.55rem;color:#334155;min-width:52px;text-align:center;text-transform:uppercase;letter-spacing:.08em;'>Result</span>"
+                f"</div>"
+            )
+            _cv2, _ms2, _ps2, _tot2, _pct2, _, _, _ = _ats_summary(_log_d)
+            _pct2_c = '#4ade80' if _pct2 >= 55 else ('#fbbf24' if _pct2 >= 45 else '#f87171')
+            st.markdown(
+                f"<div style='font-size:.75rem;color:#94a3b8;margin-bottom:6px;'>"
+                f"<strong style='color:{_pct2_c};font-size:.95rem;'>{_pct2:.0f}%</strong> cover rate · "
+                f"<span style='color:#4ade80;'>{_cv2}C</span> / "
+                f"<span style='color:#f87171;'>{_ms2}M</span>"
+                + (f" / <span style='color:#fbbf24;'>{_ps2}P</span>" if _ps2 else "")
+                + f" · {_tot2} games graded</div>",
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                f"<div style='border:1px solid #1e293b;border-radius:10px;overflow:hidden;'>"
+                f"{_log_header}{_log_html}</div>",
+                unsafe_allow_html=True
+            )
+            if not _ats_fpi_cache:
+                st.caption("⚠️ No FPI files found — spreads couldn't be computed. Push fpi_ratings_{YEAR}_wk{N}.csv to the repo.")
+            else:
+                _missing_wks = _log_d[~_log_d.apply(
+                    lambda r: bool(_ats_fpi_cache.get((int(r['year']), int(r['week'])))), axis=1)]
+                if not _missing_wks.empty:
+                    st.caption(f"⚠️ FPI data missing for {len(_missing_wks)} game(s) — those spreads are approximate (nearest available week used).")
+
+    except StopIteration:
+        pass  # clean early exit used above for missing data conditions
+    except Exception as _ats_err:
+        st.caption(f"ATS Records unavailable: {_ats_err}")
+
 
 
 # ══════════════════════════════════════════════════════════════════════
