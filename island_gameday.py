@@ -2653,12 +2653,27 @@ def render_status_banner(year, week, is_bowl, advance_time=None, has_h2h_game=Fa
             try: _parsed=_dt.datetime.strptime(str(advance_time).strip(),_fmt); break
             except: pass
         if _parsed:
-            _iso_utc=_parsed.strftime('%Y-%m-%dT%H:%M:%SZ')
+            # Convert from Eastern time to UTC.
+            # Use zoneinfo (Python 3.9+) for proper DST handling — April = EDT (UTC-4)
+            try:
+                from zoneinfo import ZoneInfo as _ZI
+                _parsed_et = _parsed.replace(tzinfo=_ZI('America/New_York'))
+                _utc_dt = _parsed_et.astimezone(_dt.timezone.utc)
+            except Exception:
+                # Fallback: manually determine EDT vs EST
+                # EDT (UTC-4): second Sunday of March through first Sunday of November
+                _m = _parsed.month
+                _is_edt = (4 <= _m <= 10) or (_m == 3 and _parsed.day >= 8) or (_m == 11 and _parsed.day < 7)
+                _offset = _dt.timedelta(hours=4 if _is_edt else 5)
+                _utc_dt = _parsed + _offset
+            _iso_utc = _utc_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+            # Human label uses the original entered time (Eastern)
             _day=_parsed.day
             _sfx='th' if 11<=_day<=13 else {1:'st',2:'nd',3:'rd'}.get(_day%10,'th')
             _hr=_parsed.hour % 12 or 12
             _ampm='AM' if _parsed.hour<12 else 'PM'
-            _pretty=f"{_parsed.strftime('%B')} {_day}{_sfx} at {_hr}:{_parsed.strftime('%M')} {_ampm} EST"
+            _tz_lbl='EDT' if (_utc_dt - _parsed).seconds//3600 == 4 else 'EST'
+            _pretty=f"{_parsed.strftime('%B')} {_day}{_sfx} at {_hr}:{_parsed.strftime('%M')} {_ampm} {_tz_lbl}"
         else:
             _pretty=str(advance_time)
 
