@@ -2724,6 +2724,35 @@ def load_data(current_year=None):
         try: coty=pd.read_csv('COTY.csv')
         except: coty=pd.DataFrame()
         scores.columns=[str(c).strip() for c in scores.columns]
+
+        # ── Backfill Vis_User/Home_User from game_summaries which has them reliably ──
+        # This is critical for CPUscores_MASTER rows that lack user columns
+        try:
+            if os.path.exists('game_summaries.csv'):
+                _gs_sup=pd.read_csv('game_summaries.csv')
+                _gs_sup.columns=[str(c).strip() for c in _gs_sup.columns]
+                if all(c in _gs_sup.columns for c in ('YEAR','WEEK','VISITOR','HOME','VIS_USER','HOME_USER')):
+                    _gs_sup['YEAR']=pd.to_numeric(_gs_sup['YEAR'],errors='coerce')
+                    _gs_sup['WEEK']=pd.to_numeric(_gs_sup['WEEK'],errors='coerce')
+                    _gs_sup=_gs_sup[_gs_sup['VIS_USER'].astype(str).str.strip()!=''].dropna(subset=['VIS_USER','HOME_USER'])
+                    # Build merge key matching scores column names
+                    _sc_yr=next((c for c in scores.columns if c.upper()=='YEAR'),None)
+                    _sc_wk=next((c for c in scores.columns if c.upper()=='WEEK'),None)
+                    _sc_vc=next((c for c in scores.columns if c.upper()=='VISITOR' or c=='Visitor'),None)
+                    _sc_hc=next((c for c in scores.columns if c.upper()=='HOME' or c=='Home'),None)
+                    if _sc_yr and _sc_wk and _sc_vc and _sc_hc:
+                        _gs_sup2=_gs_sup[['YEAR','WEEK','VISITOR','HOME','VIS_USER','HOME_USER']].copy()
+                        _gs_sup2=_gs_sup2.rename(columns={'YEAR':_sc_yr,'WEEK':_sc_wk,'VISITOR':_sc_vc,'HOME':_sc_hc})
+                        scores=scores.merge(_gs_sup2[[_sc_yr,_sc_wk,_sc_vc,_sc_hc,'VIS_USER','HOME_USER']],
+                                           on=[_sc_yr,_sc_wk,_sc_vc,_sc_hc],how='left',suffixes=('','_gssup'))
+                        # Backfill Vis_User from VIS_USER where blank
+                        for _ucol,_gcol in [('Vis_User','VIS_USER'),('Home_User','HOME_USER')]:
+                            if _ucol not in scores.columns: scores[_ucol]=''
+                            if _gcol in scores.columns:
+                                _blank=scores[_ucol].isna()|(scores[_ucol].astype(str).str.strip()=='')
+                                scores.loc[_blank,_ucol]=scores.loc[_blank,_gcol]
+                                scores=scores.drop(columns=[_gcol],errors='ignore')
+        except: pass
         champs['user']=safe_title_series(champs['user'])
         champs['Team']=champs['Team'].astype(str).str.strip()
         draft['USER']=safe_title_series(draft['USER'])
