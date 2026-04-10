@@ -3858,7 +3858,7 @@ def render_season_news(year, week):
                         _add('UPSET','#dc2626',_hl,_bl,_logo(_uw),80 if _is_user_u else 60)
     except: pass
 
-    # ── 5. USER VS USER RESULTS (prior week) — full card with photo ────────
+    # ── 5. USER VS USER RESULTS (current week if FINAL, else prior week) ──
     try:
         _h2h_sched=load_scores_master(year)
         # Load game_summaries for box score data
@@ -3885,14 +3885,26 @@ def render_season_news(year, week):
                 _h2h_sched[_hwkc]=pd.to_numeric(_h2h_sched[_hwkc],errors='coerce')
                 for _c3 in [_hvsc,_hhsc]:
                     if _c3: _h2h_sched[_c3]=pd.to_numeric(_h2h_sched[_c3],errors='coerce')
-                _h2h_pw=_h2h_sched[_h2h_sched[_hwkc].fillna(-1).astype(int)==PW].copy()
-                if _hstc: _h2h_pw=_h2h_pw[_h2h_pw[_hstc].astype(str).str.upper()=='FINAL']
-                _h2h_pw=_h2h_pw.dropna(subset=[_hvsc,_hhsc])
-                if _hvuc and _hhuc:
-                    _h2h_pw['_vu2']=_h2h_pw[_hvuc].astype(str).str.strip()
-                    _h2h_pw['_hu2']=_h2h_pw[_hhuc].astype(str).str.strip()
-                    _h2h_games=_h2h_pw[_h2h_pw['_vu2'].isin(USER_TEAMS.keys()) & _h2h_pw['_hu2'].isin(USER_TEAMS.keys())]
-                    for _,_hg in _h2h_games.iterrows():
+                # Check current week first (FINAL only), fall back to prior week
+                _h2h_pw=pd.DataFrame()
+                _display_week=PW  # week label shown on card
+                for _check_wk, _check_final_only in [(CW, True), (PW, False)]:
+                    _candidate=_h2h_sched[_h2h_sched[_hwkc].fillna(-1).astype(int)==_check_wk].copy()
+                    if _hstc and _check_final_only:
+                        _candidate=_candidate[_candidate[_hstc].astype(str).str.upper()=='FINAL']
+                    elif _hstc and not _check_final_only:
+                        _candidate=_candidate[_candidate[_hstc].astype(str).str.upper()=='FINAL']
+                    _candidate=_candidate.dropna(subset=[_hvsc,_hhsc])
+                    if _hvuc and _hhuc:
+                        _candidate['_vu2']=_candidate[_hvuc].astype(str).str.strip()
+                        _candidate['_hu2']=_candidate[_hhuc].astype(str).str.strip()
+                        _candidate=_candidate[_candidate['_vu2'].isin(USER_TEAMS.keys()) & _candidate['_hu2'].isin(USER_TEAMS.keys())]
+                    if not _candidate.empty:
+                        _h2h_pw=_candidate
+                        _display_week=_check_wk
+                        break
+                if not _h2h_pw.empty:
+                    for _,_hg in _h2h_pw.iterrows():
                         _hvt=str(_hg[_hvtc]).strip(); _hht=str(_hg[_hhtc]).strip()
                         _hvs=float(_hg[_hvsc]); _hhs=float(_hg[_hhsc])
                         _hw=_hvt if _hvs>_hhs else _hht; _hl2=_hht if _hvs>_hhs else _hvt
@@ -3912,7 +3924,7 @@ def render_season_news(year, week):
                         try:
                             if not _h2h_gs.empty:
                                 _gs_yr2=_h2h_gs[_h2h_gs['YEAR'].fillna(-1).astype(int)==year] if 'YEAR' in _h2h_gs.columns else _h2h_gs
-                                _gs_wk2=_gs_yr2[_gs_yr2['WEEK'].fillna(-1).astype(int)==PW] if 'WEEK' in _gs_yr2.columns else _gs_yr2
+                                _gs_wk2=_gs_yr2[_gs_yr2['WEEK'].fillna(-1).astype(int)==_display_week] if 'WEEK' in _gs_yr2.columns else _gs_yr2
                                 _gvc2=next((c for c in _h2h_gs.columns if c.upper()=='VISITOR'),None)
                                 _ghc2=next((c for c in _h2h_gs.columns if c.upper()=='HOME'),None)
                                 _gs_row2=pd.DataFrame()
@@ -3981,8 +3993,8 @@ def render_season_news(year, week):
                         _h2h_photo_html=''
                         try:
                             _vis_u_clean=_vis_u.strip(); _hom_u_clean=_hom_u.strip()
-                            _photo_path=f"{year}_{PW}_{_vis_u_clean}_at_{_hom_u_clean}.png"
-                            _photo_path2=f"{year}_{PW}_{_hom_u_clean}_at_{_vis_u_clean}.png"
+                            _photo_path=f"{year}_{_display_week}_{_vis_u_clean}_at_{_hom_u_clean}.png"
+                            _photo_path2=f"{year}_{_display_week}_{_hom_u_clean}_at_{_vis_u_clean}.png"
                             _found_photo=None
                             for _pp3 in [_photo_path, _photo_path2,
                                          f"images/{_photo_path}", f"images/{_photo_path2}"]:
@@ -4002,7 +4014,7 @@ def render_season_news(year, week):
                                         f"<div style='position:absolute;bottom:0;left:0;right:0;"
                                         f"background:linear-gradient(transparent,rgba(0,0,0,.75));padding:18px 14px 10px;z-index:2;'>"
                                         f"<div style='font-family:Bebas Neue,sans-serif;font-size:.85rem;color:{_wc};"
-                                        f"letter-spacing:.1em;'>{html.escape(_hw)} def. {html.escape(_hl2)} {_hws}-{_hls} · Wk {PW}</div>"
+                                        f"letter-spacing:.1em;'>{html.escape(_hw)} def. {html.escape(_hl2)} {_hws}-{_hls} · Wk {_display_week}</div>"
                                         f"</div>"
                                         f"<div style='position:absolute;bottom:0;left:0;right:0;height:2px;"
                                         f"background:linear-gradient(90deg,transparent,{_wc},transparent);z-index:2;'></div>"
@@ -4017,7 +4029,7 @@ def render_season_news(year, week):
                             f"border:1px solid {_wc}44;border-left:4px solid #f97316;"
                             f"border-radius:14px;padding:16px 18px;margin-bottom:10px;'>"
                             f"<div style='font-size:.55rem;color:#f97316;font-weight:900;font-family:Barlow Condensed,sans-serif;"
-                            f"letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;'>⚔️ USER VS USER · WEEK {PW} RESULT</div>"
+                            f"letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;'>⚔️ USER VS USER · WEEK {_display_week} RESULT</div>"
                             f"<div style='display:flex;align-items:center;gap:14px;'>"
                             # Winner side
                             f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:76px;'>"
@@ -4045,7 +4057,7 @@ def render_season_news(year, week):
                         )
                         # Insert at top — prepend to _stories as a special pre-rendered card
                         _stories.insert(0,{'cat':'H2H RESULT','color':'#f97316',
-                            'headline':f"⚔️ {_ab(_hw)} def. {_ab(_hl2)} {_hws}-{_hls} (Wk {PW})",
+                            'headline':f"⚔️ {_ab(_hw)} def. {_ab(_hl2)} {_hws}-{_hls} (Wk {_display_week})",
                             'blurb':f"{_hw} ({_hw_u}) {_tone_s} {_hl2} ({_hl_u}) in a user vs user showdown.",
                             'logo_uri':'','priority':92,'_full_card':_full_card})
     except: pass
