@@ -3444,7 +3444,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
             _opp_tc=get_team_primary_color(_opp_name)
             _opp_lu=image_file_to_data_uri(get_logo_source(_opp_name))
             _opp_lf='' if is_ready_or_final else 'filter:grayscale(85%) opacity(0.35);'
-            _opp_logo_html=(f"<img src='{_opp_lu}' style='width:56px;height:56px;object-fit:contain;{_opp_lf}'/>" if _opp_lu else '🏈')
+            _opp_logo_html=(f"<img src='{_opp_lu}' style='width:60px;height:60px;object-fit:contain;{_opp_lf}'/>" if _opp_lu else '🏈')
             _opp_cfp_rk=official_rank_map.get(_opp_name)
             _opp_ab=_ABBREV.get(_opp_name,_opp_name[:4].upper())
             _opp_rec_str=_record_map.get(_opp_name,'')
@@ -3604,7 +3604,7 @@ def render_game_cards_with_boxscore(year, week, model_df):
                 f"{_opp_name_row}"
                 f"{_rec_chip(_opp_rec_str,_opp_rec_c)}"
                 if _opp_name else
-                f"<div style='width:56px;height:56px;'></div><div style='font-size:.58rem;color:#1e293b;'>TBD</div>"
+                f"<div style='width:60px;height:60px;'></div><div style='font-size:.58rem;color:#1e293b;'>TBD</div>"
             )
             + f"</div>"
             f"</div>"
@@ -3858,9 +3858,19 @@ def render_season_news(year, week):
                         _add('UPSET','#dc2626',_hl,_bl,_logo(_uw),80 if _is_user_u else 60)
     except: pass
 
-    # ── 5. USER VS USER RESULTS (prior week) ──────────────────────────────
+    # ── 5. USER VS USER RESULTS (prior week) — full card with photo ────────
     try:
         _h2h_sched=load_scores_master(year)
+        # Load game_summaries for box score data
+        _h2h_gs=pd.DataFrame()
+        try:
+            if os.path.exists('game_summaries.csv'):
+                _h2h_gs=pd.read_csv('game_summaries.csv')
+                _h2h_gs.columns=[str(c).strip() for c in _h2h_gs.columns]
+                if 'YEAR' in _h2h_gs.columns: _h2h_gs['YEAR']=pd.to_numeric(_h2h_gs['YEAR'],errors='coerce')
+                if 'WEEK' in _h2h_gs.columns: _h2h_gs['WEEK']=pd.to_numeric(_h2h_gs['WEEK'],errors='coerce')
+        except: pass
+
         if not _h2h_sched.empty:
             _h2h_sched.columns=[str(c).strip() for c in _h2h_sched.columns]
             _hwkc=next((c for c in _h2h_sched.columns if c.upper()=='WEEK'),None)
@@ -3886,13 +3896,158 @@ def render_season_news(year, week):
                         _hvt=str(_hg[_hvtc]).strip(); _hht=str(_hg[_hhtc]).strip()
                         _hvs=float(_hg[_hvsc]); _hhs=float(_hg[_hhsc])
                         _hw=_hvt if _hvs>_hhs else _hht; _hl2=_hht if _hvs>_hhs else _hvt
-                        _hws=int(max(_hvs,_hhs)); _hls=int(min(_hvs,_hhs))
-                        _hmg=_hws-_hls
-                        _hw_u=str(_hg['_vu2'] if _hvs>_hhs else _hg['_hu2']); _hl_u=str(_hg['_hu2'] if _hvs>_hhs else _hg['_vu2'])
-                        _hl_txt=f"⚔️ {_ab(_hw)} def. {_ab(_hl2)} {_hws}-{_hls} (Wk {PW})"
+                        _hws=int(max(_hvs,_hhs)); _hls=int(min(_hvs,_hhs)); _hmg=_hws-_hls
+                        _hw_u=str(_hg['_vu2'] if _hvs>_hhs else _hg['_hu2'])
+                        _hl_u=str(_hg['_hu2'] if _hvs>_hhs else _hg['_vu2'])
+                        _vis_u=str(_hg['_vu2']); _hom_u=str(_hg['_hu2'])
                         _tone='dominated' if _hmg>=21 else ('edged' if _hmg<=7 else 'beat')
-                        _bl2=f"{_hw} ({_hw_u}) {_tone} {_hl2} ({_hl_u}) {_hws}-{_hls} in a user vs user showdown. Margin: {_hmg} points."
-                        _add('H2H RESULT','#f97316',_hl_txt,_bl2,_logo(_hw),85)
+                        _wc=get_team_primary_color(_hw); _lc2=get_team_primary_color(_hl2)
+                        _wl=image_file_to_data_uri(get_logo_source(_hw))
+                        _ll=image_file_to_data_uri(get_logo_source(_hl2))
+                        _wli=f"<img src='{_wl}' style='width:52px;height:52px;object-fit:contain;'/>" if _wl else '🏈'
+                        _lli=f"<img src='{_ll}' style='width:44px;height:44px;object-fit:contain;opacity:.75;'/>" if _ll else '🏈'
+
+                        # ── Box score from game_summaries ─────────────────────
+                        _h2h_bs_html=''
+                        try:
+                            if not _h2h_gs.empty:
+                                _gs_yr2=_h2h_gs[_h2h_gs['YEAR'].fillna(-1).astype(int)==year] if 'YEAR' in _h2h_gs.columns else _h2h_gs
+                                _gs_wk2=_gs_yr2[_gs_yr2['WEEK'].fillna(-1).astype(int)==PW] if 'WEEK' in _gs_yr2.columns else _gs_yr2
+                                _gvc2=next((c for c in _h2h_gs.columns if c.upper()=='VISITOR'),None)
+                                _ghc2=next((c for c in _h2h_gs.columns if c.upper()=='HOME'),None)
+                                _gs_row2=pd.DataFrame()
+                                if _gvc2 and _ghc2:
+                                    _gs_row2=_gs_wk2[(_gs_wk2[_gvc2].astype(str).str.strip()==_hvt)&(_gs_wk2[_ghc2].astype(str).str.strip()==_hht)]
+                                    if _gs_row2.empty:
+                                        _gs_row2=_gs_wk2[(_gs_wk2[_gvc2].astype(str).str.strip()==_hht)&(_gs_wk2[_ghc2].astype(str).str.strip()==_hvt)]
+                                if not _gs_row2.empty:
+                                    _gr2=_gs_row2.iloc[0].to_dict()
+                                    # Determine which side is winner vs loser
+                                    _wp='VIS' if _hvs>_hhs else 'HOME'; _lp='HOME' if _hvs>_hhs else 'VIS'
+                                    _wcc=_wc; _lcc=_lc2
+                                    _wab=_ABBREV.get(_hw,_hw[:4].upper()); _lab=_ABBREV.get(_hl2,_hl2[:4].upper())
+                                    def _qv(r,pfx,q): 
+                                        v=r.get(f'{pfx}_Q{q}',''); return str(int(float(v))) if str(v).strip() not in ('','nan','None') else '-'
+                                    def _sv2(r,k): 
+                                        v=r.get(k,''); return int(float(v)) if str(v).strip() not in ('','nan','None','0') else None
+                                    _wqs=[_qv(_gr2,_wp,i) for i in range(1,5)]
+                                    _lqs=[_qv(_gr2,_lp,i) for i in range(1,5)]
+                                    _wot=_gr2.get(f'{_wp}_OT',''); _lot=_gr2.get(f'{_lp}_OT','')
+                                    _has_ot=str(_wot).strip() not in ('','nan','None') or str(_lot).strip() not in ('','nan','None')
+                                    _ot_col=f"<th style='padding:5px 8px;text-align:center;font-size:.52rem;color:#475569;border-bottom:1px solid #1e293b;'>OT</th>" if _has_ot else ''
+                                    _ot_wc=f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_wcc};'>{int(float(_wot)) if str(_wot).strip() not in ('','nan') else '-'}</td>" if _has_ot else ''
+                                    _ot_lc=f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_lcc};opacity:.7;'>{int(float(_lot)) if str(_lot).strip() not in ('','nan') else '-'}</td>" if _has_ot else ''
+                                    _h2h_bs_html=(
+                                        f"<div style='margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:10px;border-radius:0 0 10px 10px;overflow:hidden;'>"
+                                        f"<table style='width:100%;border-collapse:collapse;'>"
+                                        f"<thead><tr style='background:#0a1220;'>"
+                                        f"<th style='padding:5px 8px;text-align:left;font-size:.52rem;color:#475569;border-bottom:1px solid #1e293b;min-width:52px;'>Team</th>"
+                                        f"<th style='padding:5px 8px;text-align:center;font-size:.52rem;color:#475569;border-bottom:1px solid #1e293b;'>Q1</th>"
+                                        f"<th style='padding:5px 8px;text-align:center;font-size:.52rem;color:#475569;border-bottom:1px solid #1e293b;'>Q2</th>"
+                                        f"<th style='padding:5px 8px;text-align:center;font-size:.52rem;color:#475569;border-bottom:1px solid #1e293b;'>Q3</th>"
+                                        f"<th style='padding:5px 8px;text-align:center;font-size:.52rem;color:#475569;border-bottom:1px solid #1e293b;'>Q4</th>"
+                                        f"{_ot_col}"
+                                        f"<th style='padding:5px 8px;text-align:center;font-size:.52rem;color:#fbbf24;border-bottom:1px solid #1e293b;'>F</th>"
+                                        f"</tr></thead><tbody>"
+                                        f"<tr style='border-bottom:1px solid #0f172a;'>"
+                                        f"<td style='padding:5px 8px;font-size:.72rem;font-weight:900;color:{_wcc};font-family:Barlow Condensed,sans-serif;'>🏆 {_wab}</td>"
+                                        f"{''.join(f'<td style=\"padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_wcc};\">{q}</td>' for q in _wqs)}"
+                                        f"{_ot_wc}"
+                                        f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;color:#fbbf24;font-size:1.05rem;'>{_hws}</td>"
+                                        f"</tr>"
+                                        f"<tr>"
+                                        f"<td style='padding:5px 8px;font-size:.72rem;font-weight:700;color:{_lcc};font-family:Barlow Condensed,sans-serif;opacity:.75;'>{_lab}</td>"
+                                        f"{''.join(f'<td style=\"padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_lcc};opacity:.7;\">{q}</td>' for q in _lqs)}"
+                                        f"{_ot_lc}"
+                                        f"<td style='padding:5px 8px;text-align:center;font-family:Bebas Neue,sans-serif;color:{_lcc};font-size:1.05rem;opacity:.75;'>{_hls}</td>"
+                                        f"</tr>"
+                                        f"</tbody></table>"
+                                    )
+                                    # Key stats strip
+                                    _kstat_parts=[]
+                                    for _kp,_ko,_klbl,_low in [(_wp+'_TOTAL_OFFENSE',_lp+'_TOTAL_OFFENSE','Total Yds',False),
+                                                                (_wp+'_TURNOVERS',_lp+'_TURNOVERS','TOs',True)]:
+                                        _kpv=_sv2(_gr2,_kp); _kov=_sv2(_gr2,_ko)
+                                        if _kpv is not None and _kov is not None:
+                                            _kw=_wcc if ((_kpv<_kov) if _low else (_kpv>_kov)) else '#475569'
+                                            _kl=_lcc if ((_kov<_kpv) if _low else (_kov>_kpv)) else '#475569'
+                                            _kstat_parts.append(f"<div style='text-align:center;min-width:60px;'><div style='font-size:.55rem;color:#334155;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;'>{_klbl}</div><div style='font-size:.78rem;font-weight:900;font-family:Barlow Condensed,sans-serif;'><span style='color:{_kw};'>{_kpv}</span><span style='color:#1e293b;'> / </span><span style='color:{_kl};'>{_kov}</span></div></div>")
+                                    if _kstat_parts:
+                                        _h2h_bs_html+=(f"<div style='display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:8px 0 0;border-top:1px solid #0f172a;margin-top:4px;'>{''.join(_kstat_parts)}</div>")
+                                    _h2h_bs_html+="</div>"
+                        except: pass
+
+                        # ── Game photo lookup: {YEAR}_{WEEK}_{VisUser}_at_{HomeUser}.png ─
+                        _h2h_photo_html=''
+                        try:
+                            _vis_u_clean=_vis_u.strip(); _hom_u_clean=_hom_u.strip()
+                            _photo_path=f"{year}_{PW}_{_vis_u_clean}_at_{_hom_u_clean}.png"
+                            _photo_path2=f"{year}_{PW}_{_hom_u_clean}_at_{_vis_u_clean}.png"
+                            _found_photo=None
+                            for _pp3 in [_photo_path, _photo_path2,
+                                         f"images/{_photo_path}", f"images/{_photo_path2}"]:
+                                if os.path.exists(_pp3):
+                                    _found_photo=_pp3; break
+                            if _found_photo:
+                                _ph_uri=image_file_to_data_uri(_found_photo)
+                                if _ph_uri:
+                                    _h2h_photo_html=(
+                                        f"<div style='margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px;'>"
+                                        f"<div style='position:relative;border-radius:10px;overflow:hidden;"
+                                        f"box-shadow:0 0 0 1px {_wc}33,0 8px 32px rgba(0,0,0,.6);'>"
+                                        f"<div style='position:absolute;top:0;left:0;right:0;height:3px;"
+                                        f"background:linear-gradient(90deg,transparent,{_wc},transparent);z-index:2;'></div>"
+                                        f"<img src='{_ph_uri}' style='width:100%;max-height:280px;object-fit:cover;"
+                                        f"display:block;filter:brightness(.95) contrast(1.04);'/>"
+                                        f"<div style='position:absolute;bottom:0;left:0;right:0;"
+                                        f"background:linear-gradient(transparent,rgba(0,0,0,.75));padding:18px 14px 10px;z-index:2;'>"
+                                        f"<div style='font-family:Bebas Neue,sans-serif;font-size:.85rem;color:{_wc};"
+                                        f"letter-spacing:.1em;'>{html.escape(_hw)} def. {html.escape(_hl2)} {_hws}-{_hls} · Wk {PW}</div>"
+                                        f"</div>"
+                                        f"<div style='position:absolute;bottom:0;left:0;right:0;height:2px;"
+                                        f"background:linear-gradient(90deg,transparent,{_wc},transparent);z-index:2;'></div>"
+                                        f"</div></div>"
+                                    )
+                        except: pass
+
+                        # ── Full card rendered inline (not via _add) at top of section ─
+                        _tone_s='dominated' if _hmg>=21 else ('edged' if _hmg<=7 else 'beat')
+                        _full_card=(
+                            f"<div style='background:linear-gradient(135deg,{_wc}18 0%,#060a11 50%,{_lc2}12 100%);"
+                            f"border:1px solid {_wc}44;border-left:4px solid #f97316;"
+                            f"border-radius:14px;padding:16px 18px;margin-bottom:10px;'>"
+                            f"<div style='font-size:.55rem;color:#f97316;font-weight:900;font-family:Barlow Condensed,sans-serif;"
+                            f"letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;'>⚔️ USER VS USER · WEEK {PW} RESULT</div>"
+                            f"<div style='display:flex;align-items:center;gap:14px;'>"
+                            # Winner side
+                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:76px;'>"
+                            f"{_wli}"
+                            f"<div style='font-size:.65rem;font-weight:900;color:{_wc};font-family:Barlow Condensed,sans-serif;letter-spacing:.03em;text-align:center;'>{html.escape(_ab(_hw))}</div>"
+                            f"<div style='font-size:.48rem;color:#64748b;'>{html.escape(_hw_u)}</div>"
+                            f"<div style='font-size:.45rem;background:#4ade8022;color:#4ade80;border:1px solid #4ade8044;border-radius:3px;padding:1px 5px;font-weight:800;margin-top:1px;'>WIN</div>"
+                            f"</div>"
+                            # Score center
+                            f"<div style='flex:1;text-align:center;'>"
+                            f"<div style='font-family:Bebas Neue,sans-serif;font-size:2.2rem;color:#f8fafc;letter-spacing:.04em;line-height:1;'>{_hws}<span style='font-size:1.2rem;color:#334155;'>-</span>{_hls}</div>"
+                            f"<div style='font-size:.58rem;color:#475569;margin-top:2px;'>{html.escape(_hw)} {_tone_s} by {_hmg}</div>"
+                            f"</div>"
+                            # Loser side
+                            f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:76px;'>"
+                            f"{_lli}"
+                            f"<div style='font-size:.65rem;font-weight:700;color:{_lc2};font-family:Barlow Condensed,sans-serif;letter-spacing:.03em;text-align:center;opacity:.85;'>{html.escape(_ab(_hl2))}</div>"
+                            f"<div style='font-size:.48rem;color:#64748b;'>{html.escape(_hl_u)}</div>"
+                            f"<div style='font-size:.45rem;background:#1e293b;color:#475569;border:1px solid #334155;border-radius:3px;padding:1px 5px;font-weight:800;margin-top:1px;'>LOSS</div>"
+                            f"</div>"
+                            f"</div>"
+                            + _h2h_bs_html
+                            + _h2h_photo_html
+                            + f"</div>"
+                        )
+                        # Insert at top — prepend to _stories as a special pre-rendered card
+                        _stories.insert(0,{'cat':'H2H RESULT','color':'#f97316',
+                            'headline':f"⚔️ {_ab(_hw)} def. {_ab(_hl2)} {_hws}-{_hls} (Wk {PW})",
+                            'blurb':f"{_hw} ({_hw_u}) {_tone_s} {_hl2} ({_hl_u}) in a user vs user showdown.",
+                            'logo_uri':'','priority':92,'_full_card':_full_card})
     except: pass
 
     # ── 6. NEW COMMITS (current week, user teams) ──────────────────────────
@@ -4156,6 +4311,10 @@ def render_season_news(year, week):
         return
     _stories.sort(key=lambda s:-s['priority'])
     for _s in _stories:
+        # H2H games get a full custom card
+        if '_full_card' in _s:
+            st.markdown(_s['_full_card'], unsafe_allow_html=True)
+            continue
         _s_tc=_s['color']; _s_lu=_s.get('logo_uri','')
         _s_limg=(f"<img src='{_s_lu}' style='width:36px;height:36px;object-fit:contain;"
                  f"flex-shrink:0;'/>" if _s_lu else '')
@@ -6765,7 +6924,8 @@ with tabs[0]:
                     _adv_time_str = str(_adv_row.iloc[0][_tm_ac]).strip()
                     if _adv_time_str.lower() in ('nan','none',''): _adv_time_str = None
     except: pass
-    # ── Detect user vs user game this week ─────────────────────────────────
+    # ── Detect user vs user game this week — only if still SCHEDULED ──────
+    # If the H2H game already has a result (FINAL), revert to 24h window
     try:
         _h2h_sched_f = f'schedule_{CURRENT_YEAR}.csv'
         if os.path.exists(_h2h_sched_f):
@@ -6775,15 +6935,24 @@ with tabs[0]:
             _h2h_wc = next((c for c in _h2h_df.columns if c.upper()=='WEEK'), None)
             _h2h_vuc = next((c for c in _h2h_df.columns if 'VIS' in c.upper() and 'USER' in c.upper()), None)
             _h2h_huc = next((c for c in _h2h_df.columns if 'HOME' in c.upper() and 'USER' in c.upper()), None)
+            _h2h_stc = next((c for c in _h2h_df.columns if c.upper()=='STATUS'), None)
             if _h2h_yc and _h2h_wc and _h2h_vuc and _h2h_huc:
                 _h2h_wk = _h2h_df[
                     (_h2h_df[_h2h_yc].astype(str).str.split('.').str[0]==str(CURRENT_YEAR)) &
                     (_h2h_df[_h2h_wc].astype(str).str.split('.').str[0]==str(CURRENT_WEEK_NUMBER))
                 ]
-                _week_has_h2h = bool((
+                # Find rows where both sides are user coaches
+                _h2h_mask = (
                     _h2h_wk[_h2h_vuc].astype(str).str.strip().isin(USER_TEAMS.keys()) &
                     _h2h_wk[_h2h_huc].astype(str).str.strip().isin(USER_TEAMS.keys())
-                ).any())
+                )
+                _h2h_games_wk = _h2h_wk[_h2h_mask]
+                # Only count as active H2H if the game is still SCHEDULED (not yet played)
+                if not _h2h_games_wk.empty and _h2h_stc:
+                    _h2h_games_wk = _h2h_games_wk[
+                        _h2h_games_wk[_h2h_stc].astype(str).str.upper() != 'FINAL'
+                    ]
+                _week_has_h2h = not _h2h_games_wk.empty
     except: pass
 
     render_status_banner(CURRENT_YEAR, CURRENT_WEEK_NUMBER, IS_BOWL_WEEK,
