@@ -353,6 +353,34 @@ def load_scores_master(year=None, multi_year=False, **kwargs):
                 combined[c]=pd.to_numeric(combined[c],errors='coerce')
         dk=[c for c in ['YEAR','Week','Visitor','Home'] if c in combined.columns]
         if dk: combined=combined.drop_duplicates(subset=dk,keep='last')
+        # Supplement Vis_User / Home_User from game_summaries.csv which has them reliably
+        try:
+            if os.path.exists('game_summaries.csv'):
+                _gs=pd.read_csv('game_summaries.csv')
+                _gs.columns=[str(c).strip() for c in _gs.columns]
+                if all(c in _gs.columns for c in ('YEAR','WEEK','VISITOR','HOME','VIS_USER','HOME_USER')):
+                    _gs['YEAR']=pd.to_numeric(_gs['YEAR'],errors='coerce')
+                    _gs['WEEK']=pd.to_numeric(_gs['WEEK'],errors='coerce')
+                    _gs_map=_gs[['YEAR','WEEK','VISITOR','HOME','VIS_USER','HOME_USER']].dropna(subset=['VIS_USER','HOME_USER'])
+                    _gs_map=_gs_map[_gs_map['VIS_USER'].astype(str).str.strip()!='']
+                    # Merge user columns into combined on YEAR+Week+Visitor+Home
+                    _vc=next((c for c in combined.columns if c.upper()=='VISITOR' or c=='Visitor'),None)
+                    _hc=next((c for c in combined.columns if c.upper()=='HOME' or c=='Home'),None)
+                    _yc=next((c for c in combined.columns if c.upper()=='YEAR'),None)
+                    _wc=next((c for c in combined.columns if c.upper()=='WEEK'),None)
+                    if _vc and _hc and _yc and _wc:
+                        _gs_map=_gs_map.rename(columns={'YEAR':_yc,'WEEK':_wc,'VISITOR':_vc,'HOME':_hc})
+                        combined=combined.merge(_gs_map[[_yc,_wc,_vc,_hc,'VIS_USER','HOME_USER']],
+                                               on=[_yc,_wc,_vc,_hc],how='left',suffixes=('','_gs'))
+                        # Fill blank Vis_User/Home_User from game_summaries
+                        for _ucol,_gcol in [('Vis_User','VIS_USER'),('Home_User','HOME_USER')]:
+                            if _ucol in combined.columns and _gcol in combined.columns:
+                                _blank=combined[_ucol].isna() | (combined[_ucol].astype(str).str.strip()=='')
+                                combined.loc[_blank,_ucol]=combined.loc[_blank,_gcol]
+                                combined=combined.drop(columns=[_gcol],errors='ignore')
+                            elif _gcol in combined.columns:
+                                combined=combined.rename(columns={_gcol:_ucol})
+        except: pass
         return combined
     target_year=int(year) if year else CURRENT_YEAR
     schedule_file=f'schedule_{target_year}.csv'
@@ -4000,6 +4028,68 @@ def render_season_news(year, week):
                 except: pass
 
                 _tone_s='dominated' if _hmg>=21 else ('edged' if _hmg<=7 else 'beat')
+
+                # ── Team CFP ranks for this game ──────────────────────────────
+                _w_rk=_safe_int(_hg.get('VIS_RANK' if _hvs>_hhs else 'HOME_RANK',''))
+                _l_rk=_safe_int(_hg.get('HOME_RANK' if _hvs>_hhs else 'VIS_RANK',''))
+                _w_rk_s=f"#{_w_rk} " if _w_rk and _w_rk<=136 else ""
+                _l_rk_s=f"#{_l_rk} " if _l_rk and _l_rk<=136 else ""
+
+                # ── Game line (FPI-based) ──────────────────────────────────────
+                _line_html=''
+                try:
+                    _fpi_f=f'FPI/fpi_ratings_{year}_wk{_display_week}.csv'
+                    if not os.path.exists(_fpi_f): _fpi_f=f'fpi_ratings_{year}_wk{_display_week}.csv'
+                    # Walk back if needed
+                    if not os.path.exists(_fpi_f):
+                        import glob as _lglob
+                        _fps=sorted(_lglob.glob(f'FPI/fpi_ratings_{year}_wk*.csv')+_lglob.glob(f'fpi_ratings_{year}_wk*.csv'),reverse=True)
+                        if _fps: _fpi_f=_fps[0]
+                    if os.path.exists(_fpi_f):
+                        _lfdf=pd.read_csv(_fpi_f); _lfdf.columns=[str(c).strip() for c in _lfdf.columns]
+                        _ltc=next((c for c in _lfdf.columns if c.lower()=='team'),None)
+                        _lfc=next((c for c in _lfdf.columns if c.upper()=='FPI'),None)
+                        if _ltc and _lfc:
+                            _lfmap=dict(zip(_lfdf[_ltc].astype(str).str.strip(),pd.to_numeric(_lfdf[_lfc],errors='coerce').fillna(0)))
+                            # visitor is _hvt, home is _hht
+                            _fv=float(_lfmap.get(_hvt,0) or 0); _fh=float(_lfmap.get(_hht,0) or 0)
+                            _raw_sp=(_fv-_fh)*0.65+3.0  # home adj for _hht
+                            _sp=max(-35.0,min(35.0,_raw_sp))
+                            if abs(_sp)>=1.5:
+                                _fav_t=_hvt if _sp>0 else _hht
+                                _spv=round(abs(_sp),1)
+                                _fav_c=_wc if _fav_t==_hw else _lc2
+                                _line_html=(f"<span style='color:{_fav_c};font-weight:900;'>{_ab(_fav_t)} -{int(_spv) if _spv==int(_spv) else _spv}</span>")
+                            else:
+                                _line_html="<span style='color:#fbbf24;font-weight:900;'>Pick'em</span>"
+                except: pass
+
+                # ── All-time series between these two users ────────────────────
+                _series_html=''
+                try:
+                    _gs2=pd.read_csv('game_summaries.csv') if os.path.exists('game_summaries.csv') else pd.DataFrame()
+                    if not _gs2.empty:
+                        _gs2.columns=[str(c).strip() for c in _gs2.columns]
+                        if 'VIS_USER' in _gs2.columns and 'HOME_USER' in _gs2.columns:
+                            _gs2_vu=_gs2['VIS_USER'].astype(str).str.strip()
+                            _gs2_hu=_gs2['HOME_USER'].astype(str).str.strip()
+                            # All games between these two users (both directions)
+                            _ser=_gs2[((_gs2_vu==_vis_u)&(_gs2_hu==_hom_u))|((_gs2_vu==_hom_u)&(_gs2_hu==_vis_u))].copy()
+                            if 'VIS_FINAL' in _gs2.columns and 'HOME_FINAL' in _gs2.columns:
+                                _ser['_vf']=pd.to_numeric(_ser['VIS_FINAL'],errors='coerce')
+                                _ser['_hf']=pd.to_numeric(_ser['HOME_FINAL'],errors='coerce')
+                                _ser=_ser.dropna(subset=['_vf','_hf'])
+                                # Count from _vis_u perspective
+                                _vis_wins=len(_ser[((_ser['VIS_USER'].astype(str).str.strip()==_vis_u)&(_ser['_vf']>_ser['_hf']))|((_ser['HOME_USER'].astype(str).str.strip()==_vis_u)&(_ser['_hf']>_ser['_vf']))])
+                                _hom_wins=len(_ser)-_vis_wins
+                                _wuser_ser=_vis_u if _hvs>_hhs else _hom_u
+                                _luser_ser=_hom_u if _hvs>_hhs else _vis_u
+                                _wser=_vis_wins if _vis_u==_wuser_ser else _hom_wins
+                                _lser=_hom_wins if _vis_u==_wuser_ser else _vis_wins
+                                _ser_c='#4ade80' if _wser>_lser else ('#f87171' if _lser>_wser else '#fbbf24')
+                                _series_html=f"<span style='color:{_ser_c};font-weight:900;'>{_wser}-{_lser}</span> all-time"
+                except: pass
+
                 _full_card=(
                     f"<div style='background:linear-gradient(135deg,{_wc}18 0%,#060a11 50%,{_lc2}12 100%);"
                     f"border:1px solid {_wc}44;border-left:4px solid #f97316;"
@@ -4008,23 +4098,27 @@ def render_season_news(year, week):
                     f"letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;'>⚔️ USER VS USER · WEEK {_display_week} RESULT</div>"
                     f"<div style='display:flex;align-items:center;gap:14px;'>"
                     # Winner side
-                    f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:76px;'>"
-                    f"{_wli}"
+                    f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:76px;'>"
+                    + (f"<div style='font-size:.52rem;color:#fbbf24;font-weight:900;font-family:Bebas Neue,sans-serif;'>{_w_rk_s.strip()}</div>" if _w_rk_s else '')
+                    + f"{_wli}"
                     f"<div style='font-size:.65rem;font-weight:900;color:{_wc};font-family:Barlow Condensed,sans-serif;letter-spacing:.03em;text-align:center;'>{html.escape(_ab(_hw))}</div>"
                     f"<div style='font-size:.48rem;color:#64748b;'>{html.escape(_hw_u)}</div>"
-                    f"<div style='font-size:.45rem;background:#4ade8022;color:#4ade80;border:1px solid #4ade8044;border-radius:3px;padding:1px 5px;font-weight:800;margin-top:1px;'>WIN</div>"
+                    f"<div style='font-size:.45rem;background:#4ade8022;color:#4ade80;border:1px solid #4ade8044;border-radius:3px;padding:1px 5px;font-weight:800;'>WIN</div>"
                     f"</div>"
-                    # Score center
+                    # Score + line + series center
                     f"<div style='flex:1;text-align:center;'>"
                     f"<div style='font-family:Bebas Neue,sans-serif;font-size:2.2rem;color:#f8fafc;letter-spacing:.04em;line-height:1;'>{_hws}<span style='font-size:1.2rem;color:#334155;'>-</span>{_hls}</div>"
                     f"<div style='font-size:.58rem;color:#475569;margin-top:2px;'>{html.escape(_hw)} {_tone_s} by {_hmg}</div>"
-                    f"</div>"
+                    + (f"<div style='font-size:.6rem;color:#64748b;margin-top:4px;'>Line: {_line_html}</div>" if _line_html else '')
+                    + (f"<div style='font-size:.6rem;color:#64748b;margin-top:3px;'>{html.escape(_hw_u)} leads series {_series_html}</div>" if _series_html else '')
+                    + f"</div>"
                     # Loser side
-                    f"<div style='display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;min-width:76px;'>"
-                    f"{_lli}"
+                    f"<div style='display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:76px;'>"
+                    + (f"<div style='font-size:.52rem;color:#fbbf24;font-weight:900;font-family:Bebas Neue,sans-serif;'>{_l_rk_s.strip()}</div>" if _l_rk_s else '')
+                    + f"{_lli}"
                     f"<div style='font-size:.65rem;font-weight:700;color:{_lc2};font-family:Barlow Condensed,sans-serif;letter-spacing:.03em;text-align:center;opacity:.85;'>{html.escape(_ab(_hl2))}</div>"
                     f"<div style='font-size:.48rem;color:#64748b;'>{html.escape(_hl_u)}</div>"
-                    f"<div style='font-size:.45rem;background:#1e293b;color:#475569;border:1px solid #334155;border-radius:3px;padding:1px 5px;font-weight:800;margin-top:1px;'>LOSS</div>"
+                    f"<div style='font-size:.45rem;background:#1e293b;color:#475569;border:1px solid #334155;border-radius:3px;padding:1px 5px;font-weight:800;'>LOSS</div>"
                     f"</div>"
                     f"</div>"
                     + _h2h_bs_html
