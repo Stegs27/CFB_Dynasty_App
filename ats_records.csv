@@ -20,6 +20,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,HOME_AWAY,TEAM_SCORE,OPP_SCORE,ACTUAL_MARGIN,SPREAD
 2043,3,Devin,Bowling Green,SMU,HOME,56,24,32,26.5,5.5,COVER,FAV,25.12,-11.06,fpi_ratings_2043_wk3.csv,False
 2043,4,Devin,Bowling Green,Georgia,AWAY,56,7,49,14.3,34.7,COVER,FAV,23.39,-3.21,fpi_ratings_2043_wk4.csv,False
 2043,6,Devin,Bowling Green,Ole Miss,HOME,49,10,39,12.7,26.3,COVER,FAV,25.2,10.22,fpi_ratings_2043_wk6.csv,False
+2043,7,Devin,Bowling Green,Miami,AWAY,42,17,25,2.4,22.6,COVER,FAV,27.56,19.25,fpi_ratings_2043_wk7.csv,False
 2042,1,Doug,Florida,Washington,HOME,56,21,35,3.0,32.0,COVER,FAV,0.0,0.0,none,False
 2042,2,Doug,Florida,NC State,HOME,43,26,17,3.0,14.0,COVER,FAV,0.0,0.0,none,False
 2042,4,Doug,Florida,Texas,HOME,38,35,3,3.0,0.0,PUSH,FAV,0.0,0.0,none,False
@@ -59,6 +60,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,HOME_AWAY,TEAM_SCORE,OPP_SCORE,ACTUAL_MARGIN,SPREAD
 2043,3,Josh,USF,Nebraska,AWAY,49,17,32,-9.2,41.2,COVER,DOG,9.39,18.94,fpi_ratings_2043_wk3.csv,False
 2043,5,Josh,USF,Georgia,AWAY,49,14,35,14.1,20.9,COVER,FAV,20.7,-5.67,fpi_ratings_2043_wk5.csv,False
 2043,6,Josh,USF,Missouri,HOME,49,13,36,22.0,14.0,COVER,FAV,20.97,-8.23,fpi_ratings_2043_wk6.csv,False
+2043,7,Josh,USF,Texas A&M,HOME,44,27,17,4.7,12.3,COVER,FAV,21.78,19.22,fpi_ratings_2043_wk7.csv,False
 2042,1,Mike,San Jose State,Stanford,HOME,71,61,10,3.0,7.0,COVER,FAV,0.0,0.0,none,False
 2042,2,Mike,San Jose State,Texas,AWAY,38,37,1,-3.0,4.0,COVER,DOG,0.0,0.0,none,False
 2042,3,Mike,San Jose State,Auburn,HOME,34,19,15,3.0,12.0,COVER,FAV,0.0,0.0,none,False
@@ -78,6 +80,7 @@ YEAR,WEEK,USER,TEAM,OPPONENT,HOME_AWAY,TEAM_SCORE,OPP_SCORE,ACTUAL_MARGIN,SPREAD
 2043,4,Mike,San Jose State,Ohio State,HOME,52,17,35,18.2,16.8,COVER,FAV,22.62,-0.78,fpi_ratings_2043_wk4.csv,False
 2043,5,Mike,San Jose State,Nebraska,HOME,54,42,12,12.7,-0.7,MISS,FAV,22.32,7.45,fpi_ratings_2043_wk5.csv,False
 2043,6,Mike,San Jose State,Michigan State,AWAY,38,26,12,14.6,-2.6,MISS,FAV,20.73,-6.4,fpi_ratings_2043_wk6.csv,False
+2043,7,Mike,San Jose State,Georgia Tech,HOME,35,24,11,15.2,-4.2,MISS,FAV,19.98,1.26,fpi_ratings_2043_wk7.csv,False
 2042,1,Nick,Florida State,North Carolina,HOME,56,35,21,3.0,18.0,COVER,FAV,0.0,0.0,none,False
 2042,2,Nick,Florida State,Nebraska,AWAY,21,43,-22,-3.0,-19.0,MISS,DOG,0.0,0.0,none,False
 2042,4,Nick,Florida State,South Carolina,AWAY,56,19,37,-3.0,40.0,COVER,DOG,0.0,0.0,none,False
@@ -118,3 +121,4 @@ YEAR,WEEK,USER,TEAM,OPPONENT,HOME_AWAY,TEAM_SCORE,OPP_SCORE,ACTUAL_MARGIN,SPREAD
 2043,3,Noah,Texas Tech,TCU,HOME,70,38,32,0.7,31.3,COVER,FAV,14.98,18.54,fpi_ratings_2043_wk3.csv,False
 2043,5,Noah,Texas Tech,USC,AWAY,70,42,28,16.4,11.6,COVER,FAV,20.36,-9.55,fpi_ratings_2043_wk5.csv,False
 2043,6,Noah,Texas Tech,Illinois,HOME,58,20,38,24.2,13.8,COVER,FAV,21.53,-11.02,fpi_ratings_2043_wk6.csv,False
+2043,7,Noah,Texas Tech,Hammond,AWAY,55,28,27,15.2,11.8,COVER,FAV,21.4,-6.66,fpi_ratings_2043_wk7.csv,False
