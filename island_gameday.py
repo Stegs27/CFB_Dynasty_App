@@ -4067,27 +4067,36 @@ def render_season_news(year, week):
                 # ── All-time series between these two users ────────────────────
                 _series_html=''
                 try:
-                    _gs2=pd.read_csv('game_summaries.csv') if os.path.exists('game_summaries.csv') else pd.DataFrame()
-                    if not _gs2.empty:
-                        _gs2.columns=[str(c).strip() for c in _gs2.columns]
-                        if 'VIS_USER' in _gs2.columns and 'HOME_USER' in _gs2.columns:
-                            _gs2_vu=_gs2['VIS_USER'].astype(str).str.strip()
-                            _gs2_hu=_gs2['HOME_USER'].astype(str).str.strip()
+                    # Use load_scores_master (schedule_*.csv + CPUscores_MASTER) for full history
+                    _ser_all=load_scores_master(multi_year=True)
+                    if not _ser_all.empty:
+                        _ser_all.columns=[str(c).strip() for c in _ser_all.columns]
+                        _svu=next((c for c in _ser_all.columns if 'VIS' in c.upper() and 'USER' in c.upper()),None)
+                        _shu=next((c for c in _ser_all.columns if 'HOME' in c.upper() and 'USER' in c.upper()),None)
+                        _svs=next((c for c in _ser_all.columns if 'VIS' in c.upper() and 'SCORE' in c.upper()),None)
+                        _shs=next((c for c in _ser_all.columns if 'HOME' in c.upper() and 'SCORE' in c.upper()),None)
+                        if _svu and _shu and _svs and _shs:
+                            _ser_all[_svu]=_ser_all[_svu].astype(str).str.strip()
+                            _ser_all[_shu]=_ser_all[_shu].astype(str).str.strip()
+                            _ser_all[_svs]=pd.to_numeric(_ser_all[_svs],errors='coerce')
+                            _ser_all[_shs]=pd.to_numeric(_ser_all[_shs],errors='coerce')
                             # All games between these two users (both directions)
-                            _ser=_gs2[((_gs2_vu==_vis_u)&(_gs2_hu==_hom_u))|((_gs2_vu==_hom_u)&(_gs2_hu==_vis_u))].copy()
-                            if 'VIS_FINAL' in _gs2.columns and 'HOME_FINAL' in _gs2.columns:
-                                _ser['_vf']=pd.to_numeric(_ser['VIS_FINAL'],errors='coerce')
-                                _ser['_hf']=pd.to_numeric(_ser['HOME_FINAL'],errors='coerce')
-                                _ser=_ser.dropna(subset=['_vf','_hf'])
-                                # Count from _vis_u perspective
-                                _vis_wins=len(_ser[((_ser['VIS_USER'].astype(str).str.strip()==_vis_u)&(_ser['_vf']>_ser['_hf']))|((_ser['HOME_USER'].astype(str).str.strip()==_vis_u)&(_ser['_hf']>_ser['_vf']))])
-                                _hom_wins=len(_ser)-_vis_wins
-                                _wuser_ser=_vis_u if _hvs>_hhs else _hom_u
-                                _luser_ser=_hom_u if _hvs>_hhs else _vis_u
-                                _wser=_vis_wins if _vis_u==_wuser_ser else _hom_wins
-                                _lser=_hom_wins if _vis_u==_wuser_ser else _vis_wins
+                            _ser=_ser_all[
+                                ((_ser_all[_svu]==_vis_u)&(_ser_all[_shu]==_hom_u)) |
+                                ((_ser_all[_svu]==_hom_u)&(_ser_all[_shu]==_vis_u))
+                            ].dropna(subset=[_svs,_shs]).copy()
+                            # Count wins for each user
+                            _vis_wins=len(_ser[
+                                ((_ser[_svu]==_vis_u)&(_ser[_svs]>_ser[_shs])) |
+                                ((_ser[_shu]==_vis_u)&(_ser[_shs]>_ser[_svs]))
+                            ])
+                            _hom_wins=len(_ser)-_vis_wins
+                            _wuser_ser=_vis_u if _hvs>_hhs else _hom_u
+                            _wser=_vis_wins if _vis_u==_wuser_ser else _hom_wins
+                            _lser=_hom_wins if _vis_u==_wuser_ser else _vis_wins
+                            if _wser+_lser>0:
                                 _ser_c='#4ade80' if _wser>_lser else ('#f87171' if _lser>_wser else '#fbbf24')
-                                _series_html=f"<span style='color:{_ser_c};font-weight:900;'>{_wser}-{_lser}</span> all-time"
+                                _series_html=f"<span style='color:{_ser_c};font-weight:900;'>{_wser}-{_lser}</span> all-time ({_wser+_lser} games)"
                 except: pass
 
                 _full_card=(
