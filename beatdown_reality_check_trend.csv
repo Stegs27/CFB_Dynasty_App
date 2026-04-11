@@ -122,3 +122,9 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2043,7,Josh,USF,Texas A&M,W,44,27,17.0,24.43,-7.43,2.0,0.5,0.5,90.53,Should've Beat Their Ass,96.84,-9.47,False,False,False,True,False
 2043,7,Mike,San Jose State,Georgia Tech,W,35,24,11.0,1.88,9.12,2.0,0.5,0.5,58.72,We Got Away With One,66.89,4.44,False,False,True,False,False
 2043,7,Noah,Texas Tech,Hammond,W,55,28,27.0,31.97,-4.97,-2.0,0.5,0.5,100.0,Score Told the Truth,100.0,0.0,False,False,False,False,False
+2043,8,Devin,Bowling Green,Oklahoma,W,49,9,40.0,35.0,5.0,2.0,0.5,0.5,100.0,Score Told the Truth,100.0,0.0,False,False,False,False,False
+2043,8,Doug,Florida,San Jose State,L,28,69,-41.0,-35.0,-6.0,2.0,0.5,0.5,0.0,Score Told the Truth,64.58,-93.74,False,False,False,False,True
+2043,8,Josh,USF,LSU,W,49,14,35.0,33.64,1.36,2.0,0.5,0.5,100.0,Score Told the Truth,96.84,9.47,False,False,False,False,False
+2043,8,Mike,San Jose State,Florida,W,69,28,41.0,35.0,6.0,-2.0,0.5,0.5,100.0,Score Told the Truth,71.0,41.28,False,False,True,False,False
+2043,8,Nick,Florida State,Texas A&M,W,35,6,29.0,29.57,-0.57,2.0,0.5,0.5,100.0,Score Told the Truth,100.0,0.0,False,False,False,False,False
+2043,8,Noah,Texas Tech,Wisconsin,W,45,10,35.0,35.0,0.0,-2.0,0.5,0.5,100.0,Score Told the Truth,100.0,0.0,False,False,False,False,False
