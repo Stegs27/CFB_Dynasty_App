@@ -1,32 +1,33 @@
 Year,Week,User,Team,Player,Pos,OVR,Injury,WeeksOut,Status,IsStarter
-2041,,Mike,San Jose State,M.Shorter,QB,85,Torn Pectoral,27,Out,Yes
-2041,,Mike,San Jose State,D.Caplan,LT,86,Broken Collarbone,4,Out,Yes
-2041,,Noah,Texas Tech,K.Cota,LT,82,Knee Cartilage Tear,2,Out,Yes
-2041,,Josh,USF,T.Christmas,RG,76,Dislocated Hip,4,Out,Yes
 2041,,Devin,Bowling Green,B.Franco,DT,84,Torn Pectoral,24,Out,Yes
 2041,,Doug,Florida,S.Ivie,LEDG,80,Dislocated Hip,1,Out,Yes
 2041,,Doug,Florida,R.Casey,MIKE,87,Fractured Shoulder Blade,14,Out,Yes
 2041,,Nick,Florida State,S.Winterswyk,QB,80,Dislocated Elbow,3,Out,Yes
 2041,,Nick,Florida State,J.Fe'esago,WR,90,Torn Pectoral,20,Out,Yes
+2041,,Mike,San Jose State,M.Shorter,QB,85,Torn Pectoral,27,Out,Yes
+2041,,Mike,San Jose State,D.Caplan,LT,86,Broken Collarbone,4,Out,Yes
+2041,,Noah,Texas Tech,K.Cota,LT,82,Knee Cartilage Tear,2,Out,Yes
+2041,,Josh,USF,T.Christmas,RG,76,Dislocated Hip,4,Out,Yes
 2042,0,,,,,0,,,,
+2042,4,Devin,Bowling Green,S. Fogg,LT,85,Torn Labrum,3,Out,Yes
 2042,4,Mike,San Jose State,A. Wint,C,81,Dislocated Elbow,1,Out,Yes
 2042,4,Mike,San Jose State,E. McDaniels,HB,84,Broken Collarbone,7,Out,Yes
-2042,4,Devin,Bowling Green,S. Fogg,LT,85,Torn Labrum,3,Out,Yes
 2042,6,Noah,Texas Tech,M. Williams,HB,86,Complete MCL Tear,29,Out,Yes
 2042,7,Doug,Florida,M. Coale,C,91,Broken Collarbone,7,Out,Yes
 2042,10,Doug,Florida,P. Iwuagwu,DT,84,Torn Labrum,1,Out,Yes
 2042,10,Mike,San Jose State,E. Quincy,SS,82,Torn Pectoral,36,Out,Yes
 2042,11,Doug,Florida,L. Muma,HB,76,Torn Labrum,4,Out,No
 2042,12,Devin,Bowling Green,Kareem Alston,HB,95,Broken Collarbone,7,Out,Yes
-2043,2,Josh,USF,J.Abdesmad,LT,84,Fractured Shoulder Blade,19,Out,Yes
 2043,2,Mike,San Jose State,A. Costanzo,SAM,85,Broken Collarbone,6,Out,Yes
+2043,2,Josh,USF,J.Abdesmad,LT,84,Fractured Shoulder Blade,19,Out,Yes
+2043,3,Nick,Florida State,M. Mbu,HB,86,Ruptured Disk,7,Out,Yes
 2043,3,Mike,San Jose State,E. Quincy,SS,84,Broken Fibula,27,Out,Yes
 2043,3,Josh,USF,K. McCleod,MIKE,75,Dislocated Hip,13,Out,No
-2043,3,Nick,Florida State,M. Mbu,HB,86,Ruptured Disk,7,Out,Yes
 2043,4,Nick,Florida State,T. Streeter,RG,84,Fractured Shoulder Blade,17,Out,Yes
 2043,5,Doug,Florida,P. Iwuagwu,DT,87,Torn Rotator Cuff,18,Out,Yes
 2043,6,Josh,USF,J. Brutley,DT,75,Torn Labrum,3,,No
+2043,7,Doug,Florida,P. Stacy,DT,79,Dislocated Ankle,7,,No
 2043,7,Mike,San Jose State,B. Bruce,RT,81,Abdominal Tear,3,,Yes
 2043,7,Mike,San Jose State,M. Graziani,LG,80,Foot Fracture,3,,Yes
-2043,7,Doug,Florida,P. Stacy,DT,79,Dislocated Ankle,7,,No
 2043,8,Devin,Bowling Green,A. Mills,LEDG,85,Dislocated Hip,7,,Yes
+2043,9,Doug,Florida,G. Idonije,WR,82,Broken Collarbone,7,,Yes
