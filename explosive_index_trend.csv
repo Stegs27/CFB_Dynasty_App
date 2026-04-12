@@ -134,3 +134,9 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,off_explosive_index,off
 2043,9,Mike,San Jose State,Oregon,W,63,20,100.0,Detonation Machine,94.41,0.0,44.33,Wet Paper Bag,36.32,23.0,True,True,True,False,False,False,False,False,False
 2043,9,Nick,Florida State,Auburn,W,41,39,88.26,Detonation Machine,84.71,11.16,30.21,Wet Paper Bag,60.98,-32.59,False,False,True,False,False,False,True,False,False
 2043,9,Noah,Texas Tech,Indiana,W,70,13,100.0,Detonation Machine,100.0,0.0,97.89,Steel Curtain,68.92,15.56,True,True,False,False,True,True,False,False,False
+2043,10,Devin,Bowling Green,LSU,W,56,12,100.0,Detonation Machine,100.0,0.0,66.46,Vice Grip,74.22,10.26,True,False,True,False,False,False,False,False,False
+2043,10,Doug,Florida,Georgia,W,56,10,100.0,Detonation Machine,92.77,0.0,81.4,Clamp Unit,50.91,10.08,False,False,False,False,True,False,False,False,False
+2043,10,Josh,USF,Auburn,W,42,21,77.84,Missile Battery,87.09,-22.16,55.91,Bend Don’t Break,61.71,-23.54,False,False,False,False,False,False,False,False,False
+2043,10,Mike,San Jose State,Wisconsin,W,35,28,77.64,Missile Battery,92.55,-22.36,42.32,Wet Paper Bag,35.99,-2.01,True,False,False,False,False,False,False,False,False
+2043,10,Nick,Florida State,Tennessee,W,42,20,88.16,Detonation Machine,84.51,-0.1,34.01,Wet Paper Bag,42.34,3.8,True,False,False,False,False,False,False,False,False
+2043,10,Noah,Texas Tech,Notre Dame,W,70,52,100.0,Detonation Machine,100.0,0.0,0.0,Wet Paper Bag,60.07,-97.89,True,True,False,False,False,False,True,True,True
