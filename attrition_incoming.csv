@@ -329,53 +329,60 @@ Year,User,Team,RecruitSlot,Name,Pos,HT,WT,ClassLabel,RecruitType,State,StarRatin
 2042,Josh,USF,31,D. Fry,HB,"6'0""",185,JUCO (SO),JUCO,FL,3,"1,361",182,158,,
 2043,Devin,Bowling Green,1,O. Diehl,QB,"6'0""",196,HS,HS,LA,5,8,2,1,,11
 2043,Devin,Bowling Green,2,N. Mafe,WR,"6'2""",175,HS,HS,PA,4,40,7,1,,11
+2043,Doug,Florida,1,G. Droogsma,WILL,"6'5""",227,HS,HS,GA,5,4,1,1,,10
+2043,Doug,Florida,1,E. Flynn,MIKE,"6'0""",225,HS,HS,FL,5,13,1,2,,7
+2043,Nick,Florida State,1,M. Dugans,QB,"6'6""",181,HS,HS,CA,5,2,1,1,,9
+2043,Nick,Florida State,1,B. Tolbert,WILL,"6'2""",220,HS,HS,FL,4,185,26,20,,8
+2043,Mike,San Jose State,1,J. Clemens,FS,"6'0""",206,HS,HS,UT,5,5,2,1,,10
+2043,Mike,San Jose State,2,G. Wisniewski,CB,"5'11""",196,HS,HS,HI,5,9,2,1,,12
+2043,Mike,San Jose State,2,E. Hardy,RT,"6'7""",323,HS,HS,OH,5,10,3,1,,11
+2043,Noah,Texas Tech,1,M. Santos,WR,"6'4""",190,HS,HS,TX,5,18,2,2,,7
+2043,Josh,USF,1,J. Ellington,RT,"6'5""",292,HS,HS,FL,5,6,2,1,,9
+2043,Josh,USF,2,P. Earl,RT,"6'6""",323,HS,HS,NC,5,20,4,1,2,12
+2043,Josh,USF,1,L. Ogden,FS,"5'11""",190,HS,HS,IL,5,23,4,1,,8
 2043,Devin,Bowling Green,1,C. Wallow,LT,"6'7""",311,HS,HS,VA,4,61,9,3,,7
 2043,Devin,Bowling Green,2,J. Freeman,SS,"5'10""",208,HS,HS,TX,4,225,3,22,,8
 2043,Devin,Bowling Green,3,M. Dicker,SS,"5'10""",206,HS,HS,IL,4,233,4,8,,8
-2043,Devin,Bowling Green,2,Q. Ihenacho,REDG,"6'6""",248,HS,HS,IN,4,247,24,7,,7
-2043,Devin,Bowling Green,5,A. Angel,CB,"6'1""",168,HS,HS,IN,4,248,20,8,,9
-2043,Devin,Bowling Green,6,J. Scharping,DT,"6'1""",287,HS,HS,CA,4,270,13,25,,9
-2043,Devin,Bowling Green,3,S. Bull,HB,"5'9""",191,HS,HS,OH,4,271,30,15,,7
-2043,Doug,Florida,1,G. Droogsma,WILL,"6'5""",227,HS,HS,GA,5,4,1,1,,10
-2043,Doug,Florida,1,E. Flynn,MIKE,"6'0""",225,HS,HS,FL,5,13,1,2,,7
 2043,Doug,Florida,3,B. Hitchens,C,"6'4""",288,HS,HS,FL,4,66,1,7,,11
-2043,Doug,Florida,2,B. Pounds,CB,"6'2""",214,HS,HS,FL,4,87,9,9,,7
-2043,Doug,Florida,3,A. Igwebuike,WILL,"6'4""",219,HS,HS,FL,4,103,12,14,,7
-2043,Doug,Florida,6,C. Otero,FS,"6'3""",205,HS,HS,FL,4,123,12,15,,11
-2043,Nick,Florida State,1,M. Dugans,QB,"6'6""",181,HS,HS,CA,5,2,1,1,,9
-2043,Nick,Florida State,1,B. Tolbert,WILL,"6'2""",220,HS,HS,FL,4,185,26,20,,8
 2043,Nick,Florida State,2,J. Payne,SS,"6'0""",203,HS,HS,FL,4,211,1,25,,8
-2043,Nick,Florida State,4,R. Calcaterra,RG,"6'2""",301,HS,HS,MD,4,239,17,2,,11
-2043,Nick,Florida State,3,D. Tripucka,WR,"6'5""",203,HS,HS,FL,4,278,42,32,,8
-2043,Nick,Florida State,5,S. Hickok,WR,"6'1""",167,HS,HS,CA,4,300,49,27,,10
-2043,Nick,Florida State,5,A. Watford,CB,"5'10""",190,HS,HS,FL,4,347,26,44,,9
-2043,Nick,Florida State,6,L. Dalton,C,"6'1""",276,HS,HS,MO,4,362,10,3,,9
-2043,Nick,Florida State,4,J. Hyde,TE,"6'4""",202,HS,HS,FL,3,"1,359",67,170,,8
-2043,Mike,San Jose State,1,J. Clemens,FS,"6'0""",206,HS,HS,UT,5,5,2,1,,10
-2043,Mike,San Jose State,2,E. Hardy,RT,"6'7""",323,HS,HS,OH,5,10,3,1,,11
 2043,Mike,San Jose State,1,I. Palepoi,LG,"6'2""",319,HS,HS,MI,5,28,1,3,,8
 2043,Mike,San Jose State,1,R. Potts,HB,"5'9""",166,HS,HS,IN,4,45,2,1,,7
 2043,Mike,San Jose State,4,L. Biadasz,REDG,"6'5""",224,HS,HS,IL,4,89,9,4,,9
-2043,Mike,San Jose State,3,T. Chillar,QB,"6'3""",199,HS,HS,CO,4,114,10,2,,8
-2043,Mike,San Jose State,4,B. Hagans,WR,"5'11""",162,HS,HS,KY,4,130,24,5,,8
-2043,Mike,San Jose State,2,T. Officer,HB,"5'11""",188,HS,HS,CA,4,214,26,17,,7
-2043,Mike,San Jose State,8,D. Shackelford,FS,"6'2""",193,HS,HS,NV,4,299,14,2,,10
-2043,Mike,San Jose State,6,M. Tauaefa,TE,"6'4""",230,HS,HS,CA,4,364,17,36,,8
-2043,Noah,Texas Tech,1,M. Santos,WR,"6'4""",190,HS,HS,TX,5,18,2,2,,7
 2043,Noah,Texas Tech,2,S. Darling,FS,"6'3""",187,HS,HS,TX,5,27,5,3,,10
 2043,Noah,Texas Tech,2,B. Hoke,LT,"6'5""",295,HS,HS,TX,4,187,19,17,,9
-2043,Noah,Texas Tech,3,J. Mullen,HB,"6'1""",205,HS,HS,TX,4,206,23,19,,9
-2043,Noah,Texas Tech,5,L. Marable,REDG,"6'3""",242,HS,HS,TX,4,207,18,20,,10
-2043,Noah,Texas Tech,6,R. Luck,WR,"6'2""",201,HS,HS,OH,4,290,47,16,,11
-2043,Josh,USF,1,J. Ellington,RT,"6'5""",292,HS,HS,FL,5,6,2,1,,9
-2043,Josh,USF,1,L. Ogden,FS,"5'11""",190,HS,HS,IL,5,23,4,1,,8
 2043,Josh,USF,3,T. Levine,WILL,"6'1""",226,HS,HS,VA,5,24,3,2,,9
+2043,Josh,USF,5,B. Addae,WR,"6'1""",169,HS,HS,MI,5,31,3,4,,12
+2043,Devin,Bowling Green,2,Q. Ihenacho,REDG,"6'6""",248,HS,HS,IN,4,247,24,7,,7
+2043,Devin,Bowling Green,5,A. Angel,CB,"6'1""",168,HS,HS,IN,4,248,20,8,,9
+2043,Doug,Florida,2,B. Pounds,CB,"6'2""",214,HS,HS,FL,4,87,9,9,,7
+2043,Doug,Florida,3,A. Igwebuike,WILL,"6'4""",219,HS,HS,FL,4,103,12,14,,7
+2043,Nick,Florida State,4,R. Calcaterra,RG,"6'2""",301,HS,HS,MD,4,239,17,2,,11
+2043,Mike,San Jose State,7,R. Stacy,RT,"6'8""",284,HS,HS,CA,4,107,12,9,,12
+2043,Noah,Texas Tech,3,J. Mullen,HB,"6'1""",205,HS,HS,TX,4,206,23,19,,9
 2043,Josh,USF,1,J. Raimann,TE,"6'5""",256,HS,HS,AR,4,76,3,2,,7
+2043,Nick,Florida State,3,D. Tripucka,WR,"6'5""",203,HS,HS,FL,4,278,42,32,,8
+2043,Nick,Florida State,5,S. Hickok,WR,"6'1""",167,HS,HS,CA,4,300,49,27,,10
+2043,Mike,San Jose State,3,T. Chillar,QB,"6'3""",199,HS,HS,CO,4,114,10,2,,8
+2043,Mike,San Jose State,4,B. Hagans,WR,"5'11""",162,HS,HS,KY,4,130,24,5,,8
 2043,Josh,USF,2,L. Davis,WR,"5'7""",188,HS,HS,SC,4,79,13,3,,7
+2043,Devin,Bowling Green,6,J. Scharping,DT,"6'1""",287,HS,HS,CA,4,270,13,25,,9
+2043,Nick,Florida State,5,A. Watford,CB,"5'10""",190,HS,HS,FL,4,347,26,44,,9
+2043,Nick,Florida State,6,L. Dalton,C,"6'1""",276,HS,HS,MO,4,362,10,3,,9
+2043,Noah,Texas Tech,5,L. Marable,REDG,"6'3""",242,HS,HS,TX,4,207,18,20,,10
 2043,Josh,USF,3,T. Strong,REDG,"6'5""",267,HS,HS,FL,4,191,16,23,,7
 2043,Josh,USF,7,J. Brown,LEDG,"6'6""",241,HS,HS,FL,4,221,20,28,,11
+2043,Devin,Bowling Green,3,S. Bull,HB,"5'9""",191,HS,HS,OH,4,271,30,15,,7
+2043,Doug,Florida,6,C. Otero,FS,"6'3""",205,HS,HS,FL,4,123,12,15,,11
+2043,Nick,Florida State,4,J. Hyde,TE,"6'4""",202,HS,HS,FL,3,"1,359",67,170,,8
+2043,Mike,San Jose State,10,J. Colman,QB,"6'4""",206,HS,HS,IL,4,170,13,7,,12
+2043,Noah,Texas Tech,6,R. Luck,WR,"6'2""",201,HS,HS,OH,4,290,47,16,,11
 2043,Josh,USF,7,K. Larson,WR,"6'4""",198,HS,HS,FL,4,237,37,29,,10
-2043,Josh,USF,5,J. Motes,MIKE,"6'0""",233,HS,HS,,4,258,17,30,,8
+2043,Josh,USF,5,J. Motes,MIKE,"6'0""",233,HS,HS,FL,4,258,17,30,,8
+2043,Doug,Florida,7,B. Edmond,CB,"6'1""",197,HS,HS,FL,4,285,22,34,,12
+2043,Mike,San Jose State,2,T. Officer,HB,"5'11""",188,HS,HS,CA,4,214,26,17,,7
 2043,Josh,USF,8,M. Fouts,CB,"6'2""",175,HS,HS,FL,4,323,24,40,,9
-2043,Josh,USF,6,C. Junior,RG,"6'2""",312,HS,HS,,4,327,22,11,,8
+2043,Josh,USF,6,C. Junior,RG,"6'2""",312,HS,HS,NC,4,327,22,11,,8
+2043,Mike,San Jose State,8,D. Shackelford,FS,"6'2""",193,HS,HS,NV,4,299,14,2,,10
+2043,Josh,USF,14,P. Hajrullahu,LG,"6'5""",293,HS,HS,GA,4,346,23,34,,12
+2043,Mike,San Jose State,6,M. Tauaefa,TE,"6'4""",230,HS,HS,CA,4,364,17,36,,8
 2043,Josh,USF,4,L. Morey,WILL,"6'4""",216,HS,HS,FL,4,352,38,45,,7
