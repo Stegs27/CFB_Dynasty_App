@@ -140,3 +140,8 @@ YEAR,WEEK,USER,TEAM,OPPONENT,RESULT,TEAM_SCORE,OPP_SCORE,margin_diff,truth_margi
 2043,10,Mike,San Jose State,Wisconsin,W,35,28,7.0,23.79,-16.79,2.0,0.5,0.5,80.1,Score Lied for Them,93.37,-19.9,False,True,False,True,False
 2043,10,Nick,Florida State,Tennessee,W,42,20,22.0,26.83,-4.83,2.0,0.5,0.5,97.87,Score Told the Truth,88.14,31.33,False,False,False,False,False
 2043,10,Noah,Texas Tech,Notre Dame,W,70,52,18.0,14.69,3.31,2.0,0.5,0.5,81.66,Score Told the Truth,93.89,-18.34,False,False,False,False,False
+2043,11,Devin,Bowling Green,Florida State,L,34,35,-1.0,8.01,-9.01,2.0,0.5,0.5,55.98,Should've Beat Their Ass,85.33,-44.02,False,False,False,False,False
+2043,11,Doug,Florida,Wisconsin,W,34,20,14.0,12.77,1.23,-2.0,0.5,0.5,78.03,Score Told the Truth,92.68,-21.97,False,False,False,False,False
+2043,11,Josh,USF,Alabama,W,48,27,21.0,29.56,-8.56,-2.0,0.5,0.5,100.0,Should've Beat Their Ass,96.62,10.15,False,False,False,True,False
+2043,11,Nick,Florida State,Bowling Green,W,35,34,1.0,-8.01,9.01,-2.0,0.5,0.5,44.02,We Got Away With One,69.48,-53.85,False,False,True,False,False
+2043,11,Noah,Texas Tech,Minnesota,W,58,10,48.0,35.0,13.0,-2.0,0.5,0.5,100.0,We Got Away With One,93.89,18.34,True,False,True,False,False
